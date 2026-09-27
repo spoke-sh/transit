@@ -34,6 +34,13 @@ deadline budgets are explicit endpoint configuration. A callback seals each
 bounded capture segment before its buffer is reused. Capture failure or timeout
 does not prove the remote operation failed.
 
+TLS uses [transit-tls](../transit-tls/README.md), which adds bounded whole-chain
+certificate verification to the pinned compiler's client. The independent peer
+suite accepts valid TLS 1.2/1.3 chains and rejects non-CA signers, missing signing
+usage, exceeded path length, wrong server purpose and excluded DNS names before
+HTTP request bytes. The socket is dedicated to one exchange; neither TLS nor HTTP
+can reconnect or retry it. This does not add certificate revocation lookups.
+
 The final capture includes timing, omission counts and protocol coverage with
 status/body counts. `Replay.open`/`read` composes current-grant reads, shared digest
 verification and bounded HTTP record validation. Prefixes remain provisional until

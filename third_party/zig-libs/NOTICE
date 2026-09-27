@@ -1,0 +1,203 @@
+zig-libs
+Copyright (c) 2026 zig-libs contributors
+Licensed under the MIT License (see LICENSE).
+
+This file answers ONE question: is zig-libs, AS A WHOLE, still plain MIT? §1
+answers it and states the rule that keeps the answer true; §0 says which
+relationships to third-party work are capable of changing it. It is NOT an
+index of the collection's provenance, and since 2026-09-06 it is not an index
+of the modules that carry their own attribution either — both live at the
+module that has them (§1, §2). A module's internal development origin — which
+of the authors' own projects it was first prototyped in — is not recorded
+anywhere: it carries no attribution weight and would read backwards once those
+projects import zig-libs.
+
+====================================================================
+0. POLICY — what each relationship to third-party work requires
+====================================================================
+
+What creates an obligation is third-party source or third-party data travelling
+with this code — not the act of implementing a published specification from its
+prose. Accordingly:
+
+  - A module that is pure clean-room-from-a-public-spec/RFC, with NO
+    third-party source code ported and NO third-party implementation studied as
+    a design reference, needs NO file of its own. Its RFC/spec citation lives
+    in the module's own SPEC.md instead — see e.g. whois (RFC 3912), rdap
+    (RFC 7480-family), tar (POSIX ustar + documented GNU extensions).
+  - Third-party source actually ported/translated, or third-party DATA
+    reproduced, requires its license terms reproduced — in
+    `modules/<name>/NOTICE`, beside the files, so the notice travels with what
+    owes it. Never in this file, and this file does not enumerate those modules
+    either; §1 says how they are found instead.
+  - A DESIGN REFERENCE — a named third-party implementation consulted for
+    behavior, algorithm shape, or API design, with no source copied — is
+    recorded for provenance so any future line-level reuse is caught, WITH ITS
+    UPSTREAM LICENSE NAME. These are records, not conditions, and they live at
+    the module (§2), never here: a repository-level file that also catalogues
+    84 modules' design references stops being readable as the answer to "what
+    do I owe?", which is the only question it exists to answer.
+  - Exercising an installed third-party binary purely as a black-box
+    compatibility test oracle (e.g. running `tar`/`nft` and diffing output
+    against this module's own encoder/decoder) is neither of the above and
+    needs no entry — no source or design was consulted, only the program's
+    observable behavior against its own documented format. This covers
+    CAPTURING that output once and committing it as a golden fixture, not only
+    invoking the tool live: `tar`'s `write_golden_*.tar` are GNU tar's bytes
+    wrapped around a `hello.txt` we wrote, and freezing them so the test needs
+    no subprocess changes nothing about who authored what. The clause was
+    written for live invocation, and this sentence exists because two
+    independent readings in the 2026-08-12 audit found it did not literally
+    reach the frozen case.
+
+    THE LINE THIS DOES NOT CROSS. The exemption holds when the captured
+    artifact is OUR content in the tool's format. It stops the moment the
+    artifact also carries content the tool itself authored — a stock template,
+    a default stylesheet, generated boilerplate — since that is no longer
+    merely "the program's observable behavior" on our input. `zipstream`'s
+    `xlsx_sample.xlsx` is exactly that case and is why the module carries its
+    own provenance note: most of its bytes are LibreOffice's default theme and
+    style tables, not ours. It equally stops at data that was never observed
+    from a running program at all — numbers read out of an upstream source file
+    by a script are reproduced data, not oracle output; `rescue` is that case.
+    When in doubt, open the artifact; a fixture's description of itself is a
+    claim, not a verification.
+
+  - QUOTED RFC TEXT is covered by a written grant, and this is the repository's
+    acknowledgement of it. The IETF Trust's Legal Provisions (TLP 5.0 §3.c.iii)
+    permit copying unmodified portions of an RFC "provided that each such
+    portion is clearly attributed to IETF and identifies the RFC". This
+    collection cites 290 distinct RFCs and every citation names the RFC and the
+    section it comes from — but until 2026-09-09 the word "IETF" appeared
+    nowhere at repository level, so the condition was being met only by
+    implication. It is met explicitly now: **RFC text quoted anywhere in this
+    repository is the IETF's, reproduced under TLP 5.0 §3.c.iii, and each
+    quotation identifies the RFC it came from.**
+
+    Extent, measured rather than asserted (2026-09-09): the largest single
+    contiguous reproduction in the tree is the WebSocket frame diagram from RFC
+    6455 §5.2, in `modules/websocket/src/frame.zig` — 926 bytes against that
+    RFC's 162 067, i.e. **0.57 % of the document**, with 12 of its 17 lines
+    byte-identical upstream. Nothing here comes near the "one fifth" figure at
+    which TLP asks for full legends.
+
+  - RFC TEST VECTORS AND REFERENCE CODE are a different thing from quoted text:
+    they are Code Components, granted under TLP 5.0 §4.c's Revised BSD licence.
+    About two dozen modules carry them, each in a vector or KAT file that names
+    the RFC and section it came from. Until 2026-09-18 the licence was
+    reproduced only at five of them (`mls`, `cbor`, `decaf448`, `jwt`,
+    `ctap2pin`, which keep their copies); it is reproduced here once for all of
+    them, and a new module with RFC vectors needs no file of its own for it.
+    For each RFC so named:
+
+    Copyright (c) IETF Trust and the persons identified as the authors of
+    that RFC. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions
+    are met:
+
+    1. Redistributions of source code must retain the above copyright
+       notice, this list of conditions and the following disclaimer.
+
+    2. Redistributions in binary form must reproduce the above
+       copyright notice, this list of conditions and the following
+       disclaimer in the documentation and/or other materials provided
+       with the distribution.
+
+    3. Neither the name of Internet Society, IETF or IETF Trust, nor
+       the names of specific contributors, may be used to endorse or
+       promote products derived from this software without specific
+       prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+    COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+    HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+    OF THE POSSIBILITY OF SUCH DAMAGE.
+
+    The condition is "keep the notice" and nothing else; it restricts nothing
+    about how this collection is used, and the collection stays MIT. This file
+    ships in the package (`build.zig.zon` `.paths`), so the notice travels with
+    every module that carries such vectors.
+
+====================================================================
+1. IS THE WHOLE LIBRARY STILL PLAIN MIT?
+====================================================================
+
+YES. zig-libs is distributed under the MIT License and carries no
+redistribution condition of its own beyond it. Nothing in this file adds one.
+
+**Code or data whose own licence is copyleft — GPL, LGPL, AGPL, or anything
+else that would attach its terms to the distribution as a whole — is a DEFECT,
+not a paperwork item.** It is removed, not documented. There is no entry in
+this file, and no wording anywhere else, that makes such material acceptable:
+the remedy is to delete it and re-implement what it did. That is the whole of
+what this section is for. If the answer above ever becomes "no", the answer is
+not amended here — the cause is taken out of the tree.
+
+WHY THERE IS NO LONGER A LIST HERE (policy change, 2026-09-06). This section
+used to enumerate the modules that carry their own `modules/<name>/NOTICE` —
+twenty-six paths, maintained by hand. That enumeration is gone. A module that
+ports third-party material has a legal question of its OWN, and it is
+discharged where the material is, by the module's own NOTICE; restating which
+modules those are made this file an index of somebody else's obligations
+rather than an answer about the library, and made every new attribution file a
+two-file edit whose second half was silently forgettable. This file is now
+reserved for the one case that would oblige a change to the WHOLE library —
+and per the rule above, that case is a defect to be removed, not an entry to
+be added.
+
+HOW TO FIND A MODULE'S OBLIGATION, now that nothing here points at it. Every
+`modules/<name>/NOTICE` declares its kind on its own FIRST LINE:
+
+    <name> — third-party attribution      carries a CONDITION
+    <name> — provenance note              record only, no condition
+
+so the condition-bearing files are enumerated by reading first lines rather
+than by trusting an index — `head -1 modules/*/NOTICE` is the entire query,
+and `zig build check-catalog` holds every such file's first line to exactly
+one of those two shapes, which is what makes the query sound. Every condition
+so far is the same one: keep the notice with the files. If you redistribute a
+module, ship its NOTICE with it.
+
+WHAT ENFORCES THE RULE ABOVE. `zig build check-copyleft` reads each shipped
+file's OWN licence declaration — an `SPDX-License-Identifier:` naming a
+copyleft licence, or an FSF grant paragraph — rather than searching for the
+string "GPL", because naming a copyleft licence is not the defect and being
+under one is. Two things in this tree say "GPL" and neither is a violation:
+`modules/ebpf/src/testdata/*.bpf.c` set `_license = "GPL"`, which is a value
+the kernel's BPF verifier reads to decide which helpers a program may call and
+not a copyright notice (`modules/ebpf/README.md` explains it), and
+`modules/poseidon` names LGPL-3.0 circomlib as a comparison ORACLE it runs
+against, shipping none of it.
+
+====================================================================
+2. DESIGN REFERENCES — recorded at the module, not here
+====================================================================
+
+Design references live at the module that has them: in
+`modules/<name>/README.md`'s `Provenance:` statement — the default, and the
+only provenance location `zig build check-catalog` reads — or, when the record
+needs more than a paragraph or makes a licensing argument that must not be
+compressed, in a `modules/<name>/NOTICE` provenance note. They moved out of
+this file on 2026-08-14, where they had run to ~1000 lines indexing 84 modules.
+`modules/<name>/SPEC.md` is deliberately NOT a destination: it is the
+verification-methodology file, and it is where "studied as a design reference"
+most easily drifts into "verified against".
+
+None of those records imposes any obligation beyond zig-libs' own MIT license,
+even though the projects they name include GPL-2.0, GPL-3.0, LGPL-2.1,
+LGPL-3.0 and AGPL-3.0 ones — a design reference carries no license condition at
+all, which is why §1's defect rule is about what is SHIPPED and not about what
+is named. A module with no such record needs none: pure clean-room from a
+public spec/RFC, per §0. A full provenance/license audit was completed
+2026-07-09 and re-examined 2026-07-29; both are recorded in the project git
+history.

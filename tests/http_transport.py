@@ -87,7 +87,7 @@ def run(binary):
                         env = dict(os.environ, **{key: "http://127.0.0.1:1" for key in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")})
                         result = json.loads(subprocess.check_output([binary, str(server.server_address[1]), path, "tls" if tls else "plain", str(trust)], timeout=10, env=env))
                         if path not in ("/wrong-host", "/dns-address", "/wrong-ca"):
-                            assert requests.count(path) == before + 1, (path, requests)
+                            assert requests.count(path) == before + 1, (path, requests, result)
                         else:
                             assert requests.count(path) == before
                         return result
@@ -114,6 +114,8 @@ def run(binary):
                     server.shutdown()
                     thread.join(timeout=5)
         assert not failures, failures
+        from http_tls import verify_paths
+        verify_paths(binary, root)
         print(f"HTTP transport: {len(requests)} single-send requests; TLS identity, framing, binary chunks, omissions, failures and deadline passed.")
 
 

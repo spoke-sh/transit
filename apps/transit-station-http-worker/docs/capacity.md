@@ -15,6 +15,8 @@ growing store pages durable history; the worker never materializes that history.
 | Publication chunk | 256 bytes; at most 32 chunks in one worker segment |
 | Credential bindings | At most 16; at most 4,096 bytes per resolved value |
 | Explicit trust bundle | At most 1 MiB; its digest is frozen before dispatch |
+| TLS I/O | Four fixed record buffers of 16,645 bytes; one socket, no pool or redial |
+| Peer certificate path | At most ten 8,192-byte certificates; padded DER parsing and 16 KiB verification scratch |
 | Network deadline | Endpoint timeout at most 300,000 ms, capped by the original reconciliation deadline |
 | Followups | Explicit root attempt budget, including the original; no refunds or renewed deadline |
 | Turn | One writable resource, four mutations, four outputs; private failure rolls back |
@@ -61,10 +63,10 @@ framework settlement/capture remains unfinished. Preserve those records and
 holds. Do not treat a 4,096-position reserve as a guarantee that arbitrary
 connector cleanup or all accepted application work can finish.
 
-For the measured disk/S3 worker/API/browser schedule, fifteen sends and seven
-remote applications retained 106,209,530 object-store bytes in 966 cold objects
+For the measured disk/S3 worker/API/browser schedule, sixteen sends and eight
+remote applications retained 117,643,105 object-store bytes in 1,067 cold objects
 with an 8 MiB hot bound, no retention opt-in and no increased store limit. It took
-477.68 seconds excluding compilation. A former hot-only 64 MiB fixture exhausted
+489.90 seconds excluding compilation. A former hot-only 64 MiB fixture exhausted
 its capacity. This is measured evidence for that schedule, not a maximum for
 arbitrary histories or an admission formula. WAL, snapshots, temporary build
 outputs and diagnostic logs need separate physical budgets. Hosted CI costs for

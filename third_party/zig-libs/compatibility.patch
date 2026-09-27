@@ -1,0 +1,142 @@
+--- a/modules/montint/src/asm_core.zig
++++ b/modules/montint/src/asm_core.zig
+@@ -556 +556 @@
+-    var m_a = [_]u64{0} ** n;
++    var m_a = @as([n]u64, @splat(0));
+@@ -559 +559 @@
+-    var z_a = [_]u64{0} ** n;
++    var z_a = @as([n]u64, @splat(0));
+@@ -562 +562 @@
+-    var want_a = [_]u64{ones} ** n;
++    var want_a = @as([n]u64, @splat(ones));
+@@ -570 +570 @@
+-    var m_b = [_]u64{0xa5a5_a5a5_a5a5_a5a5} ** n;
++    var m_b = @as([n]u64, @splat(0xa5a5_a5a5_a5a5_a5a5));
+@@ -579 +579 @@
+-    var want_b = [_]u64{0} ** n;
++    var want_b = @as([n]u64, @splat(0));
+@@ -615 +615 @@
+-    var m_a = [_]u64{0} ** n;
++    var m_a = @as([n]u64, @splat(0));
+@@ -627 +627 @@
+-    var m_b = [_]u64{0xa5a5_a5a5_a5a5_a5a5} ** n;
++    var m_b = @as([n]u64, @splat(0xa5a5_a5a5_a5a5_a5a5));
+@@ -638 +638 @@
+-    const all_ones = [_]u64{ones} ** n;
++    const all_ones = @as([n]u64, @splat(ones));
+--- a/modules/montint/src/kat_test.zig
++++ b/modules/montint/src/kat_test.zig
+@@ -251 +251 @@
+-    var A = [_]u64{0} ** (2 * L);
++    var A = @as([(2 * L)]u64, @splat(0));
+@@ -324 +324 @@
+-    var A = [_]u64{0} ** (2 * L);
++    var A = @as([(2 * L)]u64, @splat(0));
+@@ -404 +404 @@
+-    var t = [_]u64{0} ** (L + 2);
++    var t = @as([(L + 2)]u64, @splat(0));
+--- a/modules/montint/src/montint.zig
++++ b/modules/montint/src/montint.zig
+@@ -352 +352 @@
+-            var A = [_]u64{0} ** (2 * L);
++            var A = @as([(2 * L)]u64, @splat(0));
+@@ -426 +426 @@
+-            var t = [_]u64{0} ** (L + 2);
++            var t = @as([(L + 2)]u64, @splat(0));
+@@ -1039,3 +1039,3 @@
+-    fuzzseed.seedHex("01" ++ "00" ** 31 ++ "01"), // 33 significant octets → Overflow
+-    fuzzseed.seedHex("ff" ++ "00" ** 32), // ⭐ Overflow from the FIRST byte, with the rest zero: the `limb >= M.L` guard, not the carry one
+-    fuzzseed.seedHex("0180" ++ "00" ** 30), // a byte straddling the limb boundary (`sh != 0` carry into limb+1)
++    fuzzseed.seedHex("01" ++ "00000000000000000000000000000000000000000000000000000000000000" ++ "01"), // 33 significant octets → Overflow
++    fuzzseed.seedHex("ff" ++ "0000000000000000000000000000000000000000000000000000000000000000"), // ⭐ Overflow from the FIRST byte, with the rest zero: the `limb >= M.L` guard, not the carry one
++    fuzzseed.seedHex("0180" ++ "000000000000000000000000000000000000000000000000000000000000"), // a byte straddling the limb boundary (`sh != 0` carry into limb+1)
+--- a/modules/rsa/src/root.zig
++++ b/modules/rsa/src/root.zig
+@@ -196 +196 @@
+-    m: [mont_max_limbs]u64 = [_]u64{0} ** mont_max_limbs,
++    m: [mont_max_limbs]u64 = @as([mont_max_limbs]u64, @splat(0)),
+@@ -198 +198 @@
+-    r2: [mont_max_limbs]u64 = [_]u64{0} ** mont_max_limbs,
++    r2: [mont_max_limbs]u64 = @as([mont_max_limbs]u64, @splat(0)),
+@@ -200 +200 @@
+-    one: [mont_max_limbs]u64 = [_]u64{0} ** mont_max_limbs,
++    one: [mont_max_limbs]u64 = @as([mont_max_limbs]u64, @splat(0)),
+@@ -219 +219 @@
+-    var v = [_]u64{0} ** slot;
++    var v = @as([slot]u64, @splat(0));
+@@ -1525 +1525 @@
+-    st.update(&[_]u8{0} ** 8);
++    st.update(&@as([8]u8, @splat(0)));
+@@ -1646 +1646 @@
+-    st.update(&[_]u8{0} ** 8);
++    st.update(&@as([8]u8, @splat(0)));
+@@ -2159 +2159 @@
+-    var composite = [_]bool{false} ** limit;
++    var composite = @as([limit]bool, @splat(false));
+@@ -3009 +3009 @@
+-    try std_rsa.PKCS1v1_5Signature.verify(256, sig[0..256].*, kat2048.msg, std_pk, std.crypto.hash.sha2.Sha256);
++    try std_rsa.PKCS1v1_5Signature.verify(256, sig[0..256], kat2048.msg, std_pk, std.crypto.hash.sha2.Sha256);
+@@ -3109,3 +3109,3 @@
+-    try testing.expectEqual(@as(usize, 2), info.fields.len);
+-    try testing.expectEqualStrings("csprng", info.fields[0].name);
+-    try testing.expectEqualStrings("none", info.fields[1].name);
++    try testing.expectEqual(@as(usize, 2), info.field_names.len);
++    try testing.expectEqualStrings("csprng", info.field_names[0]);
++    try testing.expectEqualStrings("none", info.field_names[1]);
+@@ -3113 +3113 @@
+-    try testing.expectEqual(void, info.fields[1].type);
++    try testing.expectEqual(void, @FieldType(Blinding, info.field_names[1]));
+@@ -3228 +3228 @@
+-    var m_wide = [_]u8{0} ** max_modulus_len;
++    var m_wide = @as([max_modulus_len]u8, @splat(0));
+@@ -3552 +3552 @@
+-    const big = [_]u8{0xaa} ** 191;
++    const big = @as([191]u8, @splat(0xaa));
+@@ -3592 +3592 @@
+-    const tiny_n = [_]u8{0xff} ** 32;
++    const tiny_n = @as([32]u8, @splat(0xff));
+@@ -3595 +3595 @@
+-    const huge_n = [_]u8{0xff} ** (max_modulus_len + 1);
++    const huge_n = @as([(max_modulus_len + 1)]u8, @splat(0xff));
+@@ -3727 +3727 @@
+-    var salt = [_]u8{0} ** 32;
++    var salt = @as([32]u8, @splat(0));
+--- a/modules/slhdsa/src/address.zig
++++ b/modules/slhdsa/src/address.zig
+@@ -41 +41 @@
+-        std.mem.writeInt(u32, a.bytes[16..20], @intFromEnum(t), .big);
++        std.mem.writeInt(u32, a.bytes[16..20], @backingInt(t), .big);
+--- a/modules/testkit/src/golden.zig
++++ b/modules/testkit/src/golden.zig
+@@ -192,2 +192,2 @@
+-    const too_long = "ab" ** (scratch_len + 1);
+-    try testing.expectError(error.GoldenTooLarge, hexVerdict(too_long, &.{}));
++    const too_long = @as([2 * (scratch_len + 1)]u8, @bitCast(@as([scratch_len + 1][2]u8, @splat("ab".*))));
++    try testing.expectError(error.GoldenTooLarge, hexVerdict(&too_long, &.{}));
+--- a/modules/x509/src/chain.zig
++++ b/modules/x509/src/chain.zig
+@@ -972 +972 @@
+-            const tag: Certificate.GeneralNameTag = @enumFromInt(@intFromEnum(elem.identifier.tag));
++            const tag: Certificate.GeneralNameTag = @enumFromInt(@backingInt(elem.identifier.tag));
+--- a/modules/x509/src/extensions.zig
++++ b/modules/x509/src/extensions.zig
+@@ -482 +482 @@
+-            .tag = @enumFromInt(@intFromEnum(base.identifier.tag)),
++            .tag = @enumFromInt(@backingInt(base.identifier.tag)),
+--- a/modules/x509/src/safe.zig
++++ b/modules/x509/src/safe.zig
+@@ -90 +90 @@
+-const std_descent_points_verified_against: std.SemanticVersion = .{ .major = 0, .minor = 16, .patch = 0 };
++const std_descent_points_verified_against: std.SemanticVersion = .{ .major = 0, .minor = 17, .patch = 0 };
+@@ -98 +98 @@
+-                "0.16.0. This toolchain is on a different minor/major version. Before " ++
++                "0.17.0. This toolchain is on a different minor/major version. Before " ++
+@@ -682 +682 @@
+-    const huge = [_]u8{0x30} ** (max_certificate_len + 1);
++    const huge = @as([(max_certificate_len + 1)]u8, @splat(0x30));
+@@ -958 +958 @@
+-    const five = [_]u8{ 0x30, 0x0c, 0x30, 0x0a } ++ [_]u8{ 0x02, 0x00 } ** 5;
++    const five = [_]u8{ 0x30, 0x0c, 0x30, 0x0a } ++ [_]u8{0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00};
+@@ -962 +962 @@
+-    const six = [_]u8{ 0x30, 0x0e, 0x30, 0x0c } ++ [_]u8{ 0x02, 0x00 } ** 6;
++    const six = [_]u8{ 0x30, 0x0e, 0x30, 0x0c } ++ [_]u8{0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00, 0x02, 0x00};

@@ -1,0 +1,8 @@
+.{
+    .name = .zig_libs_compat,
+    .version = "0.0.0",
+    .fingerprint = 0x78be752013f9f001,
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{},
+    .paths = .{ "build.zig", "build.zig.zon", "modules", "LICENSE", "NOTICE", "upstream.json", "README.md", "compatibility.patch" },
+}

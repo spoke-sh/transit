@@ -12,9 +12,21 @@ requests, retaining 1,009 cold objects / 113,779,019 bytes. Endpoint hostname,
 scheme, port and metadata-address changes reject before dispatch. The independent
 transport proof now has **22 sends**, explicit SNI/Host assertions, a nonexistent
 DNS name with a numeric pin, nonnumeric-address refusal and wrong-CA rejection.
-Both uppercase and lowercase proxy variables are ignored. A separate non-CA
-intermediate audit exposed a standard-library TLS weakness; path hardening is
-not yet qualified, so these passes do not establish that security obligation.
+Both uppercase and lowercase proxy variables are ignored. The non-CA intermediate
+audit exposed a standard-library TLS weakness, now fixed by the pinned
+[TLS adapter](../packages/zig/transit-tls/README.md). The transport task additionally
+uses twelve independent TLS 1.2/1.3 handshakes: valid chains succeed, while non-CA
+issuers, missing signing usage, excess path length, client-only purpose and
+excluded DNS names fail before HTTP bytes. Standalone validator and TLS suites
+pass, including malformed DER and the original forged-chain regression. These
+are fixture-based qualification, not a general cryptographic audit.
+With this transport, Compose passes in **98.79 seconds** and reference placement
+in **301.22 seconds** before successful cleanup, under concurrent proof load and
+with changed-image preparation. Each makes one remote send, replaces its caller,
+restarts node/store and replays without the peer or credential.
+The hardened disk schedule passes in **489.90 seconds** excluding compilation,
+with sixteen sends, eight applications, two cancellations and 1,067 cold objects /
+117,643,105 bytes. No retention or storage-limit increase was needed.
 
 `just examples::http-reference` passes in **192.85 seconds** before successful
 owned-resource cleanup. The actual gVisor caller admits a request, loses its
@@ -84,7 +96,7 @@ descendants. HTTP service units also check authentication before request reads,
 atomic child/reply-route allocation, read/mutation/output rollback, conflicting
 correlations, unpublished/retired parents and exhausted total budgets.
 `just test::http-transport` runs the real Zig transport against independent
-Python HTTP/TLS peers: 20 single-send requests cover 16,387-byte binary chunked
+Python HTTP/TLS peers: 22 single-send requests cover 16,387-byte binary chunked
 bodies, trailers, header omissions, redirects, ambiguous framing, truncation,
 capacity refusal, capture failure, lost responses and timeouts. TLS authenticates
 the configured hostname while dialing its explicitly pinned IPv4 address.

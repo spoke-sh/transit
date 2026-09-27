@@ -1,0 +1,15 @@
+{
+  "client": {
+    "repository": "https://codeberg.org/ziglang/zig",
+    "revision": "48abf1a34",
+    "version": "0.17.0-dev.2267+48abf1a34",
+    "path": "lib/std/crypto/tls/Client.zig",
+    "sha256": "21de8df98f17fc8ed00c03b54b60801fc168074c0e56f1d79d6d1b358096cfc5"
+  },
+  "verification": {
+    "repository": "https://github.com/zaxified/zig-libs",
+    "revision": "04799d8ec9280111046ebab943f446b3af39a95d",
+    "path": "modules/tlsclient/src/verify.zig",
+    "sha256": "5eb7046ceacbc1fb4080131e1cd6b13643f1b14faaef39573a5ead66268ef02b"
+  }
+}

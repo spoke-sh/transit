@@ -1,0 +1,178 @@
+# rsa — spec
+
+Design + threat notes for auditors. Usage: see ./README.md. Attribution/provenance: see
+./README.md "Provenance" + /NOTICE.
+
+## Design & invariants
+
+**ALL PHASES (P1–P6) IMPLEMENTED** — no `@panic`/TODO stub remains in `src/root.zig` or
+`src/openssh.zig`. Low-level primitives named after RFC 8017 §5 (`rsaep`/`rsadp`/`rsadpCrt`/
+`rsasp1`/`rsavp1`) sit under phase-named public schemes:
+
+- **P1** `signPkcs1v15`/`verifyPkcs1v15` (EMSA-PKCS1-v1_5, RFC 8017 §8.2/§9.2, SHA-1/224/256/384/512).
+- **P2** `encryptOaep`/`decryptOaep` (RSAES-OAEP, RFC 8017 §7.1, MGF1, constant-time decode) plus
+  the decoupled-hash variant `encryptOaepH`/`decryptOaepH` (label/digest hash and MGF1 hash may
+  differ per RFC 8017 §7.1 — e.g. XML-Encryption `rsa-oaep` with digest=SHA-256, MGF1=SHA-1); the
+  coupled forms delegate to the decoupled ones with both hashes equal. **`decryptOaepHNoFail`**
+  (added 2026-09-11, A1 fix campaign, `xmlenc` F3 OAEP arm) is a non-erroring twin of
+  `decryptOaepHBlinded` for a caller that must implement RFC 8017 §7.2.2's classic
+  Bleichenbacher-style countermeasure ("always run the same downstream work regardless of
+  unwrap success") at the OAEP layer, not just PKCS#1 v1.5: a padding failure is reported as
+  `.ok = false` plus the raw RSADP output for the caller's own decoy derivation, never an early
+  `error`. Every existing entry point (`decryptOaep`, `decryptOaepBlinded`, `decryptOaepH`,
+  `decryptOaepHBlinded`) is unchanged — additive only, per `QUESTIONS-ROUND-2.md` Q4 ("aditivní
+  nová funkce v `rsa`, dnešní API se nemění").
+- **P3** `signPss`/`verifyPss` (RSASSA-PSS, RFC 8017 §8.1, branch-clean verify).
+- **Secret-key entry points come in two shapes, and the pointer one is not
+  decoration.** `rsadp`/`rsadpCrt`/`rsadpCrtBlinded`/`rsasp1` take a
+  `SecretKey` BY VALUE; `rsadpPtr`/`rsadpCrtPtr`/`rsadpCrtBlindedPtr`/
+  `rsasp1Ptr` take `*const SecretKey` and are otherwise identical. A by-value
+  argument is copied by the ABI **at the call site**, i.e. into the CALLER's
+  own frame, where neither side can zero it: the callee does not know the
+  address, and the caller does not know the layout. Measured by `blindrsa`'s
+  dead-stack probe (audit B20): with `blindSign` calling `rsasp1` by value the
+  prime factors `p` and `q` were readable after the call, 2 hits each, and a
+  stack burn made no difference because the copy sits ABOVE the callee's
+  frames; through `rsasp1Ptr` the same probe reads 0. `paillier` F2 hit the
+  identical wall one layer down and closed it the same way. Prefer the `*Ptr`
+  forms wherever the key is long-lived.
+
+- **P4a** DER/PEM key parsing (`PublicKey.fromDer`/`fromPem`, `SecretKey.fromDer`/`fromPkcs8`/
+  `fromPem`, cleartext PEM only).
+- **P4b** OpenSSH `PROTOCOL.key` private-key parsing (`fromOpenSSH`: unencrypted and
+  bcrypt/aes256-ctr/aes256-cbc encrypted, with a from-scratch Blowfish + bcrypt-pbkdf in
+  `openssh.zig`).
+- **P5** `generate` (keypair generation: probable primes via sieve + Miller-Rabin, FIPS
+  186-5-style constraints).
+- **P6** `selfSignedCert` (X.509 v3 self-signed certificate generation, RFC 5280).
+
+All modular exponentiation routes through the sibling `montint` module (a full-radix-2^64,
+Montgomery-resident, constant-time modexp, ~3× faster than `std.crypto.ff` on the portable path —
+see "Speed" below); `std.crypto.ff` (`Modulus`/`Fe`) remains the canonical big-integer carrier for
+key material, CRT recombination (Garner), reductions, and serialization. This module must never
+implement its own bignum or a non-constant-time exponentiation over secret data. `rsasp1`/
+`rsadpCrt` are the CRT fast path (RFC 8017 §5.1.2 form (2)); `rsadp`/non-CRT `d` exist as the
+straightforward form and a correctness cross-check. Modeled after RFC 8017 (PKCS#1 v2.2);
+`PublicKey`/`Modulus`/`Fe` shape designed with reference to Zig std's internal
+`std.crypto.Certificate.rsa` (not `pub` — this module is a clean public superset, not a re-export).
+
+**Speed.** The modular-exponentiation hot path (CRT private op mod p / mod q, non-CRT private op
+mod n, public op mod n) is routed through `montint`; the deep audit measured plain `std.crypto.ff`
+at ~29× OpenSSL for the CRT sign, and `montint` closes most of that gap. `MontParams` are
+precomputed once per key at construction, so no per-operation setup cost is paid.
+
+**Hardening (post-audit).** The CRT private op (`privateOpCrt`)
+carries both fault- and side-channel countermeasures: F3 (Bellcore/BDL) — every CRT private op
+re-encrypts the recovered `m` and checks `m^e ≡ c (mod n)`, returning `error.FaultDetected` on
+mismatch rather than handing an attacker a faulty value that could factor `n`; F2 (base blinding) —
+with a `Blinding.csprng`, the op runs on `c·r^e mod n` for a fresh random unit `r` and unblinds by
+`r⁻¹ mod n`.
+
+**The blinding seam (B6 RNG-seam audit, 2026-08-12).** `privateOpCrt` takes a `Blinding` — a tagged
+union with a `csprng` arm and a payload-free `none` arm, plus a private `rng()` accessor — rather
+than a `?std.Random`. `signPss` blinds unconditionally (it already holds a CSPRNG for the salt).
+The deterministic entry points cannot: std 0.16 removed `std.crypto.random`, so entropy has to be
+an argument, and `signPkcs1v15`/`decryptOaep`/`decryptOaepH`/`rsadpCrt` have none. Until this audit
+that meant they ran unblinded with **no way for a consumer to change it**, which is the actual
+finding — not the default itself. Each now has a `…Blinded` twin taking an explicit `Blinding`; the
+unblinded default is unchanged, because turning it on would be a breaking signature change to
+public API with seven in-repo consumers, and because the primary constant-time defence
+(`montPowSecret`) and the F3 fault check are on either way. Blinding here is defence in depth: what
+it buys is that a residual leak in the constant-time claim is not correlated with an
+attacker-chosen base.
+
+## Threat model / out of scope
+
+Constant-time requirements on every secret-dependent operation (`rsadp`/`rsadpCrt`/`rsasp1`/CRT
+parameter handling — routes through `montint`/`Modulus.pow`, never a public-exponent path, and
+never branches on secret data); signature-verification failure is a clean typed error, never a
+panic, on attacker-controlled `sig`/`msg`/DER/OpenSSH input. Bleichenbacher-style padding-oracle
+exposure is addressed by OAEP's constant-time single-generic-error decrypt path (P2) and by
+PKCS1-v1.5 decrypt/verify never branching on which padding check failed. CRT fault injection is
+addressed by the F3 re-encrypt-and-compare check (see "Hardening" above). Minimum modulus-size /
+small-public-exponent sanity checks apply to parsed keys (`fromBytes`/`fromDer`/`fromPkcs8`/
+`fromOpenSSH`).
+
+## Verification
+
+`zig build test-rsa` is green across `root.zig` and `openssh.zig`. Anchored
+against OpenSSL-generated known-answer vectors: keys generated with `openssl genpkey -algorithm
+RSA` (OpenSSL 3.5.5, 2026-07-10), components dumped via `openssl pkey -text`, signatures produced
+with `openssl dgst -shaN -sign` for PKCS1-v1.5 (deterministic, so these are byte-exact KATs) and
+`openssl dgst -sigopt rsa_padding_mode:pss` for PSS. `generate`, `selfSignedCert`, and the
+bcrypt-pbkdf inside OpenSSH parsing are additionally cross-checked against `std.crypto.Certificate`
+/ `std.crypto.pwhash.bcrypt.opensshKdf` as independent oracles (not just this module's own code).
+The OAEP mismatched-hash case (`encryptOaepH`/`decryptOaepH` with digest≠MGF1) has no external
+byte-exact vector (the shipped OpenSSL OAEP KATs are all equal-hash) — it is covered only by a
+constructed round-trip test, which proves internal consistency but not agreement with an external
+implementation for that specific configuration.
+
+## Performance posture — measured 2026-09-08, and deliberately not chased further
+
+Numbers are ReleaseFast on one desktop; treat them as ratios. OpenSSL 3.5.5 on the
+same host is the reference (`openssl speed`).
+
+| operation | this module | OpenSSL | ratio |
+|---|---:|---:|---:|
+| RSA-2048 `verifyPkcs1v15`, key already built | **36 µs** | 17.4 µs | **2.1×** |
+| `PublicKey.fromDer` (builds the key) | **~500 µs** (re-measured 2026-09-16: **453 µs**) | — | — |
+
+**The modexp is fine and needs no work.** 2.1× OpenSSL on portable Zig without assembly
+is a good number, and it is recorded here so a future audit does not start optimising
+something already measured good. For contrast, `std.crypto.Certificate.Parsed.verify`
+does the same verification in **388 µs** — 10.8× slower than this module.
+
+**Key construction, not the modexp, is where the time goes**, and it splits in two:
+
+- **~185 µs — `std.crypto.ff.Modulus.fromBytes`**, which computes its own Montgomery
+  constants. The hot path never uses them: the modexp goes through `montint`. The `ff`
+  types are kept for serialization, validation and the `powPublic` fallback.
+- **~315 µs — `montParamsFromModulus`**, dominated by the 64·L doublings that derive
+  `R mod m`. (The other half, `R² mod m`, stopped being 64·L more doublings on
+  2026-09-08 — see `montint`'s changelog. That alone took `fromDer` from 813 µs to
+  ~500 µs.)
+
+### Why neither is being chased
+
+⭐ **Both hot consumers hold a WARM key, so they never pay this.** `qap` builds its
+`SecretKey` once when its certificate store loads and then only signs; `iec62351`'s GOOSE
+verifier carries an already-built `PublicKey` and verifies per frame. The setup cost
+lands only on **cold, one-shot** users — `x509` chain validation, `dtls` handshakes, and
+the token/document modules (`jwt`, `jwe`, `saml`, `xmldsig`, `xmlenc`, `ssh`, `ocsp`,
+`dnssec`, `webauthn`, `blindrsa`) — and none of them is throughput-bound on it today.
+
+Two routes exist and both were measured, not guessed:
+
+1. Skip the `ff` Montgomery constants the hot path does not use (~185 µs). Touches the
+   public field `PublicKey.n`, which 13 modules can reach.
+2. Give `montint` a constructor taking the modulus bit length as an explicitly PUBLIC
+   input, so `R mod m` can start near the modulus instead of at 1 (~315 µs). The cheap
+   form makes the doubling count depend on the modulus size — a secret for a general
+   caller, though not for RSA — so it needs a new contract in a module shared with
+   `paillier`, `threshold_ecdsa` and `vdf`.
+
+**Owner decision, 2026-09-08: neither is done here.** They are optimisations without a
+consumer that feels them, and the consumer who would (`qap`) is expected to solve its own
+performance question first and push the result back. This section exists so that arrives
+as a measurement rather than a rediscovery.
+
+## Backlog / deferred
+
+- The OAEP decoupled-hash (digest≠MGF1) configuration has no external KAT — see "Verification"
+  above.
+- Anything not covered by the phase list above (there is no known scope gap versus RFC 8017 P1–P6
+  today; flag here if one is found).
+
+## Status
+
+`extract · any · util · reentrant` + deps: `montint` (hot-path modexp), `std.crypto.ff` (key
+material/serialization) — canonical source is `pub const meta` in src/root.zig.
+
+## Anchoring
+
+**Anchor grade:** class B · oracle EXTERNAL
+
+- **Class B** — published cryptographic or algorithmic construction with published vectors.
+- **Oracle EXTERNAL** — published vectors, goldens captured from a foreign implementation, or a test run against a live foreign peer.
+
+**What the tests actually contain.** RFC 8017 + OpenSSL/ssh-keygen-generated KATs (root.zig provenance)

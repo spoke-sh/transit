@@ -2,6 +2,7 @@
 //! calls this module. Replay never calls it. There are no retries or redirects.
 const std = @import("std");
 const http = @import("root.zig");
+const tls = @import("transit_tls");
 pub const segment_bytes = 4096;
 pub const Endpoint = struct {
     host: []const u8,
@@ -85,18 +86,41 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
     const head = try request.render(endpoint.host, endpoint.port, &head_buffer, secrets, false);
     // A missing resolver must not send placeholder text as a real credential.
     for (request.headers) |field| for (field.value) |piece| if (piece == .secret and secrets == null) return error.MissingHttpCredential;
-    var client: std.http.Client = .{ .allocator = gpa, .io = io, .read_buffer_size = http.Request.maximum_head_bytes, .write_buffer_size = segment_bytes };
-    defer client.deinit();
+    var trust: std.crypto.Certificate.Bundle = .empty;
+    defer trust.deinit(gpa);
+    const now = std.Io.Clock.real.now(io);
     if (endpoint.tls) {
-        const now = std.Io.Clock.real.now(io);
-        client.now = now;
-        if (endpoint.ca_file) |path| try client.ca_bundle.addCertsFromFilePath(gpa, io, now, std.Io.Dir.cwd(), path) else try client.ca_bundle.rescan(gpa, io, now);
+        if (endpoint.ca_file) |path| try trust.addCertsFromFilePath(gpa, io, now, std.Io.Dir.cwd(), path) else try trust.rescan(gpa, io, now);
     }
     // Numeric dial target and authenticated virtual host are deliberately separate.
-    const connection = try client.connectTcpOptions(.{ .host = try std.Io.net.HostName.init(endpoint.address), .port = endpoint.port, .protocol = if (endpoint.tls) .tls else .plain, .proxied_host = try std.Io.net.HostName.init(endpoint.host), .proxied_port = endpoint.port });
-    connection.closing = true;
-    defer client.connection_pool.release(connection, io);
-    const writer = connection.writer();
+    const address = try std.Io.net.IpAddress.parseIp4(endpoint.address, endpoint.port);
+    const connection = try address.connect(io, .{ .mode = .stream });
+    defer connection.close(io);
+    var input_buffer: [tls.Client.min_buffer_len]u8 = undefined;
+    var output_buffer: [tls.Client.min_buffer_len]u8 = undefined;
+    var tls_input: [tls.Client.min_buffer_len]u8 = undefined;
+    var tls_output: [tls.Client.min_buffer_len]u8 = undefined;
+    defer std.crypto.secureZero(u8, &output_buffer);
+    defer std.crypto.secureZero(u8, &tls_output);
+    var raw_reader = connection.reader(io, &input_buffer);
+    var raw_writer = connection.writer(io, &output_buffer);
+    var secure: tls.Client = undefined;
+    var lock: std.Io.RwLock = .init;
+    if (endpoint.tls) {
+        var entropy: [tls.Client.Options.entropy_len]u8 = undefined;
+        defer std.crypto.secureZero(u8, &entropy);
+        try io.randomSecure(&entropy);
+        secure = tls.Client.init(&raw_reader.interface, &raw_writer.interface, .{
+            .host = .{ .explicit = endpoint.host },
+            .ca = .{ .bundle = .{ .gpa = gpa, .io = io, .lock = &lock, .bundle = &trust } },
+            .read_buffer = &tls_input,
+            .write_buffer = &tls_output,
+            .entropy = &entropy,
+            .realtime_now = now,
+        }) catch return error.TlsInitializationFailed;
+    }
+    defer if (endpoint.tls) std.crypto.secureZero(u8, std.mem.asBytes(&secure));
+    const writer = if (endpoint.tls) &secure.writer else &raw_writer.interface;
     try writer.writeAll(head);
     var buffer: [segment_bytes]u8 = undefined;
     var remaining = request.body_bytes;
@@ -106,8 +130,9 @@ fn run(gpa: std.mem.Allocator, io: std.Io, endpoint: Endpoint, request: http.Req
         try writer.writeAll(buffer[0..count]);
         remaining -= count;
     }
-    try connection.flush();
-    var reader: std.http.Reader = .{ .in = connection.reader(), .interface = undefined, .state = .ready, .max_head_len = http.Request.maximum_head_bytes };
+    try writer.flush();
+    if (endpoint.tls) try raw_writer.interface.flush();
+    var reader: std.http.Reader = .{ .in = if (endpoint.tls) &secure.reader else &raw_reader.interface, .interface = undefined, .state = .ready, .max_head_len = http.Request.maximum_head_bytes };
     var interim: u8 = 0;
     var omitted: u32 = 0;
     const response = while (true) {

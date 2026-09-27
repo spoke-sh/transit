@@ -198,6 +198,18 @@ authorization; bytes already released cannot be recalled. This distinguishes
 bounded subscription shutdown from an unsupported claim of instantaneous
 revocation across every open connection.
 
+## Connector TLS verification
+
+HTTP uses the pinned [Transit TLS adapter](../packages/zig/transit-tls/README.md)
+with explicit hostname and trust-bundle verification. It adds whole-path CA,
+key-usage, path-length, name-constraint and server-purpose checks missing from
+the pinned compiler's client, and validates bounded DER before parsing. Upstream
+revisions and source hashes are recorded beside the implementation; compiler
+changes require an explicit rebase and independent chain qualification.
+Numeric routing remains separately frozen by endpoint policy. This profile has
+no online OCSP/CRL fetching or automatic trust-store update. TLS peer verification
+does not grant Transit dispatch or transcript-read authority.
+
 ## RPC and query boundaries
 
 M13's [public Table query profile](../contracts/PUBLIC_QUERY_V1.md) uses a
