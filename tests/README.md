@@ -122,6 +122,9 @@ and asynchronous capture-reader checks.
 .NET's clean NuGet consumer passes in 68.23 seconds for HTTP, including all four
 followup reasons, invalid enum values, cross-realm/expired-turn refusal and
 authenticated correlated rejection, with prior cancellation/join checks retained.
+Erlang and Elixir pass in 65.19 and 68.23 seconds respectively, including all four
+followup atoms, tagged invalid-reason/cross-realm/expired-turn errors, saved reply
+correlations and the previous immutable-reader/owner-death/join schedules.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

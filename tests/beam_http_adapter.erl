@@ -3,7 +3,7 @@
 -behaviour(transit_station_codec).
 -behaviour(transit_station_handler).
 -export([prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_http/2, read/1, close_http/1,
-         complete/1, decode/1, outcome/1, view/1, event/1, golden/1, release_expired/1,
+         complete/1, decode/1, outcome/1, view/1, event/1, golden/1, release_expired/1, followup_expired/2,
          type_id/0, version/0, max_encoded_bytes/0, encode/1, handle_message/3]).
 %% The application codec owns ordinary bytes. Decode HTTP only on an authenticated reply.
 type_id() -> <<"test.http-control">>.
@@ -23,11 +23,20 @@ open(Cfg, S, Request) ->
     Disposal = case maps:find(<<"outcome">>, Cfg) of
         {ok, Bytes} -> {ok, Value} = transit_http:decode_reply(72, binary:decode_hex(Bytes)), Value;
         error -> undefined end,
-    transit_station_sdk:open(Service, ?MODULE, {S, #transit_process{realm = 72, pid = maps:get(<<"peer">>, Cfg)}, Request, Disposal}, ?MODULE, stop, fresh_ownership).
-handle_message(Turn, Input, {S, Peer, Request, Disposal} = Context) ->
+    Reason = case maps:get(<<"followup_reason">>, Cfg, <<"retry">>) of <<"retry">> -> retry; <<"redirect">> -> redirect; <<"reconcile">> -> reconcile; <<"cancel">> -> cancel end,
+    transit_station_sdk:open(Service, ?MODULE, {S, #transit_process{realm = 72, pid = maps:get(<<"peer">>, Cfg)}, Request, Disposal, Reason}, ?MODULE, stop, fresh_ownership).
+handle_message(Turn, Input, {S, Peer, Request, Disposal, Reason} = Context) ->
     beam_http_controller:put(S, escaped, Turn), {ok, State} = transit_turn:state(Turn), {ok, Key} = transit_turn:key(<<"http-correlation">>, transit_example_u64_codec),
     {ok, ReleaseKey} = transit_turn:key(<<"http-release-correlation">>, transit_example_u64_codec),
+    {ok, FollowupKey} = transit_turn:key(<<"http-followup-correlation">>, transit_example_u64_codec),
     Result = case Input#transit_incoming.kind of
+        cast when Input#transit_incoming.value =:= <<"followup">> ->
+            Capture = Disposal#transit_http_outcome.resource,
+            Wrong = Disposal#transit_http_outcome{resource = Capture#transit_resource{realm = 73}},
+            {error, #transit_error{kind = invalid_argument}} = transit_http:followup(Turn, Peer, Wrong, Reason, Request),
+            {error, #transit_error{kind = invalid_argument}} = transit_http:followup(Turn, Peer, Disposal, automatic, Request),
+            {ok, Correlation} = transit_http:followup(Turn, Peer, Disposal, Reason, Request),
+            {ok, ok} = transit_turn:put(State, FollowupKey, Correlation), #{followup => false};
         cast when Input#transit_incoming.value =:= <<"dispose">> ->
             #transit_http_outcome{resource = Capture, exchange = Exchange} = Disposal,
             {error, #transit_error{kind = invalid_argument}} = transit_http:release(Turn, Peer, Capture#transit_resource{realm = 73}, Exchange),
@@ -44,6 +53,11 @@ handle_message(Turn, Input, {S, Peer, Request, Disposal} = Context) ->
             #{called => Called};
         reply ->
             case Input#transit_incoming.value of
+                <<"HTF1", _/binary>> ->
+                    {ok, Correlation} = transit_turn:require(State, FollowupKey), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
+                    {ok, #transit_http_rejected{reason = denied}} = transit_http:decode_reply(72, Input#transit_incoming.value),
+                    {ok, Denied} = transit_turn:key(<<"http-followup-denied">>, transit_example_u64_codec),
+                    {ok, ok} = transit_turn:put(State, Denied, Correlation), #{followup => true};
                 <<"HTK1", _/binary>> ->
                     {ok, Correlation} = transit_turn:require(State, ReleaseKey), {ok, ok} = transit_turn:require_reply(Turn, Input, Peer, Correlation),
                     #transit_http_outcome{resource = Capture, exchange = Exchange} = Disposal,
@@ -62,6 +76,7 @@ close(R) -> transit_station_sdk:close(R).
 stop(R) -> transit_station_sdk:stop(R).
 stage(T, Request) -> transit_http:stage(T, Request).
 release_expired(T) -> transit_http:release(T, #transit_process{realm = 72, pid = 1}, #transit_resource{realm = 72, resource = 1}, 1).
+followup_expired(T, Request) -> transit_http:followup(T, #transit_process{realm = 72, pid = 1}, #transit_http_outcome{resource = #transit_resource{realm = 72, resource = 1}, exchange = 1}, retry, Request).
 outcome(Bytes) -> transit_http:decode_reply(72, Bytes).
 open_http(R, Outcome) -> transit_http:open(R, Outcome).
 read(Reader) -> case transit_http:read(Reader) of

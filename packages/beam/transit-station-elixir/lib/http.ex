@@ -95,16 +95,28 @@ defmodule Transit.Station.Sdk.Http do
       )
 
   def open(runner, %Outcome{} = outcome, policy \\ :captured) do
-    native =
-      {:transit_http_outcome, outcome.phase, Client.native(outcome.resource), outcome.exchange,
-       outcome.effect, outcome.attempt, Value.optional(outcome.status),
-       Value.optional(outcome.reference)}
-
-    case :transit_http.open(runner, native, policy) do
+    case :transit_http.open(runner, outcome(outcome), policy) do
       {:ok, reader} -> {:ok, %Reader{native: reader}}
       error -> Client.convert(error)
     end
   end
+
+  def followup(%Turn{native: turn}, peer, %Outcome{} = parent, reason, %Prepared{} = request),
+    do:
+      Client.convert(
+        :transit_http.followup(
+          turn,
+          Client.native(peer),
+          outcome(parent),
+          reason,
+          prepared(request)
+        )
+      )
+
+  defp outcome(%Outcome{} = value),
+    do:
+      {:transit_http_outcome, value.phase, Client.native(value.resource), value.exchange,
+       value.effect, value.attempt, Value.optional(value.status), Value.optional(value.reference)}
 
   defp prepared(%Prepared{} = value),
     do:

@@ -58,20 +58,45 @@ defmodule ElixirHttpAdapter do
         value
       end
 
-    Runner.open(service, __MODULE__, {shared, peer, request, disposal}, __MODULE__,
+    reason =
+      Map.fetch!(
+        %{
+          "retry" => :retry,
+          "redirect" => :redirect,
+          "reconcile" => :reconcile,
+          "cancel" => :cancel
+        },
+        cfg["followup_reason"] || "retry"
+      )
+
+    Runner.open(service, __MODULE__, {shared, peer, request, disposal, reason}, __MODULE__,
       failure_policy: :stop,
       recovery: :fresh_ownership
     )
   end
 
-  def handle_message(turn, input, {shared, peer, request, disposal} = context) do
+  def handle_message(turn, input, {shared, peer, request, disposal, reason} = context) do
     :beam_http_controller.put(shared, :escaped, turn)
     {:ok, state} = Turn.state(turn)
     {:ok, key} = Turn.key("http-correlation", U64Codec)
     {:ok, release_key} = Turn.key("http-release-correlation", U64Codec)
+    {:ok, followup_key} = Turn.key("http-followup-correlation", U64Codec)
 
     result =
       case input do
+        %Incoming{kind: :cast, value: "followup"} ->
+          wrong = %{disposal | resource: %{disposal.resource | realm: 73}}
+
+          {:error, %Client.Error{kind: :invalid_argument}} =
+            Http.followup(turn, peer, wrong, reason, request)
+
+          {:error, %Client.Error{kind: :invalid_argument}} =
+            Http.followup(turn, peer, disposal, :automatic, request)
+
+          {:ok, correlation} = Http.followup(turn, peer, disposal, reason, request)
+          {:ok, :ok} = State.put(state, followup_key, correlation)
+          %{followup: false}
+
         %Incoming{kind: :cast, value: "dispose"} ->
           {:error, %Client.Error{kind: :invalid_argument}} =
             Http.release(turn, peer, %{disposal.resource | realm: 73}, disposal.exchange)
@@ -98,6 +123,14 @@ defmodule ElixirHttpAdapter do
             end
 
           %{called: called}
+
+        %Incoming{kind: :reply, value: <<"HTF1", _::binary>> = bytes} ->
+          {:ok, correlation} = State.require(state, followup_key)
+          {:ok, :ok} = Turn.require_reply(turn, input, peer, correlation)
+          {:ok, %Rejected{reason: :denied}} = Http.decode_reply(72, bytes)
+          {:ok, denied} = Turn.key("http-followup-denied", U64Codec)
+          {:ok, :ok} = State.put(state, denied, correlation)
+          %{followup: true}
 
         %Incoming{kind: :reply, value: <<"HTK1", _::binary>> = bytes} ->
           {:ok, correlation} = State.require(state, release_key)
@@ -136,6 +169,23 @@ defmodule ElixirHttpAdapter do
       )
 
   def open_http(runner, outcome), do: Http.open(runner, outcome)
+
+  def followup_expired(turn, request),
+    do:
+      Http.followup(
+        turn,
+        %Client.ProcessRef{realm: 72, pid: 1},
+        %Outcome{
+          phase: :closed_unknown,
+          resource: %Client.ResourceRef{realm: 72, resource: 1},
+          exchange: 1,
+          effect: 1,
+          attempt: 1
+        },
+        :retry,
+        request
+      )
+
   def outcome(bytes), do: Http.decode_reply(72, bytes)
 
   def read(reader) do

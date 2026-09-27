@@ -82,7 +82,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                 return ['elixir', '-e', 'Transit.SdkExamples.CounterMain.main()', '--', str(config), role, '--commits', '1']
             return Consumer(env, command, example, 'invalid-handler', extra_failures=('exit-stop', 'exit-block'), arrow_adapter=False)
         (execute or schedule)(node, cli, library, install, language.capitalize())
-        if execute is None: http_schedule(node, cli, library, http_worker, install, language.capitalize(), public_release=True)
+        if execute is None: http_schedule(node, cli, library, http_worker, install, language.capitalize(), public_release=True, public_followup=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

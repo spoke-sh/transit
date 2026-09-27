@@ -64,3 +64,13 @@ Duplicate calls remain safe after restart and cleanup without transcript read
 access. The service checks the recorded holder and current admission policy;
 release does not cancel remote work, retire capture or clean up members. A fresh
 finite-worker `poll` activation handles this control call.
+
+`Http.followup(turn, connector, parent_outcome, reason, prepared)` records a new
+correlated call after the request is published. Reasons are `:retry`, `:redirect`,
+`:reconcile` and `:cancel`. Save the new correlation and authenticate its reply;
+the service can return `%Http.Rejected{}` without allocating a child or sending
+HTTP. Shared Zig validates current caller scope and frozen parent policy, retaining
+the original deadline and total attempt budget. The original outcome stays
+unchanged. No retry, redirect, status query or remote cancellation is automatic.
+Cross-realm parents, unknown reasons and expired turns fail locally. The installed
+consumer covers all four policy refusals and correlation handling.

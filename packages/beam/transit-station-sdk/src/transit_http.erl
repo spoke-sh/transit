@@ -2,8 +2,9 @@
 -module(transit_http).
 -include("transit_station_sdk.hrl").
 -export([prepare/5, prepare/6, decode_reply/2, decode_reply/3, stage/2, call/3,
-         release/4, open/2, open/3, read/1, complete/1, close/1, part/2]).
--export_type([reader/0, piece/0]).
+         release/4, followup/5, open/2, open/3, read/1, complete/1, close/1, part/2]).
+-export_type([reader/0, piece/0, followup_reason/0]).
+-type followup_reason() :: retry | redirect | reconcile | cancel.
 -opaque reader() :: {transit_http_reader, transit_station_sdk:runner(), pos_integer(), non_neg_integer(), boolean()}.
 -type piece() :: {literal, binary()} | {variable, binary(), binary()} | {secret, binary(), pos_integer()}.
 prepare(Resource, Namespace, Request, Body, Options) -> prepare(Resource, Namespace, Request, Body, Options, undefined).
@@ -86,6 +87,18 @@ release(Turn, Peer, Capture, Exchange) -> transit_turn:access(Turn, false, fun()
         true -> ok; false -> transit_sdk_value:fail(unsupported_capability, http_release) end,
     Result = transit_turn:raw(Turn, #{<<"http_release">> => #{<<"pid">> => transit_turn:peer(Turn, Peer),
         <<"resource">> => Resource, <<"exchange">> => integer_to_binary(Exchange)}}),
+    positive(transit_sdk_value:wide(maps:get(<<"correlation">>, Result))) end).
+followup(Turn, Peer, Parent, Reason, #transit_http_prepared{reference = Reference} = Request) -> transit_turn:access(Turn, false, fun() ->
+    scope(Turn, Request),
+    #{process := #transit_process{realm = Realm}, bridge := Bridge} = transit_turn:data(Turn),
+    {Resource, Exchange} = case Parent of
+        #transit_http_outcome{resource = #transit_resource{realm = Realm, resource = Id}, exchange = ParentId} -> {transit_sdk_value:counter(Id), positive(ParentId)};
+        _ -> transit_sdk_value:fail(invalid_argument, http_followup_parent) end,
+    Name = transit_station_value:enum(Reason, [retry, redirect, reconcile, cancel]),
+    case maps:get(<<"http_followup">>, transit_station_bridge:caps(Bridge), false) of
+        true -> ok; false -> transit_sdk_value:fail(unsupported_capability, http_followup) end,
+    Result = transit_turn:raw(Turn, #{<<"http_followup">> => #{<<"pid">> => transit_turn:peer(Turn, Peer), <<"resource">> => Resource,
+        <<"parent">> => integer_to_binary(Exchange), <<"reason">> => Name, <<"reference">> => transit_sdk_value:hex(transit_sdk_value:bytes(Reference, 112))}}),
     positive(transit_sdk_value:wide(maps:get(<<"correlation">>, Result))) end).
 open(Runner, Outcome) -> open(Runner, Outcome, captured).
 open(Runner, #transit_http_outcome{phase = observed, resource = #transit_resource{realm = Realm}, reference = Reference}, Policy) ->

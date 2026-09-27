@@ -91,8 +91,20 @@ The service checks the recorded holder and current admission policy. Release
 does not cancel remote work, retire capture or clean up its members; the finite
 worker needs a fresh `poll` activation to handle it.
 
+`transit_http:followup(Turn, Connector, ParentOutcome, Reason, Prepared)` records
+an explicit new correlated call using the native `http_followup` capability.
+`Reason` is `retry`, `redirect`, `reconcile` or `cancel`. Stage the new request
+first, save the returned correlation, and authenticate the new reply as above.
+The service validates the original caller, current scope and frozen parent policy
+before allocating a child attempt. It preserves the original deadline and shared
+attempt budget; a refusal arrives as a correlated rejected outcome. The parent
+remains unchanged, and no helper retries or cancels remote work automatically.
+The turn, prepared request and parent must belong to the same realm. Expired
+turns and unknown reasons fail before recording a call.
+
 `just bindings::beam-sdk-test` compiles installed Erlang and Elixir consumers
-and runs the shared TLS/recovery/revocation/disposal schedule plus existing SDK
+and runs the shared TLS/recovery/revocation/disposal schedule, four followup
+policy refusals without extra HTTP sends, and existing SDK
 regressions. See the [proof guide](../../../../tests/README.md#m15-connector-work-in-progress)
 for executed evidence. Native allocation proofs are distinct from BEAM heap-loss
 qualification.
