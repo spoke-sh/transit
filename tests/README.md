@@ -133,6 +133,15 @@ separate read grants; the proof does not broaden them to realm execution rights.
 Compose/reference placement and Board remain open. The Document tasks are
 registered as focused verification; their hosted CI cost has not been measured.
 
+The Document component suite now passes **27 tests in 1 second / 17 MiB peak
+RSS**. Bounded metadata pages count accepted registers, assignment IDs and
+conflicts without returning application values. Tests cover an eight-record
+boundary, exact older snapshots, invalid cursors, revocation between pages and
+permanent retirement. A separate regression ensures explicit policy rejection
+of an admitted job closes it without disclosing an accepted-state basis. These
+metadata readers are the library handoff for Board, whose API/UI proof remains
+pending. `just check` passes with the worker and these library additions.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated

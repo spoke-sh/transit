@@ -248,6 +248,11 @@ pub fn readPath(self: Self, turn: anytype, revision: u64, names: []const m.Name)
     var reader: Index.Reader(@TypeOf(turn)) = .{ .publication = self.publication(), .source = turn };
     return doc.path(&reader, names);
 }
+pub fn readRegisterMetadata(self: Self, source: anytype, revision: u64, after: ?Index.Key) !Document.RegisterMetadata {
+    const doc = try self.open(source, revision);
+    var reader: Index.Reader(@TypeOf(source)) = .{ .publication = self.publication(), .source = source };
+    return doc.registerMetadata(&reader, after);
+}
 pub const PageCursor = struct { revision: u64, object: m.Dot, traversal: Document.SequenceCursor = .{} };
 pub const SequencePage = struct {
     len: u8 = 0,

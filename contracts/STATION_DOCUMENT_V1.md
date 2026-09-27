@@ -185,6 +185,18 @@ Document revision. Its ResourceReader poisons a source after failed authority
 reads. Language bindings must preserve the same identities, state distinctions
 and continuation ownership through the shared Zig implementation.
 
+Value-free register metadata scans at most eight accepted register records per
+page. It returns counts of registers, live assignment IDs and conflicting
+registers, plus an ordered continuation. These are page counts over an exact
+accepted snapshot; detached objects and deleted-element history are included.
+They are not visible application field counts or whole-Document statistics.
+An empty final page is valid. Consumers keep the same SDR1 reference throughout
+a scan, rechecking current grants, history floor and retirement on each page.
+Malformed register keys, unordered IDs and invalid continuations reject. The
+metadata reader never decodes or returns scalar/text values. Its internal
+continuation may contain an opaque register key and must not be treated as a
+user-facing field name or authority token.
+
 The shared host codec preserves u64/i64 values as canonical decimal strings and
 binary as hex. A finite float64 uses `float_bits`, exactly eight little-endian IEEE
 bytes encoded as 16 hex characters, preserving negative zero across JSON hosts.

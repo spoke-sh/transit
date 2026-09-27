@@ -334,3 +334,24 @@ test "caller freezes peer and correlation, rejects spoofed replies and preserves
     try t.expectError(error.DocumentReplyIdentityConflict, Caller.accept(&next, 100));
     try clean(next);
 }
+
+test "explicit policy rejection closes admitted work without disclosing its accepted basis" {
+    var caller: Store = .{ .resource = 8 };
+    defer caller.deinit();
+    const request = try publish(&caller, 100, try change());
+    var source: Source = .{ .store = &caller };
+    var writer: Store = .{};
+    defer writer.deinit();
+    try setup(&writer);
+    var turn = try call(&writer, 3, 41, try request.encode());
+    const id = try Remote.jobId(turn.delivery.input.position);
+    _ = try Remote.admit(service, &turn, policy, &source, 256);
+    try writer.commit(turn);
+    turn = try writer.capture();
+    try Remote.reject(service, &turn, id, .denied);
+    const reply = try response(turn, 3, 41);
+    try t.expectEqual(.denied, reply.reason);
+    try t.expectEqual(null, reply.basis);
+    try t.expectEqual(@as(u64, 0), (try service.head(&turn)).active_job);
+    try writer.commit(turn);
+}

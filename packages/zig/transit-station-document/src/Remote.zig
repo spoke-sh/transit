@@ -167,7 +167,7 @@ pub fn reject(service: Service, turn: *s.GrowingTurn, id: u64, reason: Reason) !
     const job = try service.job(turn, id);
     if (job.phase == .rejected) return;
     try service.reject(turn, id);
-    try send(turn, record.caller, record.correlation, .{ .status = .rejected, .reason = reason, .job = id, .basis = try basis(service, turn, null) });
+    try send(turn, record.caller, record.correlation, .{ .status = .rejected, .reason = reason, .job = id, .basis = if (reason == .denied or reason == .invalid_request) null else try basis(service, turn, null) });
 }
 pub const Progress = enum { idle, progress, accepted, duplicate, rejected };
 pub fn advance(service: Service, turn: *s.GrowingTurn, policy: Policy, source: anytype) !Progress {

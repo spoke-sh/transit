@@ -97,6 +97,9 @@ fn assignment(self: Self, source: anytype, id: m.Dot) !StoredAssignment {
 }
 fn dots(self: Self, source: anytype, slot: Index.Key) !m.Observed {
     const v = try self.index.get(source, slot) orelse return .{};
+    return readDots(v);
+}
+fn readDots(v: Index.Value) !m.Observed {
     var r: codec.Reader = .{ .bytes = v.slice() };
     const out = try r.observed();
     try r.finish();
@@ -121,6 +124,43 @@ fn register(self: Self, source: anytype, slot: Index.Key) !Register {
 pub fn field(self: Self, source: anytype, object: m.Dot, name: m.Name) !Register {
     if (try self.objectKind(source, object) != .map) return error.DocumentTypeError;
     return self.register(source, try mapSlot(object, name));
+}
+pub const RegisterMetadata = struct {
+    registers: u8 = 0,
+    conflicts: u8 = 0,
+    assignments: u8 = 0,
+    next: ?Index.Key = null,
+};
+/// Inspect at most eight accepted register records without decoding or returning
+/// application values. Counts include detached/deleted history, not visible fields
+/// or a whole-Document total. The continuation belongs to this exact snapshot.
+pub fn registerMetadata(self: Self, source: anytype, after: ?Index.Key) !RegisterMetadata {
+    var cursor = after orelse try Index.Key.init("R");
+    if (after != null) try validateRegisterKey(cursor);
+    var out: RegisterMetadata = .{};
+    for (0..8) |_| {
+        const entry = (try self.index.next(source, cursor)) orelse return out;
+        if (entry.key.data[0] != 'R') return out;
+        try validateRegisterKey(entry.key);
+        const observed = try readDots(entry.value);
+        out.registers += 1;
+        out.assignments += observed.len;
+        out.conflicts += @intFromBool(observed.len > 1);
+        cursor = entry.key;
+    }
+    out.next = cursor;
+    return out;
+}
+fn validateRegisterKey(value: Index.Key) !void {
+    try value.validate(true);
+    if (value.data[0] != 'R') return error.InvalidDocumentCursor;
+    if (value.len == 17) {
+        try (m.Dot{ .counter = std.mem.readInt(u64, value.data[1..9], .big), .replica = std.mem.readInt(u64, value.data[9..17], .big) }).validate(false);
+    } else if (value.len >= 19 and value.len <= 82 and value.data[1] == 'M') {
+        try (m.Dot{ .counter = std.mem.readInt(u64, value.data[2..10], .big), .replica = std.mem.readInt(u64, value.data[10..18], .big) }).validate(true);
+        const name = try m.Name.init(value.slice()[18..]);
+        if (!std.unicode.utf8ValidateSlice(name.slice())) return error.InvalidDocumentCursor;
+    } else return error.InvalidDocumentCursor;
 }
 /// Traverses only visible map assignments. Detached objects never reappear;
 /// missing, explicit null, scalar type mismatch and unresolved conflict differ.

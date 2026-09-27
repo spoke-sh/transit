@@ -53,6 +53,14 @@ a continuation is not EOF. Keep the same revision across pages. Raw component
 roots/readers are lower-level storage interfaces and do not enforce Document
 lifecycle by themselves. Service cursors never authorize another resource.
 
+`readRegisterMetadata` supplies up to eight register records' counts per page:
+registers, assignment IDs and conflicts, with an ordered continuation. Keep the
+same accepted revision across pages. Counts include detached/deleted history and
+are neither visible field counts nor whole-Document totals. The reader verifies
+register framing without decoding or returning application values. Current
+resource policy, history floor and retirement still gate every page. This is the
+bounded metadata handoff for Board; the Board API/UI integration is separate.
+
 `resynchronize` returns document/type/epoch/revision, history floor, the replica's
 accepted predecessor counter and the maximum observed logical clock. Reconcile
 pending edits against those accepted values before choosing new operation IDs.

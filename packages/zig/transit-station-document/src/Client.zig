@@ -67,6 +67,13 @@ pub fn readPath(self: Self, reference: Reference, names: []const m.Name) !Field 
     return .{ .reference = reference, .source_revision = source.view.revision, .value = try service.readPath(&source, reference.revision, names) };
 }
 pub const Page = struct { reference: Reference, source_revision: u64, value: Service.SequencePage };
+pub const RegisterMetadata = struct { reference: Reference, source_revision: u64, value: Document.RegisterMetadata };
+pub fn readRegisterMetadata(self: Self, reference: Reference, after: ?station.ImmutableIndex.Key) !RegisterMetadata {
+    const service = try reference.identity().service();
+    var source = try self.source.open(reference.resource);
+    try reference.check(try service.open(&source, reference.revision));
+    return .{ .reference = reference, .source_revision = source.view.revision, .value = try service.readRegisterMetadata(&source, reference.revision, after) };
+}
 pub fn readSequence(self: Self, reference: Reference, cursor: Service.PageCursor) !Page {
     if (cursor.revision != reference.revision) return error.InvalidDocumentCursor;
     const service = try reference.identity().service();

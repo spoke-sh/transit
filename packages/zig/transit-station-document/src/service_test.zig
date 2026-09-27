@@ -55,6 +55,46 @@ fn expectClean(turn: Turn) !void {
     for (turn.decision.mutations) |mutation| try t.expectEqual(null, mutation);
 }
 
+test "bounded register metadata counts conflicts without exposing application values and rechecks authority" {
+    var store: Turns = .{};
+    defer store.deinit();
+    try setup(&store);
+    var first = makeChange(1, 1, &.{.{ .assign = .{ .field = try m.Name.init("a"), .value = .{ .string = try m.Bytes.init("private application value") } } }});
+    first.len = 8;
+    for (1..8) |index| first.operations[index] = .{ .assign = .{ .field = try m.Name.init(&.{@as(u8, @intCast('a' + index))}), .value = .null_value } };
+    _ = try prepare(&store, 1, first, 512);
+    try upload(&store, 1, first);
+    _ = try finish(&store, 1);
+    const second = makeChange(2, 9, &.{ .{ .assign = .{ .field = try m.Name.init("a"), .value = .{ .string = try m.Bytes.init("another private value") } } }, .{ .assign = .{ .field = try m.Name.init("z"), .value = .{ .unsigned = 42 } } } });
+    _ = try prepare(&store, 2, second, 512);
+    try upload(&store, 2, second);
+    _ = try finish(&store, 2);
+    var turn = try store.capture();
+    const page = try service.readRegisterMetadata(&turn, 2, null);
+    try t.expectEqual(@as(u8, 8), page.registers);
+    try t.expectEqual(@as(u8, 1), page.conflicts);
+    try t.expectEqual(@as(u8, 9), page.assignments);
+    try t.expect(page.next != null);
+    const last = try service.readRegisterMetadata(&turn, 2, page.next);
+    try t.expectEqual(@as(u8, 1), last.registers);
+    try t.expectEqual(@as(u8, 0), last.conflicts);
+    try t.expectEqual(null, last.next);
+    try t.expectEqual(@as(u8, 0), (try service.readRegisterMetadata(&turn, 1, null)).conflicts);
+    const encoded = try std.json.Stringify.valueAlloc(t.allocator, page, .{});
+    defer t.allocator.free(encoded);
+    try t.expect(std.mem.indexOf(u8, encoded, "private") == null);
+    try t.expectError(error.InvalidDocumentCursor, service.readRegisterMetadata(&turn, 2, try Index.Key.init("invalid")));
+    store.denied = true;
+    turn = try store.capture();
+    try t.expectError(error.AccessDenied, service.readRegisterMetadata(&turn, 2, page.next));
+    store.denied = false;
+    turn = try store.capture();
+    try service.retire(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.DocumentRetired, service.readRegisterMetadata(&turn, 2, page.next));
+}
+
 test "every staging turn can be discarded or recovered and final acceptance is atomic within four mutations" {
     var store: Turns = .{};
     defer store.deinit();
