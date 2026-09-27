@@ -79,6 +79,7 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-station-document && zig build test
     cd packages/zig/transit-station-grpc && zig build test
     cd packages/zig/transit-grpc && zig build test
     cd packages/zig/transit-tls && zig build test
@@ -99,6 +100,7 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-station-document && zig build check
     cd packages/zig/transit-station-grpc && zig build check
     cd packages/zig/transit-grpc && zig build check
     cd packages/zig/transit-tls && zig build check

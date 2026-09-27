@@ -116,3 +116,9 @@ those SDKs. The complete collaborative example, Board metadata and deployment
 proofs remain explicit [M17 exit criteria](roadmap/M17.md#exit-criteria).
 Unified query APIs, Arrow ownership/fixtures and all-language query conformance
 remain [M18](roadmap/M18.md) obligations, separate from Document mutation APIs.
+
+The [Station Document package](../packages/zig/transit-station-document/README.md)
+now implements the selected merge model and bounded candidate/reader component.
+Its [neutral format](../contracts/STATION_DOCUMENT_V1.md) owns exact fields and
+limits. Component convergence and fault tests do not complete durable acceptance,
+checkpoint, SDK or placement qualification.

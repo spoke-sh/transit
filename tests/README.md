@@ -2047,3 +2047,15 @@ These proofs concern one authority on Linux x86_64 and process/store restart,
 not host power loss, production throughput, CRDT convergence, language SDKs,
 remote uploads, physical reclamation or deployment-launcher support. Hosted CI
 feedback/cost for the additional task has not yet been measured.
+
+The M17 Document package now runs eight component tests in `just check` and
+`just test::packages`. They include all 24 permutations of four concurrent
+changes with duplicate delivery, nested parent deletion/child edits, text anchor
+deletion and concurrent insertion, explicit register conflicts/resolution,
+missing/null/type errors, full-width values, Unicode and failed candidate writes.
+An 80-change text schedule stores 640 scalar elements and more than 2,048 index
+entries while traversal advances one bounded transition at a time. The standalone
+suite passed in 1 s with 16 MiB process RSS (including the in-memory test store);
+this is not a production resident-memory or disk-recovery measurement. Full
+repository checks passed. Durable acceptance, checkpoint/compaction, SDK and
+placement evidence remain pending.

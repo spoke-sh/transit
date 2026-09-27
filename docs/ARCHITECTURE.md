@@ -189,6 +189,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 shared segment capture, frozen intent coverage and explicit cleanup; qualification in progress | transit-station |
+| [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and paged accepted-state candidates; service qualification in progress | transit-station |
 | [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 HTTP request construction and strict framing; connector implementation in progress | transit-exchange, transit-tls |
 | [transit-tls](../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
 | [transit-station-grpc](../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | M16 durable finite RPC adapter, in progress | transit-exchange, transit-grpc |
