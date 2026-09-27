@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
     const grpc = b.dependency("transit_grpc", .{ .target = target, .optimize = optimize });
     const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
@@ -43,8 +44,14 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run Zig unit and protocol tests");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = exchange.module("transit_exchange") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
+    const grpc_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    grpc_contract_test.addFileArg(b.path("tests/grpc_contract.py"));
+    grpc_contract_test.has_side_effects = true;
+    grpc_contract_test.stdio = .inherit;
+    test_step.dependOn(&grpc_contract_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
     const tls_alpn_proof = b.addExecutable(.{ .name = "transit-tls-alpn-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/tls_alpn.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_tls", .module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") }} }) });
     build_test_step.dependOn(&tls_alpn_proof.step);

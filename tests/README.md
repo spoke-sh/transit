@@ -2,6 +2,11 @@
 
 ## M16 transport work in progress
 
+`just test::unit` runs the new RPC request codec against a Python-generated
+GRQ1/GRB1 fixture with independent Publication digest computation. It covers
+original protobuf bytes, Unicode, duplicate/binary metadata, empty messages,
+full-width references and canonical parsing; it is not a durable RPC proof.
+
 The shared `PublicationUpload` helper now stages HTTP's two immutable request
 records with the same frozen identity and one bounded operation per turn.
 Units cover partial upload, changed content/identity, occupied namespace refusal

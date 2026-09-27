@@ -1,0 +1,10 @@
+{
+  "metadata": "{\"version\":1,\"method\":\"/transit.test.Peer/Bidi\",\"shape\":\"bidi\",\"descriptor_digest\":\"9a577a26bee1819d8e83bf5cc870e61094187b78eeea745d5aaf935ec99e25fa\",\"metadata\":[{\"name\":\"x-label\",\"value\":{\"literal_hex\":\"6669727374\"}},{\"name\":\"x-label\",\"value\":{\"literal_hex\":\"7365636f6e64\"}},{\"name\":\"x-data-bin\",\"value\":{\"literal_hex\":\"00ff800a\"}},{\"name\":\"authorization\",\"value\":{\"secret\":{\"binding\":\"peer-token\",\"version\":18446744073709551615}}}]}",
+  "messages_hex": [
+    "0a09636166c3a9f09f8c90120300ff8018ffffffffffffffffff01",
+    "",
+    "120200ff"
+  ],
+  "batch_hex": "47524231030000001b0000000a09636166c3a9f09f8c90120300ff8018ffffffffffffffffff010000000004000000120200ff",
+  "reference_hex": "47525131ffffffffffff1f00ffffffffffffffffb20100003877387f826c26ac0a83ca372c034ab25130eec1227adbee93a677ca6c24f69c330000003898630d9ba8c012d3dd3e0f2427c2a9abd8657104c570d040173f32b73e4daeffffffffffffffffffffffffffffffffffffffff049a577a26bee1819d8e83bf5cc870e61094187b78eeea745d5aaf935ec99e25fa"
+}

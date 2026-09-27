@@ -1,0 +1,8 @@
+.{
+    .name = .transit_station_grpc,
+    .fingerprint = 0x19a1d2a134c55797,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_exchange = .{ .path = "../transit-exchange" }, .transit_grpc = .{ .path = "../transit-grpc" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src" },
+}

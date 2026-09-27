@@ -3,7 +3,10 @@
 Status: second connector in progress, [M16](roadmap/M16.md), after
 [HTTP M15](roadmap/M15.md). The [finite transport](../packages/zig/transit-grpc/README.md)
 now has independent-peer evidence; the durable Station connector is in progress.
-The [shared effect boundary](CONNECTORS.md#effect-boundary) and
+The [durable adapter](../packages/zig/transit-station-grpc/README.md) now implements
+canonical request metadata, binary batches and shared resumable publication under
+the [RPC contract](../contracts/STATION_GRPC_V1.md); worker/replay qualification
+remains in progress. The [shared effect boundary](CONNECTORS.md#effect-boundary) and
 [bounded reconciliation contract](CONNECTORS.md#bounded-reconciliation-contract)
 apply without weakening expiry, fencing or replay rules.
 
