@@ -2,8 +2,11 @@
 
 This matrix describes the implemented query contracts. Qualification is tracked
 in the [proof guide](../../../../tests/README.md#m18-work-in-progress); a planned
-transport does not become available by sharing an engine. M19 planning remains a
-separate review.
+transport does not become available by sharing an engine. Planned
+[HTTP serving M19](../../../../docs/roadmap/M19.md),
+[reactive APIs M20](../../../../docs/roadmap/M20.md),
+[reactive refresh M21](../../../../docs/roadmap/M21.md) and
+[Flight M22](../../../../docs/roadmap/M22.md) have separate qualification gates.
 
 | Surface | Public Table v1 (M13) | Unified v2 (M18) |
 | --- | --- | --- |
@@ -15,7 +18,7 @@ separate review.
 | Shell | `transit query CONFIG` | `transit query-v2 CONFIG`; explicit frozen bundle/token recovery |
 | Board | Separate `query` credential/configuration | Separate `query_v2`; one configured source and budgets, explicit submission |
 | Language callers | Existing SDK Table/Station APIs | All ten M11 SDKs over the same Zig native/port implementation |
-| Flight / Flight SQL / ADBC | No implemented endpoint | No implemented endpoint; these protocols need M19 qualification |
+| Flight / Flight SQL / ADBC | No implemented endpoint | No implemented endpoint; these protocols need M22 qualification |
 
 V1 is not upgraded in place. Its compiler, retained result interpretation,
 request limits and SQL null behavior remain unchanged. V2's version and digest

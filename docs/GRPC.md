@@ -148,4 +148,6 @@ not contain credentials, raw messages or unbounded method/target labels. Follow
 [M16](roadmap/M16.md) owns interoperation tests, crash/revocation schedules and
 reference deployment qualification. Server-side hosting of arbitrary application
 gRPC services, gRPC-Web and automatic remote-stream resumption are outside its
-first profile. M19 adds the specific Flight/Flight SQL ingress service.
+first profile. [M19](roadmap/M19.md) first formalizes [serving](SERVING.md) with
+HTTP; M22 adds the specific Flight/Flight SQL ingress adapter over that foundation.
+Neither HTTP serving nor the outbound gRPC client proves an inbound gRPC server.

@@ -167,7 +167,7 @@ host supports them. Do not convert results into JSON rows as the sole API.
 result completeness, snapshots and cleanup independently of host-language
 garbage collection.
 
-[Arrow interoperability M19](roadmap/M19.md) adds Flight/Flight SQL access and
+[Arrow interoperability M22](roadmap/M22.md) adds Flight/Flight SQL access and
 qualification with existing ADBC drivers. Those are Table query clients, distinct
 from these process/behavior bindings. The shared Zig engine remains behind both
 surfaces; neither an Arrow C interface nor an ADBC handle grants Transit rights.

@@ -26,8 +26,11 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M16](M16.md) | gRPC connector and bounded streaming calls | Finite profile locally qualified: four shapes, ten SDKs, Board, three placements and recovery; hosted cost deferred |
 | [M17](M17.md) | Documents and collaborative text | Qualified growing profile: structured/text CRDTs, ten SDKs, Board and three placements; hosted cost deferred |
 | [M18](M18.md) | Unified state querying and versioned source contracts | In progress; v2 adapters, signed recovery and all ten typed SDKs implemented; lifecycle, shell/Board and deployment qualification next |
-| [M19](M19.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; compose qualified transport and query components |
-| [M20](M20.md) | Clustered execution and portability | Planned; extend component proofs across authority/runtime topologies |
+| [M19](M19.md) | Serving foundation and HTTP APIs | Planned; qualify shared serving through application APIs and Board |
+| [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Planned; shared session/subscription semantics and generated OpenAPI/AsyncAPI descriptions |
+| [M21](M21.md) | Reactive interfaces over reactive APIs | Planned; live views and exact snapshot refresh consume M20 |
+| [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; Arrow protocol adapters reuse the qualified serving foundation |
+| [M23](M23.md) | Clustered execution and portability | Planned; extend component proofs across authority/runtime topologies |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -61,10 +64,21 @@ authority. These are the first two connectors; they do not depend on Documents.
 Later work composes the qualified lower-level components in separate steps:
 [M17](M17.md) supplies Document/CRDT storage and structured/plain-text editing;
 [M18](M18.md) supplies KV/Document query adapters and versioned schema/request
-extensions while preserving the M13 Table path. [M19](M19.md) adds Flight/ADBC
-transport and client compatibility over those queries; [M20](M20.md) qualifies
-all these boundaries across broader authority/runtime topologies. Fuze remains
-Zig throughout; SQL or RPC transport never replaces durable authority.
+extensions while preserving the M13 Table path. [M19](M19.md) formalizes the
+[serving layer](../SERVING.md) through application HTTP APIs and Board, with
+shared inbound identity, admission, response and recovery contracts.
+[M20](M20.md) adds [reactive APIs](../REACTIVE_API.md): SSE and WebSocket hosting,
+shared session/subscription and resume semantics, and generated OpenAPI/AsyncAPI
+descriptions. [M21](M21.md) consumes that API in [reactive interfaces](../REACTIVE.md)
+with live views and exact snapshot refresh; incremental continuous query execution
+remains later work. [M22](M22.md) then adds Flight/Flight SQL and ADBC
+interoperability over the qualified serving contracts. [M23](M23.md) qualifies
+these boundaries across broader authority/runtime topologies. Fuze remains Zig throughout; SQL or RPC transport
+never replaces durable authority.
+
+M19–M21 separately qualify the serving foundation, reactive API contracts and
+their interface consumers. Completed milestone scope and proof remain unchanged;
+each new milestone requires its own entry gates and qualification evidence.
 
 The M15/M16 plans are reviewed from current M14 evidence. M17 onward has a
 composition plan now, with a further entry review after the connectors have

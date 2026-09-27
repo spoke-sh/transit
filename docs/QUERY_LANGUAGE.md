@@ -7,7 +7,7 @@ It produces the existing `Stream.Plan`/`PlanCodec` and runs through Fuze's
 bounded Arrow engine. It introduces no public query endpoint or CLI.
 The DDL/DML-write, broader dataframe and connector/transport namespace designs
 below remain direction, not implemented SQL capabilities. [M13](roadmap/M13.md)
-owns public typed query access; [M19](roadmap/M19.md) owns Flight SQL ingress
+owns public typed query access; [M22](roadmap/M22.md) owns Flight SQL ingress
 and should reuse this compiler. Neither milestone acquires new authority from
 accepting query text.
 
@@ -101,6 +101,16 @@ bindings, explicit revisions, conditional changes and retirement while keeping
 private values outside SQL. Its new syntax and permission semantics remain
 proposals; neither parser support nor administrative execution is added.
 
+[Serving M19](roadmap/M19.md) adds a typed declaration and operation-mapping
+contract for inbound services and HTTP routes. The [serving SQL map](SERVING.md#declarative-and-operator-mapping)
+marks the missing service/endpoint grammar explicitly; HTTP publication does not
+implement administrative SQL. [Reactive APIs M20](roadmap/M20.md) extends the
+shared typed model with sessions, messages and subscriptions, with generated
+OpenAPI/AsyncAPI descriptions; it supplies no executable serving/subscription DDL
+or independent configuration authority. [Reactive interfaces M21](roadmap/M21.md) follows
+source changes by scheduling new finite snapshots of an already submitted query.
+It adds neither SUBSCRIBE syntax nor continuous operators or automatic draft execution.
+
 ## DDL: mostly a spelling problem, with one real prerequisite
 
 `CREATE TABLE` is not a new capability. Station already has a typed
@@ -139,12 +149,12 @@ limit. Omitted limits remain unlimited under `Stream.Plan`; explicit limits
 are 0–32 in this SQL profile. Joins, grouping, general subqueries and window
 functions require separate qualification. Unsupported constructs fail explicitly.
 
-[M19](roadmap/M19.md) already commits to exactly this SELECT-only slice,
+[M22](roadmap/M22.md) already commits to exactly this SELECT-only slice,
 narrower and further out: *"a bounded read-only SQL subset... translating
 into Fuze's M9 plans; no separate engine."* A full DDL/DML relational
 surface — this document's scope — is bigger than that existing commitment in
-two ways: it writes, and M19 ties its SQL specifically to the Flight SQL
-ingress path. M12 now supplies the local read compiler; M19 supplies remote Flight SQL
+two ways: it writes, and M22 ties its SQL specifically to the Flight SQL
+ingress path. M12 now supplies the local read compiler; M22 supplies remote Flight SQL
 ingress over it. Neither delivers the full relational surface; a general DDL/DML surface
 (`transit query`'s shell, a future direct SQL endpoint) is separate,
 unscoped work this document intentionally does not turn into a milestone

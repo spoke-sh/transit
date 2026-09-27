@@ -156,7 +156,7 @@ query plan. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
 surface uses versioned structured operations. [M12](roadmap/M12.md) implements
 the bounded read-only Table SQL frontend; M13 exposes it publicly. M18 extends
-source contracts, and [M19](roadmap/M19.md) adds Flight SQL transport over that
+source contracts, and [M22](roadmap/M22.md) adds Flight SQL transport over that
 same compiler and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
@@ -258,7 +258,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M9 defines the minimal scoped registry; M20 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M23 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates

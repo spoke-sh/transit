@@ -177,7 +177,7 @@ Record hardware, filesystem, provider topology, versions, cold/warm state and
 repeat counts. Establish tolerances from measured variance. Keep strict protocol
 deadline assertions separate from noisy performance regressions. Single-authority
 growth does not prove horizontal throughput: the current realm-wide journal is a
-serialization point, and [M20](roadmap/M20.md) owns broader cluster qualification.
+serialization point, and [M23](roadmap/M23.md) owns broader cluster qualification.
 
 ## CI selection, cost and local parity
 

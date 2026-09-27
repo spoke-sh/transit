@@ -2,8 +2,8 @@
 
 [Review index](README.md)
 
-Copy this template into the design item's directory; the review index above
-refers to that item's README. Add real previous/next review links within the item
+Use this template for UI/UX reviews. Copy it into the design item's directory;
+the review index above refers to that item's README. Add real previous/next review links within the item
 here and at the end when those reviews exist. Assign the next unused D number
 within the item and add its summary row to the item's README before publishing.
 

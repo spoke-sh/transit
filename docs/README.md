@@ -23,6 +23,9 @@ are experimental; their bounded implementation does not imply support for every 
 | [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
 | [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
+| [Serving](SERVING.md) | Proposed inbound service/route, identity, admission and response contracts; HTTP for applications and Board |
+| [Reactive APIs](REACTIVE_API.md) | Proposed SSE/WebSocket hosting, shared sessions/subscriptions, resumable events and generated OpenAPI/AsyncAPI contracts |
+| [Reactive interfaces](REACTIVE.md) | Proposed live views, exact snapshot refresh and visible freshness over reactive APIs |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, growing atlas, optional Table workspace and observation semantics |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
@@ -35,7 +38,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Conformance](CONFORMANCE.md) | Adversarial obligations and limits on guarantees |
 | [Testing](TESTING.md) | Verification layers, generated/fault/formal checks, scale evidence and CI cost/selection strategy |
 | [Roadmap](roadmap/README.md) | Milestones and observable exit criteria |
-| [Design items](design/README.md) | Per-item review sequences, numbered proposals, visual studies, outcomes and open questions |
+| [UI/UX design items](design/README.md) | Per-item review sequences, numbered interface proposals, visual studies, outcomes and open questions |
 
 For hands-on work, use [development](DEVELOPMENT.md) and the
 [component READMEs](ARCHITECTURE.md#planned-monorepo-decomposition).
@@ -48,8 +51,8 @@ scenarios, capacity arithmetic and their implications for qualification.
 | --- | --- |
 | Root [README](../README.md) | Orientation, status, and a short runnable start |
 | `docs/` | Scope, cross-component design, invariants, and tradeoffs |
-| [docs/roadmap/](roadmap/README.md) | Milestone index and individual scope, criteria, and status files |
-| [docs/design/](design/README.md) | Design-item index; one directory, linear D-numbered review sequence and summary table per item |
+| [docs/roadmap/](roadmap/README.md) | Milestone index and individual scope, design decisions, qualification criteria and status files |
+| [docs/design/](design/README.md) | UI/UX reviews; one directory, linear D-numbered review sequence and summary table per item |
 | Package/app READMEs | Purpose, public entry points, dependencies, quick start, limits, and links to deeper guides |
 | Package/app `docs/` | Substantial component configuration, caller workflows, storage mappings, and operational details |
 | [Pre-Station review](reviews/PRE_STATION.md), [post-M9 review](reviews/PRE_M10.md) | Dated comparisons of documented guarantees, implementation, evidence, and upcoming gates |
@@ -71,8 +74,10 @@ capabilities from defects. They do not replace current contracts or milestone pl
 
 ## Design review workflow
 
-Use the [design-item index](design/README.md) for proposals that need visual
-or interaction review. Each item has its own directory and linear review sequence.
+Use the [UI/UX design-item index](design/README.md) for interface proposals that
+need visual or interaction review. System architecture belongs in its owning
+topic documents, with scope, decisions and qualification in the roadmap milestones.
+Each UI/UX item has its own directory and linear review sequence.
 Each numbered document owns its question, proposal, figures, outcome, open
 questions and evidence limits. Follow the
 [structure and status rules](design/README.md#review-document-structure) and

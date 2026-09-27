@@ -91,6 +91,14 @@ security and failure proofs run; M14 byte integrity is not that evidence.
 
 ## Transport, connector and integration
 
+Inbound server protocols belong to the proposed [serving layer](SERVING.md).
+[M19](roadmap/M19.md) first qualifies HTTP application APIs and Board;
+[M22](roadmap/M22.md) reuses that foundation for Flight. A server accepts and
+authorizes external requests; a connector executes committed outbound intents.
+Share qualified framing/codecs where useful, while preserving these distinct
+admission, provenance and recovery contracts. An HTTP response is not a new
+connector attempt; a callback to another destination is.
+
 Three distinct tiers sit outside the kernel, and only the middle one is a
 connector in this document's sense. Getting the boundary right now, before a
 third or fourth connector exists, is cheaper than re-deriving it later.

@@ -225,5 +225,5 @@ Each source requires independent expression/Arrow fixtures, page-boundary
 permutations, exact signed retry, worker/node recovery, current-policy denial
 before/during/after capture, returned-prefix denial, expiry, retained-version
 release, retirement and cleanup. Local, Compose and Substrate examples record
-actual evidence and measured costs. M19 receives a source/type/protocol matrix;
+actual evidence and measured costs. M22 receives a source/type/protocol matrix;
 no Flight, Flight SQL or ADBC support follows from this contract alone.

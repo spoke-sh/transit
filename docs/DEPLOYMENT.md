@@ -96,7 +96,7 @@ records with separate administrative grants and retention rules described in
 Restoring an old backup is different from replacing a worker against current
 storage. The backup may predate revocation, process expiry, or an externally
 completed effect. M1 does not support automatic live restore from rolled-back
-history. M20 must prove an explicit procedure that fences the old deployment,
+history. M23 must prove an explicit procedure that fences the old deployment,
 establishes a new recovery generation/trust state, and reconciles external work
 before activation. A clone used for inspection is read-only; a new live import
 needs explicit identity and effect lineage. Neither may redispatch old attempts

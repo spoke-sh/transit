@@ -330,10 +330,10 @@ There is no reason to translate the whole kernel to Lean or gate M11 on it now.
   supply protocol-specific remote-effect oracles. Test that replay performs no
   network action. Bounded reconciliation cannot roll back the remote system or
   make an unknown attempt safe to retry. Streaming adds directional flow control.
-- **M19 Arrow interoperability:** extend the independent IPC checks with actual
+- **M22 Arrow interoperability:** extend the independent IPC checks with actual
   Flight/ADBC consumers, ticket revocation and incomplete-stream failures. Preserve
   source evidence and capability reporting; transport success is not completeness.
-- **M20 clustering/portability:** model partition and ownership interleavings,
+- **M23 clustering/portability:** model partition and ownership interleavings,
   measure journal contention and prove provider-specific failure behavior. More
   workers or SDK handles do not remove the current realm serialization point.
 

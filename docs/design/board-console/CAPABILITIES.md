@@ -39,7 +39,7 @@ this review's proposal.
 | SSE | Candidate HTTP streaming profile with an explicit subscription contract | Endpoint, event framing, last accepted event ID, capture cursor, reconnect policy, gaps and lag basis | Durable acceptance/checkpoint mapping and upstream replay limits; Last-Event-ID alone promises no retained history |
 | WebSocket | Candidate connector family or reviewed streaming adapter | Endpoint/subprotocol, messages in each direction, send/capture progress, close/ping observations and buffers | Per-message intent/send authority, bounded bidirectional capture, reconnect identity and unknown outcome; handshake success is not message delivery |
 | gRPC | Connector over qualified HTTP/2 | Method/type descriptors, unary/streaming mode, directional progress, half-close, trailers and budgets | M16's exact send units, capture, cancellation and reconciliation proofs; no automatic restart of a partial stream |
-| Flight / Flight SQL / ADBC | Query gateway/client capability using the qualified RPC path | Source catalog, identity mapping, tickets/result references, query features and retrieval state | M19's initial bounded Table matrix; neither ticket possession nor a gRPC implementation grants data access |
+| Flight / Flight SQL / ADBC | Query gateway/client capability using the qualified RPC path | Source catalog, identity mapping, tickets/result references, query features and retrieval state | M22's initial bounded Table matrix; neither ticket possession nor a gRPC implementation grants data access |
 
 [SSE's specification](https://html.spec.whatwg.org/multipage/server-sent-events.html)
 defines event framing and reconnection behavior;
