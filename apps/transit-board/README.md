@@ -182,3 +182,13 @@ submission outcomes retain a frozen token for an explicit exact retry. Known
 revocation clears the protected workspace. No offline history or result cache is
 created. [Configuration](docs/configuration.md#growing-atlas-and-optional-table-queries)
 and [frontend behavior](../transit-board-web/README.md) describe the limits.
+
+The growing profile exposes selected accepted Document metadata at
+`GET /api/v1/resources/{resource}/documents/{document}`. `document` is a canonical
+nonzero uint64 decimal string. Optional `revision` (resource revision) and `after`
+(opaque lowercase hex index key, at most 128 bytes) bind bounded continuation;
+`after` requires `revision`. Public current-policy reads supply head evidence and
+at most eight retained register counts. No application values or tentative changes
+are returned. Changed cuts return `QueryExpired`, retained gaps `HistoryReclaimed`,
+and current denial `Forbidden`; permanent Document retirement remains visible as
+head metadata with no register page. The inspection identity gains no write power.

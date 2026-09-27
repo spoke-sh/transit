@@ -100,3 +100,15 @@ host libraries; on supported CI Linux images Playwright can provision them with
 against real hosts, including live revocation and lossless typed values.
 `just transit-board::http-browser` checks actual HTTP capture metadata and live
 read revocation against the disk/S3 worker fixture; it additionally requires Docker.
+
+## Accepted Document metadata
+
+Select a growing resource, inspect its records, then select a recognized Document
+head. Board shows accepted revision/epoch, type/change format, retained history
+floor, merge window, pending publication and retirement. Register conflict counts
+cover one bounded page, including detached/deleted history; they are not totals
+for visible fields. Next-page requests preserve the original resource revision;
+errors clear the view and require an explicit refresh after a changed cut.
+Application fields/text remain opaque. Current grants are rechecked on refresh;
+hidden views and failed reads clear observations. `just transit-board::document-browser`
+exercises the real worker and embedded UI, including live read revocation.

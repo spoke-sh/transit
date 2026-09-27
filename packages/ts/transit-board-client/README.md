@@ -91,3 +91,11 @@ identities, unsigned decimal fields, half-close/count relationships and complete
 terminal evidence. It keeps observed status zero distinct from a missing terminal.
 The same abortable request path serves HTTP and RPC metadata; neither exposes
 application body decoders or cached history.
+
+`documentMetadata(resource, document, cursor?, signal?)` validates accepted
+Document metadata, exact decimal identities, head evidence, bounded register
+counts and retirement. A continuation carries its original resource revision;
+changing that revision requires an explicit refresh. Counts include detached and
+deleted registers and describe one page only. Field names, scalar values and text
+are not interpreted. `validateRecords` also checks each recognized Document head
+against the corresponding authorized source entry.

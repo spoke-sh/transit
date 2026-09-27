@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { records, type RecordsResponse } from "@rey/transit-board-client";
 import { message } from "./state";
 import { GrpcMetadata } from "./grpc-metadata";
+import { DocumentMetadata } from "./document-metadata";
 import { HttpMetadata } from "./http-metadata";
 
 type Declaration = NonNullable<RecordsResponse["exchanges"][number]>["declaration"];
@@ -117,6 +118,7 @@ export function Records({ resource }: { resource: number }) {
   const [error, setError] = useState("");
   const [cursor, setCursor] = useState<{ revision: number; after: string }>();
   const [refresh, setRefresh] = useState(0);
+  const [selectedDocument, setSelectedDocument] = useState<string>();
   const [selectedHttp, setSelectedHttp] = useState<string>();
   const [selectedGrpc, setSelectedGrpc] = useState<string>();
   useEffect(() => {
@@ -163,8 +165,8 @@ export function Records({ resource }: { resource: number }) {
     <section aria-label={`Resource ${resource} records`} className="panel">
       <h2>Resource {resource} records</h2>
       <p>
-        Eight authorized records per page. Recognized exchange metadata includes source keys and
-        revisions.
+        Eight authorized records per page. Recognized Exchange and Document metadata includes source
+        keys and revisions.
       </p>
       <button
         onClick={() => {
@@ -213,6 +215,19 @@ export function Records({ resource }: { resource: number }) {
                     Inspect RPC metadata
                   </button>
                 )}
+              {page.documents[index] && (
+                <>
+                  <h3>
+                    Document {page.documents[index].declaration.document} · revision{" "}
+                    {page.documents[index].declaration.revision}
+                  </h3>
+                  <button
+                    onClick={() => setSelectedDocument(page.documents[index]!.declaration.document)}
+                  >
+                    Inspect Document metadata
+                  </button>
+                </>
+              )}
               <p>
                 Source: writer PID {page.resource.writer}, entry revision {entry.revision}
               </p>
@@ -237,6 +252,9 @@ export function Records({ resource }: { resource: number }) {
         >
           Next records
         </button>
+      )}
+      {page && selectedDocument && (
+        <DocumentMetadata key={selectedDocument} resource={resource} document={selectedDocument} />
       )}
       {page && selectedGrpc && (
         <GrpcMetadata key={selectedGrpc} resource={resource} exchange={selectedGrpc} />

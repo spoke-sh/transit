@@ -1502,6 +1502,136 @@
         }
       }
     },
+    "/api/v1/resources/{resource}/documents/{document}": {
+      "get": {
+        "summary": "DocumentResponse",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "document",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            "description": "Canonical nonzero uint64 Document identity."
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "description": "Original resource revision; refresh explicitly after 409."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^([0-9a-f]{2}){1,128}$"
+            },
+            "description": "Opaque exclusive register cursor. Requires its original resource revision. Counts cover one bounded page, including detached history."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DocumentResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/processes/{pid}/mailbox": {
       "get": {
         "summary": "Response",
@@ -5456,6 +5586,7 @@
           "station",
           "http_connector",
           "grpc_connector",
+          "documents",
           "push"
         ],
         "properties": {
@@ -5550,6 +5681,9 @@
           "grpc_connector": {
             "type": "boolean"
           },
+          "documents": {
+            "type": "boolean"
+          },
           "push": {
             "type": "boolean"
           }
@@ -5571,6 +5705,7 @@
           "station",
           "http_connector",
           "grpc_connector",
+          "documents",
           "push"
         ],
         "x-transit-defaults": {
@@ -5588,6 +5723,7 @@
           "station": true,
           "http_connector": false,
           "grpc_connector": false,
+          "documents": false,
           "push": false
         }
       },
@@ -7774,7 +7910,8 @@
           "position",
           "resource",
           "page",
-          "exchanges"
+          "exchanges",
+          "documents"
         ],
         "properties": {
           "version": {
@@ -8483,6 +8620,189 @@
                 }
               ]
             }
+          },
+          "documents": {
+            "type": "array",
+            "minItems": 8,
+            "maxItems": 8,
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "version",
+                    "source",
+                    "declaration"
+                  ],
+                  "properties": {
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    },
+                    "source": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "realm",
+                        "pid",
+                        "resource",
+                        "key",
+                        "entry_revision",
+                        "resource_revision",
+                        "position"
+                      ],
+                      "properties": {
+                        "realm": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "resource": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "key": {
+                          "type": "string",
+                          "pattern": "^(?:[0-9a-f]{2})*$",
+                          "maxLength": 512,
+                          "x-transit-encoding": "lowercase-hex"
+                        },
+                        "entry_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "resource_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "position": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "required": [
+                        "realm",
+                        "pid",
+                        "resource",
+                        "key",
+                        "entry_revision",
+                        "resource_revision",
+                        "position"
+                      ],
+                      "x-transit-defaults": {}
+                    },
+                    "declaration": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "document",
+                        "epoch",
+                        "type_revision",
+                        "change_format",
+                        "revision",
+                        "floor",
+                        "merge_window",
+                        "active_job",
+                        "retired"
+                      ],
+                      "properties": {
+                        "document": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "epoch": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "type_revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "change_format": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 4294967295,
+                          "x-transit-bits": 32,
+                          "x-transit-signed": false
+                        },
+                        "revision": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "floor": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "merge_window": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "active_job": {
+                          "type": "string",
+                          "maxLength": 256
+                        },
+                        "retired": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "document",
+                        "epoch",
+                        "type_revision",
+                        "change_format",
+                        "revision",
+                        "floor",
+                        "merge_window",
+                        "active_job",
+                        "retired"
+                      ],
+                      "x-transit-defaults": {
+                        "change_format": 1
+                      }
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "source",
+                    "declaration"
+                  ],
+                  "x-transit-defaults": {
+                    "version": 1
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
           }
         },
         "required": [
@@ -8491,11 +8811,22 @@
           "position",
           "resource",
           "page",
-          "exchanges"
+          "exchanges",
+          "documents"
         ],
         "x-transit-defaults": {
           "version": 1,
           "exchanges": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "documents": [
             null,
             null,
             null,
@@ -10251,6 +10582,237 @@
           "response_message_records",
           "response_body_bytes",
           "terminal"
+        ],
+        "x-transit-defaults": {
+          "version": 1
+        }
+      },
+      "DocumentResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "version",
+          "source",
+          "declaration",
+          "registers"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "realm",
+              "pid",
+              "resource",
+              "key",
+              "entry_revision",
+              "resource_revision",
+              "position"
+            ],
+            "properties": {
+              "realm": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "pid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "resource": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^(?:[0-9a-f]{2})*$",
+                "maxLength": 512,
+                "x-transit-encoding": "lowercase-hex"
+              },
+              "entry_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "resource_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "position": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              }
+            },
+            "required": [
+              "realm",
+              "pid",
+              "resource",
+              "key",
+              "entry_revision",
+              "resource_revision",
+              "position"
+            ],
+            "x-transit-defaults": {}
+          },
+          "declaration": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "document",
+              "epoch",
+              "type_revision",
+              "change_format",
+              "revision",
+              "floor",
+              "merge_window",
+              "active_job",
+              "retired"
+            ],
+            "properties": {
+              "document": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "epoch": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "type_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295,
+                "x-transit-bits": 32,
+                "x-transit-signed": false
+              },
+              "change_format": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295,
+                "x-transit-bits": 32,
+                "x-transit-signed": false
+              },
+              "revision": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "floor": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "merge_window": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "active_job": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "retired": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "document",
+              "epoch",
+              "type_revision",
+              "change_format",
+              "revision",
+              "floor",
+              "merge_window",
+              "active_job",
+              "retired"
+            ],
+            "x-transit-defaults": {
+              "change_format": 1
+            }
+          },
+          "registers": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "count",
+                  "conflicts",
+                  "assignments",
+                  "next"
+                ],
+                "properties": {
+                  "count": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  },
+                  "conflicts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  },
+                  "assignments": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  },
+                  "next": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "count",
+                  "conflicts",
+                  "assignments",
+                  "next"
+                ],
+                "x-transit-defaults": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "source",
+          "declaration",
+          "registers"
         ],
         "x-transit-defaults": {
           "version": 1

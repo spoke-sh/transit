@@ -6,7 +6,8 @@ The typed Board v1 response contract, exported as `transit_board_api`. Depends o
 [transit-query](../transit-query/README.md) for the optional query contract and
 [transit-exchange](../transit-exchange/README.md) and
 [transit-station-http](../transit-station-http/README.md) and
-[transit-station-grpc](../transit-station-grpc/README.md) for capture metadata. It does not read stores, execute
+[transit-station-grpc](../transit-station-grpc/README.md) for capture metadata, plus
+[transit-station-document](../transit-station-document/README.md) for accepted Document metadata. It does not read stores, execute
 handlers, or authenticate viewers; the Board executable composes those boundaries.
 
 `try project(page)` rejects malformed mixed-resource or inconsistent
@@ -35,9 +36,10 @@ the shared query client.
 | `Response` / `project` | One authorized inspection page plus bounded recorded causal edges |
 | `StateResponse` / `projectState` | One authorized state page without business-value interpretation |
 | `AtlasResponse` | Growing process/resource pages and the current inspection identity at one cut |
-| `RecordsResponse` / `projectRecords` | Eight growing record identities and recognized exchange metadata, with exact source evidence |
+| `RecordsResponse` / `projectRecords` | Eight growing record identities and recognized Exchange/Document metadata, with exact source evidence |
 | `HttpResponse` / `Http.project` | Selected HTTP policy/timing/omission/completion metadata and its committed member references |
 | `GrpcResponse` / `Grpc.project` | Selected RPC shape/schema, directional counts, half-close and terminal evidence without protobuf interpretation |
+| `DocumentResponse` / `Document.project` | Accepted identity, profile, revision, retained floor and bounded register conflict counts, without field or text values |
 | `QueryRequest`, `QueryResponse` | Optional Table query operations, opaque frozen submissions and verified typed pages |
 | `Json.write` | Schema-consistent JSON: fixed byte arrays stay arrays, text slices stay strings |
 | `Capabilities`, `Error` | Board build capabilities and its finite error vocabulary |
@@ -78,3 +80,19 @@ not arbitrary Transit commands.
 
 From this directory, `zig build test` checks projection boundaries and causal coverage.
 From the repository root, `just test::packages` checks the declared dependencies.
+
+## Document inspection
+
+The `documents` record lenses recognize canonical SDH1 heads at their exact
+Document key. Unknown/malformed versions remain opaque. The selected Document
+route projects accepted revision/epoch, type and change format, retained floor,
+opted-in merge window, pending job and permanent retirement. Full-width Document
+identities and counters remain decimal strings. Head source evidence includes
+writer, exact key, entry/resource revisions and authority position.
+
+Register counts cover at most eight retained registers, including detached and
+deleted history; they are not visible-field or whole-Document totals. Continuation
+requires the original resource revision and an opaque exclusive index key.
+Changed cuts fail explicitly. Retirement keeps head metadata inspectable while
+withholding register reads. This maps the shared Document read contract; it adds
+no administrative capability or runnable Document SQL syntax.

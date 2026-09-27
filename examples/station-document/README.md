@@ -33,3 +33,8 @@ The Python runner provisions and observes through public signed CLI operations.
 Zig binaries own all caller/service semantics. A completed publication or a sent
 call is not an accepted change; only the recorded correlated outcome establishes
 acceptance. Hosted cost and physical placement require their own measured runs.
+
+`just transit-board::document-test` adds real accepted-metadata, source-cut,
+retained-floor and current-grant checks. `just transit-board::document-browser`
+also exercises the embedded view and clearing after live read revocation. Both
+run the complete local two-editor schedule, with their own temporary Board process.

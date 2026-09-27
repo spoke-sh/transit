@@ -126,6 +126,7 @@ export type {
   RecordsResponse,
   HttpResponse,
   GrpcResponse,
+  DocumentResponse,
 } from "./types";
 import type {
   AtlasResponse,
@@ -134,6 +135,7 @@ import type {
   RecordsResponse,
   HttpResponse,
   GrpcResponse,
+  DocumentResponse,
 } from "./types";
 import {
   AtlasResponse as atlasValidator,
@@ -141,6 +143,7 @@ import {
   RecordsResponse as recordsValidator,
   HttpResponse as httpValidator,
   GrpcResponse as grpcValidator,
+  DocumentResponse as documentValidator,
 } from "./validators.js";
 const wide = (text: string, zero = false) =>
   /^(0|[1-9][0-9]{0,19})$/.test(text) &&
@@ -278,9 +281,95 @@ export async function grpcMetadata(resource: number, exchange: string, signal?: 
     throw new BoardError(0, "InvalidResponse");
   return page;
 }
+type DocumentDetail = DocumentResponse["declaration"];
+function validDocument(detail: DocumentDetail, source: DocumentResponse["source"]) {
+  return (
+    wide(detail.document) &&
+    wide(detail.epoch) &&
+    detail.type_revision > 0 &&
+    detail.change_format === 1 &&
+    wide(detail.revision, true) &&
+    wide(detail.floor, true) &&
+    BigInt(detail.floor) <= BigInt(detail.revision) &&
+    wide(detail.merge_window, true) &&
+    wide(detail.active_job, true) &&
+    source.key ===
+      `0044${BigInt(detail.document).toString(16).padStart(16, "0")}680000000000000000` &&
+    source.entry_revision <= source.resource_revision
+  );
+}
+export function validateDocument(value: unknown): value is DocumentResponse {
+  if (!documentValidator(value)) return false;
+  const page = value as DocumentResponse;
+  if (
+    !validDocument(page.declaration, page.source) ||
+    page.declaration.retired !== (page.registers === null)
+  )
+    return false;
+  const r = page.registers;
+  return (
+    !r ||
+    (r.count <= 8 &&
+      r.conflicts <= r.count &&
+      r.assignments >= r.conflicts * 2 &&
+      r.assignments <= r.count * 8 &&
+      (r.next === null || (r.count === 8 && /^52(?:[0-9a-f]{2}){16,81}$/.test(r.next))))
+  );
+}
+export type DocumentCursor = { revision: number; after: string };
+export async function documentMetadata(
+  resource: number,
+  document: string,
+  cursor?: DocumentCursor,
+  signal?: AbortSignal,
+) {
+  if (!Number.isSafeInteger(resource) || resource <= 0 || !wide(document))
+    throw new BoardError(0, "InvalidResource");
+  if (
+    cursor &&
+    (!Number.isSafeInteger(cursor.revision) ||
+      cursor.revision < 0 ||
+      !/^([0-9a-f]{2}){1,128}$/.test(cursor.after))
+  )
+    throw new BoardError(0, "InvalidCursor");
+  const suffix = cursor
+    ? `?${new URLSearchParams({ revision: String(cursor.revision), after: cursor.after })}`
+    : "";
+  const page = await request(
+    `/api/v1/resources/${resource}/documents/${document}${suffix}`,
+    validateDocument,
+    { signal },
+  );
+  if (
+    page.source.resource !== resource ||
+    page.declaration.document !== document ||
+    (cursor && page.source.resource_revision !== cursor.revision)
+  )
+    throw new BoardError(0, "InvalidResponse");
+  return page;
+}
 export function validateRecords(value: unknown): value is RecordsResponse {
   if (!recordsValidator(value)) return false;
   const page = value as RecordsResponse;
+  if (
+    !page.documents.every((lens, index) => {
+      if (!lens) return true;
+      const entry = page.page.entries[index],
+        source = lens.source;
+      return (
+        entry != null &&
+        source.realm === page.realm &&
+        source.resource === page.resource.id &&
+        source.pid === page.resource.writer &&
+        source.position === page.position &&
+        source.resource_revision === page.resource.revision &&
+        source.entry_revision === entry.revision &&
+        source.key === entry.key &&
+        validDocument(lens.declaration, source)
+      );
+    })
+  )
+    return false;
   return page.exchanges.every((lens, index) => {
     if (lens === null) return true;
     const entry = page.page.entries[index];

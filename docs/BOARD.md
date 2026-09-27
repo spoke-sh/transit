@@ -437,3 +437,15 @@ only an indexed record. Method routes, credentials, metadata values and protobuf
 bodies stay outside this projection. Inspection uses no query identity, sends no
 commands and clears the visible evidence after read revocation. The implementation
 and bounded task surface are documented with [Board](../apps/transit-board/README.md).
+
+### Accepted Document inspection
+
+The M17 growing inspector recognizes versioned Document heads and reads accepted
+metadata through the shared public Document service reader. It shows source
+identity/revisions, type and change format, pending publication, merge window,
+retained floor and permanent retirement. Conflict counts are bounded pages of
+retained registers, including detached/deleted history, not whole-document or
+visible-field totals. Continuations preserve an exact resource cut and current
+read grants. Board never interprets application Document/text values. This is a
+view over the typed Document read contract; no Document DDL or mutation UI is
+implied by this inspection surface.

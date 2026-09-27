@@ -132,7 +132,8 @@
       "bindings::document-c",
       "bindings::document-java",
       "bindings::document-dotnet",
-      "bindings::document-beam"
+      "bindings::document-beam",
+      "transit-board::document-test"
     ]
   },
   "nested_tasks": {

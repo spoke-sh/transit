@@ -5,10 +5,13 @@ pub const Http = @import("Http.zig");
 pub const HttpResponse = Http.Response;
 pub const Grpc = @import("Grpc.zig");
 pub const GrpcResponse = Grpc.Response;
+pub const Document = @import("Document.zig");
+pub const DocumentResponse = Document.Response;
 pub const Json = @import("Json.zig");
 test {
     _ = Json;
     _ = Exchange;
+    _ = Document;
 }
 pub const protocol = @import("transit_protocol");
 const p = protocol;
@@ -44,11 +47,13 @@ pub const RecordsResponse = struct {
     resource: p.Growth.Resource,
     page: p.Growth.Batch(RecordIdentity, p.Value),
     exchanges: [p.Growth.page_size]?ExchangeLens = @splat(null),
+    documents: [p.Growth.page_size]?Document.Lens = @splat(null),
 };
 pub fn projectRecords(allocator: std.mem.Allocator, realm: u64, position: u64, resource: p.Growth.Resource, page: p.Growth.Batch(p.Growth.Entry, p.Value)) !RecordsResponse {
     var result: RecordsResponse = .{ .realm = realm, .position = position, .resource = resource, .page = .{ .next = page.next } };
     for (page.entries, 0..) |slot, index| if (slot) |entry| {
         result.page.entries[index] = .{ .key = entry.key, .revision = entry.revision };
+        if (try Document.decode(allocator, entry.key, entry.value)) |detail| result.documents[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
         if (try Exchange.decode(allocator, resource.writer, entry.key, entry.value)) |detail| result.exchanges[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
     };
     return result;
@@ -85,6 +90,7 @@ pub const Capabilities = struct {
     station: bool = true,
     http_connector: bool = false,
     grpc_connector: bool = false,
+    documents: bool = false,
     push: bool = false,
 };
 pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict } };

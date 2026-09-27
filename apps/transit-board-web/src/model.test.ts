@@ -6,6 +6,8 @@ import {
   validateRecords,
   validateHttp,
   validateGrpc,
+  validateDocument,
+  type DocumentResponse,
   type GrpcResponse,
   type HttpResponse,
   type QueryResponse,
@@ -40,6 +42,7 @@ describe("inspection semantics", () => {
       station: false,
       http_connector: false,
       grpc_connector: false,
+      documents: false,
       push: false,
     };
     expect(validateCapabilities(caps)).toBe(true);
@@ -68,6 +71,7 @@ describe("exchange metadata boundary", () => {
       entries: [{ key: "0045", revision: 18 }, ...Array(7).fill(null)],
       next: null,
     },
+    documents: Array(8).fill(null),
     exchanges: [
       {
         version: 1,
@@ -347,5 +351,60 @@ describe("typed query boundary", () => {
     expect(validateQuery({ page: value })).toBe(false);
     value.rows[0]![0] = { utf8: "🙂" };
     expect(validateQuery({ page: value })).toBe(true);
+  });
+});
+
+describe("Document metadata boundary", () => {
+  const page = (): DocumentResponse => ({
+    version: 1,
+    source: {
+      realm: 1,
+      pid: 2,
+      resource: 3,
+      key: "0044ffffffffffffffff680000000000000000",
+      entry_revision: 9,
+      resource_revision: 10,
+      position: 12,
+    },
+    declaration: {
+      document: "18446744073709551615",
+      epoch: "2",
+      type_revision: 1,
+      change_format: 1,
+      revision: "5",
+      floor: "4",
+      merge_window: "2",
+      active_job: "0",
+      retired: false,
+    },
+    registers: {
+      count: 8,
+      conflicts: 1,
+      assignments: 9,
+      next: "52" + "0000000000000001".repeat(2),
+    },
+  });
+  it("keeps bounded counts distinct from values, retention gaps and retirement", () => {
+    expect(validateDocument(page())).toBe(true);
+    for (const document of ["18446744073709551616", "01", "0", "1e3"]) {
+      const bad = page();
+      bad.declaration.document = document;
+      expect(validateDocument(bad)).toBe(false);
+    }
+    const floor = page();
+    floor.declaration.floor = "6";
+    expect(validateDocument(floor)).toBe(false);
+    const count = page();
+    count.registers!.count = 9;
+    expect(validateDocument(count)).toBe(false);
+    const source = page();
+    source.source.key = "00440000000000000001680000000000000000";
+    expect(validateDocument(source)).toBe(false);
+    const retired = page();
+    retired.declaration.retired = true;
+    expect(validateDocument(retired)).toBe(false);
+    retired.registers = null;
+    expect(validateDocument(retired)).toBe(true);
+    expect(validateDocument({ ...page(), text: "private body" })).toBe(false);
   });
 });

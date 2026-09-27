@@ -45,6 +45,12 @@ route. The optional growing query profile is configured separately below.
 
 ### Migrating the experimental Board v1 profile
 
+M17 adds required `documents` capability and growing-record lens fields, plus the
+selected Document metadata response. Update Board and its generated browser client
+together; older strict validators reject the additional fields. Existing Table
+query payloads retain their original contract. Document inspection adds no write
+or query capability to the inspection principal.
+
 This deliberately removes the original viewer-authentication contract. Session
 creation/logout endpoints and the `Session` schema are removed, as are the
 `session_seconds` capability and the TypeScript `login`/`logout` helpers. Rebuild

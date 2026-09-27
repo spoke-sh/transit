@@ -18,9 +18,9 @@ from document_contract import encode
 from storage import Fixture, wait_ready
 
 
-def run():
+def run(*, board=False, browser=False):
     binaries = {name: ROOT / "zig-out/bin" / name for name in (
-        "transit-node", "rey-cli", "transit-station-document-worker", "example-station-document")}
+        "transit-board", "transit-node", "rey-cli", "transit-station-document-worker", "example-station-document")}
     started = time.monotonic()
     with ColdStore() as cold:
         fixture = GrowingSystem(binaries["transit-node"], binaries["rey-cli"])
@@ -196,8 +196,13 @@ def run():
                 deliver()
                 return caller(role, "receive", namespace, change)
 
+            inspection = None
             try:
                 assert worker("create")["revision"] == "0"
+                if board or browser:
+                    from document_board import DocumentBoard
+                    inspection = DocumentBoard(system, writer, command, query, write, binaries, browser)
+                    assert inspection.request("/api/v1/capabilities")["documents"]
                 invoke([binaries["transit-station-document-worker"], system.root / "writer.json"], error="FreshOwnershipRequired")
                 assert submit("left", 1, seed)["phase"] == "accepted"
                 assert fault["retried"], "Acceptance uncertainty did not retain exact signed bytes"
@@ -234,6 +239,7 @@ def run():
                 assert caller("left", "receive", 2, left)["phase"] == "accepted"
                 view = caller("right", "inspect", change=right)
                 assert (view["title_status"], view["alternatives"], view["text"]) == ("conflict", 2, "A🙂a"), view
+                if inspection: inspection.prove()
                 assert submit("left", 3, left)["phase"] == "duplicate"
                 assert submit("left", 4, resolve)["revision"] == "4"
                 assert caller("right", "inspect", change=right)["title_status"] == "scalar"
@@ -244,10 +250,12 @@ def run():
                 assert rejected["phase"] == "rejected" and rejected["reason"] == "resynchronize", rejected
                 sync = caller("right", "resynchronize", change=right)
                 assert sync["epoch"] == 2 and sync["floor"] == 4 and sync["previous_counter"] == 5, sync
+                if inspection: inspection.inspect(5, 4)
                 worker("retire")
                 retired = submit("right", 3, right)
                 assert retired["phase"] == "rejected" and retired["reason"] == "retired", retired
                 caller("right", "inspect", change=right, error="DocumentRetired")
+                if inspection: inspection.inspect(5, 4, retired=True)
                 assert not fault["errors"], fault["errors"]
                 assert fault["max_mutations"] == 4
                 print("Document example evidence:", json.dumps({"profile": "local", "seconds": round(time.monotonic()-started, 2),
@@ -255,6 +263,7 @@ def run():
                     "writer_turn_attempts": fault["turns"], "max_mutations": fault["max_mutations"],
                     "hot_bytes": 8*1024*1024, "cold_objects": cold.data_objects(), "cold_bytes": cold.file_bytes()}, sort_keys=True), flush=True)
             finally:
+                if inspection: inspection.close()
                 release.set()
                 proxy.shutdown()
                 proxy.server_close()
@@ -262,7 +271,10 @@ def run():
 
 
 if __name__ == "__main__":
-    argparse.ArgumentParser(description=__doc__).parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--board", action="store_true")
+    parser.add_argument("--browser", action="store_true")
+    args = parser.parse_args()
     if hasattr(os, "sched_getaffinity"):
         os.sched_setaffinity(0, {min(os.sched_getaffinity(0))})
-    run()
+    run(board=args.board, browser=args.browser)

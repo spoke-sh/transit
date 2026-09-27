@@ -9,6 +9,26 @@ pub const QueryConfig = struct { seed_file: []const u8, connection: q.Model.Conn
 pub const Cursor = struct { position: ?u64 = null, process_after: ?u64 = null, resource_after: ?u64 = null };
 pub const RecordsCursor = struct { resource: u64, revision: ?u64 = null, after: ?p.Value = null };
 pub const ExchangeCursor = struct { resource: u64, exchange: u64 };
+pub const DocumentCursor = struct { resource: u64, document: u64, revision: ?u64 = null, after: ?api.Document.adapter.station.ImmutableIndex.Key = null };
+pub fn document(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: DocumentCursor, allocator: std.mem.Allocator) !api.DocumentResponse {
+    _ = try identity(wire, realm, principal, key);
+    const d = api.Document.adapter;
+    const reader: client.ResourceReader = .{ .wire = wire, .realm = realm, .principal = principal, .key = key };
+    var source = try reader.open(cursor.resource);
+    if (cursor.revision) |revision| if (revision != source.view.revision) return error.QueryChanged;
+    const service: d.Service = .{ .resource = cursor.resource, .document = cursor.document };
+    const address = service.key('h', 0);
+    const observation = try reader.query(.{ .entries = .{ .resource = cursor.resource, .revision = source.view.revision, .key = address } });
+    const entry = observation.body.entries.page.entries[0] orelse return error.DocumentNotFound;
+    if (!entry.key.eql(address)) return error.InvalidResourceRead;
+    const head = try service.head(&source);
+    const page = if (head.retired) null else try service.readRegisterMetadata(&source, head.state.revision, cursor.after);
+    return .{
+        .source = .{ .realm = realm, .pid = observation.body.entries.resource.writer, .resource = cursor.resource, .key = address, .entry_revision = entry.revision, .resource_revision = source.view.revision, .position = observation.position },
+        .declaration = try api.Document.project(allocator, head),
+        .registers = if (page) |value| .{ .count = value.registers, .conflicts = value.conflicts, .assignments = value.assignments, .next = if (value.next) |next| try std.fmt.allocPrint(allocator, "{x}", .{next.slice()}) else null } else null,
+    };
+}
 pub fn metadata(comptime Projection: type, wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: ExchangeCursor, allocator: std.mem.Allocator) !Projection.Response {
     _ = try identity(wire, realm, principal, key);
     const x = Projection.adapter.exchange;
