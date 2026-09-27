@@ -8,7 +8,9 @@ Typed Tables and captured Arrow queries share the same private turn and state
 budget; see the [Table implementation guide](docs/tables.md).
 The growing Zig [publication interface](docs/publications.md) stages larger
 immutable records with explicit quotas, one final visibility decision and
-resumable cleanup. Document/CRDT APIs remain a separate milestone.
+resumable cleanup. M17 now adds an [immutable ordered index](docs/indexes.md)
+for bounded path copying and resumable candidate nodes. Document/CRDT acceptance
+and public SDKs remain in progress.
 The [services guide](docs/services.md) covers scoped names, timed waits and
 bounded supervision, including the separate controller trust boundary.
 The separate [binding package](../transit-station-bindings/README.md) owns the

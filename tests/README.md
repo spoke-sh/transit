@@ -1,5 +1,17 @@
 # Validation and milestone evidence
 
+## M17 work in progress
+
+The standalone Station suite passes **42 tests in 527 ms** with **18 MiB test
+process peak RSS**. This includes the new immutable index's 1024-key permutation,
+replacement and retained-root corpus, strict ordered continuation, maximum-size
+keys/values, duplicate write identity, failed path copying, corrupted node/refusal
+and current-read denial. A separate private-turn fixture rebuilds 24 index roots
+through real Publication staging, preserves accepted roots until candidate
+completion, enforces ordinary mutation limits and rejects changed staged content.
+These measurements include the test's in-memory reference store, not a production
+index cache. Document CRDT, disk recovery, SDKs and placement remain unqualified.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated
