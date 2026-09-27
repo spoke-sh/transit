@@ -34,6 +34,9 @@ This mode forbids seed files and can use a bounded inline hex `body` instead of
 `body_file`; exactly one body source is required. `just examples::http-bootstrap`
 qualifies fresh keys, reissued resource grants, durable call reuse and recovery
 in the local task. See the [bootstrap contract](../../packages/zig/transit-client/docs/growing-bootstrap.md).
+`park_after_result_ms` (bootstrap only, at most 300,000) keeps a finite caller
+inspectable after its newline-delimited result; it does not retain ownership or
+extend any deadline.
 
 The example inherits the shared HTTP profile's 64 KiB request and 8 KiB metadata
 bounds, 256-byte publication chunks and four-mutation turns. The loop bounds cover
@@ -45,5 +48,8 @@ stop the activation for explicit recovery with fresh ownership.
 Local processes share the developer account; that task proves protocol credential
 separation, not OS egress isolation. `just examples::http-compose` runs the same
 application/recovery schedule in separate containers and tests network isolation.
-See the [placement guide](docs/placement.md). Reference placement remains M15 work;
-growing runtime actor bindings are not advertised by this example.
+`just examples::http-reference` places the caller in a Substrate/gVisor Actor and
+the connector in an egress-confined Kubernetes pod, using a disposable namespace
+in the already prepared reference cluster. See the [placement guide](docs/placement.md)
+for prerequisites and limits. These are finite operator placements; growing
+runtime actor bindings are not advertised by this example.

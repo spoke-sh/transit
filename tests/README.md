@@ -2,6 +2,20 @@
 
 ## M15 connector work in progress
 
+`just examples::http-reference` passes in **192.85 seconds** before successful
+owned-resource cleanup. The actual gVisor caller admits a request, loses its
+worker pod, registers a fresh in-memory key, receives explicit Transit ownership
+and recovers the same saved call. The trusted connector pod makes one TLS request
+under explicit egress rules; both roles' network probes reject raw storage and
+provider/admin targets. Node/store pod restart, peer shutdown and credential
+removal precede replay in another fresh caller. The task checks Actor/template/
+worker attribution and keeps the existing default installation untouched.
+This is finite operator placement, not automatic growing runtime binding or
+supervision. See the [placement guide](../examples/station-http/docs/placement.md).
+The accompanying local bootstrap and Compose regressions pass in **29.45** and
+**86.48 seconds**, with changed-image preparation and concurrent proof load in
+the latter. The reference task is in the external verification inventory.
+
 The expanded `just test::http-worker` schedule passes in **493.33 seconds** excluding
 compilation, with **sixteen sends, eight applications and two cancellation
 requests**, retaining 1,074 cold objects / 116,719,300 object-store bytes under the

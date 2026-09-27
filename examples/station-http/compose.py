@@ -88,6 +88,19 @@ class Compose:
         record = json.loads(subprocess.check_output(["docker", "inspect", identity], text=True))[0]
         return record["NetworkSettings"]["Networks"][self.project + "_" + network]["IPAddress"]
 
+    @property
+    def authority(self):
+        return "http://node:8080"
+
+    def url(self, service):
+        return "http://" + self.address(service, "storage" if service == "ursula" else "client") + ":8080"
+
+    def peer_requests(self):
+        return json.loads((self.work / "peer/requests.json").read_text())
+
+    def stop_peer(self, peer):
+        peer.kill(); peer.wait(timeout=10)
+
     def invoke(self, service, *args):
         return json.loads(self.call("run", "--rm", "--no-deps", "-T", service, *args))
 

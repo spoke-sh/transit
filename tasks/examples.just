@@ -29,3 +29,8 @@ http-compose:
 http-bootstrap:
     zig build transit-node rey-cli example-station-http transit-station-http-worker
     python3 -B examples/station-http/run.py --bootstrap
+
+# Isolated Substrate caller and egress-confined effect pod in owned reference infra.
+http-reference:
+    zig build rey-cli
+    python3 -B examples/station-http/run.py --profile reference

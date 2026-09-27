@@ -85,9 +85,14 @@ def run(profile="local", bootstrap=False):
         store_port, node_port = port(), port()
         url = f"http://127.0.0.1:{node_port}"
         store_url = f"http://127.0.0.1:{store_port}"
-        if profile == "compose":
-            from compose import Compose
-            placement = Compose(work)
+        if profile != "local":
+            if profile == "reference":
+                from reference import Reference
+                placement = Reference(work)
+                bootstrap = True
+            else:
+                from compose import Compose
+                placement = Compose(work)
             (work / "wal").mkdir()
             (work / "activations").mkdir()
         store_config = work / "ursula.toml"
@@ -135,7 +140,7 @@ backend = "inline"
         peer = None
         try:
             storage = start("ursula", ["ursula", "server", "--config", store_config])
-            if placement: store_url = "http://" + placement.address("ursula", "storage") + ":8080"
+            if placement: store_url = placement.url("ursula")
             ready(storage, store_url + "/__ursula/ready")
             if placement:
                 placement.initialize()
@@ -143,7 +148,7 @@ backend = "inline"
                 subprocess.run([binaries["transit-node"], node_config, "--initialize"], env=env,
                                check=True, stdout=subprocess.DEVNULL, timeout=30)
             authority = start("node", [binaries["transit-node"], node_config])
-            if placement: url = "http://" + placement.address("node", "client") + ":8080"
+            if placement: url = placement.url("node")
             ready(authority, url + "/health")
             records = {}
             for role in ("caller", "connector"):
@@ -203,13 +208,13 @@ backend = "inline"
 
             if placement:
                 shutil.copyfile(cert, work / "peer/ca.pem")
-                write("peer/config.json", {"secret": secret, "payload": payload.hex(), "requests": "/peer/requests.json",
+                write("peer/config.json", {"secret": secret, "payload": payload.hex(), "requests": "/peer-output/requests.json" if profile == "reference" else "/peer/requests.json",
                     "certificate": "/peer/ca.pem", "private_key": "/peer/tls.key"})
                 peer = placement.start("peer")
                 children.append(peer)
                 peer_address, peer_port = placement.address("peer", "effect"), 8443
                 denied = [peer_address + ":8443", placement.address("ursula", "storage") + ":8080", "1.1.1.1:443"]
-                assert placement.invoke("caller-probe", "probe", "http://node:8080", *denied) == {"authority": "reachable", "denied": 3}
+                assert placement.invoke("caller-probe", "probe", placement.authority, *denied) == {"authority": "reachable", "denied": 3}
             else:
                 peer = ThreadingHTTPServer(("127.0.0.1", 0), Peer)
                 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -240,13 +245,16 @@ backend = "inline"
                     configured = config | {"generation": record["generation"] + 1, "mode": mode, "body": body.read_bytes().hex()}
                     configured.pop("seed_file")
                     configured.pop("body_file")
-                    child = subprocess.Popen([binaries["example-station-http"], "--bootstrap-json", json.dumps(configured)],
-                                             env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-                    children.append(child)
-                    with selectors.DefaultSelector() as selector:
-                        selector.register(child.stdout, selectors.EVENT_READ)
-                        assert selector.select(timeout=15), "Missing growing public registration"
-                    registration = json.loads(child.stdout.readline())["growing_bootstrap"]
+                    if profile == "reference":
+                        handle, registration = placement.register(configured)
+                    else:
+                        child = subprocess.Popen([binaries["example-station-http"], "--bootstrap-json", json.dumps(configured)],
+                                                 env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                        children.append(child)
+                        with selectors.DefaultSelector() as selector:
+                            selector.register(child.stdout, selectors.EVENT_READ)
+                            assert selector.select(timeout=15), "Missing growing public registration"
+                        registration = json.loads(child.stdout.readline())["growing_bootstrap"]
                     assert registration == {"version": 1, "realm": realm, "pid": record["pid"], "principal": 1,
                                             "generation": configured["generation"], "public_key": registration["public_key"]}
                     assert len(registration["public_key"]) == 32 and registration["public_key"] != public["caller"]
@@ -255,6 +263,7 @@ backend = "inline"
                     for resource, permissions in ((caller["resource"], 7), (connector["resource"], 3)):
                         command({"grant_resource": {"resource": resource, "subject": 1, "permissions": permissions}})
                     command({"own": {"pid": record["pid"], "expected_generation": record["generation"], "worker": 1}})
+                    if profile == "reference": return placement.finish(handle)
                     stdout, stderr = child.communicate(timeout=120)
                     if child.returncode: raise RuntimeError(stderr[-4000:])
                     return json.loads(stdout)
@@ -264,7 +273,7 @@ backend = "inline"
                 if placement:
                     # Only this role's directory is mounted in its container.
                     mapped = json.loads(json.dumps(config).replace(str(work) + "/", "/"))
-                    mapped["url"] = "http://node:8080"
+                    mapped["url"] = placement.authority
                     if role == "connector": mapped["activation_directory"] = "/activations"
                     write(role + "/config.json", mapped)
                     return placement.invoke(role)
@@ -286,7 +295,9 @@ backend = "inline"
 
             called = activate("caller", caller_config, "publish")
             assert called["phase"] == "called"
-            assert activate("caller", caller_config, "publish") == called, "Restart duplicated the durable call"
+            if profile == "reference": placement.kill_caller_worker()
+            recovered = activate("caller", caller_config, "publish")
+            assert recovered == called, ("Restart changed the durable call", called, recovered)
             deliver()
             assert activate("connector", connector_config, "accept")["phase"] == "ready"
             assert activate("connector", connector_config, "execute")["outcome"] == "observed"
@@ -298,16 +309,16 @@ backend = "inline"
             storage.kill(); storage.wait(timeout=10)
             credential.unlink()
             if placement:
-                peer.kill(); peer.wait(timeout=10)
-                requests = json.loads((work / "peer/requests.json").read_text())
+                requests = placement.peer_requests()
+                placement.stop_peer(peer)
             else:
                 peer.shutdown(); peer.server_close()
             peer = None
             storage = start("ursula-recovered", ["ursula", "server", "--config", store_config])
-            if placement: store_url = "http://" + placement.address("ursula", "storage") + ":8080"
+            if placement: store_url = placement.url("ursula")
             ready(storage, store_url + "/__ursula/ready")
             authority = start("node-recovered", [binaries["transit-node"], node_config])
-            if placement: url = "http://" + placement.address("node", "client") + ":8080"
+            if placement: url = placement.url("node")
             ready(authority, url + "/health")
             replay = activate("caller", caller_config, "replay")
             assert replay["body_bytes"] == len(payload) and replay["sha256"] == hashlib.sha256(payload).hexdigest()
@@ -335,8 +346,8 @@ backend = "inline"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", choices=("local", "compose"), default="local")
+    parser.add_argument("--profile", choices=("local", "compose", "reference"), default="local")
     parser.add_argument("--bootstrap", action="store_true", help="Qualify fresh in-memory caller keys and explicit operator ownership")
     args = parser.parse_args()
-    if args.bootstrap and args.profile != "local": parser.error("Bootstrap qualification currently requires the local profile")
+    if args.bootstrap and args.profile == "compose": parser.error("Use local or reference for bootstrap qualification")
     run(args.profile, args.bootstrap)

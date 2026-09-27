@@ -20,6 +20,7 @@ const Config = struct {
     body_file: ?[]const u8 = null,
     body: ?p.Value = null,
     bootstrap_timeout_ms: u32 = 120000,
+    park_after_result_ms: u32 = 0,
     mode: enum { publish, receive, replay },
 };
 const call_key = p.Value.init("http-call") catch unreachable;
@@ -96,6 +97,7 @@ pub fn main(init: std.process.Init) !void {
     if (bytes.len > 65536) return error.ConfigurationTooLarge;
     const config = (try std.json.parseFromSlice(Config, gpa, bytes, .{})).value;
     if (config.principal == 0 or config.pid == 0 or config.worker == 0 or config.generation == 0) return error.InvalidConfiguration;
+    if (config.park_after_result_ms > 300000 or (!bootstrap and config.park_after_result_ms != 0)) return error.InvalidConfiguration;
     if ((config.body_file == null) == (config.body == null)) return error.ExpectedOneBodySource;
     const body = if (config.body) |*value| value.slice() else try std.Io.Dir.cwd().readFileAlloc(init.io, config.body_file.?, gpa, .limited(http.RequestRecord.maximum_body_bytes));
     var key = if (bootstrap) key: {
@@ -148,7 +150,11 @@ pub fn main(init: std.process.Init) !void {
             }
             if (!replay.done) return error.IncompleteExchange;
             try output.interface.print("{{\"phase\":\"replayed\",\"body_bytes\":{d},\"sha256\":\"{x}\"}}\n", .{ count, hash.finalResult() });
-        } else try std.json.Stringify.value(outcome, .{}, &output.interface);
+        } else {
+            try std.json.Stringify.value(outcome, .{}, &output.interface);
+            try output.interface.writeByte('\n');
+        }
     }
     try output.interface.flush();
+    if (config.park_after_result_ms != 0) try init.io.sleep(.fromMilliseconds(config.park_after_result_ms), .awake);
 }
