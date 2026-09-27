@@ -106,3 +106,30 @@ proof restarts after retirement and partial reclamation, rejects replay while
 bytes remain, and finishes cleanup without another remote request.
 TLS authenticates the virtual host while dialing a provisioned numeric address;
 no proxy environment or implicit DNS selection changes that destination.
+
+## Diagnostics
+
+The worker uses the shared bounded telemetry runtime on stderr; its JSON summary
+on stdout remains machine-readable. `LOG_LEVEL` and `LOG_FORMAT` follow the
+[telemetry package](../../packages/zig/telemetry/README.md). Lifecycle events are
+`service.starting`, `service.ready`, `service.failed` and `service.stopped`.
+`http.worker.operation` measures one finite prepare/accept/execute/release/poll
+invocation. Identities are attached only after authenticated ownership and resource
+reads. Recovery of a closed unknown outcome reports `uncertain` even if the local
+operation succeeded.
+
+`http.transport.completed` measures the single newly authorized transport call,
+including its durable capture callbacks. It records the dispatch receipt position,
+status when available and a finite error name. Transport completion does not
+claim kernel settlement or remote business success. A failed call reports remote
+uncertainty; recovery without a send emits no transport event. No URL, target,
+header, body, credential path or secret value enters these events. Upstream Transit
+attempts use their existing client events and the local operation's trace parent.
+Application metrics use the runtime's fixed scopes/outcomes and duration buckets;
+identities never create metric labels. Counts reset per OS invocation.
+
+The disk worker proof checks structured events, secret exclusion, an observed
+recovery with stderr deliberately blocked, and absence of a new-send event on
+that recovery. `just test::telemetry` separately qualifies bounded queues,
+closed/stalled sinks, independent metrics and shutdown under one-CPU affinity.
+Lost diagnostics do not change authority or cause a retry.

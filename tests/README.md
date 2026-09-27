@@ -2,6 +2,16 @@
 
 ## M15 connector work in progress
 
+The worker's bounded diagnostic integration passes the complete disk/S3 schedule
+in **445.26 seconds** excluding compilation, with the same fifteen sends, seven
+applications and two cancellation requests. Structured stderr excludes credentials,
+raw targets, credential paths and authority URLs; stdout stays parseable JSON.
+An observed recovery finishes while its debug stderr pipe is intentionally left
+full and emits no fresh transport event. `just test::telemetry` also passes all
+four off/drained/stalled/closed sink modes with 10,000 completions under one-CPU
+affinity; metrics accumulate despite diagnostic loss. These are service-local
+observations, not counters of unique durable transitions or remote applications.
+
 `just test::unit` includes exchange segment/coverage, frozen effect intents,
 identity conflicts, quota/rollback, terminal cleanup and old-source availability
 checks. Ninety-six durable dependency tokens exercise admission, wrong-holder

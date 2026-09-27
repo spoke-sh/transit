@@ -243,7 +243,7 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
     }
     var query_host: *std.Build.Step.Compile = undefined;
-    const http_worker = b.addExecutable(.{ .name = "transit-station-http-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-http-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
+    const http_worker = b.addExecutable(.{ .name = "transit-station-http-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-http-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_http_worker = b.addInstallArtifact(http_worker, .{});
     b.getInstallStep().dependOn(&install_http_worker.step);
     apps_step.dependOn(&install_http_worker.step);

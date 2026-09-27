@@ -2,6 +2,7 @@
 //! capture use the public client; no provider or raw journal access exists here.
 const std = @import("std");
 const http = @import("transit_station_http");
+const telemetry = @import("telemetry");
 const x = http.exchange;
 const s = x.station;
 const p = s.protocol;
@@ -428,6 +429,17 @@ fn now(io: std.Io) u64 {
     return @intCast(std.Io.Clock.real.now(io).toMilliseconds());
 }
 pub fn main(init: std.process.Init) !void {
+    var diagnostics = telemetry.Runtime.init(init.io, "transit-station-http-worker", try telemetry.Config.environment(init.environ_map));
+    diagnostics.start();
+    defer diagnostics.stop();
+    defer diagnostics.event(.{ .name = "service.stopped" });
+    diagnostics.event(.{ .name = "service.starting" });
+    run(init, &diagnostics) catch |err| {
+        diagnostics.event(.{ .name = "service.failed", .level = .err, .outcome = .failed, .error_type = @errorName(err) });
+        return err;
+    };
+}
+fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 2) return error.ExpectedConfiguration;
     const data = try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.gpa, .limited(65536));
@@ -441,6 +453,7 @@ pub fn main(init: std.process.Init) !void {
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     wire.timeout_ms = 5000;
+    wire.observer = diagnostics;
     var driver: Driver = .{ .server = try Server.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association), .reader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key }, .config = config, .io = init.io, .gpa = init.gpa };
     // Admission may read caller publications under revocable grants. An I/O
     // failure must leave the call pending for a fresh activation, not commit a
@@ -454,6 +467,13 @@ pub fn main(init: std.process.Init) !void {
     const ex = try driver.exchange();
     const capture_resource = (try driver.reader.query(.{ .resource = ex.resource })).body.resource;
     if (capture_resource.owner != null or capture_resource.deadline_ms != null) return error.IncompatibleExchangeLifetime;
+    // Only report configured identities after current ownership and resource
+    // reads have authenticated them. Operation names come from the finite enum.
+    diagnostics.event(.{ .name = "service.ready", .realm = config.realm, .pid = config.pid, .generation = config.generation });
+    var operation = diagnostics.begin(.application, null);
+    errdefer operation.finish(.{ .name = "http.worker.operation", .operation = @tagName(config.mode), .level = .err, .outcome = .failed, .realm = config.realm, .pid = config.pid, .generation = config.generation });
+    wire.parent_context = operation.context;
+    defer wire.parent_context = null;
     // Dispose self-ticks left before an interrupted commit without reconstructing
     // lost network bytes. Capture state remains authoritative and incomplete.
     for (0..64) |_| {
@@ -568,8 +588,15 @@ pub fn main(init: std.process.Init) !void {
             var endpoint = config.endpoint;
             const remaining = descriptor.reconcile_before_ms -| now(init.io);
             endpoint.timeout_ms = @intCast(@min(endpoint.timeout_ms, remaining));
+            var transport = diagnostics.begin(.application, operation.context);
             const result = if (remaining == 0) @as(anyerror!http.Transport.Result, error.ExpiredReconciliation) else http.Transport.execute(init.gpa, init.io, endpoint, prepared.request, &body, .{ .context = &secrets, .resolve = Secrets.resolve }, .{ .context = &driver, .segment = Driver.capture });
-            if (result) |response| try driver.apply(.{ .finish = response.status }) else |_| try driver.apply(.unknown);
+            if (result) |response| {
+                transport.finish(.{ .name = "http.transport.completed", .operation = "execute", .status = response.status, .realm = config.realm, .pid = config.pid, .generation = config.generation, .position = receipt.position });
+                try driver.apply(.{ .finish = response.status });
+            } else |err| {
+                transport.finish(.{ .name = "http.transport.completed", .operation = "execute", .level = .warn, .outcome = .uncertain, .error_type = @errorName(err), .realm = config.realm, .pid = config.pid, .generation = config.generation, .position = receipt.position });
+                try driver.apply(.unknown);
+            }
             descriptor = try driver.reader.inspect(ex.resource, ex.id);
         } else if (descriptor.phase == .ready or descriptor.phase == .capturing) {
             // An authorized predecessor may have sent. A fresh activation closes
@@ -597,4 +624,6 @@ pub fn main(init: std.process.Init) !void {
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     try output.interface.print("{{\"exchange\":\"{d}\",\"phase\":\"{s}\",\"outcome\":\"{s}\",\"segments\":{d},\"bytes\":{d}}}\n", .{ ex.id, if (descriptor) |value| @tagName(value.phase) else "not_admitted", if (effect) |value| @tagName(value.phase) else "not_committed", if (descriptor) |value| value.segments else 0, if (descriptor) |value| value.bytes else 0 });
     try output.interface.flush();
+    const uncertain = if (effect) |value| value.phase == .closed_unknown or value.phase == .unknown else false;
+    operation.finish(.{ .name = "http.worker.operation", .operation = @tagName(config.mode), .level = if (uncertain) .warn else .info, .outcome = if (uncertain) .uncertain else .ok, .realm = config.realm, .pid = config.pid, .generation = config.generation });
 }

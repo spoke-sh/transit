@@ -3,6 +3,7 @@ import hashlib
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import ssl
 import subprocess
@@ -199,8 +200,34 @@ def run(node, provision, worker, library, board=None, browser=False):
                 configuration = json.loads(config.read_text())
                 configuration.update(exchange=2, followup={"parent": 1, "reason": "retry"})
                 config.write_text(json.dumps(configuration))
-            def invoke():
-                return json.loads(subprocess.check_output([worker, str(config)], timeout=120))
+            def invoke(sink="drained"):
+                environment = os.environ | {"LOG_FORMAT": "json", "LOG_LEVEL": "debug" if sink == "stalled" else "info"}
+                with subprocess.Popen([worker, str(config)], env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+                    if sink == "stalled":
+                        import fcntl
+                        fcntl.fcntl(process.stderr.fileno(), fcntl.F_SETPIPE_SZ, 4096)
+                        # Deliberately leave a full diagnostic pipe unread. Public
+                        # authority reads and bounded shutdown must still finish.
+                        process.wait(timeout=45)
+                        stdout, stderr = process.stdout.read(), process.stderr.read()
+                    else:
+                        stdout, stderr = process.communicate(timeout=120)
+                    assert process.returncode == 0, stderr[-2000:]
+                for forbidden in (b"fixture-request-secret", b"fixture-secret", b"/status/kill", b"/public", proxy_url.encode(), str(credential).encode()):
+                    assert forbidden not in stderr, (forbidden, stderr[-2000:])
+                records = []
+                for line in stderr.splitlines(keepends=True):
+                    if not line.endswith(b"\n"):
+                        assert sink == "stalled", line
+                        continue  # Cancellation can leave a partial final record.
+                    record = json.loads(line)
+                    assert len(line) <= 2048
+                    assert record["service_name"] == "transit-station-http-worker"
+                    records.append(record)
+                if sink == "drained":
+                    assert any(record["event"]["name"] == "http.worker.operation" for record in records)
+                invoke.records = records
+                return json.loads(stdout)
 
             saved = admin("provision")
             configure(saved, "/complete", "prepare")
@@ -254,6 +281,10 @@ def run(node, provision, worker, library, board=None, browser=False):
             configure(saved, "/complete", "execute")
             completed = invoke()
             assert completed["phase"] == "complete" and completed["outcome"] == "observed"
+            sent = [record for record in invoke.records if record['event']['name'] == 'http.transport.completed']
+            assert len(sent) == 1 and sent[0]['event']['status'] == 200
+            assert sent[0]['event']['outcome'] == 'ok' and sent[0]['event']['position'] > 0
+            assert sent[0]['parent_span_id']
             assert admin("inspect")["effect"] == "observed"
             repeated = subprocess.run([worker, str(config)], capture_output=True, timeout=15)
             assert repeated.returncode != 0 and b"PathAlreadyExists" in repeated.stderr, repeated
@@ -268,7 +299,8 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert requests == ["/complete"]
             saved = admin("own")
             configure(saved, "/complete", "execute")
-            assert invoke()["phase"] == "complete"
+            assert invoke(sink="stalled")["phase"] == "complete"
+            assert all(record['event']['name'] != 'http.transport.completed' for record in invoke.records), 'Recovery invented another network attempt'
             assert requests == ["/complete"]
             assert set(dropped) == recovered == {"seal", "dispatch", "observe"}, (dropped.keys(), recovered)
 
