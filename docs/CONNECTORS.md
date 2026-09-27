@@ -22,8 +22,10 @@ replay; replay cannot resolve credentials or refetch external data. The
 fault corpus and limits. All ten public SDKs qualify request publication, calls
 and owned replay over that bridge. All ten also qualify authenticated durable
 disposal before and after cleanup without transcript read permission or secrets.
-The finite Zig service also qualifies caller-requested retries with atomic child
-routing, frozen policy checks and recovery of revoked request reads. All ten SDKs
+The finite Zig service also qualifies caller-requested retries, redirects, status
+queries and cancellation with atomic child routing, frozen policy checks and
+recovery of revoked request reads. Ancestor evidence remains held until children
+settle or are explicitly abandoned before intent. All ten SDKs
 qualify typed followup submission and correlated policy refusal. Board and
 deployment qualification remain open; this does not complete M15.
 

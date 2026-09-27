@@ -7,7 +7,8 @@ qualification; this executable does not complete M15's public lifecycle, credent
 or deployment scope. All ten public SDKs qualify the finite request/call/replay
 profile through the [shared caller schedule](../../tests/README.md#m15-connector-work-in-progress).
 
-`just test::http-worker` qualifies the real binary with disk-backed Ursula,
+`just test::http-worker` qualifies the real binary with disk-backed Ursula and
+the owned MinIO fixture (Docker required, 8 MiB hot storage bound),
 lost seal/dispatch/observation responses, node/store restart, current read
 revocation and worker SIGKILL after remote application. Recovery closes unknown
 without resending; sealed results replay through the public read adapter.
@@ -19,6 +20,11 @@ The public retry schedule also authenticates the original caller, rejects change
 scope/policy before child allocation, restores a revoked request grant, loses the
 accepted child receipt and resumes under fresh ownership. The independently
 idempotent peer observes two sends and one application for that logical operation.
+Public redirect, status and cancellation calls publish separate requests and
+receive their own authenticated correlations without changing the original effect.
+An admitted child holds ancestor evidence through settlement or explicit
+abandonment; the disk proof refuses parent cleanup across restart until those
+obligations finish.
 
 `zig build transit-station-http-worker` installs the binary. Supply one JSON
 configuration file containing authority URL, realm/principal/seed-file, PID and

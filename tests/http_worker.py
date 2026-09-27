@@ -11,13 +11,14 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 
 
 def run(node, provision, worker, library):
     started = time.monotonic()
     node, provision, worker, library = map(lambda value: str(Path(value).resolve()), (node, provision, worker, library))
     payload = bytes((i * 29 + 5) % 256 for i in range(1027))
-    with Fixture() as fixture:
+    with ColdStore() as cold, Fixture(cold.config()) as fixture:
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
         port = free_port()
         url = f"http://127.0.0.1:{port}"
@@ -42,10 +43,10 @@ def run(node, provision, worker, library):
                 assert self.headers["Authorization"] == "Bearer fixture-request-secret"
                 requests.append(self.path)
                 key = self.headers["Idempotency-Key"]
-                assert key == ("/redirect" if self.path == "/redirected" else self.path)
-                if self.path == "/redirect":
+                assert key == {"/redirected": "/redirect", "/public-redirected": "/public-redirect"}.get(self.path, self.path)
+                if self.path in ("/redirect", "/public-redirect"):
                     self.send_response(307)
-                    self.send_header("Location", "/redirected")
+                    self.send_header("Location", self.path + "ed")
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
@@ -63,22 +64,24 @@ def run(node, provision, worker, library):
                 except (BrokenPipeError, ConnectionResetError): pass
             def do_GET(self):
                 assert self.path == "/status/kill"
-                assert self.headers["Idempotency-Key"] == "/kill"
+                key = self.headers["Idempotency-Key"]
+                assert key in ("/kill", "/public-retry")
                 assert self.headers["Authorization"] == "Bearer fixture-request-secret"
                 assert int(self.headers["Content-Length"]) == 0
                 requests.append(self.path)
-                result = b"applied" if "/kill" in applied else b"unknown"
+                result = b"applied" if key in applied else b"unknown"
                 self.send_response(200)
                 self.send_header("Content-Length", str(len(result)))
                 self.end_headers()
                 self.wfile.write(result)
             def do_DELETE(self):
                 assert self.path == "/operations/kill"
-                assert self.headers["Idempotency-Key"] == "/kill"
+                key = self.headers["Idempotency-Key"]
+                assert key in ("/kill", "/public-retry")
                 assert self.headers["Authorization"] == "Bearer fixture-request-secret"
                 assert int(self.headers["Content-Length"]) == 0
                 requests.append(self.path)
-                cancelled.add("/kill")
+                cancelled.add(key)
                 self.send_response(204)
                 self.end_headers()
 
@@ -154,7 +157,7 @@ def run(node, provision, worker, library):
                 return process
             authority = start_node()
             def admin(operation):
-                extra = [str(config)] if operation == "call" else []
+                extra = [str(config)] if operation in ("call", "publish-followup") else []
                 return json.loads(subprocess.check_output([provision, url, operation, str(state), *extra], timeout=60))
             def configure(saved, path, mode):
                 configuration = {"url": proxy_url, "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer.server_port, "tls": True, "ca_file": str(tls_cert), "timeout_ms": 120000}, "mode": mode, "request": {"method": "POST", "target": [{"literal": path}], "body_bytes": 4, "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "api", "version": 7}}]}]}, "credentials": [{"binding": "api", "version": 7, "header": "Authorization", "file": str(credential)}], "body_file": str(body_file), "reconcile_before_ms": int(time.time() * 1000) + 240000}
@@ -180,7 +183,15 @@ def run(node, provision, worker, library):
                     configuration["request"].update(method=action["method"], target=[{"literal": action["target"]}], body_bytes=0)
                     configuration["body_file"] = None
                 if reason == "redirect":
-                    configuration["request"]["target"] = [{"literal": "/redirected"}]
+                    configuration["request"]["target"] = [{"literal": path + "ed"}]
+                config.write_text(json.dumps(configuration))
+            def public_followup(saved, exchange, mode, reason, path):
+                followup(saved, exchange, mode, reason, path)
+                configuration = json.loads(config.read_text())
+                request = configuration.pop("request")
+                configuration.pop("body_file")
+                configuration["reconcile_before_ms"] = saved["caller"]["deadline"]
+                configuration["admission"] = {"caller": saved["caller"]["pid"], "resource": saved["caller"]["resource"], "scope": {"method": request["method"], "target": request["target"][0]["literal"], "headers": ["authorization", "idempotency-key"]}}
                 config.write_text(json.dumps(configuration))
             def public_retry(saved, mode):
                 admission(saved, "/public-retry", mode)
@@ -517,6 +528,19 @@ def run(node, provision, worker, library):
             assert invoke()["phase"] == "ready"
             assert "caller_followup" in recovered
             assert requests.count("/public-retry") == 1
+            # Explicit caller disposal cannot remove evidence still needed by
+            # an admitted child, even after the node and store lose their caches.
+            saved = admin("own")
+            admission(saved, "/public-retry", "release")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"ExchangeHasDependents" in refused.stderr, refused
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start()
+            authority = start_node()
+            saved = admin("own")
+            admission(saved, "/public-retry", "release")
+            refused = subprocess.run([worker, str(config)], capture_output=True, timeout=30)
+            assert refused.returncode != 0 and b"ExchangeHasDependents" in refused.stderr, refused
             # Another fresh activation resumes the admitted child without a
             # second allocation, refreshed deadline or implicit send.
             saved = admin("own")
@@ -533,6 +557,59 @@ def run(node, provision, worker, library):
             assert admin("inspect")["effect"] == "closed_unknown"
             assert requests.count("/public-retry") == 2
             assert "/public-retry" in applied
+
+            # Status and cancellation publish distinct empty-body requests. Each
+            # caller-selected action gets its own correlation/effect and keeps
+            # the original root closed unknown, even after a successful retry.
+            correlations = {root_correlation, followup_correlation}
+            effects = {root_outcome["effect"], result["effect"]}
+            for exchange, reason in ((3, "reconcile"), (4, "cancel")):
+                followup(saved, exchange, "accept", reason, "/public-retry")
+                saved = admin("publish-followup")
+                assert saved["caller"]["correlation"] not in correlations
+                correlations.add(saved["caller"]["correlation"])
+                saved = admin("own")
+                public_followup(saved, exchange, "accept", reason, "/public-retry")
+                assert invoke()["phase"] == "ready"
+                saved = admin("own")
+                public_followup(saved, exchange, "execute", reason, "/public-retry")
+                assert invoke()["phase"] == "complete"
+                result = admin("receive")["outcome"]
+                assert result["phase"] == "observed" and result["exchange"] == exchange
+                assert result["status"] == (200 if reason == "reconcile" else 204)
+                assert result["effect"] not in effects
+                effects.add(result["effect"])
+                assert admin("inspect")["effect"] == "closed_unknown"
+            assert cancelled == {"/kill", "/public-retry"}
+            saved = admin("own")
+            admission(saved, "/public-retry", "release")
+            assert invoke()["phase"] == "retired"
+
+            # An observed redirect requires a newly published target and an
+            # explicit caller call; the first response alone never follows it.
+            saved = admin("provision-public")
+            configure(saved, "/public-redirect", "accept")
+            saved = admin("call")
+            admission(saved, "/public-redirect", "accept")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            admission(saved, "/public-redirect", "execute")
+            assert invoke()["phase"] == "complete"
+            root_outcome = admin("receive")["outcome"]
+            assert root_outcome["status"] == 307 and "/public-redirected" not in requests
+            followup(saved, 2, "accept", "redirect", "/public-redirect")
+            saved = admin("publish-followup")
+            saved = admin("own")
+            public_followup(saved, 2, "accept", "redirect", "/public-redirect")
+            assert invoke()["phase"] == "ready"
+            saved = admin("own")
+            public_followup(saved, 2, "execute", "redirect", "/public-redirect")
+            assert invoke()["phase"] == "complete"
+            result = admin("receive")["outcome"]
+            assert result["phase"] == "observed" and result["status"] == 200 and result["exchange"] == 2
+            assert result["effect"] != root_outcome["effect"]
+            assert requests[-2:] == ["/public-redirect", "/public-redirected"]
+            assert admin("inspect")["effect"] == "observed"
 
             # Reconciliation belongs to the surviving connector PID. The caller
             # can terminate after application; its replacement receives nothing.
@@ -560,8 +637,10 @@ def run(node, provision, worker, library):
             assert result["phase"] == "closed_unknown" and result["attempt"] > 0
             assert requests.count("/public-kill") == 1
             assert not failures, failures
-            assert len(requests) == 11 and len(applied) == 6
-            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit retry/redirect/status/cancel, public admission/retry/disposal and caller termination passed; eleven sends, six applications, one cancellation request.")
+            assert len(requests) == 15 and len(applied) == 7
+            assert cold.data_objects() > 0, "Exchange history never spilled to durable cold storage"
+            print("HTTP worker: disk recovery, exact Transit retry, replay, cleanup, explicit and public retry/redirect/status/cancel, public admission/disposal and caller termination passed; fifteen sends, seven applications, two cancellation requests.")
+            print(f"HTTP capture storage: 8 MiB hot limit, {cold.data_objects()} persisted cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"HTTP worker proof wall time: {time.monotonic() - started:.2f}s (excludes compilation).")
         finally:
             release.set()

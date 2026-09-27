@@ -20,12 +20,13 @@ const Action = union(enum) {
     receive,
 };
 const Caller = struct {
+    namespace: u64 = std.math.maxInt(u64),
     action: Action = .create,
     correlation: u64 = 0,
     outcome: ?http.Service.Outcome = null,
     fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
         const self: *Caller = @ptrCast(@alignCast(raw.?));
-        const publication: Pub = .{ .resource = turn.view.resource, .namespace = std.math.maxInt(u64) };
+        const publication: Pub = .{ .resource = turn.view.resource, .namespace = self.namespace };
         switch (self.action) {
             .create => {
                 _ = try Pub.create(turn, publication.namespace, .{ .record_bytes = 65536, .staging_bytes = 73728, .staging_records = 2 });
@@ -132,12 +133,27 @@ pub fn publish(init: std.process.Init, admin: *Admin, worker: u64, capture: u64,
     _ = try admin.submit(.{ .deliver = outgoing.id });
     return .{ .pid = process.pid, .resource = process.resource, .correlation = caller.correlation, .deadline = prepared.reference.reconcile_before_ms, .reference = prepared.reference, .output_after = outgoing.id };
 }
-pub fn followup(init: std.process.Init, admin: *Admin, saved: *Saved, worker: u64, capture: u64) !void {
+pub fn followup(init: std.process.Init, admin: *Admin, saved: *Saved, worker: u64, capture: u64, config_path: ?[]const u8) !void {
     var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
     var caller: Caller = .{};
+    var reference = saved.reference;
+    var target: http.Service.FollowupTarget = .{ .parent = 1, .reason = .retry };
+    if (config_path) |path| {
+        const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.arena.allocator(), .limited(65536));
+        const config = (try std.json.parseFromSlice(struct { request: http.Request, exchange: u64, endpoint_revision: u64, max_attempts: u32, followup: http.Service.FollowupTarget }, init.arena.allocator(), bytes, .{ .ignore_unknown_fields = true })).value;
+        target = config.followup;
+        caller.namespace -= config.exchange - 1;
+        const body: []const u8 = if (config.request.body_bytes == 0) "" else "body";
+        var buffer: [8192]u8 = undefined;
+        const prepared = try http.RequestRecord.prepare(saved.resource, caller.namespace, config.request, body, config.endpoint_revision, saved.deadline, config.max_attempts, &buffer);
+        try apply(init, admin, &server, &caller, .create);
+        try stage(init, admin, &server, &caller, http.RequestRecord.metadata_id, prepared.metadata, prepared.reference.metadataSpec());
+        try stage(init, admin, &server, &caller, http.RequestRecord.body_id, body, prepared.reference.bodySpec());
+        reference = prepared.reference;
+    }
     const before = try lastOutput(admin);
-    const reference = try saved.reference.encode();
-    try apply(init, admin, &server, &caller, .{ .followup = .{ .pid = worker, .request = .{ .resource = capture, .parent = 1, .reason = .retry, .request = reference.data[0..112].* } } });
+    const encoded = try reference.encode();
+    try apply(init, admin, &server, &caller, .{ .followup = .{ .pid = worker, .request = .{ .resource = capture, .parent = target.parent, .reason = target.reason, .request = encoded.data[0..112].* } } });
     const outgoing = try output(admin, before);
     try t.expectEqual(saved.pid, outgoing.source);
     try t.expectEqual(worker, outgoing.destination);

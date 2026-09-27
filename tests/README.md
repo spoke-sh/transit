@@ -22,7 +22,8 @@ the configured hostname while dialing its explicitly pinned IPv4 address.
 Ambient proxy settings are ignored. Close-delimited TLS bodies are rejected
 because the pinned transport relies on HTTP framing to detect truncation.
 
-`just test::http-worker` runs the actual finite worker over disk Ursula. It loses
+`just test::http-worker` runs the actual finite worker over disk Ursula and the
+existing owned MinIO fixture; Docker is required. It loses
 accepted segment-seal, dispatch and observation replies and checks exact retries;
 SIGKILLs a preparing worker after a committed request chunk, restarts node/store,
 and resumes under fresh ownership with matching bytes and the original deadline;
@@ -67,10 +68,19 @@ allocation receipt proves exact retry of child, route and root-budget consumptio
 Fresh preparation resumes the child without another allocation or send, then
 execution produces a new effect/attempt and correlated outcome. The independent
 peer sees two sends and one application, while the parent remains closed unknown.
-The full proof passes in **350.71 seconds** excluding compilation, with **eleven
-sends, six applications and one cancellation request**. Naming-service rebinding,
-public redirect/status/cancel dispatch and language-native followup helpers remain
-separate qualification work.
+Public status/cancellation now publish separate empty-body requests from the
+original caller. Public redirect publishes a new target only after observing a
+complete 307; no implicit follow occurs. All preserve new correlations/effects
+and leave the original effect unchanged. EXB2's unsettled-child count blocks parent
+cleanup before and after node/store restart, then permits cleanup after all
+children settle. Package tests additionally cover abandoned siblings, nested
+descendants, duplicate settlement and mutation rollback without refunding slots.
+The expanded proof passes in **458.34 seconds** excluding compilation, with
+**fifteen sends, seven applications and two cancellation requests**. A prior run
+hit the default hot-only 64 MiB store limit; the proof now uses M10's existing
+8 MiB hot/S3 profile. This run persisted 967 cold objects and 103,195,312
+object-store bytes without enabling retention or raising memory limits.
+Naming-service rebinding and broader deployment qualification remain separate work.
 
 Public HTD1 disposal now releases only the authenticated original caller's hold.
 The real worker's `poll` mode passes disposal without its credential file,
