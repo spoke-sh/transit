@@ -21,6 +21,12 @@ extractions in **491.58 seconds**, with sixteen sends, eight applications, two
 cancellation requests and 1,025 cold objects / 114,036,242 bytes under 8 MiB hot
 storage. This is the shared-component regression.
 
+The installed C11 and C++17 RPC consumers additionally pass this shared SDK
+schedule in **69.24** and **74.66 seconds** respectively, including isolated
+installation/compilation. `just bindings::c-sdk-test` runs both protocol schedules.
+C explicitly preserves status presence; C++ uses an optional status and move-only
+readers. Both authenticate control replies and join a delayed replay read.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover

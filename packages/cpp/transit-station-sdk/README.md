@@ -28,3 +28,6 @@ Result readers use the current scoped grant on every manifest/segment access.
 `IpcSegment` and its copied bytes survive runner destruction. This core package
 does not select an optional Arrow C++ dependency; independent IPC qualification
 uses the shared PyArrow consumer after runner disposal.
+
+M16 adds [finite RPC requests and owned replay](docs/GRPC.md), using the same
+shared Zig exchange and native ownership boundary.

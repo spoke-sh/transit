@@ -128,9 +128,10 @@ c-build: build
 # Compile installed public C and C++ consumers and run the shared raw schedule.
 c-sdk-test: c-build
     zig fmt --check packages/c packages/cpp/transit-client packages/cpp/transit-station-sdk examples/station-sdk/c examples/station-sdk/cpp
-    zig build transit-node rey-cli transit-station-http-worker
+    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
 
 # Build independent Java JARs and POM manifests with the pinned JDK/Gson.
 java-build: build

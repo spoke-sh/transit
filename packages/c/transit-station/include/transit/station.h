@@ -278,6 +278,83 @@ transit_sdk_error transit_station_http_open(transit_station_runner *runner, cons
 transit_sdk_error transit_station_http_read(transit_station_http_reader *reader, transit_station_http_part *out);
 transit_sdk_error transit_station_http_close(transit_station_http_reader *reader);
 void transit_station_http_reader_destroy(transit_station_http_reader *reader);
+/* RPC values are caller-owned. The shared native implementation binds schemas,
+ * constructs publication commitments, and verifies durable transcripts. */
+typedef struct transit_station_grpc_request transit_station_grpc_request;
+typedef struct transit_station_grpc_reader transit_station_grpc_reader;
+typedef uint32_t transit_station_grpc_shape;
+enum { TRANSIT_GRPC_UNARY, TRANSIT_GRPC_SERVER_STREAMING, TRANSIT_GRPC_CLIENT_STREAMING, TRANSIT_GRPC_BIDI };
+typedef struct transit_station_grpc_method {
+    char path[513];
+    transit_station_grpc_shape shape;
+    uint8_t descriptor_digest[32];
+} transit_station_grpc_method;
+typedef struct transit_station_grpc_metadata {
+    const char *name;
+    bool secret;
+    transit_sdk_bytes bytes; /* Literal original bytes; -bin encoding belongs to Zig. */
+    const char *binding;
+    uint64_t version;
+} transit_station_grpc_metadata;
+typedef struct transit_station_grpc_template {
+    transit_station_grpc_method method;
+    const transit_station_grpc_metadata *metadata;
+    size_t metadata_count;
+} transit_station_grpc_template;
+typedef struct transit_station_grpc_options {
+    transit_sdk_resource resource;
+    uint64_t namespace_id, endpoint_revision, reconcile_before_ms;
+    uint32_t max_attempts;
+} transit_station_grpc_options;
+transit_sdk_error transit_station_grpc_method_bind(transit_sdk_bytes descriptor, const char *path, const char *native_directory, transit_station_grpc_method *out);
+typedef struct transit_station_grpc_request_view {
+    transit_sdk_resource resource;
+    uint64_t namespace_id;
+    transit_sdk_bytes reference, metadata, batch;
+} transit_station_grpc_request_view;
+typedef enum transit_station_grpc_phase { TRANSIT_GRPC_OBSERVED, TRANSIT_GRPC_CLOSED_UNKNOWN, TRANSIT_GRPC_NOT_DISPATCHED } transit_station_grpc_phase;
+typedef enum transit_station_grpc_rejection { TRANSIT_GRPC_DENIED, TRANSIT_GRPC_INVALID_REQUEST, TRANSIT_GRPC_BUSY } transit_station_grpc_rejection;
+typedef struct transit_station_grpc_outcome {
+    bool rejected;
+    transit_station_grpc_rejection rejection;
+    transit_station_grpc_phase phase;
+    transit_sdk_resource resource;
+    uint64_t exchange, effect, attempt;
+    uint32_t status; /* Meaningful only when has_status is true; zero means OK. */
+    bool has_status;
+    size_t reference_size; /* Zero unless complete; not a bearer grant. */
+    uint8_t reference[256];
+} transit_station_grpc_outcome;
+typedef struct transit_station_grpc_released {
+    transit_sdk_resource resource;
+    uint64_t exchange;
+} transit_station_grpc_released;
+typedef enum transit_station_grpc_replay_policy { TRANSIT_GRPC_CAPTURED, TRANSIT_GRPC_REQUIRE_UNREDACTED } transit_station_grpc_replay_policy;
+typedef enum transit_station_grpc_part_kind { TRANSIT_GRPC_REQUEST_METADATA, TRANSIT_GRPC_REQUEST_BATCH, TRANSIT_GRPC_ENDPOINT_POLICY, TRANSIT_GRPC_INITIAL_METADATA, TRANSIT_GRPC_RESPONSE_MESSAGE, TRANSIT_GRPC_RESPONSE_BODY, TRANSIT_GRPC_HALF_CLOSE, TRANSIT_GRPC_TRAILERS, TRANSIT_GRPC_TIMING, TRANSIT_GRPC_OMISSION, TRANSIT_GRPC_COMPLETION } transit_station_grpc_part_kind;
+typedef struct transit_station_grpc_part {
+    bool present, complete;
+    transit_station_grpc_part_kind kind;
+    size_t size;
+    uint8_t bytes[256]; /* Owned inline bytes; arbitrary GRPC record boundaries. */
+} transit_station_grpc_part;
+transit_sdk_error transit_station_grpc_prepare(const transit_station_grpc_template *request, const transit_sdk_bytes *messages, size_t message_count, const transit_station_grpc_options *options, const char *native_directory, transit_station_grpc_request **out);
+transit_sdk_error transit_station_grpc_request_inspect(const transit_station_grpc_request *request, transit_station_grpc_request_view *out);
+void transit_station_grpc_request_destroy(transit_station_grpc_request *request);
+transit_sdk_error transit_station_grpc_decode(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_grpc_outcome *out);
+transit_sdk_error transit_station_grpc_decode_released(uint64_t realm, transit_sdk_bytes bytes, const char *native_directory, transit_station_grpc_released *out);
+transit_sdk_error transit_station_turn_grpc_stage(transit_station_turn *turn, const transit_station_grpc_request *request, bool *ready);
+transit_sdk_error transit_station_turn_grpc_call(transit_station_turn *turn, transit_sdk_process peer, const transit_station_grpc_request *request, uint64_t *correlation);
+/* Request durable hold disposal; authenticate the correlated GRK1 reply. */
+transit_sdk_error transit_station_turn_grpc_release(transit_station_turn *turn, transit_sdk_process peer, transit_sdk_resource capture, uint64_t exchange, uint64_t *correlation);
+/* Submit a linked attempt using an already published request; service policy
+ * decides admission. Pointers remain borrowed for this synchronous operation. */
+transit_sdk_error transit_station_turn_grpc_retry(transit_station_turn *turn, transit_sdk_process peer, const transit_station_grpc_outcome *parent, const transit_station_grpc_request *request, uint64_t *correlation);
+/* Reader retains local runner lifetime. Runner destroy/close joins native work;
+ * caller must join concurrent uses before destroying any public handle. */
+transit_sdk_error transit_station_grpc_open(transit_station_runner *runner, const transit_station_grpc_outcome *outcome, transit_station_grpc_replay_policy policy, transit_station_grpc_reader **out);
+transit_sdk_error transit_station_grpc_read(transit_station_grpc_reader *reader, transit_station_grpc_part *out);
+transit_sdk_error transit_station_grpc_close(transit_station_grpc_reader *reader);
+void transit_station_grpc_reader_destroy(transit_station_grpc_reader *reader);
 #ifdef __cplusplus
 }
 #endif

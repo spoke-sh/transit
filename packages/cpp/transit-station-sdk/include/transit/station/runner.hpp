@@ -119,5 +119,10 @@ public:
         check(transit_station_http_open(value_.get(), &outcome.native(), static_cast<transit_station_http_replay_policy>(policy), &out));
         return HttpReader(out);
     }
+    GrpcReader open_grpc(const GrpcOutcome &outcome, GrpcReplayPolicy policy = GrpcReplayPolicy::Captured) {
+        transit_station_grpc_reader *out = nullptr;
+        check(transit_station_grpc_open(value_.get(), &outcome.native(), static_cast<transit_station_grpc_replay_policy>(policy), &out));
+        return GrpcReader(out);
+    }
 };
 }

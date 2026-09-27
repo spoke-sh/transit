@@ -8,12 +8,12 @@
 
 namespace transit::sdk::station_detail {
 using namespace internal;
-struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup; };
+struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup, grpc_requests, grpc_replay, grpc_release, grpc_followup; };
 #define TRANSIT_STATION_FUNCTIONS(X) \
     X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \
     X(station_growing_finish_result) X(station_growing_discard) X(station_growing_pending) X(station_frame_encode) \
-    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read)
+    X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read) X(station_grpc_codec) X(station_growing_grpc_read)
 struct Local {
     Raw raw;
     Library library;
@@ -33,6 +33,7 @@ struct Bridge {
     Bytes prepare();
     Bytes apply(uint64_t scope, const std::string &action);
     Bytes http_read(const std::string &action);
+    Bytes grpc_read(const std::string &action);
     void finish(uint64_t scope, bool failed);
     void discard(uint64_t scope);
     std::shared_ptr<const transit_station_mutation> pending(const Bytes &event);
@@ -140,6 +141,11 @@ struct transit_station_http_request {
     transit_sdk_resource resource{};
     uint64_t namespace_id{};
     transit::sdk::internal::Bytes reference, metadata, body;
+};
+struct transit_station_grpc_request {
+    transit_sdk_resource resource{};
+    uint64_t namespace_id{};
+    transit::sdk::internal::Bytes reference, metadata, batch;
 };
 namespace transit::sdk::station_detail {
 template<class F> transit_sdk_error with_turn(transit_station_turn *turn, bool read, F &&work) {

@@ -37,6 +37,15 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []),
                             http_sources[0], http_object, *flags, '-lpthread', '-o', http_binary], cwd=target, env=environment, check=True)
             for item in [*http_sources, http_object]: item.unlink()
+            grpc_binary = target / 'grpc-consumer'
+            grpc_sources = [target / name for name in ('c_grpc_sdk.cpp', 'c_grpc_sdk.c', 'c_grpc_sdk.h')]
+            for item in grpc_sources: shutil.copyfile(root / 'tests' / item.name, item)
+            grpc_object = target / 'grpc-callbacks.o'
+            subprocess.run(['zig', 'cc', '-std=c11', '-Wall', '-Wextra', '-Werror', f'-I{prefix / "include"}', '-c', grpc_sources[1], '-o', grpc_object],
+                           cwd=target, env=environment, check=True)
+            subprocess.run(['zig', 'c++', '-std=c++17', '-Wall', '-Wextra', '-Werror', *(['-DTRANSIT_TEST_C_API'] if language == 'C' else []),
+                            grpc_sources[0], grpc_object, *flags, '-lpthread', '-o', grpc_binary], cwd=target, env=environment, check=True)
+            for item in [*grpc_sources, grpc_object]: item.unlink()
             if language == 'C++':
                 for body in ('void wrong(transit::sdk::station::Turn &turn) { turn.state().put(transit::sdk::examples::total_key, true); }',
                              'void copy(transit::sdk::station::Runner<uint64_t> &runner) { auto copied = runner; }'):
@@ -69,12 +78,18 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             data = json.loads((root / 'packages/zig/transit-station-http/src/admission-fixtures.json').read_bytes())
             release = json.loads((root / 'packages/zig/transit-station-http/src/release-fixtures.json').read_bytes())
             http_fixtures.write_text('\n'.join([data['body'], data['reference'], data['metadata'].encode().hex(), data['outcome'], data['rejection'], release['reply']]) + '\n')
+            grpc_fixtures = target / 'grpc-codecs.txt'
+            data = json.loads((root / 'packages/zig/transit-station-grpc/src/fixtures/service.json').read_bytes())
+            grpc_fixtures.write_text('\n'.join(data[key] for key in ('outcome_ok_hex','outcome_unknown_hex','rejection_hex','released_hex')) + '\n')
             def command(mode, config):
                 cfg = json.loads(config.read_bytes())
                 assert cfg['profile'] == 'growing_v3'
                 if mode.startswith('http-'):
                     return [http_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                             str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), http_fixtures, cfg.get('followup_reason', 'retry')]
+                if mode.startswith('grpc-'):
+                    return [grpc_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
+                            str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), grpc_fixtures, cfg['descriptor']]
                 return [binary, mode, cfg['url'], str(cfg['realm']), str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                         cfg['role'], str(cfg['resource']), cfg['pending'], cfg['output'], fixtures, '1' if cfg['query_results'] else '0', wrong]
             def installed_cli(config, role):

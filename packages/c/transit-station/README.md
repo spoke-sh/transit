@@ -40,3 +40,6 @@ library, then the public C++ runner/handlers. It checks scope/reentry failures,
 stop/block policies, exact seedless recovery, current grants and six original IPC
 segments independently decoded after close. [Proof details](../../../tests/README.md)
 distinguish shared native allocation checks from this SDK's host error paths.
+
+M16 adds [finite RPC requests and owned replay](docs/GRPC.md), using the same
+shared Zig exchange and native ownership boundary.

@@ -126,6 +126,11 @@ struct transit_station_http_reader {
     uint64_t identity = 0;
     bool complete = false, closed = false, failed = false;
 };
+struct transit_station_grpc_reader {
+    transit_station_runner *runner = nullptr;
+    uint64_t identity = 0;
+    bool complete = false, closed = false, failed = false;
+};
 static void runner_release(transit_station_runner *runner) {
     if (runner && runner->references.fetch_sub(1, std::memory_order_acq_rel) == 1) delete runner;
 }
@@ -232,6 +237,79 @@ void transit_station_http_reader_destroy(transit_station_http_reader *reader) {
     Uninterruptible guard;
     if (!reader) return;
     (void)transit_station_http_close(reader);
+    auto *runner = reader->runner; delete reader; runner_release(runner);
+}
+transit_sdk_error transit_station_grpc_open(transit_station_runner *runner, const transit_station_grpc_outcome *outcome, transit_station_grpc_replay_policy policy, transit_station_grpc_reader **out) {
+    Uninterruptible guard; if (out) *out = nullptr;
+    return boundary([&] {
+        require(runner && outcome && out && !outcome->rejected && outcome->phase == TRANSIT_GRPC_OBSERVED && outcome->reference_size > 0 && outcome->reference_size <= sizeof(outcome->reference), "grpc-open");
+        require(policy == TRANSIT_GRPC_CAPTURED || policy == TRANSIT_GRPC_REQUIRE_UNREDACTED, "grpc-replay-policy");
+        auto reader = std::make_unique<transit_station_grpc_reader>();
+        const auto action = "{\"open\":{\"reference\":" + quote(hex(copy({outcome->reference, outcome->reference_size}, 256))) +
+            ",\"policy\":" + quote(policy == TRANSIT_GRPC_CAPTURED ? "captured" : "require_unredacted") + "}}";
+        runner->worker.run([&] {
+            auto &state = *runner->state;
+            require(outcome->resource.realm == state.process.realm, "grpc-realm");
+            if (state.pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+            const auto value = state.bridge.grpc_read(action);
+            reader->identity = state.bridge.local.raw.number(value, "opened");
+            runner->references.fetch_add(1, std::memory_order_relaxed); reader->runner = runner;
+        });
+        *out = reader.release();
+    });
+}
+transit_sdk_error transit_station_grpc_read(transit_station_grpc_reader *reader, transit_station_grpc_part *out) {
+    Uninterruptible guard; if (out) *out = {};
+    return boundary([&] {
+        require(reader && out, "grpc-reader");
+        reader->runner->worker.run([&] {
+            if (reader->closed) fail(TRANSIT_SDK_CLOSED, "grpc-reader");
+            if (reader->failed) {
+                auto value = error(TRANSIT_SDK_READ_FAILED, "grpc-reader");
+                std::strncpy(value.code, "GrpcReplayFailed", sizeof(value.code) - 1); throw Failure{value};
+            }
+            auto &state = *reader->runner->state;
+            if (state.pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+            // Host response allocation/materialization failure also invalidates
+            // this reader, so subsequent calls cannot skip undisclosed bytes.
+            reader->failed = true;
+            const auto value = state.bridge.grpc_read("{\"next\":" + decimal(reader->identity) + "}");
+            auto &raw = state.bridge.local.raw; transit_station_grpc_part part{};
+            if (raw.field(value, "part") == "null") {
+                if (!reader->complete) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "grpc-incomplete");
+                part.complete = true;
+            } else {
+                const char *kinds[] = {"request_metadata", "request_batch", "endpoint_policy", "initial_metadata", "response_message", "response_body", "half_close", "trailers", "timing", "omission", "completion"};
+                const auto kind = raw.field(value, "part/kind", true);
+                size_t index = 0; for (; index < 11 && kind != kinds[index]; ++index) {}
+                if (index == 11) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "grpc-part-kind");
+                const auto bytes = unhex(raw.field(value, "part/bytes", true), sizeof(part.bytes));
+                part.present = true; part.kind = static_cast<transit_station_grpc_part_kind>(index);
+                part.complete = raw.boolean(value, "part/complete"); part.size = bytes.size();
+                std::copy(bytes.begin(), bytes.end(), part.bytes);
+            }
+            *out = part; reader->complete = part.complete; reader->failed = false;
+        });
+    });
+}
+transit_sdk_error transit_station_grpc_close(transit_station_grpc_reader *reader) {
+    Uninterruptible guard;
+    return boundary([&] {
+        require(reader, "grpc-reader");
+        reader->runner->worker.run([&] {
+            if (reader->closed) return;
+            auto &state = *reader->runner->state;
+            if (state.pending) fail(TRANSIT_SDK_BUSY, "pending-mutation");
+            const auto value = state.bridge.grpc_read("{\"close\":" + decimal(reader->identity) + "}");
+            if (!state.bridge.local.raw.boolean(value, "closed")) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "grpc-close");
+            reader->closed = true;
+        });
+    });
+}
+void transit_station_grpc_reader_destroy(transit_station_grpc_reader *reader) {
+    Uninterruptible guard;
+    if (!reader) return;
+    (void)transit_station_grpc_close(reader);
     auto *runner = reader->runner; delete reader; runner_release(runner);
 }
 transit_sdk_error transit_station_event_inspect(const transit_station_event *event, transit_station_event_info *out) {

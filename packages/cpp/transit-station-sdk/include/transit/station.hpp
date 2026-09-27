@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <transit/client.hpp>
 #include <transit/station.h>
 #include <algorithm>
@@ -133,6 +134,8 @@ class State;
 class Source;
 class ResultReader;
 class PreparedHttpRequest;
+class PreparedGrpcRequest;
+class GrpcOutcome;
 class HttpOutcome;
 enum class HttpFollowupReason { Retry = TRANSIT_HTTP_RETRY, Redirect = TRANSIT_HTTP_REDIRECT, Reconcile = TRANSIT_HTTP_RECONCILE, Cancel = TRANSIT_HTTP_CANCEL };
 template<class T> class Table;
@@ -172,6 +175,12 @@ public:
     uint64_t followup_http(ProcessRef peer, const HttpOutcome &parent, HttpFollowupReason reason, const PreparedHttpRequest &request) const;
     uint64_t release_http(ProcessRef peer, ResourceRef capture, uint64_t exchange) const {
         uint64_t correlation = 0; check(transit_station_turn_http_release(native(), peer.native(), capture.native(), exchange, &correlation)); return correlation;
+    }
+    bool stage_grpc(const PreparedGrpcRequest &request) const;
+    uint64_t call_grpc(ProcessRef peer, const PreparedGrpcRequest &request) const;
+    uint64_t retry_grpc(ProcessRef peer, const GrpcOutcome &parent, const PreparedGrpcRequest &request) const;
+    uint64_t release_grpc(ProcessRef peer, ResourceRef capture, uint64_t exchange) const {
+        uint64_t correlation = 0; check(transit_station_turn_grpc_release(native(), peer.native(), capture.native(), exchange, &correlation)); return correlation;
     }
 };
 class State {
@@ -429,6 +438,145 @@ inline bool Turn::stage_http(const PreparedHttpRequest &request) const {
 }
 inline uint64_t Turn::call_http(ProcessRef peer, const PreparedHttpRequest &request) const {
     uint64_t correlation = 0; check(transit_station_turn_http_call(native(), peer.native(), request.native(), &correlation)); return correlation;
+}
+enum class GrpcShape { Unary = TRANSIT_GRPC_UNARY, ServerStreaming = TRANSIT_GRPC_SERVER_STREAMING, ClientStreaming = TRANSIT_GRPC_CLIENT_STREAMING, Bidi = TRANSIT_GRPC_BIDI };
+struct GrpcMethod { std::string path; GrpcShape shape; std::array<uint8_t,32> descriptor_digest; };
+struct GrpcSecretRef { std::string binding; uint64_t version; };
+using GrpcMetadataValue = std::variant<Bytes, GrpcSecretRef>;
+struct GrpcMetadata { std::string name; GrpcMetadataValue value; };
+struct GrpcRequest { GrpcMethod method; std::vector<GrpcMetadata> metadata; };
+inline GrpcMethod grpc_method(const Bytes &descriptor, const std::string &path, const char *native_directory = nullptr) {
+    checked_string(path); transit_station_grpc_method method{};
+    check(transit_station_grpc_method_bind(bytes_view(descriptor), path.c_str(), native_directory, &method));
+    GrpcMethod result{method.path, static_cast<GrpcShape>(method.shape), {}};
+    std::copy(std::begin(method.descriptor_digest), std::end(method.descriptor_digest), result.descriptor_digest.begin());
+    return result;
+}
+struct GrpcRequestOptions { uint64_t endpoint_revision, reconcile_before_ms; uint32_t max_attempts = 1; };
+class PreparedGrpcRequest {
+    std::shared_ptr<transit_station_grpc_request> value_;
+public:
+    explicit PreparedGrpcRequest(transit_station_grpc_request *value) : value_(value, transit_station_grpc_request_destroy) {
+        if (!value) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-request");
+    }
+    const transit_station_grpc_request *native() const { return value_.get(); }
+    transit_station_grpc_request_view info() const { transit_station_grpc_request_view out{}; check(transit_station_grpc_request_inspect(native(), &out)); return out; }
+    Bytes reference() const { return copy_bytes(info().reference); }
+    Bytes metadata() const { return copy_bytes(info().metadata); }
+    Bytes batch() const { return copy_bytes(info().batch); }
+};
+inline PreparedGrpcRequest prepare_grpc(ResourceRef resource, uint64_t namespace_id, const GrpcRequest &request,
+    const std::vector<Bytes> &messages, GrpcRequestOptions options, const char *native_directory = nullptr) {
+    if (request.metadata.size() > 64 || messages.size() > 64) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-batch");
+    transit_station_grpc_template description{};
+    const auto &method = checked_string(request.method.path);
+    if (method.size() > 512) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-method");
+    std::copy(method.begin(),method.end(),description.method.path);
+    description.method.shape = static_cast<transit_station_grpc_shape>(request.method.shape);
+    std::copy(request.method.descriptor_digest.begin(),request.method.descriptor_digest.end(),description.method.descriptor_digest);
+    std::vector<transit_station_grpc_metadata> fields; fields.reserve(request.metadata.size());
+    for (const auto &entry : request.metadata) {
+        checked_string(entry.name); transit_station_grpc_metadata field{}; field.name = entry.name.c_str();
+        if (const auto *bytes = std::get_if<Bytes>(&entry.value)) field.bytes = bytes_view(*bytes);
+        else { const auto &secret = std::get<GrpcSecretRef>(entry.value); checked_string(secret.binding); field.secret = true; field.binding = secret.binding.c_str(); field.version = secret.version; }
+        fields.push_back(field);
+    }
+    description.metadata = fields.data(); description.metadata_count = fields.size();
+    std::vector<transit_sdk_bytes> batch; batch.reserve(messages.size());
+    for (const auto &message : messages) batch.push_back(bytes_view(message));
+    const transit_station_grpc_options settings{resource.native(),namespace_id,options.endpoint_revision,options.reconcile_before_ms,options.max_attempts};
+    transit_station_grpc_request *out = nullptr;
+    check(transit_station_grpc_prepare(&description,batch.data(),batch.size(),&settings,native_directory,&out));
+    return PreparedGrpcRequest(out);
+}
+class GrpcOutcome {
+    transit_station_grpc_outcome value_{};
+public:
+    explicit GrpcOutcome(transit_station_grpc_outcome value) : value_(value) {}
+    const transit_station_grpc_outcome &native() const { return value_; }
+    bool rejected() const { return value_.rejected; }
+    transit_station_grpc_rejection rejection() const { if (!rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-not-rejected"); return value_.rejection; }
+    transit_station_grpc_phase phase() const { if (rejected()) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-rejected"); return value_.phase; }
+    uint64_t exchange() const { return value_.exchange; }
+    ResourceRef resource() const { return ResourceRef(value_.resource.realm, value_.resource.resource); }
+    uint64_t effect() const { return value_.effect; }
+    uint64_t attempt() const { return value_.attempt; }
+    std::optional<uint32_t> status() const { return value_.has_status ? std::optional<uint32_t>(value_.status) : std::nullopt; }
+    std::optional<Bytes> reference() const {
+        if (value_.reference_size > sizeof(value_.reference)) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-reference");
+        return value_.reference_size ? std::optional<Bytes>(Bytes(value_.reference, value_.reference + value_.reference_size)) : std::nullopt;
+    }
+};
+inline uint64_t Turn::retry_grpc(ProcessRef peer, const GrpcOutcome &parent, const PreparedGrpcRequest &request) const {
+    uint64_t correlation = 0; check(transit_station_turn_grpc_retry(native(), peer.native(), &parent.native(), request.native(), &correlation)); return correlation;
+}
+inline GrpcOutcome decode_grpc_reply(uint64_t realm, const Bytes &bytes, const char *native_directory = nullptr) {
+    transit_station_grpc_outcome out{}; check(transit_station_grpc_decode(realm, bytes_view(bytes), native_directory, &out)); return GrpcOutcome(out);
+}
+class GrpcReleased {
+    transit_station_grpc_released value_{};
+public:
+    explicit GrpcReleased(transit_station_grpc_released value) : value_(value) {}
+    ResourceRef resource() const { return ResourceRef(value_.resource.realm, value_.resource.resource); }
+    uint64_t exchange() const { return value_.exchange; }
+};
+inline GrpcReleased decode_grpc_released(uint64_t realm, const Bytes &bytes, const char *native_directory = nullptr) {
+    transit_station_grpc_released out{}; check(transit_station_grpc_decode_released(realm, bytes_view(bytes), native_directory, &out)); return GrpcReleased(out);
+}
+template<class T> using GrpcMessage = std::variant<T, GrpcOutcome, GrpcReleased>;
+template<class T> class GrpcReplyCodec : public Codec<GrpcMessage<T>> {
+    std::shared_ptr<const Codec<T>> application_;
+    uint64_t realm_;
+    std::optional<std::string> directory_;
+    std::string type_;
+public:
+    GrpcReplyCodec(std::shared_ptr<const Codec<T>> application, uint64_t realm, std::optional<std::string> native_directory = {})
+        : application_(std::move(application)), realm_(realm), directory_(std::move(native_directory)) {
+        if (!application_) throw failure(TRANSIT_SDK_INVALID_ARGUMENT, "grpc-application-codec");
+        type_ = "transit.grpc.reply+" + checked_string(application_->type_id());
+        if (directory_) checked_string(*directory_);
+    }
+    const char *type_id() const noexcept override { return type_.c_str(); }
+    uint32_t version() const noexcept override { return 1; }
+    size_t max_encoded_bytes() const noexcept override { return std::max<size_t>(73, application_->max_encoded_bytes()); }
+    Bytes encode(const GrpcMessage<T> &message) const override {
+        if (!std::holds_alternative<T>(message)) throw failure(TRANSIT_SDK_CODEC_ERROR, "receive-only-grpc-outcome");
+        return application_->encode(std::get<T>(message));
+    }
+    GrpcMessage<T> decode(const Bytes &bytes) const override {
+        if (bytes.size() >= 4 && !std::memcmp(bytes.data(), "GRK1", 4))
+            return decode_grpc_released(realm_, bytes, directory_ ? directory_->c_str() : nullptr);
+        if (bytes.size() >= 4 && (!std::memcmp(bytes.data(), "GRR1", 4) || !std::memcmp(bytes.data(), "GRF1", 4)))
+            return decode_grpc_reply(realm_, bytes, directory_ ? directory_->c_str() : nullptr);
+        return application_->decode(bytes);
+    }
+};
+enum class GrpcReplayPolicy { Captured = TRANSIT_GRPC_CAPTURED, RequireUnredacted = TRANSIT_GRPC_REQUIRE_UNREDACTED };
+struct GrpcPart { transit_station_grpc_part_kind kind; Bytes data; bool complete; };
+class GrpcReader {
+    std::unique_ptr<transit_station_grpc_reader, decltype(&transit_station_grpc_reader_destroy)> value_;
+    bool complete_ = false, failed_ = false;
+public:
+    explicit GrpcReader(transit_station_grpc_reader *value) : value_(value, transit_station_grpc_reader_destroy) {}
+    GrpcReader(GrpcReader &&) noexcept = default;
+    GrpcReader &operator=(GrpcReader &&) noexcept = default;
+    bool complete() const { return complete_; }
+    std::optional<GrpcPart> read() {
+        if (failed_) throw failure(TRANSIT_SDK_READ_FAILED, "grpc-reader-failed");
+        transit_station_grpc_part out{}; check(transit_station_grpc_read(value_.get(), &out));
+        try {
+            std::optional<GrpcPart> result;
+            if (out.present) result = GrpcPart{out.kind, Bytes(out.bytes, out.bytes + out.size), out.complete};
+            complete_ = out.complete; return result;
+        } catch (...) { failed_ = true; throw; }
+    }
+    void close() { check(transit_station_grpc_close(value_.get())); }
+};
+inline bool Turn::stage_grpc(const PreparedGrpcRequest &request) const {
+    bool ready = false; check(transit_station_turn_grpc_stage(native(), request.native(), &ready)); return ready;
+}
+inline uint64_t Turn::call_grpc(ProcessRef peer, const PreparedGrpcRequest &request) const {
+    uint64_t correlation = 0; check(transit_station_turn_grpc_call(native(), peer.native(), request.native(), &correlation)); return correlation;
 }
 }
 #include <transit/station/runner.hpp>

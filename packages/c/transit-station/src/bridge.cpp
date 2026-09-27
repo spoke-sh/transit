@@ -17,7 +17,11 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
         raw.number(value, "table_cell_bytes"), raw.number(value, "table_name_bytes"), raw.number(value, "page_entries"),
         raw.number(value, "query_segment_bytes"), raw.boolean(value, "query_results"), raw.boolean(value, "http_requests"), raw.boolean(value, "http_replay"),
         exists(raw, value, "http_release") && raw.boolean(value, "http_release"),
-        exists(raw, value, "http_followup") && raw.boolean(value, "http_followup")};
+        exists(raw, value, "http_followup") && raw.boolean(value, "http_followup"),
+        exists(raw, value, "grpc_requests") && raw.boolean(value, "grpc_requests"),
+        exists(raw, value, "grpc_replay") && raw.boolean(value, "grpc_replay"),
+        exists(raw, value, "grpc_release") && raw.boolean(value, "grpc_release"),
+        exists(raw, value, "grpc_followup") && raw.boolean(value, "grpc_followup")};
     for (auto bound : {caps.message, caps.value, caps.key, caps.cell, caps.name, caps.page, caps.segment})
         if (bound > TRANSIT_CLIENT_MAX_BODY) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-bound");
 }
@@ -81,6 +85,13 @@ Bytes Bridge::http_read(const std::string &action) {
     station_buffer *buffer = nullptr;
     const auto status = local.station_growing_http_read(server.get(), reinterpret_cast<const uint8_t *>(action.data()), action.size(), &buffer);
     return local.result(status, buffer, "http-read");
+}
+Bytes Bridge::grpc_read(const std::string &action) {
+    require(action.size() <= 2048, "grpc-read-bound");
+    if (!local.caps.grpc_replay) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "grpc-replay");
+    station_buffer *buffer = nullptr;
+    const auto status = local.station_growing_grpc_read(server.get(), reinterpret_cast<const uint8_t *>(action.data()), action.size(), &buffer);
+    return local.result(status, buffer, "grpc-read");
 }
 void Bridge::finish(uint64_t scope, bool failed) {
     station_buffer *buffer = nullptr; const auto status = local.station_growing_finish_result(server.get(), scope, failed ? 1 : 0, &buffer);
