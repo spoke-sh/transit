@@ -192,10 +192,13 @@ cross-realm capability to the current single-realm deployment.
 
 [D4 — Explore: a SQL-first workspace](design/board-console/D4.md) merges the
 proposed Data and Queries destinations into Explore. It makes a browser SQL
-console the default, with grammar/catalog completion, highlighting, a resource
-search field, contextual history and a summary of each executed result. Resource
-typeahead opens a list with kind labels, inline size/cardinality and compact
-schema diagrams. Counts and sizes name their basis and distinguish estimates
+console the default, with grammar/catalog completion, highlighting, contextual
+history and a summary of each executed result. Search Transit sits at the center
+of the top navigation, with the realm dropdown at the right. ⌘K / Ctrl+K opens
+power search across sections; Explore, Connections, Sources and focused objects
+provide relevance context without implicitly excluding other kinds. Its Data
+filter retains kind labels, inline size/cardinality and compact schema diagrams.
+Counts and sizes name their basis and distinguish estimates
 and unavailable measurements; search does not scan data or alter the SQL draft.
 The result grid is primary, with a closable right Profile panel for returned-column
 cardinality, nulls, ranges and distributions. Query provenance lives in Query info
@@ -210,6 +213,13 @@ assistance from executable semantics, define proposed responsiveness budgets,
 and preserve exact result identity and profile coverage. These editor and catalog
 services are new design work; the current Table compiler and query API do not
 already provide them.
+
+The [search notes](design/board-console/SEARCH.md) separate retrieval, scoring,
+fusion/ranking, classification, current authorization, freshness and bounded cost.
+Specialized metadata indexes are proposed derived views maintained from committed
+changes. Lexical retrieval is the baseline; incremental embeddings and HNSW are
+optional candidates requiring relevance, recovery and resident-memory evidence.
+No global search service, content index or new search SQL is implemented here.
 
 The reviewer selected D4 Figure 1 and requested live execution as text changes.
 D4 now proposes a visible Live/Paused session, adaptive exact/speculative query

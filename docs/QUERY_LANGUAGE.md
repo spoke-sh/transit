@@ -61,8 +61,12 @@ capability rules and authorized catalog metadata jointly drive proposed completi
 and highlighting. The checked grammar is an input to a future editor service,
 not an existing incremental/completion API. Editing assistance must handle
 incomplete text without weakening complete-statement compilation at execution.
-Resource discovery uses the same authorized metadata in a search field with
-typed results, inline statistics and schema previews. Its search text is not SQL;
+Resource discovery uses the same authorized metadata through the top navigation's
+Transit-wide search, with section/object context influencing relevance and explicit
+filters narrowing scope. Its Data view keeps typed results, inline statistics
+and schema previews. [Search notes](design/board-console/SEARCH.md) separate
+retrieval/index projections from ranking and declarative authority; no search
+or vector SQL syntax is invented. Search text is not SQL;
 inserting a resource name is an explicit, context-checked SQL edit. Catalog
 statistics describe their resource and observation, not the worksheet's result.
 Its live refinement proposes automatic evaluation of qualified read queries

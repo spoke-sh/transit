@@ -19,7 +19,7 @@ and bounded implementation without changing its recorded outcomes.
 | [D1](D1.md) | Product structure, administration model, data workspace and future capability families | Reviewed | Useful starting point; reviewer requested monochrome wireframes, two navigation levels and a declarative foundation; D2 refines the flat shell and form-first model |
 | [D2](D2.md) | Declarative objects, Workspace/Operations hierarchy and grammar-to-UI mapping | Reviewed | Reviewer requested a compact icon toggle, Transit branding, a product/application-oriented realm dropdown and removal of redundant shell text; D3 refines the presentation |
 | [D3](D3.md) | Compact navigation, product context and more working space | Reviewed | Reviewer found the shell cleaner and easy to review; D4 carries it forward and merges Data/Queries into Explore |
-| [D4](D4.md) | Live SQL-first Explore, resource typeahead, compact profiles and charts | In review | Figure 1 direction selected; reviewer requested counts in Profile, horizontal column summaries, clearer query information and a chart example; scheduling, metadata and profile/stream contracts remain proposed |
+| [D4](D4.md) | Live SQL-first Explore, context-aware Transit search, compact profiles and charts | In review | Figure 1 direction selected; reviewer requested global header search grounded in section context, typed grouping and a breakdown of retrieval/ranking with streaming indexes; search, scheduling and profile/stream contracts remain proposed |
 
 The figures are black-and-white vector wireframes with synthetic examples. They are
 neither application screenshots nor evidence of available protocols, permissions
@@ -51,6 +51,8 @@ new implementation work requires its own place in the linear roadmap.
 - [D4 live stream wireframe](images/d4-05-live-stream.svg).
 - [D4 chart wireframe](images/d4-06-chart.svg).
 - [D4 wider profile layout study](images/d4-07-wide-profile.svg).
+- [D4 global power search](images/d4-08-power-search.svg) and [context comparison](images/d4-09-search-context.svg).
+- [D4 search system design](SEARCH.md) and [ranking/context fixture](d4-search-fixture.json).
 - [D4 console design notes](CONSOLE.md) and [study fixture](d4-fixture.json).
 - [D4 live scheduling notes](LIVE.md) and [live scenarios](d4-live-fixture.json).
 

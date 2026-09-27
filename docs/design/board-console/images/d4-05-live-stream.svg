@@ -1,10 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
-<title id="title">D4 — Stream rows and compact profiles share revision 43</title><desc id="desc">Stream rows and compact profiles share revision 43. Counts live in Profile, and Following opens Query info. Synthetic proposed interface, not implemented behavior.</desc>
+<title id="title">D4 — Stream rows and compact profiles share revision 43</title><desc id="desc">Stream rows and compact profiles share revision 43. Counts live in Profile, and Following opens Query info. Synthetic proposed interface, not implemented behavior. Search Transit is centered in the top navigation; the realm dropdown is at the right. Search uses section context without hiding other sections.</desc>
 <rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
 <text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
-<rect x="232" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
-<text x="248" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
-<path d="M435 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
+<rect x="420" y="10" width="600" height="36" rx="0" fill="white" stroke="black"/>
+<circle cx="440" cy="27" r="5" fill="white" stroke="black"/>
+<path d="M444 31 l5 5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="463" y="34" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Search Transit…</text>
+<rect x="956" y="17" width="52" height="22" rx="0" fill="white" stroke="black"/>
+<text x="969" y="33" font-family="sans-serif" font-size="12" font-weight="400" fill="black">⌘ K</text>
+</g>
+<rect x="1178" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M1381 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
@@ -29,12 +37,6 @@
 <text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
 <text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
 <text xml:space="preserve" x="240" y="103" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Explore</text>
-<g role="img" aria-label="Find resources: search field">
-<rect x="376" y="78" width="788" height="36" rx="0" fill="white" stroke="black"/>
-<circle cx="393" cy="94" r="5" fill="white" stroke="black"/>
-<path d="M397 98 L402 103" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="415" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Find tables, documents, KV…</text>
-</g>
 <text xml:space="preserve" x="1200" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">History</text>
 <text xml:space="preserve" x="1310" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">SQL help</text>
 <text xml:space="preserve" x="240" y="155" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Worksheet 1</text>

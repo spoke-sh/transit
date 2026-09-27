@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="486" viewBox="0 0 1200 486" role="img" aria-labelledby="title desc">
+<title id="title">D4 — One search, different working context</title><desc id="desc">Synthetic comparison for checkout retries across Explore, Connections and Sources. The same three eligible hits remain available; soft context changes their order. Exact name or ID matches would precede these lists. This is a layout/ranking expectation, not measured retrieval.</desc>
+<rect x="0" y="0" width="1200" height="486" rx="0" fill="white" stroke="black"/>
+<text x="24" y="34" font-family="sans-serif" font-size="19" font-weight="700" fill="black">Search Transit</text>
+<text x="224" y="34" font-family="monospace" font-size="17" font-weight="400" fill="black">checkout retries</text>
+<text x="24" y="64" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Storefront · All kinds · Context on</text>
+<rect x="24" y="90" width="368" height="338" rx="0" fill="white" stroke="black"/>
+<text x="42" y="122" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Explore context</text>
+<text x="42" y="173" font-family="sans-serif" font-size="12" font-weight="400" fill="black">1</text>
+<text x="68" y="173" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_failures</text>
+<text x="68" y="199" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Table</text>
+<path d="M42 216 H374" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="42" y="261" font-family="sans-serif" font-size="12" font-weight="400" fill="black">2</text>
+<text x="68" y="261" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_http</text>
+<text x="68" y="287" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Connector</text>
+<path d="M42 304 H374" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="42" y="349" font-family="sans-serif" font-size="12" font-weight="400" fill="black">3</text>
+<text x="68" y="349" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_events</text>
+<text x="68" y="375" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Source</text>
+<path d="M42 392 H374" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="416" y="90" width="368" height="338" rx="0" fill="white" stroke="black"/>
+<text x="434" y="122" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Connections context</text>
+<text x="434" y="173" font-family="sans-serif" font-size="12" font-weight="400" fill="black">1</text>
+<text x="460" y="173" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_http</text>
+<text x="460" y="199" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Connector</text>
+<path d="M434 216 H766" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="434" y="261" font-family="sans-serif" font-size="12" font-weight="400" fill="black">2</text>
+<text x="460" y="261" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_events</text>
+<text x="460" y="287" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Source</text>
+<path d="M434 304 H766" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="434" y="349" font-family="sans-serif" font-size="12" font-weight="400" fill="black">3</text>
+<text x="460" y="349" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_failures</text>
+<text x="460" y="375" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Table</text>
+<path d="M434 392 H766" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="808" y="90" width="368" height="338" rx="0" fill="white" stroke="black"/>
+<text x="826" y="122" font-family="sans-serif" font-size="17" font-weight="700" fill="black">Sources context</text>
+<text x="826" y="173" font-family="sans-serif" font-size="12" font-weight="400" fill="black">1</text>
+<text x="852" y="173" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_events</text>
+<text x="852" y="199" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Source</text>
+<path d="M826 216 H1158" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="826" y="261" font-family="sans-serif" font-size="12" font-weight="400" fill="black">2</text>
+<text x="852" y="261" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_failures</text>
+<text x="852" y="287" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Table</text>
+<path d="M826 304 H1158" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="826" y="349" font-family="sans-serif" font-size="12" font-weight="400" fill="black">3</text>
+<text x="852" y="349" font-family="monospace" font-size="15" font-weight="700" fill="black">checkout_http</text>
+<text x="852" y="375" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Connector</text>
+<path d="M826 392 H1158" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="24" y="461" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Same eligible objects; context changes relevance. Exact names / IDs still lead. Explicit filters narrow scope.</text>
+</svg>
