@@ -395,3 +395,87 @@ test "linked followups share a finite original budget and never renew lineage or
     try t.expectError(error.ExchangeAttemptBudgetExceeded, parent.followup(&turn, 4, .retry, 7, 1, limits));
     try t.expectEqual(@as(u32, 3), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(Exchange.key(1, 'b', 0))).?)).used);
 }
+
+test "independent lineage fixtures preserve legacy encoding and bounded binary context" {
+    const Fixture = struct { version: u32, lineage: p.Value, context: p.Value, bound: p.Value };
+    const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("lineage-fixtures.json"), .{});
+    defer parsed.deinit();
+    const f = parsed.value;
+    try t.expectEqual(@as(u32, 1), f.version);
+    const legacy = try Exchange.Link.decode(f.lineage);
+    try t.expectEqual(@as(u64, std.math.maxInt(u64)), legacy.lineage.root);
+    try t.expectEqual(@as(u64, std.math.maxInt(u64) - 1), legacy.lineage.parent);
+    try t.expectEqual(@as(u16, 0), legacy.context.len);
+    try t.expect(f.lineage.eql(try legacy.encode()));
+    const linked = try Exchange.Link.decode(f.bound);
+    try t.expectEqualDeep(legacy.lineage, linked.lineage);
+    try t.expect(f.context.eql(linked.context));
+    try t.expect(f.bound.eql(try linked.encode()));
+    var largest = linked;
+    largest.context = try p.Value.init(&(@as([214]u8, @splat(0xff))));
+    try t.expectEqual(@as(u16, 256), (try largest.encode()).len);
+    try t.expectEqualDeep(largest, try Exchange.Link.decode(try largest.encode()));
+    largest.context = try p.Value.init(&(@as([215]u8, @splat(0))));
+    try t.expectError(error.ExchangeContextTooLarge, largest.encode());
+    var invalid = f.bound;
+    invalid.data[41] = 0;
+    try t.expectError(error.InvalidExchangeRecord, Exchange.Link.decode(invalid));
+    invalid = f.bound;
+    invalid.len += 1;
+    try t.expectError(error.InvalidExchangeRecord, Exchange.Link.decode(invalid));
+    invalid = f.bound;
+    invalid.data[24] = 99;
+    try t.expectError(error.InvalidExchangeRecord, Exchange.Link.decode(invalid));
+    invalid = f.bound;
+    invalid.len -= 1;
+    invalid.data[invalid.len] = 0;
+    try t.expectError(error.InvalidExchangeRecord, Exchange.Link.decode(invalid));
+}
+
+test "child context shares atomic allocation and cannot change or renew descendants" {
+    var store: Store = .{};
+    defer store.deinit();
+    const parent = try exchange(&store, 1);
+    var turn = try store.capture();
+    try parent.configureAttempts(&turn, 3);
+    try store.commit(turn);
+    try bind(&store, parent);
+    turn = try store.capture();
+    _ = try parent.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const before = turn.decision;
+    try turn.put(try p.Value.init("unrelated"), .{});
+    const occupied = turn.decision;
+    const context = try p.Value.init("\x00route\xff");
+    try t.expectError(error.MutationBudgetExceeded, parent.followupWithContext(&turn, 2, .retry, 7, 1, limits, context));
+    try t.expectEqualDeep(occupied, turn.decision);
+    turn.decision = before;
+    const child = try parent.followupWithContext(&turn, 2, .retry, 7, 1, limits, context);
+    for (turn.decision.mutations) |slot| try t.expect(slot != null);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expect(context.eql((try child.lineage(&turn)).?.context));
+    _ = try parent.followupWithContext(&turn, 2, .retry, 7, 1, limits, context);
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
+    const empty = turn.decision;
+    try t.expectError(error.ExchangeIdentityConflict, parent.followup(&turn, 2, .retry, 7, 1, limits));
+    try t.expectError(error.ExchangeIdentityConflict, parent.followupWithContext(&turn, 2, .retry, 7, 1, limits, try p.Value.init("changed")));
+    try t.expectEqualDeep(empty, turn.decision);
+    _ = try child.closeUnknown(&turn);
+    try store.commit(turn);
+    turn = try store.capture();
+    const last = try child.followup(&turn, 3, .reconcile, 7, 1, limits);
+    try store.commit(turn);
+    turn = try store.capture();
+    const origin = try parent.inspect(&turn);
+    const descendant = try last.inspect(&turn);
+    const linked = (try last.lineage(&turn)).?;
+    try t.expectEqual(parent.id, linked.lineage.root);
+    try t.expectEqual(@as(u32, 3), linked.lineage.ordinal);
+    try t.expectEqual(@as(u16, 0), linked.context.len);
+    try t.expectEqual(origin.caller, descendant.caller);
+    try t.expectEqual(origin.input, descendant.input);
+    try t.expectEqual(origin.reconcile_before_ms, descendant.reconcile_before_ms);
+    try t.expectEqual(@as(u32, 3), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(Exchange.key(1, 'b', 0))).?)).used);
+}

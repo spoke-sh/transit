@@ -27,6 +27,13 @@ decision. Retries, redirects, reconciliation and cancellation all consume this
 budget. The adapter must prove remote safety and scope first; the common API
 does not choose or dispatch a retry.
 
+`followupWithContext` additionally freezes at most 214 adapter-owned bytes in
+the lineage record, preserving the four-mutation allocation. `lineage` reads
+that context with the original root/parent/policy. Context has no authority and
+cannot be changed on duplicate allocation. Empty context retains EXL1; nonempty
+context uses the additive EXL2 layout. HTTP's planned public followups use it for reply routing;
+public followup service qualification remains M15 work.
+
 `open`/`read` stream complete coverage with digest checks. Supply fresh current
 authority separately from the retained source on every bounded read. Cursors
 are trusted native continuation state. They cannot be exposed as bearer tokens.

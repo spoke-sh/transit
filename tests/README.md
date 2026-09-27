@@ -7,6 +7,11 @@ identity conflicts, quota/rollback, terminal cleanup and old-source availability
 checks. Ninety-six durable dependency tokens exercise admission, wrong-holder
 release, duplicate disposal and permanent token retirement across turns. Capture
 cannot retire before kernel settlement and explicit caller/consumer disposal.
+The additive EXL2 lineage context is independently byte-fixtured and bounded at
+214 bytes. Package and root unit checks prove its four-mutation allocation,
+rollback with occupied capacity, immutable duplicate identity and preservation
+of the original caller/input/deadline and attempt budget across EXL1/EXL2
+descendants. This foundation alone does not qualify public followup admission.
 `just test::http-transport` runs the real Zig transport against independent
 Python HTTP/TLS peers: 20 single-send requests cover 16,387-byte binary chunked
 bodies, trailers, header omissions, redirects, ambiguous framing, truncation,

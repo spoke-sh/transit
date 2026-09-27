@@ -88,6 +88,18 @@ parent:u64, ordinal:u32, reason:u8 (retry=1, redirect=2, reconcile=3, cancel=4),
 policy:u64 and policy_revision:u64. These additive records preserve existing
 descriptor, member and frozen intent encodings.
 
+`followupWithContext` adds immutable adapter-owned routing/context bytes to that
+same allocation, without another mutation. Nonempty context uses `EXL2`: the
+same 37 bytes of lineage fields after its magic, followed by context_length:u8
+and exactly that many bytes (1–214). Empty context retains EXL1. Decoding rejects
+trailing bytes, empty EXL2 and malformed lineage. Context contains no credentials
+and confers no authority. A duplicate must match the original bytes exactly;
+it cannot attach or replace context after allocation. Descendants preserve the
+original root/caller/input/deadline across either encoding. `lineage` exposes
+this bounded evidence through the caller-supplied authorized read surface.
+The [independent lineage fixtures](../packages/zig/transit-exchange/src/lineage-fixtures.json)
+fix full-width root/parent identities and binary context using Python `struct`.
+
 ## Reads and cleanup
 
 Reads resolve current availability before reading a captured source. A retained

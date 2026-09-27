@@ -62,6 +62,39 @@ pub const Lineage = struct {
         if (self.root == 0 or self.parent == 0 or self.ordinal < 2 or self.policy == 0 or self.policy_revision == 0) return error.InvalidExchangeLineage;
     }
 };
+/// Immutable bounded adapter metadata stored atomically with child allocation.
+/// The common layer neither interprets it nor treats it as authority.
+pub const Link = struct {
+    pub const maximum_context_bytes = 214;
+    lineage: Lineage,
+    context: p.Value = .{},
+    pub fn encode(self: Link) !p.Value {
+        try self.context.validate();
+        if (self.context.len > maximum_context_bytes) return error.ExchangeContextTooLarge;
+        const base = try root.codec.encode(self.lineage);
+        if (self.context.len == 0) return base;
+        var bytes: [256]u8 = undefined;
+        @memcpy(bytes[0..base.len], base.slice());
+        bytes[0..4].* = "EXL2".*;
+        bytes[base.len] = @intCast(self.context.len);
+        const end = @as(usize, base.len) + 1 + self.context.len;
+        @memcpy(bytes[base.len + 1 .. end], self.context.slice());
+        return p.Value.init(bytes[0..end]);
+    }
+    pub fn decode(value: p.Value) !Link {
+        try value.validate();
+        if (value.len >= 4 and std.mem.eql(u8, value.data[0..4], Lineage.magic)) return .{ .lineage = try root.codec.decode(Lineage, value) };
+        const header = root.codec.size(Lineage);
+        if (value.len <= header + 1 or !std.mem.eql(u8, value.data[0..4], "EXL2") or value.data[header] == 0 or value.len != header + 1 + @as(usize, value.data[header])) return error.InvalidExchangeRecord;
+        var base = try p.Value.init(value.data[0..header]);
+        base.data[0..4].* = Lineage.magic.*;
+        return .{ .lineage = try root.codec.decode(Lineage, base), .context = try p.Value.init(value.slice()[header + 1 ..]) };
+    }
+};
+pub fn lineage(self: Self, source: anytype) !?Link {
+    if (self.id == 0 or self.resource != source.view.resource) return error.InvalidExchangeIdentity;
+    return if (try source.read(key(self.id, 'l', 0))) |value| try Link.decode(value) else null;
+}
 /// Root policy is fixed before its effect intent. No policy means one attempt.
 pub fn configureAttempts(self: Self, turn: *Turn, limit: u32) !void {
     const d = try self.writable(turn);
@@ -78,14 +111,19 @@ pub fn configureAttempts(self: Self, turn: *Turn, limit: u32) !void {
 /// One explicit new effect/capture under the original lineage and deadline.
 /// The adapter must validate its endpoint-specific retry/redirect policy first.
 pub fn followup(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy: u64, policy_revision: u64, limits: root.Limits) !Self {
+    return self.followupWithContext(turn, id, reason, policy, policy_revision, limits, .{});
+}
+pub fn followupWithContext(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy: u64, policy_revision: u64, limits: root.Limits, context: p.Value) !Self {
     const before = turn.decision;
     errdefer turn.decision = before;
+    try context.validate();
+    if (context.len > Link.maximum_context_bytes) return error.ExchangeContextTooLarge;
     const parent = try self.writable(turn);
     if (parent.phase != .complete and parent.phase != .unknown) return error.ExchangeStillOpen;
     var root_id = self.id;
     if (parent.parent != 0) {
-        const ancestor = try root.codec.decode(Lineage, (try turn.read(key(self.id, 'l', 0))) orelse return error.InvalidExchangeLineage);
-        root_id = ancestor.root;
+        const ancestor = (try self.lineage(turn)) orelse return error.InvalidExchangeLineage;
+        root_id = ancestor.lineage.root;
     }
     const root_exchange: Self = .{ .resource = self.resource, .id = root_id };
     const origin = try root_exchange.writable(turn);
@@ -94,7 +132,9 @@ pub fn followup(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy
     const budget_key = key(root_id, 'b', 0);
     var budget = try root.codec.decode(AttemptBudget, (try turn.read(budget_key)) orelse return error.ExchangeAttemptBudgetExceeded);
     if (try turn.read(key(id, 'l', 0))) |value| {
-        const existing = try root.codec.decode(Lineage, value);
+        const linked = try Link.decode(value);
+        const existing = linked.lineage;
+        if (!linked.context.eql(context)) return error.ExchangeIdentityConflict;
         if (existing.root != root_id or existing.parent != self.id or existing.reason != reason or existing.policy != policy or existing.policy_revision != policy_revision) return error.ExchangeIdentityConflict;
         return createRecord(turn, id, .{ .caller = parent.caller, .input = parent.input, .parent = self.id, .protocol = parent.protocol }, limits, parent.reconcile_before_ms);
     }
@@ -102,10 +142,10 @@ pub fn followup(self: Self, turn: *Turn, id: u64, reason: FollowupReason, policy
     // A pre-existing unrelated ID cannot be adopted as an attempted child.
     if (try turn.read(key(id, 'd', 0)) != null) return error.ExchangeIdentityConflict;
     budget.used += 1;
-    const lineage: Lineage = .{ .root = root_id, .parent = self.id, .ordinal = budget.used, .reason = reason, .policy = policy, .policy_revision = policy_revision };
-    try lineage.validate();
+    const linked: Link = .{ .lineage = .{ .root = root_id, .parent = self.id, .ordinal = budget.used, .reason = reason, .policy = policy, .policy_revision = policy_revision }, .context = context };
+    const encoded = try linked.encode();
     const child = try createRecord(turn, id, .{ .caller = parent.caller, .input = parent.input, .parent = self.id, .protocol = parent.protocol }, limits, parent.reconcile_before_ms);
-    try turn.write(key(id, 'l', 0), try root.codec.encode(lineage));
+    try turn.write(key(id, 'l', 0), encoded);
     try turn.write(budget_key, try root.codec.encode(budget));
     return child;
 }
