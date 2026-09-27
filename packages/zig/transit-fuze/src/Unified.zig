@@ -144,6 +144,8 @@ pub const Page = struct {
 };
 pub const Plan = @import("UnifiedPlan.zig");
 pub const Codec = @import("UnifiedCodec.zig");
+pub const Arrow = @import("UnifiedArrow.zig");
+pub const Stream = @import("UnifiedStream.zig");
 test {
     _ = @import("unified_test.zig");
 }

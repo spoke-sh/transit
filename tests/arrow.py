@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import json
+import math
 import struct
 import subprocess
 import sys
@@ -12,6 +13,66 @@ import pyarrow as pa
 
 def run(binary):
     with tempfile.TemporaryDirectory(prefix="transit-arrow-") as directory:
+        for aggregate in ("rows", "count", "sum"):
+            path = Path(directory) / f"unified-stream-{aggregate}"
+            subprocess.run([binary, f"unified-stream-{aggregate}", str(path)], check=True, timeout=20)
+            expected = [i for i in range(70) if i % 5 and i >= 3][:37]
+            for width in range(1, 9):
+                progress = json.loads(Path(f"{path}-{width}.json").read_text())
+                assert progress["selected"] == len(expected) and progress["scanned"] == expected[-1]+1
+                assert progress["finished"] == "limit"
+                actual = []
+                for ordinal in range(progress["segments"]):
+                    with pa.ipc.open_stream(Path(f"{path}-{width}-{ordinal}.arrow").read_bytes()) as reader:
+                        table = reader.read_all()
+                    actual.extend(row["value" if aggregate == "rows" else aggregate]["value"] for row in table.to_pylist())
+                assert actual == (expected if aggregate == "rows" else [len(expected)] if aggregate == "count" else [sum(expected)]), (aggregate, width, actual)
+                basis = progress["basis"]
+                def octets(value): return value.encode() if isinstance(value, str) else bytes(value)
+                wire = (b"FZS2\1" + struct.pack("<QQ", basis["resource"], basis["revision"])
+                    + octets(basis["contract"]) + octets(basis["schema"]) + octets(progress["plan"])
+                    + struct.pack("<QQQQQBqB", *(progress[k] for k in ("pages", "scanned", "selected", "segments", "rows")),
+                        progress["sum"] is not None, progress["sum"] or 0, 2))
+                assert len(wire) == 167 and Path(f"{path}-{width}.progress").read_bytes() == wire
+        print("Unified execution: independent filter/limit/count/sum and checkpoint encoding across all eight page widths passed")
+        for name in ("rows", "empty"):
+            path = Path(directory) / f"unified-{name}.arrow"
+            subprocess.run([binary, f"unified-{name}", str(path)], check=True, timeout=20)
+            data = path.read_bytes()
+            with pa.ipc.open_stream(data) as reader:
+                table = reader.read_all()
+            types = dict(int64=pa.int64(), uint64=pa.uint64(), float64=pa.float64(),
+                         boolean=pa.bool_(), utf8=pa.string(), binary=pa.binary())
+            values = dict(int64=-(2**63), uint64=2**64-1, float64=-0.0,
+                          boolean=False, utf8="café é 🙂", binary=b"\0\xff\x80")
+            fields = []
+            for column, datatype in types.items():
+                alternative = pa.struct([pa.field("counter", pa.uint64(), nullable=False),
+                    pa.field("replica", pa.uint64(), nullable=False), pa.field("state", pa.uint8(), nullable=False),
+                    pa.field("kind", pa.uint8(), nullable=False), pa.field("value", datatype)])
+                fields.append(pa.field(column, pa.struct([pa.field("state", pa.uint8(), nullable=False),
+                    pa.field("kind", pa.uint8(), nullable=False), pa.field("value", datatype),
+                    pa.field("alternatives", pa.list_(pa.field("item", alternative, nullable=False)), nullable=False)]), nullable=False))
+            assert table.schema == pa.schema(fields), table.schema
+            actual = table.to_pylist()
+            if name == "empty":
+                assert actual == []
+            else:
+                assert len(actual) == 5
+                for tag, (column, value) in enumerate(values.items(), 1):
+                    expected = [dict(state=0, kind=0, value=None, alternatives=[]),
+                        dict(state=1, kind=7, value=None, alternatives=[]),
+                        dict(state=2, kind=8, value=None, alternatives=[]),
+                        dict(state=3, kind=tag, value=value, alternatives=[]),
+                        dict(state=4, kind=0, value=None, alternatives=[
+                            dict(counter=2**64-1, replica=1, state=3, kind=tag, value=value),
+                            dict(counter=2**64-1, replica=2, state=1, kind=7, value=None),
+                            dict(counter=2**64-1, replica=3, state=2, kind=9, value=None)])]
+                    assert [row[column] for row in actual] == expected
+                assert math.copysign(1, actual[3]["float64"]["value"]) == -1
+                assert math.copysign(1, actual[4]["float64"]["alternatives"][0]["value"]) == -1
+            assert len(data) <= 65536
+            print(f"Unified Arrow {name}: {len(data)} bytes; six primitives, nested alternatives and five states verified")
         for name in ("rows", "empty"):
             path = Path(directory) / f"{name}.arrow"
             subprocess.run([binary, name, str(path)], check=True, timeout=20)

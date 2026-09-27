@@ -9,6 +9,7 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3) return error.Usage;
     if (std.mem.startsWith(u8, args[1], "stream-")) return stream(init, args[1][7..], args[2]);
+    if (std.mem.startsWith(u8, args[1], "unified-")) return unified(init, args[1][8..], args[2]);
     const empty = std.mem.eql(u8, args[1], "empty");
     if (std.mem.startsWith(u8, args[1], "query-")) return query(init, args[1][6..], args[2]);
     const types = [_]a.DataType{ .{ .int64 = {} }, .{ .string = {} } };
@@ -128,4 +129,75 @@ fn query(init: std.process.Init, name: []const u8, path: []const u8) !void {
     const cancel = fuze.execution.Cancellation.init(false);
     const result = try fuze.execution.run(try plan.bind(source), source, &workspace, &output, &cancel);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = result.bytes });
+}
+
+fn unified(init: std.process.Init, name: []const u8, path: []const u8) !void {
+    const m = fuze.Unified;
+    if (std.mem.startsWith(u8, name, "stream-")) return unifiedStream(init, name[7..], path);
+    const types = [_]m.Type{ .int64, .uint64, .float64, .boolean, .utf8, .binary };
+    const values = [_]m.Scalar{
+        .{ .int64 = std.math.minInt(i64) }, .{ .uint64 = std.math.maxInt(u64) },
+        .{ .float64 = -0.0 },               .{ .boolean = false },
+        .{ .utf8 = "café é 🙂" },
+        .{ .binary = &.{ 0, 255, 128 } },
+    };
+    var columns: [6]m.Column = undefined;
+    var cells: [5][6]m.Cell = undefined;
+    var conflicts: [6][3]m.Alternative = undefined;
+    for (types, 0..) |tag, index| {
+        columns[index] = .{ .name = try m.Name.init(@tagName(tag)), .type = tag };
+        conflicts[index] = .{
+            .{ .counter = std.math.maxInt(u64), .replica = 1, .value = .{ .value = values[index] } },
+            .{ .counter = std.math.maxInt(u64), .replica = 2, .value = .null },
+            .{ .counter = std.math.maxInt(u64), .replica = 3, .value = .{ .type_error = .list } },
+        };
+        cells[0][index] = .missing;
+        cells[1][index] = .null;
+        cells[2][index] = .{ .type_error = .map };
+        cells[3][index] = .{ .value = values[index] };
+        cells[4][index] = .{ .conflict = &conflicts[index] };
+    }
+    var rows: [5]m.Row = undefined;
+    for (&rows, &cells) |*row, *items| row.* = .{ .cells = items };
+    const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    const selected = if (std.mem.eql(u8, name, "empty")) rows[0..0] else &rows;
+    const bytes = try m.Arrow.encode(.{ .columns = &columns }, selected, workspace, &output);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = bytes });
+}
+
+fn unifiedStream(init: std.process.Init, name: []const u8, path: []const u8) !void {
+    const m = fuze.Unified;
+    const aggregate = std.meta.stringToEnum(m.Plan.Aggregate, name) orelse return error.Usage;
+    const schema: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("value"), .type = .int64 }} };
+    const basis: m.Basis = .{ .kind = .kv, .resource = 17, .revision = 29, .contract = @splat(7), .schema = try schema.fingerprint() };
+    const bound = try (m.Plan{ .projection = &.{0}, .aggregate = aggregate, .limit = 37, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .int64 = 3 } } } }).bind(basis, schema);
+    const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    var cells: [70][1]m.Cell = undefined;
+    var rows: [70]m.Row = undefined;
+    for (&cells, &rows, 0..) |*cell, *row, index| {
+        cell[0] = if (index % 5 == 0) .null else .{ .value = .{ .int64 = @intCast(index) } };
+        row.* = .{ .cells = cell };
+    }
+    const cancellation = fuze.execution.Cancellation.init(false);
+    for (1..m.max_rows + 1) |width| {
+        var progress = m.Stream.Progress.start(bound);
+        var after: usize = 0;
+        while (progress.finished == null) {
+            const end = @min(rows.len, after + width);
+            const next = try m.Stream.step(bound, progress, .{ .basis = basis, .ordinal = progress.pages, .rows = rows[after..end], .end = end == rows.len }, workspace, &output, &cancellation);
+            if (next.segment) |part| {
+                const filename = try std.fmt.allocPrint(init.arena.allocator(), "{s}-{d}-{d}.arrow", .{ path, width, progress.segments });
+                try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = filename, .data = part.bytes });
+            }
+            progress = try m.Stream.Progress.decode(&try next.progress.encode());
+            after = end;
+        }
+        const filename = try std.fmt.allocPrint(init.arena.allocator(), "{s}-{d}.json", .{ path, width });
+        const encoded = try std.json.Stringify.valueAlloc(init.arena.allocator(), progress, .{});
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = filename, .data = encoded });
+        const checkpoint = try std.fmt.allocPrint(init.arena.allocator(), "{s}-{d}.progress", .{ path, width });
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = checkpoint, .data = &try progress.encode() });
+    }
 }

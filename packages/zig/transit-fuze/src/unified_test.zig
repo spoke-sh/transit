@@ -92,3 +92,105 @@ test "independent canonical query fixtures bind exact schema and plan digests" {
         try t.expectEqualSlices(u8, &digest, &bound.fingerprint);
     }
 }
+
+test "nested Arrow preserves typed states and releases fixed workspace" {
+    const f = @import("root.zig");
+    const alternatives = [_]m.Alternative{
+        .{ .counter = 1, .replica = 1, .value = .{ .value = .{ .utf8 = "東京🙂" } } },
+        .{ .counter = 1, .replica = 2, .value = .null },
+    };
+    const single: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("label"), .type = .utf8 }} };
+    const rows = [_]m.Row{
+        .{ .cells = &.{.missing} },
+        .{ .cells = &.{.null} },
+        .{ .cells = &.{.{ .type_error = .map }} },
+        .{ .cells = &.{.{ .value = .{ .utf8 = "" } }} },
+        .{ .cells = &.{.{ .conflict = &alternatives }} },
+    };
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    @memset(workspace, 0xaa);
+    const bytes = try m.Arrow.encode(single, &rows, workspace, &output);
+    var repeated: [m.Arrow.segment_bytes]u8 = undefined;
+    @memset(workspace, 0x55);
+    try t.expectEqualSlices(u8, bytes, try m.Arrow.encode(single, &rows, workspace, &repeated));
+    var input = std.Io.Reader.fixed(bytes);
+    var reader = f.arrow.IpcStreamReader(*std.Io.Reader).init(t.allocator, &input);
+    defer reader.deinit();
+    const found = try reader.readSchema();
+    try t.expectEqualStrings("label", found.fields[0].name);
+    var batch = (try reader.nextRecordBatch()).?;
+    defer batch.deinit();
+    try t.expectEqual(@as(usize, 5), batch.numRows());
+    try batch.column(0).data().validateFull();
+    const states: f.arrow.UInt8Array = .{ .data = batch.column(0).data().children[0].data() };
+    for (0..5) |index| try t.expectEqual(@as(u8, @intCast(index)), try states.value(index));
+    try t.expect((try reader.nextRecordBatch()) == null);
+    try t.expectError(error.WriteFailed, m.Arrow.encode(single, &rows, workspace, output[0..1]));
+    try t.expectError(error.OutOfMemory, m.Arrow.encode(single, &rows, workspace[0..1], &output));
+}
+
+test "unified resumable limit and sum preserve source order across every page width" {
+    const f = @import("root.zig");
+    const s = m.Stream;
+    const input_schema: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("value"), .type = .int64 }} };
+    const cut: m.Basis = .{ .kind = .kv, .resource = 1, .revision = 99, .contract = @splat(6), .schema = try input_schema.fingerprint() };
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    const cancellation = f.execution.Cancellation.init(false);
+    var cells: [70][1]m.Cell = undefined;
+    var rows: [70]m.Row = undefined;
+    for (&cells, &rows, 0..) |*cell, *row, index| {
+        cell[0] = if (index % 5 == 0) .null else .{ .value = .{ .int64 = @intCast(index) } };
+        row.* = .{ .cells = cell };
+    }
+    for (1..m.max_rows + 1) |width| {
+        for ([_]m.Plan.Aggregate{ .rows, .count, .sum }) |aggregate| {
+            const bound = try (m.Plan{ .projection = &.{0}, .limit = 37, .aggregate = aggregate, .predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .int64 = 3 } } } }).bind(cut, input_schema);
+            var progress = s.Progress.start(bound);
+            var after: usize = 0;
+            while (progress.finished == null) {
+                const end = @min(rows.len, after + width);
+                const step = try s.step(bound, progress, .{ .basis = cut, .ordinal = progress.pages, .rows = rows[after..end], .end = end == rows.len }, workspace, &output, &cancellation);
+                progress = try s.Progress.decode(&try step.progress.encode());
+                after = end;
+            }
+            try t.expectEqual(@as(u64, 37), progress.selected);
+            try t.expectEqual(@as(u64, 49), progress.scanned);
+            try t.expectEqual(s.Finish.limit, progress.finished.?);
+            if (aggregate == .sum) try t.expectEqual(@as(?i64, 948), progress.sum);
+            try t.expectEqual(@as(u64, if (aggregate == .rows) 37 else 1), progress.rows);
+        }
+    }
+    const bound = try (m.Plan{ .projection = &.{0}, .aggregate = .sum }).bind(cut, input_schema);
+    const first = try s.step(bound, s.Progress.start(bound), .{ .basis = cut, .ordinal = 0, .rows = &.{.{ .cells = &.{.{ .value = .{ .int64 = std.math.maxInt(i64) } }} }}, .end = false }, workspace, &output, &cancellation);
+    try t.expectError(error.Overflow, s.step(bound, first.progress, .{ .basis = cut, .ordinal = 1, .rows = &.{ .{ .cells = &.{.{ .value = .{ .int64 = 1 } }} }, .{ .cells = &.{.{ .value = .{ .int64 = -1 } }} } }, .end = true }, workspace, &output, &cancellation));
+}
+test "unified capture rejects changed evidence cancellation and forged progress" {
+    const f = @import("root.zig");
+    const s = m.Stream;
+    const bound = try (m.Plan{ .projection = &.{0}, .limit = 0 }).bind(try basis(.table), schema);
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    var cancellation = f.execution.Cancellation.init(true);
+    const page: m.Page = .{ .basis = bound.basis, .ordinal = 0, .rows = &.{}, .end = false };
+    const start = s.Progress.start(bound);
+    try t.expectError(error.Cancelled, s.step(bound, start, page, workspace, &output, &cancellation));
+    cancellation.store(false, .release);
+    var changed = page;
+    changed.basis.contract[0] ^= 1;
+    try t.expectError(error.SourceChanged, s.step(bound, start, changed, workspace, &output, &cancellation));
+    changed = page;
+    changed.ordinal = 1;
+    try t.expectError(error.InvalidQueryOrdinal, s.step(bound, start, changed, workspace, &output, &cancellation));
+    var invalid = start;
+    invalid.rows = 1;
+    try t.expectError(error.InvalidQueryProgress, invalid.validate(bound));
+    const empty = try s.step(bound, start, page, workspace, &output, &cancellation);
+    try t.expectEqual(@as(u8, 0), empty.segment.?.rows);
+    try t.expectEqual(@as(u64, 1), empty.progress.segments);
+    try t.expectError(error.QueryComplete, s.step(bound, empty.progress, page, workspace, &output, &cancellation));
+}

@@ -8,7 +8,18 @@ missing/null/type-error/value/conflict distinctions and ordered assignment IDs,
 reject type/schema/projection mismatches, and round-trip full-width integers,
 negative zero, binary, Unicode and a 537-byte plan. Every strict prefix of the
 canonical plans rejects, as do trailing bytes. This is pure model/codec evidence,
-not source-adapter, Arrow, durable execution or SDK qualification.
+not source-adapter, durable execution or SDK qualification.
+
+`just test::arrow` also passes the new nested IPC profile through independent
+PyArrow: six primitive types, all five cell states, full-width conflict IDs,
+Unicode, binary and negative zero. A six-column/five-row stream is **7072 bytes**;
+the same empty schema is **6088 bytes**. Independent evaluation checks filter,
+limit, count and sum over 70 input rows with every page width from one to eight,
+including the exact 167-byte restart checkpoint. Component tests reject changed
+source evidence, cancellation, invalid progress and cross-page checked overflow.
+Arrow encoding uses a **4 MiB fixed workspace / 64 KiB output limit**; allocation
+or output exhaustion fails without a result. This remains pure engine evidence;
+it does not establish durable capture or current source authorization.
 
 ## M17 work in progress
 

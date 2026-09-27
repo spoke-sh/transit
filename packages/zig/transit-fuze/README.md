@@ -16,8 +16,12 @@ syntax, aggregate limits, errors and qualification.
 up to eight typed columns, full-width signed/unsigned values, finite float64,
 UTF-8/binary, five cell states and preserved conflict alternatives. Its canonical
 `FZP2` codec borrows decoded input and supports larger finite plans. The pure
-model/codec fixtures pass; v2 Arrow execution, adapters and public submission
-are still in progress. Existing `Plan`/`Stream` v1 APIs keep their contract.
+model/codec fixtures pass. `Unified.Stream` adds resumable filter/projection,
+whole-query limit/count/checked sum and `Unified.Arrow` produces nested typed
+state/conflict columns. PyArrow independently verifies the bytes, full-width
+values and all eight page widths. Adapters and durable/public submission remain
+in progress. The [v2 contract](../../../contracts/UNIFIED_QUERY_V2.md) states
+workspace, segment and encoding budgets. Existing `Plan`/`Stream` v1 APIs keep their contract.
 
 Station owns authorized Table adapters and durable result publication; the
 [Fuze design](../../../docs/FUZE.md) describes the broader direction.

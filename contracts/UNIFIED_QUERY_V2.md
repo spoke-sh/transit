@@ -67,6 +67,14 @@ schema. Batches and total results have separate limits; durable cardinality is
 not a fixed resident array. Independent Arrow readers must qualify these layouts
 before they are advertised.
 
+The implemented pure profile uses at most eight rows per input page, 4096 bytes
+per variable-width scalar, a 64 KiB Arrow segment and 4 MiB of caller-owned Arrow
+workspace. Segment overflow is an error; callers cannot publish its partial
+output buffer. `FZP2` plans have an 8192-byte encoding budget. The 167-byte `FZS2`
+checkpoint binds source evidence and plan digest to global progress, checked sum
+and explicit end/limit disposition. Adapter continuation is a separate owned
+record. These are resident/batch limits, not total source or result cardinality.
+
 ## Larger requests and durable publication
 
 V2 advertises separate plan, source, result and upload capabilities. It never
