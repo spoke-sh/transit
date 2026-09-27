@@ -1,6 +1,6 @@
 # Validation and milestone evidence
 
-## M16 connector work in progress
+## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated
 GRQ1/GRB1 fixture with independent Publication digest computation. It covers
@@ -120,6 +120,12 @@ before/after cleanup. Typed retry refusal allocates no child or send. Each peer
 records exactly one RPC. The unchanged Python and Node HTTP schedules pass through
 the shared harness in **65.95** and **68.32 seconds**. The remaining language and placement proofs are recorded above; these local
 timings do not establish hosted CI cost.
+
+The final unchanged HTTP/Board browser regression passes in **505.30 seconds**,
+with sixteen sends, eight applications, two cancellation requests and 1,028 cold
+objects / 116,002,637 bytes under the original 8 MiB hot bound. `just check`
+passes after RPC code generation and the expanded failure tasks. No expanded
+hosted timing run is claimed; that budget work remains deferred.
 
 `just test::grpc-codegen` regenerates the pinned descriptor's Zig helpers and
 compiles/uses all four request shapes, exact descriptor identity and typed secret

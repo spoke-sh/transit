@@ -22,9 +22,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M12](M12.md) | Declarative interface readiness | Qualified Table SQL compiler, three-parser corpus, pinned tools and four complete Lean theorems |
 | [M13](M13.md) | Board relief atlas and public query access | Complete: qualified Table query client/hosts, SQL shell and growing Board workspace |
 | [M14](M14.md) | Bounded publication for larger Station records | Complete: growing immutable publication, bounded staging/cleanup and disk recovery |
-| [M15](M15.md) | HTTP connector and shared exchange lifecycle | Local qualification passed across ten SDKs, Compose and reference runtime; final handoff and hosted cost evidence pending |
-| [M16](M16.md) | gRPC connector and bounded streaming calls | In progress; four-shape transport, capture and disk-backed recovery pass; SDKs, Board and placement remain |
-| [M17](M17.md) | Documents and collaborative text | Planned; accepted-state/CRDT contracts over immutable publication |
+| [M15](M15.md) | HTTP connector and shared exchange lifecycle | Local qualification and M16 handoff passed; expanded hosted CI cost deferred |
+| [M16](M16.md) | gRPC connector and bounded streaming calls | Finite profile locally qualified: four shapes, ten SDKs, Board, three placements and recovery; hosted cost deferred |
+| [M17](M17.md) | Documents and collaborative text | In progress; accepted-state/CRDT design and paged materialization over immutable publication |
 | [M18](M18.md) | Unified state querying and versioned source contracts | Planned; KV/Document adapters, wider schemas/requests and all SDKs |
 | [M19](M19.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned; compose qualified transport and query components |
 | [M20](M20.md) | Clustered execution and portability | Planned; extend component proofs across authority/runtime topologies |

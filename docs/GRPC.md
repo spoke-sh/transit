@@ -1,30 +1,23 @@
 # gRPC connector
 
-Status: second connector in progress, [M16](roadmap/M16.md), after
-[HTTP M15](roadmap/M15.md). The [finite transport](../packages/zig/transit-grpc/README.md)
-now has independent-peer evidence; the durable Station connector is in progress.
-The [durable adapter](../packages/zig/transit-station-grpc/README.md) now implements
-canonical request metadata, binary batches and shared resumable publication under
-the [RPC contract](../contracts/STATION_GRPC_V1.md); worker/replay qualification
-remains in progress. The [shared effect boundary](CONNECTORS.md#effect-boundary) and
+Status: the finite [M16](roadmap/M16.md) profile is implemented and locally
+qualified after [HTTP M15](roadmap/M15.md). The Zig [transport](../packages/zig/transit-grpc/README.md),
+[durable adapter](../packages/zig/transit-station-grpc/README.md), actual worker,
+ten language SDKs, Board and local/Compose/reference example have executed proofs.
+[Tests](../tests/README.md) separates those results from deferred hosted CI costs.
+The [RPC contract](../contracts/STATION_GRPC_V1.md) owns exact formats; the shared
+[effect boundary](CONNECTORS.md#effect-boundary) and
 [bounded reconciliation contract](CONNECTORS.md#bounded-reconciliation-contract)
 apply without weakening expiry, fencing or replay rules.
 
-M16 consumes M15's [shared exchange plan](CONNECTORS.md#foundation-and-shared-implementation-plan):
-immutable body references, segmented capture, coverage, current availability,
-reconciliation and replay. The gRPC adapter adds pinned binary descriptors,
-per-direction message order and RPC completion semantics. It must run the common
-corpus without forking the attempt or cleanup state machine. M14 publication
-supports the bytes; it does not implement per-message send authority or a live
-connection handoff. These remain entry gates, not implemented capabilities.
-
-The initial authority profile is now fixed: publish a finite outgoing batch and
-its half-close before committing one exact effect intent. Responses can arrive
-concurrently but cannot create additional sends on that connection. All four
-method shapes remain required. Interactive response-dependent messages are a
-separate authority extension. HTTP's executed lifecycle/recovery corpus and the
-pinned TLS adapter are the reusable foundation; the finite HTTP/2 transport now
-has its own live proof. Durable RPC publication and recovery remain unqualified.
+The connector reuses M15's Exchange lifecycle and M14 Publication for immutable
+request/capture bytes, current-policy reads, exact settlement, descendant budgets
+and bounded cleanup. It fixes a finite outgoing batch and half-close before one
+exact effect dispatch. Responses may arrive concurrently but cannot create later
+sends on that connection. All four method shapes are qualified in this profile.
+An authorized predecessor without complete captured evidence closes unknown;
+recovery never replays a sent prefix or implicitly reconnects. Interactive sends
+and live connection handoff remain separate, unimplemented extensions.
 
 ## Purpose and ownership
 
@@ -34,18 +27,17 @@ caller waits through its mailbox and durable correlation state, not a handler
 blocked on a live socket. Generated service helpers construct intents; they
 cannot open network connections or resolve credentials as a side effect.
 
-M16 targets unary, server-streaming, client-streaming and bidirectional methods
+M16 implements unary, server-streaming, client-streaming and bidirectional methods
 with explicit finite call/message/byte budgets. gRPC orders messages within each
 direction of a call; the directions are independent. It does not provide a
 durable replay log. See [gRPC's call model](https://grpc.io/docs/what-is-grpc/core-concepts/).
 Unlimited history retention remains the default; it does not imply an unlimited
 live RPC. Indefinite subscriptions need an application resume/rotation contract.
 
-The connector and its protocol handling remain Zig native. Qualify HTTP/2,
-protobuf generation/codecs, TLS, metadata/trailers, compression and cancellation
-before selecting dependencies. Do not wrap a foreign gRPC service to stand in
-for the Zig implementation. Independent upstream clients/servers are useful test
-peers. The transport must also leave room for the later [Flight gateway](ARROW.md),
+The connector and its protocol handling are Zig native. Pinned HTTP/2, HPACK,
+protobuf and TLS dependencies have independent-peer proofs. Compression is
+identity-only; compressed messages reject explicitly. Foreign grpcio and h2
+implementations are test peers, not worker runtime dependencies. The transport must also leave room for the later [Flight gateway](ARROW.md),
 whose ingress and query authorization are separate from outbound effect authority.
 
 ## Durable call and transcript
@@ -81,8 +73,8 @@ roll back already committed turns or external actions.
 
 ## Streaming authority and backpressure
 
-The existing opaque effect contract does not yet implement a streaming-send
-protocol. M16 must specify and prove it before enabling interactive calls:
+The implemented permit covers one committed finite batch. An interactive
+streaming-send extension would additionally need the following obligations:
 
 - Every outgoing message or finite batch must have committed content/identity
   and a dispatch authorization covering that exact work, method, destination,
