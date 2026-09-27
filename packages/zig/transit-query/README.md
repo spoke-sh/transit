@@ -35,6 +35,13 @@ cancellation. `transit-query-host` composes its v2 requester/source behaviors;
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`
 first verifies current source policy. Shell/Board integration remains in progress.
 
+`Values` owns the neutral JSON source/plan/cell codecs; `Bridge` owns frozen-token
+operations over `UnifiedClient`, including full-width manifest fields and owned
+Arrow bytes. The native ABI and local port delegate to these public modules.
+Returned slices belong to the supplied allocator. This keeps shell/Board ingress
+and language bindings on one representation without importing the bindings into
+the query package or duplicating their protocol semantics.
+
 M18 adds `SourceDefinition`, `Decoder` and `UnifiedSource` under the separate
 [v2 contract](../../../contracts/UNIFIED_QUERY_V2.md). Canonical `UQS2` definitions
 bind resource identity, declared KV decoder versions, exact Table schemas and

@@ -26,3 +26,6 @@ test {
     _ = @import("unified_records_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
+
+pub const Values = @import("Values.zig");
+pub const Bridge = @import("Bridge.zig");

@@ -6,22 +6,14 @@ const a = @import("Actions.zig");
 const base = @import("Abi.zig");
 const p = document.station.protocol;
 pub const maximum_json_bytes = 32768;
-pub fn unsigned(text: []const u8) !u64 {
-    if (text.len == 0 or text.len > 20 or (text.len > 1 and text[0] == '0')) return error.InvalidDocumentInteger;
-    for (text) |b| if (!std.ascii.isDigit(b)) return error.InvalidDocumentInteger;
-    return std.fmt.parseInt(u64, text, 10);
-}
+pub const unsigned = document.JsonValues.unsigned;
 fn signed(text: []const u8) !i64 {
     const negative = std.mem.startsWith(u8, text, "-");
     const magnitude = try unsigned(if (negative) text[1..] else text);
     if (negative and magnitude == 0) return error.InvalidDocumentInteger;
     return std.fmt.parseInt(i64, text, 10);
 }
-pub fn unhex(alloc: std.mem.Allocator, text: []const u8, limit: usize) ![]const u8 {
-    if (text.len % 2 != 0 or text.len / 2 > limit) return error.DocumentEncodingCapacity;
-    const bytes = try alloc.alloc(u8, text.len / 2);
-    return std.fmt.hexToBytes(bytes, text);
-}
+pub const unhex = document.JsonValues.unhex;
 pub const Dot = struct {
     counter: []const u8 = "0",
     replica: []const u8 = "0",
@@ -160,21 +152,7 @@ pub const Change = struct {
         return .{ .document = try a.decimal(alloc, value.document), .epoch = try a.decimal(alloc, value.epoch), .type_revision = value.type_revision, .replica = try a.decimal(alloc, value.replica), .previous = try a.decimal(alloc, value.previous), .first = try a.decimal(alloc, value.first), .operations = ops };
     }
 };
-pub const Reference = struct {
-    resource: u64,
-    document: []const u8,
-    epoch: []const u8,
-    type_revision: u32,
-    revision: []const u8,
-    pub fn native(self: Reference) !document.Client.Reference {
-        const out: document.Client.Reference = .{ .resource = self.resource, .document = try unsigned(self.document), .epoch = try unsigned(self.epoch), .type_revision = self.type_revision, .revision = try unsigned(self.revision) };
-        _ = try out.encode();
-        return out;
-    }
-    pub fn fromNative(alloc: std.mem.Allocator, value: document.Client.Reference) !Reference {
-        return .{ .resource = value.resource, .document = try a.decimal(alloc, value.document), .epoch = try a.decimal(alloc, value.epoch), .type_revision = value.type_revision, .revision = try a.decimal(alloc, value.revision) };
-    }
-};
+pub const Reference = document.JsonValues.Reference;
 pub const Action = union(enum) { prepare: Change, decode: []const u8, reference: Reference, inspect_reference: p.Value };
 pub const Result = union(enum) { prepared: struct { bytes: []const u8, spec: document.station.Publication.Spec }, change: Change, reference: p.Value, inspected_reference: Reference };
 pub fn apply(alloc: std.mem.Allocator, action: Action) !Result {

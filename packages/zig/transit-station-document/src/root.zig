@@ -25,3 +25,5 @@ test {
     _ = @import("service_test.zig");
     _ = @import("remote_test.zig");
 }
+
+pub const JsonValues = @import("JsonValues.zig");
