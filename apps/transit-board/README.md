@@ -107,7 +107,8 @@ Chromium; `just transit-board::browser` exercises the real embedded UI with Play
 `just transit-board::query-browser` runs its real workspace and revocation proof.
 `just transit-board::http-test` inspects actual HTTP captures;
 `just transit-board::http-browser` additionally checks the embedded records view
-and clearing after revocation. Both use the disk/S3 worker fixture and require
+and clearing after revocation. `grpc-test` and `grpc-browser` qualify the same
+read boundary for all four finite RPC shapes. These tasks use the disk/S3 worker fixture and require
 Docker; the browser task also needs the installed Chromium.
 The [test guide](../../tests/README.md) records measured limits and reference evidence.
 
@@ -162,7 +163,15 @@ timing and omission counts through `/api/v1/resources/{resource}/http/{exchange}
 Each selected metadata member has its key/digest/coverage evidence. Routing values,
 credential references, heads and bodies are omitted. A partial capture has no
 terminal metadata; retirement rejects the request. This bounded projection is
-distinct from full transcript verification.
+distinct from full transcript verification. **Inspect RPC metadata** uses
+`/api/v1/resources/{resource}/grpc/{exchange}` with the same current-read boundary.
+It shows descriptor digest/method shape, directional message/body counts, actual
+outgoing half-close and captured status (including zero for OK). Indexed message
+records in a partial capture do not claim complete messages. RPC metadata scans
+at most 256 member descriptors, loads only selected policy/terminal records and
+never interprets protobuf, headers, routing values or credential references.
+Unknown outcomes have no complete terminal projection. Both panels share bounded
+polling, abort and clear-on-denial/tab-hide behavior.
 
 The separate query route compiles M12's Table SELECT subset through the shared
 Zig client. Queries execute in external Station hosts; verified Arrow segments

@@ -69,3 +69,15 @@ no fixture is evidence of a completed durable effect or deployment.
 `just test::grpc-worker` runs the actual [worker](../../../apps/transit-station-grpc-worker/README.md)
 over disk Ursula. [Proof details](../../../tests/README.md#m16-connector-work-in-progress)
 record executed recovery schedules and remaining qualification.
+
+## Read-only metadata
+
+`Inspection.read` projects selected policy and terminal metadata from a currently
+authorized `Exchange.Client.Reader`. It verifies the member commitment chain and
+selected record bytes under one resource revision, scanning at most 256 members.
+It loads no request metadata, batch, response metadata or protobuf body. Policy
+output omits routing and credential references. Directional counts distinguish
+indexed partial messages from a complete captured terminal result; status zero
+remains present. This is bounded inspection, not full replay or remote computation
+verification. Board's `grpc-test` / `grpc-browser` tasks exercise actual captures
+and current authorization through this surface.

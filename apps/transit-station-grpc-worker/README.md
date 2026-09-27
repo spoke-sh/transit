@@ -52,4 +52,5 @@ Structured bounded stderr events are `service.*`, `grpc.worker.operation` and
 from kernel outcome. Status is captured RPC evidence, not business success;
 closure never promises cancellation or rollback at the peer. All message/body
 replay uses the public current-availability reader with dialing and credentials
-absent. Board metadata qualification is in progress.
+absent. Board exposes bounded, authorized shape/schema, half-close, directional
+count and terminal metadata; its browser proof checks live read revocation.

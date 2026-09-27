@@ -1393,6 +1393,115 @@
         }
       }
     },
+    "/api/v1/resources/{resource}/grpc/{exchange}": {
+      "get": {
+        "summary": "GrpcResponse",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          },
+          {
+            "name": "exchange",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            "description": "Canonical nonzero uint64 decimal identity, at most 18446744073709551615."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GrpcResponse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrpcResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/processes/{pid}/mailbox": {
       "get": {
         "summary": "Response",
@@ -5346,6 +5455,7 @@
           "state_resources",
           "station",
           "http_connector",
+          "grpc_connector",
           "push"
         ],
         "properties": {
@@ -5437,6 +5547,9 @@
           "http_connector": {
             "type": "boolean"
           },
+          "grpc_connector": {
+            "type": "boolean"
+          },
           "push": {
             "type": "boolean"
           }
@@ -5457,6 +5570,7 @@
           "state_resources",
           "station",
           "http_connector",
+          "grpc_connector",
           "push"
         ],
         "x-transit-defaults": {
@@ -5473,6 +5587,7 @@
           "state_resources": true,
           "station": true,
           "http_connector": false,
+          "grpc_connector": false,
           "push": false
         }
       },
@@ -9196,6 +9311,945 @@
           "phase",
           "coverage",
           "policy",
+          "terminal"
+        ],
+        "x-transit-defaults": {
+          "version": 1
+        }
+      },
+      "GrpcResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "version",
+          "source",
+          "exchange",
+          "phase",
+          "coverage",
+          "policy",
+          "half_close",
+          "response_message_records",
+          "response_body_bytes",
+          "terminal"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255,
+            "x-transit-bits": 8,
+            "x-transit-signed": false
+          },
+          "source": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "realm",
+              "pid",
+              "resource",
+              "key",
+              "entry_revision",
+              "resource_revision",
+              "position"
+            ],
+            "properties": {
+              "realm": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "pid": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "resource": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^(?:[0-9a-f]{2})*$",
+                "maxLength": 512,
+                "x-transit-encoding": "lowercase-hex"
+              },
+              "entry_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "resource_revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "position": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              }
+            },
+            "required": [
+              "realm",
+              "pid",
+              "resource",
+              "key",
+              "entry_revision",
+              "resource_revision",
+              "position"
+            ],
+            "x-transit-defaults": {}
+          },
+          "exchange": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "preparing",
+              "capturing",
+              "complete",
+              "unknown",
+              "retired",
+              "ready"
+            ]
+          },
+          "coverage": {
+            "type": "array",
+            "minItems": 32,
+            "maxItems": 32,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 255,
+              "x-transit-bits": 8,
+              "x-transit-signed": false
+            }
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "member",
+                  "endpoint_revision",
+                  "tls",
+                  "trust_digest",
+                  "timeout_ms",
+                  "limits",
+                  "shape",
+                  "descriptor_digest",
+                  "retry"
+                ],
+                "properties": {
+                  "member": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "key",
+                      "ordinal",
+                      "kind",
+                      "bytes",
+                      "digest",
+                      "chain"
+                    ],
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "pattern": "^(?:[0-9a-f]{2})*$",
+                        "maxLength": 512,
+                        "x-transit-encoding": "lowercase-hex"
+                      },
+                      "ordinal": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "request_metadata",
+                          "request_batch",
+                          "endpoint_policy",
+                          "initial_metadata",
+                          "response_message",
+                          "response_body",
+                          "half_close",
+                          "trailers",
+                          "timing",
+                          "omission",
+                          "completion"
+                        ]
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "digest": {
+                        "type": "array",
+                        "minItems": 32,
+                        "maxItems": 32,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "chain": {
+                        "type": "array",
+                        "minItems": 32,
+                        "maxItems": 32,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "ordinal",
+                      "kind",
+                      "bytes",
+                      "digest",
+                      "chain"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  "endpoint_revision": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "tls": {
+                    "type": "boolean"
+                  },
+                  "trust_digest": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "minItems": 32,
+                        "maxItems": 32,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeout_ms": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "limits": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "message_bytes",
+                      "request_bytes",
+                      "response_bytes",
+                      "request_messages",
+                      "response_messages",
+                      "metadata_bytes"
+                    ],
+                    "properties": {
+                      "message_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "request_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "response_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "request_messages": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "response_messages": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "metadata_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "message_bytes",
+                      "request_bytes",
+                      "response_bytes",
+                      "request_messages",
+                      "response_messages",
+                      "metadata_bytes"
+                    ],
+                    "x-transit-defaults": {
+                      "message_bytes": 16384,
+                      "request_bytes": 65536,
+                      "response_bytes": 262144,
+                      "request_messages": 64,
+                      "response_messages": 64,
+                      "metadata_bytes": 8192
+                    }
+                  },
+                  "shape": {
+                    "type": "string",
+                    "enum": [
+                      "unary",
+                      "server_streaming",
+                      "client_streaming",
+                      "bidi"
+                    ]
+                  },
+                  "descriptor_digest": {
+                    "type": "array",
+                    "minItems": 32,
+                    "maxItems": 32,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    }
+                  },
+                  "retry": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "id",
+                          "revision"
+                        ],
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "maxLength": 256
+                          },
+                          "revision": {
+                            "type": "string",
+                            "maxLength": 256
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "revision"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "member",
+                  "endpoint_revision",
+                  "tls",
+                  "trust_digest",
+                  "timeout_ms",
+                  "limits",
+                  "shape",
+                  "descriptor_digest",
+                  "retry"
+                ],
+                "x-transit-defaults": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "half_close": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "member",
+                  "messages",
+                  "wire_bytes"
+                ],
+                "properties": {
+                  "member": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "key",
+                      "ordinal",
+                      "kind",
+                      "bytes",
+                      "digest",
+                      "chain"
+                    ],
+                    "properties": {
+                      "key": {
+                        "type": "string",
+                        "pattern": "^(?:[0-9a-f]{2})*$",
+                        "maxLength": 512,
+                        "x-transit-encoding": "lowercase-hex"
+                      },
+                      "ordinal": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "request_metadata",
+                          "request_batch",
+                          "endpoint_policy",
+                          "initial_metadata",
+                          "response_message",
+                          "response_body",
+                          "half_close",
+                          "trailers",
+                          "timing",
+                          "omission",
+                          "completion"
+                        ]
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "digest": {
+                        "type": "array",
+                        "minItems": 32,
+                        "maxItems": 32,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "chain": {
+                        "type": "array",
+                        "minItems": 32,
+                        "maxItems": 32,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "ordinal",
+                      "kind",
+                      "bytes",
+                      "digest",
+                      "chain"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  "messages": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "wire_bytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  }
+                },
+                "required": [
+                  "member",
+                  "messages",
+                  "wire_bytes"
+                ],
+                "x-transit-defaults": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "response_message_records": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 4294967295,
+            "x-transit-bits": 32,
+            "x-transit-signed": false
+          },
+          "response_body_bytes": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "terminal": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "timing",
+                  "omission",
+                  "completion"
+                ],
+                "properties": {
+                  "timing": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "member",
+                      "started_ms",
+                      "elapsed_ns"
+                    ],
+                    "properties": {
+                      "member": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "key",
+                          "ordinal",
+                          "kind",
+                          "bytes",
+                          "digest",
+                          "chain"
+                        ],
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "pattern": "^(?:[0-9a-f]{2})*$",
+                            "maxLength": 512,
+                            "x-transit-encoding": "lowercase-hex"
+                          },
+                          "ordinal": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "request_metadata",
+                              "request_batch",
+                              "endpoint_policy",
+                              "initial_metadata",
+                              "response_message",
+                              "response_body",
+                              "half_close",
+                              "trailers",
+                              "timing",
+                              "omission",
+                              "completion"
+                            ]
+                          },
+                          "bytes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "digest": {
+                            "type": "array",
+                            "minItems": 32,
+                            "maxItems": 32,
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          },
+                          "chain": {
+                            "type": "array",
+                            "minItems": 32,
+                            "maxItems": 32,
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "ordinal",
+                          "kind",
+                          "bytes",
+                          "digest",
+                          "chain"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "started_ms": {
+                        "type": "string",
+                        "maxLength": 256
+                      },
+                      "elapsed_ns": {
+                        "type": "string",
+                        "maxLength": 256
+                      }
+                    },
+                    "required": [
+                      "member",
+                      "started_ms",
+                      "elapsed_ns"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  "omission": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "member",
+                      "response_fields",
+                      "request_secrets"
+                    ],
+                    "properties": {
+                      "member": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "key",
+                          "ordinal",
+                          "kind",
+                          "bytes",
+                          "digest",
+                          "chain"
+                        ],
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "pattern": "^(?:[0-9a-f]{2})*$",
+                            "maxLength": 512,
+                            "x-transit-encoding": "lowercase-hex"
+                          },
+                          "ordinal": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "request_metadata",
+                              "request_batch",
+                              "endpoint_policy",
+                              "initial_metadata",
+                              "response_message",
+                              "response_body",
+                              "half_close",
+                              "trailers",
+                              "timing",
+                              "omission",
+                              "completion"
+                            ]
+                          },
+                          "bytes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "digest": {
+                            "type": "array",
+                            "minItems": 32,
+                            "maxItems": 32,
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          },
+                          "chain": {
+                            "type": "array",
+                            "minItems": 32,
+                            "maxItems": 32,
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "ordinal",
+                          "kind",
+                          "bytes",
+                          "digest",
+                          "chain"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "response_fields": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "request_secrets": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "member",
+                      "response_fields",
+                      "request_secrets"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  "completion": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "member",
+                      "status",
+                      "sent_messages",
+                      "received_messages",
+                      "sent_bytes",
+                      "received_bytes",
+                      "half_closed"
+                    ],
+                    "properties": {
+                      "member": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "key",
+                          "ordinal",
+                          "kind",
+                          "bytes",
+                          "digest",
+                          "chain"
+                        ],
+                        "properties": {
+                          "key": {
+                            "type": "string",
+                            "pattern": "^(?:[0-9a-f]{2})*$",
+                            "maxLength": 512,
+                            "x-transit-encoding": "lowercase-hex"
+                          },
+                          "ordinal": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "request_metadata",
+                              "request_batch",
+                              "endpoint_policy",
+                              "initial_metadata",
+                              "response_message",
+                              "response_body",
+                              "half_close",
+                              "trailers",
+                              "timing",
+                              "omission",
+                              "completion"
+                            ]
+                          },
+                          "bytes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 4294967295,
+                            "x-transit-bits": 32,
+                            "x-transit-signed": false
+                          },
+                          "digest": {
+                            "type": "array",
+                            "minItems": 32,
+                            "maxItems": 32,
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          },
+                          "chain": {
+                            "type": "array",
+                            "minItems": 32,
+                            "maxItems": 32,
+                            "items": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 255,
+                              "x-transit-bits": 8,
+                              "x-transit-signed": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "key",
+                          "ordinal",
+                          "kind",
+                          "bytes",
+                          "digest",
+                          "chain"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "status": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "sent_messages": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "received_messages": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "sent_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "received_bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4294967295,
+                        "x-transit-bits": 32,
+                        "x-transit-signed": false
+                      },
+                      "half_closed": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "member",
+                      "status",
+                      "sent_messages",
+                      "received_messages",
+                      "sent_bytes",
+                      "received_bytes",
+                      "half_closed"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                },
+                "required": [
+                  "timing",
+                  "omission",
+                  "completion"
+                ],
+                "x-transit-defaults": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "source",
+          "exchange",
+          "phase",
+          "coverage",
+          "policy",
+          "half_close",
+          "response_message_records",
+          "response_body_bytes",
           "terminal"
         ],
         "x-transit-defaults": {

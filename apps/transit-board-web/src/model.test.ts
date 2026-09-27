@@ -5,6 +5,8 @@ import {
   validateQuery,
   validateRecords,
   validateHttp,
+  validateGrpc,
+  type GrpcResponse,
   type HttpResponse,
   type QueryResponse,
   BoardError,
@@ -37,6 +39,7 @@ describe("inspection semantics", () => {
       state_resources: true,
       station: false,
       http_connector: false,
+      grpc_connector: false,
       push: false,
     };
     expect(validateCapabilities(caps)).toBe(true);
@@ -186,6 +189,115 @@ describe("HTTP metadata boundary", () => {
     const narrowed = page();
     narrowed.policy!.retry!.id = "0";
     expect(validateHttp(narrowed)).toBe(false);
+  });
+});
+
+describe("RPC metadata boundary", () => {
+  const prefix = "0045ffffffffffffffff";
+  const member = (
+    ordinal: number,
+    kind: NonNullable<GrpcResponse["policy"]>["member"]["kind"],
+  ) => ({
+    key: `${prefix}6d${ordinal.toString(16).padStart(8, "0")}`,
+    ordinal,
+    kind,
+    bytes: 20,
+    digest: Array(32).fill(1),
+    chain: Array(32).fill(1),
+  });
+  const page = (): GrpcResponse => ({
+    version: 1,
+    source: {
+      realm: 1,
+      pid: 2,
+      resource: 3,
+      key: `${prefix}6400000000`,
+      entry_revision: 10,
+      resource_revision: 12,
+      position: 12,
+    },
+    exchange: "18446744073709551615",
+    phase: "complete",
+    coverage: Array(32).fill(1),
+    policy: {
+      member: member(2, "endpoint_policy"),
+      endpoint_revision: "18446744073709551615",
+      tls: true,
+      trust_digest: Array(32).fill(1),
+      timeout_ms: 1000,
+      limits: {
+        request_messages: 64,
+        response_messages: 64,
+        message_bytes: 16384,
+        request_bytes: 65536,
+        response_bytes: 262144,
+        metadata_bytes: 8192,
+      },
+      shape: "bidi",
+      descriptor_digest: Array(32).fill(1),
+      retry: { id: "1", revision: "1" },
+    },
+    half_close: { member: member(3, "half_close"), messages: 2, wire_bytes: 10 },
+    response_message_records: 2,
+    response_body_bytes: "0",
+    terminal: {
+      timing: {
+        member: member(5, "timing"),
+        started_ms: "1000",
+        elapsed_ns: "18446744073709551615",
+      },
+      omission: { member: member(6, "omission"), response_fields: 1, request_secrets: 1 },
+      completion: {
+        member: member(7, "completion"),
+        status: 0,
+        sent_messages: 2,
+        received_messages: 2,
+        sent_bytes: 10,
+        received_bytes: 10,
+        half_closed: true,
+      },
+    },
+  });
+  it("preserves OK, empty messages and wide identities while refusing inconsistent evidence", () => {
+    expect(validateGrpc(page())).toBe(true);
+    for (const change of [
+      (p: GrpcResponse) => {
+        p.terminal!.completion.status = 17;
+      },
+      (p: GrpcResponse) => {
+        p.terminal!.timing.elapsed_ns = "18446744073709551616";
+      },
+      (p: GrpcResponse) => {
+        p.half_close!.messages = 1;
+      },
+      (p: GrpcResponse) => {
+        p.response_body_bytes = "1";
+      },
+      (p: GrpcResponse) => {
+        p.terminal!.completion.member.chain[0] = 2;
+      },
+      (p: GrpcResponse) => {
+        p.policy!.member.key = member(1, "endpoint_policy").key;
+      },
+      (p: GrpcResponse) => {
+        p.source.key = "0045";
+      },
+      (p: GrpcResponse) => {
+        p.phase = "unknown";
+      },
+    ]) {
+      const changed = page();
+      change(changed);
+      expect(validateGrpc(changed)).toBe(false);
+    }
+    const partial = page();
+    partial.phase = "unknown";
+    partial.terminal = null;
+    expect(validateGrpc(partial)).toBe(true);
+    expect(validateGrpc({ ...page(), protobuf: "private" })).toBe(false);
+    expect(
+      validateGrpc({ ...page(), policy: { ...page().policy, method: "/private.Method" } }),
+    ).toBe(false);
   });
 });
 

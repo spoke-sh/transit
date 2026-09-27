@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { records, type RecordsResponse } from "@rey/transit-board-client";
 import { message } from "./state";
+import { GrpcMetadata } from "./grpc-metadata";
 import { HttpMetadata } from "./http-metadata";
 
 type Declaration = NonNullable<RecordsResponse["exchanges"][number]>["declaration"];
@@ -117,6 +118,7 @@ export function Records({ resource }: { resource: number }) {
   const [cursor, setCursor] = useState<{ revision: number; after: string }>();
   const [refresh, setRefresh] = useState(0);
   const [selectedHttp, setSelectedHttp] = useState<string>();
+  const [selectedGrpc, setSelectedGrpc] = useState<string>();
   useEffect(() => {
     const abort = new AbortController();
     let disposed = false;
@@ -198,6 +200,19 @@ export function Records({ resource }: { resource: number }) {
                     Inspect HTTP metadata
                   </button>
                 )}
+              {page.exchanges[index] &&
+                "capture" in page.exchanges[index].declaration &&
+                page.exchanges[index].declaration.capture.protocol === 2 &&
+                page.exchanges[index].declaration.capture.phase !== "retired" && (
+                  <button
+                    onClick={() => {
+                      const detail = page.exchanges[index]!.declaration;
+                      if ("capture" in detail) setSelectedGrpc(detail.capture.exchange);
+                    }}
+                  >
+                    Inspect RPC metadata
+                  </button>
+                )}
               <p>
                 Source: writer PID {page.resource.writer}, entry revision {entry.revision}
               </p>
@@ -222,6 +237,9 @@ export function Records({ resource }: { resource: number }) {
         >
           Next records
         </button>
+      )}
+      {page && selectedGrpc && (
+        <GrpcMetadata key={selectedGrpc} resource={resource} exchange={selectedGrpc} />
       )}
       {page && selectedHttp && (
         <HttpMetadata key={selectedHttp} resource={resource} exchange={selectedHttp} />

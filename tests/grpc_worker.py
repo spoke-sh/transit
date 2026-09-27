@@ -17,7 +17,7 @@ from storage import Fixture, free_port, wait_ready
 from cold_storage import ColdStore
 
 
-def run(node, provision, worker):
+def run(node, provision, worker, board=None, browser=None):
     started = time.monotonic()
     node, provision, worker = [str(Path(path).resolve()) for path in (node, provision, worker)]
     descriptor_bytes = (Path(__file__).parent / "fixtures/grpc/peer.pb").read_bytes()
@@ -149,6 +149,9 @@ def run(node, provision, worker):
                 replay = admin("replay", exchange)
                 assert replay == dict(bytes=len(payload)*response_count, sha256=hashlib.sha256(payload*response_count).hexdigest(), status=0, messages=response_count), replay
                 secret.write_bytes(b"Bearer fixture-rpc-secret")
+            if board:
+                from grpc_board import inspect_capture
+                inspect_capture(fixture, admin, url, saved, str(Path(board).resolve()), provision, state, browser)
             assert recovered == {"seal", "dispatch", "observe"}, (dropped.keys(), recovered)
             for exchange, (shape, method, _) in enumerate(shapes, 5):
                 saved = admin("own"); configure(saved, exchange, shape, method, f"kill-{shape}", "prepare"); assert invoke()["phase"] == "ready"

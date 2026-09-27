@@ -34,7 +34,15 @@ pub fn main(init: std.process.Init) !void {
     } else {
         const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.arena.allocator(), .limited(4096));
         saved = (try std.json.parseFromSlice(Saved, init.arena.allocator(), bytes, .{})).value;
-        if (std.mem.eql(u8, args[2], "own")) {
+        if (std.mem.eql(u8, args[2], "board-grant")) {
+            _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(74))).public_key.toBytes(), .permissions = p.permission(.inspect) } });
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 55, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        } else if (std.mem.eql(u8, args[2], "board-revoke") or std.mem.eql(u8, args[2], "board-restore")) {
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 55, .permissions = if (std.mem.eql(u8, args[2], "board-revoke")) p.State.permission(.inspect) else p.State.permission(.inspect) | p.State.permission(.read) } });
+        } else if (std.mem.eql(u8, args[2], "position")) {
+            try std.json.Stringify.value((try admin.query(.{ .capabilities = {} })).position, .{}, &output.interface);
+            return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "own")) {
             _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = 65536 } });
             saved.generation += 1;
         } else if (std.mem.eql(u8, args[2], "revoke") or std.mem.eql(u8, args[2], "restore")) {
@@ -44,6 +52,11 @@ pub fn main(init: std.process.Init) !void {
             var reader: x.Client = .{ .wire = &wire, .realm = 47, .principal = 65536, .key = worker };
             const descriptor = try reader.inspect(saved.resource, id);
             if (std.mem.eql(u8, args[2], "replay")) {
+                var metadata_source = try reader.reader(saved.resource);
+                const metadata = try rpc.Inspection.read(init.arena.allocator(), .{ .resource = saved.resource, .id = id }, &metadata_source);
+                try std.testing.expectEqual(descriptor.chain, metadata.descriptor.chain);
+                try std.testing.expect(metadata.policy != null and metadata.terminal != null);
+                try std.testing.expectEqual(@as(u32, 0), metadata.terminal.?.completion.value.status);
                 const reference: x.Client.Reference = .{ .resource = saved.resource, .exchange = id, .chain = descriptor.chain };
                 var replay = try rpc.Replay.open(&reader, reference, .captured);
                 var hash = std.crypto.hash.sha2.Sha256.init(.{});

@@ -7,3 +7,4 @@ export function QueryRequest(value: unknown): boolean;
 export function QueryResponse(value: unknown): boolean;
 export function RecordsResponse(value: unknown): boolean;
 export function HttpResponse(value: unknown): boolean;
+export function GrpcResponse(value: unknown): boolean;

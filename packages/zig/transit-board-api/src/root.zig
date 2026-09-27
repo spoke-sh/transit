@@ -3,6 +3,8 @@ const std = @import("std");
 pub const Exchange = @import("Exchange.zig");
 pub const Http = @import("Http.zig");
 pub const HttpResponse = Http.Response;
+pub const Grpc = @import("Grpc.zig");
+pub const GrpcResponse = Grpc.Response;
 pub const Json = @import("Json.zig");
 test {
     _ = Json;
@@ -82,6 +84,7 @@ pub const Capabilities = struct {
     state_resources: bool = true,
     station: bool = true,
     http_connector: bool = false,
+    grpc_connector: bool = false,
     push: bool = false,
 };
 pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict } };

@@ -64,7 +64,7 @@ const Server = struct {
         if (err == error.QuerySourceUnavailable or err == error.ExchangeUnavailable or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
         if (err == error.ExchangeNotFound or upstream.last_rejection == .UnknownStateResource) return self.failure(req, .not_found, .NotFound);
         if (err == error.QueryBusy) return self.failure(req, .conflict, .QueryBusy);
-        if (err == error.IncompleteResult or err == error.HttpReplayGap or err == error.InvalidExchangeCoverage or err == error.HttpInspectionCapacity or err == error.WrongExchangeProtocol) return self.failure(req, .conflict, .IncompleteResult);
+        if (err == error.IncompleteResult or err == error.HttpReplayGap or err == error.InvalidExchangeCoverage or err == error.GrpcReplayGap or err == error.GrpcInspectionCapacity or err == error.InvalidGrpcCapture or err == error.HttpInspectionCapacity or err == error.WrongExchangeProtocol) return self.failure(req, .conflict, .IncompleteResult);
         if (err == error.InvalidQueryOrdinal) return self.failure(req, .bad_request, .InvalidQueryOrdinal);
         if (err == error.QueryRequestTooLarge) return self.failure(req, .bad_request, .QueryRequestTooLarge);
         if (err == error.Conflict) return self.failure(req, .conflict, .QueryConflict);
@@ -94,8 +94,9 @@ const Server = struct {
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
         const records = parseRecords(target) catch return self.failure(req, .bad_request, .InvalidQuery);
-        const http_metadata = parseHttpMetadata(target) catch return self.failure(req, .bad_request, .InvalidQuery);
-        const cursor = if (capabilities or records != null or http_metadata != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const http_metadata = parseMetadata(target, "http") catch return self.failure(req, .bad_request, .InvalidQuery);
+        const grpc_metadata = parseMetadata(target, "grpc") catch return self.failure(req, .bad_request, .InvalidQuery);
+        const cursor = if (capabilities or records != null or http_metadata != null or grpc_metadata != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
         self.next_read_ms = self.now() + self.config.read_interval_ms;
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
@@ -107,7 +108,7 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
-            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 16384, .http_connector = true });
+            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = 16384, .http_connector = true, .grpc_connector = true });
         }
         if (records) |page| {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -118,7 +119,13 @@ const Server = struct {
         if (http_metadata) |selection| {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             defer arena.deinit();
-            const result = growing.httpMetadata(&upstream, self.config.realm, self.config.principal, key, selection, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
+            const result = growing.metadata(api.Http, &upstream, self.config.realm, self.config.principal, key, selection, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
+            return self.json(req, .ok, result);
+        }
+        if (grpc_metadata) |selection| {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const result = growing.metadata(api.Grpc, &upstream, self.config.realm, self.config.principal, key, selection, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
             return self.json(req, .ok, result);
         }
         const result = growing.atlas(&upstream, self.config.realm, self.config.principal, key, cursor, if (self.config.query) |config| config.connection.resource else null) catch |err| return self.queryFailure(req, &upstream, err);
@@ -222,7 +229,8 @@ fn logRoute(target: []const u8) []const u8 {
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
     if ((parseRecords(path) catch null) != null) return "/api/v1/resources/{resource}/records";
-    if ((parseHttpMetadata(path) catch null) != null) return "/api/v1/resources/{resource}/http/{exchange}";
+    if ((parseMetadata(path, "http") catch null) != null) return "/api/v1/resources/{resource}/http/{exchange}";
+    if ((parseMetadata(path, "grpc") catch null) != null) return "/api/v1/resources/{resource}/grpc/{exchange}";
     if (parseStateQuery(path, 1, 1) catch null) |q| return switch (q.kind) {
         .resources => if (q.resource == null) "/api/v1/resources" else "/api/v1/resources/{resource}",
         .associations => "/api/v1/processes/{pid}/associations",
@@ -322,12 +330,12 @@ fn parseStateQuery(target: []const u8, realm: u64, principal: u8) !?client.proto
     try client.protocol.State.validateQuery(q);
     return q;
 }
-fn parseHttpMetadata(target: []const u8) !?growing.HttpCursor {
+fn parseMetadata(target: []const u8, comptime protocol: []const u8) !?growing.ExchangeCursor {
     const prefix = "/api/v1/resources/";
     if (!std.mem.startsWith(u8, target, prefix)) return null;
-    const split = std.mem.indexOf(u8, target[prefix.len..], "/http/") orelse return null;
+    const split = std.mem.indexOf(u8, target[prefix.len..], "/" ++ protocol ++ "/") orelse return null;
     const resource = try number(target[prefix.len..][0..split]);
-    const value = target[prefix.len + split + 6 ..];
+    const value = target[prefix.len + split + protocol.len + 2 ..];
     if (resource == 0 or value.len == 0 or value.len > 20 or value[0] == '0') return error.InvalidQuery;
     for (value) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidQuery;
     return .{ .resource = resource, .exchange = std.fmt.parseInt(u64, value, 10) catch return error.InvalidQuery };
@@ -503,7 +511,7 @@ test "record cursors require an exact bounded key and original revision" {
 test "HTTP metadata paths preserve full-width exchange identities" {
     const t = std.testing;
     const target = "/api/v1/resources/7/http/18446744073709551615";
-    try t.expectEqual(std.math.maxInt(u64), (try parseHttpMetadata(target)).?.exchange);
+    try t.expectEqual(std.math.maxInt(u64), (try parseMetadata(target, "http")).?.exchange);
     try t.expectEqualStrings("/api/v1/resources/{resource}/http/{exchange}", logRoute(target));
-    inline for (.{ "0", "01", "+1", "18446744073709551616", "1?view=1", "1/body", "" }) |id| try t.expectError(error.InvalidQuery, parseHttpMetadata("/api/v1/resources/7/http/" ++ id));
+    inline for (.{ "0", "01", "+1", "18446744073709551616", "1?view=1", "1/body", "" }) |id| try t.expectError(error.InvalidQuery, parseMetadata("/api/v1/resources/7/http/" ++ id, "http"));
 }

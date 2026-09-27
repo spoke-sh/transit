@@ -2,6 +2,7 @@
 pub const exchange = @import("transit_exchange");
 pub const transport = @import("transit_grpc");
 pub const Shape = transport.Shape;
+pub const Inspection = @import("Inspection.zig");
 pub const Request = @import("Request.zig");
 pub const Batch = @import("Batch.zig");
 pub const RequestRecord = @import("RequestRecord.zig");
@@ -13,6 +14,7 @@ pub const Capture = @import("Capture.zig");
 pub const Replay = @import("Replay.zig");
 pub const protocol_format: u32 = 2;
 test {
+    _ = Inspection;
     _ = @import("request_test.zig");
     _ = @import("capture_test.zig");
     _ = @import("service_test.zig");

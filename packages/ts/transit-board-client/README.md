@@ -85,3 +85,9 @@ The real generated validator is exercised against service responses by
 `tests/board_query.py`; the actual browser proof checks exact integers,
 Canvas/Browse state and clearing after live revocation. No browser seed,
 automatic replacement submission or persistent result storage exists.
+
+`grpcMetadata` validates the generated RPC metadata contract plus source/member
+identities, unsigned decimal fields, half-close/count relationships and complete
+terminal evidence. It keeps observed status zero distinct from a missing terminal.
+The same abortable request path serves HTTP and RPC metadata; neither exposes
+application body decoders or cached history.

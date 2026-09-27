@@ -68,7 +68,8 @@
     "browser": [
       "transit-board::browser",
       "transit-board::query-browser",
-      "transit-board::http-browser"
+      "transit-board::http-browser",
+      "transit-board::grpc-browser"
     ]
   },
   "tiers": {
@@ -116,7 +117,8 @@
       "test::growing-load",
       "examples::http-bootstrap",
       "test::sql-grammar",
-      "examples::grpc-bootstrap"
+      "examples::grpc-bootstrap",
+      "transit-board::grpc-test"
     ]
   },
   "nested_tasks": {

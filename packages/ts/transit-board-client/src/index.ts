@@ -125,6 +125,7 @@ export type {
   QueryResponse,
   RecordsResponse,
   HttpResponse,
+  GrpcResponse,
 } from "./types";
 import type {
   AtlasResponse,
@@ -132,12 +133,14 @@ import type {
   QueryResponse,
   RecordsResponse,
   HttpResponse,
+  GrpcResponse,
 } from "./types";
 import {
   AtlasResponse as atlasValidator,
   QueryResponse as queryValidator,
   RecordsResponse as recordsValidator,
   HttpResponse as httpValidator,
+  GrpcResponse as grpcValidator,
 } from "./validators.js";
 const wide = (text: string, zero = false) =>
   /^(0|[1-9][0-9]{0,19})$/.test(text) &&
@@ -190,6 +193,85 @@ export async function httpMetadata(resource: number, exchange: string, signal?: 
   if (!Number.isSafeInteger(resource) || resource <= 0 || !wide(exchange))
     throw new BoardError(0, "InvalidResource");
   const page = await request(`/api/v1/resources/${resource}/http/${exchange}`, validateHttp, {
+    signal,
+  });
+  if (page.source.resource !== resource || page.exchange !== exchange)
+    throw new BoardError(0, "InvalidResponse");
+  return page;
+}
+export function validateGrpc(value: unknown): value is GrpcResponse {
+  if (!grpcValidator(value)) return false;
+  const page = value as GrpcResponse;
+  if (
+    !wide(page.exchange) ||
+    page.phase === "retired" ||
+    !wide(page.response_body_bytes, true) ||
+    page.response_message_records > 64
+  )
+    return false;
+  const prefix = `0045${BigInt(page.exchange).toString(16).padStart(16, "0")}`;
+  if (page.source.key !== `${prefix}6400000000`) return false;
+  type Member = NonNullable<GrpcResponse["policy"]>["member"];
+  const member = (m: Member, kind: Member["kind"]) =>
+    m.kind === kind &&
+    m.ordinal < 256 &&
+    m.key === `${prefix}6d${m.ordinal.toString(16).padStart(8, "0")}`;
+  if (page.policy) {
+    const p = page.policy;
+    if (
+      !member(p.member, "endpoint_policy") ||
+      !wide(p.endpoint_revision) ||
+      p.tls !== (p.trust_digest !== null)
+    )
+      return false;
+    if (p.retry && (!wide(p.retry.id) || !wide(p.retry.revision))) return false;
+  }
+  if (
+    page.half_close &&
+    (!member(page.half_close.member, "half_close") ||
+      page.half_close.messages > 64 ||
+      page.half_close.wire_bytes > 65536 ||
+      page.half_close.wire_bytes < page.half_close.messages * 5)
+  )
+    return false;
+  if ((page.phase === "complete") !== (page.terminal !== null)) return false;
+  if (page.terminal) {
+    const t = page.terminal,
+      c = t.completion;
+    if (
+      !page.policy ||
+      !member(t.timing.member, "timing") ||
+      !member(t.omission.member, "omission") ||
+      !member(c.member, "completion") ||
+      t.omission.member.ordinal !== t.timing.member.ordinal + 1 ||
+      c.member.ordinal !== t.omission.member.ordinal + 1 ||
+      !wide(t.timing.started_ms) ||
+      !wide(t.timing.elapsed_ns, true) ||
+      c.status > 16 ||
+      c.sent_messages > 64 ||
+      c.received_messages > 64 ||
+      c.sent_bytes > 65536 ||
+      c.received_bytes > 262144 ||
+      c.sent_bytes < c.sent_messages * 5 ||
+      c.received_messages !== page.response_message_records ||
+      BigInt(c.received_bytes) !==
+        BigInt(page.response_body_bytes) + BigInt(c.received_messages * 5) ||
+      c.half_closed !== (page.half_close !== null) ||
+      c.member.chain.some((byte, index) => byte !== page.coverage[index])
+    )
+      return false;
+    if (
+      page.half_close &&
+      (page.half_close.messages !== c.sent_messages || page.half_close.wire_bytes !== c.sent_bytes)
+    )
+      return false;
+  }
+  return true;
+}
+export async function grpcMetadata(resource: number, exchange: string, signal?: AbortSignal) {
+  if (!Number.isSafeInteger(resource) || resource <= 0 || !wide(exchange))
+    throw new BoardError(0, "InvalidResource");
+  const page = await request(`/api/v1/resources/${resource}/grpc/${exchange}`, validateGrpc, {
     signal,
   });
   if (page.source.resource !== resource || page.exchange !== exchange)

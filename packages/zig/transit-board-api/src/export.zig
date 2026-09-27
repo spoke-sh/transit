@@ -70,6 +70,7 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/resources/{resource}/entries", "get", "StateResponse", true, true);
     try route(&out, "/api/v1/resources/{resource}/records", "get", "RecordsResponse", true, false);
     try route(&out, "/api/v1/resources/{resource}/http/{exchange}", "get", "HttpResponse", true, false);
+    try route(&out, "/api/v1/resources/{resource}/grpc/{exchange}", "get", "GrpcResponse", true, false);
     for ([_][]const u8{ "mailbox", "outbox", "effects", "payloads", "history", "journey" }) |resource| {
         var path: [128]u8 = undefined;
         try route(&out, try std.fmt.bufPrint(&path, "/api/v1/processes/{{pid}}/{s}", .{resource}), "get", "Response", true, true);
@@ -79,7 +80,7 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse", "HttpResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse, api.HttpResponse }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse", "HttpResponse", "GrpcResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse }) |name, T| {
         try out.objectField(name);
         try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = if (T == api.QueryRequest or T == api.QueryResponse) 16384 else 256 });
     }

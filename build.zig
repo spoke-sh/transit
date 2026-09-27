@@ -298,6 +298,10 @@ pub fn build(b: *std.Build) void {
     grpc_worker_test.addArtifactArg(node_artifact);
     grpc_worker_test.addArtifactArg(grpc_provision);
     grpc_worker_test.addArtifactArg(grpc_worker);
+    const grpc_browser = b.option(bool, "grpc-board-browser", "Qualify captured RPC metadata in the browser") orelse false;
+    const grpc_board = b.option(bool, "grpc-board", "Qualify Board RPC metadata against real captures") orelse false;
+    if (grpc_browser or grpc_board) grpc_worker_test.addArtifactArg(board);
+    if (grpc_browser) grpc_worker_test.addArg("browser");
     grpc_worker_test.has_side_effects = true;
     grpc_worker_test.stdio = .inherit;
     b.step("test-grpc-worker", "Prove durable finite RPC capture and recovery").dependOn(&grpc_worker_test.step);

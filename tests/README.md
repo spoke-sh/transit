@@ -59,6 +59,17 @@ and in Compose in **105.58 seconds**. Container timings include changed-image
 preparation and concurrent proof load. These are local measurements, not hosted
 CI budgets or automatic growing runtime binding/supervision evidence.
 
+`just transit-board::grpc-browser` passes the real RPC capture/API/browser
+schedule in **375.54 seconds** excluding compilation (the browser portion takes
+**11.7 seconds**). It checks all four shapes, source-bound descriptor/member
+metadata, status zero, half-close and directional counts, immutable inspection,
+current read revocation and browser clearing. Generated and handwritten runtime
+validators reject private fields, narrowed identities and inconsistent evidence.
+The unchanged worker recovery tail retains nine sends/eight applications and
+691 cold objects / 67,103,930 bytes under the 8 MiB hot limit. Board reports
+protocol evidence only; it loads no protobuf bodies or credential/routing values.
+`just check` passes with eight frontend boundary tests and generated contracts.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover

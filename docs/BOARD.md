@@ -347,3 +347,14 @@ Operational controls, multi-user delegation/federation, a complete Transit SDK
 in another language, arbitrary dashboards, and full observability infrastructure
 remain separate work. Metrics or deployment telemetry may enrich later views;
 a provider's liveness report can never replace Transit's execution authority.
+
+### Finite RPC metadata
+
+The growing inspector also recognizes M16 RPC exchanges. Its explicit metadata
+read reports shape/descriptor digest, directional capture counts, half-close and
+terminal status from current authorized source evidence. Status zero means a
+captured RPC OK; it does not prove business success. A partial message header is
+only an indexed record. Method routes, credentials, metadata values and protobuf
+bodies stay outside this projection. Inspection uses no query identity, sends no
+commands and clears the visible evidence after read revocation. The implementation
+and bounded task surface are documented with [Board](../apps/transit-board/README.md).

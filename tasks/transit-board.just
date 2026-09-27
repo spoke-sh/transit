@@ -73,3 +73,10 @@ http-test:
 # Exercise the embedded exchange inspector and clearing after read revocation.
 http-browser:
     zig build test-http-worker -Dhttp-board-browser=true
+
+# Inspect all four RPC shapes and current authorization over real captured data.
+grpc-test:
+    zig build test-grpc-worker -Dgrpc-board=true
+
+grpc-browser:
+    zig build test-grpc-worker -Dgrpc-board-browser=true

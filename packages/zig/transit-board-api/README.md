@@ -5,7 +5,8 @@ The typed Board v1 response contract, exported as `transit_board_api`. Depends o
 [Station's metadata codecs](../transit-station/src/Metadata.zig), plus
 [transit-query](../transit-query/README.md) for the optional query contract and
 [transit-exchange](../transit-exchange/README.md) and
-[transit-station-http](../transit-station-http/README.md) for capture metadata. It does not read stores, execute
+[transit-station-http](../transit-station-http/README.md) and
+[transit-station-grpc](../transit-station-grpc/README.md) for capture metadata. It does not read stores, execute
 handlers, or authenticate viewers; the Board executable composes those boundaries.
 
 `try project(page)` rejects malformed mixed-resource or inconsistent
@@ -36,6 +37,7 @@ the shared query client.
 | `AtlasResponse` | Growing process/resource pages and the current inspection identity at one cut |
 | `RecordsResponse` / `projectRecords` | Eight growing record identities and recognized exchange metadata, with exact source evidence |
 | `HttpResponse` / `Http.project` | Selected HTTP policy/timing/omission/completion metadata and its committed member references |
+| `GrpcResponse` / `Grpc.project` | Selected RPC shape/schema, directional counts, half-close and terminal evidence without protobuf interpretation |
 | `QueryRequest`, `QueryResponse` | Optional Table query operations, opaque frozen submissions and verified typed pages |
 | `Json.write` | Schema-consistent JSON: fixed byte arrays stay arrays, text slices stay strings |
 | `Capabilities`, `Error` | Board build capabilities and its finite error vocabulary |
