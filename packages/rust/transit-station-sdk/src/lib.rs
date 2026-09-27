@@ -11,8 +11,8 @@ mod types;
 pub use bridge::encode_cast;
 pub use http::{
     HttpHeader, HttpMessage, HttpMethod, HttpOutcome, HttpPart, HttpPartKind, HttpPhase, HttpPiece,
-    HttpReader, HttpRejection, HttpReplayPolicy, HttpReply, HttpReplyCodec, HttpRequest,
-    HttpRequestOptions, PreparedHttpRequest, decode_http_reply, prepare_http,
+    HttpReader, HttpRejection, HttpReleased, HttpReplayPolicy, HttpReply, HttpReplyCodec,
+    HttpRequest, HttpRequestOptions, PreparedHttpRequest, decode_http_reply, prepare_http,
 };
 pub use query::{
     Aggregate, Column, Comparison, IpcSegment, Predicate, Projection, QueryCloseReason, QueryJob,

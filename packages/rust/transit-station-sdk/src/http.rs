@@ -146,6 +146,7 @@ pub fn prepare_http(
         "request":request.wire()?,"body":hex(body,65536)?,"endpoint_revision":options.endpoint_revision.to_string(),
         "reconcile_before_ms":options.reconcile_before_ms.get(),"max_attempts":options.max_attempts}}),
         native_directory,
+        false,
     )?;
     let prepared = field(&value, "prepared")?;
     Ok(PreparedHttpRequest {
@@ -195,6 +196,12 @@ impl fmt::Debug for HttpOutcome {
 pub enum HttpReply {
     Outcome(HttpOutcome),
     Rejected(HttpRejection),
+    Released(HttpReleased),
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HttpReleased {
+    pub resource: ResourceRef,
+    pub exchange: u64,
 }
 pub fn decode_http_reply(
     realm: u64,
@@ -202,7 +209,11 @@ pub fn decode_http_reply(
     native_directory: Option<&Path>,
 ) -> Result<HttpReply> {
     let invalid = || Error::new(ErrorKind::IncompatibleNative, "http-outcome");
-    let value = http_codec(json!({"outcome":hex(bytes,71)?}), native_directory)?;
+    let value = http_codec(
+        json!({"outcome":hex(bytes,71)?}),
+        native_directory,
+        bytes.starts_with(b"HTK1"),
+    )?;
     if let Some(reason) = value.get("rejected") {
         return Ok(HttpReply::Rejected(
             match string(reason, "http-rejection")? {
@@ -212,6 +223,15 @@ pub fn decode_http_reply(
                 _ => return Err(invalid()),
             },
         ));
+    }
+    if let Some(released) = value.get("released") {
+        return Ok(HttpReply::Released(HttpReleased {
+            resource: ResourceRef::new(
+                realm,
+                number(&released["resource"], "http-resource", false)?,
+            )?,
+            exchange: wide(&released["exchange"])?,
+        }));
     }
     let value = field(&value, "outcome")?;
     Ok(HttpReply::Outcome(HttpOutcome {
@@ -283,7 +303,7 @@ impl<T: 'static> Codec<HttpMessage<T>> for HttpReplyCodec<T> {
         }
     }
     fn decode(&self, bytes: &[u8]) -> Result<HttpMessage<T>> {
-        if bytes.starts_with(b"HTR1") || bytes.starts_with(b"HTF1") {
+        if bytes.starts_with(b"HTR1") || bytes.starts_with(b"HTF1") || bytes.starts_with(b"HTK1") {
             Ok(HttpMessage::Reply(decode_http_reply(
                 self.realm,
                 bytes,

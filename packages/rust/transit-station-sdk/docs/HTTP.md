@@ -24,8 +24,8 @@ retirement. Rust fields or a blocked stack do not make the source durable or
 schedule continuation inputs.
 
 Wrap the application codec in `HttpReplyCodec::new(codec, realm, directory)?`
-and handle `HttpMessage<T>`. Its explicit union reserves HTR1/HTF1 payload prefixes
-for shared decoding into `HttpReply::Outcome` or `Rejected`. Before using a reply,
+and handle `HttpMessage<T>`. Its explicit union reserves HTR1/HTF1/HTK1 payload prefixes
+for shared decoding into `HttpReply::Outcome`, `Rejected` or `Released`. Before using a reply,
 verify it with `turn.require_reply(&reply, connector, saved_correlation)?`.
 Outcome records are receive-only through this codec. `decode_http_reply` provides
 local shared validation of saved outcome bytes; decoding confers no authority.
@@ -60,5 +60,13 @@ through its `StopToken`, and join that task. Dropping a host wait cannot cancel
 native I/O or a remote operation. Dropping the reader attempts local disposal;
 explicit `close()` reports errors. Runner destruction joins remaining work and
 disposes its native reader. Returned bytes remain owned. Local disposal does not
-release a durable capture hold. Public followup/release helpers and the complete
-language SDK matrix remain M15 work.
+release a durable capture hold.
+
+Inside a handler, use `turn.release_http(connector, outcome.resource, outcome.exchange)?`
+to request disposal of that durable hold and save the returned correlation in
+state. Authenticate `HttpReply::Released` with `turn.require_reply`, then check
+its resource/exchange. Duplicate calls remain safe after worker restart and
+capture cleanup. A transcript read grant is unnecessary; the service checks the
+recorded holder and current admission policy. Release performs no remote
+cancellation, retirement or automatic cleanup. The finite worker needs a fresh
+`poll` activation to handle it. Public followup helpers remain M15 work.

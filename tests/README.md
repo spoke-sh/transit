@@ -111,7 +111,8 @@ runner and Arrow regressions also passing. TypeScript handlers opt into the asyn
 shared decoder through `handleHttpReply`; application codecs stay synchronous.
 `just bindings::rust-sdk-test` qualifies the same binary caller/replay schedule
 through installed source crates and embedded native libraries. The HTTP schedule
-took **61.75 seconds** locally, including clean Rust/Arrow compilation. A compiler
+took **86.92 seconds** locally, including clean Rust/Arrow compilation and durable
+disposal before/after cleanup without transcript permission or credentials. A compiler
 rejection case proves a live HTTP reader's mutable borrow prevents another runner
 operation; a delayed read finishes before the owned blocking task is joined.
 The ordinary client/runner/Arrow regressions also passed.

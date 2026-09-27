@@ -126,6 +126,29 @@ impl<'a> Turn<'a> {
         )?;
         Correlation::new(wide(field(&value, "correlation")?)?)
     }
+    /// Request durable hold disposal; authenticate the correlated HttpReleased reply.
+    pub fn release_http(
+        &mut self,
+        peer: ProcessRef,
+        resource: ResourceRef,
+        exchange: u64,
+    ) -> Result<Correlation> {
+        let pid = self.peer(peer)?;
+        if resource.realm() != self.resource.realm() || exchange == 0 {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "http-release-identity",
+            ));
+        }
+        if !self.caps().http_release {
+            return Err(Error::new(ErrorKind::UnsupportedCapability, "http-release"));
+        }
+        let value = self.apply(
+            json!({"http_release":{"pid":pid,"resource":resource.resource(),"exchange":exchange.to_string()}}),
+            false,
+        )?;
+        Correlation::new(wide(field(&value, "correlation")?)?)
+    }
     pub fn state(&mut self) -> State<'_> {
         State {
             owner: self,

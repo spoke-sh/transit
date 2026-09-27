@@ -62,6 +62,7 @@ pub(crate) struct Caps {
     pub queries: bool,
     pub http_requests: bool,
     pub http_replay: bool,
+    pub http_release: bool,
 }
 struct Buffer<'a> {
     pointer: *mut abi::station_buffer,
@@ -178,6 +179,7 @@ impl Local {
                 queries: boolean(&value["query_results"], "native-capabilities")?,
                 http_requests: boolean(&value["http_requests"], "native-capabilities")?,
                 http_replay: boolean(&value["http_replay"], "native-capabilities")?,
+                http_release: value["http_release"].as_bool().unwrap_or(false),
             };
         }
         Ok(Self {
@@ -429,7 +431,11 @@ pub fn encode_cast<T: 'static>(
     Ok(output)
 }
 
-pub(crate) fn http_codec(action: Value, native_directory: Option<&Path>) -> Result<Value> {
+pub(crate) fn http_codec(
+    action: Value,
+    native_directory: Option<&Path>,
+    release: bool,
+) -> Result<Value> {
     let bytes = serde_json::to_vec(&action)
         .map_err(|_| Error::new(ErrorKind::InvalidArgument, "http-codec"))?;
     if bytes.len() > MAX_BODY {
@@ -440,7 +446,7 @@ pub(crate) fn http_codec(action: Value, native_directory: Option<&Path>) -> Resu
         Local::open(directory.as_deref())
     })?;
     let result = worker.call(move |local| {
-        if !local.caps.http_requests {
+        if !local.caps.http_requests || release && !local.caps.http_release {
             return Err(Error::new(
                 ErrorKind::UnsupportedCapability,
                 "http-requests",

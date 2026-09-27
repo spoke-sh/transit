@@ -566,6 +566,21 @@ fn codecs(cfg: &Value) -> Result<()> {
         HttpMessage::Application(u64::MAX)
     ));
     assert!(decode_http_reply(72, &bytes[..70], None).is_err());
+    let release: Value =
+        serde_json::from_slice(&fs::read(path(cfg, "http_release_fixtures")).map_err(io_error)?)
+            .map_err(io_error)?;
+    let released_bytes = transit_client::internal::unhex(release["reply"].as_str().unwrap(), 20)?;
+    let HttpMessage::Reply(HttpReply::Released(released)) = codec.decode(&released_bytes)? else {
+        panic!("HTTP released");
+    };
+    assert_eq!(released.resource, ResourceRef::new(72, 7)?);
+    assert_eq!(released.exchange, u64::MAX);
+    assert!(
+        codec
+            .encode(&HttpMessage::Reply(HttpReply::Released(released)))
+            .is_err()
+    );
+    assert!(decode_http_reply(72, &released_bytes[..19], None).is_err());
     assert!(
         prepare_http(
             ResourceRef::new(72, 8)?,
@@ -610,6 +625,7 @@ struct HttpHandler {
     peer: ProcessRef,
     request: PreparedHttpRequest,
     observed: Arc<Mutex<Value>>,
+    disposal: Option<HttpReleased>,
 }
 impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
     fn initialize(&mut self, _turn: &mut Turn<'_>) -> Result<()> {
@@ -617,7 +633,27 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
     }
     fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<HttpMessage<Vec<u8>>>) -> Result<()> {
         let correlation = Key::new(b"http-correlation", U64Codec)?;
+        let release_correlation = Key::new(b"http-release-correlation", U64Codec)?;
         match input {
+            Incoming::Cast {
+                value: HttpMessage::Application(bytes),
+                ..
+            } if bytes == b"dispose" => {
+                let disposal = self.disposal.unwrap();
+                assert_eq!(
+                    turn.release_http(
+                        self.peer,
+                        ResourceRef::new(73, disposal.resource.resource())?,
+                        disposal.exchange
+                    )
+                    .unwrap_err()
+                    .kind,
+                    ErrorKind::InvalidArgument
+                );
+                let call = turn.release_http(self.peer, disposal.resource, disposal.exchange)?;
+                turn.state().put(&release_correlation, &call.get())?;
+                *self.observed.lock().unwrap() = json!({"released":false});
+            }
             Incoming::Cast { .. } => {
                 if turn.state().find(&correlation)?.is_some() {
                     *self.observed.lock().unwrap() = json!({"called":true});
@@ -630,6 +666,15 @@ impl Handler<HttpMessage<Vec<u8>>> for HttpHandler {
                 }
             }
             Incoming::Reply(reply) => {
+                if let HttpMessage::Reply(HttpReply::Released(released)) = &reply.value {
+                    let saved = turn.state().require(&release_correlation)?;
+                    turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
+                    assert_eq!(Some(*released), self.disposal);
+                    turn.state()
+                        .put(&Key::new(b"http-disposed", U64Codec)?, &released.exchange)?;
+                    *self.observed.lock().unwrap() = json!({"released":true});
+                    return Ok(());
+                }
                 let saved = turn.state().require(&correlation)?;
                 turn.require_reply(&reply, self.peer, Correlation::new(saved)?)?;
                 let HttpMessage::Reply(HttpReply::Outcome(outcome)) = reply.value else {
@@ -698,12 +743,26 @@ fn http_consumer(cfg: Value, mode: &str) -> Result<()> {
         )?,
     );
     let observed = Arc::new(Mutex::new(Value::Null));
+    let disposal = if let Some(value) = cfg["outcome"].as_str() {
+        let HttpReply::Outcome(outcome) =
+            decode_http_reply(72, &transit_client::internal::unhex(value, 71)?, None)?
+        else {
+            panic!("HTTP outcome");
+        };
+        Some(HttpReleased {
+            resource: outcome.resource,
+            exchange: outcome.exchange,
+        })
+    } else {
+        None
+    };
     let mut runner = Runner::open(
         config,
         HttpHandler {
             peer: ProcessRef::new(72, number(&cfg, "peer"))?,
             request: prepared,
             observed: observed.clone(),
+            disposal,
         },
         HttpReplyCodec::new(ByteCodec, 72, None)?,
         RunnerOptions {
