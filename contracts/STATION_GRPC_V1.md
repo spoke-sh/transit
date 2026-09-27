@@ -71,6 +71,23 @@ compression flags or implicit messages. The storage envelope has an independent
 messages; an empty batch differs from one empty message. The schema digest fixes
 interpretation without re-encoding application bytes during capture or replay.
 
+## Service routing records
+
+`GRA1` freezes caller:u64, input:u64, correlation:u64, phase:u8 (admitted=1,
+published=2) and the 145 GRQ1 bytes. `GRR1` replies with phase:u8 (observed=1,
+closed_unknown=2, not_dispatched=3), resource:u64, exchange:u64, effect:u64,
+attempt:u64, RPC status:u32 and coverage chain:32 bytes. Only observed results
+have status/coverage evidence; all other phases require zero status and chain.
+An observed status zero is RPC OK, not absence of observation. Invalid Exchange
+terminal codes cannot be narrowed or cast into a valid RPC status.
+
+`GRF1` carries one reason:u8 (denied=1, invalid_request=2, busy=3). `GRD1` disposal
+and `GRK1` acknowledgement carry resource:u64 and exchange:u64. `GRU1` carries
+resource:u64, parent exchange:u64, common followup reason:u8 and the 145 GRQ1 bytes;
+this RPC profile admits only retry. All layouts use fixed little-endian fields
+and exact lengths, no native padding. The shared Exchange Service helper owns
+routing, policy checks, duplicate admission and atomic reply/disposal behavior.
+
 ## Capacity and streaming
 
 The first profile admits at most 64 messages per direction, 16 KiB per message,

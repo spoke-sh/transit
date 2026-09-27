@@ -880,6 +880,29 @@
       ],
       "limits": "No durable RPC authority, connector recovery, SDK or deployment claim. Identity compression only; no reconnect, retry or remote resume.",
       "model": null
+    },
+    {
+      "id": "RPC-02",
+      "claim": "Finite durable RPC capture survives worker loss without replaying an authorized batch",
+      "owner": "apps/transit-station-grpc-worker/README.md",
+      "implementation": [
+        "apps/transit-station-grpc-worker/main.zig",
+        "packages/zig/transit-station-grpc/src/Service.zig",
+        "packages/zig/transit-exchange/src/Worker.zig"
+      ],
+      "profile": "M16 controller-driven finite worker over disk Ursula",
+      "tasks": [
+        "test::grpc-worker"
+      ],
+      "scenarios": [
+        "Four shapes complete and replay with current read grants and no credentials or sockets",
+        "Worker loss during each partial capture, node/store restart and fresh ownership close unknown without another send",
+        "Exact signed retries recover lost seal, dispatch and observation receipts",
+        "Changed routing/current grant and generation re-entry refuse execution; prefix revocation and retirement refuse replay",
+        "Explicit identical-policy idempotent retry consumes original lineage budget; exhaustion refuses another send; bounded descendant cleanup"
+      ],
+      "limits": "Nine sends/eight remote applications against independent grpcio. Public caller SDKs, placement and remaining final-publication races are not qualified by this controller proof. No transparent retry or stream resume.",
+      "model": null
     }
   ]
 }

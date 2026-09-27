@@ -3,9 +3,9 @@
 The M16 Zig adapter composes [Exchange](../transit-exchange/README.md), Station
 Publication and the finite [RPC transport](../transit-grpc/README.md). Its
 [versioned contract](../../../contracts/STATION_GRPC_V1.md) describes the finite
-batch authority profile. Pure request/capture/replay checks and independent transport peers pass. Durable
-worker recovery and SDK qualification are in progress; the adapter does not
-authorize an RPC.
+batch authority profile. Pure checks, independent transport peers and the actual
+worker recovery proof pass. Public SDKs and deployment qualification are in
+progress; the adapter does not authorize an RPC.
 
 `Request` fixes a method, shape, descriptor-set SHA-256 and ordered metadata.
 `provenance` emits canonical bounded JSON with lowercase hex for literal bytes
@@ -54,8 +54,18 @@ including its own magic/count; wire accounting still charges five bytes/message.
 Metadata has an 8 KiB canonical representation and at most 64 fields. Configured
 endpoint limits can be smaller. No total retained-record limit is implied.
 
+`Service` owns authenticated call/retry/disposal records and exact method, shape,
+descriptor and metadata scope. Shared Exchange helpers enforce fixed reply routes,
+current caller policy, duplicate identity and settlement before result publication.
+Native GR* codecs preserve RPC status separately from unknown/not-dispatched
+outcomes; they do not infer success from an absent status.
+
 Run `just test::unit` for the package and independent Python contract fixture.
 The fixture covers original Unicode/binary protobuf, duplicate/binary metadata,
 secret references, empty messages and full-width namespace/revision identities.
 Transport qualification and dependency provenance live in the transport package;
 no fixture is evidence of a completed durable effect or deployment.
+
+`just test::grpc-worker` runs the actual [worker](../../../apps/transit-station-grpc-worker/README.md)
+over disk Ursula. [Proof details](../../../tests/README.md#m16-connector-work-in-progress)
+record executed recovery schedules and remaining qualification.

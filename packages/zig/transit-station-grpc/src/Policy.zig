@@ -2,6 +2,7 @@
 //! refunds a root attempt budget; current service grants remain separate.
 const std = @import("std");
 const rpc = @import("root.zig");
+pub const Reason = rpc.exchange.Exchange.FollowupReason;
 pub const Reference = struct {
     id: u64,
     revision: u64,

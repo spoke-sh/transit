@@ -31,6 +31,7 @@
       "test::tls-alpn",
       "test::grpc-libraries",
       "test::grpc-transport",
+      "test::grpc-worker",
       "test::http-worker",
       "examples::http"
     ],

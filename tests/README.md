@@ -1,6 +1,6 @@
 # Validation and milestone evidence
 
-## M16 transport work in progress
+## M16 connector work in progress
 
 `just test::unit` runs the new RPC request codec against a Python-generated
 GRQ1/GRB1 fixture with independent Publication digest computation. It covers
@@ -19,8 +19,19 @@ HTTP and RPC now share authenticated admission/routing/disposal and the public
 Transit worker driver. The unchanged HTTP recovery corpus passed after both
 extractions in **491.58 seconds**, with sixteen sends, eight applications, two
 cancellation requests and 1,025 cold objects / 114,036,242 bytes under 8 MiB hot
-storage. This is the shared-component regression; the separate RPC worker proof
-must qualify its protocol-specific orchestration and durable response publication.
+storage. This is the shared-component regression.
+
+`just test::grpc-worker` separately passes in **344.45 seconds** excluding
+compilation over disk Ursula and the actual Zig worker. All four shapes complete
+and replay, then lose workers during partial durable response capture and recover
+as closed unknown without another send after node/store restart. Exact signed
+seal/dispatch/observation retries recover dropped receipts. Current endpoint/grant
+changes, generation re-entry, replay prefix revocation and retired capture reject.
+An explicit idempotent retry succeeds under the original budget; another attempt
+is refused. Bounded cleanup preserves lineage until descendants release it. The
+peer records nine sends and eight applications; the 8 MiB hot profile retains
+697 cold objects / 63,978,080 bytes. This controller-driven proof does not qualify
+public caller SDKs, deployment placement or every final-publication crash boundary.
 
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
@@ -39,8 +50,8 @@ including frozen policy, 4 KiB message parts and 256-byte replay reads. Units
 reject changed digests, missing parts, false terminal counts, invalid metadata,
 undeclared credentials and unsafe retry changes. Python-generated GRH1/GRM1/GRS1/
 GRT1/GRO1/GRC1 fixtures fix the binary layouts independently. These sinks are
-in-memory protocol probes; durable RPC effects/recovery, SDKs and deployment
-remain unqualified.
+in-memory protocol probes; durable recovery is qualified separately above, while
+SDKs and deployment remain open.
 
 `just test::tls-alpn` executes a real Zig client against six independent TLS
 connections: TLS 1.2 and 1.3 each accept `h2` and reject absent or incompatible

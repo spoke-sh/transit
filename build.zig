@@ -43,6 +43,7 @@ pub fn build(b: *std.Build) void {
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = grpc.module("transit_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = exchange.module("transit_exchange") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
@@ -268,6 +269,12 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
     }
     var query_host: *std.Build.Step.Compile = undefined;
+    const grpc_worker = b.addExecutable(.{ .name = "transit-station-grpc-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-grpc-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
+    const install_grpc_worker = b.addInstallArtifact(grpc_worker, .{});
+    b.getInstallStep().dependOn(&install_grpc_worker.step);
+    apps_step.dependOn(&install_grpc_worker.step);
+    build_test_step.dependOn(&grpc_worker.step);
+    b.step("transit-station-grpc-worker", "Install the finite growing RPC worker").dependOn(&install_grpc_worker.step);
     const http_worker = b.addExecutable(.{ .name = "transit-station-http-worker", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-station-http-worker/main.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "telemetry", .module = telemetry.module("telemetry") } } }) });
     const install_http_worker = b.addInstallArtifact(http_worker, .{});
     b.getInstallStep().dependOn(&install_http_worker.step);
@@ -279,6 +286,16 @@ pub fn build(b: *std.Build) void {
     b.getInstallStep().dependOn(&install_http_caller.step);
     build_test_step.dependOn(&http_caller.step);
     b.step("example-station-http", "Install the finite HTTP caller example").dependOn(&install_http_caller.step);
+    const grpc_provision = b.addExecutable(.{ .name = "transit-grpc-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
+    build_test_step.dependOn(&grpc_provision.step);
+    const grpc_worker_test = b.addSystemCommand(&.{ "python3", "-B" });
+    grpc_worker_test.addFileArg(b.path("tests/grpc_worker.py"));
+    grpc_worker_test.addArtifactArg(node_artifact);
+    grpc_worker_test.addArtifactArg(grpc_provision);
+    grpc_worker_test.addArtifactArg(grpc_worker);
+    grpc_worker_test.has_side_effects = true;
+    grpc_worker_test.stdio = .inherit;
+    b.step("test-grpc-worker", "Prove durable finite RPC capture and recovery").dependOn(&grpc_worker_test.step);
     const http_provision = b.addExecutable(.{ .name = "transit-http-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&http_provision.step);
     const http_worker_test = b.addSystemCommand(&.{ "python3", "-B" });

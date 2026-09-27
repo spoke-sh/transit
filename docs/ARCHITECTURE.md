@@ -224,6 +224,7 @@ follow a second concrete implementation, not a speculative plugin system.
 
 | Entry point | Role |
 | --- | --- |
+| [transit-station-grpc-worker](../apps/transit-station-grpc-worker/README.md) | M16 finite RPC preparation/dispatch/capture worker; recovery and public interfaces under qualification |
 | [transit-station-http-worker](../apps/transit-station-http-worker/README.md) | Initial finite M15 HTTP preparation/dispatch/capture worker; broader caller/SDK/deployment qualification remains open |
 | [transit-node](../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-delivery](../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |

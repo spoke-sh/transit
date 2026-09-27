@@ -20,6 +20,9 @@ grpc-libraries:
 grpc-transport:
     zig build test-grpc-transport
 
+grpc-worker:
+    zig build test-grpc-worker
+
 http-transport:
     zig build test-http-transport
 

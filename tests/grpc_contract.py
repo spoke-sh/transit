@@ -60,10 +60,25 @@ def generate_capture():
     return json.dumps(result, indent=2) + "\n"
 
 
+def generate_service():
+    reference = bytes.fromhex(json.loads(generate())["reference_hex"])
+    def outcome(phase, status, chain):
+        return (b"GRR1" + struct.pack("<BQQQQI", phase, 7, 2**64-1, 19, 20, status) + chain).hex()
+    return json.dumps({
+        "route_hex": (b"GRA1" + struct.pack("<QQQB", 9, 8, 2**64-1, 1) + reference).hex(),
+        "outcome_ok_hex": outcome(1, 0, bytes([9])*32),
+        "outcome_unknown_hex": outcome(2, 0, bytes(32)),
+        "rejection_hex": (b"GRF1" + bytes([1])).hex(),
+        "release_hex": (b"GRD1" + struct.pack("<QQ", 7, 2**64-1)).hex(),
+        "released_hex": (b"GRK1" + struct.pack("<QQ", 7, 2**64-1)).hex(),
+        "followup_hex": (b"GRU1" + struct.pack("<QQB", 7, 2**64-1, 1) + reference).hex(),
+    }, indent=2) + "\n"
+
+
 if __name__ == "__main__":
     if sys.argv[1:] not in ([], ["--write"]):
         raise SystemExit("usage: grpc_contract.py [--write]")
-    for path, result in ((FIXTURE, generate()), (FIXTURE.with_name("capture.json"), generate_capture())):
+    for path, result in ((FIXTURE, generate()), (FIXTURE.with_name("capture.json"), generate_capture()), (FIXTURE.with_name("service.json"), generate_service())):
         if sys.argv[1:]:
             path.write_text(result)
         elif path.read_text() != result:
