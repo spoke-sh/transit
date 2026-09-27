@@ -10,9 +10,13 @@ pkgs.mkShellNoCC {
   inputsFrom = [ base ];
   packages = tools.packages ++ [
     pkgs.stdenv.cc
+    pkgs.protobuf
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml
       ps.pyarrow
+      ps.grpcio
+      ps.protobuf
+      ps.h2
       ps.build
       ps.setuptools
       ps.wheel

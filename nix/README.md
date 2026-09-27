@@ -51,6 +51,12 @@ imports are checked separately from SDK conformance. Pinning a runtime alone
 does not qualify its language adapter. The selected Python tools are build 1.4.4,
 setuptools 80.10.1, wheel 0.46.1 and mypy 1.20.1.
 
+M16's independent RPC peers add grpcio 1.80.0, Python protobuf 7.34.1, h2 4.3.0
+and protoc 34.1 to the default and bindings shells. They use the existing locked
+nixpkgs revision; `flake.lock`, Zig and Ursula remain deliberately unchanged.
+`just doctor`, imports and descriptor generation pass locally. These foreign
+libraries are test peers and generators; the Transit RPC runtime remains Zig.
+
 ## Vite+
 
 The shell includes a checksummed upstream `vp` binary and its matching JavaScript

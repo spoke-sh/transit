@@ -97,6 +97,9 @@
                 (pkgs.python3.withPackages (ps: [
                   ps.pyyaml
                   ps.pyarrow
+                  ps.grpcio
+                  ps.protobuf
+                  ps.h2
                   ps.build
                   ps.setuptools
                   ps.wheel
@@ -104,6 +107,7 @@
                   ps.mypy
                 ]))
                 pkgs.process-compose
+                pkgs.protobuf
                 zig
                 vite-plus
                 ursula
