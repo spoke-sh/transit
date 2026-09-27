@@ -8,7 +8,7 @@
 
 namespace transit::sdk::station_detail {
 using namespace internal;
-struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release; };
+struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup; };
 #define TRANSIT_STATION_FUNCTIONS(X) \
     X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \

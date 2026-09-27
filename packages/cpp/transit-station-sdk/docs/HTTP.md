@@ -74,6 +74,16 @@ read grant; the service checks the recorded holder and current admission policy.
 Release does not perform remote cancellation, retirement or cleanup. The finite
 worker needs a fresh `poll` activation to handle it.
 
+Use `turn.followup_http(connector, parent, HttpFollowupReason::Retry, request)`
+for an explicit linked-attempt call. Other reasons are `Redirect`, `Reconcile`
+and `Cancel`. Publish the proposed request in the current associated resource
+first, preserving the original deadline and total attempt budget. Save the new
+correlation and authenticate the resulting `HttpOutcome`, which may contain a
+rejection. The shared service validates the original caller, current scope and
+frozen parent policy before allocating a child. The helper performs no automatic
+retry or retry-safety inference. Configure a fresh child exchange and matching
+parent/reason on the finite worker. The parent outcome remains unchanged.
+
 The installed C++ consumer in `just bindings::c-sdk-test` checks shared golden
 fixtures, typed correlation, staged upload recovery, current grant revocation,
 owned replay after disposal and joining a delayed read. The same schedule runs

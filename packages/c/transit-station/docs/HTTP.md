@@ -81,6 +81,18 @@ service checks the recorded holder and current admission policy. Release does
 not perform remote cancellation, retirement or cleanup. The finite worker needs
 a fresh `poll` activation to handle this control call.
 
+`transit_station_turn_http_followup` takes the connector PID, parent outcome,
+`TRANSIT_HTTP_RETRY`, `TRANSIT_HTTP_REDIRECT`, `TRANSIT_HTTP_RECONCILE` or
+`TRANSIT_HTTP_CANCEL`, a published request handle and a correlation output.
+Pointers are borrowed only for the synchronous call; failures leave the output
+correlation zero. Request records must already be published in the current
+associated resource with the original deadline and total attempt budget. Save the
+new correlation and authenticate the resulting outcome or rejection. The shared
+service checks the original caller, current scope and frozen parent policy before
+allocating a child. The helper performs no automatic retry or retry-safety
+inference. Configure a fresh child exchange and matching parent/reason on the
+finite worker. The parent outcome remains unchanged.
+
 Concurrent operations return `BUSY`. Close joins owned native work; stop does not
 cancel remote HTTP execution. Join application threads before destroying a public
 handle. A reader keeps the runner's local storage valid after runner destruction,

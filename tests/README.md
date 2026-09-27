@@ -125,6 +125,11 @@ authenticated correlated rejection, with prior cancellation/join checks retained
 Erlang and Elixir pass in 65.19 and 68.23 seconds respectively, including all four
 followup atoms, tagged invalid-reason/cross-realm/expired-turn errors, saved reply
 correlations and the previous immutable-reader/owner-death/join schedules.
+C and C++ pass in 62.92 and 70.08 seconds, including compiled C11 callbacks,
+typed C++ handlers, full-width parent identity, saved correlation and defined
+invalid-reason/cross-realm/expired-turn rejection. The initial C run exposed a
+C++ invalid-enum load abort; the C input now uses a checked fixed-width integer.
+All ten SDKs qualify followup submission and authenticated policy refusal.
 The shared `http_stage` helper freezes namespace ownership and advances one
 publication step per turn. Its disk/native proof replaces the host and owner
 after a committed metadata prefix, rejects a changed endpoint revision without

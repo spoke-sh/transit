@@ -38,6 +38,22 @@ static transit_sdk_error handle(void *context, transit_station_turn *turn, const
     transit_station_turn_release(owner->escaped); owner->escaped = turn; transit_station_turn_retain(turn);
     const message *value = input->value;
     const transit_station_key release_key = key("http-release-correlation");
+    const transit_station_key followup_key = key("http-followup-correlation");
+    if (input->kind == TRANSIT_INPUT_CAST && value->size == 8 && !memcmp(value->bytes, "followup", 8)) {
+        uint64_t correlation = UINT64_MAX;
+        transit_station_http_outcome wrong = owner->parent; wrong.resource.realm = 73;
+        assert(transit_station_turn_http_followup(turn, owner->peer, &wrong, owner->followup_reason, owner->request, &correlation).kind == TRANSIT_SDK_INVALID_ARGUMENT && correlation == 0);
+        assert(transit_station_turn_http_followup(turn, owner->peer, &owner->parent, (transit_station_http_followup_reason)100, owner->request, &correlation).kind == TRANSIT_SDK_INVALID_ARGUMENT && correlation == 0);
+        TRY(transit_station_turn_http_followup(turn, owner->peer, &owner->parent, owner->followup_reason, owner->request, &correlation));
+        TRY(transit_station_state_put(turn, &followup_key, &correlation)); owner->result = 5; return (transit_sdk_error){0};
+    }
+    if (input->kind == TRANSIT_INPUT_REPLY && value->reply && !value->released && value->outcome.rejected) {
+        transit_station_value *saved = NULL; TRY(transit_station_state_find(turn, NULL, &followup_key, &saved)); assert(saved);
+        const uint64_t correlation = *(const uint64_t *)transit_station_value_data(saved); transit_station_value_destroy(saved);
+        TRY(transit_station_turn_require_reply(turn, owner->peer, correlation)); assert(value->outcome.rejection == TRANSIT_HTTP_DENIED);
+        const transit_station_key rejected = key("http-followup-denied");
+        TRY(transit_station_state_put(turn, &rejected, &correlation)); owner->result = 6; return (transit_sdk_error){0};
+    }
     if (input->kind == TRANSIT_INPUT_CAST && value->size == 7 && !memcmp(value->bytes, "dispose", 7)) {
         uint64_t correlation = UINT64_MAX;
         assert(transit_station_turn_http_release(turn, owner->peer, (transit_sdk_resource){73, owner->disposal.resource.resource}, owner->disposal.exchange, &correlation).kind == TRANSIT_SDK_INVALID_ARGUMENT && correlation == 0);

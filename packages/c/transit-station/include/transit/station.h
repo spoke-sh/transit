@@ -234,6 +234,10 @@ typedef struct transit_station_http_request_view {
 } transit_station_http_request_view;
 typedef enum transit_station_http_phase { TRANSIT_HTTP_OBSERVED, TRANSIT_HTTP_CLOSED_UNKNOWN, TRANSIT_HTTP_NOT_DISPATCHED } transit_station_http_phase;
 typedef enum transit_station_http_rejection { TRANSIT_HTTP_DENIED, TRANSIT_HTTP_INVALID_REQUEST, TRANSIT_HTTP_BUSY } transit_station_http_rejection;
+/* Integer input keeps unknown values defined across the C/C++ boundary so they
+ * can return INVALID_ARGUMENT instead of triggering an invalid enum load. */
+typedef uint32_t transit_station_http_followup_reason;
+enum { TRANSIT_HTTP_RETRY, TRANSIT_HTTP_REDIRECT, TRANSIT_HTTP_RECONCILE, TRANSIT_HTTP_CANCEL };
 typedef struct transit_station_http_outcome {
     bool rejected;
     transit_station_http_rejection rejection;
@@ -265,6 +269,9 @@ transit_sdk_error transit_station_turn_http_stage(transit_station_turn *turn, co
 transit_sdk_error transit_station_turn_http_call(transit_station_turn *turn, transit_sdk_process peer, const transit_station_http_request *request, uint64_t *correlation);
 /* Request durable hold disposal; authenticate the correlated HTK1 reply. */
 transit_sdk_error transit_station_turn_http_release(transit_station_turn *turn, transit_sdk_process peer, transit_sdk_resource capture, uint64_t exchange, uint64_t *correlation);
+/* Submit a linked attempt using an already published request; service policy
+ * decides admission. Pointers remain borrowed for this synchronous operation. */
+transit_sdk_error transit_station_turn_http_followup(transit_station_turn *turn, transit_sdk_process peer, const transit_station_http_outcome *parent, transit_station_http_followup_reason reason, const transit_station_http_request *request, uint64_t *correlation);
 /* Reader retains local runner lifetime. Runner destroy/close joins native work;
  * caller must join concurrent uses before destroying any public handle. */
 transit_sdk_error transit_station_http_open(transit_station_runner *runner, const transit_station_http_outcome *outcome, transit_station_http_replay_policy policy, transit_station_http_reader **out);

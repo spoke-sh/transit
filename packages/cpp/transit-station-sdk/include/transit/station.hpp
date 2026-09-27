@@ -133,6 +133,8 @@ class State;
 class Source;
 class ResultReader;
 class PreparedHttpRequest;
+class HttpOutcome;
+enum class HttpFollowupReason { Retry = TRANSIT_HTTP_RETRY, Redirect = TRANSIT_HTTP_REDIRECT, Reconcile = TRANSIT_HTTP_RECONCILE, Cancel = TRANSIT_HTTP_CANCEL };
 template<class T> class Table;
 class Turn {
     std::shared_ptr<transit_station_turn> value_;
@@ -167,6 +169,7 @@ public:
     ResultReader result(uint64_t correlation) const;
     bool stage_http(const PreparedHttpRequest &request) const;
     uint64_t call_http(ProcessRef peer, const PreparedHttpRequest &request) const;
+    uint64_t followup_http(ProcessRef peer, const HttpOutcome &parent, HttpFollowupReason reason, const PreparedHttpRequest &request) const;
     uint64_t release_http(ProcessRef peer, ResourceRef capture, uint64_t exchange) const {
         uint64_t correlation = 0; check(transit_station_turn_http_release(native(), peer.native(), capture.native(), exchange, &correlation)); return correlation;
     }
@@ -356,6 +359,9 @@ public:
         return value_.reference_size ? std::optional<Bytes>(Bytes(value_.reference, value_.reference + value_.reference_size)) : std::nullopt;
     }
 };
+inline uint64_t Turn::followup_http(ProcessRef peer, const HttpOutcome &parent, HttpFollowupReason reason, const PreparedHttpRequest &request) const {
+    uint64_t correlation = 0; check(transit_station_turn_http_followup(native(), peer.native(), &parent.native(), static_cast<transit_station_http_followup_reason>(reason), request.native(), &correlation)); return correlation;
+}
 inline HttpOutcome decode_http_reply(uint64_t realm, const Bytes &bytes, const char *native_directory = nullptr) {
     transit_station_http_outcome out{}; check(transit_station_http_decode(realm, bytes_view(bytes), native_directory, &out)); return HttpOutcome(out);
 }

@@ -74,7 +74,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                 assert cfg['profile'] == 'growing_v3'
                 if mode.startswith('http-'):
                     return [http_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
-                            str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), http_fixtures]
+                            str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), http_fixtures, cfg.get('followup_reason', 'retry')]
                 return [binary, mode, cfg['url'], str(cfg['realm']), str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                         cfg['role'], str(cfg['resource']), cfg['pending'], cfg['output'], fixtures, '1' if cfg['query_results'] else '0', wrong]
             def installed_cli(config, role):
@@ -83,7 +83,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                         str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), '1', cfg['pending']]
             return Consumer(environment, command, installed_cli, 'invalid-thread', ('exception-stop', 'exception-block'), arrow_adapter=False)
         (execute or schedule)(node, cli, library, install, language)
-        if execute is None: http_schedule(node, cli, library, http_worker, install, language, public_release=True)
+        if execute is None: http_schedule(node, cli, library, http_worker, install, language, public_release=True, public_followup=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

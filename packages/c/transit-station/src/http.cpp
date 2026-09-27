@@ -149,4 +149,22 @@ transit_sdk_error transit_station_turn_http_release(transit_station_turn *turn, 
         *correlation = wide(owner.bridge->local.raw, value, "correlation");
     });
 }
+transit_sdk_error transit_station_turn_http_followup(transit_station_turn *turn, transit_sdk_process destination, const transit_station_http_outcome *parent, transit_station_http_followup_reason reason, const transit_station_http_request *request, uint64_t *correlation) {
+    if (correlation) *correlation = 0;
+    return with_turn(turn, false, [&](auto &owner) {
+        require(correlation && parent && !parent->rejected && parent->exchange && parent->resource.realm == owner.info.resource.realm, "http-followup-identity");
+        counter(parent->resource.resource); request_scope(owner, request); peer(owner, destination);
+        const char *name = nullptr;
+        switch (reason) {
+            case TRANSIT_HTTP_RETRY: name = "retry"; break;
+            case TRANSIT_HTTP_REDIRECT: name = "redirect"; break;
+            case TRANSIT_HTTP_RECONCILE: name = "reconcile"; break;
+            case TRANSIT_HTTP_CANCEL: name = "cancel"; break;
+            default: fail(TRANSIT_SDK_INVALID_ARGUMENT, "http-followup-reason");
+        }
+        if (!owner.bridge->local.caps.http_followup) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "http-followup");
+        const auto value = turn_apply(owner, "{\"http_followup\":{\"pid\":" + decimal(destination.pid) + ",\"resource\":" + decimal(parent->resource.resource) + ",\"parent\":" + quote(decimal(parent->exchange)) + ",\"reason\":" + quote(name) + ",\"reference\":" + quote(hex(request->reference)) + "}}");
+        *correlation = wide(owner.bridge->local.raw, value, "correlation");
+    });
+}
 }
