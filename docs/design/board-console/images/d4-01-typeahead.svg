@@ -36,8 +36,10 @@
 <text xml:space="preserve" x="350" y="155" font-family="sans-serif" font-size="17" font-weight="400" fill="black">×</text>
 <text xml:space="preserve" x="391" y="155" font-family="sans-serif" font-size="21" font-weight="400" fill="black">+</text>
 <path d="M240 168 H367" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="1190" y="128" width="218" height="36" rx="0" fill="white" stroke="black" stroke-dasharray="4 4"/>
-<text x="1204" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Run  Ctrl / ⌘ Enter</text>
+<rect x="1128" y="128" width="110" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1142" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Live  Ⅱ</text>
+<rect x="1250" y="128" width="158" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1264" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Snapshot  ▾</text>
 <path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text xml:space="preserve" x="252" y="232" font-family="monospace" font-size="13" font-weight="400" fill="black">1</text>
 <text xml:space="preserve" x="290" y="232" font-family="monospace" font-size="18" font-weight="700" fill="black">SELECT</text>
@@ -56,6 +58,30 @@
 <path d="M240 469 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 466 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 472 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-<text xml:space="preserve" x="240" y="511" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Result</text>
-<text xml:space="preserve" x="240" y="555" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Run a statement to inspect its result.</text>
+<text xml:space="preserve" x="240" y="511" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Speculative preview · samples</text>
+<text xml:space="preserve" x="758" y="511" font-family="sans-serif" font-size="15" font-weight="400" fill="black">6 rows · 2 columns</text>
+<text xml:space="preserve" x="240" y="550" font-family="monospace" font-size="15" font-weight="400" fill="black">SELECT id, value FROM samples</text>
+<text xml:space="preserve" x="240" y="580" font-family="sans-serif" font-size="13" font-weight="400" fill="black">samples · revision 42 · candidate C1</text>
+<text xml:space="preserve" x="1280" y="580" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Details</text>
+<text xml:space="preserve" x="264" y="628" font-family="monospace" font-size="13" font-weight="700" fill="black">id</text>
+<text xml:space="preserve" x="806" y="628" font-family="monospace" font-size="13" font-weight="700" fill="black">value</text>
+<path d="M240 644 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="674" font-family="monospace" font-size="15" font-weight="400" fill="black">101</text>
+<text xml:space="preserve" x="806" y="674" font-family="monospace" font-size="15" font-weight="400" fill="black">8</text>
+<path d="M240 686 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="711" font-family="monospace" font-size="15" font-weight="400" fill="black">102</text>
+<text xml:space="preserve" x="806" y="711" font-family="monospace" font-size="15" font-weight="400" fill="black">13</text>
+<path d="M240 723 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="748" font-family="monospace" font-size="15" font-weight="400" fill="black">103</text>
+<text xml:space="preserve" x="806" y="748" font-family="monospace" font-size="15" font-weight="400" fill="black">21</text>
+<path d="M240 760 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="785" font-family="monospace" font-size="15" font-weight="400" fill="black">104</text>
+<text xml:space="preserve" x="806" y="785" font-family="monospace" font-size="15" font-weight="400" fill="black">34</text>
+<path d="M240 797 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="822" font-family="monospace" font-size="15" font-weight="400" fill="black">105</text>
+<text xml:space="preserve" x="806" y="822" font-family="monospace" font-size="15" font-weight="400" fill="black">55</text>
+<path d="M240 834 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="859" font-family="monospace" font-size="15" font-weight="400" fill="black">106</text>
+<text xml:space="preserve" x="806" y="859" font-family="monospace" font-size="15" font-weight="400" fill="black">89</text>
+<path d="M240 871 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

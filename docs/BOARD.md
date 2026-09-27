@@ -164,8 +164,9 @@ configuration/operations together with first-class Table, Document and KV
 exploration, visualization and querying. It carries forward the atlas's shared
 Canvas/Browse state and evidence rules, with a long-range capability inventory.
 
-This is an unaccepted design proposal. Attributable administration, versioned
-configuration changes, future protocol families and richer data workspaces are
+The item records selected visual direction and still-proposed behavior.
+Attributable administration, versioned configuration changes, future protocol
+families and richer data workspaces are
 not implemented by this review. M2 inspection and M13's separately credentialed
 Table query profile retain their current access boundaries. Existing M15–M19
 handoffs and the new implementation scope required before enabling controls are
@@ -198,6 +199,14 @@ assistance from executable semantics, define proposed responsiveness budgets,
 and preserve exact result identity and profile coverage. These editor and catalog
 services are new design work; the current Table compiler and query API do not
 already provide them.
+
+The reviewer selected D4 Figure 1 and requested live execution as text changes.
+D4 now proposes a visible Live/Paused session, adaptive exact/speculative query
+scheduling and separate Snapshot/Stream result modes. Figure 1's compact layout
+is retained. [Live design notes](design/board-console/LIVE.md) cover candidate
+identity, cost/retention budgets, supersession and committed streaming progress.
+This supersedes the design's Run-only rule; M13's implemented explicit-submit
+and verified finite-result contracts remain unchanged pending new qualification.
 
 ## Boundary and packaging
 

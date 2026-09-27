@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
+<title id="title">D4 — Live Stream follows the current query</title><desc id="desc">The live worksheet follows a committed Table relation through revision 43. An update, deletion and insert produce new current rows under the same query. This is a proposed continuous-query view, not a finite result stream. Synthetic, proposed interface; not an application screenshot.</desc>
+<rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
+<rect x="232" y="10" width="230" height="36" rx="0" fill="white" stroke="black"/>
+<text x="248" y="34" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Storefront</text>
+<path d="M435 25 l5 5 l5 -5" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M0 56 H1440" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M208 56 L208 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<g role="img" aria-label="Area: Workspace. Workspace left; Operations right.">
+<rect x="36" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="36" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="83" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="48" y="95" width="8" height="8" rx="0" fill="black" stroke="black"/>
+<rect x="80" y="80" width="48" height="28" rx="14" fill="white" stroke="black"/>
+<circle cx="94" cy="94" r="10" fill="black" stroke="black"/>
+<path d="M147 86 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="152" cy="86" r="2.5" fill="white" stroke="black"/>
+<path d="M147 94 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="160" cy="94" r="2.5" fill="white" stroke="black"/>
+<path d="M147 102 H169" fill="none" stroke="black" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="155" cy="102" r="2.5" fill="white" stroke="black"/>
+</g>
+<text xml:space="preserve" x="32" y="153" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Atlas</text>
+<rect x="16" y="172" width="3" height="31" rx="0" fill="black" stroke="none"/>
+<text xml:space="preserve" x="32" y="195" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Explore</text>
+<text xml:space="preserve" x="32" y="237" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Connections</text>
+<text xml:space="preserve" x="32" y="279" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sources</text>
+<text xml:space="preserve" x="32" y="321" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Sinks</text>
+<text xml:space="preserve" x="32" y="363" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Activity</text>
+<text xml:space="preserve" x="240" y="103" font-family="sans-serif" font-size="23" font-weight="700" fill="black">Explore</text>
+<text xml:space="preserve" x="1082" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">Catalog</text>
+<text xml:space="preserve" x="1200" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">History</text>
+<text xml:space="preserve" x="1310" y="102" font-family="sans-serif" font-size="14" font-weight="400" fill="black">SQL help</text>
+<text xml:space="preserve" x="240" y="155" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Worksheet 1</text>
+<text xml:space="preserve" x="350" y="155" font-family="sans-serif" font-size="17" font-weight="400" fill="black">×</text>
+<text xml:space="preserve" x="391" y="155" font-family="sans-serif" font-size="21" font-weight="400" fill="black">+</text>
+<path d="M240 168 H367" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="1128" y="128" width="110" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1142" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Live  Ⅱ</text>
+<rect x="1250" y="128" width="158" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1264" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Stream  ▾</text>
+<path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="252" y="232" font-family="monospace" font-size="13" font-weight="400" fill="black">1</text>
+<text xml:space="preserve" x="290" y="232" font-family="monospace" font-size="18" font-weight="700" fill="black">SELECT</text>
+<text xml:space="preserve" x="355.03999999999996" y="232" font-family="monospace" font-size="18" font-weight="400" fill="black"> id, value</text>
+<text xml:space="preserve" x="252" y="266" font-family="monospace" font-size="13" font-weight="400" fill="black">2</text>
+<text xml:space="preserve" x="290" y="266" font-family="monospace" font-size="18" font-weight="700" fill="black">FROM</text>
+<text xml:space="preserve" x="333.36" y="266" font-family="monospace" font-size="18" font-weight="400" fill="black"> samples</text>
+<text xml:space="preserve" x="252" y="300" font-family="monospace" font-size="13" font-weight="400" fill="black">3</text>
+<text xml:space="preserve" x="290" y="300" font-family="monospace" font-size="18" font-weight="700" fill="black">WHERE</text>
+<text xml:space="preserve" x="344.2" y="300" font-family="monospace" font-size="18" font-weight="400" fill="black"> id &gt;= </text>
+<text xml:space="preserve" x="420.08" y="300" font-family="monospace" font-size="18" font-weight="400" fill="black">104</text>
+<path d="M420.08 305 H452.59999999999997" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="252" y="334" font-family="monospace" font-size="13" font-weight="400" fill="black">4</text>
+<text xml:space="preserve" x="290" y="334" font-family="monospace" font-size="18" font-weight="700" fill="black">LIMIT</text>
+<text xml:space="preserve" x="344.2" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black"> </text>
+<text xml:space="preserve" x="355.03999999999996" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black">3</text>
+<path d="M355.03999999999996 339 H365.87999999999994" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="365.87999999999994" y="334" font-family="monospace" font-size="18" font-weight="400" fill="black">;</text>
+<path d="M240 378 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 375 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M804 381 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="240" y="421" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Following · current draft</text>
+<text xml:space="preserve" x="575" y="421" font-family="sans-serif" font-size="15" font-weight="400" fill="black">3 current rows · 2 columns</text>
+<text xml:space="preserve" x="1140" y="421" font-family="monospace" font-size="13" font-weight="400" fill="black">Stream S7 / gen 14</text>
+<text xml:space="preserve" x="240" y="452" font-family="sans-serif" font-size="13" font-weight="400" fill="black">samples · through revision 43 · LIMIT 3</text>
+<text xml:space="preserve" x="1280" y="452" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Details</text>
+<text x="240" y="498" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Summary</text>
+<path d="M240 510 H296" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="365" y="498" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Rows</text>
+<text x="490" y="498" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
+<path d="M240 517 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="240" y="553" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Current relation</text>
+<text xml:space="preserve" x="1010" y="553" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Profile coverage: all 3 rows at r43</text>
+<text xml:space="preserve" x="240" y="595" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Column</text>
+<text xml:space="preserve" x="602" y="595" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Type</text>
+<text xml:space="preserve" x="856" y="595" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Nulls</text>
+<text xml:space="preserve" x="1080" y="595" font-family="sans-serif" font-size="13" font-weight="700" fill="black">Range</text>
+<path d="M240 613 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="240" y="647" font-family="monospace" font-size="16" font-weight="700" fill="black">id</text>
+<text xml:space="preserve" x="602" y="647" font-family="monospace" font-size="14" font-weight="400" fill="black">INT64</text>
+<text xml:space="preserve" x="856" y="647" font-family="sans-serif" font-size="14" font-weight="400" fill="black">0 / 3</text>
+<text xml:space="preserve" x="1080" y="647" font-family="monospace" font-size="14" font-weight="400" fill="black">105 – 107</text>
+<path d="M240 661 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="240" y="691" font-family="monospace" font-size="16" font-weight="700" fill="black">value</text>
+<text xml:space="preserve" x="602" y="691" font-family="monospace" font-size="14" font-weight="400" fill="black">INT64</text>
+<text xml:space="preserve" x="856" y="691" font-family="sans-serif" font-size="14" font-weight="400" fill="black">0 / 3</text>
+<text xml:space="preserve" x="1080" y="691" font-family="monospace" font-size="14" font-weight="400" fill="black">60 – 144</text>
+<path d="M240 705 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="240" y="752" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Rows at revision 43</text>
+<text xml:space="preserve" x="1045" y="752" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Initial snapshot r42 → following</text>
+<text xml:space="preserve" x="264" y="790" font-family="monospace" font-size="13" font-weight="700" fill="black">id</text>
+<text xml:space="preserve" x="806" y="790" font-family="monospace" font-size="13" font-weight="700" fill="black">value</text>
+<path d="M240 803 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="833" font-family="monospace" font-size="15" font-weight="400" fill="black">105</text>
+<text xml:space="preserve" x="806" y="833" font-family="monospace" font-size="15" font-weight="400" fill="black">60</text>
+<path d="M240 845 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="870" font-family="monospace" font-size="15" font-weight="400" fill="black">106</text>
+<text xml:space="preserve" x="806" y="870" font-family="monospace" font-size="15" font-weight="400" fill="black">89</text>
+<path d="M240 882 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text xml:space="preserve" x="264" y="907" font-family="monospace" font-size="15" font-weight="400" fill="black">107</text>
+<text xml:space="preserve" x="806" y="907" font-family="monospace" font-size="15" font-weight="400" fill="black">144</text>
+<path d="M240 919 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

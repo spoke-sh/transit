@@ -36,8 +36,10 @@
 <text xml:space="preserve" x="350" y="155" font-family="sans-serif" font-size="17" font-weight="400" fill="black">×</text>
 <text xml:space="preserve" x="391" y="155" font-family="sans-serif" font-size="21" font-weight="400" fill="black">+</text>
 <path d="M240 168 H367" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="1190" y="128" width="218" height="36" rx="0" fill="black" stroke="black"/>
-<text x="1204" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Run  Ctrl / ⌘ Enter</text>
+<rect x="1128" y="128" width="110" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1142" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Live  Ⅱ</text>
+<rect x="1250" y="128" width="158" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1264" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Snapshot  ▾</text>
 <path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M562 184 L562 960" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text xml:space="preserve" x="240" y="222" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Catalog</text>
@@ -68,5 +70,5 @@
 <text xml:space="preserve" x="662.36" y="266" font-family="monospace" font-size="18" font-weight="400" fill="black"> samples;</text>
 <path d="M587 469 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text xml:space="preserve" x="587" y="511" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Result</text>
-<text xml:space="preserve" x="587" y="555" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Run a statement to inspect its result.</text>
+<text xml:space="preserve" x="587" y="555" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Evaluating current draft…</text>
 </svg>

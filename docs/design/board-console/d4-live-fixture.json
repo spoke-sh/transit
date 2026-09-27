@@ -1,0 +1,202 @@
+{
+  "version": 1,
+  "scope": "Synthetic expected outcomes for the D4 live design. No scheduler, predictor, subscription API or continuous operator is implemented or tested by this fixture.",
+  "base_fixture": "d2-fixture.json",
+  "query": "SELECT id, value FROM samples WHERE id >= 104 LIMIT 3;",
+  "speculation": {
+    "draft": "SELECT id, value FROM sam",
+    "candidate_id": "C1",
+    "candidate_sql": "SELECT id, value FROM samples",
+    "source_revision": 42,
+    "label": "Speculative preview",
+    "rows": [
+      [
+        101,
+        8
+      ],
+      [
+        102,
+        13
+      ],
+      [
+        103,
+        21
+      ],
+      [
+        104,
+        34
+      ],
+      [
+        105,
+        55
+      ],
+      [
+        106,
+        89
+      ]
+    ],
+    "promotion_requires": [
+      "accepted text has same compiled semantics",
+      "same mode",
+      "matching source/schema basis",
+      "current authorization"
+    ],
+    "promotion_retains_source_revision": 42
+  },
+  "snapshot": {
+    "revision": 42,
+    "rows": [
+      [
+        104,
+        34
+      ],
+      [
+        105,
+        55
+      ],
+      [
+        106,
+        89
+      ]
+    ],
+    "source_change_behavior": "Keep the immutable revision-42 answer; no automatic refresh from source changes alone."
+  },
+  "stream": {
+    "generation": 14,
+    "initial_revision": 42,
+    "initial_rows": [
+      [
+        104,
+        34
+      ],
+      [
+        105,
+        55
+      ],
+      [
+        106,
+        89
+      ]
+    ],
+    "transaction": {
+      "revision": 43,
+      "changes": [
+        {
+          "op": "update",
+          "id": 105,
+          "before": 55,
+          "after": 60
+        },
+        {
+          "op": "delete",
+          "id": 104,
+          "before": 34
+        },
+        {
+          "op": "insert",
+          "id": 107,
+          "after": 144
+        }
+      ]
+    },
+    "after_commit_rows": [
+      [
+        105,
+        60
+      ],
+      [
+        106,
+        89
+      ],
+      [
+        107,
+        144
+      ]
+    ],
+    "profile": {
+      "row_count": 3,
+      "null_counts": [
+        0,
+        0
+      ],
+      "ranges": [
+        [
+          "105",
+          "107"
+        ],
+        [
+          "60",
+          "144"
+        ]
+      ]
+    },
+    "label": "Following",
+    "frontier": 43,
+    "limit_meaning": "Current first three matching rows in primary-key order, not three events.",
+    "snapshot_tail_duplicate": "A duplicate of the revision-43 transaction is ignored by identity/position; it cannot count twice.",
+    "gap_behavior": "Mark a gap and require qualified resnapshot/resume; do not present following as current."
+  },
+  "scheduling_scenarios": [
+    {
+      "id": "valid_each_key",
+      "drafts": [
+        "SELECT id FROM samples WHERE id >= 1;",
+        "SELECT id FROM samples WHERE id >= 10;",
+        "SELECT id FROM samples WHERE id >= 104;"
+      ],
+      "expected": "Each valid edit is eligible immediately, including per-key execution if budget/admission permits; no mandatory debounce."
+    },
+    {
+      "id": "latest_unsubmitted",
+      "active_generation": 11,
+      "pending_generations": [
+        12,
+        13,
+        14
+      ],
+      "expected": "Keep pending generation 14 only; accepted generation 11 still needs its recorded outcome/recovery."
+    },
+    {
+      "id": "late_result",
+      "displayed_generation": 14,
+      "incoming_generation": 11,
+      "expected": "Retain original outcome identity without replacing generation 14 in the worksheet."
+    },
+    {
+      "id": "incomplete_predicate",
+      "draft": "SELECT id, value FROM samples WHERE samples.",
+      "displayed_query": "SELECT id, value FROM samples",
+      "expected": "Earlier draft label, never current; no silent removal of WHERE to manufacture an exact execution."
+    },
+    {
+      "id": "paused",
+      "draft": "SELECT id, value FROM samples;",
+      "expected": "Completion remains available; edits schedule no automatic query until Live resumes or an exact one-shot is requested."
+    },
+    {
+      "id": "stable_exact_priority",
+      "exact_generation": 14,
+      "speculative_candidate": "C2",
+      "expected": "Admit stable exact work before speculation when budget becomes available."
+    },
+    {
+      "id": "unknown_submission",
+      "frozen_generation": 11,
+      "latest_draft": 14,
+      "expected": "Reconcile the same frozen generation-11 operation; do not retarget it or bypass current shared-principal admission."
+    },
+    {
+      "id": "authority_lost",
+      "expected": "Clear protected drafts/candidates/results; a high predicted utility cannot authorize work or reuse."
+    },
+    {
+      "id": "automatic_effect_denied",
+      "draft": "CREATE TABLE samples (id INT64 NOT NULL, value INT64);",
+      "expected": "No automatic execution; live scope includes qualified reads only."
+    },
+    {
+      "id": "retention_pressure",
+      "expected": "Backpressure or pause new scheduling under quota; no implicit expiry/deletion of accepted result or recovery evidence."
+    }
+  ]
+}

@@ -68,8 +68,14 @@ from executable evidence; never treat a skipped or incomplete proof as passed.
   dependencies, proposed changes and observed state distinctly. Distinguish
   executable syntax, reference-grammar-only forms and missing grammar/semantics;
   propose missing contracts explicitly instead of inventing runnable SQL or
-  treating parser acceptance as execution support. A visual edit never applies
-  a change, runs a query or dispatches an effect implicitly.
+  treating parser acceptance as execution support. Edits may schedule qualified
+  read queries in a visible, scoped Live worksheet session, as proposed in
+  [Board console D4](docs/design/board-console/D4.md#live-execution-snapshot-and-stream).
+  Keep exact, speculative and earlier-draft results distinct; bind work to its
+  draft, query, source basis and budget. Probability may guide scheduling, never
+  authorization or result truth. Editing does not implicitly apply administrative
+  changes or dispatch external effects. Live execution and continuous queries
+  require their own contracts; M13's implemented explicit-submit profile remains.
 - Respect the architecture's dependency direction. Core depends on the public
   protocol, never Station or a provider. Applications use the client; the node
   must not import handlers or claim protocol validation proves honest computation.

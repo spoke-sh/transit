@@ -61,10 +61,17 @@ capability rules and authorized catalog metadata jointly drive proposed completi
 and highlighting. The checked grammar is an input to a future editor service,
 not an existing incremental/completion API. Editing assistance must handle
 incomplete text without weakening complete-statement compilation at execution.
-Result summaries describe a named execution and explicit profile coverage;
-they cannot silently query the source again. The [console design notes](design/board-console/CONSOLE.md)
-record generation, performance and catalog/result requirements without adding
-new executable syntax.
+Its live refinement proposes automatic evaluation of qualified read queries
+as text changes, including probabilistically selected complete candidates.
+Live/Paused controls scheduling; Snapshot/Stream controls time semantics.
+Probability may choose which work is useful, not weaken compilation, authority
+or evidence. A speculative answer names its candidate separately from the draft.
+Result summaries describe an exact execution or committed stream frontier and
+explicit profile coverage; chart/summary controls do not independently dispatch
+queries. The [console notes](design/board-console/CONSOLE.md) and
+[live scheduling notes](design/board-console/LIVE.md) record the proposed editor,
+admission and source contracts. No continuous SQL syntax or runtime is introduced;
+the qualified snapshot profile and deferred streaming scope below remain intact.
 
 ## DDL: mostly a spelling problem, with one real prerequisite
 

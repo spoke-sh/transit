@@ -36,8 +36,10 @@
 <text xml:space="preserve" x="350" y="155" font-family="sans-serif" font-size="17" font-weight="400" fill="black">×</text>
 <text xml:space="preserve" x="391" y="155" font-family="sans-serif" font-size="21" font-weight="400" fill="black">+</text>
 <path d="M240 168 H367" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<rect x="1190" y="128" width="218" height="36" rx="0" fill="black" stroke="black"/>
-<text x="1204" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Run  Ctrl / ⌘ Enter</text>
+<rect x="1128" y="128" width="110" height="36" rx="0" fill="black" stroke="black"/>
+<text x="1142" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="white">Live  Ⅱ</text>
+<rect x="1250" y="128" width="158" height="36" rx="0" fill="white" stroke="black"/>
+<text x="1264" y="152" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Snapshot  ▾</text>
 <path d="M240 184 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text xml:space="preserve" x="252" y="232" font-family="monospace" font-size="13" font-weight="400" fill="black">1</text>
 <text xml:space="preserve" x="290" y="232" font-family="monospace" font-size="18" font-weight="700" fill="black">SELECT</text>
@@ -59,9 +61,9 @@
 <path d="M240 378 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 375 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 381 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-<text xml:space="preserve" x="240" y="421" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Complete</text>
-<text xml:space="preserve" x="376" y="421" font-family="sans-serif" font-size="16" font-weight="400" fill="black">3 rows</text>
-<text xml:space="preserve" x="492" y="421" font-family="sans-serif" font-size="16" font-weight="400" fill="black">2 columns</text>
+<text xml:space="preserve" x="240" y="421" font-family="sans-serif" font-size="18" font-weight="700" fill="black">Current draft</text>
+<text xml:space="preserve" x="440" y="421" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Complete · 3 rows</text>
+<text xml:space="preserve" x="655" y="421" font-family="sans-serif" font-size="15" font-weight="400" fill="black">2 columns</text>
 <text xml:space="preserve" x="1145" y="421" font-family="monospace" font-size="13" font-weight="400" fill="black">Result Q12 / R18</text>
 <text xml:space="preserve" x="240" y="452" font-family="sans-serif" font-size="13" font-weight="400" fill="black">samples · revision 42 · LIMIT 3</text>
 <text xml:space="preserve" x="1280" y="452" font-family="sans-serif" font-size="13" font-weight="400" fill="black">Details</text>

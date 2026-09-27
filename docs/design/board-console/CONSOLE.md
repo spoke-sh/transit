@@ -5,6 +5,9 @@
 Supporting design for **board-console D4**, not another review or a wire
 specification. All editor services, generated browser artifacts, completion,
 catalog search, worksheet history and profile UI described here are proposed.
+The live D4 refinement supersedes the original no-execution-while-typing policy.
+[Live scheduling and stream semantics](LIVE.md) owns execution speculation,
+session budgets and Snapshot/Stream behavior; this file owns editor assistance.
 
 ## What exists and what must be built
 
@@ -41,11 +44,13 @@ documentation, marked unavailable for execution. A server capability version
 must agree with the editor's grammar/profile before semantic suggestions are used.
 
 The server's complete parse/compile and current authorization remain required
-at Run. Editing assistance may preserve a useful partial tree through invalid
-text, but never sends that recovered tree as executable truth or drops an invalid
-suffix. Do not call `prepare` on every edit: it freezes a signed operation and
-is not a pure diagnostics endpoint. A future validation operation must be
-separately specified if shared local diagnostics are insufficient.
+for every actual evaluation. A partial editor tree is not executable truth.
+Speculation must produce a separate, complete candidate, compile it normally
+and disclose its identity; it cannot silently drop an invalid suffix. Pure
+editor diagnostics never call `prepare`. The live scheduler may prepare/submit
+admitted candidates, recognizing that this freezes a signed operation, consumes
+shared admission and captures durable work. Per-keystroke scheduling needs the
+separate lifecycle and resource contract in the live notes.
 
 ## Completion request and response shape
 
@@ -68,8 +73,9 @@ name. Only syntactically relevant candidate kinds enter ranking. Then filter by
 source kind, resolved scope, compatible type and executable profile. Prefer an
 exact prefix match and stable catalog order; do not reorder a highlighted entry
 under the user's keypress. Tab/Enter accepts, arrows select, Escape dismisses,
-and Ctrl+Space explicitly requests assistance. Ctrl/Cmd+Enter is Run and never
-an accidental consequence of accepting a completion.
+and Ctrl+Space explicitly requests assistance. Accepting a completion is a text
+edit and may schedule execution in Live. Ctrl/Cmd+Enter prioritizes an exact
+evaluation now; ordinary completion remains usable in Paused without queries.
 
 | Context (`\|` marks the caret) | Proposed assistance |
 | --- | --- |
@@ -102,8 +108,11 @@ review and must not be the sole indication of an error.
 Typing and caret movement stay on the editor thread. Syntax/context work runs in
 a worker with one active job and one coalesced latest request. Cancel obsolete
 jobs and discard stale results. Result decoding/profiling has a separate bounded
-work budget and must not delay typing. Do not send whole SQL buffers to a remote
-service per keystroke or invoke an LLM for the required completion behavior.
+work budget and must not delay typing. Local assistance does not need a remote
+round trip per key or an LLM. Separately, the live scheduler may send a qualified
+candidate for each useful edit, including every keystroke within budget. Prefer
+versioned edits/plan reuse where qualified; never confuse an editor worker job
+with an admitted query or hide their different I/O and storage costs.
 
 Seed the current Table's metadata through its authorized describe path. A future
 catalog endpoint supplies bounded, prefix-filtered pages; one in-flight request
@@ -149,7 +158,7 @@ Catalog metadata is protected data. Its cache key includes realm, principal or
 configured identity, policy observation, catalog revision and capability profile.
 Only disclosed entries may appear in candidates, hover text or match counts.
 The server authorizes every metadata request; knowing a name supplies no grant.
-Schema/source revisions are carried through resolution and checked again at Run.
+Schema/source revisions are carried through resolution and checked at evaluation.
 An expired observation suppresses affected semantic suggestions until refreshed;
 known revocation clears them immediately. A late response cannot resurrect them.
 
@@ -163,11 +172,15 @@ access and secret-handling contracts. No automatic localStorage history is impli
 
 ## Summary semantics
 
-Every result view is bound to the frozen executed text, correlation/result ID,
+Each finite snapshot view is bound to the frozen executed text, correlation/result ID,
 source identity/revision and verified manifest. Column labels and types come
 from the result schema, which may differ from source columns after an aggregate.
 Before verified completion, show status/progress, not apparently final rows or
-profiles. A submission receipt does not establish query admission or completion;
+profiles. Speculative snapshots additionally name their candidate and parent
+draft; they can be verified answers to that candidate without answering current
+text. Stream views instead require the committed-frontier contract in the live
+notes, and cannot reuse snapshot Complete as a status for an endless query.
+A submission receipt does not establish query admission or completion;
 observe those phases separately.
 
 | Summary field | Evidence / coverage |
@@ -204,8 +217,9 @@ versioned typed adapters; the UI never infers application decoding from bytes.
 Rows, charts and cell inspection share the same result and coverage. A chart can
 render a loaded page without extra I/O; an entire-result chart must explicitly
 obtain a qualified result-derived summary. Changing chart controls or a displayed
-filter cannot secretly dispatch a fresh query. Offer an explicit SQL edit and Run
-when the user wants a different source result.
+filter does not independently dispatch a fresh query. An explicit SQL edit enters
+the worksheet's live scheduling policy; Paused leaves it unevaluated. Stream
+views advance with committed source progress even while their SQL stays unchanged.
 
 ## Qualification to require before implementation acceptance
 
@@ -217,8 +231,12 @@ mismatch. Valid syntax is not a sufficient positive case: include compilation
 failures that the editor must explain instead of presenting as executable.
 
 Exercise catalog revocation, delayed responses, a changed schema, realm changes,
-offline policy state and hidden-object prefixes. Verify no query preparation,
-submission, row scan or effect occurs while typing, completing or browsing.
+offline policy state and hidden-object prefixes. Verify that Paused editing and
+metadata-only browsing prepare/submit no queries. In Live, verify only admitted,
+qualified exact/candidate reads occur within scope and budget, with no external
+effects or automatic administrative writes. A completion popup itself is not
+execution authority. Verify candidate identity, supersession and stale-result
+fencing using the live scenarios.
 Test keyboard/screen-reader completion, IME composition, undo and focus stability.
 
 Compare summaries with independent typed computations on empty/all-null, large
