@@ -47,6 +47,18 @@ request publication, durable correlation and authenticated reply storage. Its
 unchanged local application/restart/replay proof passes in **27.05 seconds** with
 exactly one network send. Protocol request/replay validators stay in the adapters.
 
+The Zig RPC caller now passes local (**35.05 seconds**), fresh-key bootstrap
+(**36.80 seconds**), Compose (**138.86 seconds**) and reference placement
+(**364.86 seconds**) schedules, each with exactly one RPC and 54 response bytes.
+The reference task completed owned-resource cleanup after caller worker loss,
+fresh registration/ownership, node/store restart and replay with the peer stopped
+and credential deleted. Caller/effect network and file isolation use the shared
+[operator placement](../examples/exchange/README.md); the default installation is
+untouched. HTTP regressions through the shared placement pass locally in **26.97**
+and in Compose in **105.58 seconds**. Container timings include changed-image
+preparation and concurrent proof load. These are local measurements, not hosted
+CI budgets or automatic growing runtime binding/supervision evidence.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover
@@ -73,8 +85,8 @@ full-width protobuf plus an empty message, authenticates its reply, rejects repl
 after prefix revocation, joins active reader work and disposes its durable hold
 before/after cleanup. Typed retry refusal allocates no child or send. Each peer
 records exactly one RPC. The unchanged Python and Node HTTP schedules pass through
-the shared harness in **65.95** and **68.32 seconds**. Other SDKs and deployment
-remain open; these local timings do not establish hosted CI cost.
+the shared harness in **65.95** and **68.32 seconds**. The remaining language and placement proofs are recorded above; these local
+timings do not establish hosted CI cost.
 
 `just test::grpc-libraries` runs the selected pinned HTTP/2, HPACK, protobuf and
 gRPC client suites. Compatibility changes and the intentionally excluded server
@@ -94,8 +106,7 @@ including frozen policy, 4 KiB message parts and 256-byte replay reads. Units
 reject changed digests, missing parts, false terminal counts, invalid metadata,
 undeclared credentials and unsafe retry changes. Python-generated GRH1/GRM1/GRS1/
 GRT1/GRO1/GRC1 fixtures fix the binary layouts independently. These sinks are
-in-memory protocol probes; durable recovery is qualified separately above, while
-SDKs and deployment remain open.
+in-memory protocol probes; durable recovery, SDKs and deployment are qualified separately above.
 
 `just test::tls-alpn` executes a real Zig client against six independent TLS
 connections: TLS 1.2 and 1.3 each accept `h2` and reject absent or incompatible

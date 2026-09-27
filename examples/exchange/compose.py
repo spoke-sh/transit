@@ -26,12 +26,14 @@ class Process:
 
 
 class Compose:
-    def __init__(self, work):
+    def __init__(self, work, protocol="http"):
         self.work = work
-        self.project = "transit-http-" + uuid.uuid4().hex[:10]
-        self.env = os.environ | {"HTTP_UID": str(os.getuid()), "HTTP_GID": str(os.getgid()),
-            "HTTP_WORK": str(work),
-            "HTTP_URSULA_IMAGE": json.loads((ROOT / "deploy/reference/versions.json").read_text())["ursula"]}
+        self.protocol = protocol
+        assert protocol in ("http", "grpc")
+        self.project = "transit-" + protocol + "-" + uuid.uuid4().hex[:10]
+        self.env = os.environ | {"EXCHANGE_UID": str(os.getuid()), "EXCHANGE_GID": str(os.getgid()),
+            "EXCHANGE_WORK": str(work),
+            "EXCHANGE_URSULA_IMAGE": json.loads((ROOT / "deploy/reference/versions.json").read_text())["ursula"]}
         self.command = ["docker", "compose", "--project-name", self.project, "--env-file", os.devnull,
                         "--file", str(Path(__file__).with_name("docker-compose.yaml"))]
         self.build()
@@ -43,9 +45,9 @@ class Compose:
         return result.stdout
 
     def build(self):
-        prefix = ROOT / ".cache/http-example/images"
+        prefix = ROOT / f".cache/{self.protocol}-example/images"
         prefix.mkdir(parents=True, exist_ok=True)
-        names = {"NODE": "transit-node", "CALLER": "example-station-http", "CONNECTOR": "transit-station-http-worker"}
+        names = {"NODE": "transit-node", "CALLER": f"example-station-{self.protocol}", "CONNECTOR": f"transit-station-{self.protocol}-worker"}
         architecture = subprocess.check_output(["docker", "info", "--format", "{{.Architecture}}"], text=True).strip()
         target = {"x86_64": "x86_64-linux-musl", "aarch64": "aarch64-linux-musl"}[architecture]
         subprocess.run(["zig", "build", *names.values(), "-Doptimize=ReleaseSafe", "-Dtarget=" + target,
@@ -57,21 +59,28 @@ class Compose:
             shutil.copyfile(prefix / "static/bin" / binary, context / "app")
             (context / "app").chmod(0o555)
             (context / "Dockerfile").write_text('FROM scratch\nCOPY app /bin/app\nENTRYPOINT ["/bin/app"]\n')
-            self.env["HTTP_" + role + "_IMAGE"] = self.image(context)
+            self.env["EXCHANGE_" + role + "_IMAGE"] = self.image(context)
         # Use the pinned Nix Python closure as an independent peer, without adding
         # a floating container dependency or a Python runtime to the Zig workers.
         context = prefix / "peer"
         context.mkdir(exist_ok=True)
         executable = Path(sys.executable).resolve()
         package = Path(*executable.parts[:4])
-        closure = subprocess.check_output(["nix-store", "--query", "--requisites", str(package)], text=True).splitlines()
+        packages = [str(package)]
+        python_paths = []
+        if self.protocol == "grpc":
+            import grpc
+            site = Path(grpc.__file__).resolve().parent.parent
+            python_paths.append(str(site))
+            packages.append(str(Path(*site.parts[:4])))
+        closure = subprocess.check_output(["nix-store", "--query", "--requisites", *packages], text=True).splitlines()
         for item in closure:
             destination = context / item.lstrip("/")
             if not destination.exists():
                 shutil.copytree(item, destination, symlinks=True)
         shutil.copyfile(Path(__file__).with_name("peer.py"), context / "peer.py")
-        (context / "Dockerfile").write_text('FROM scratch\nCOPY nix /nix\nCOPY peer.py /peer.py\nENTRYPOINT ' + json.dumps([str(executable), "-B", "/peer.py"]) + '\n')
-        self.env["HTTP_PEER_IMAGE"] = self.image(context)
+        (context / "Dockerfile").write_text('FROM scratch\nCOPY nix /nix\nCOPY peer.py /peer.py\nENV PYTHONPATH=' + json.dumps(':'.join(python_paths)) + '\nENTRYPOINT ' + json.dumps([str(executable), "-B", "/peer.py"]) + '\n')
+        self.env["EXCHANGE_PEER_IMAGE"] = self.image(context)
 
     def image(self, context):
         result = subprocess.run(["docker", "build", "--iidfile", str(context / "image.id"), str(context)],

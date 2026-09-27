@@ -53,3 +53,6 @@ the connector in an egress-confined Kubernetes pod, using a disposable namespace
 in the already prepared reference cluster. See the [placement guide](docs/placement.md)
 for prerequisites and limits. These are finite operator placements; growing
 runtime actor bindings are not advertised by this example.
+
+The [shared exchange support](../exchange/README.md) owns the recovery harness,
+Compose topology and reference placement used by both connectors.

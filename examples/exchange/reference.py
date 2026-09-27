@@ -39,9 +39,9 @@ class Pod:
 
 
 class Reference(Compose):
-    def __init__(self, work):
+    def __init__(self, work, protocol="http"):
         if sys.platform != "linux" or os.uname().machine != "x86_64":
-            raise RuntimeError("The reference HTTP example currently requires Linux x86_64")
+            raise RuntimeError("The reference exchange example currently requires Linux x86_64")
         if not (ROOT / ".cache/reference/state.json").exists() or not (ROOT / ".cache/reference/runtime-image.json").exists():
             raise RuntimeError("Prepare the owned reference infrastructure and runtime image before this task; see the reference launcher guide")
         self.state = json.loads((ROOT / ".cache/reference/state.json").read_text())
@@ -50,14 +50,14 @@ class Reference(Compose):
         if self.runtime["registry"] != self.state["registry_id"] or self.runtime["revision"] != self.pins["substrate"]:
             raise RuntimeError("Reference runtime image does not match the owned infrastructure")
         self.context = ["--kubeconfig", str(ROOT / ".cache/reference/kubeconfig"), "--context", "kind-" + self.state["cluster"]]
-        self.namespace = "transit-http-" + uuid.uuid4().hex[:10]
+        self.namespace = "transit-" + protocol + "-" + uuid.uuid4().hex[:10]
         self.namespace_uid = None
         self.forwards = {}
         self.actors = []
         self.counter = 0
         self.values = None
-        super().__init__(work)
-        prefix = ROOT / ".cache/http-example/images"
+        super().__init__(work, protocol)
+        prefix = ROOT / f".cache/{self.protocol}-example/images"
         subprocess.run(["zig", "build", "probe", "-Doptimize=ReleaseSafe", "-Dtarget=x86_64-linux-musl", "--prefix", str(prefix / "static")], cwd=ROOT, check=True, timeout=300)
         probe = prefix / "probe"
         probe.mkdir(exist_ok=True)
@@ -65,17 +65,17 @@ class Reference(Compose):
         shutil.copyfile(prefix / "static/bin/isolation-probe", probe / "app")
         (probe / "app").chmod(0o555)
         (probe / "Dockerfile").write_text('FROM scratch\nCOPY app /bin/app\nENTRYPOINT ["/bin/app"]\n')
-        self.env["HTTP_PROBE_IMAGE"] = self.image(probe)
+        self.env["EXCHANGE_PROBE_IMAGE"] = self.image(probe)
         # Only publish the images built for this example, never update services
         # or provider infrastructure in an existing application namespace.
         for role in ("NODE", "CALLER", "CONNECTOR", "PEER", "PROBE"):
-            image = self.env["HTTP_" + role + "_IMAGE"]
-            repository = f"localhost:{self.state['port']}/transit-http-example-{role.lower()}"
+            image = self.env["EXCHANGE_" + role + "_IMAGE"]
+            repository = f"localhost:{self.state['port']}/transit-{self.protocol}-example-{role.lower()}"
             tag = repository + ":" + image.split(":")[1][:16]
             subprocess.run(["docker", "tag", image, tag], check=True, timeout=15)
             subprocess.run(["docker", "push", tag], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=180)
             records = json.loads(subprocess.check_output(["docker", "inspect", tag], text=True))
-            self.env["HTTP_" + role + "_IMAGE"] = next(d for d in records[0]["RepoDigests"] if d.startswith(repository + "@"))
+            self.env["EXCHANGE_" + role + "_IMAGE"] = next(d for d in records[0]["RepoDigests"] if d.startswith(repository + "@"))
 
     @property
     def authority(self):
@@ -109,11 +109,11 @@ class Reference(Compose):
         # Create, never adopt. Cleanup checks the recorded UID before deletion.
         self.kube("create", "namespace", self.namespace)
         self.namespace_uid = self.get("namespace", self.namespace)["metadata"]["uid"]
-        self.values = {"node": {"nameOverride": "node", "enabled": False, "image": self.env["HTTP_NODE_IMAGE"],
+        self.values = {"node": {"nameOverride": "node", "enabled": False, "image": self.env["EXCHANGE_NODE_IMAGE"],
                                   "config": json.loads((self.work / "operator/node.json").read_text())},
                        "initialize": {"nameOverride": "initialize", "enabled": False},
-                       "ursula": {"nameOverride": "ursula", "image": self.env["HTTP_URSULA_IMAGE"]},
-                       "workerPool": {"nameOverride": "caller", "enabled": True, "labels": {"transit.dev/http-example": self.namespace},
+                       "ursula": {"nameOverride": "ursula", "image": self.env["EXCHANGE_URSULA_IMAGE"]},
+                       "workerPool": {"nameOverride": "caller", "enabled": True, "labels": {"transit.dev/exchange-example": self.namespace},
                            "spec": {"replicas": 2, "workerImage": self.runtime["image"], "template": {
                                "nodeSelector": {"ate.dev/substrate-version": self.pins["substrate"][:7]},
                                "resources": {"requests": {"cpu": "100m", "memory": "512Mi"}, "limits": {"cpu": "1", "memory": "1Gi"}}}}}}
@@ -124,7 +124,7 @@ class Reference(Compose):
         values = self.work / "reference-values.json"
         values.write_text(json.dumps(self.values))
         result = subprocess.run(["helm", "--kubeconfig", self.context[1], "--kube-context", self.context[3],
-            "upgrade", "--install", "http-example", str(ROOT / "charts/transit"), "--namespace", self.namespace,
+            "upgrade", "--install", "exchange-example", str(ROOT / "charts/transit"), "--namespace", self.namespace,
             "--values", str(values), "--wait", "--wait-for-jobs", "--timeout", "180s", "--history-max", "3"],
             capture_output=True, text=True, timeout=200)
         if result.returncode: raise RuntimeError(result.stderr[-4000:])
@@ -153,12 +153,12 @@ class Reference(Compose):
         self.setup()
         if service == "peer":
             self.secret("peer-files", self.work / "peer")
-            container = {"name": "peer", "image": self.env["HTTP_PEER_IMAGE"], "args": ["/peer/config.json"],
+            container = {"name": "peer", "image": self.env["EXCHANGE_PEER_IMAGE"], "args": ["/peer/config.json"],
                          "volumeMounts": [{"name": "files", "mountPath": "/peer", "readOnly": True}, {"name": "output", "mountPath": "/peer-output"}],
                          "readinessProbe": {"tcpSocket": {"port": 8443}, "periodSeconds": 1}}
             self.pod_deployment("peer", container, [{"name": "files", "secret": {"secretName": "peer-files"}}, {"name": "output", "emptyDir": {}}])
             self.apply({"apiVersion": "v1", "kind": "Service", "metadata": {"name": "peer"},
-                        "spec": {"selector": {"app": "http-peer"}, "ports": [{"port": 8443, "targetPort": 8443}]}})
+                        "spec": {"selector": {"app": "exchange-peer"}, "ports": [{"port": 8443, "targetPort": 8443}]}})
         return self.wait_pod(service)
 
     def url(self, service):
@@ -185,15 +185,15 @@ class Reference(Compose):
         container.update(securityContext={"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
                          resources={"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "1", "memory": "512Mi"}})
         self.apply({"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name}, "spec": {
-            "replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app": "http-" + name}},
-            "template": {"metadata": {"labels": {"app": "http-" + name}}, "spec": {"automountServiceAccountToken": False,
+            "replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app": "exchange-" + name}},
+            "template": {"metadata": {"labels": {"app": "exchange-" + name}}, "spec": {"automountServiceAccountToken": False,
                 "securityContext": {"runAsUser": 65532, "runAsGroup": 65532, "runAsNonRoot": True, "fsGroup": 65532},
                 "containers": [container], "volumes": volumes}}}})
 
     def caller_template(self, name, config):
         return {"metadata": {"atespace": self.namespace, "name": name},
-            "workerSelector": {"matchLabels": {"transit.dev/http-example": self.namespace}},
-            "containers": [{"name": "caller", "image": self.env["HTTP_CALLER_IMAGE"],
+            "workerSelector": {"matchLabels": {"transit.dev/exchange-example": self.namespace}},
+            "containers": [{"name": "caller", "image": self.env["EXCHANGE_CALLER_IMAGE"],
                 "command": ["/bin/app", "--bootstrap-json", json.dumps(config)],
                 "volumeMounts": [{"name": "runtime-data", "mountPath": "/runtime-data"}]}],
             "volumes": [{"name": "runtime-data", "durableDir": {}}],
@@ -313,7 +313,7 @@ class Reference(Compose):
             checks = [{"label": "target-" + str(i), "url": "http://" + target + "/"} for i, target in enumerate(args[2:])]
             checks += [{"label": "kubernetes", "url": "http://kubernetes.default.svc.cluster.local:443/"},
                        {"label": "substrate", "url": "http://api.ate-system.svc.cluster.local:443/"}]
-            template["containers"][0].update(image=self.env["HTTP_PROBE_IMAGE"], command=["/bin/app", json.dumps({"authority": self.authority + "/health", "checks": checks})])
+            template["containers"][0].update(image=self.env["EXCHANGE_PROBE_IMAGE"], command=["/bin/app", json.dumps({"authority": self.authority + "/health", "checks": checks})])
             handle = self.launch_actor(template)
             deadline = time.monotonic() + 180
             while time.monotonic() < deadline:
@@ -354,8 +354,8 @@ ip6tables -w -A OUTPUT -j REJECT
             "initContainers": [
                 {"name": "egress", "image": self.pins["kind_node"], "command": ["sh", "-ec", rules],
                  "securityContext": {"runAsUser": 0, "runAsNonRoot": False, "allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"], "add": ["NET_ADMIN"]}}},
-                {"name": "probe", "image": self.env["HTTP_PEER_IMAGE"], "args": ["probe", self.authority, *denied], "securityContext": secure}],
-            "containers": [{"name": "connector", "image": self.env["HTTP_CONNECTOR_IMAGE"], "args": ["/connector/config.json"],
+                {"name": "probe", "image": self.env["EXCHANGE_PEER_IMAGE"], "args": ["probe", self.authority, *denied], "securityContext": secure}],
+            "containers": [{"name": "connector", "image": self.env["EXCHANGE_CONNECTOR_IMAGE"], "args": ["/connector/config.json"],
                 "securityContext": secure, "env": [{"name": "LOG_LEVEL", "value": "warn"}],
                 "resources": {"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "1", "memory": "512Mi"}},
                 "volumeMounts": [{"name": "files", "mountPath": "/connector", "readOnly": True}, {"name": "activations", "mountPath": "/activations"}]}],
@@ -377,7 +377,7 @@ ip6tables -w -A OUTPUT -j REJECT
     def call(self, *args, timeout=120):
         # Diagnostic compatibility with the runner; no Docker lifecycle here.
         if args[0] == "ps": return self.kube("get", "pods", "-o", "wide")
-        if args[0] == "logs": return self.kube("logs", "-l", "app.kubernetes.io/instance=http-example", "--all-containers", "--tail=40", missing=True) or ""
+        if args[0] == "logs": return self.kube("logs", "-l", "app.kubernetes.io/instance=exchange-example", "--all-containers", "--tail=40", missing=True) or ""
         raise RuntimeError("Unsupported reference diagnostic operation")
 
     def close(self):

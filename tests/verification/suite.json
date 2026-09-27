@@ -33,7 +33,8 @@
       "test::grpc-transport",
       "test::grpc-worker",
       "test::http-worker",
-      "examples::http"
+      "examples::http",
+      "examples::grpc"
     ],
     "experience": [
       "transit-board::check",
@@ -96,6 +97,8 @@
       "launchers::compose::test-station",
       "examples::http-compose",
       "examples::http-reference",
+      "examples::grpc-compose",
+      "examples::grpc-reference",
       "test::capacity",
       "test::growing-capacity",
       "test::pages-cold",
@@ -112,7 +115,8 @@
       "test::growing-query",
       "test::growing-load",
       "examples::http-bootstrap",
-      "test::sql-grammar"
+      "test::sql-grammar",
+      "examples::grpc-bootstrap"
     ]
   },
   "nested_tasks": {

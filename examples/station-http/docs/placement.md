@@ -1,12 +1,19 @@
 # Placement and isolation
 
+The [shared placement helpers](../../exchange/README.md) run both HTTP and RPC.
+Use the equivalent `grpc`, `grpc-compose`, `grpc-bootstrap` and `grpc-reference`
+tasks for RPC. Protocol-specific callers and workers share only the operator
+schedule and topology. The RPC peer adds pinned grpcio to its test-only closure;
+original protobuf and a local generated descriptor replace HTTP body templates.
+The RPC placement measurements are in [tests](../../../tests/README.md).
+
 `just examples::http` runs native processes with random scoped protocol keys.
 `just examples::http-compose` builds static ReleaseSafe Zig images and runs the
 same finite application in an owned Docker Compose project. Both use disk Ursula,
 explicit fresh ownership, a distinct delivery identity and the same signed CLI
 provisioning. Neither touches a running launcher installation.
 
-The checked-in [Compose topology](../docker-compose.yaml) defines three internal
+The checked-in [Compose topology](../../exchange/docker-compose.yaml) defines three internal
 networks and separate mounts:
 
 | Role | Network access | Files |
@@ -43,7 +50,7 @@ The native debug schedule passes in **26.81 seconds** excluding compilation.
 These measurements are local and do not qualify hosted CI costs.
 
 The task removes only its generated Compose project, temporary state and keys on
-exit. Reusable image/build caches remain under `.cache/http-example`. Process
+exit. Reusable image/build caches remain under `.cache/http-example` or `.cache/grpc-example`. Process
 replacement is a trusted operator action over the public growing protocol; this
 does not add automatic Substrate binding or supervisor semantics.
 

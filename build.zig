@@ -286,6 +286,11 @@ pub fn build(b: *std.Build) void {
     b.getInstallStep().dependOn(&install_http_caller.step);
     build_test_step.dependOn(&http_caller.step);
     b.step("example-station-http", "Install the finite HTTP caller example").dependOn(&install_http_caller.step);
+    const grpc_caller = b.addExecutable(.{ .name = "example-station-grpc", .root_module = b.createModule(.{ .root_source_file = b.path("examples/station-grpc/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }} }) });
+    const install_grpc_caller = b.addInstallArtifact(grpc_caller, .{});
+    b.getInstallStep().dependOn(&install_grpc_caller.step);
+    build_test_step.dependOn(&grpc_caller.step);
+    b.step("example-station-grpc", "Install the finite RPC caller example").dependOn(&install_grpc_caller.step);
     const grpc_provision = b.addExecutable(.{ .name = "transit-grpc-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_grpc", .module = station_grpc.module("transit_station_grpc") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&grpc_provision.step);
     const grpc_worker_test = b.addSystemCommand(&.{ "python3", "-B" });

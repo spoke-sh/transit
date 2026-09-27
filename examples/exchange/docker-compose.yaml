@@ -1,5 +1,5 @@
 x-runtime: &runtime
-  user: '${HTTP_UID:?}:${HTTP_GID:?}'
+  user: '${EXCHANGE_UID:?}:${EXCHANGE_GID:?}'
   read_only: true
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
@@ -13,44 +13,44 @@ x-runtime: &runtime
 services:
   ursula:
     <<: *runtime
-    image: '${HTTP_URSULA_IMAGE:?}'
+    image: '${EXCHANGE_URSULA_IMAGE:?}'
     command: [server, --config, /ursula.toml]
     environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
     volumes:
-      - '${HTTP_WORK:?}/ursula.toml:/ursula.toml:ro'
-      - '${HTTP_WORK:?}/wal:/wal'
+      - '${EXCHANGE_WORK:?}/ursula.toml:/ursula.toml:ro'
+      - '${EXCHANGE_WORK:?}/wal:/wal'
     networks: [storage]
   node:
     <<: *runtime
-    image: '${HTTP_NODE_IMAGE:?}'
+    image: '${EXCHANGE_NODE_IMAGE:?}'
     command: [/node.json]
     environment: {LOG_LEVEL: warn}
-    volumes: ['${HTTP_WORK:?}/operator/node.json:/node.json:ro']
+    volumes: ['${EXCHANGE_WORK:?}/operator/node.json:/node.json:ro']
     networks: [storage, client]
   caller:
     <<: *runtime
-    image: '${HTTP_CALLER_IMAGE:?}'
+    image: '${EXCHANGE_CALLER_IMAGE:?}'
     command: [/caller/config.json]
-    volumes: ['${HTTP_WORK:?}/caller:/caller:ro']
+    volumes: ['${EXCHANGE_WORK:?}/caller:/caller:ro']
     networks: [client]
   connector:
     <<: *runtime
-    image: '${HTTP_CONNECTOR_IMAGE:?}'
+    image: '${EXCHANGE_CONNECTOR_IMAGE:?}'
     command: [/connector/config.json]
     environment: {LOG_LEVEL: warn}
     volumes:
-      - '${HTTP_WORK:?}/connector:/connector:ro'
-      - '${HTTP_WORK:?}/activations:/activations'
+      - '${EXCHANGE_WORK:?}/connector:/connector:ro'
+      - '${EXCHANGE_WORK:?}/activations:/activations'
     networks: [client, effect]
   peer:
     <<: *runtime
-    image: '${HTTP_PEER_IMAGE:?}'
+    image: '${EXCHANGE_PEER_IMAGE:?}'
     command: [/peer/config.json]
-    volumes: ['${HTTP_WORK:?}/peer:/peer']
+    volumes: ['${EXCHANGE_WORK:?}/peer:/peer']
     networks: [effect]
   caller-probe:
     <<: *runtime
-    image: '${HTTP_PEER_IMAGE:?}'
+    image: '${EXCHANGE_PEER_IMAGE:?}'
     networks: [client]
 networks:
   storage: {internal: true}

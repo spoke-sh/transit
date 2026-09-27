@@ -1,0 +1,10 @@
+syntax = "proto3";
+package transit.examples;
+message Message {
+  bytes body = 1;
+  string label = 2;
+  uint64 sequence = 3;
+}
+service Exchange {
+  rpc Exchange(stream Message) returns (stream Message);
+}

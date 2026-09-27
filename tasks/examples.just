@@ -34,3 +34,22 @@ http-bootstrap:
 http-reference:
     zig build rey-cli
     python3 -B examples/station-http/run.py --profile reference
+
+# Finite binary RPC caller, independent TLS peer and durable recovery/replay.
+grpc:
+    zig build transit-node rey-cli example-station-grpc transit-station-grpc-worker
+    python3 -B examples/station-grpc/run.py
+
+grpc-bootstrap:
+    zig build transit-node rey-cli example-station-grpc transit-station-grpc-worker
+    python3 -B examples/station-grpc/run.py --bootstrap
+
+# RPC effect isolation in separate Compose networks.
+grpc-compose:
+    zig build rey-cli
+    python3 -B examples/station-grpc/run.py --profile compose
+
+# Substrate caller and egress-confined RPC effect pod in owned reference infra.
+grpc-reference:
+    zig build rey-cli
+    python3 -B examples/station-grpc/run.py --profile reference

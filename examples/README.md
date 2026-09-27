@@ -10,6 +10,7 @@ against Transit; no example is required to run the authority.
 | [Byte log](byte-log/README.md) | `example-byte-log` | Concatenate opaque input bytes into bounded state |
 | [Station ledger](station-ledger/README.md) | `example-station-ledger` | Three behaviors with Tables, durable calls, Arrow queries, registry and supervision |
 | [HTTP caller](station-http/README.md) | `example-station-http` | Immutable request, separate effect worker, correlated outcome and bounded replay |
+| [RPC caller](station-grpc/README.md) | `example-station-grpc` | Pinned descriptor, finite protobuf batch, separate effect worker and captured replay |
 | [Language callers](station-bindings/README.md) | Per-language examples | Shared Station behavior/Table API across C/C++, Rust, Python, Node, Java, .NET and BEAM |
 
 M11's [public SDK examples](station-sdk/README.md) define shared counter/query
