@@ -9,6 +9,12 @@ preserves the call, separately authorized outbox delivery, one remote send,
 correlated receipt and binary/Unicode replay after node/store restart with the
 peer stopped and credential removed. Its operator uses the real growing CLI;
 workers receive scoped keys. This local task does not qualify OS egress isolation.
+`just examples::http-compose` passes the same schedule in **19.40 seconds** with
+cached static images, separate internal networks, read-only role mounts, resource
+limits and no published ports. Its caller-network probe reaches Transit while
+TCP access to the peer, Ursula and an external address fails. Node/store recovery
+and replay run in the real containers. This is local Linux/Docker evidence, not
+Substrate qualification.
 
 The worker's bounded diagnostic integration passes the complete disk/S3 schedule
 in **445.26 seconds** excluding compilation, with the same fifteen sends, seven

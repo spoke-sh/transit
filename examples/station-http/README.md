@@ -34,6 +34,8 @@ is unchanged. Host files are input/configuration, never authoritative call state
 An uncertain Transit mutation retries identical signed bytes; exhausted retries
 stop the activation for explicit recovery with fresh ownership.
 
-Local processes share the developer account; this task proves protocol credential
-separation, not OS egress isolation. Compose/reference placement qualification is
-still M15 work. Growing runtime actor bindings are not advertised by this example.
+Local processes share the developer account; that task proves protocol credential
+separation, not OS egress isolation. `just examples::http-compose` runs the same
+application/recovery schedule in separate containers and tests network isolation.
+See the [placement guide](docs/placement.md). Reference placement remains M15 work;
+growing runtime actor bindings are not advertised by this example.

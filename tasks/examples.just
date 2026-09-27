@@ -19,3 +19,8 @@ run name:
 http:
     zig build transit-node rey-cli example-station-http transit-station-http-worker
     python3 -B examples/station-http/run.py
+
+# The finite HTTP example with separate client, storage and effect networks.
+http-compose:
+    zig build rey-cli
+    python3 -B examples/station-http/run.py --profile compose

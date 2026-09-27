@@ -1,10 +1,12 @@
 """Run the finite Zig HTTP caller/connector against an owned synthetic TLS peer."""
+import argparse
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
 import secrets
+import shutil
 import socket
 import ssl
 import subprocess
@@ -23,7 +25,7 @@ def port():
         return listener.getsockname()[1]
 
 
-def run():
+def run(profile="local"):
     started = time.monotonic()
     binaries = {name: ROOT / "zig-out/bin" / name for name in
                 ("rey-cli", "transit-node", "example-station-http", "transit-station-http-worker")}
@@ -33,6 +35,7 @@ def run():
     with tempfile.TemporaryDirectory(prefix="transit-http-example-") as directory:
         work = Path(directory)
         children, logs = [], []
+        placement = None
         for role in ("operator", "caller", "connector", "delivery", "peer"):
             (work / role).mkdir(mode=0o700)
 
@@ -49,6 +52,10 @@ def run():
             return json.loads(result.stdout)
 
         def start(label, argv):
+            if placement is not None:
+                child = placement.start(label.split("-")[0])
+                children.append(child)
+                return child
             log = (work / f"{label}.log").open("w+")
             logs.append(log)
             child = subprocess.Popen(list(map(str, argv)), env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -77,9 +84,14 @@ def run():
         store_port, node_port = port(), port()
         url = f"http://127.0.0.1:{node_port}"
         store_url = f"http://127.0.0.1:{store_port}"
+        if profile == "compose":
+            from compose import Compose
+            placement = Compose(work)
+            (work / "wal").mkdir()
+            (work / "activations").mkdir()
         store_config = work / "ursula.toml"
         store_config.write_text(f'''[server]
-listen = "127.0.0.1:{store_port}"
+listen = "{'0.0.0.0:8080' if placement else f'127.0.0.1:{store_port}'}"
 admin_listen = "127.0.0.1:0"
 [runtime]
 core_count = 2
@@ -88,7 +100,7 @@ node_id = 1
 group_count = 1
 [raft.wal]
 backend = "disk"
-path = "{work / 'wal'}"
+path = "{'/wal' if placement else work / 'wal'}"
 [storage.cold]
 backend = "none"
 [storage.snapshot]
@@ -96,7 +108,8 @@ backend = "inline"
 ''')
         node_config = write("operator/node.json", {"profile": "growing_v3", "genesis": {
             "realm": realm, "root_key": public["operator"], "max_clock_error_ms": 10000},
-            "ursula_url": store_url, "bucket": "http-example", "journal": "authority", "port": node_port,
+            "ursula_url": "http://ursula:8080" if placement else store_url, "bucket": "http-example", "journal": "authority", "port": 8080 if placement else node_port,
+            "listen": "0.0.0.0" if placement else "127.0.0.1",
             "resident_pages": 64, "request_timeout_ms": 10000})
         principals = {"operator": 0, "caller": 1, "connector": 2, "delivery": 3}
         sequences = dict.fromkeys(principals, 0)
@@ -121,10 +134,15 @@ backend = "inline"
         peer = None
         try:
             storage = start("ursula", ["ursula", "server", "--config", store_config])
+            if placement: store_url = "http://" + placement.address("ursula", "storage") + ":8080"
             ready(storage, store_url + "/__ursula/ready")
-            subprocess.run([binaries["transit-node"], node_config, "--initialize"], env=env,
-                           check=True, stdout=subprocess.DEVNULL, timeout=30)
+            if placement:
+                placement.initialize()
+            else:
+                subprocess.run([binaries["transit-node"], node_config, "--initialize"], env=env,
+                               check=True, stdout=subprocess.DEVNULL, timeout=30)
             authority = start("node", [binaries["transit-node"], node_config])
+            if placement: url = "http://" + placement.address("node", "client") + ":8080"
             ready(authority, url + "/health")
             records = {}
             for role in ("caller", "connector"):
@@ -182,12 +200,23 @@ backend = "inline"
                     self.end_headers()
                     self.wfile.write(payload)
 
-            peer = ThreadingHTTPServer(("127.0.0.1", 0), Peer)
-            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-            context.load_cert_chain(cert, private)
-            peer.socket = context.wrap_socket(peer.socket, server_side=True)
-            thread = threading.Thread(target=peer.serve_forever, daemon=True)
-            thread.start()
+            if placement:
+                shutil.copyfile(cert, work / "peer/ca.pem")
+                write("peer/config.json", {"secret": secret, "payload": payload.hex(), "requests": "/peer/requests.json",
+                    "certificate": "/peer/ca.pem", "private_key": "/peer/tls.key"})
+                peer = placement.start("peer")
+                children.append(peer)
+                peer_address, peer_port = placement.address("peer", "effect"), 8443
+                denied = [peer_address + ":8443", placement.address("ursula", "storage") + ":8080", "1.1.1.1:443"]
+                assert placement.invoke("caller-probe", "probe", "http://node:8080", *denied) == {"authority": "reachable", "denied": 3}
+            else:
+                peer = ThreadingHTTPServer(("127.0.0.1", 0), Peer)
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.load_cert_chain(cert, private)
+                peer.socket = context.wrap_socket(peer.socket, server_side=True)
+                thread = threading.Thread(target=peer.serve_forever, daemon=True)
+                thread.start()
+                peer_address, peer_port = "127.0.0.1", peer.server_port
             deadline = int(time.time() * 1000) + 240000
             body = work / "caller/body"
             body.write_bytes(b"hello")
@@ -197,8 +226,8 @@ backend = "inline"
                     "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "demo", "version": 1}}]}]}}
             connector_config = {"url": url, "realm": realm, "principal": 2, "pid": connector["pid"],
                 "seed_file": str(keys["connector"]), "reconcile_before_ms": deadline, "activation_directory": str(work / "connector"),
-                "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1",
-                    "port": peer.server_port, "tls": True, "ca_file": str(cert), "timeout_ms": 60000},
+                "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": peer_address,
+                    "port": peer_port, "tls": True, "ca_file": str(cert), "timeout_ms": 60000},
                 "credentials": [{"binding": "demo", "version": 1, "header": "Authorization", "file": str(credential)}],
                 "admission": {"caller": caller["pid"], "resource": caller["resource"],
                     "scope": {"method": "POST", "target": "/example", "headers": ["authorization"]}}}
@@ -209,6 +238,13 @@ backend = "inline"
                 command({"own": {"pid": record["pid"], "expected_generation": record["generation"], "worker": principals[role]}})
                 record["generation"] += 1
                 config.update(generation=record["generation"], mode=mode)
+                if placement:
+                    # Only this role's directory is mounted in its container.
+                    mapped = json.loads(json.dumps(config).replace(str(work) + "/", "/"))
+                    mapped["url"] = "http://node:8080"
+                    if role == "connector": mapped["activation_directory"] = "/activations"
+                    write(role + "/config.json", mapped)
+                    return placement.invoke(role)
                 path = write(role + "/config.json", config)
                 name = "example-station-http" if role == "caller" else "transit-station-http-worker"
                 return invoke([binaries[name], path])
@@ -238,30 +274,43 @@ backend = "inline"
             authority.kill(); authority.wait(timeout=10)
             storage.kill(); storage.wait(timeout=10)
             credential.unlink()
-            peer.shutdown(); peer.server_close(); peer = None
+            if placement:
+                peer.kill(); peer.wait(timeout=10)
+                requests = json.loads((work / "peer/requests.json").read_text())
+            else:
+                peer.shutdown(); peer.server_close()
+            peer = None
             storage = start("ursula-recovered", ["ursula", "server", "--config", store_config])
+            if placement: store_url = "http://" + placement.address("ursula", "storage") + ":8080"
             ready(storage, store_url + "/__ursula/ready")
             authority = start("node-recovered", [binaries["transit-node"], node_config])
+            if placement: url = "http://" + placement.address("node", "client") + ":8080"
             ready(authority, url + "/health")
             replay = activate("caller", caller_config, "replay")
             assert replay["body_bytes"] == len(payload) and replay["sha256"] == hashlib.sha256(payload).hexdigest()
             assert requests == ["/example"], requests
-            print(json.dumps({"example": "station-http", "phase": "passed", "sends": len(requests),
+            print(json.dumps({"example": "station-http", "profile": profile, "phase": "passed", "sends": len(requests),
                               "status": outcome["status"], "body_bytes": replay["body_bytes"],
                               "seconds": round(time.monotonic() - started, 2)}))
         except BaseException:
+            if placement:
+                print(placement.call("ps", "--all", "--format", "json"))
+                print(placement.call("logs", "--tail", "80"))
             for log in logs:
                 log.flush()
                 print(Path(log.name).read_text()[-4000:])
             raise
         finally:
-            if peer is not None:
+            if peer is not None and placement is None:
                 peer.shutdown(); peer.server_close()
             for child in reversed(children):
                 if child.poll() is None: child.kill()
                 child.wait(timeout=10)
             for log in logs: log.close()
+            if placement: placement.close()
 
 
 if __name__ == "__main__":
-    run()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=("local", "compose"), default="local")
+    run(parser.parse_args().profile)

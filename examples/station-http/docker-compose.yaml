@@ -1,0 +1,58 @@
+x-runtime: &runtime
+  user: '${HTTP_UID:?}:${HTTP_GID:?}'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: "no"
+  pids_limit: 256
+  mem_limit: 512m
+  cpus: 2
+  logging:
+    driver: json-file
+    options: {max-size: 5m, max-file: "2"}
+services:
+  ursula:
+    <<: *runtime
+    image: '${HTTP_URSULA_IMAGE:?}'
+    command: [server, --config, /ursula.toml]
+    environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
+    volumes:
+      - '${HTTP_WORK:?}/ursula.toml:/ursula.toml:ro'
+      - '${HTTP_WORK:?}/wal:/wal'
+    networks: [storage]
+  node:
+    <<: *runtime
+    image: '${HTTP_NODE_IMAGE:?}'
+    command: [/node.json]
+    environment: {LOG_LEVEL: warn}
+    volumes: ['${HTTP_WORK:?}/operator/node.json:/node.json:ro']
+    networks: [storage, client]
+  caller:
+    <<: *runtime
+    image: '${HTTP_CALLER_IMAGE:?}'
+    command: [/caller/config.json]
+    volumes: ['${HTTP_WORK:?}/caller:/caller:ro']
+    networks: [client]
+  connector:
+    <<: *runtime
+    image: '${HTTP_CONNECTOR_IMAGE:?}'
+    command: [/connector/config.json]
+    environment: {LOG_LEVEL: warn}
+    volumes:
+      - '${HTTP_WORK:?}/connector:/connector:ro'
+      - '${HTTP_WORK:?}/activations:/activations'
+    networks: [client, effect]
+  peer:
+    <<: *runtime
+    image: '${HTTP_PEER_IMAGE:?}'
+    command: [/peer/config.json]
+    volumes: ['${HTTP_WORK:?}/peer:/peer']
+    networks: [effect]
+  caller-probe:
+    <<: *runtime
+    image: '${HTTP_PEER_IMAGE:?}'
+    networks: [client]
+networks:
+  storage: {internal: true}
+  client: {internal: true}
+  effect: {internal: true}

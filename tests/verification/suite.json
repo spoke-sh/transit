@@ -90,6 +90,7 @@
       "launchers::reference::test-station",
       "launchers::compose::test",
       "launchers::compose::test-station",
+      "examples::http-compose",
       "test::capacity",
       "test::growing-capacity",
       "test::pages-cold",
