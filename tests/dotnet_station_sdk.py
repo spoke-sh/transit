@@ -72,7 +72,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             lambda config, role: ['dotnet', 'exec', '--depsfile', str(output / 'Consumer.deps.json'), '--runtimeconfig', str(output / 'Consumer.runtimeconfig.json'),
                                   str(output / 'Transit.Sdk.Examples.dll'), str(config), role, '--commits', '1'], 'async-handler', arrow_adapter=False)
     (execute or schedule)(node, cli, library, install, '.NET')
-    if execute is None: http_schedule(node, cli, library, http_worker, install, '.NET')
+    if execute is None: http_schedule(node, cli, library, http_worker, install, '.NET', public_release=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

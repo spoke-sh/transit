@@ -141,7 +141,8 @@ followed by joined cleanup. The independent raw client and Station recovery/quer
 regressions passed through their task commands as well. A cancelled read view
 invalidates its local reader; native execution remains owned until disposal.
 `just bindings::dotnet-sdk-test` passed the same installed NuGet HTTP schedule
-in **38.65 seconds**, including immutable copies, explicit typed outcomes,
+in **60.17 seconds**, including authenticated durable disposal before/after cleanup
+without transcript access, immutable copies, explicit typed outcomes,
 revocation/reopening and cancelled task waits joined by runner disposal. Existing
 raw client and Station recovery/query checks passed in the same invocation.
 `just bindings::beam-sdk-test` installs both BEAM archives and exercises Erlang

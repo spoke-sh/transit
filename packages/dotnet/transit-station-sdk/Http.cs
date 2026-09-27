@@ -92,10 +92,13 @@ public static class Http
         internal Prepared(ResourceRef resource, ulong namespaceId, Bytes reference, Bytes metadata, Bytes body)
         { Resource = resource; Namespace = namespaceId; Reference = reference; Metadata = metadata; Body = body; }
     }
-    private static async Task<JsonObject> LocalAsync(JsonObject action, string? nativeDirectory)
+    private static async Task<JsonObject> LocalAsync(JsonObject action, string? nativeDirectory, bool release = false)
     {
         var worker = await Worker<StationBridge, object?>.OpenAsync(() => new StationBridge(nativeDirectory), StationApi.MinimumStackBytes).ConfigureAwait(false);
-        try { return await worker.Invoke(bridge => bridge.HttpCodec(action)).ConfigureAwait(false); }
+        try { return await worker.Invoke(bridge => {
+            if (release) bridge.HttpCapability("http_release");
+            return bridge.HttpCodec(action);
+        }).ConfigureAwait(false); }
         finally { await worker.CloseAsync().ConfigureAwait(false); }
     }
     public static async Task<Prepared> PrepareAsync(ResourceRef resource, ulong namespaceId, Request request, byte[] body, Options options, string? nativeDirectory = null)
@@ -113,6 +116,13 @@ public static class Http
     public enum Rejection { Denied, InvalidRequest, Busy }
     public abstract record Reply { private protected Reply() { } }
     public sealed record Rejected(Rejection Reason) : Reply;
+    public sealed record Released : Reply
+    {
+        public ResourceRef Resource { get; }
+        public ulong Exchange { get; }
+        public Released(ResourceRef resource, ulong exchange)
+        { ArgumentNullException.ThrowIfNull(resource); Resource = resource; Exchange = Positive(exchange); }
+    }
     public sealed record Outcome : Reply
     {
         public Phase Phase { get; }
@@ -134,9 +144,15 @@ public static class Http
     public static async Task<Reply> DecodeReplyAsync(ulong realm, byte[] bytes, string? nativeDirectory = null)
     {
         Value.Counter(realm);
-        JsonObject value = await LocalAsync(Value.Obj(("outcome", Value.Hex(Value.Bytes(bytes, 71)))), nativeDirectory).ConfigureAwait(false);
+        byte[] owned = Value.Bytes(bytes, 71);
+        bool release = owned.Length >= 4 && owned[0] == 'H' && owned[1] == 'T' && owned[2] == 'K' && owned[3] == '1';
+        JsonObject value = await LocalAsync(Value.Obj(("outcome", Value.Hex(owned))), nativeDirectory, release).ConfigureAwait(false);
         if (value["rejected"] is { } rejection) return new Rejected(Value.String(rejection) switch {
             "denied" => Rejection.Denied, "invalid_request" => Rejection.InvalidRequest, "busy" => Rejection.Busy, _ => throw Value.Incompatible("http-rejection") });
+        if (value["released"] is { } acknowledgement) {
+            JsonObject released = Value.Object(acknowledgement);
+            return new Released(new ResourceRef(realm, Value.Number(released["resource"], 1)), NativeValues.Wide(released["exchange"], true));
+        }
         return new Outcome(realm, Value.Object(value["outcome"]));
     }
     public abstract record Message<T> where T : notnull { private protected Message() { } }
@@ -155,7 +171,7 @@ public static class Http
         public byte[] Encode(Message<T> value) => value is Application<T> message ? application.Encode(message.Value) : throw new TransitException(ErrorKind.Codec, "receive-only-http-outcome");
         public Message<T> Decode(byte[] bytes)
         {
-            if (bytes.Length >= 4 && bytes[0] == 'H' && bytes[1] == 'T' && (bytes[2] == 'R' || bytes[2] == 'F') && bytes[3] == '1')
+            if (bytes.Length >= 4 && bytes[0] == 'H' && bytes[1] == 'T' && (bytes[2] == 'R' || bytes[2] == 'F' || bytes[2] == 'K') && bytes[3] == '1')
                 return new Received<T>(DecodeReplyAsync(realm, bytes, directory).GetAwaiter().GetResult());
             return new Application<T>(application.Decode(bytes));
         }

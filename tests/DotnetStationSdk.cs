@@ -163,6 +163,11 @@ static class Proof
         Check(httpCodec.Decode(httpCodec.Encode(new Http.Application<ulong>(ulong.MaxValue))) is Http.Application<ulong> { Value: ulong.MaxValue });
         Check(httpCodec.Decode(encoded) is Http.Received<ulong> { Value: Http.Outcome { Exchange: ulong.MaxValue } });
         Expect(ErrorKind.Codec, () => httpCodec.Encode(new Http.Received<ulong>(outcome)));
+        byte[] releasedBytes = Convert.FromHexString(Text(Read(Text(cfg, "http_release_fixtures")), "reply"));
+        var released = (Http.Released)((Http.Received<ulong>)httpCodec.Decode(releasedBytes)).Value;
+        Check(released == new Http.Released(new ResourceRef(72, 7), ulong.MaxValue));
+        Expect(ErrorKind.Codec, () => httpCodec.Encode(new Http.Received<ulong>(released)));
+        try { await Http.DecodeReplyAsync(72, releasedBytes[..19]); throw new Exception("Truncated acknowledgement accepted"); } catch (TransitException) { }
         try { await Http.DecodeReplyAsync(72, encoded[..70]); throw new Exception("Truncated HTTP outcome accepted"); } catch (TransitException) { }
         try { await Http.PrepareAsync(new ResourceRef(72, 8), 1, new(Http.Method.Get, [new Http.Literal("//other/")]), [], new(1, 9000));
             throw new Exception("Invalid HTTP target accepted"); } catch (TransitException) { }
@@ -171,17 +176,28 @@ static class Proof
         public string TypeId => "test.http-control"; public uint Version => 1; public int MaxEncodedBytes => 243;
         public byte[] Encode(Bytes value) => value.Copy(); public Bytes Decode(byte[] bytes) => new(bytes);
     }
-    sealed class HttpHandler(ProcessRef peer, Http.Prepared request) : IHandler<Http.Message<Bytes>> {
+    sealed class HttpHandler(ProcessRef peer, Http.Prepared request, Http.Outcome? disposal) : IHandler<Http.Message<Bytes>> {
         readonly Key<ulong> correlation = new("http-correlation", Codecs.U64);
+        readonly Key<ulong> releaseCorrelation = new("http-release-correlation", Codecs.U64);
         public Turn? Escaped; public JsonObject? Result;
         public void OnMessage(Turn turn, Incoming<Http.Message<Bytes>> input) {
             Escaped = turn;
             if (input is Cast<Http.Message<Bytes>>) {
-                if (turn.State.Find(correlation) is not null) Result = new() { ["called"] = true };
+                if (input.Value is Http.Application<Bytes> application && application.Value.Copy().AsSpan().SequenceEqual("dispose"u8)) {
+                    Expect(ErrorKind.Handler, () => turn.ReleaseHttp(peer, new ResourceRef(73, disposal!.Resource.Resource), disposal.Exchange));
+                    ulong id = turn.ReleaseHttp(peer, disposal!.Resource, disposal.Exchange);
+                    turn.State.Put(releaseCorrelation, id); Result = new() { ["released"] = false };
+                } else if (turn.State.Find(correlation) is not null) Result = new() { ["called"] = true };
                 else if (turn.StageHttp(request)) { ulong id = turn.CallHttp(peer, request); turn.State.Put(correlation, id); Result = new() { ["called"] = true }; }
                 else Result = new() { ["called"] = false };
             } else {
-                var reply = (Reply<Http.Message<Bytes>>)input; turn.RequireReply(reply, peer, turn.State.Require(correlation));
+                var reply = (Reply<Http.Message<Bytes>>)input;
+                if (reply.Value is Http.Received<Bytes> { Value: Http.Released released }) {
+                    turn.RequireReply(reply, peer, turn.State.Require(releaseCorrelation));
+                    Check(released.Resource == disposal!.Resource && released.Exchange == disposal.Exchange);
+                    turn.State.Put(new Key<ulong>("http-disposed", Codecs.U64), released.Exchange); Result = new() { ["released"] = true }; return;
+                }
+                turn.RequireReply(reply, peer, turn.State.Require(correlation));
                 Check(reply.Value is Http.Received<Bytes> { Value: Http.Outcome { Phase: Http.Phase.Observed, Status: 200 } });
                 turn.State.Put(new Key<ulong>("http-status", Codecs.U64), 200UL); Result = new() { ["observed"] = true };
             }
@@ -197,7 +213,8 @@ static class Proof
         Check(request.Body.Copy()[0] == original && request.Body.Length == 513);
         ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
             new Activation(new ProcessRef(72, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(72, Number(cfg, "principal"), Text(cfg, "seed_file"))));
-        HttpHandler handler = new(new ProcessRef(72, Number(cfg, "peer")), request);
+        Http.Outcome? disposal = cfg["outcome"] is null ? null : (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
+        HttpHandler handler = new(new ProcessRef(72, Number(cfg, "peer")), request, disposal);
         await using var runner = await Runner<Http.Message<Bytes>>.OpenAsync(config, handler, new Http.ReplyCodec<Bytes>(new HttpBytes(), 72), FailurePolicy.Stop, new Recovery.FreshOwnership());
         if (mode == "http-async") {
             var active = await runner.OpenHttpAsync((Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))));
@@ -215,7 +232,8 @@ static class Proof
             switch (line) {
                 case "step":
                     bool committed = false; for (int n = 0; n < 32; n++) if (await runner.NextAsync() is Committed) { committed = true; break; }
-                    Check(committed); Expect(ErrorKind.TurnExpired, () => handler.Escaped!.StageHttp(request)); Report(handler.Result!); break;
+                    Check(committed); Expect(ErrorKind.TurnExpired, () => handler.Escaped!.StageHttp(request));
+                    Expect(ErrorKind.TurnExpired, () => handler.Escaped!.ReleaseHttp(new ProcessRef(72, Number(cfg, "peer")), request.Resource, 1)); Report(handler.Result!); break;
                 case "open":
                     outcome = (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome"))); reader = await runner.OpenHttpAsync(outcome);
                     Expect(ErrorKind.Busy, () => runner.OpenHttpAsync(outcome).GetAwaiter().GetResult());

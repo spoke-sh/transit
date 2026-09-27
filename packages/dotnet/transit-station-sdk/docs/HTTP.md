@@ -36,9 +36,9 @@ runner events; callback completion alone is not durable acceptance.
 
 `Http.ReplyCodec<T>` wraps an application codec as `ICodec<Http.Message<T>>`.
 It returns `Http.Application<T>` or `Http.Received<T>` using shared native decoding
-for exact `HTR1`/`HTF1` prefixes. The outcome branch is receive-only. A synchronous
+for exact `HTR1`/`HTF1`/`HTK1` prefixes. The reply branch is receive-only. A synchronous
 decode joins its separate bounded worker; callbacks remain synchronous.
-`Http.Received` contains rejection or observed/closed-unknown/not-dispatched
+`Http.Received` contains a disposal acknowledgement, rejection or observed/closed-unknown/not-dispatched
 outcomes. Authenticate the outer `Reply<Http.Message<T>>` with
 `turn.RequireReply(reply, connector, persistedCorrelation)` before using it.
 Typed outcome bytes alone do not authenticate origin. Only observed outcomes
@@ -64,6 +64,15 @@ disposal rejects callback reentry. Close is idempotent while its runner is open;
 after runner disposal, reads fail `Closed`. Previously returned immutable bytes
 remain usable. Local disposal does not retire capture or release its durable
 caller dependency. Use explicit lifecycle operations for those changes.
+
+Inside a handler, `turn.ReleaseHttp(connector, outcome.Resource, outcome.Exchange)`
+requests disposal of that durable dependency. Save its correlation in state,
+authenticate the subsequent `Http.Released` with `turn.RequireReply`, and check
+the resource/exchange. Duplicates remain safe after worker restart and capture
+cleanup. Transcript read access is unnecessary; the service checks the recorded
+holder and current admission policy. Release does not cancel remote work, retire
+the capture or clean up its members. The finite worker handles it in a fresh
+`poll` activation.
 
 `just bindings::dotnet-sdk-test` runs clean NuGet consumers through shared golden
 fixtures and the independent TLS/recovery/revocation/cancellation schedule, plus

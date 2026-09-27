@@ -98,6 +98,13 @@ public sealed class Turn
         HttpRequest(request);
         return NativeValues.Wide(Raw(Value.Obj(("http_call", Value.Obj(("pid", Peer(connector)), ("reference", Http.Hex(request.Reference))))))["correlation"], true);
     });
+    /// <summary>Request durable hold disposal; authenticate the correlated Http.Released reply.</summary>
+    public ulong ReleaseHttp(ProcessRef connector, ResourceRef capture, ulong exchange) => Access(false, () => {
+        ArgumentNullException.ThrowIfNull(capture); Positive(exchange);
+        if (capture.Realm != ResourceRef.Realm) throw new ArgumentException("HTTP capture must belong to this realm");
+        Bridge.HttpCapability("http_release");
+        return NativeValues.Wide(Raw(Value.Obj(("http_release", Value.Obj(("pid", Peer(connector)), ("resource", capture.Resource), ("exchange", Decimal(exchange))))))["correlation"], true);
+    });
     public Table<T> Table<T>(TableSchema<T> schema) => Access(true, () => Sdk.Table<T>.Open(this, schema, null));
     public Table<T> CreateTable<T>(TableSchema<T> schema)
     {
