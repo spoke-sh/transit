@@ -11,6 +11,12 @@ owns public typed query access; [M19](roadmap/M19.md) owns Flight SQL ingress
 and should reuse this compiler. Neither milestone acquires new authority from
 accepting query text.
 
+M18 adds a [unified SQL compiler](../packages/zig/transit-fuze/docs/unified-sql.md)
+over the same parsed grammar for explicitly declared KV/Table/Document sources.
+It returns v2 plans and nested cell-state Arrow, with an explicit capability
+matrix; it does not change v1 Table compilation. The pure compiler/reference
+checks pass. Its shell/Board ingress qualification remains in progress.
+
 ## The one-line answer
 
 Relational and dataframe are two **surface syntaxes**, not two engines. Both

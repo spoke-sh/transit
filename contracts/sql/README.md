@@ -7,6 +7,13 @@ The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/sql.md)
 lowers this SELECT profile to the existing `Stream.Plan`/`PlanCodec`.
 [M12](../../docs/roadmap/M12.md) tracks its qualification and limits.
 
+M18's additive [v2 compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
+reuses this grammar and owned AST for declared KV/Table/Document schemas. Its
+capability matrix separately defines wider limits/star projection, nested cell
+states, full-width count and unsupported null comparisons. The original Table
+compiler and corpus keep their original behavior. No grammar syntax or rewrite
+is added by this compiler.
+
 ## Reproducible reference checks
 
 From the pinned development shell:

@@ -31,6 +31,9 @@ committed-input observation, status and verified result pages. The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its v2 requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
+`Bundle.fromSql` compiles the [v2 SQL profile](../transit-fuze/docs/unified-sql.md)
+against an explicit source declaration and budgets; `UnifiedClient.compileSql`
+first verifies current source policy. Shell/Board integration remains in progress.
 
 M18 adds `SourceDefinition`, `Decoder` and `UnifiedSource` under the separate
 [v2 contract](../../../contracts/UNIFIED_QUERY_V2.md). Canonical `UQS2` definitions

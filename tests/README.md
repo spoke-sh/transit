@@ -2,6 +2,17 @@
 
 ## M18 work in progress
 
+`just test::sql` now also checks the v2 compiler against an independent 70-row
+Python evaluator and PyArrow: **13 queries × three source-kind bases × eight
+page widths**, including an empty initial page, plus **six rejected or failing
+cases**. Star projection spans eight columns/six scalar types/five cell states;
+Unicode, binary, negative zero, full-width unsigned values, explicit null versus
+missing, ordered projection/filter/limit/count/sum and output ownership retain
+their meaning. These source bases exercise the pure engine, not the durable
+adapters. Three package tests additionally check owned literals, error/conflict
+propagation and ordered overflow under all source kinds. The original **103 AST
+cases / 91 v1 plans** still pass unchanged. No optimizer rewrite is enabled.
+
 Fuze's first four unified-model tests and the independent Python fixture check
 pass. They bind the same plan to KV/Table/Document source-kind evidence, preserve
 missing/null/type-error/value/conflict distinctions and ordered assignment IDs,

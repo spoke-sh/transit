@@ -102,7 +102,7 @@ pub fn compile(ast: Ast, source: Source) !f.Stream.Plan {
         .compare => |comparison| .{ .compare = .{
             .column = try resolve(comparison.column, source.name, source.schema),
             .op = comparison.op,
-            .value = try cell(comparison.literal),
+            .value = try literalCell(comparison.literal),
         } },
     };
     // Reuse the engine's schema/type validation. This synthetic empty source
@@ -128,7 +128,8 @@ fn resolveProjection(projection: Projection, qualifier: m.Name, schema: m.Schema
     if (second == first) return error.DuplicateProjection;
     return .{ first, second };
 }
-fn cell(literal: Literal) !m.Cell {
+/// Shared checked SQL literal decoding; the returned value owns its bytes.
+pub fn literalCell(literal: Literal) !m.Cell {
     return switch (literal) {
         .null => .null,
         .int64 => |value| .{ .int64 = value },

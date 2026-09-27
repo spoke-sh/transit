@@ -66,6 +66,14 @@ fn requester(self: *Self) !q.wire.ResourceReader.Reader {
 pub fn describe(self: *Self, definition: q.SourceDefinition) !Description {
     return self.read(describeOnce, .{definition});
 }
+/// Resolve SQL only against this currently authorized declaration and explicit
+/// budgets. This allocates a finite bundle, performs no admission and takes no
+/// retained pin; the source captures the committed basis when it admits the call.
+pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: q.fuze.Unified.Name, text: []const u8, limits: q.Bundle.Limits) !q.Bundle {
+    const current = try self.describe(definition);
+    if (!current.limits.permits(limits)) return error.QueryBudgetExceeded;
+    return q.Bundle.fromSql(allocator, definition, name, text, limits);
+}
 fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
     if (definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
     var source = try self.checked(self.connection.resource, self.connection.source);

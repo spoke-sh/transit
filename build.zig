@@ -35,6 +35,13 @@ pub fn build(b: *std.Build) void {
     const sql_test = b.addSystemCommand(&.{ "python3", "-B" });
     sql_test.addFileArg(b.path("tests/sql/compiler.py"));
     sql_test.addArtifactArg(sql_driver);
+    const unified_sql = b.addExecutable(.{ .name = "transit-unified-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/unified_sql.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    sql_test.addArtifactArg(unified_sql);
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
@@ -406,7 +413,10 @@ pub fn build(b: *std.Build) void {
     unified_query_test.addFileArg(b.path("tests/unified_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
-    if (b.option([]const u8, "unified-sdk", "Include an installed language SDK in unified query recovery")) |language| unified_query_test.addArgs(&.{ "--sdk", language });
+    if (b.option([]const u8, "unified-sdk", "Comma-separated installed SDKs for unified query recovery")) |languages| {
+        var selected = std.mem.splitScalar(u8, languages, ',');
+        while (selected.next()) |language| unified_query_test.addArgs(&.{ "--sdk", language });
+    }
     unified_query_test.has_side_effects = true;
     unified_query_test.stdio = .inherit;
     b.step("test-unified-query", "Qualify unified query daemons over disk Ursula").dependOn(&unified_query_test.step);

@@ -183,6 +183,36 @@ and semantic validation apply to the library and the port.
 
 ## Public surfaces and qualification
 
+### SQL capability profile
+
+The v2 SQL compiler reuses M12's complete-input parser and reference grammar.
+One configured SQL name resolves to an explicit authorized source definition;
+KV decoders and Document paths/list/text projections are declared in that
+definition, never inferred from SQL or application values. This profile supports
+star (all declared columns), one/two ordered named columns, one typed comparison
+or `IS NULL`, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
+restricted aggregate subquery preserves filter → limit → aggregate order.
+
+V2 limits use the plan's full u64 range; an absent limit stays unlimited, subject
+to explicit execution budgets. An aggregate's outer LIMIT still rejects.
+`IS NULL` selects explicit null only. Missing values do not become null;
+comparisons skip missing/null and fail on type errors or unresolved conflicts.
+Comparisons require an exact literal type. The current grammar has int64,
+boolean, UTF-8 and binary literals; uint64/float64 values can be projected but
+have no SQL comparison literal in this profile. `column = NULL` and other null
+comparisons reject as `UnsupportedNullComparison` because the v2 plan has no
+null comparison scalar. The typed API separately exposes all five state tests.
+No implicit integer conversion, collation, new syntax or rewrite is introduced.
+UTF-8/binary comparisons use the plan's lexicographic byte order.
+
+Parser bounds remain 4096 statement bytes, 16-byte identifiers, two explicit
+projection names and 220 decoded literal bytes. Star can project eight declared
+columns, including columns whose names exceed the SQL identifier bound. Count
+returns uint64, sum returns checked int64 with null for no contributing values.
+Compilation owns projection/literal storage in a caller-supplied allocator and
+validates the resulting plan; it performs no reads and confers no authority.
+V1 SQL continues to use its original compiler, limits, null rules and wire format.
+
 The signed shell, explicit-submit Board query workspace and all ten M11 SDKs use
 the shared Zig contract. SDKs own their typed objects and Arrow buffers; they do
 not implement decoders, query semantics, publication or retries independently.

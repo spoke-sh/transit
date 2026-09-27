@@ -23,6 +23,10 @@ values and all eight page widths. Adapters and durable/public submission remain
 in progress. The [v2 contract](../../../contracts/UNIFIED_QUERY_V2.md) states
 workspace, segment and encoding budgets. Existing `Plan`/`Stream` v1 APIs keep their contract.
 
+`Unified.Sql` lowers the existing SELECT grammar to v2 plans for explicitly
+declared sources. The [unified SQL guide](docs/unified-sql.md) distinguishes its
+capabilities, owned allocator storage and error rules from the original compiler.
+
 `Unified.Inspect.decode` validates that exact nested IPC schema and all cell
 states, conflict IDs/order, scalar widths, nullability and complete stream framing.
 Arrow allocations stay in caller-supplied workspace; decoded text/binary is copied

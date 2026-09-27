@@ -147,6 +147,8 @@ pub const Codec = @import("UnifiedCodec.zig");
 pub const Arrow = @import("UnifiedArrow.zig");
 pub const Inspect = @import("UnifiedInspect.zig");
 pub const Stream = @import("UnifiedStream.zig");
+pub const Sql = @import("UnifiedSql.zig");
 test {
     _ = @import("unified_test.zig");
+    _ = @import("unified_sql_test.zig");
 }

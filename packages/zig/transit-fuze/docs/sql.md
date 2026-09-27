@@ -1,5 +1,9 @@
 # Read-only Table SQL
 
+This page describes the original v1 compiler. `Unified.Sql` reuses the parser to
+target v2 KV/Table/Document plans; see [unified SQL](unified-sql.md) for its
+separate capability, allocation and result rules.
+
 `transit_fuze.Sql` is M12's allocation-free Zig frontend for the existing
 `Stream.Plan`. It parses one complete statement into an owned, bounded `Ast`,
 then resolves names/types against a caller-supplied source descriptor:

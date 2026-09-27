@@ -107,6 +107,8 @@ def main():
         executed += 1
     print(f'SQL compiler: {len(data["select"])} Zig/ANTLR ASTs agree; {executed} real plans, '
           f'codec round trips and paged Arrow results independently checked; all exclusions rejected.')
+    from unified import check as check_unified
+    check_unified(sys.argv[2])
 
 
 if __name__ == '__main__':

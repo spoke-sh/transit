@@ -9,6 +9,15 @@ pub const format: u32 = 0x32425155; // UQB2
 source: q.SourceDefinition,
 plan: m.Plan,
 limits: Limits,
+/// The SQL name is a caller-owned alias for this explicit source definition.
+/// Returned plan slices belong to allocator; source slices retain their owner.
+pub fn fromSql(allocator: std.mem.Allocator, source: q.SourceDefinition, name: m.Name, text: []const u8, limits: Limits) !Self {
+    var columns: [m.max_columns]m.Column = undefined;
+    const plan = try m.Sql.plan(allocator, text, .{ .name = name, .schema = try source.schema(&columns) });
+    const result: Self = .{ .source = source, .plan = plan, .limits = limits };
+    try result.validate();
+    return result;
+}
 pub const Limits = struct {
     pages: u64,
     segments: u64,
