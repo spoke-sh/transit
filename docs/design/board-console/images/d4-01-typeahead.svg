@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
-<title id="title">D4 — Live SQL completion with clean results</title><desc id="desc">Live SQL completion with clean results. Row and column counts live only in Profile, above compact horizontal distribution bars. A pale grey result surface indicates provisional data with no visible state label; the information icon opens Query info. Synthetic proposed interface, not implemented behavior. Search Transit is centered in the top navigation; the realm dropdown is at the right. Search uses section context without hiding other sections.</desc>
+<title id="title">D4 — Live SQL completion with clean results</title><desc id="desc">Live SQL completion with a pale grey provisional result. A compact timing line shows Run 12 ms, Ready 31 ms, a read basis about 0.6 seconds old and a predicted next answer in 25–45 ms. Query info preserves candidate identity. Synthetic design timings, not measured runtime evidence.</desc>
 <rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
 <text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
 <g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
@@ -72,8 +72,11 @@
 <text x="240" y="508" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Rows</text>
 <text x="326" y="508" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
 <path d="M240 520 H282" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<g role="img" aria-label="Query info — provisional result for the suggested completion">
-<title>Query info: result for the suggested completion</title>
+<g role="img" aria-label="Query info — Suggested completion. Run 12 ms. Ready 31 ms. As of ~0.6 s ago. Next ~25–45 ms. Next is an estimated duration, not a countdown.">
+<text x="500" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Run 12 ms</text>
+<text x="602" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Ready 31 ms</text>
+<text x="714" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">As of ~0.6 s ago</text>
+<text x="870" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Next ~25–45 ms</text>
 <circle cx="1024" cy="501" r="6" fill="white" stroke="black"/>
 <text x="1022.5" y="504.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
 </g>

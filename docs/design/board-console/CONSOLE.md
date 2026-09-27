@@ -252,14 +252,15 @@ access and secret-handling contracts. No automatic localStorage history is impli
 ## Result layout and column profiles
 
 Make returned rows the main result view. The compact toolbar contains Rows/Chart,
-query information and the Profile toggle. Row/column
+a timing line, query information and the Profile toggle. Row/column
 counts live once at the top of Profile; closing it hides those counts rather than
 moving them back into the result toolbar. Remove the prominent
 speculative title and source/candidate metadata line, plus the duplicate SQL
 block and separate Summary tab. Exact statement, source/schema revisions,
 candidate/draft identity, verified completion and observation evidence are
 available in **Query info**, opened from the information affordance.
-Provisional answers use a pale grey result background (`#f2f2f2` in the study),
+Provisional and retained previous-statement answers use a pale grey result
+background (`#f2f2f2` in the study),
 covering rows/charts and their Profile panel, with no visible Preview label or
 replacement badge. Keep black text and active controls; do not dim the whole
 region or make it look disabled. Retain the unlabelled information icon with an
@@ -270,8 +271,17 @@ the result qualifies as the exact current answer. Motion alone is not its state
 contract, and no flashing or animation is required.
 Remove the old Details link, which did not explain its content. Enter/Space opens the
 popover, Escape closes it and returns focus. The popover names the relationship
-between executed SQL and the draft; Earlier draft and Following remain distinct.
-Detailed provenance is not repeated in the grid or profile headings.
+between executed SQL and the draft without visible Earlier draft or Complete
+badges. Detailed provenance is not repeated in the grid or profile headings.
+
+The [timing design](TIMING.md) replaces those badges with measured **Run** and
+**Ready** durations, source-basis age (**As of**) and an estimated **Next** readiness
+range. Stream uses **Update** and coverage **Lag** for the displayed frontier.
+Measured values keep their original query/candidate identity; forecasts identify
+their target, evidence and uncertainty separately. Missing observations or an
+ineligible draft show `—`, not invented timings. Query info expands a compact
+phase bar and forecast explanation alongside exact SQL. These observations and
+predictions need new qualified contracts; the figures are synthetic.
 
 The right **Profile** panel starts at the result split, leaving the SQL editor
 full width. It opens by default for the first available result on a wide display.
@@ -359,7 +369,7 @@ Before verified completion, show status/progress, not apparently final rows or
 profiles. Speculative snapshots additionally bind their candidate and parent
 draft, disclosed in Query info; they can be verified answers to that candidate
 without answering current text. Stream views instead require the committed-frontier contract in the live
-notes, and cannot reuse snapshot Complete as a status for an endless query.
+notes, and cannot reuse finite completion as the status of an endless query.
 A submission receipt does not establish query admission or completion;
 observe those phases separately.
 
@@ -372,7 +382,9 @@ observe those phases separately.
 | Null count, min/max | Typed computation over the named loaded page, or a qualified whole-result profile |
 | Distinct cardinality | Non-null distinct values in the named coverage, exact only within the declared set budget; estimates carry their method/precision |
 | Distribution | Fixed bounded bins/top values over the same coverage; labels define intervals, counts and null treatment |
-| Timing | Only measured phases with their clock/boundary; browser elapsed time is not engine execution time |
+| Run / Ready | Separately measured engine interval and eligibility-to-usable-result duration; preserve owner clocks and first-page versus whole-result boundaries |
+| As of / Lag | Qualified read-cut age or stream coverage lag, with clock uncertainty; receipt time and last changed-row time are different observations |
+| Next estimate | Conditional predicted Ready-duration range for the eligible plan under current conditions; never a measured fact, admission promise or source-event countdown |
 
 The D4 three-row example fits one complete loaded page, so its null counts and
 ranges cover all returned rows. For a larger complete result, auto-profile only

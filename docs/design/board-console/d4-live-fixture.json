@@ -138,7 +138,8 @@
         ]
       ]
     },
-    "label": "Following",
+    "label": null,
+    "timing_presentation": "Update / Ready / Lag / Next; continuous-generation identity remains in Query info and Profile.",
     "frontier": 43,
     "limit_meaning": "Current first three matching rows in primary-key order, not three events.",
     "snapshot_tail_duplicate": "A duplicate of the revision-43 transaction is ignored by identity/position; it cannot count twice.",
@@ -174,7 +175,7 @@
       "id": "incomplete_predicate",
       "draft": "SELECT id, value FROM samples WHERE samples.",
       "displayed_query": "SELECT id, value FROM samples",
-      "expected": "Earlier draft label, never current; no silent removal of WHERE to manufacture an exact execution."
+      "expected": "Grey retained result, original timing/source age and previous-statement description in Query info; never relabel as current or silently remove WHERE."
     },
     {
       "id": "paused",

@@ -80,11 +80,11 @@ around the probabilistic policy.
 
 | Presentation | Required evidence |
 | --- | --- |
-| Complete (current draft) | Exact current compiled semantics, mode and basis available in Query info |
+| Run / Ready / As of / Next timing line | Verified exact current result; measured durations and source-basis age, plus a separately labelled conditional prediction as specified in [Timing](TIMING.md) |
 | Pale grey provisional surface, no label | Complete candidate SQL, candidate ID, parent draft and exact result basis in Query info; the information icon's accessible description identifies the candidate relationship |
-| Earlier draft | Executed text/generation and original basis, clearly distinct from current text |
-| Updating | A newer eligible generation is being evaluated; the older view retains its label |
-| Following | Continuous generation with a committed frontier and explicit initial-snapshot/delta coverage |
+| Grey retained result with its original timings | Executed text/generation and original basis in Query info; accessible description distinguishes it from the current text, without an Earlier draft badge |
+| Elapsed wait while newer work runs | A newer eligible generation is being evaluated; retained rows preserve original timing and identity |
+| Update / Ready / Lag / Next timing line | Continuous generation with a committed frontier and explicit initial-snapshot/delta coverage; Next forecasts a new generation, not source-event arrival |
 | Paused / gap / unavailable | Last permitted basis and reason; never a fabricated fresh or empty answer |
 
 Figure 1's `FROM sam` can speculate on `FROM samples` if that disclosed candidate
@@ -93,11 +93,14 @@ If the user accepts the completion, the candidate may become current only when
 the semantics, mode, source/schema basis and current authority match. Promotion
 does not retimestamp a snapshot to “now”; preserve its original basis in Query info.
 Provisional results have no Preview badge: a pale grey result surface and the
-information icon carry that state. Other short state controls remain; counts
-live in Profile. Promotion removes the grey only after the checks above pass.
+information icon carry that state. Measured timing, freshness and predicted next
+readiness replace the Earlier draft/Complete badges; counts live in Profile.
+Promotion removes the grey only after the checks above pass and never resets
+original timings or the source read cut.
 Source/candidate IDs and executed SQL are details on demand. The Profile panel summarizes the same
 identified answer as the rows. Closing it changes layout, not execution, and
-preserves the provisional surface and Earlier draft/Following distinctions.
+preserves the grey surface and timing line. Query info retains exact, candidate,
+previous-statement and continuous-generation distinctions.
 
 Each evaluation requires session/epoch, document version, exact/candidate
 fingerprint, mode, source/schema and policy context, and its own admitted query
@@ -176,7 +179,9 @@ Document an explicit gap/resnapshot transition when a resume point is reclaimed.
 Do not continue a stale stream with an apparently current label or silently switch
 to periodic SELECT. Changing SQL creates a new generation; a replacement handshake
 must identify the old/new frontiers and whether there is a gap. Until the new
-generation has a complete initial cut, an old result stays labelled Earlier draft.
+generation has a complete initial cut, retained rows stay grey with their original
+timings and a previous-statement description in Query info; they never appear to
+answer the new text. Source-progress lag remains bound to their old frontier.
 The initial one-active adapter may have to stop the old query before starting the
 new one; seamless overlapping subscriptions are not an existing capability.
 

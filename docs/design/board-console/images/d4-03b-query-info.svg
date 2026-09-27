@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
-<title id="title">D4 — Query info explains the execution</title><desc id="desc">The Complete result-state control opens Query info with the exact executed SQL, current-draft relationship, mode, source read basis and result identity. It replaces the vague Details link. Synthetic proposed interface, not implemented behavior. Search Transit is centered in the top navigation; the realm dropdown is at the right. Search uses section context without hiding other sections.</desc>
+<title id="title">D4 — Query info explains the execution</title><desc id="desc">Query info explains Run, Ready, source age and estimated next readiness, alongside exact SQL and result identity. Five illustrative phases sum to 42 ms. Synthetic design timing and nominal prediction interval, not runtime or model evidence.</desc>
 <rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
 <text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
 <g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
@@ -74,9 +74,11 @@
 <text x="240" y="417" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Rows</text>
 <text x="326" y="417" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
 <path d="M240 429 H282" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<g role="img" aria-label="Complete — Query info">
-<rect x="900" y="396" width="140" height="28" rx="0" fill="white" stroke="black"/>
-<text x="912" y="415" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Complete</text>
+<g role="img" aria-label="Query info — Current exact statement. Run 18 ms. Ready 42 ms. As of ~0.8 s ago. Next ~35–55 ms. Next is an estimated duration, not a countdown.">
+<text x="500" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Run 18 ms</text>
+<text x="602" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Ready 42 ms</text>
+<text x="714" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">As of ~0.8 s ago</text>
+<text x="870" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Next ~35–55 ms</text>
 <circle cx="1024" cy="410" r="6" fill="white" stroke="black"/>
 <text x="1022.5" y="413.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
 </g>
@@ -137,17 +139,39 @@
 <text x="1245" y="649" font-family="sans-serif" font-size="11" font-weight="400" fill="black">3 distinct · 0 nulls</text>
 <path d="M1088 664 H1384" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 </g>
-<rect x="570" y="455" width="470" height="251" rx="0" fill="white" stroke="black"/>
-<text x="590" y="484" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Query info</text>
+
+<rect x="470" y="455" width="570" height="428" rx="0" fill="white" stroke="black"/>
+<text x="490" y="484" font-family="sans-serif" font-size="16" font-weight="700" fill="black">Query info</text>
 <text x="1008" y="484" font-family="sans-serif" font-size="20" font-weight="400" fill="black">×</text>
-<text x="590" y="511" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Answers current draft · Snapshot</text>
-<text x="590" y="547" font-family="sans-serif" font-size="11" font-weight="700" fill="black">Executed SQL</text>
-<text x="590" y="572" font-family="monospace" font-size="13" font-weight="400" fill="black">SELECT id, value FROM samples</text>
-<text x="590" y="594" font-family="monospace" font-size="13" font-weight="400" fill="black">WHERE id &gt;= 104 LIMIT 3;</text>
-<path d="M590 610 H1020" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
-<text x="590" y="636" font-family="sans-serif" font-size="11" font-weight="700" fill="black">Source</text>
-<text x="718" y="636" font-family="sans-serif" font-size="12" font-weight="400" fill="black">samples · revision 42</text>
-<text x="590" y="663" font-family="sans-serif" font-size="11" font-weight="700" fill="black">Result</text>
-<text x="718" y="663" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Q12 / R18 · verified complete</text>
-<text x="590" y="689" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Esc closes · no query is submitted</text>
+<text x="490" y="511" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Answers current draft · Snapshot</text>
+<text x="490" y="545" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Run 18 ms</text>
+<text x="701" y="545" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Ready 42 ms</text>
+<g><title>Wait 6 ms</title>
+<rect x="490" y="558" width="75.71428571428571" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<g><title>Admit 7 ms</title>
+<rect x="565.7142857142857" y="558" width="88.33333333333333" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>Run 18 ms</title>
+<rect x="654.047619047619" y="558" width="227.14285714285714" height="12" rx="0" fill="url(#stripe)" stroke="black"/>
+</g>
+<g><title>Deliver 6 ms</title>
+<rect x="881.1904761904761" y="558" width="75.71428571428571" height="12" rx="0" fill="white" stroke="black"/>
+</g>
+<g><title>Paint 5 ms</title>
+<rect x="956.9047619047618" y="558" width="63.095238095238095" height="12" rx="0" fill="black" stroke="black"/>
+</g>
+<text x="490" y="594" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Wait 6 · Admit 7 · Run 18 · Deliver 6 · Paint 5 ms</text>
+<text x="490" y="627" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Read basis ~0.8 s ago · samples r42</text>
+<text x="490" y="660" font-family="sans-serif" font-size="14" font-weight="700" fill="black">Next ~35–55 ms</text>
+<text x="701" y="660" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Estimated ready time</text>
+<text x="490" y="684" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Expected range (80%) · Current plan</text>
+<path d="M490 703 H1020" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="490" y="729" font-family="sans-serif" font-size="11" font-weight="700" fill="black">Executed SQL</text>
+<text x="490" y="755" font-family="monospace" font-size="13" font-weight="400" fill="black">SELECT id, value FROM samples</text>
+<text x="490" y="778" font-family="monospace" font-size="13" font-weight="400" fill="black">WHERE id &gt;= 104 LIMIT 3;</text>
+<path d="M490 795 H1020" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="490" y="821" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Result Q12 / R18 · verified</text>
+<text x="490" y="846" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Read cut 12:00:00.016 UTC</text>
+<text x="946" y="868" font-family="sans-serif" font-size="11" font-weight="400" fill="black">Esc Close</text>
 </svg>

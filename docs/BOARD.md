@@ -202,10 +202,13 @@ Counts and sizes name their basis and distinguish estimates
 and unavailable measurements; search does not scan data or alter the SQL draft.
 The result grid is primary, with a closable right Profile panel for returned-column
 cardinality, nulls, ranges and distributions. Query provenance lives in Query info
-on the result-state control;
-pale grey provisional results replace the Preview label, while earlier-draft/
-following indicators and profile coverage stay visible. The information icon
-retains candidate provenance and an accessible state description.
+on the information control. Pale grey provisional/retained results replace the
+Preview and Earlier draft labels; Complete also leaves the toolbar. A compact
+[timing line](design/board-console/TIMING.md) shows measured execution and readiness,
+source-basis age or stream lag, and a separately estimated next readiness range.
+The information icon retains candidate provenance, clock/measurement boundaries
+and an accessible state description. Timings in the design are synthetic; new
+observation and prediction contracts are required.
 Closing or reopening the panel does not rerun SQL or change a result's identity.
 Row/column counts belong inside Profile. Compact horizontal column summaries
 make room for more dimensions, and Chart plots the same identified result with

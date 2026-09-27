@@ -77,8 +77,11 @@ or evidence. A speculative answer names its candidate separately from the draft.
 Result summaries describe an exact execution or committed stream frontier and
 explicit profile coverage; chart/summary controls do not independently dispatch
 queries. A closable right panel shows returned-column cardinality, nulls, ranges
-and distributions; query provenance is available in Query info on the result-state
-control. Closing or reopening the panel preserves the query and result identity.
+and distributions; query provenance is available in Query info on the information
+control. [Timing design](design/board-console/TIMING.md) adds separately measured
+execution/readiness, qualified data age or stream lag and conditional next-result
+duration estimates. A fast time or prediction does not establish current SQL
+identity or result truth. Closing or reopening the panel preserves the query and result identity.
 The [console notes](design/board-console/CONSOLE.md) and
 [live scheduling notes](design/board-console/LIVE.md) record the proposed editor,
 admission and source contracts. No continuous SQL syntax or runtime is introduced;

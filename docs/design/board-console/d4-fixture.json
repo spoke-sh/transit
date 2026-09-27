@@ -278,7 +278,7 @@
     "scope": "Synthetic compact layout, Query info and chart expectations; no runtime behavior. The wider result needs future schema/type qualification.",
     "count_location": "Profile only; closed Profile does not put counts back in the result toolbar.",
     "bar_encoding": "Ordered numeric bins or stable categories; segment width = count / non-null rows. Min/max are separate statistics, not an axis.",
-    "query_info_trigger": "Information icon for provisional results; state information control for other results. Replaces result Details link.",
+    "query_info_trigger": "Information icon after the timing line for all results. Replaces result Details link and status badges.",
     "chart": {
       "type": "scatter",
       "x": "id",

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc">
-<title id="title">D4 — Column completion with earlier rows</title><desc id="desc">Column completion with earlier rows. Counts belong to Profile; Earlier draft opens Query info with the actual executed SQL. Synthetic proposed interface, not implemented behavior. Search Transit is centered in the top navigation; the realm dropdown is at the right. Search uses section context without hiding other sections.</desc>
+<title id="title">D4 — Column completion with earlier rows</title><desc id="desc">Column completion retains six rows on a pale grey surface. Their original Run 12 ms and Ready 31 ms remain visible; the data basis is about 2.4 seconds old. Next is unavailable because no current statement is eligible. Query info names the previous statement. Profile is closed; rows use the full result width. Synthetic design timings, not measured runtime evidence.</desc>
 <rect x="0" y="0" width="1440" height="960" rx="0" fill="white" stroke="black"/>
 <text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" fill="black">Transit</text>
 <g role="img" aria-label="Search Transit. Command K or Control K opens context-aware power search.">
@@ -68,15 +68,18 @@
 
 
 <defs><pattern id="stripe" patternUnits="userSpaceOnUse" width="5" height="5"><rect width="5" height="5" fill="white"/><path d="M-1 1 l2 -2 M0 5 l5 -5 M4 6 l2 -2" stroke="black" stroke-width="1"/></pattern></defs>
+<rect x="240" y="470" width="1168" height="490" fill="#f2f2f2" stroke="none"/>
 <path d="M240 469 H1408" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 466 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M804 472 H844" fill="none" stroke="black" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
 <text x="240" y="508" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Rows</text>
 <text x="326" y="508" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Chart</text>
 <path d="M240 520 H282" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<g role="img" aria-label="Earlier draft — Query info">
-<rect x="1120" y="487" width="140" height="28" rx="0" fill="white" stroke="black"/>
-<text x="1132" y="506" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Earlier draft</text>
+<g role="img" aria-label="Query info — Previous statement; unresolved predicate. Run 12 ms. Ready 31 ms. As of ~2.4 s ago. Next —. Next is an estimated duration, not a countdown.">
+<text x="720" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Run 12 ms</text>
+<text x="822" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Ready 31 ms</text>
+<text x="934" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">As of ~2.4 s ago</text>
+<text x="1090" y="505" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Next —</text>
 <circle cx="1244" cy="501" r="6" fill="white" stroke="black"/>
 <text x="1242.5" y="504.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
 </g>

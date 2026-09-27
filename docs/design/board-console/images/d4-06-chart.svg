@@ -74,9 +74,11 @@
 <text x="240" y="417" font-family="sans-serif" font-size="15" font-weight="400" fill="black">Rows</text>
 <text x="326" y="417" font-family="sans-serif" font-size="15" font-weight="700" fill="black">Chart</text>
 <path d="M326 429 H368" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-<g role="img" aria-label="Complete — Query info">
-<rect x="900" y="396" width="140" height="28" rx="0" fill="white" stroke="black"/>
-<text x="912" y="415" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Complete</text>
+<g role="img" aria-label="Query info — Current exact statement. Run 18 ms. Ready 42 ms. As of ~0.8 s ago. Next ~35–55 ms. Next is an estimated duration, not a countdown.">
+<text x="500" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Run 18 ms</text>
+<text x="602" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Ready 42 ms</text>
+<text x="714" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">As of ~0.8 s ago</text>
+<text x="870" y="414" font-family="sans-serif" font-size="12" font-weight="400" fill="black">Next ~35–55 ms</text>
 <circle cx="1024" cy="410" r="6" fill="white" stroke="black"/>
 <text x="1022.5" y="413.5" font-family="sans-serif" font-size="10" font-weight="400" fill="black">i</text>
 </g>
