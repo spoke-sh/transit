@@ -119,20 +119,86 @@ export function readState(
   return request(base + query, validateStateResponse, { signal });
 }
 
-export type { AtlasResponse, QueryRequest, QueryResponse, RecordsResponse } from "./types";
-import type { AtlasResponse, QueryRequest, QueryResponse, RecordsResponse } from "./types";
+export type {
+  AtlasResponse,
+  QueryRequest,
+  QueryResponse,
+  RecordsResponse,
+  HttpResponse,
+} from "./types";
+import type {
+  AtlasResponse,
+  QueryRequest,
+  QueryResponse,
+  RecordsResponse,
+  HttpResponse,
+} from "./types";
 import {
   AtlasResponse as atlasValidator,
   QueryResponse as queryValidator,
   RecordsResponse as recordsValidator,
+  HttpResponse as httpValidator,
 } from "./validators.js";
+const wide = (text: string, zero = false) =>
+  /^(0|[1-9][0-9]{0,19})$/.test(text) &&
+  (zero || text !== "0") &&
+  BigInt(text) <= 18446744073709551615n;
+export function validateHttp(value: unknown): value is HttpResponse {
+  if (!httpValidator(value)) return false;
+  const page = value as HttpResponse;
+  if (!wide(page.exchange) || page.phase === "retired") return false;
+  const prefix = `0045${BigInt(page.exchange).toString(16).padStart(16, "0")}`;
+  if (page.source.key !== `${prefix}6400000000`) return false;
+  type Member = NonNullable<HttpResponse["policy"]>["member"];
+  const member = (m: Member, kind: Member["kind"]) =>
+    m.kind === kind && m.key === `${prefix}6d${m.ordinal.toString(16).padStart(8, "0")}`;
+  if (page.policy) {
+    const p = page.policy;
+    if (
+      !member(p.member, "request_template") ||
+      p.member.ordinal !== 0 ||
+      !wide(p.endpoint_revision) ||
+      !wide(p.request_bytes, true) ||
+      !wide(p.response_bytes, true) ||
+      p.tls !== (p.trust_digest !== null)
+    )
+      return false;
+    for (const ref of [p.retry, p.redirect, p.reconcile, p.cancel])
+      if (ref && (!wide(ref.id) || !wide(ref.revision))) return false;
+  }
+  if ((page.phase === "complete") !== (page.terminal !== null)) return false;
+  if (page.terminal) {
+    const t = page.terminal;
+    if (
+      !page.policy ||
+      !member(t.timing.member, "timing") ||
+      !member(t.omission.member, "omission") ||
+      !member(t.completion.member, "completion") ||
+      t.omission.member.ordinal !== t.timing.member.ordinal + 1 ||
+      t.completion.member.ordinal !== t.omission.member.ordinal + 1 ||
+      !wide(t.timing.started_ms) ||
+      !wide(t.timing.elapsed_ns, true) ||
+      !wide(t.completion.request_bytes, true) ||
+      !wide(t.completion.response_bytes, true) ||
+      t.completion.member.chain.some((byte, index) => byte !== page.coverage[index])
+    )
+      return false;
+  }
+  return true;
+}
+export async function httpMetadata(resource: number, exchange: string, signal?: AbortSignal) {
+  if (!Number.isSafeInteger(resource) || resource <= 0 || !wide(exchange))
+    throw new BoardError(0, "InvalidResource");
+  const page = await request(`/api/v1/resources/${resource}/http/${exchange}`, validateHttp, {
+    signal,
+  });
+  if (page.source.resource !== resource || page.exchange !== exchange)
+    throw new BoardError(0, "InvalidResponse");
+  return page;
+}
 export function validateRecords(value: unknown): value is RecordsResponse {
   if (!recordsValidator(value)) return false;
   const page = value as RecordsResponse;
-  const wide = (text: string, zero = false) =>
-    /^(0|[1-9][0-9]{0,19})$/.test(text) &&
-    (zero || text !== "0") &&
-    BigInt(text) <= 18446744073709551615n;
   return page.exchanges.every((lens, index) => {
     if (lens === null) return true;
     const entry = page.page.entries[index];

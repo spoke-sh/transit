@@ -148,7 +148,12 @@ Capture bodies and adapter context are omitted. Full-width exchange/policy IDs
 remain decimal strings. The API rechecks each read, rejects changed-revision
 cursors and makes no durable writes; the browser clears records on errors and tab
 hiding. Real HTTP capture and live-revocation browser checks qualify this slice.
-HTTP timing, omission and root endpoint policy inspection remain unimplemented.
+An explicit HTTP selection also exposes frozen endpoint/followup policy references,
+TLS/trust digest, finite budgets, timing, omission counts and completion metadata.
+It reads at most four known members and verifies their digests at a current
+authorized resource cut. It omits routing fields, secret references, heads and
+bodies. Partial captures have no terminal summary; retired captures reject. This
+view does not claim to replay or verify the entire application transcript.
 
 ## Boundary and packaging
 

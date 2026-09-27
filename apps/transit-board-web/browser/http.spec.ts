@@ -31,11 +31,17 @@ test("captured HTTP evidence is inspection-only and clears after read revocation
       "Capture completion is separate from kernel settlement and remote business success.",
     ),
   ).toBeVisible();
+  await records.getByRole("button", { name: "Inspect HTTP metadata", exact: true }).click();
+  const metadata = page.getByRole("region", { name: "HTTP metadata for exchange 1", exact: true });
+  await expect(metadata.getByText("Endpoint policy revision", { exact: true })).toBeVisible();
+  await expect(metadata.getByText("Omitted request secrets", { exact: true })).toBeVisible();
+  await expect(metadata.getByText("Elapsed time (ns)", { exact: true })).toBeVisible();
   await page.screenshot({ path: "../../.cache/verification/m15-board-http.png", fullPage: true });
   admin("board-revoke");
   await expect(
     records.getByRole("heading", { name: "Exchange 1 · complete", exact: true }),
   ).toHaveCount(0);
+  await expect(metadata).toHaveCount(0);
   await expect(records.getByRole("status")).toContainText("denied");
   admin("board-restore");
   await records.getByRole("button", { name: "Refresh records", exact: true }).click();

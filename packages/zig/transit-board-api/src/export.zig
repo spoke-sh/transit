@@ -27,6 +27,7 @@ fn route(out: *std.json.Stringify, path: []const u8, method: []const u8, name: [
     try out.objectField("parameters");
     try out.beginArray();
     if (pid) try out.write(.{ .name = if (std.mem.indexOf(u8, path, "{resource}") != null) "resource" else "pid", .in = "path", .required = true, .schema = .{ .type = "integer", .minimum = 1, .maximum = api.protocol.max_counter } });
+    if (std.mem.indexOf(u8, path, "{exchange}") != null) try out.write(.{ .name = "exchange", .in = "path", .required = true, .schema = .{ .type = "string", .pattern = "^[1-9][0-9]{0,19}$" }, .description = "Canonical nonzero uint64 decimal identity, at most 18446744073709551615." });
     if (paged) for ([_][]const u8{ "after", "position", "policy_revision", "retained_from" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Continuation: supply all cut fields together; restart explicitly after 409" });
     if (std.mem.eql(u8, path, "/api/v1/atlas")) for ([_][]const u8{ "position", "process_after", "resource_after" }) |param| try out.write(.{ .name = param, .in = "query", .required = false, .schema = .{ .type = "integer", .minimum = 0, .maximum = api.protocol.max_counter }, .description = "Growing profile only. An after cursor requires its original position; refresh explicitly after 409." });
     if (std.mem.eql(u8, path, "/api/v1/resources/{resource}/records")) {
@@ -68,6 +69,7 @@ pub fn main(init: std.process.Init) !void {
     try route(&out, "/api/v1/resources/{resource}", "get", "StateResponse", true, true);
     try route(&out, "/api/v1/resources/{resource}/entries", "get", "StateResponse", true, true);
     try route(&out, "/api/v1/resources/{resource}/records", "get", "RecordsResponse", true, false);
+    try route(&out, "/api/v1/resources/{resource}/http/{exchange}", "get", "HttpResponse", true, false);
     for ([_][]const u8{ "mailbox", "outbox", "effects", "payloads", "history", "journey" }) |resource| {
         var path: [128]u8 = undefined;
         try route(&out, try std.fmt.bufPrint(&path, "/api/v1/processes/{{pid}}/{s}", .{resource}), "get", "Response", true, true);
@@ -77,7 +79,7 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     try out.objectField("schemas");
     try out.beginObject();
-    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse }) |name, T| {
+    inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "QueryRequest", "QueryResponse", "RecordsResponse", "HttpResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.QueryRequest, api.QueryResponse, api.RecordsResponse, api.HttpResponse }) |name, T| {
         try out.objectField(name);
         try s.write(T, &out, .{ .output = true, .safe_integers = true, .text_max_length = if (T == api.QueryRequest or T == api.QueryResponse) 16384 else 256 });
     }

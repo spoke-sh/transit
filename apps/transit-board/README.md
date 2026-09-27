@@ -156,7 +156,13 @@ use an explicit resource revision and key cursor; a changed revision requires a
 fresh read. This route needs no query identity and creates no durable work.
 The UI holds one page, clears it on errors or tab hiding, and rechecks every five
 seconds. Capture completion, kernel settlement and remote business success remain
-separate claims. HTTP timing, omission and root endpoint policy views remain open.
+separate claims. **Inspect HTTP metadata** selects one exchange and reads frozen
+endpoint/followup policy references, TLS/trust digest, finite byte/time budgets,
+timing and omission counts through `/api/v1/resources/{resource}/http/{exchange}`.
+Each selected metadata member has its key/digest/coverage evidence. Routing values,
+credential references, heads and bodies are omitted. A partial capture has no
+terminal metadata; retirement rejects the request. This bounded projection is
+distinct from full transcript verification.
 
 The separate query route compiles M12's Table SELECT subset through the shared
 Zig client. Queries execute in external Station hosts; verified Arrow segments

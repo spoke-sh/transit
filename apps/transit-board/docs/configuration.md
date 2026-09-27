@@ -100,6 +100,14 @@ where `HEX` is a lowercase key of 1–32 bytes. A changed revision returns 409;
 revoked access returns 403 even for a previously valid cursor. The response
 omits raw values, capture bodies and adapter context. It does not pin history.
 
+`GET /api/v1/resources/{resource}/http/{exchange}` uses that same current read
+grant for selected HTTP metadata. `exchange` is a canonical nonzero uint64 decimal
+string. The route reads at most four known immutable members under one current
+resource revision: request metadata up to 8 KiB and three terminal records up to
+256 bytes each. Every chunk read rechecks authority. Changed state fails rather
+than combining cuts; retirement returns 410, and incomplete/corrupt selected
+metadata is explicit. No request/response body or raw header member is read.
+
 Queries are disabled unless `query` is configured. For an already provisioned
 source/requester installation, add these fields to the ordinary Board config:
 

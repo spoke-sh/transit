@@ -8,6 +8,18 @@ const g = p.Growth;
 pub const QueryConfig = struct { seed_file: []const u8, connection: q.Model.Connection };
 pub const Cursor = struct { position: ?u64 = null, process_after: ?u64 = null, resource_after: ?u64 = null };
 pub const RecordsCursor = struct { resource: u64, revision: ?u64 = null, after: ?p.Value = null };
+pub const HttpCursor = struct { resource: u64, exchange: u64 };
+pub fn httpMetadata(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: HttpCursor, allocator: std.mem.Allocator) !api.HttpResponse {
+    _ = try identity(wire, realm, principal, key);
+    const x = api.Http.adapter.exchange;
+    var reader: x.Client = .{ .wire = wire, .realm = realm, .principal = principal, .key = key };
+    var source = try reader.reader(cursor.resource);
+    const descriptor_key = x.Exchange.key(cursor.exchange, 'd', 0);
+    const page = try reader.query(.{ .entries = .{ .resource = cursor.resource, .revision = source.view.revision, .key = descriptor_key } });
+    const entry = page.body.entries.page.entries[0] orelse return error.ExchangeNotFound;
+    const summary = try api.Http.adapter.Inspection.read(allocator, .{ .resource = cursor.resource, .id = cursor.exchange }, &source);
+    return api.Http.project(allocator, .{ .realm = realm, .pid = page.body.entries.resource.writer, .resource = cursor.resource, .key = descriptor_key, .entry_revision = entry.revision, .resource_revision = source.view.revision, .position = page.position }, cursor.exchange, summary);
+}
 pub fn identity(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair) !g.Response {
     const response = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .identity = {} } }, key);
     // First growing Board profile supports a realm inspector plus filtered

@@ -61,10 +61,10 @@ const Server = struct {
         if (err == error.AccessDenied or err == error.QueryAccessDenied) return self.failure(req, .forbidden, .Forbidden);
         if (err == error.UnsafePrincipal) return self.failure(req, .forbidden, .UnsafePrincipal);
         if (err == error.QueryChanged or upstream.last_rejection == .StaleStateResource or upstream.last_rejection == .QueryExpired) return self.failure(req, .conflict, .QueryExpired);
-        if (err == error.QuerySourceUnavailable or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
-        if (upstream.last_rejection == .UnknownStateResource) return self.failure(req, .not_found, .NotFound);
+        if (err == error.QuerySourceUnavailable or err == error.ExchangeUnavailable or upstream.last_rejection == .StateResourceExpired) return self.failure(req, .gone, .StateResourceExpired);
+        if (err == error.ExchangeNotFound or upstream.last_rejection == .UnknownStateResource) return self.failure(req, .not_found, .NotFound);
         if (err == error.QueryBusy) return self.failure(req, .conflict, .QueryBusy);
-        if (err == error.IncompleteResult) return self.failure(req, .conflict, .IncompleteResult);
+        if (err == error.IncompleteResult or err == error.HttpReplayGap or err == error.InvalidExchangeCoverage or err == error.HttpInspectionCapacity or err == error.WrongExchangeProtocol) return self.failure(req, .conflict, .IncompleteResult);
         if (err == error.InvalidQueryOrdinal) return self.failure(req, .bad_request, .InvalidQueryOrdinal);
         if (err == error.QueryRequestTooLarge) return self.failure(req, .bad_request, .QueryRequestTooLarge);
         if (err == error.Conflict) return self.failure(req, .conflict, .QueryConflict);
@@ -94,7 +94,8 @@ const Server = struct {
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
         const records = parseRecords(target) catch return self.failure(req, .bad_request, .InvalidQuery);
-        const cursor = if (capabilities or records != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const http_metadata = parseHttpMetadata(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const cursor = if (capabilities or records != null or http_metadata != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
         self.next_read_ms = self.now() + self.config.read_interval_ms;
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
@@ -112,6 +113,12 @@ const Server = struct {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
             defer arena.deinit();
             const result = growing.records(&upstream, self.config.realm, self.config.principal, key, page, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
+            return self.json(req, .ok, result);
+        }
+        if (http_metadata) |selection| {
+            var arena = std.heap.ArenaAllocator.init(self.allocator);
+            defer arena.deinit();
+            const result = growing.httpMetadata(&upstream, self.config.realm, self.config.principal, key, selection, arena.allocator()) catch |err| return self.queryFailure(req, &upstream, err);
             return self.json(req, .ok, result);
         }
         const result = growing.atlas(&upstream, self.config.realm, self.config.principal, key, cursor, if (self.config.query) |config| config.connection.resource else null) catch |err| return self.queryFailure(req, &upstream, err);
@@ -215,6 +222,7 @@ fn logRoute(target: []const u8) []const u8 {
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
     if ((parseRecords(path) catch null) != null) return "/api/v1/resources/{resource}/records";
+    if ((parseHttpMetadata(path) catch null) != null) return "/api/v1/resources/{resource}/http/{exchange}";
     if (parseStateQuery(path, 1, 1) catch null) |q| return switch (q.kind) {
         .resources => if (q.resource == null) "/api/v1/resources" else "/api/v1/resources/{resource}",
         .associations => "/api/v1/processes/{pid}/associations",
@@ -313,6 +321,16 @@ fn parseStateQuery(target: []const u8, realm: u64, principal: u8) !?client.proto
     }
     try client.protocol.State.validateQuery(q);
     return q;
+}
+fn parseHttpMetadata(target: []const u8) !?growing.HttpCursor {
+    const prefix = "/api/v1/resources/";
+    if (!std.mem.startsWith(u8, target, prefix)) return null;
+    const split = std.mem.indexOf(u8, target[prefix.len..], "/http/") orelse return null;
+    const resource = try number(target[prefix.len..][0..split]);
+    const value = target[prefix.len + split + 6 ..];
+    if (resource == 0 or value.len == 0 or value.len > 20 or value[0] == '0') return error.InvalidQuery;
+    for (value) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidQuery;
+    return .{ .resource = resource, .exchange = std.fmt.parseInt(u64, value, 10) catch return error.InvalidQuery };
 }
 fn parseRecords(target: []const u8) !?growing.RecordsCursor {
     const sep = std.mem.indexOfScalar(u8, target, '?') orelse target.len;
@@ -481,4 +499,11 @@ test "record cursors require an exact bounded key and original revision" {
         "/api/v1/resources/7/records?revision=1&revision=2",
         "/api/v1/resources/7/records?view=3",
     }) |invalid| try t.expectError(error.InvalidQuery, parseRecords(invalid));
+}
+test "HTTP metadata paths preserve full-width exchange identities" {
+    const t = std.testing;
+    const target = "/api/v1/resources/7/http/18446744073709551615";
+    try t.expectEqual(std.math.maxInt(u64), (try parseHttpMetadata(target)).?.exchange);
+    try t.expectEqualStrings("/api/v1/resources/{resource}/http/{exchange}", logRoute(target));
+    inline for (.{ "0", "01", "+1", "18446744073709551616", "1?view=1", "1/body", "" }) |id| try t.expectError(error.InvalidQuery, parseHttpMetadata("/api/v1/resources/7/http/" ++ id));
 }

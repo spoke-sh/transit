@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { records, type RecordsResponse } from "@rey/transit-board-client";
 import { message } from "./state";
+import { HttpMetadata } from "./http-metadata";
 
 type Declaration = NonNullable<RecordsResponse["exchanges"][number]>["declaration"];
 function ExchangeEvidence({ detail }: { detail: Declaration }) {
@@ -115,6 +116,7 @@ export function Records({ resource }: { resource: number }) {
   const [error, setError] = useState("");
   const [cursor, setCursor] = useState<{ revision: number; after: string }>();
   const [refresh, setRefresh] = useState(0);
+  const [selectedHttp, setSelectedHttp] = useState<string>();
   useEffect(() => {
     const abort = new AbortController();
     let disposed = false;
@@ -183,6 +185,19 @@ export function Records({ resource }: { resource: number }) {
               {page.exchanges[index] && (
                 <ExchangeEvidence detail={page.exchanges[index].declaration} />
               )}
+              {page.exchanges[index] &&
+                "capture" in page.exchanges[index].declaration &&
+                page.exchanges[index].declaration.capture.protocol === 1 &&
+                page.exchanges[index].declaration.capture.phase !== "retired" && (
+                  <button
+                    onClick={() => {
+                      const detail = page.exchanges[index]!.declaration;
+                      if ("capture" in detail) setSelectedHttp(detail.capture.exchange);
+                    }}
+                  >
+                    Inspect HTTP metadata
+                  </button>
+                )}
               <p>
                 Source: writer PID {page.resource.writer}, entry revision {entry.revision}
               </p>
@@ -207,6 +222,9 @@ export function Records({ resource }: { resource: number }) {
         >
           Next records
         </button>
+      )}
+      {page && selectedHttp && (
+        <HttpMetadata key={selectedHttp} resource={resource} exchange={selectedHttp} />
       )}
     </section>
   );

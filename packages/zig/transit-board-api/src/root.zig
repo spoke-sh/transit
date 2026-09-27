@@ -1,6 +1,8 @@
 //! Board v1: evidence-preserving projections over the public Transit contract.
 const std = @import("std");
 pub const Exchange = @import("Exchange.zig");
+pub const Http = @import("Http.zig");
+pub const HttpResponse = Http.Response;
 pub const Json = @import("Json.zig");
 test {
     _ = Json;

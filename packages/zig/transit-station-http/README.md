@@ -78,3 +78,13 @@ new request bytes. The callback must validate the frozen endpoint policy without
 dispatching. Read errors roll back the turn; rejections allocate nothing. A valid
 child records its new correlation in EXL2 context atomically with lineage and
 root-budget consumption. Terminal publication uses the existing HTR1 reply.
+
+`Inspection.read` projects metadata from a caller-supplied current authorized
+source. It reads the request-template member (at most 8 KiB) and, for a complete
+capture, the final timing/omission/completion members (at most 256 bytes each).
+It verifies those publication digests and terminal coverage links, without reading
+private head/body members or replaying the whole transcript. Returned policy
+fields omit hosts, addresses, targets, headers, ordinary bindings and credential
+references. Partial captures have no terminal metadata; retired captures reject.
+The caller must maintain one resource revision and current access on every read.
+Board uses the public read adapter and does not acquire a retained owner view.

@@ -61,6 +61,13 @@ bodies and application values, uses explicit continuation, and clears on errors
 or tab hiding. Five-second refreshes recheck current authority. Auto emphasis,
 animated entry and D8 venues/growth remain open design proposals.
 
+Recognized HTTP captures offer **Inspect HTTP metadata**. The selected view shows
+frozen policy revisions, budgets, trust digest, timing, omitted field counts and
+committed member references. Body values, raw routing fields and credentials are
+excluded. Only the selected metadata records are verified; this view makes no
+claim to have replayed the full body. It follows the same current-grant refresh
+and clearing rules as the records view.
+
 ## Working in the frontend
 
 | Source                                         | Owns                                                                              |
@@ -71,6 +78,7 @@ animated entry and D8 venues/growth remain open design proposals.
 | [components.tsx](src/components.tsx)           | Evidence, status and process views                                                |
 | [atlas.tsx](src/atlas.tsx)                     | Growing catalog, emphasis, selection and explicit resource entry                  |
 | [records.tsx](src/records.tsx)                 | Growing record identities and source-backed exchange metadata                     |
+| [http-metadata.tsx](src/http-metadata.tsx)     | Selected HTTP policy, timing, omission and completion evidence                    |
 | [query-workspace.tsx](src/query-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
 | [model.test.ts](src/model.test.ts)             | Model/client boundary tests                                                       |
 

@@ -66,6 +66,13 @@ Consumers must clear displayed records on read errors and recheck authority when
 returning to a hidden view. The actual generated validator is also exercised
 against real HTTP captures by `tests/board_records_client.mjs`.
 
+`httpMetadata(resource, exchange, signal?)` fetches the explicitly selected
+exchange's allowlisted HTTP metadata. Exchange IDs, policy IDs/revisions, times
+and byte counts use exact unsigned decimal strings. `validateHttp` checks those
+values, descriptor/member keys, terminal order and the final coverage reference
+after generated schema validation. The route loads only selected metadata members;
+it does not download a body or independently replay the full transcript.
+
 `atlas(cursor?, signal?)` reads bounded growing catalogs. `query(operation,
 signal?)` posts a Zig-owned query operation to the separately configured route.
 Both validate every response. `validateQuery` additionally checks typed cell

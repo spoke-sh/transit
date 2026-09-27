@@ -56,18 +56,33 @@ def inspect_capture(fixture, admin, authority, saved, board, provision, state, b
             if page['page']['next'] is None: break
             cursor = '?' + urlencode(dict(revision=page['resource']['revision'], after=page['page']['next']))
         else: raise AssertionError('Board paging exceeded bounded proof workload')
+        metadata_path = f'/api/v1/resources/{saved["resource"]}/http/1'
+        metadata = request(metadata_path)
+        assert metadata['exchange'] == '1' and metadata['phase'] == 'complete'
+        assert metadata['policy']['endpoint_revision'] == '1'
+        assert metadata['policy']['tls'] and metadata['policy']['retry'] == dict(id='77', revision='1')
+        assert int(metadata['terminal']['timing']['started_ms']) > 0
+        assert int(metadata['terminal']['timing']['elapsed_ns']) > 0
+        assert metadata['terminal']['omission']['request_secrets'] == 1
+        assert metadata['terminal']['omission']['response_headers'] > 0
+        assert metadata['terminal']['completion']['response_bytes'] == '1027'
+        assert metadata['source']['resource_revision'] == pages[0]['resource']['revision']
+        serialized = json.dumps(metadata)
+        for forbidden in ('fixture', '/public', '/status', 'Authorization', 'localhost', '127.0.0.1'):
+            assert forbidden not in serialized, forbidden
         assert admin('position') == position, 'Inspection mutated durable authority'
         capture = next(item['capture'] for item in details if 'capture' in item)
         assert capture['exchange'] == '1' and capture['phase'] == 'complete'
         assert capture['effect'] > 0 and capture['attempt'] > 0 and int(capture['bytes']) > 1027
         assert next(item['obligations'] for item in details if 'obligations' in item)['disposition'] == 'observed'
         assert next(item['attempts'] for item in details if 'attempts' in item)['used'] == 1
-        subprocess.run(['node', 'tests/board_records_client.mjs'], input=json.dumps(pages).encode(), check=True, timeout=20)
+        subprocess.run(['node', 'tests/board_records_client.mjs'], input=json.dumps(dict(pages=pages, metadata=metadata)).encode(), check=True, timeout=20)
         request(path + '?revision=0&after=00', status=409)
         for suffix in ('?after=00', '?revision=1&after=ff0', '?revision=1&after=', '?view=1'):
             request(path + suffix, status=400)
         admin('board-revoke')
         assert request(status=403)['err'] == 'Forbidden'
+        request(metadata_path, status=403)
         # Knowing a previous key/revision cannot bypass the current read grant.
         request(path + '?revision=' + str(pages[0]['resource']['revision']) + '&after=00', status=403)
         admin('board-restore')

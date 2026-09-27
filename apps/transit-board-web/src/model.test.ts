@@ -4,6 +4,8 @@ import {
   validateCapabilities,
   validateQuery,
   validateRecords,
+  validateHttp,
+  type HttpResponse,
   type QueryResponse,
   BoardError,
 } from "@rey/transit-board-client";
@@ -104,6 +106,86 @@ describe("exchange metadata boundary", () => {
     const context = page();
     context.exchanges[0].declaration.lineage.context = "private";
     expect(validateRecords(context)).toBe(false);
+  });
+});
+
+describe("HTTP metadata boundary", () => {
+  const prefix = "0045ffffffffffffffff";
+  const member = (
+    ordinal: number,
+    kind: NonNullable<HttpResponse["policy"]>["member"]["kind"],
+  ) => ({
+    key: `${prefix}6d${ordinal.toString(16).padStart(8, "0")}`,
+    ordinal,
+    kind,
+    bytes: 20,
+    digest: Array(32).fill(1),
+    chain: Array(32).fill(1),
+  });
+  const page = (): HttpResponse => ({
+    version: 1,
+    source: {
+      realm: 1,
+      pid: 2,
+      resource: 3,
+      key: `${prefix}6400000000`,
+      entry_revision: 10,
+      resource_revision: 12,
+      position: 12,
+    },
+    exchange: "18446744073709551615",
+    phase: "complete",
+    coverage: Array(32).fill(1),
+    policy: {
+      member: member(0, "request_template"),
+      endpoint_revision: "18446744073709551615",
+      tls: true,
+      trust_digest: Array(32).fill(1),
+      timeout_ms: 1000,
+      request_bytes: "65536",
+      response_bytes: "65536",
+      method: "POST",
+      retry: { id: "18446744073709551615", revision: "1" },
+      redirect: null,
+      reconcile: null,
+      cancel: null,
+    },
+    terminal: {
+      timing: {
+        member: member(5, "timing"),
+        started_ms: "1000",
+        elapsed_ns: "18446744073709551615",
+      },
+      omission: { member: member(6, "omission"), response_headers: 1, request_secrets: 1 },
+      completion: {
+        member: member(7, "completion"),
+        status: 200,
+        request_bytes: "4",
+        response_bytes: "1027",
+        heads: 1,
+        framing: "length",
+      },
+    },
+  });
+  it("preserves wide policy and time fields and refuses mismatched member evidence", () => {
+    expect(validateHttp(page())).toBe(true);
+    for (const invalid of ["18446744073709551616", "01", "-1", "1e3"]) {
+      const changed = page();
+      changed.terminal!.timing.elapsed_ns = invalid;
+      expect(validateHttp(changed)).toBe(false);
+    }
+    const changed = page();
+    changed.terminal!.omission.member.key = member(5, "omission").key;
+    expect(validateHttp(changed)).toBe(false);
+    const incomplete = page();
+    incomplete.phase = "unknown";
+    expect(validateHttp(incomplete)).toBe(false);
+    incomplete.terminal = null;
+    expect(validateHttp(incomplete)).toBe(true);
+    expect(validateHttp({ ...page(), raw_body: "private" })).toBe(false);
+    const narrowed = page();
+    narrowed.policy!.retry!.id = "0";
+    expect(validateHttp(narrowed)).toBe(false);
   });
 });
 

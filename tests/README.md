@@ -106,7 +106,14 @@ execution, and retained 971 cold objects / 104,734,346 object-store bytes. This 
 local evidence, not hosted CI qualification.
 Deterministic projection/client units cover malformed versions, wrong writers,
 private context omission, exact uint64 limits and source mismatches. HTTP timing,
-omission and root endpoint policy inspection remain outside this initial slice.
+omission and root endpoint policy inspection are now qualified by the selected
+HTTP metadata route. The complete worker/API/browser schedule passes in
+**477.68 seconds**, including **11.7 seconds** of Chromium execution, retaining
+966 cold objects / 106,209,530 object-store bytes. The read adapter checks selected
+record commitments without reading bodies; partial captures expose no invented
+terminal data. Generated client fixtures reject unsafe numeric timing/policy IDs,
+inconsistent member sources and private fields. Revocation clears the selected
+metadata view. Telemetry assertions allow bounded event loss and loss reports.
 `just transit-board::query-test` also passes against the changed growing router.
 
 Public HTD1 disposal now releases only the authenticated original caller's hold.

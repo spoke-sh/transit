@@ -42,6 +42,79 @@ fn reply(turn: Turn) !Frame {
     try t.expectEqual(.reply, frame.kind);
     return frame;
 }
+fn inspectionSegment(store: *Store, ordinal: u32, kind: http.Kind, bytes: []const u8) !void {
+    const spec = try x.Publication.Digest.of(http.protocol_format, bytes);
+    var turn = try store.capture(9, 99, .{});
+    _ = try ex.beginSegment(&turn, ordinal, @backingInt(kind), spec);
+    try store.commit(turn);
+    for (0..spec.chunks()) |index| {
+        turn = try store.capture(9, 99, .{});
+        _ = try ex.append(&turn, ordinal, @intCast(index), bytes[index * 256 ..][0..try spec.size(@intCast(index))]);
+        try store.commit(turn);
+    }
+    turn = try store.capture(9, 99, .{});
+    _ = try ex.sealSegment(&turn, ordinal);
+    try store.commit(turn);
+}
+test "metadata inspection verifies selected records without reading private heads or bodies" {
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture(9, 99, .{});
+    _ = try x.Exchange.create(&turn, ex.id, .{ .caller = 9, .input = 8, .protocol = http.protocol_format }, limits, 10000);
+    try store.commit(turn);
+    const prepared: http.Policy.Prepared = .{ .endpoint_revision = 7, .host = "private.test", .address = "127.0.0.1", .port = 443, .tls = true, .timeout_ms = 1000, .request_bytes = 64, .response_bytes = 8192, .response_headers = &.{}, .trust_digest = @splat(1), .request = .{ .method = .POST, .target = &.{.{ .literal = "/private" }}, .body_bytes = 7 } };
+    const bytes = try std.json.Stringify.valueAlloc(t.allocator, prepared, .{});
+    defer t.allocator.free(bytes);
+    try inspectionSegment(&store, 0, .request_template, bytes);
+    try inspectionSegment(&store, 1, .request_head, "private head");
+    try inspectionSegment(&store, 2, .request_body, "private");
+    turn = try store.capture(9, 99, .{});
+    _ = try ex.commitIntent(&turn);
+    const intent = turn.decision.effect.?;
+    try store.commit(turn);
+    turn = try store.capture(9, 99, .{});
+    _ = try ex.bind(&turn, .{ .id = 19, .pid = 2, .payload = intent, .phase = .authorized, .attempt = 20, .executor = 7, .reconcile_before_ms = 10000 });
+    try store.commit(turn);
+    try inspectionSegment(&store, 3, .response_head, "private response head");
+    try inspectionSegment(&store, 4, .response_body, "private");
+    const Reader = struct {
+        view: struct { id: u64 = 1, resource: u64 = 7, revision: u64 = 1 } = .{},
+        state: *Store,
+        denied: bool = false,
+        pub fn read(self: *@This(), key: p.Value) !?p.Value {
+            if (self.denied) return error.AccessDenied;
+            if (key.len == 23 and std.mem.eql(u8, key.data[0..2], "\x00P") and key.data[10] == 'c') {
+                const record = std.mem.readInt(u64, key.data[11..19], .big);
+                if (record >= 2 and record <= 5) return error.PrivateContentRead;
+            }
+            return self.state.state.get(key);
+        }
+    };
+    var source: Reader = .{ .state = &store };
+    const partial = try http.Inspection.read(t.allocator, ex, &source);
+    try t.expectEqual(@as(u64, 7), partial.policy.?.value.endpoint_revision);
+    try t.expectEqual(null, partial.terminal);
+    try inspectionSegment(&store, 5, .timing, (try x.codec.encode(http.Timing{ .started_ms = 3, .elapsed_ns = std.math.maxInt(u64) })).slice());
+    try inspectionSegment(&store, 6, .omission, (try x.codec.encode(http.Omission{ .response_headers = 2, .request_secrets = 1 })).slice());
+    try inspectionSegment(&store, 7, .completion, (try x.codec.encode(http.Completion{ .status = 200, .request_bytes = 7, .response_bytes = 7, .heads = 1, .framing = .length })).slice());
+    turn = try store.capture(9, 99, .{});
+    _ = try ex.finish(&turn, 200);
+    try store.commit(turn);
+    const complete = try http.Inspection.read(t.allocator, ex, &source);
+    try t.expectEqual(std.math.maxInt(u64), complete.terminal.?.timing.value.elapsed_ns);
+    source.denied = true;
+    try t.expectError(error.AccessDenied, http.Inspection.read(t.allocator, ex, &source));
+    source.denied = false;
+    const chunk_key = x.Publication.key(ex.id, 'c', 6, 0);
+    var corrupted = store.state.get(chunk_key).?;
+    corrupted.data[4] ^= 1;
+    try store.state.put(t.allocator, chunk_key, corrupted);
+    try t.expectError(error.InvalidPublicationDigest, http.Inspection.read(t.allocator, ex, &source));
+    var retired = complete.descriptor;
+    retired.phase = .retired;
+    try store.state.put(t.allocator, x.Exchange.key(ex.id, 'd', 0), try retired.encode());
+    try t.expectError(error.ExchangeUnavailable, http.Inspection.read(t.allocator, ex, &source));
+}
 test "independent admission fixtures fix binary commitments routes and terminal outcomes" {
     const Fixture = struct { version: u32, request: http.Request, metadata: []const u8, body: p.Value, reference: p.Value, route: p.Value, outcome: p.Value, rejection: p.Value };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("admission-fixtures.json"), .{});
