@@ -99,6 +99,19 @@ pages over one verified cursor. Standalone ABI tests additionally reject invalid
 local envelopes before dispatch and preserve uncertainty on a transport failure.
 This qualifies the shared boundary, not the individual language SDK conveniences.
 
+Installed Python and Ruby unified-query APIs now pass the same signed KV schedule
+with **eight resident authority pages / 8 MiB hot storage and cold offload**.
+Python's sync and async consumers complete in **559.64 seconds** (88 cold objects,
+8,792,739 cold bytes); Ruby completes in **488.21 seconds** (82 objects, 8,783,565
+bytes), excluding build time. Each returns 41 rows/six segments/13,584 Arrow bytes,
+persists exact upload retry material, survives worker/node/store restart, rejects
+revocation after a returned prefix and verifies complete page coverage. Python
+also checks the optional pinned PyArrow adapter. Their installed codec fixtures
+cover all three source declarations, six types, five states, full-width values,
+Unicode, negative zero and malformed streams. Typed Table/Document service runs
+and the other SDK service profiles remain separately unqualified. A Node Table
+run verified all data but failed harness shutdown; it is excluded pending rerun.
+
 ## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test

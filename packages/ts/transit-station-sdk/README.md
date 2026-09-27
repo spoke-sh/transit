@@ -48,3 +48,7 @@ message batches, durable calls, explicit retry/disposal and owned replay.
 The [Document guide](docs/documents.md) covers typed structured/text edits,
 scoped writer jobs and asynchronous current-policy reads. `bigint` identities,
 owned bytes and validated native responses preserve the shared Zig contract.
+
+The [unified query guide](docs/unified-query.md) covers explicit v2 sources,
+persisted admission commands, current-policy results and owned nested Arrow.
+Qualification is tracked per source and SDK.

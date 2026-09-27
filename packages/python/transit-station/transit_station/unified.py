@@ -1,0 +1,536 @@
+"""Typed v2 query callers; shared Zig owns admission, execution and verification."""
+from __future__ import annotations
+import ctypes as c
+from dataclasses import dataclass, field
+from enum import Enum
+import importlib
+from pathlib import Path
+import struct
+from types import TracebackType
+from typing import Any
+
+from transit_client import ProcessRef, ResourceRef
+from transit_client._native import Library, encode, seed
+from transit_client._worker import Worker, owned_await
+from transit_client.errors import IncompatibleNative, UnsupportedCapability, native_error
+from transit_client.types import integer, owned_bytes
+from .document import DocumentReference
+from .query import Comparison, Aggregate
+from .turn import ReadVersion
+
+U64_MAX = (1 << 64)-1
+
+
+def _wide(value: int, name: str, minimum: int = 0) -> int:
+    return integer(value, name, minimum=minimum, maximum=U64_MAX)
+
+
+class Type(Enum):
+    INT64 = 'int64'
+    UINT64 = 'uint64'
+    FLOAT64 = 'float64'
+    BOOLEAN = 'boolean'
+    UTF8 = 'utf8'
+    BINARY = 'binary'
+
+
+class State(Enum):
+    MISSING = 'missing'
+    NULL = 'null'
+    TYPE_ERROR = 'type_error'
+    VALUE = 'value'
+    CONFLICT = 'conflict'
+
+
+@dataclass(frozen=True, slots=True)
+class Scalar:
+    type: Type
+    value: int | float | bool | str | bytes = field(repr=False)
+    def _wire(self) -> object:
+        value = self.value
+        if self.type is Type.INT64:
+            return {'int64': str(integer(value, 'int64', minimum=-(1 << 63), maximum=(1 << 63)-1))}
+        if self.type is Type.UINT64: return {'uint64': str(integer(value, 'uint64', minimum=0, maximum=U64_MAX))}
+        if self.type is Type.FLOAT64:
+            if type(value) is not float: raise TypeError('Expected float')
+            return {'float_bits': struct.pack('<d', value).hex()}
+        if self.type is Type.BOOLEAN:
+            if type(value) is not bool: raise TypeError('Expected bool')
+            return {'boolean': value}
+        if self.type is Type.UTF8:
+            if not isinstance(value, str): raise TypeError('Expected text')
+            owned_bytes(value.encode(), 4096)
+            return {'utf8': value}
+        if self.type is Type.BINARY:
+            if not isinstance(value, bytes): raise TypeError('Expected bytes')
+            return {'binary': owned_bytes(value, 4096).hex()}
+        raise TypeError('Expected query Type')
+
+
+def _scalar(value: dict[str, Any]) -> Scalar:
+    if len(value) != 1: raise IncompatibleNative('Invalid scalar variant')
+    kind, data = next(iter(value.items()))
+    if kind == 'float_bits':
+        result = Scalar(Type.FLOAT64, struct.unpack('<d', bytes.fromhex(data))[0])
+    else:
+        datatype = Type(kind)
+        result = Scalar(datatype, int(data) if datatype in (Type.INT64, Type.UINT64)
+            else bytes.fromhex(data) if datatype is Type.BINARY else data)
+    result._wire()
+    return result
+
+
+@dataclass(frozen=True, slots=True)
+class Alternative:
+    counter: int
+    replica: int
+    state: State
+    value: Scalar | None = None
+    actual_kind: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Cell:
+    state: State
+    value: Scalar | None = None
+    actual_kind: str | None = None
+    alternatives: tuple[Alternative, ...] = ()
+
+
+def _cell(value: dict[str, Any]) -> Cell:
+    if len(value) != 1: raise IncompatibleNative('Invalid cell variant')
+    kind, data = next(iter(value.items()))
+    state = State(kind)
+    if state is State.VALUE: return Cell(state, value=_scalar(data))
+    if state is State.TYPE_ERROR: return Cell(state, actual_kind=str(data))
+    if state is State.CONFLICT:
+        alternatives = []
+        for item in data:
+            cell = _cell(item['value'])
+            if cell.state not in (State.VALUE, State.NULL, State.TYPE_ERROR):
+                raise IncompatibleNative('Invalid conflict alternative')
+            alternatives.append(Alternative(_wide(int(item['counter']), 'counter', 1),
+                _wide(int(item['replica']), 'replica', 1), cell.state, cell.value, cell.actual_kind))
+        return Cell(state, alternatives=tuple(alternatives))
+    return Cell(state)
+
+
+@dataclass(frozen=True, slots=True)
+class Column:
+    name: str
+    type: Type
+    def _wire(self) -> object: return {'name': self.name, 'type': self.type.value}
+
+
+@dataclass(frozen=True, slots=True)
+class Decoder:
+    type: Type
+    version: int = 1
+    def _wire(self) -> object: return {'type': self.type.value, 'version': integer(self.version, 'decoder version', maximum=255)}
+
+
+@dataclass(frozen=True, slots=True)
+class KVSource:
+    resource: ResourceRef
+    prefix: bytes
+    key: Decoder
+    value: Decoder
+    def _wire(self) -> object:
+        return {'version': 2, 'resource': self.resource.resource, 'source': {'kv': {
+            'prefix': owned_bytes(self.prefix, 32).hex(), 'key': self.key._wire(), 'value': self.value._wire()}}}
+
+
+@dataclass(frozen=True, slots=True)
+class TableSource:
+    resource: ResourceRef
+    table: int
+    names: tuple[str, str]
+    value_type: Type
+    def _wire(self) -> object:
+        return {'version': 2, 'resource': self.resource.resource, 'source': {'table': {
+            'id': integer(self.table, 'table', maximum=(1 << 32)-1), 'names': self.names, 'value_type': self.value_type.value}}}
+
+
+class ProjectionMode(Enum):
+    SCALAR = 'scalar'
+    TEXT = 'text'
+    ELEMENT_COUNTER = 'element_counter'
+    ELEMENT_REPLICA = 'element_replica'
+
+
+@dataclass(frozen=True, slots=True)
+class Projection:
+    column: Column
+    path: tuple[str, ...] = ()
+    relative: bool = False
+    mode: ProjectionMode = ProjectionMode.SCALAR
+    text_bytes: int = 4096
+    text_steps: int = 4096
+    def _wire(self) -> object:
+        return {'column': self.column._wire(), 'path': self.path, 'relative': self.relative,
+            'mode': self.mode.value, 'text_bytes': integer(self.text_bytes, 'text bytes', maximum=4096),
+            'text_steps': integer(self.text_steps, 'text steps', maximum=16384)}
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentSource:
+    reference: DocumentReference
+    projections: tuple[Projection, ...]
+    expand: tuple[str, ...] | None = None
+    @property
+    def resource(self) -> ResourceRef: return self.reference.resource
+    def _wire(self) -> object:
+        ref = self.reference
+        return {'version': 2, 'resource': self.resource.resource, 'source': {'document': {
+            'reference': {'resource': self.resource.resource, 'document': str(ref.document), 'epoch': str(ref.epoch),
+                'type_revision': ref.type_revision, 'revision': str(ref.revision)}, 'change_format': 1,
+            'expand': self.expand, 'projections': [value._wire() for value in self.projections]}}}
+
+
+type Source = KVSource | TableSource | DocumentSource
+
+
+@dataclass(frozen=True, slots=True)
+class IsState:
+    column: int
+    state: State
+    def _wire(self) -> object:
+        return {'state': {'column': integer(self.column, 'column', minimum=0, maximum=7), 'value': self.state.value}}
+
+
+@dataclass(frozen=True, slots=True)
+class Compare:
+    column: int
+    comparison: Comparison
+    value: Scalar
+    def _wire(self) -> object:
+        return {'compare': {'column': integer(self.column, 'column', minimum=0, maximum=7),
+            'op': self.comparison.value, 'value': self.value._wire()}}
+
+
+@dataclass(frozen=True, slots=True)
+class Plan:
+    projection: tuple[int, ...]
+    predicate: IsState | Compare | None = None
+    limit: int | None = None
+    aggregate: Aggregate = Aggregate.ROWS
+    def _wire(self) -> object:
+        if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 8:
+            raise TypeError('Expected one to eight immutable projection indices')
+        return {'version': 2, 'projection': [integer(v, 'column', minimum=0, maximum=7) for v in self.projection],
+            'predicate': {'all': {}} if self.predicate is None else self.predicate._wire(),
+            'limit': None if self.limit is None else str(_wide(self.limit, 'limit')), 'aggregate': self.aggregate.value}
+
+
+@dataclass(frozen=True, slots=True)
+class Budgets:
+    pages: int
+    segments: int
+    result_bytes: int
+    def _wire(self) -> object:
+        return {name: str(_wide(getattr(self, name), name, 1)) for name in ('pages', 'segments', 'result_bytes')}
+
+
+def _codec(action: object, directory: Path | None) -> dict[str, Any]:
+    api = Library('station', Path(__file__).with_name('station-abi.json'), directory)
+    worker = Worker(api.contract['minimum_stack_bytes'])
+    try:
+        data = encode(action)
+        def call() -> dict[str, Any]:
+            result: dict[str, Any] = api.call('station_unified_query_codec', data, len(data))
+            return result
+        return worker.call(call)
+    finally:
+        worker.close(lambda: None)
+
+
+def decode_arrow(columns: tuple[Column, ...], ipc: bytes, rows: int, *,
+                 native_directory: Path | None = None) -> tuple[tuple[Cell, ...], ...]:
+    """Decode one owned segment through Zig; this does not establish permission."""
+    value = _codec({'inspect_arrow': {'columns': [column._wire() for column in columns],
+        'rows': integer(rows, 'rows', minimum=0, maximum=8), 'ipc': owned_bytes(ipc, 65536).hex()}}, native_directory)
+    return tuple(tuple(_cell(cell) for cell in row) for row in value['rows'])
+
+
+@dataclass(frozen=True, slots=True)
+class Bundle:
+    """Validated canonical bytes; preparing this value does not admit work."""
+    data: bytes = field(repr=False)
+    def __post_init__(self) -> None: object.__setattr__(self, 'data', owned_bytes(self.data, 16384))
+    @classmethod
+    def prepare(cls, source: Source, plan: Plan, budgets: Budgets, *, native_directory: Path | None = None) -> Bundle:
+        result = _codec({'prepare': {'source': source._wire(), 'plan': plan._wire(), 'limits': budgets._wire()}}, native_directory)
+        return cls(bytes.fromhex(result['prepared']['bytes']))
+
+
+@dataclass(frozen=True, slots=True)
+class Connection:
+    source: ProcessRef
+    resource: ResourceRef
+    requester: ProcessRef
+    requests: ResourceRef
+    def __post_init__(self) -> None:
+        if len({self.source.realm, self.resource.realm, self.requester.realm, self.requests.realm}) != 1:
+            raise ValueError('Query connection must use one realm')
+    def _wire(self, principal: int) -> object:
+        return {'realm': self.source.realm, 'principal': integer(principal, 'principal'), 'source': self.source.pid,
+            'resource': self.resource.resource, 'requester': self.requester.pid, 'requests': self.requests.resource}
+
+
+@dataclass(frozen=True, slots=True)
+class Prepared:
+    """Persist before submit; import the same bytes after transport or host loss."""
+    data: bytes = field(repr=False)
+    def __post_init__(self) -> None:
+        object.__setattr__(self, 'data', owned_bytes(self.data, 8192))
+        self.data.decode('utf-8', errors='strict')
+
+
+@dataclass(frozen=True, slots=True)
+class Cursor:
+    data: str = field(repr=False)
+    def __post_init__(self) -> None: owned_bytes(self.data.encode(), 4096)
+
+
+class Phase(Enum):
+    UPLOADING = 'uploading'
+    SEALED = 'sealed'
+    ADMITTED = 'admitted'
+    COMPLETE = 'complete'
+    CANCELLED = 'cancelled'
+    DENIED = 'denied'
+    REJECTED = 'rejected'
+    RETIRED = 'retired'
+
+
+@dataclass(frozen=True, slots=True)
+class Status:
+    phase: Phase
+    correlation: int
+    reference: bytes
+    manifest: bytes | None
+    collected: bool
+
+
+class Observed(Enum):
+    PENDING = 'pending'
+    COMMITTED = 'committed'
+    REJECTED = 'rejected'
+
+
+@dataclass(frozen=True, slots=True)
+class Observation:
+    state: Observed
+    reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Description:
+    resource_revision: int
+    policy_revision: int
+    limits: Budgets
+    active: int | None
+    bundle_bytes: int
+    segment_bytes: int
+    batch_rows: int
+
+
+@dataclass(frozen=True, slots=True)
+class Manifest:
+    job: int
+    source: ReadVersion
+    requester: ProcessRef
+    correlation: int
+    policy_revision: int
+    request: bytes
+    source_kind: str
+    resource: ResourceRef
+    revision: int
+    source_digest: bytes
+    schema_digest: bytes
+    plan_digest: bytes
+    pages: int
+    scanned: int
+    selected: int
+    segments: int
+    rows: int
+    byte_count: int
+    sum: int | None
+    finished: str
+    chain: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class Page:
+    manifest: Manifest
+    columns: tuple[Column, ...]
+    ordinal: int
+    rows: int
+    ipc: bytes = field(repr=False)
+    next: Cursor | None
+    def decode(self, *, native_directory: Path | None = None) -> tuple[tuple[Cell, ...], ...]:
+        return decode_arrow(self.columns, self.ipc, self.rows, native_directory=native_directory)
+    def to_pyarrow(self) -> Any:
+        try: arrow = importlib.import_module('pyarrow')
+        except ImportError: raise UnsupportedCapability('Install transit-station[arrow]') from None
+        if arrow.__version__ != '23.0.0': raise UnsupportedCapability('Arrow adapter requires qualified PyArrow 23.0.0')
+        with arrow.ipc.open_stream(self.ipc) as reader: result = reader.read_all()
+        if result.num_rows != self.rows: raise IncompatibleNative('Arrow row coverage changed')
+        return result
+
+
+def _page(v: dict[str, Any], realm: int) -> Page:
+    data, basis = v['manifest'], v['manifest']['basis']
+    original = data['source']
+    manifest = Manifest(integer(data['job'], 'job'), ReadVersion(original['pid'], original['input'], original['index']),
+        ProcessRef(realm, data['requester']), _wide(int(data['correlation']), 'correlation'), _wide(int(data['policy_revision']), 'policy revision'),
+        owned_bytes(bytes.fromhex(data['request']), 68), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
+        bytes(basis['contract']), bytes(basis['schema']), bytes(data['plan']),
+        _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'),
+        _wide(int(data['segments']), 'segments'), _wide(int(data['rows']), 'rows'), _wide(int(data['bytes']), 'bytes'),
+        None if data['sum'] is None else integer(int(data['sum']), 'sum', minimum=-(1 << 63), maximum=(1 << 63)-1), data['finished'], bytes(data['chain']))
+    if any(len(v) != 32 for v in (manifest.source_digest, manifest.schema_digest, manifest.plan_digest, manifest.chain)):
+        raise IncompatibleNative('Invalid manifest commitment')
+    return Page(manifest, tuple(Column(item['name'], Type(item['type'])) for item in v['columns']),
+        _wide(int(v['ordinal']), 'ordinal'), integer(v['rows'], 'rows', minimum=0, maximum=8),
+        owned_bytes(bytes.fromhex(v['ipc']), 65536), None if v['next'] is None else Cursor(v['next']))
+
+
+class Client:
+    """One owned native worker; close joins in-flight work. No activation needed."""
+    def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
+                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
+        self.connection = connection
+        self._api = Library('station', Path(__file__).with_name('station-abi.json'), native_directory)
+        self._worker = Worker(self._api.contract['minimum_stack_bytes'])
+        self._handle = c.c_void_p()
+        def create() -> None:
+            endpoint, key = url.encode(), seed(seed_file)
+            try:
+                config = encode({'connection': connection._wire(principal), 'timeout_ms': integer(timeout_ms, 'timeout', maximum=60000)})
+                status = self._api.lib.station_unified_query_create(1, endpoint, len(endpoint), key, config, len(config), c.byref(self._handle))
+                if status: raise native_error(status, phase='open_query')
+            finally: c.memset(key, 0, 32)
+        try:
+            self._worker.call(create)
+            caps = self._call({'capabilities': {}})['capabilities']
+            if caps['version'] != 2 or not all(caps[name] for name in ('kv', 'table', 'document')):
+                raise UnsupportedCapability('Native query client lacks v2 source capabilities')
+        except BaseException:
+            self.close()
+            raise
+
+    def _invoke(self, action: object, recovery: bytes = b'') -> dict[str, Any]:
+        data = encode(action)
+        result: dict[str, Any] = self._api.call('station_unified_query_call', self._handle, data, len(data), recovery=recovery)
+        return result
+
+    def _call(self, action: object, recovery: bytes = b'') -> dict[str, Any]:
+        return self._worker.call(lambda: self._invoke(action, recovery))
+
+    def describe(self, source: Source) -> Description:
+        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        v = self._call({'describe': source._wire()})['description']
+        budgets, caps = v['limits'], v['capabilities']
+        return Description(integer(v['resource_revision'], 'revision', minimum=0), _wide(int(v['policy_revision']), 'policy revision'),
+            Budgets(*(int(budgets[name]) for name in ('pages', 'segments', 'result_bytes'))),
+            None if v['active'] is None else _wide(int(v['active']), 'active'), caps['bundle_bytes'], caps['segment_bytes'], caps['batch_rows'])
+
+    def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
+        value = self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}})['prepared']
+        return None if value is None else Prepared(value.encode())
+
+    def _control(self, name: str, namespace: int) -> Prepared:
+        value = self._call({'prepare': {name: str(_wide(namespace, 'namespace', 1))}})['prepared']
+        if value is None: raise IncompatibleNative('Missing prepared command')
+        return Prepared(value.encode())
+
+    def prepare_cancel(self, namespace: int) -> Prepared: return self._control('cancel', namespace)
+    def prepare_retire(self, namespace: int) -> Prepared: return self._control('retire', namespace)
+    def prepare_collect(self, namespace: int) -> Prepared: return self._control('collect', namespace)
+
+    def submit(self, prepared: Prepared) -> int:
+        """Return the admitted input position; observe it before preparing again."""
+        return integer(self._call({'submit': prepared.data.decode()}, prepared.data)['receipt']['position'], 'position')
+
+    def observe(self, position: int) -> Observation:
+        value = self._call({'observe': integer(position, 'position')})['observation']
+        if len(value) != 1: raise IncompatibleNative('Invalid observation')
+        name = next(iter(value))
+        return Observation(Observed(name), bytes.fromhex(value[name]).decode() if name == 'rejected' else None)
+
+    def status(self, namespace: int) -> Status | None:
+        value = self._call({'status': str(_wide(namespace, 'namespace', 1))})['status']
+        if value is None: return None
+        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 68),
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 68), value['collected'])
+
+    def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
+        return _page(self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),
+            'cursor': None if cursor is None else cursor.data}})['page'], self.connection.source.realm)
+
+    def _destroy(self) -> None:
+        self._api.lib.station_unified_query_destroy(self._handle)
+        self._handle = c.c_void_p()
+
+    def close(self) -> None: self._worker.close(self._destroy)
+
+    def __enter__(self) -> Client: return self
+    def __exit__(self, kind: type[BaseException] | None, value: BaseException | None, traceback: TracebackType | None) -> None: self.close()
+
+
+class AsyncClient:
+    """One bounded worker. Cancelling an await leaves its native operation owned."""
+    def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
+                 timeout_ms: int = 5000, native_directory: Path | None = None) -> None:
+        # Construction performs only local allocation/key loading/capability
+        # negotiation; all authority calls run on the owned worker below.
+        self._owner = Client(url, principal, seed_file, connection, timeout_ms=timeout_ms, native_directory=native_directory)
+        self.connection = connection
+
+    async def _call(self, action: object, recovery: bytes = b'') -> dict[str, Any]:
+        return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(action, recovery)))
+
+    async def describe(self, source: Source) -> Description:
+        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        v = (await self._call({'describe': source._wire()}))['description']
+        budgets, caps = v['limits'], v['capabilities']
+        return Description(integer(v['resource_revision'], 'revision', minimum=0), _wide(int(v['policy_revision']), 'policy revision'),
+            Budgets(*(int(budgets[name]) for name in ('pages', 'segments', 'result_bytes'))),
+            None if v['active'] is None else _wide(int(v['active']), 'active'), caps['bundle_bytes'], caps['segment_bytes'], caps['batch_rows'])
+
+    async def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
+        value = (await self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}}))['prepared']
+        return None if value is None else Prepared(value.encode())
+
+    async def _control(self, name: str, namespace: int) -> Prepared:
+        value = (await self._call({'prepare': {name: str(_wide(namespace, 'namespace', 1))}}))['prepared']
+        if value is None: raise IncompatibleNative('Missing prepared command')
+        return Prepared(value.encode())
+
+    async def prepare_cancel(self, namespace: int) -> Prepared: return await self._control('cancel', namespace)
+    async def prepare_retire(self, namespace: int) -> Prepared: return await self._control('retire', namespace)
+    async def prepare_collect(self, namespace: int) -> Prepared: return await self._control('collect', namespace)
+
+    async def submit(self, prepared: Prepared) -> int:
+        return integer((await self._call({'submit': prepared.data.decode()}, prepared.data))['receipt']['position'], 'position')
+
+    async def observe(self, position: int) -> Observation:
+        value = (await self._call({'observe': integer(position, 'position')}))['observation']
+        if len(value) != 1: raise IncompatibleNative('Invalid observation')
+        name = next(iter(value))
+        return Observation(Observed(name), bytes.fromhex(value[name]).decode() if name == 'rejected' else None)
+
+    async def status(self, namespace: int) -> Status | None:
+        value = (await self._call({'status': str(_wide(namespace, 'namespace', 1))}))['status']
+        if value is None: return None
+        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 68),
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 68), value['collected'])
+
+    async def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
+        return _page((await self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),
+            'cursor': None if cursor is None else cursor.data}}))['page'], self.connection.source.realm)
+
+    async def close(self) -> None: await self._owner._worker.aclose(self._owner._destroy)
+    async def __aenter__(self) -> AsyncClient: return self
+    async def __aexit__(self, kind: type[BaseException] | None, value: BaseException | None, traceback: TracebackType | None) -> None: await self.close()

@@ -603,3 +603,109 @@ pub(crate) fn document_codec(action: Value, native_directory: Option<&Path>) -> 
     worker.close()?;
     result
 }
+
+pub(crate) fn unified_codec(action: Value, native_directory: Option<&Path>) -> Result<Value> {
+    let directory = native_directory.map(Path::to_owned);
+    let mut worker = Worker::open(abi::MINIMUM_STACK_BYTES, move || {
+        Local::open(directory.as_deref())
+    })?;
+    let result = worker.call(move |local| {
+        let bytes = serde_json::to_vec(&action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "query-codec"))?;
+        if bytes.len() > MAX_BODY {
+            return Err(Error::new(ErrorKind::InvalidArgument, "query-codec-bound"));
+        }
+        let mut buffer = Buffer {
+            api: &local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (local.api.station_unified_query_codec)(
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "query-codec", false)
+    });
+    worker.close()?;
+    result
+}
+
+pub(crate) struct QueryNative {
+    local: Local,
+    pointer: *mut abi::station_query_client,
+}
+impl QueryNative {
+    pub fn open(
+        config: &transit_client::ClientConfig,
+        credential: &transit_client::Credential,
+        connection: &crate::unified::Connection,
+    ) -> Result<Self> {
+        let (url, timeout, directory) = settings(config);
+        let local = Local::open(directory)?;
+        let key = credential_seed(credential)?;
+        let bytes = serde_json::to_vec(
+            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout}),
+        )
+        .map_err(|_| Error::new(ErrorKind::InvalidArgument, "query-config"))?;
+        let mut pointer = ptr::null_mut();
+        let status = unsafe {
+            (local.api.station_unified_query_create)(
+                abi::ABI_VERSION,
+                url.as_ptr(),
+                url.len(),
+                key.pointer(),
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut pointer,
+            )
+        };
+        if status != 0 {
+            return Err(native_error(status, None, "open-query"));
+        }
+        if pointer.is_null() {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "open-query"));
+        }
+        let mut out = Self { local, pointer };
+        let caps = out.call(json!({"capabilities":{}}))?;
+        let caps = field(&caps, "capabilities")?;
+        if caps["version"] != 2
+            || ["kv", "table", "document"]
+                .iter()
+                .any(|name| caps[name] != true)
+        {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "query-capabilities",
+            ));
+        }
+        Ok(out)
+    }
+    pub fn call(&mut self, action: Value) -> Result<Value> {
+        let mutation = action.get("submit").is_some();
+        let bytes = serde_json::to_vec(&action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "query-action"))?;
+        if bytes.len() > MAX_BODY {
+            return Err(Error::new(ErrorKind::InvalidArgument, "query-action-bound"));
+        }
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_unified_query_call)(
+                self.pointer,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "query-action", mutation)
+    }
+}
+impl Drop for QueryNative {
+    fn drop(&mut self) {
+        unsafe { (self.local.api.station_unified_query_destroy)(self.pointer) };
+    }
+}

@@ -1,0 +1,178 @@
+"""Installed consumers for the shared signed source/recovery schedule."""
+import copy
+import json
+import os
+from pathlib import Path
+import select
+import shutil
+import subprocess
+import sys
+import tarfile
+import tomllib
+
+import pyarrow
+from unified_abi import Failure
+from unified_codec import arrow_fixture
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+class Consumer:
+    def __init__(self, command, environment, directory):
+        self.child = subprocess.Popen(command, env=environment, cwd=directory,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        try: assert self.read() == {'ready': True}
+        except BaseException:
+            self.child.kill(); self.child.wait(timeout=10)
+            self.child.stdin.close(); self.child.stdout.close()
+            raise
+
+    def read(self):
+        assert select.select([self.child.stdout], [], [], 90)[0], 'installed query caller timed out'
+        line = self.child.stdout.readline()
+        assert line, f'installed query caller exited ({self.child.poll()})'
+        return json.loads(line)
+
+    def call(self, action):
+        self.child.stdin.write(json.dumps(action)+'\n'); self.child.stdin.flush()
+        result = self.read()
+        if result['status']: raise Failure(result['status'], result['value'])
+        return result['value']
+
+    def close(self):
+        try:
+            if self.child.poll() is None:
+                self.child.stdin.write('{"close":{}}\n'); self.child.stdin.flush()
+                assert self.read() == {'closed': True}
+                self.child.stdin.close()
+                assert self.child.wait(timeout=10) == 0
+        finally:
+            if self.child.poll() is None: self.child.kill(); self.child.wait(timeout=10)
+            self.child.stdin.close(); self.child.stdout.close()
+
+
+def install(root, languages):
+    root.mkdir()
+    _, rows, _, ipc = arrow_fixture()
+    (root/'arrow.ipc').write_bytes(bytes.fromhex(ipc(rows)))
+    (root/'empty.ipc').write_bytes(bytes.fromhex(ipc([])))
+    bad = copy.deepcopy(rows); bad[0]['int64']['value'] = 1
+    (root/'malformed.ipc').write_bytes(bytes.fromhex(ipc(bad)))
+    shutil.copyfile(ROOT/'packages/zig/transit-query/src/fixtures/bundles.json', root/'bundles.json')
+    fixtures = dict(bundles=str(root/'bundles.json'), arrow=str(root/'arrow.ipc'), empty=str(root/'empty.ipc'), malformed=str(root/'malformed.ipc'))
+    (root/'fixtures.json').write_text(json.dumps(fixtures))
+    factories = []
+    for language in languages:
+        if language == 'rust':
+            factories.append(install_rust(root / 'rust', root / 'fixtures.json'))
+            continue
+        if language == 'ruby':
+            factories.append(install_ruby(root / 'ruby', root / 'fixtures.json'))
+            continue
+        if language == 'node':
+            factories.append(install_node(root / 'node', root / 'fixtures.json'))
+            continue
+        if language != 'python': raise ValueError('Unsupported installed query SDK')
+        env = {k: v for k, v in os.environ.items() if k not in ('PYTHONPATH', 'PYTHONHOME', 'TRANSIT_LIBRARY_DIR')}
+        venv = root/'venv'
+        subprocess.run([sys.executable, '-m', 'venv', '--without-pip', venv], check=True, env=env)
+        python = str(venv/'bin/python')
+        subprocess.run([sys.executable, '-m', 'pip', '--python', python, 'install', '--no-index',
+            '--find-links', str(ROOT/'.cache/bindings/wheels'), 'transit-station==0.2.0'], check=True, env=env, stdout=subprocess.DEVNULL)
+        script = root/'consumer.py'
+        shutil.copyfile(ROOT/'tests/python_unified_sdk.py', script)
+        subprocess.run([python, '-B', script, 'codecs', root/'fixtures.json'], check=True, env=env, cwd=root, timeout=90)
+        def open_callers(url, connection, state, kind, python=python, script=script, env=env):
+            config = root/'client.json'
+            config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'),
+                kind=kind, bundle=str(state/'bundle.bin'), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
+            first = Consumer([python, '-B', script, 'sync', config], env, root)
+            try: second = Consumer([python, '-B', script, 'async', config], env, root)
+            except BaseException:
+                first.close()
+                raise
+            return [first, second]
+        factories.append(open_callers)
+    return factories
+
+
+def install_node(root, fixtures):
+    root.mkdir()
+    dependencies = {f'@transit/{name}': 'file:' + str(ROOT/'.cache/bindings/node'/f'transit-{name}-0.2.0.tgz')
+        for name in ('client', 'native-client', 'station', 'native-station')}
+    manifest = dict(private=True, type='module', packageManager=json.loads((ROOT/'package.json').read_text())['packageManager'],
+        dependencies={**dependencies, 'apache-arrow': '21.2.0'}, pnpm=dict(overrides=dependencies))
+    (root/'package.json').write_text(json.dumps(manifest))
+    env = {k: v for k, v in os.environ.items() if k not in ('NODE_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
+    subprocess.run(['vp', 'env', 'exec', '--package-manager', manifest['packageManager'], 'pnpm', 'install', '--prefer-offline', '--ignore-scripts'],
+        cwd=root, env=env, check=True, stdout=subprocess.DEVNULL)
+    script = root/'consumer.mjs'
+    shutil.copyfile(ROOT/'tests/node_unified_sdk.mjs', script)
+    subprocess.run(['node', script, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    def open_callers(url, connection, state, kind):
+        config = root/'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
+        return [Consumer(['node', script, 'serve', config], env, root)]
+    return open_callers
+
+
+def install_ruby(root, fixtures):
+    root.mkdir()
+    default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
+    env = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST')}
+    env.update(GEM_HOME=str(root/'gems'), GEM_PATH=f'{root / "gems"}:{default}')
+    files = [ROOT/'.cache/bindings/ruby'/name for name in (
+        'transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
+        'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem')]
+    subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=env, cwd=root, check=True, stdout=subprocess.DEVNULL)
+    script = root/'consumer.rb'
+    shutil.copyfile(ROOT/'tests/ruby_unified_sdk.rb', script)
+    subprocess.run(['ruby', script, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    def open_callers(url, connection, state, kind):
+        config = root/'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
+        return [Consumer(['ruby', script, 'serve', config], env, root)]
+    return open_callers
+
+
+def install_rust(root, fixtures):
+    root.mkdir()
+    names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
+    for name in names:
+        with tarfile.open(ROOT/'.cache/bindings/rust'/f'{name}-0.2.0.crate') as archive:
+            archive.extractall(root/'vendor', filter='data')
+    (root/'src').mkdir()
+    shutil.copyfile(ROOT/'tests/rust_unified_sdk.rs', root/'src/main.rs')
+    manifest = '''[package]
+name = "transit-unified-proof"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+transit-client = "=0.2.0"
+transit-station-sdk = { version = "=0.2.0", features = ["arrow"] }
+serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
+[patch.crates-io]
+'''
+    manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.2.0" }}\n' for name in names)
+    (root/'Cargo.toml').write_text(manifest)
+    lock = root/'vendor/transit-station-sdk-0.2.0/Cargo.lock'
+    shutil.copyfile(lock, root/'Cargo.lock')
+    env = {k: v for k, v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
+    subprocess.run(['cargo', 'check', '--offline'], cwd=root, env=env, check=True)
+    def registry(path):
+        return {(p['name'], p['version'], p['checksum']) for p in tomllib.loads(path.read_text())['package'] if 'source' in p}
+    assert registry(root/'Cargo.lock') == registry(lock)
+    subprocess.run(['cargo', 'build', '--locked', '--offline'], cwd=root, env=env, check=True)
+    executable = root/'consumer'
+    shutil.copy2(root/'target/debug/transit-unified-proof', executable)
+    subprocess.run([executable, 'codecs', fixtures], cwd=root, env=env, check=True, timeout=90)
+    # One owned client cannot serve overlapping reads through shared borrows.
+    (root/'src/main.rs').write_text('fn overlap(client: &mut transit_station_sdk::unified::Client) { let a = &mut *client; let b = &mut *client; a.status(1).unwrap(); b.status(1).unwrap(); } fn main() {}')
+    rejected = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=root, env=env, capture_output=True, text=True)
+    assert rejected.returncode and 'cannot borrow `*client` as mutable more than once' in rejected.stderr
+    shutil.rmtree(root/'vendor'); shutil.rmtree(root/'target'); shutil.rmtree(root/'src')
+    def open_callers(url, connection, state, kind):
+        config = root/'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
+        return [Consumer([executable, 'serve', config], env, root)]
+    return open_callers

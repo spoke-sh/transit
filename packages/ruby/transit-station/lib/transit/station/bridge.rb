@@ -58,6 +58,13 @@ module Transit
         raise UnsupportedCapability, 'Native Document codecs unavailable' unless caps['document_codecs']
         port.request({ 'document_codec' => action }, phase: :document_codec, response: 'DocumentCodecResult')
       end
+      def unified_codec(action)
+        raise UnsupportedCapability, 'Native unified query codecs unavailable' unless caps['unified_query_codecs']
+        port.request({ 'unified_query_codec' => action }, phase: :query_codec, response: 'UnifiedQueryCodecResult')
+      end
+      def unified_query(action)
+        port.request({ 'unified_query' => action }, phase: :unified_query, mutation: action.key?('submit'), response: 'UnifiedQueryResult')
+      end
       def document_read(action)
         raise UnsupportedCapability, 'Native Document reads unavailable' unless caps['document_reads']
         port.request({ 'growing_document_read' => action }, phase: :document_read, response: 'DocumentReadResult')

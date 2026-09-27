@@ -10,6 +10,7 @@ mod runner;
 mod table;
 mod turn;
 mod types;
+pub mod unified;
 pub use bridge::encode_cast;
 pub use grpc::{
     GrpcMessage, GrpcMetadata, GrpcMetadataValue, GrpcMethod, GrpcOutcome, GrpcPart, GrpcPartKind,

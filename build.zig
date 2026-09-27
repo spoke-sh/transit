@@ -406,6 +406,7 @@ pub fn build(b: *std.Build) void {
     unified_query_test.addFileArg(b.path("tests/unified_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, unified_query, station_host, station_bindings.artifact("transit_station") }) |artifact| unified_query_test.addArtifactArg(artifact);
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
+    if (b.option([]const u8, "unified-sdk", "Include an installed language SDK in unified query recovery")) |language| unified_query_test.addArgs(&.{ "--sdk", language });
     unified_query_test.has_side_effects = true;
     unified_query_test.stdio = .inherit;
     b.step("test-unified-query", "Qualify unified query daemons over disk Ursula").dependOn(&unified_query_test.step);

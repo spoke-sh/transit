@@ -1,6 +1,7 @@
 """Actual v2 requester/source daemons, frozen signed upload and disk recovery."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import argparse
 import json
 from pathlib import Path
 import subprocess
@@ -15,12 +16,14 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=()):
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
         with ColdStore() as cold, Fixture(cold.config()) as fixture:
             root = fixture.root
+            from sdk_unified import install
+            factories = install(root / 'installed', sdks) if sdks else []
             public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
             port = free_port()
             url = f"http://127.0.0.1:{port}"
@@ -29,6 +32,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
             processes, logs = [], []
             native, port_client = None, None
+            callers = []
             fault = {"lost": None, "retry": False, "stage": threading.Event(), "resume": threading.Event()}
 
             class Proxy(BaseHTTPRequestHandler):
@@ -101,14 +105,16 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 courier = start("courier", [host, str(root / "courier.json")])
                 native = Native(library, proxy_url, connection)
                 port_client = Port(port_host, root, proxy_url, connection)
+                for factory in factories: callers.extend(factory(proxy_url, connection, root, kind))
+                uploader = callers[0] if callers else native
                 try:
-                    upload(native, root)
+                    upload(uploader, root)
                     raise AssertionError('lost upload response was reported as success')
                 except Failure as failure:
                     assert failure.status == 6 and failure.detail['err'] == 'InvalidAuthorityResponse', failure
                 invoke("resume")
                 assert fault["retry"], "uncertain upload did not retry identical signed bytes"
-                status = upload(native, root)
+                status = upload(uploader, root)
                 assert status["phase"] in ("admitted", "complete"), status
                 print(f"Unified {kind}: frozen upload retry and admission passed", flush=True)
                 until = time.monotonic() + 120
@@ -151,7 +157,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 saved = (root / "cursor.json").read_bytes()
                 invoke("revoke", direct=True)
                 invoke("page", error="AccessDenied")
-                for owner in (native, port_client):
+                for owner in (native, port_client, *callers):
                     try:
                         owner.call({'page': dict(namespace='1', cursor=saved.decode())})
                         raise AssertionError('revoked result read succeeded')
@@ -184,11 +190,12 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 assert manifest["checkpoint"]["progress"]["basis"]["kind"] == kind
                 assert manifest["checkpoint"]["bytes"] == total
                 verify(native, port_client, root, final['ordinal']+1)
+                for owner in callers: verify(owner, owner, root, final['ordinal']+1)
                 versions = invoke("versions", direct=True)
                 assert versions["next"] is None
                 assert all(version["released_at"] is not None for version in versions["entries"] if version)
                 assert cold.data_objects() > 0
-                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
+                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:
                 for log in logs:
                     log.flush(); log.seek(0)
@@ -196,14 +203,24 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 raise
             finally:
                 fault["resume"].set()
-                if port_client is not None: port_client.close()
-                if native is not None: native.close()
+                cleanup_errors = []
+                for owner in (*callers, port_client, native):
+                    if owner is not None:
+                        try: owner.close()
+                        except BaseException as error: cleanup_errors.append(error)
                 for process in processes:
                     if process.poll() is None: process.kill()
                     process.wait(timeout=10)
                 proxy.shutdown(); proxy.server_close(); thread.join(timeout=5)
                 for log in logs: log.close()
+                if cleanup_errors: raise BaseExceptionGroup('query caller cleanup failed', cleanup_errors)
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:6], kinds=sys.argv[6:] or ("kv", "table", "document"))
+    parser = argparse.ArgumentParser()
+    for name in ('node', 'host', 'proof', 'port_host', 'library'): parser.add_argument(name)
+    parser.add_argument('kinds', nargs='*', choices=('kv', 'table', 'document'))
+    parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust'))
+    args = parser.parse_args()
+    run(args.node, args.host, args.proof, args.port_host, args.library,
+        kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or ())

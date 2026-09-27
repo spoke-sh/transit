@@ -30,6 +30,11 @@ import type {
   GrpcCodecResult,
   GrpcReadAction,
   GrpcReadResult,
+  UnifiedQueryCodecAction,
+  UnifiedQueryCodecResult,
+  UnifiedQueryAction,
+  UnifiedQueryResult,
+  UnifiedQueryConfig,
 } from "./wire.ts";
 import {
   FrozenMutation,
@@ -166,6 +171,14 @@ export class Bridge {
       { phase: "document-codec", validator: validation.DocumentCodecResult },
     )) as DocumentCodecResult;
   }
+  async unifiedCodec(action: UnifiedQueryCodecAction): Promise<UnifiedQueryCodecResult> {
+    if (!this.caps.unified_query_codecs)
+      throw new UnsupportedCapability("Native unified query codecs are unavailable");
+    return (await this.port.request(
+      { unified_query_codec: action },
+      { phase: "query-codec", validator: validation.UnifiedQueryCodecResult },
+    )) as UnifiedQueryCodecResult;
+  }
   async documentRead(action: DocumentReadAction): Promise<DocumentReadResult> {
     if (!this.caps.document_reads)
       throw new UnsupportedCapability("Native Document reads are unavailable");
@@ -272,6 +285,48 @@ export class Bridge {
     return confirmed?.kind === pending.purpose && confirmed.input === pending.inputPosition
       ? event
       : undefined;
+  }
+  close(): Promise<void> {
+    return this.port.close();
+  }
+}
+
+/** A query caller owns no behavior activation. Generated schemas validate both directions. */
+export class QueryBridge {
+  private constructor(readonly port: Port) {}
+  static async open(
+    url: string,
+    seedFile: string,
+    config: UnifiedQueryConfig,
+    nativeHost?: string,
+  ): Promise<QueryBridge> {
+    const port = await openPort({ url, seed_file: seedFile, query_client: config }, nativeHost);
+    try {
+      const bridge = new QueryBridge(port);
+      const value = await bridge.call({ capabilities: {} });
+      if (
+        !("capabilities" in value) ||
+        value.capabilities.version !== 2 ||
+        !value.capabilities.kv ||
+        !value.capabilities.table ||
+        !value.capabilities.document
+      )
+        throw new UnsupportedCapability("Native query caller lacks v2 capabilities");
+      return bridge;
+    } catch (error) {
+      await port.close();
+      throw error;
+    }
+  }
+  async call(action: UnifiedQueryAction): Promise<UnifiedQueryResult> {
+    return (await this.port.request(
+      { unified_query: action },
+      {
+        phase: "unified-query",
+        mutation: "submit" in action,
+        validator: validation.UnifiedQueryResult,
+      },
+    )) as UnifiedQueryResult;
   }
   close(): Promise<void> {
     return this.port.close();

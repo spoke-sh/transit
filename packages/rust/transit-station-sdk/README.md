@@ -26,3 +26,6 @@ message batches, scoped durable calls and owned transcript replay.
 
 The [Document guide](docs/DOCUMENTS.md) covers typed changes, scoped publication
 jobs, accepted references and readers with exclusive runner borrows.
+
+The [unified query guide](docs/UNIFIED_QUERY.md) covers explicit v2 sources,
+persisted commands, exclusive caller ownership and owned nested Arrow results.

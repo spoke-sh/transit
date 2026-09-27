@@ -13,6 +13,38 @@ import pyarrow as pa
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def arrow_fixture():
+    types = dict(int64=pa.int64(), uint64=pa.uint64(), float64=pa.float64(), boolean=pa.bool_(), utf8=pa.string(), binary=pa.binary())
+    values = dict(int64=-(2**63), uint64=2**64-1, float64=-0.0, boolean=False, utf8='café é 東京🙂', binary=b'\0\xff\x80')
+    scalar = dict(int64={'int64': str(-(2**63))}, uint64={'uint64': str(2**64-1)}, float64={'float_bits': struct.pack('<d', -0.0).hex()},
+                  boolean={'boolean': False}, utf8={'utf8': values['utf8']}, binary={'binary': values['binary'].hex()})
+    fields, columns = [], []
+    rows = [{} for _ in range(5)]
+    expected_rows = [[] for _ in range(5)]
+    for tag, (name, datatype) in enumerate(types.items(), 1):
+        alt = pa.struct([pa.field('counter', pa.uint64(), nullable=False), pa.field('replica', pa.uint64(), nullable=False),
+            pa.field('state', pa.uint8(), nullable=False), pa.field('kind', pa.uint8(), nullable=False), pa.field('value', datatype)])
+        fields.append(pa.field(name, pa.struct([pa.field('state', pa.uint8(), nullable=False), pa.field('kind', pa.uint8(), nullable=False),
+            pa.field('value', datatype), pa.field('alternatives', pa.list_(pa.field('item', alt, nullable=False)), nullable=False)]), nullable=False))
+        columns.append(dict(name=name, type=name))
+        for state in range(5):
+            rows[state][name] = dict(state=state, kind=[0, 7, 8, tag, 0][state], value=values[name] if state == 3 else None, alternatives=[])
+        rows[4][name]['alternatives'] = [dict(counter=2**64-1, replica=1, state=3, kind=tag, value=values[name]),
+            dict(counter=2**64-1, replica=2, state=1, kind=7, value=None)]
+        wanted = [{'missing': {}}, {'null': {}}, {'type_error': 'map'}, {'value': scalar[name]}, {'conflict': [
+            dict(counter=str(2**64-1), replica='1', value={'value': scalar[name]}),
+            dict(counter=str(2**64-1), replica='2', value={'null': {}})]}]
+        for target, cell in zip(expected_rows, wanted, strict=True): target.append(cell)
+
+    def ipc(data):
+        sink = pa.BufferOutputStream()
+        with pa.ipc.new_stream(sink, pa.schema(fields)) as writer:
+            writer.write_batch(pa.RecordBatch.from_pylist(data, schema=pa.schema(fields)))
+        return sink.getvalue().to_pybytes().hex()
+
+    return columns, rows, expected_rows, ipc
+
+
 def run(host, library):
     native = c.CDLL(str(Path(library).resolve()))
     native.station_unified_query_codec.argtypes = [c.c_char_p, c.c_size_t, c.POINTER(c.c_void_p)]
@@ -79,34 +111,7 @@ def run(host, library):
         invalid['limits']['pages'] = value
         check({'prepare': invalid}, valid=False)
 
-    types = dict(int64=pa.int64(), uint64=pa.uint64(), float64=pa.float64(), boolean=pa.bool_(), utf8=pa.string(), binary=pa.binary())
-    values = dict(int64=-(2**63), uint64=2**64-1, float64=-0.0, boolean=False, utf8='café é 東京🙂', binary=b'\0\xff\x80')
-    scalar = dict(int64={'int64': str(-(2**63))}, uint64={'uint64': str(2**64-1)}, float64={'float_bits': struct.pack('<d', -0.0).hex()},
-                  boolean={'boolean': False}, utf8={'utf8': values['utf8']}, binary={'binary': values['binary'].hex()})
-    fields, columns = [], []
-    rows = [{} for _ in range(5)]
-    expected_rows = [[] for _ in range(5)]
-    for tag, (name, datatype) in enumerate(types.items(), 1):
-        alt = pa.struct([pa.field('counter', pa.uint64(), nullable=False), pa.field('replica', pa.uint64(), nullable=False),
-            pa.field('state', pa.uint8(), nullable=False), pa.field('kind', pa.uint8(), nullable=False), pa.field('value', datatype)])
-        fields.append(pa.field(name, pa.struct([pa.field('state', pa.uint8(), nullable=False), pa.field('kind', pa.uint8(), nullable=False),
-            pa.field('value', datatype), pa.field('alternatives', pa.list_(pa.field('item', alt, nullable=False)), nullable=False)]), nullable=False))
-        columns.append(dict(name=name, type=name))
-        for state in range(5):
-            rows[state][name] = dict(state=state, kind=[0, 7, 8, tag, 0][state], value=values[name] if state == 3 else None, alternatives=[])
-        rows[4][name]['alternatives'] = [dict(counter=2**64-1, replica=1, state=3, kind=tag, value=values[name]),
-            dict(counter=2**64-1, replica=2, state=1, kind=7, value=None)]
-        wanted = [{'missing': {}}, {'null': {}}, {'type_error': 'map'}, {'value': scalar[name]}, {'conflict': [
-            dict(counter=str(2**64-1), replica='1', value={'value': scalar[name]}),
-            dict(counter=str(2**64-1), replica='2', value={'null': {}})]}]
-        for target, cell in zip(expected_rows, wanted, strict=True): target.append(cell)
-
-    def ipc(data):
-        sink = pa.BufferOutputStream()
-        with pa.ipc.new_stream(sink, pa.schema(fields)) as writer:
-            writer.write_batch(pa.RecordBatch.from_pylist(data, schema=pa.schema(fields)))
-        return sink.getvalue().to_pybytes().hex()
-
+    columns, rows, expected_rows, ipc = arrow_fixture()
     for data, wanted in ((rows, expected_rows), ([], [])):
         check({'inspect_arrow': dict(columns=columns, rows=len(data), ipc=ipc(data))}, {'rows': wanted})
     bad = copy.deepcopy(rows)

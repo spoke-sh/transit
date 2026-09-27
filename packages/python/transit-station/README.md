@@ -59,3 +59,7 @@ The [Document guide](docs/documents.md) covers typed structured/text changes,
 scoped writer jobs and current-policy synchronous/asynchronous reads. These M17
 APIs compose shared Zig semantics; remote writer routing and the other language
 adapters remain separately qualified work.
+
+The [unified query guide](docs/unified-query.md) covers explicit v2 KV/Table/
+Document sources, sync/async query callers, persisted admission commands and
+owned nested Arrow pages. Qualification is tracked per source and SDK.

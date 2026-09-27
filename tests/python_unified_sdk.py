@@ -1,0 +1,135 @@
+"""Copied into a clean wheel consumer; only public typed SDK operations here."""
+import asyncio
+import json
+from pathlib import Path
+import struct
+import sys
+
+
+def codecs(config):
+    from transit_client import ResourceRef
+    from transit_client.errors import TransitError
+    from transit_station import unified as q
+    from transit_station.document import DocumentReference
+    from transit_station.query import Comparison
+    resource = ResourceRef(46, 7)
+    sources = [q.KVSource(resource, b'data/', q.Decoder(q.Type.BINARY), q.Decoder(q.Type.UINT64)),
+        q.TableSource(resource, 9, ('id', 'label'), q.Type.UTF8),
+        q.DocumentSource(DocumentReference(resource, 2**64-1, 3, 1, 42), (
+            q.Projection(q.Column('title', q.Type.UTF8), ('title',)),
+            q.Projection(q.Column('body', q.Type.UTF8), ('body',), mode=q.ProjectionMode.TEXT)))]
+    fixtures = json.loads(Path(config['bundles']).read_text())
+    for index, source in enumerate(sources):
+        scalar = q.Scalar(q.Type.UINT64, 2**64-1) if index == 0 else q.Scalar(q.Type.UTF8, 'x'*512)
+        bundle = q.Bundle.prepare(source, q.Plan((1, 0), q.Compare(1, Comparison.NE, scalar), 2**64-1), q.Budgets(1000, 500, 1048576))
+        assert bundle.data.hex() == fixtures[index]['wire_hex']
+    for source in (q.KVSource(resource, b'', q.Decoder(q.Type.BINARY, 2), q.Decoder(q.Type.UTF8)),
+                   q.TableSource(resource, 9, ('id', 'label'), q.Type.UINT64)):
+        try: q.Bundle.prepare(source, q.Plan((0,)), q.Budgets(1, 1, 1))
+        except TransitError: pass
+        else: raise AssertionError('unsupported source accepted')
+    columns = tuple(q.Column(v, q.Type(v)) for v in ('int64', 'uint64', 'float64', 'boolean', 'utf8', 'binary'))
+    rows = q.decode_arrow(columns, Path(config['arrow']).read_bytes(), 5)
+    assert len(rows) == 5 and all(len(row) == 6 for row in rows)
+    for row, state in zip(rows, q.State, strict=True): assert all(cell.state is state for cell in row)
+    expected = (-(2**63), 2**64-1, -0.0, False, 'café é 東京🙂', b'\0\xff\x80')
+    for index, value in enumerate(expected):
+        assert rows[3][index].value.value == value
+        alternatives = rows[4][index].alternatives
+        assert [(v.counter, v.replica, v.state) for v in alternatives] == [
+            (2**64-1, 1, q.State.VALUE), (2**64-1, 2, q.State.NULL)]
+        assert alternatives[0].value.value == value
+    assert struct.pack('<d', rows[3][2].value.value).hex() == '0000000000000080'
+    assert q.decode_arrow(columns, Path(config['empty']).read_bytes(), 0) == ()
+    try: q.decode_arrow(columns, Path(config['malformed']).read_bytes(), 5)
+    except TransitError: pass
+    else: raise AssertionError('hidden Arrow value accepted')
+    print('Python installed unified codecs: three sources, six types, five states and malformed rejection passed', flush=True)
+
+
+def source(config):
+    from transit_client import ResourceRef
+    from transit_station import unified as q
+    from transit_station.document import DocumentReference
+    from transit_station.query import Comparison
+    resource = ResourceRef(config['connection']['realm'], config['connection']['resource'])
+    if config['kind'] == 'kv':
+        value = q.KVSource(resource, b'k', q.Decoder(q.Type.BINARY), q.Decoder(q.Type.UTF8))
+    elif config['kind'] == 'table': value = q.TableSource(resource, 1, ('id', 'value'), q.Type.UTF8)
+    else:
+        value = q.DocumentSource(DocumentReference(resource, 17, 1, 1, 13), (
+            q.Projection(q.Column('value', q.Type.UTF8), relative=True),
+            q.Projection(q.Column('counter', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_COUNTER),
+            q.Projection(q.Column('replica', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_REPLICA)), ('items',))
+    plan = q.Plan((0, 1, 2) if config['kind'] == 'document' else (1,),
+        q.Compare(0 if config['kind'] == 'document' else 1, Comparison.NE, q.Scalar(q.Type.UTF8, 'x'*512)))
+    bundle = q.Bundle.prepare(value, plan, q.Budgets(1000, 100, 1048576))
+    assert bundle.data == Path(config['bundle']).read_bytes()
+    return value
+
+
+async def serve(config, asynchronous):
+    from transit_client import ProcessRef, ResourceRef
+    from transit_client.errors import TransitError, UncertainOperation
+    from transit_station import unified as q
+    values = config['connection']
+    realm = values['realm']
+    connection = q.Connection(ProcessRef(realm, values['source']), ResourceRef(realm, values['resource']),
+        ProcessRef(realm, values['requester']), ResourceRef(realm, values['requests']))
+    owner = (q.AsyncClient if asynchronous else q.Client)(config['url'], values['principal'], Path(config['seed_file']), connection, timeout_ms=10000)
+    declared = source(config)
+    async def invoke(method, *args):
+        value = getattr(owner, method)(*args)
+        return await value if asynchronous else value
+    try:
+        description = await invoke('describe', declared)
+        assert description.bundle_bytes == 16384 and description.batch_rows == 8
+        print(json.dumps({'ready': True}), flush=True)
+        for line in sys.stdin:
+            action = json.loads(line)
+            if 'close' in action:
+                break
+            try:
+                if 'next' in action:
+                    v = action['next']
+                    prepared = await invoke('prepare_next', int(v['namespace']), q.Bundle(bytes.fromhex(v['bundle'])))
+                    result = {'prepared': None if prepared is None else prepared.data.decode()}
+                elif 'submit' in action:
+                    prepared = q.Prepared(action['submit'].encode())
+                    try: result = {'receipt': {'position': await invoke('submit', prepared)}}
+                    except UncertainOperation as error:
+                        assert error.recovery == prepared.data
+                        raise
+                elif 'observe' in action:
+                    observed = await invoke('observe', action['observe'])
+                    result = {'observation': {observed.state.value: {} if observed.reason is None else observed.reason.encode().hex()}}
+                elif 'status' in action:
+                    status = await invoke('status', int(action['status']))
+                    result = {'status': None if status is None else {'phase': status.phase.value, 'correlation': str(status.correlation)}}
+                elif 'page' in action:
+                    v = action['page']
+                    page = await invoke('page', int(v['namespace']), None if v.get('cursor') is None else q.Cursor(v['cursor']))
+                    assert page.manifest.resource == connection.resource and page.manifest.source_kind == config['kind']
+                    assert len(page.decode()) == page.rows
+                    # Supply the pinned optional Arrow consumer only after the
+                    # clean package has opened and decoded through shared Zig.
+                    sys.path.append(config['arrow_site'])
+                    assert page.to_pyarrow().num_rows == page.rows
+                    result = {'page': {'ordinal': str(page.ordinal), 'ipc': page.ipc.hex(),
+                        'manifest': {'segments': str(page.manifest.segments)}, 'next': None if page.next is None else page.next.data}}
+                else: raise AssertionError('unsupported test operation')
+                print(json.dumps({'status': 0, 'value': result}), flush=True)
+            except TransitError as error:
+                print(json.dumps({'status': error.status, 'value': {'err': error.code}}), flush=True)
+    finally:
+        await invoke('close')
+    print(json.dumps({'closed': True}), flush=True)
+
+
+if __name__ == '__main__':
+    import transit_station
+    assert Path(transit_station.__file__).is_relative_to(Path(sys.prefix))
+    mode, path = sys.argv[1:]
+    config = json.loads(Path(path).read_text())
+    if mode == 'codecs': codecs(config)
+    else: asyncio.run(serve(config, mode == 'async'))

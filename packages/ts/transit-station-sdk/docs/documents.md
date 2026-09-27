@@ -10,11 +10,17 @@ Unicode scalar characters. Negative zero survives canonical encoding.
 import { prepareDocument } from "@transit/station";
 
 const change = await prepareDocument({
-  document: 42n, epoch: 1n, replica: 7n, first: 1n,
+  document: 42n,
+  epoch: 1n,
+  replica: 7n,
+  first: 1n,
   operations: [
     { kind: "assign", field: "body", value: { kind: "text" } },
-    { kind: "insert", object: { counter: 1n, replica: 7n },
-      value: { kind: "character", value: "🙂" } },
+    {
+      kind: "insert",
+      object: { counter: 1n, replica: 7n },
+      value: { kind: "character", value: "🙂" },
+    },
   ],
 });
 ```
