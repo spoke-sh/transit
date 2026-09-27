@@ -82,6 +82,14 @@ Escaped owners reject, readers fail closed after runner destruction, and copied
 results remain owned. Threaded reads are joined before disposal. The root
 `just check` also passes after rebasing onto `origin/main` at `145c380`.
 
+The installed Java 21 Document consumer passes in **244.38 seconds**, including
+clean JAR installation and compilation with `-Xlint:all -Werror`. The 139-turn
+schedule preserves full-width values, negative zero, immutable bytes, Unicode
+scalar positions, exact older references and current read authority across host
+loss. Invalid surrogates and expired owners reject. A cancelled read future is
+followed by joined runner close, and later reader use fails closed. The generated
+host schema validates native response shapes before typed materialization.
+
 ## M16 finite connector qualification
 
 `just test::unit` runs the new RPC request codec against a Python-generated

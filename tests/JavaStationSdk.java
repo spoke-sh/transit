@@ -568,10 +568,91 @@ public final class JavaStationSdk {
             }
         }
     }
+    static final class DocumentHandler implements Handler<Bytes> {
+        final List<Document.Prepared> changes; Document.Phase phase; Document.Owner escaped;
+        DocumentHandler(List<Document.Prepared> changes) { this.changes=List.copyOf(changes); }
+        @Override public void initialize(Turn turn) { turn.document(Values.U64_MAX).create(1); }
+        @Override public void onMessage(Turn turn,Incoming<Bytes> input) {
+            Document.Owner owner=turn.document(Values.U64_MAX); escaped=owner; phase=null;
+            String command=new String(((Cast<Bytes>)input).value().copy(),java.nio.charset.StandardCharsets.UTF_8);
+            switch(command) {
+                case "initialize" -> {}
+                case "checkpoint" -> phase=owner.checkpoint(BigInteger.valueOf(90)).phase();
+                case "window" -> owner.mergeWindow(BigInteger.TWO);
+                case "retire" -> owner.retire();
+                case "0", "1" -> { int index=Integer.parseInt(command); phase=owner.stage(BigInteger.valueOf(index+1),changes.get(index),256).phase(); }
+                default -> throw new AssertionError("Unknown Document tick");
+            }
+        }
+    }
+    static void document(String mode,JsonObject cfg) throws IOException {
+        BigInteger max=Values.U64_MAX; ResourceRef resource=new ResourceRef(72,cfg.get("resource").getAsLong());
+        if(mode.equals("document-codecs")) {
+            JsonObject fixtures=read(Path.of(cfg.get("document_fixtures").getAsString()));
+            for(JsonElement entry:fixtures.getAsJsonArray("changes")) {
+                byte[] data=HexFormat.of().parseHex(entry.getAsJsonObject().get("wire_hex").getAsString());
+                check(Arrays.equals(Document.prepare(Document.decode(data)).bytes().copy(),data));
+                for(int size:new int[]{0,1,data.length-1}) { boolean rejected=false; try { Document.decode(Arrays.copyOf(data,size)); } catch(TransitException | IllegalArgumentException expected) { rejected=true; } check(rejected); }
+            }
+            byte[] encoded=HexFormat.of().parseHex(fixtures.get("reference_hex").getAsString());
+            Document.Reference reference=Document.Reference.decode(72,encoded); check(reference.document().equals(max) && reference.revision().equals(max) && Arrays.equals(reference.bytes().copy(),encoded));
+            var root=Document.Dot.ROOT;
+            Document.Change bootstrap=new Document.Change(max,BigInteger.ONE,1,max,BigInteger.ZERO,BigInteger.ONE,List.of(
+                new Document.Assign(root,"value",List.of(),new Document.Signed(Long.MIN_VALUE)),
+                new Document.Assign(root,"body",List.of(),Document.Container.TEXT),
+                new Document.Insert(new Document.Dot(BigInteger.TWO,max),root,new Document.CharacterValue(0x1f642))));
+            Document.Prepared prepared=Document.prepare(bootstrap); byte[] copy=prepared.bytes().copy(); copy[0]^=127;
+            check(HexFormat.of().formatHex(prepared.bytes().copy()).equals(cfg.getAsJsonArray("changes").get(0).getAsString()));
+            boolean rejected=false; try { new Document.StringValue("\ud800"); } catch(IllegalArgumentException expected) { rejected=true; } check(rejected);
+            rejected=false; try { new Document.CharacterValue(0xdfff); } catch(IllegalArgumentException expected) { rejected=true; } check(rejected);
+            report(Values.obj("codecs",true)); return;
+        }
+        List<Document.Prepared> changes=cfg.getAsJsonArray("changes").asList().stream().map(v -> Document.prepare(Document.decode(HexFormat.of().parseHex(v.getAsString())))).toList();
+        ServiceConfig config=new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()),ClientConfig.Profile.GROWING_V3),new Activation(new ProcessRef(72,cfg.get("pid").getAsLong()),cfg.get("generation").getAsLong(),new Credential(72,cfg.get("principal").getAsLong(),Path.of(cfg.get("seed_file").getAsString()))));
+        DocumentHandler handler=new DocumentHandler(changes); Document.Reference saved=null;
+        try(Runner<Bytes> runner=Runner.open(config,handler,new GrpcBytes(),FailurePolicy.STOP,new Recovery.FreshOwnership())) {
+            Document.Reader reader=runner.documents(); BufferedReader input=new BufferedReader(new InputStreamReader(System.in));
+            for(String command;(command=input.readLine())!=null;) {
+                switch(command) {
+                    case "one" -> {
+                        boolean committed=false;
+                        for(int i=0;i<12;i++) { Event event=await(runner.next()); if(event instanceof Committed) { committed=true; break; } check(event instanceof Progress); }
+                        check(committed); expect(TransitException.Kind.TURN_EXPIRED,() -> handler.escaped.mergeWindow(BigInteger.ZERO));
+                        report(Values.obj("event","committed","phase",handler.phase==null?null:handler.phase.name().toLowerCase(Locale.ROOT)));
+                    }
+                    case "read" -> {
+                        Document.Description description=await(reader.describe(resource,max)); Document.Reference ref=description.reference();
+                        check(description.floor().signum()==0 && description.mergeWindow().signum()==0);
+                        Document.PathValue value=await(reader.path(ref,List.of("value"))); Document.Page page=await(reader.sequence(ref,new Document.Dot(BigInteger.TWO,max),Optional.empty()));
+                        check(page.next().isEmpty()); StringBuilder text=new StringBuilder(); for(Document.Item item:page.items()) text.appendCodePoint(((Document.CharacterValue)item.field().assignments().getFirst().value()).codePoint());
+                        boolean initial=ref.revision().equals(BigInteger.TWO); check(text.toString().equals(initial?"🙂":"🙂́"));
+                        check(((Document.Signed)value.field().assignments().getFirst().value()).value()==Long.MIN_VALUE);
+                        check(await(reader.path(ref,List.of("missing"))).field().status()==Document.Status.MISSING);
+                        check(Document.prepare(await(reader.acceptedChange(ref))).bytes().equals(changes.get(ref.revision().intValueExact()-2).bytes()));
+                        check(value.field().status()==(initial?Document.Status.SCALAR:Document.Status.CONFLICT)); if(saved==null) saved=ref;
+                        report(Values.obj("revision",ref.revision().toString(),"items",page.items().size(),"status",initial?"scalar":"conflict"));
+                    }
+                    case "old" -> { check(await(reader.path(saved,List.of("value"))).field().status()==Document.Status.SCALAR); report(Values.obj("retained",true)); }
+                    case "denied" -> { Document.Reference ref=saved; expect(TransitException.Kind.ACCESS_DENIED,() -> await(reader.path(ref,List.of("value")))); report(Values.obj("denied",true)); }
+                    case "resynchronize" -> { var result=await(reader.resynchronize(resource,max,max)); check(result.reference().revision().equals(BigInteger.valueOf(3))); report(Values.obj("previous",result.previousCounter().toString(),"clock",result.clock().toString())); }
+                    case "retired" -> { check(await(reader.describe(resource,max)).retired()); try { await(reader.path(saved,List.of("value"))); throw new AssertionError("Retired read accepted"); } catch(TransitException error) { check(error.code().equals("DocumentRetired")); } report(Values.obj("retired",true)); }
+                    case "async-close" -> {
+                        Runner<Bytes> other=Runner.open(config,new DocumentHandler(changes),new GrpcBytes(),FailurePolicy.STOP,new Recovery.FreshOwnership());
+                        Document.Reader active=other.documents(); CompletableFuture<Document.Description> pending=active.describe(resource,max); pending.cancel(true); other.close();
+                        expect(TransitException.Kind.CLOSED,() -> await(active.describe(resource,max))); report(Values.obj("joined",true));
+                    }
+                    case "close" -> { runner.closeSnapshot(); expect(TransitException.Kind.CLOSED,() -> await(reader.describe(resource,max))); report(Values.obj("closed",true)); return; }
+                    default -> throw new AssertionError("Unknown Document command");
+                }
+            }
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         String mode = args[0]; Path path = Path.of(args[1]); JsonObject cfg = read(path);
         check(Path.of(Runner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).startsWith(path.getParent()));
         check(cfg.get("profile").getAsString().equals("growing_v3"));
+        if (mode.startsWith("document-")) { document(mode,cfg); return; }
         if (mode.equals("grpc-golden")) { grpcGolden(cfg); return; }
         if (mode.startsWith("grpc-")) { grpc(mode, cfg); return; }
         if (mode.startsWith("http-")) { http(mode, cfg); return; }

@@ -138,10 +138,12 @@ public final class Runner<T> implements AutoCloseable {
         @Override public Shutdown evidence() { return new Shutdown(pending, lastEvent); }
         @Override public void close() { bridge.close(); }
     }
+    private final long realm;
     private final StopToken stop = new StopToken();
     private final Worker<State<T>, Shutdown> worker;
     private Runner(ServiceConfig config, Handler<T> handler, Codec<T> codec, FailurePolicy failure, Recovery recovery) {
         Objects.requireNonNull(config); Objects.requireNonNull(handler); Objects.requireNonNull(codec); Objects.requireNonNull(failure); Objects.requireNonNull(recovery);
+        realm = config.activation().process().realm();
         worker = new Worker<>(() -> new State<>(config, handler, codec, failure, recovery, stop));
     }
     public static <T> Runner<T> open(ServiceConfig config, Handler<T> handler, Codec<T> codec, FailurePolicy failure, Recovery recovery) {
@@ -184,6 +186,13 @@ public final class Runner<T> implements AutoCloseable {
                 throw new IllegalArgumentException("Expected an observed outcome in this realm");
             JsonObject value = state.bridge.grpcRead(obj("open", obj("reference", Grpc.hex(outcome.reference().orElseThrow()), "policy", policy.name().toLowerCase(Locale.ROOT))));
             return new Grpc.Reader(this, number(value.get("opened"), 1));
+        });
+    }
+    public Document.Reader documents() { return new Document.Reader(this, realm); }
+    <R> CompletableFuture<R> documentAccess(Function<Bridge, R> action) {
+        return worker.submit(state -> {
+            if (state.pending != null) throw new TransitException(TransitException.Kind.BUSY, "pending-mutation");
+            return action.apply(state.bridge);
         });
     }
     public StopToken stopToken() { return stop; }

@@ -51,6 +51,7 @@ public final class Turn {
     public ProcessRef process() { check(); return process; }
     public ResourceRef resource() { check(); return resource; }
     public long resourceRevision() { check(); return number(event.get("resource_revision"), 0); }
+    public Document.Owner document(java.math.BigInteger identity) { check(); return new Document.Owner(this, identity); }
     public State state() { check(); return new State(this, null); }
     public Budgets budgets() {
         return access(false, () -> {

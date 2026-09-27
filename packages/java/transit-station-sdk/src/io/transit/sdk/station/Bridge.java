@@ -64,6 +64,14 @@ final class Bridge implements Worker.State<Void> {
         grpcCapability("grpc_replay");
         return object(port.request(obj("growing_grpc_read", action), "grpc-replay", false, "GrpcReadResult"));
     }
+    JsonObject documentCodec(JsonObject action) {
+        httpCapability("document_codecs");
+        return object(port.request(obj("document_codec", action), "document-codec", false, "DocumentCodecResult"));
+    }
+    JsonObject documentRead(JsonObject action) {
+        httpCapability("document_reads");
+        return object(port.request(obj("growing_document_read", action), "document-read", false, "DocumentReadResult"));
+    }
     JsonObject prepare() { return object(port.request(obj("growing_prepare", System.currentTimeMillis() + 30_000), "prepare-turn", false, "GrowingEvent")); }
     JsonObject apply(long scope, JsonObject action) {
         return object(port.request(obj("growing_apply", obj("scope", scope, "action", action)), "apply", false, "GrowingResult"));

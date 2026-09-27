@@ -23,3 +23,6 @@ this qualification. Generated resources come from the public Zig contracts;
 
 M16 adds [finite RPC calls and captured replay](docs/GRPC.md), including local
 descriptor binding, binary metadata and observed status zero.
+
+M17 adds [immutable Document changes and asynchronous authorized reads](docs/DOCUMENTS.md)
+with scoped publication and explicit Unicode scalar identities.
