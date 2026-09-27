@@ -194,3 +194,9 @@ document-node: node-build
     vp exec --filter @transit/station node --test src/document.test.ts
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language node
+
+# Installed Ruby Document values, scoped changes and joined reader destruction.
+document-ruby: ruby-build
+    ruby -c packages/ruby/transit-station/lib/transit/station/document.rb
+    zig build transit-node rey-cli
+    python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language ruby

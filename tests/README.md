@@ -55,8 +55,14 @@ and example modules. The installed Node schedule also passes in **222.85 seconds
 tarball installation and the same 139-turn/read-only-consumer schedule. Additional
 Node tests reject dropped Document operations after native completion; typed
 construction copies inputs before awaiting and prepared byte getters return
-copies. Vite+ formatting/lint and strict TypeScript pass. The other eight language
-targets remain in progress.
+copies. Vite+ formatting/lint and strict TypeScript pass.
+
+`just bindings::document-ruby` and the installed Ruby consumer pass the same
+schedule in **226.06 seconds** with clean gem installation. Frozen owned values
+round-trip full-width integers, negative zero, binary and Unicode; invalid UTF-8
+and escaped turn owners reject. Reads use the runner's serialized worker, and
+close joins an outstanding read before destruction. `just check` passes after
+the Ruby additions. The remaining language targets are still in progress.
 
 ## M16 finite connector qualification
 

@@ -27,3 +27,6 @@ adapter has been selected or qualified.
 
 The [finite RPC guide](docs/GRPC.md) describes pinned descriptor binding, original
 message batches, scoped durable calls and owned transcript replay.
+
+The [Document guide](docs/DOCUMENTS.md) describes immutable structured/text change
+values, scoped writer jobs and current-policy reads through the joined worker.

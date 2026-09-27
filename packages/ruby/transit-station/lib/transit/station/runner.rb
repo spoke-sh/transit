@@ -149,6 +149,11 @@ module Transit
           record(Progress.new)
         end
         def evidence = Shutdown.new(pending: @pending, last_event: @last_event)
+        def document_read(action)
+          raise Busy, 'Resolve the saved mutation before reading Documents' if @pending
+          @bridge.document_read(action)
+        end
+        def document_codec(action) = @bridge.document_codec(action)
         def http_read(action)
           raise Busy, 'Resolve the saved mutation before reading HTTP capture' if @pending
           @bridge.http_read(action)
@@ -188,6 +193,7 @@ module Transit
       end
       def initialize(config, handler:, codec:, failure: :stop, recovery: :fence_on_restart)
         raise ArgumentError, 'Expected ServiceConfig' unless config.is_a?(ServiceConfig)
+        @realm = config.activation.process.realm
         @stop_token = StopToken.new
         @worker = Internal::Worker.new { State.new(config, handler, codec, failure, recovery, @stop_token) }
       end
@@ -195,6 +201,10 @@ module Transit
       def reconcile = @worker.call(&:attempt)
       def evidence = @shutdown || @worker.call(&:evidence)
       def stop = stop_token.stop
+      def documents
+        DocumentReader.new(@realm, ->(action) { @worker.call { |state| state.document_read(action) } },
+          ->(action) { @worker.call { |state| state.document_codec(action) } })
+      end
       def open_http(outcome, policy: :captured)
         # Avoid interruption between acquiring the native slot and returning its
         # wrapper. The enclosing runner owns joined cleanup after host wait loss.

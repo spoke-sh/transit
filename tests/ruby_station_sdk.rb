@@ -475,10 +475,140 @@ def grpc_consumer(mode, cfg)
   end
   report(closed: true, owned: owned.unpack1('H*'))
 end
+class DocumentBytes
+  def type_id = 'test.document.tick'
+  def version = 1
+  def max_encoded_bytes = 32
+  def encode(value) = value.dup.b
+  def decode(value) = value.dup.b
+end
+class DocumentHandler < S::Handler
+  attr_reader :phase, :escaped
+  def initialize(document, changes)
+    @document, @changes = document, changes
+  end
+  def clear = @phase = nil
+  def on_start(turn) = turn.document(@document).create
+  def on_message(turn, incoming)
+    @escaped = turn.document(@document)
+    case incoming.value
+    when 'initialize' then nil
+    when '0', '1'
+      index = incoming.value.to_i
+      @phase = @escaped.stage(index+1, @changes[index], node_limit: 256).phase
+    when 'checkpoint' then @phase = @escaped.checkpoint(90).phase
+    when 'window' then @escaped.merge_window(2)
+    when 'retire' then @escaped.retire
+    else raise 'Unexpected Document tick'
+    end
+  end
+end
+
+def document_consumer(mode, cfg)
+  document, replica = Integer(cfg.fetch('document')), (1 << 64)-1
+  resource = ResourceRef.new(realm: 72, resource: cfg.fetch('resource'))
+  if mode == 'document-codecs'
+    fixtures = JSON.parse(File.binread(cfg.fetch('document_fixtures')))
+    fixtures.fetch('changes').each do |entry|
+      bytes = [entry.fetch('wire_hex')].pack('H*')
+      decoded = S.decode_document(bytes)
+      check S.prepare_document(decoded).data == bytes
+      [0, 1, bytes.bytesize-1].each { |length| expect(Error) { S.decode_document(bytes.byteslice(0, length)) } }
+    end
+    ref = S::DocumentReference.decode(72, [fixtures.fetch('reference_hex')].pack('H*'))
+    check ref.document == replica && ref.revision == replica && ref.encode.unpack1('H*') == fixtures.fetch('reference_hex')
+    text = '🙂'.dup
+    bootstrap = S::DocumentChange.new(document: document, epoch: 1, replica: replica, first: 1, operations: [
+      S::DocumentOperation.assign('value', S::DocumentValue.new(kind: :signed, value: -(1 << 63))),
+      S::DocumentOperation.assign('body', S::DocumentValue.new(kind: :text)),
+      S::DocumentOperation.insert(S::DocumentDot.new(counter: 2, replica: replica), S::DocumentValue.new(kind: :character, value: text))])
+    prepared = S.prepare_document(bootstrap)
+    text.replace('changed')
+    check prepared.data.unpack1('H*') == cfg.fetch('changes')[0] && prepared.data.frozen?
+    ['', 'é', "\xed\xa0\x80".dup.force_encoding('UTF-8')].each { |bad| expect(ArgumentError) { S::DocumentValue.new(kind: :character, value: bad) } }
+    report(codecs: true)
+    return
+  end
+  changes = cfg.fetch('changes').map { |bytes| S::PreparedDocumentChange.new(document: document, data: [bytes].pack('H*')) }
+  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3, timeout_ms: 15_000),
+    activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
+      credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
+  handler = DocumentHandler.new(document, changes)
+  saved = nil
+  S::Runner.open(config, handler: handler, codec: DocumentBytes.new) do |runner|
+    STDIN.each_line do |line|
+      action = line.strip
+      case action
+      when 'close'
+        report(closed: true)
+        break
+      when 'one'
+        handler.clear
+        event = nil
+        12.times do
+          event = runner.next
+          break if event.is_a?(S::Committed)
+          check event.is_a?(S::Progress)
+        end
+        check event.is_a?(S::Committed)
+        expect(TurnExpired) { handler.escaped.retire } if handler.escaped
+        report(event: 'committed', phase: handler.phase)
+      when 'read'
+        description = runner.documents.describe(resource, document)
+        ref = description.reference
+        check description.floor.zero? && description.merge_window.zero?
+        field = runner.documents.path(ref, ['value']).field
+        page = runner.documents.sequence(ref, S::DocumentDot.new(counter: 2, replica: replica))
+        check page.next.nil? && page.items.map { |item| item.field.assignments[0].value.value }.join == (ref.revision == 2 ? '🙂' : '🙂́')
+        check field.assignments[0].value.value == -(1 << 63)
+        check runner.documents.path(ref, ['missing']).field.status == :missing
+        check S.prepare_document(runner.documents.accepted_change(ref)).data.unpack1('H*') == cfg.fetch('changes')[ref.revision-2]
+        saved ||= ref
+        report(revision: ref.revision.to_s, items: page.items.length, status: field.status)
+      when 'old'
+        check runner.documents.path(saved, ['value']).field.status == :scalar
+        report(retained: true)
+      when 'denied'
+        expect(AccessDenied) { runner.documents.path(saved, ['value']) }
+        report(denied: true)
+      when 'resynchronize'
+        sync = runner.documents.resynchronize(resource, document, replica)
+        check sync.reference.revision == 3
+        report(previous: sync.previous_counter.to_s, clock: sync.clock.to_s)
+      when 'retired'
+        check runner.documents.describe(resource, document).retired
+        begin runner.documents.path(saved, ['value']); raise 'Retired read succeeded'
+        rescue Error => error
+          check error.code == 'DocumentRetired'
+        end
+        report(retired: true)
+      when 'async-close'
+        other = S::Runner.open(config, handler: handler, codec: DocumentBytes.new)
+        reader = other.documents
+        active = Thread.new do
+          begin reader.describe(resource, document)
+          rescue Closed
+          end
+        end
+        Thread.pass
+        other.close
+        active.join
+        expect(Closed) { reader.describe(resource, document) }
+        report(joined: true)
+      else raise 'Unexpected Document command'
+      end
+    end
+  end
+end
+
 mode, config_file = ARGV
 cfg = JSON.parse(File.binread(config_file))
 check Gem.loaded_specs.fetch('transit-station').full_gem_path.start_with?(File.dirname(config_file))
 check cfg.fetch('profile') == 'growing_v3'
+if mode.start_with?('document-')
+  document_consumer(mode, cfg)
+  exit
+end
 if mode.start_with?('grpc-')
   grpc_consumer(mode, cfg)
   exit

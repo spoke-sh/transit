@@ -175,6 +175,7 @@ module Transit
         grpc_request!(request)
         Value.wide(apply_native({ 'grpc_call' => { 'pid' => pid, 'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
       end
+      def document(identity) = DocumentOwner.new(self, identity)
       def release_grpc(peer, resource, exchange)
         pid = peer_id(peer)
         raise ArgumentError, 'RPC capture must belong to the current realm' unless resource.is_a?(ResourceRef) && resource.realm == self.resource.realm
