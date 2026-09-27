@@ -21,3 +21,6 @@ are outside qualification. The M9 `transit_station` adapter remains separate.
 See [installation, APIs, recovery and migration](docs/usage.md).
 M15 adds [HTTP publication, correlated calls and immutable replay tokens](docs/http.md)
 through the shared native host.
+
+M16 adds [finite RPC calls and captured replay](docs/grpc.md), including local
+descriptor binding and explicit status-zero/unknown outcomes.

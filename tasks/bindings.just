@@ -161,10 +161,11 @@ beam-build: build
 
 # Compile clean Erlang consumers and execute both public BEAM language schedules.
 beam-sdk-test: beam-build
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs packages/beam/transit-station-elixir/lib/*.ex packages/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex
-    zig build transit-node rey-cli transit-station-http-worker
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-client-elixir/lib/client.ex packages/beam/transit-client-elixir/mix.exs packages/beam/transit-station-elixir/lib/*.ex packages/beam/transit-station-elixir/mix.exs examples/station-sdk/elixir/lib/*.ex examples/station-sdk/elixir/mix.exs tests/elixir_client_sdk.exs tests/elixir_station_adapter.ex tests/elixir_http_adapter.ex tests/elixir_grpc_adapter.ex
+    zig build transit-node rey-cli transit-station-http-worker transit-station-grpc-worker
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
+    python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build

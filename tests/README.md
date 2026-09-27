@@ -33,6 +33,15 @@ independent status-zero/unknown/rejection/release fixtures and truncated-outcome
 checks. Their public cancellation views invalidate the reader while runner close
 joins underlying native work. These are local measurements, not hosted budgets.
 
+Erlang and Elixir RPC schedules pass in **68.08** and **70.56 seconds**, including
+clean OTP consumer setup. Both use the shared runner's bounded per-protocol token
+state: stale copies cannot skip undisclosed parts, failed readers cannot resume,
+and runner close joins work after killing its waiting process. Shared fixtures
+preserve observed zero versus unknown and reject truncated replies. Every M11
+language now qualifies the finite RPC caller/replay/disposal surface. The unchanged
+Erlang and Elixir HTTP schedules pass with the shared reader in **68.26** and
+**68.48 seconds**. `just check` also passes after all ten SDK extensions.
+
 `just test::grpc-worker` separately passes in **344.45 seconds** excluding
 compilation over disk Ursula and the actual Zig worker. All four shapes complete
 and replay, then lose workers during partial durable response capture and recover

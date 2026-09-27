@@ -15,3 +15,6 @@ interface. Registry publication and foreign Substrate workers remain outside sco
 See [installation, APIs, recovery and migration](docs/usage.md).
 M15's [HTTP structs and replay API](docs/http.md) preserve current authorization,
 owned binaries and joined disposal through the Erlang SDK.
+
+M16 adds [finite RPC calls and captured replay](docs/grpc.md), including local
+descriptor binding and explicit status-zero/unknown outcomes.

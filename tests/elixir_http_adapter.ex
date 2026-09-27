@@ -7,6 +7,7 @@ defmodule ElixirHttpAdapter do
   alias Transit.Station.Sdk.Http.{Outcome, Part, Prepared, Reader, Rejected, Released, Request}
   alias Transit.SdkExamples.U64Codec
 
+  def replay_error, do: "HttpReplayFailed"
   def type_id, do: "test.http-control"
   def version, do: 1
   def max_encoded_bytes, do: 243
@@ -76,7 +77,7 @@ defmodule ElixirHttpAdapter do
   end
 
   def handle_message(turn, input, {shared, peer, request, disposal, reason} = context) do
-    :beam_http_controller.put(shared, :escaped, turn)
+    :beam_exchange_controller.put(shared, :escaped, turn)
     {:ok, state} = Turn.state(turn)
     {:ok, key} = Turn.key("http-correlation", U64Codec)
     {:ok, release_key} = Turn.key("http-release-correlation", U64Codec)
@@ -150,7 +151,7 @@ defmodule ElixirHttpAdapter do
           %{observed: true}
       end
 
-    :beam_http_controller.put(shared, :result, result)
+    :beam_exchange_controller.put(shared, :result, result)
     {:ok, context}
   end
 
@@ -168,7 +169,7 @@ defmodule ElixirHttpAdapter do
         1
       )
 
-  def open_http(runner, outcome), do: Http.open(runner, outcome)
+  def open_capture(runner, outcome), do: Http.open(runner, outcome)
 
   def followup_expired(turn, request),
     do:
@@ -198,7 +199,7 @@ defmodule ElixirHttpAdapter do
     end
   end
 
-  def close_http(reader), do: Reader.close(reader)
+  def close_capture(reader), do: Reader.close(reader)
   def complete(reader), do: Reader.complete?(reader)
   def view(%Client.Error{} = error), do: Map.from_struct(error)
   def event(%Committed{}), do: :committed

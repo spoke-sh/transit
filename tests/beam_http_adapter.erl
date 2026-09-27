@@ -2,7 +2,7 @@
 -include_lib("transit_station_sdk/include/transit_station_sdk.hrl").
 -behaviour(transit_station_codec).
 -behaviour(transit_station_handler).
--export([prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_http/2, read/1, close_http/1,
+-export([replay_error/0, prepare/1, open/3, next/1, close/1, stop/1, stage/2, open_capture/2, read/1, close_capture/1,
          complete/1, decode/1, outcome/1, view/1, event/1, golden/1, release_expired/1, followup_expired/2,
          type_id/0, version/0, max_encoded_bytes/0, encode/1, handle_message/3]).
 %% The application codec owns ordinary bytes. Decode HTTP only on an authenticated reply.
@@ -26,7 +26,7 @@ open(Cfg, S, Request) ->
     Reason = case maps:get(<<"followup_reason">>, Cfg, <<"retry">>) of <<"retry">> -> retry; <<"redirect">> -> redirect; <<"reconcile">> -> reconcile; <<"cancel">> -> cancel end,
     transit_station_sdk:open(Service, ?MODULE, {S, #transit_process{realm = 72, pid = maps:get(<<"peer">>, Cfg)}, Request, Disposal, Reason}, ?MODULE, stop, fresh_ownership).
 handle_message(Turn, Input, {S, Peer, Request, Disposal, Reason} = Context) ->
-    beam_http_controller:put(S, escaped, Turn), {ok, State} = transit_turn:state(Turn), {ok, Key} = transit_turn:key(<<"http-correlation">>, transit_example_u64_codec),
+    beam_exchange_controller:put(S, escaped, Turn), {ok, State} = transit_turn:state(Turn), {ok, Key} = transit_turn:key(<<"http-correlation">>, transit_example_u64_codec),
     {ok, ReleaseKey} = transit_turn:key(<<"http-release-correlation">>, transit_example_u64_codec),
     {ok, FollowupKey} = transit_turn:key(<<"http-followup-correlation">>, transit_example_u64_codec),
     Result = case Input#transit_incoming.kind of
@@ -70,7 +70,7 @@ handle_message(Turn, Input, {S, Peer, Request, Disposal, Reason} = Context) ->
                     {ok, Status} = transit_turn:key(<<"http-status">>, transit_example_u64_codec), {ok, ok} = transit_turn:put(State, Status, 200), #{observed => true}
             end
     end,
-    beam_http_controller:put(S, result, Result), {ok, Context}.
+    beam_exchange_controller:put(S, result, Result), {ok, Context}.
 next(R) -> transit_station_sdk:next(R).
 close(R) -> transit_station_sdk:close(R).
 stop(R) -> transit_station_sdk:stop(R).
@@ -78,11 +78,11 @@ stage(T, Request) -> transit_http:stage(T, Request).
 release_expired(T) -> transit_http:release(T, #transit_process{realm = 72, pid = 1}, #transit_resource{realm = 72, resource = 1}, 1).
 followup_expired(T, Request) -> transit_http:followup(T, #transit_process{realm = 72, pid = 1}, #transit_http_outcome{resource = #transit_resource{realm = 72, resource = 1}, exchange = 1}, retry, Request).
 outcome(Bytes) -> transit_http:decode_reply(72, Bytes).
-open_http(R, Outcome) -> transit_http:open(R, Outcome).
+open_capture(R, Outcome) -> transit_http:open(R, Outcome).
 read(Reader) -> case transit_http:read(Reader) of
     {ok, {#transit_http_part{kind = K, bytes = B, complete = C}, Next}} -> {ok, {#{kind => K, bytes => B, complete => C}, Next}};
     Other -> Other end.
-close_http(R) -> transit_http:close(R).
+close_capture(R) -> transit_http:close(R).
 complete(R) -> transit_http:complete(R).
 view(#transit_error{kind = Kind, code = Code, phase = Phase}) -> #{kind => Kind, code => Code, phase => Phase}.
 event(#transit_committed{}) -> committed;
@@ -102,3 +102,5 @@ golden(Fixture) ->
     {error, _} = transit_http:decode_reply(72, binary:part(Released, 0, 19)),
     {error, _} = transit_http:prepare(#transit_resource{realm = 72, resource = 8}, 1,
         #transit_http_request{method = get, target = [{literal, <<"//other/">>}]}, <<>>, #{endpoint_revision => 1, reconcile_before_ms => 9000}), ok.
+
+replay_error() -> <<"HttpReplayFailed">>.

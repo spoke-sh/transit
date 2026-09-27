@@ -29,4 +29,11 @@
 -record(transit_http_rejected, {reason}).
 -record(transit_http_released, {resource, exchange}).
 -record(transit_http_part, {kind, bytes, complete = false}).
+-record(transit_grpc_method, {path, shape, descriptor_digest}).
+-record(transit_grpc_request, {method, metadata = []}).
+-record(transit_grpc_prepared, {resource, namespace, reference, metadata, batch}).
+-record(transit_grpc_outcome, {phase, resource, exchange, effect, attempt, status = undefined, reference = undefined}).
+-record(transit_grpc_rejected, {reason}).
+-record(transit_grpc_released, {resource, exchange}).
+-record(transit_grpc_part, {kind, bytes, complete = false}).
 -endif.

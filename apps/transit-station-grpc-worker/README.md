@@ -4,7 +4,7 @@ The finite M16 Zig worker composes the [RPC adapter](../../packages/zig/transit-
 with the shared [Exchange worker/service helpers](../../packages/zig/transit-exchange/README.md).
 `just test::grpc-worker` qualifies all four shapes, partial-capture worker loss,
 node/store restart, explicit retry, current-policy reads and bounded cleanup over
-disk Ursula. Public caller and deployment qualification remain open;
+disk Ursula. Installed callers pass in every M11 language; deployment remains open;
 [proof details](../../tests/README.md#m16-connector-work-in-progress) separate these limits.
 
 Build with `zig build transit-station-grpc-worker`. Supply one JSON configuration
@@ -50,4 +50,4 @@ Structured bounded stderr events are `service.*`, `grpc.worker.operation` and
 from kernel outcome. Status is captured RPC evidence, not business success;
 closure never promises cancellation or rollback at the peer. All message/body
 replay uses the public current-availability reader with dialing and credentials
-absent. Public SDKs, Board and placement examples remain in progress.
+absent. Board and placement examples remain in progress.

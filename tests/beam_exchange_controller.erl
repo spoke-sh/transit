@@ -1,18 +1,18 @@
--module(beam_http_controller).
+-module(beam_exchange_controller).
 -export([main/0, main/2, get/2, put/3, wait_file/1]).
 main() -> main(beam_http_adapter, init:get_plain_arguments()), halt().
 main(A, [Mode0, Path, Fixtures]) ->
     try
         A:golden(read(Fixtures)), Cfg = read(Path), Mode = unicode:characters_to_binary(Mode0),
-        S = ets:new(http_proof, [set, public]), Request = ok(A, A:prepare(Cfg)),
+        S = ets:new(exchange_proof, [set, public]), Request = ok(A, A:prepare(Cfg)),
         R = ok(A, A:open(Cfg, S, Request)),
         try
-            case Mode of <<"http-async">> -> asynchronous(A, R, Cfg);
+            case Mode of Async when Async =:= <<"http-async">>; Async =:= <<"grpc-async">> -> asynchronous(A, R, Cfg);
                 _ -> loop(A, R, S, Cfg, Request, undefined, undefined, <<>>) end
         after A:close(R) end
     catch Class:Reason:Stack ->
         Safe = case Reason of {sdk_failure, Detail} -> Detail; Atom when is_atom(Atom) -> Atom; _ -> assertion_failed end,
-        io:format(standard_error, "HTTP SDK proof failed: ~p ~p ~p~n", [Class, Safe, Stack]), halt(1)
+        io:format(standard_error, "Exchange SDK proof failed: ~p ~p ~p~n", [Class, Safe, Stack]), halt(1)
     end.
 read(Path) -> {ok, Bytes} = file:read_file(Path), json:decode(Bytes).
 ok(A, {error, Error}) -> error({sdk_failure, maps:with([kind, code, phase], A:view(Error))});
@@ -36,17 +36,18 @@ loop(A, R, S, Cfg, Request, Reader, Outcome, Owned) ->
             loop(A, R, S, Cfg, Request, Reader, Outcome, Owned);
         <<"open\n">> ->
             Decoded = ok(A, A:outcome(binary:decode_hex(maps:get(<<"outcome">>, Cfg)))),
-            Opened = ok(A, A:open_http(R, Decoded)), expect(A, busy, A:open_http(R, Decoded)),
+            Opened = ok(A, A:open_capture(R, Decoded)), expect(A, busy, A:open_capture(R, Decoded)),
             {First, Advanced} = ok(A, A:read(Opened)), false = maps:get(complete, First), true = byte_size(maps:get(bytes, First)) > 0,
             %% Copies of old immutable handles cannot skip a returned part.
             expect(A, read_failed, A:read(Opened)), report(#{prefix => true}),
             loop(A, R, S, Cfg, Request, Advanced, Decoded, Owned);
         <<"denied\n">> -> expect(A, access_denied, A:read(Reader)), report(#{denied => true}), loop(A, R, S, Cfg, Request, Reader, Outcome, Owned);
         <<"reopen\n">> ->
-            {error, Error} = A:read(Reader), #{kind := read_failed, code := <<"HttpReplayFailed">>} = A:view(Error),
-            ok = ok(A, A:close_http(Reader)), ok = ok(A, A:close_http(Reader)),
-            {Complete, Body} = drain(A, ok(A, A:open_http(R, Outcome)), <<>>), true = A:complete(Complete),
-            ok = ok(A, A:close_http(Complete)), report(#{complete => true, body => binary:encode_hex(Body, lowercase)}),
+            {error, Error} = A:read(Reader), #{kind := read_failed, code := Code} = A:view(Error),
+            Code = A:replay_error(),
+            ok = ok(A, A:close_capture(Reader)), ok = ok(A, A:close_capture(Reader)),
+            {Complete, Body} = drain(A, ok(A, A:open_capture(R, Outcome)), <<>>), true = A:complete(Complete),
+            ok = ok(A, A:close_capture(Complete)), report(#{complete => true, body => binary:encode_hex(Body, lowercase)}),
             loop(A, R, S, Cfg, Request, Complete, Outcome, Body);
         <<"close\n">> -> ok(A, A:close(R)),
             case Reader of undefined -> ok; _ -> expect(A, closed, A:read(Reader)) end,
@@ -62,7 +63,7 @@ drain(A, Reader, Body) ->
     end.
 asynchronous(A, R, Cfg) ->
     Outcome = ok(A, A:outcome(binary:decode_hex(maps:get(<<"outcome">>, Cfg)))),
-    {First, Reader} = ok(A, A:read(ok(A, A:open_http(R, Outcome)))),
+    {First, Reader} = ok(A, A:read(ok(A, A:open_capture(R, Outcome)))),
     false = maps:get(complete, First), true = byte_size(maps:get(bytes, First)) > 0,
     file:write_file(maps:get(<<"ready">>, Cfg), <<>>), wait_file(maps:get(<<"continue">>, Cfg)),
     Caller = spawn(fun() -> ok(A, A:read(Reader)) end), wait_file(maps:get(<<"accepted">>, Cfg)),
