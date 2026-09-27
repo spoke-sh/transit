@@ -40,20 +40,30 @@ fn readDocument(r: *c.Reader) !Document {
     try doc.validate();
     return doc;
 }
+pub const Snapshot = struct { state: Document, request: u64 = 0 };
 pub fn snapshot(doc: Document) !p.Value {
+    return snapshotChange(doc, 0);
+}
+pub fn snapshotChange(doc: Document, request: u64) !p.Value {
     var bytes: [256]u8 = undefined;
     var w: c.Writer = .{ .bytes = &bytes };
-    try w.write("SDS1");
+    try w.write("SDS2");
     try writeDocument(&w, doc);
+    try w.int(u64, request);
     return p.Value.init(bytes[0..w.offset]);
 }
-pub fn openSnapshot(value: p.Value) !Document {
+pub fn snapshotRecord(value: p.Value) !Snapshot {
     try value.validate();
     var r: c.Reader = .{ .bytes = value.slice() };
-    if (!std.mem.eql(u8, try r.read(4), "SDS1")) return error.InvalidDocumentEncoding;
-    const doc = try readDocument(&r);
+    const magic = try r.read(4);
+    const legacy = std.mem.eql(u8, magic, "SDS1");
+    if (!legacy and !std.mem.eql(u8, magic, "SDS2")) return error.InvalidDocumentEncoding;
+    const out: Snapshot = .{ .state = try readDocument(&r), .request = if (legacy) 0 else try r.int(u64) };
     try r.finish();
-    return doc;
+    return out;
+}
+pub fn openSnapshot(value: p.Value) !Document {
+    return (try snapshotRecord(value)).state;
 }
 pub const Head = struct {
     state: Document,

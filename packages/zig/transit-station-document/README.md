@@ -33,5 +33,8 @@ Component tests cover 24 concurrent delivery permutations, duplicates, nested
 delete/edit races, text and list ordering, conflict resolution, missing/null/type
 errors, full-width integers, Unicode, source denial, storage failure and text
 spanning thousands of index entries. Private-turn tests also reconstruct every staging step and verify final acceptance
-within the unchanged mutation budget. These are component proofs: disk recovery,
-checkpoint/compaction, all public SDKs, Board and placement proofs remain open.
+within the unchanged mutation budget. Incremental checkpoint tests preserve
+unlimited history, advance opted-in epochs/floors only at final publication,
+reject stale edits and recycled counters, and reclaim rejected/retired intervals.
+These are component proofs: disk recovery, all public SDKs, Board and placement
+proofs remain open.

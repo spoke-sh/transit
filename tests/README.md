@@ -2069,3 +2069,13 @@ revision recovery for duplicate changes, frozen request identity, rejected-node
 cleanup, candidate quota exhaustion, exact older reads, logical retirement and
 current read denial. The maximum synthetic head encodes to 252 bytes. Disk/node
 failure, checkpoint/compaction and public SDK/placement proofs remain pending.
+
+The Document checkpoint component extends the standalone suite to 16 tests,
+passing in 1 s with 16 MiB fixture-process RSS. It reconstructs every checkpoint
+staging proposal, preserves unlimited-history duplicates and deletion anchors,
+and advances finite epoch/floor only in the final decision. Tests reject stale
+epochs and recycled replica counters, verify accepted tail requests, preserve an
+older checkpoint after new text edits, and reclaim rejected checkpoints or
+accepted intervals after permanent retirement. Live accepted intervals remain
+physically retained; no reachability collector is claimed. The root check passed;
+disk recovery qualification is running separately.

@@ -265,3 +265,164 @@ test "current read pages pin accepted revisions and resync supplies causal basis
     try t.expectError(error.AccessDenied, service.readSequence(&turn, cursor));
     try t.expectError(error.AccessDenied, service.resynchronize(&turn, 2));
 }
+
+const Checkpoint = lib.Checkpoint;
+fn checkpoint(store: *Turns, id: u64) !u64 {
+    var turn = try store.capture();
+    try Checkpoint.begin(service, &turn, id);
+    try store.commit(turn);
+    for (0..10000) |_| {
+        turn = try store.capture();
+        const step = try Checkpoint.step(service, &turn, id);
+        try store.commit(turn);
+        if (step == .complete) return step.complete;
+    }
+    return error.CheckpointDidNotComplete;
+}
+
+test "unlimited checkpoints retain duplicate and deletion evidence; finite floor changes only at final publication" {
+    var store: Turns = .{};
+    defer store.deinit();
+    try setup(&store);
+    const boot = makeChange(1, 1, &.{ .{ .assign = .{ .field = try m.Name.init("body"), .value = .text } }, .{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .value = .{ .character = 'x' } } }, .{ .assign = .{ .field = try m.Name.init("name"), .value = .null_value } } });
+    _ = try prepare(&store, 1, boot, 128);
+    try upload(&store, 1, boot);
+    _ = try finish(&store, 1);
+    const removed = makeChange(2, 4, &.{ .{ .delete_element = .{ .object = .{ .counter = 1, .replica = 1 }, .element = .{ .counter = 2, .replica = 1 } } }, .{ .remove = .{ .field = try m.Name.init("name"), .observed = try m.Observed.init(&.{.{ .counter = 3, .replica = 1 }}) } } });
+    _ = try prepare(&store, 2, removed, 128);
+    try upload(&store, 2, removed);
+    _ = try finish(&store, 2);
+    var turn = try store.capture();
+    const before = (try service.head(&turn)).state;
+    try t.expectEqual(@as(u64, 3), try checkpoint(&store, 10));
+    turn = try store.capture();
+    const unlimited = try service.head(&turn);
+    try t.expectEqual(@as(u64, 0), unlimited.floor);
+    try t.expectEqual(@as(u64, 1), unlimited.state.epoch);
+    try t.expectEqual(before.index.root.?.entries, unlimited.state.index.root.?.entries);
+    _ = try service.open(&turn, 0);
+    _ = try service.open(&turn, 1);
+    try t.expectError(error.DocumentCheckpointBoundary, service.acceptedChange(&turn, 3));
+    _ = try prepare(&store, 3, boot, 64);
+    try upload(&store, 3, boot);
+    try t.expectEqual(@as(u64, 1), try finish(&store, 3));
+    turn = try store.capture();
+    try service.configureMergeWindow(&turn, 1);
+    try store.commit(turn);
+    turn = try store.capture();
+    try Checkpoint.begin(service, &turn, 11);
+    try store.commit(turn);
+    var progress_count: usize = 0;
+    for (0..10000) |_| {
+        var discarded = try store.capture();
+        const candidate = try Checkpoint.step(service, &discarded, 11);
+        turn = try store.capture();
+        try t.expectEqual(@as(u64, 0), (try service.head(&turn)).floor);
+        _ = try service.open(&turn, 1); // Staged replacement cannot hide old history.
+        const recovered = try Checkpoint.step(service, &turn, 11);
+        try t.expectEqualDeep(candidate, recovered);
+        try t.expectEqualDeep(discarded.decision.mutations, turn.decision.mutations);
+        try store.commit(turn);
+        if (recovered == .complete) {
+            try t.expectEqual(@as(u64, 4), recovered.complete);
+            break;
+        }
+        progress_count += 1;
+    } else return error.CheckpointDidNotComplete;
+    try t.expect(progress_count > 20);
+    turn = try store.capture();
+    const finite = try service.head(&turn);
+    try t.expectEqual(@as(u64, 4), finite.floor);
+    try t.expectEqual(@as(u64, 2), finite.state.epoch);
+    try t.expect(finite.state.index.root.?.entries < unlimited.state.index.root.?.entries);
+    try t.expectError(error.DocumentHistoryGap, service.open(&turn, 3));
+    try t.expectError(error.DocumentResyncRequired, service.prepare(&turn, 4, boot, 64));
+    const sync = try service.resynchronize(&turn, 1);
+    try t.expectEqual(@as(u64, 3), sync.previous_counter);
+    try t.expectEqual(@as(u64, 5), sync.clock);
+    var fresh = makeChange(1, 6, &.{.{ .insert = .{ .object = .{ .counter = 1, .replica = 1 }, .after = .{ .counter = 2, .replica = 1 }, .value = .{ .character = 0x1f642 } } }});
+    fresh.epoch = sync.epoch;
+    fresh.previous = sync.previous_counter;
+    _ = try prepare(&store, 4, fresh, 128);
+    try upload(&store, 4, fresh);
+    try t.expectEqual(@as(u64, 5), try finish(&store, 4));
+    turn = try store.capture();
+    const text_page = try service.readSequence(&turn, .{ .revision = 5, .object = .{ .counter = 1, .replica = 1 } });
+    try t.expectEqual(@as(u8, 1), text_page.len);
+    try t.expectEqual(@as(u32, 0x1f642), text_page.items[0].values.assignments[0].value.character);
+    const tail = try service.acceptedChange(&turn, 5);
+    var expected_bytes: [m.max_change_bytes]u8 = undefined;
+    var actual_bytes: [m.max_change_bytes]u8 = undefined;
+    try t.expectEqualSlices(u8, try lib.codec.encode(fresh, &expected_bytes), try lib.codec.encode(tail, &actual_bytes));
+    const retained = try service.readSequence(&turn, .{ .revision = 4, .object = .{ .counter = 1, .replica = 1 } });
+    try t.expectEqual(@as(u8, 0), retained.len);
+    // Compaction cannot permit reuse of an old replica's operation counters.
+    var recycled = boot;
+    recycled.epoch = 2;
+    _ = try prepare(&store, 5, recycled, 64);
+    try upload(&store, 5, recycled);
+    turn = try store.capture();
+    try t.expectError(error.DocumentIdentityConflict, service.advance(&turn, 5));
+    try expectClean(turn);
+    try service.reject(&turn, 5);
+    try store.commit(turn);
+}
+
+test "abandoned checkpoint nodes are reclaimable; accepted nodes require permanent retirement" {
+    var store: Turns = .{};
+    defer store.deinit();
+    try setup(&store);
+    const c = makeChange(1, 1, &.{.{ .assign = .{ .field = try m.Name.init("x"), .value = .null_value } }});
+    _ = try prepare(&store, 1, c, 64);
+    try upload(&store, 1, c);
+    _ = try finish(&store, 1);
+    var turn = try store.capture();
+    try Checkpoint.begin(service, &turn, 2);
+    try store.commit(turn);
+    for (0..14) |_| {
+        turn = try store.capture();
+        _ = try Checkpoint.step(service, &turn, 2);
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    try Checkpoint.reject(service, &turn, 2);
+    try store.commit(turn);
+    for (0..1000) |_| {
+        turn = try store.capture();
+        const done = try Checkpoint.collectRejected(service, &turn, 2);
+        try store.commit(turn);
+        if (done) break;
+    } else return error.CheckpointCleanupDidNotComplete;
+    turn = try store.capture();
+    const cp = try Checkpoint.inspect(service, &turn, 2);
+    try t.expectEqual(cp.end_node, cp.cleanup);
+    try t.expectEqual(@as(u32, 0), (try service.publication().budget(&turn)).records);
+    try t.expectError(error.DocumentJobClosed, Checkpoint.begin(service, &turn, 2));
+    try t.expectError(error.DocumentStillLive, service.collectRetired(&turn, 1));
+    const path = [_]m.Name{try m.Name.init("x")};
+    try t.expectEqual(.null_value, (try service.readPath(&turn, 1, &path)).status());
+    _ = try checkpoint(&store, 3);
+    turn = try store.capture();
+    try t.expectError(error.DocumentStillLive, Checkpoint.collectRetired(service, &turn, 3));
+    try service.retire(&turn);
+    try store.commit(turn);
+    for (0..1000) |_| {
+        turn = try store.capture();
+        const done = try service.collectRetired(&turn, 1);
+        try store.commit(turn);
+        if (done) break;
+    } else return error.CleanupDidNotComplete;
+    for (0..1000) |_| {
+        turn = try store.capture();
+        const done = try Checkpoint.collectRetired(service, &turn, 3);
+        try store.commit(turn);
+        if (done) break;
+    } else return error.CheckpointCleanupDidNotComplete;
+    turn = try store.capture();
+    try t.expectError(error.DocumentRetired, service.open(&turn, 2));
+    try t.expectError(error.DocumentRetired, service.create(&turn, 1, limits));
+    const job = try service.job(&turn, 1);
+    const descriptor = try service.publication().inspect(&turn, job.request);
+    try t.expectEqual(.retired, descriptor.state);
+    try t.expectEqual(descriptor.written, descriptor.collected);
+}

@@ -86,6 +86,7 @@ pub fn prepare(self: Self, turn: *Turn, id: u64, change: m.Change, node_limit: u
     if (change.document != h.state.document or change.type_revision != h.state.type_revision) return error.DocumentIdentityMismatch;
     if (change.epoch != h.state.epoch) return error.DocumentResyncRequired;
     if (h.active_job != 0) return error.DocumentBusy;
+    if (try turn.read(self.key('c', id)) != null) return error.DocumentIdentityConflict;
     const first = std.math.add(u64, h.next_record, 1) catch return error.DocumentRecordCapacity;
     const end = std.math.add(u64, first, node_limit) catch return error.DocumentRecordCapacity;
     const out: Job = .{ .id = id, .phase = .preparing, .request = h.next_record, .spec = spec, .base_revision = h.state.revision, .first_node = first, .end_node = end };
@@ -135,9 +136,9 @@ pub fn upload(self: Self, turn: *Turn, id: u64, change: m.Change) !bool {
         else => return error.DocumentJobClosed,
     }
 }
-fn readChange(self: Self, source: anytype, j: Job) !m.Change {
-    var cursor = try self.publication().open(source, j.request);
-    if (!std.meta.eql(cursor.spec, j.spec)) return error.InvalidDocumentJob;
+fn readChange(self: Self, source: anytype, request: u64, spec: Pub.Spec) !m.Change {
+    var cursor = try self.publication().open(source, request);
+    if (!std.meta.eql(cursor.spec, spec)) return error.InvalidDocumentJob;
     var bytes: [m.max_change_bytes]u8 = undefined;
     var used: usize = 0;
     while (true) {
@@ -161,7 +162,7 @@ pub fn advance(self: Self, turn: *Turn, id: u64) !Advance {
     if (j.phase == .accepted) return .{ .duplicate = j.accepted_revision };
     if (j.phase != .building) return error.DocumentJobNotReady;
     if (h.active_job != id or h.state.revision != j.base_revision) return error.InvalidDocumentJob;
-    const change = try self.readChange(turn, j);
+    const change = try self.readChange(turn, j.request, j.spec);
     var staging: Index.Staging = .{ .turn = turn, .publication = self.publication(), .next_id = j.first_node, .end_id = j.end_node };
     const candidate = h.state.apply(&staging, change) catch |err| {
         if (err == error.IndexStaging) return .progress;
@@ -173,7 +174,7 @@ pub fn advance(self: Self, turn: *Turn, id: u64) !Advance {
     j.accepted_revision = candidate.accepted_revision;
     j.used_end = staging.next_id;
     try turn.write(self.key('h', 0), try h.encode());
-    if (!candidate.duplicate) try turn.write(self.key('v', h.state.revision), try records.snapshot(h.state));
+    if (!candidate.duplicate) try turn.write(self.key('v', h.state.revision), try records.snapshotChange(h.state, j.request));
     try turn.write(self.key('j', id), try j.encode());
     return if (candidate.duplicate) .{ .duplicate = j.accepted_revision } else .{ .accepted = j.accepted_revision };
 }
@@ -202,6 +203,23 @@ pub fn open(self: Self, source: *Turn, revision: u64) !Document {
     const doc = try records.openSnapshot((try source.read(self.key('v', revision))) orelse return error.DocumentHistoryGap);
     if (doc.document != self.document or doc.revision != revision or doc.type_revision != h.state.type_revision) return error.InvalidDocumentState;
     return doc;
+}
+/// An explicit finite revision window affects only later checkpoint decisions;
+/// zero restores unlimited future retention without recreating any removed history.
+pub fn configureMergeWindow(self: Self, turn: *Turn, revisions: u64) !void {
+    var h = try self.live(turn);
+    if (h.active_job != 0) return error.DocumentBusy;
+    if (h.merge_window == revisions) return;
+    h.merge_window = revisions;
+    try turn.write(self.key('h', 0), try h.encode());
+}
+pub fn acceptedChange(self: Self, turn: *Turn, revision: u64) !m.Change {
+    _ = try self.open(turn, revision);
+    const snap = try records.snapshotRecord((try turn.read(self.key('v', revision))).?);
+    if (snap.request == 0) return error.DocumentCheckpointBoundary;
+    const descriptor = try self.publication().inspect(turn, snap.request);
+    if (descriptor.spec.format != change_format or descriptor.spec.length > m.max_change_bytes) return error.InvalidDocumentState;
+    return self.readChange(turn, snap.request, descriptor.spec);
 }
 pub const Resynchronization = struct {
     document: u64,
@@ -264,11 +282,26 @@ pub fn retire(self: Self, turn: *Turn) !void {
 /// Reclaims only a rejected candidate's exclusive interval. Published old roots
 /// and accepted changes are never inferred unreachable. One record step per turn.
 pub fn collectRejected(self: Self, turn: *Turn, id: u64) !bool {
+    return self.collectClosed(turn, id, false);
+}
+/// Accepted history may be reclaimed only after permanent logical retirement.
+pub fn collectRetired(self: Self, turn: *Turn, id: u64) !bool {
+    return self.collectClosed(turn, id, true);
+}
+fn collectClosed(self: Self, turn: *Turn, id: u64, retired: bool) !bool {
     const before = turn.decision;
     errdefer turn.decision = before;
-    _ = try self.head(turn);
+    const h = try self.head(turn);
     var j = try self.job(turn, id);
-    if (j.phase != .rejected) return error.DocumentJobStillRetained;
+    if (retired) {
+        if (!h.retired) return error.DocumentStillLive;
+        if (j.phase != .accepted and j.phase != .rejected) return error.DocumentJobStillRetained;
+        if (j.cleanup == 0) {
+            j.cleanup = j.request;
+            try turn.write(self.key('j', id), try j.encode());
+            return false;
+        }
+    } else if (j.phase != .rejected) return error.DocumentJobStillRetained;
     if (j.cleanup == j.end_node) return true;
     if (j.cleanup == 0) return error.InvalidDocumentJob;
     const pubn = self.publication();

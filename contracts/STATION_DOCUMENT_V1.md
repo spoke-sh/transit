@@ -133,3 +133,37 @@ Publication operation per turn. Accepted job intervals and snapshots stay retain
 until an explicit checkpoint/lifetime policy permits their disposition. Capacity
 failure never chooses that policy. Disk/placement and checkpoint qualification
 are still pending; private-turn component tests are not evidence for those gates.
+
+## Checkpoints and finite merge windows
+
+Checkpoint construction copies one bounded index entry/path at a time to a new
+root. Its durable cursor and candidate root are separate from the visible head.
+The per-entry 65-node reservation derives from the index's 32-level bound; the
+number of entries/history records is not a resident array or a total checkpoint
+quota. Final publication advances the accepted revision atomically with its root,
+job outcome, epoch and read floor. Candidate rejection has independent bounded
+reclamation and cannot affect accepted roots.
+
+An explicit finite window N retains the N newest revisions including a completed
+checkpoint; zero means unlimited future retention. Its proposed floor is the
+maximum of the existing floor and `checkpoint_revision - N + 1`, when nonnegative.
+Only a completed checkpoint may advance the floor. Advancing it also advances
+the merge epoch. Stale-epoch edits require authorized resynchronization; copied
+replica frontiers reject recycled counters. Setting unlimited policy later never
+recreates unavailable history. Checkpoint revisions count in this finite window.
+
+Unlimited checkpoints preserve all causal/deduplication records. On epoch
+advancement, obsolete register assignments and duplicate-change records below
+the floor may be omitted from the new index. Object IDs, replica frontiers,
+logical clocks, sequence edges and deletion anchors remain. This deliberately
+conservative profile does not erase detached object trees or sequence tombstones.
+
+SDS2 snapshots add a u64 request ID to their exact Document root; zero denotes a
+checkpoint/initial boundary. Existing SDS1 roots remain readable with no tail
+request. Accepted tail requests remain immutable Publication records. Public
+reads reject revisions below the current floor and recheck current grants.
+Physical bytes shared by retained roots stay intact: live reachability collection
+is not implemented. Accepted job/checkpoint intervals can be reclaimed after
+permanent logical Document retirement, using bounded Publication cleanup while
+keeping permanent ledgers. Logical history closure, checkpoint compaction and
+physical removal remain distinct.

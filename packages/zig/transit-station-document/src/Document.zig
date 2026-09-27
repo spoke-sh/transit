@@ -268,6 +268,24 @@ pub fn apply(self: Self, store: anytype, change: m.Change) !Candidate {
     try candidate.put(store, try key('L', .root), &frontier);
     return .{ .state = candidate, .duplicate = false, .accepted_revision = candidate.revision };
 }
+/// Epoch-changing compaction drops only obsolete register assignments and
+/// duplicate-change records below the explicit floor. Sequence anchors, deletion
+/// evidence, object identities, replica frontiers and clocks remain preserved.
+pub fn keepForCheckpoint(self: Self, source: anytype, entry: Index.Entry, floor: ?u64) !bool {
+    const cutoff = floor orelse return true;
+    if (entry.key.data[0] == 'H') {
+        if (entry.value.len != 48) return error.InvalidDocumentState;
+        return std.mem.readInt(u64, entry.value.data[40..48], .little) >= cutoff;
+    }
+    if (entry.key.data[0] == 'A') {
+        if (entry.key.len != 17) return error.InvalidDocumentState;
+        const id: m.Dot = .{ .counter = std.mem.readInt(u64, entry.key.data[1..9], .big), .replica = std.mem.readInt(u64, entry.key.data[9..17], .big) };
+        const a = try self.assignment(source, id);
+        return (try self.dots(source, a.slot)).contains(id);
+    }
+    if (entry.key.data[0] == 'R') return (try self.dots(source, entry.key)).len != 0;
+    return true;
+}
 pub const SequenceCursor = struct {
     current: m.Dot = .root,
     phase: enum(u8) { children, siblings, done } = .children,

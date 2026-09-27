@@ -62,3 +62,44 @@ old snapshots, fit final acceptance plus framework state/output, reject changed
 requests, reclaim failed candidates, enforce explicit capacity, and recheck denied
 reads/retirement. These are not disk/node failure or public SDK/placement proofs;
 those remain part of M17 qualification.
+
+## Checkpoint and retention policy
+
+`Checkpoint.begin/step` rebuilds a complete materialized root one index entry at a
+time. Each entry reserves at most 65 permanent node IDs, derived from the index's
+maximum path/split bound. Progress stores one root and ordered cursor; total
+checkpoint size does not need to fit a fixed interval or worker buffer. Changes
+wait behind the active checkpoint; existing accepted reads remain available.
+The final three-mutation decision replaces the head, stores its revision snapshot
+and closes the checkpoint job. Checkpoints advance the Document revision.
+
+Unlimited retention is the default: checkpoints preserve all causal records,
+duplicate identities, snapshots and epochs. Explicit `configureMergeWindow(N)`
+selects a finite number of newest revisions, including the next checkpoint.
+A completed checkpoint computes `floor = max(old_floor, revision - N + 1)` when
+that expression applies. If the floor advances, the epoch advances too; old-epoch
+submissions require resynchronization. Staged checkpoints cannot change either
+value. Setting the window back to zero preserves future history and does not
+restore previously closed revisions.
+
+An epoch-changing checkpoint drops duplicate-change entries below the floor and
+assignments that are no longer live in their registers. It preserves replica
+frontiers/logical clocks, object identities, sequence predecessor edges, deleted
+anchors and their causal evidence. Resynchronized replicas must continue their
+recorded counters. Deletion cannot be undone by recycling a replica/operation ID.
+This is a conservative compaction profile: detached subtrees and deleted sequence
+anchors are retained, rather than promising arbitrary tombstone erasure.
+
+Revision snapshots also bind the immutable accepted request. `acceptedChange`
+returns a bounded verified tail change or an explicit checkpoint boundary. Old
+SDS1 snapshot records remain readable; SDS2 adds that request ID without changing
+SDC1 or the kernel frame. Checkpoint plus later accepted changes supplies a
+recovery basis, and each later snapshot is directly readable at its exact revision.
+
+`Checkpoint.reject/collectRejected` closes and reclaims only that candidate's
+exclusive intervals. While live snapshots may still share older nodes, accepted
+intervals are retained physically even below the logical history floor. After
+permanent Document retirement, `collectRetired` on service and checkpoint jobs
+reclaims their intervals in bounded steps. Durable ledgers/descriptors remain to
+reject delayed reuse. This profile does not run live reachability garbage
+collection or infer permission to delete from a revision number alone.

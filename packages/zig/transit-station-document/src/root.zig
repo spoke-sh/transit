@@ -5,10 +5,12 @@ pub const Change = Model.Change;
 pub const Dot = Model.Dot;
 pub const Scalar = Model.Scalar;
 pub const Operation = Model.Operation;
+pub const Checkpoint = @import("Checkpoint.zig");
 pub const Service = @import("Service.zig");
 pub const Document = @import("Document.zig");
 pub const codec = @import("codec.zig");
 test {
+    _ = Checkpoint;
     _ = Service;
     _ = Service.records;
     _ = Document;
