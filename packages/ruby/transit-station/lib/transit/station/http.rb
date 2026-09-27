@@ -25,10 +25,10 @@ module Transit
           end
         end
       end
-      def codec(action, native_host)
+      def codec(action, native_host, release: false)
         worker = Internal::Worker.new { Bridge.local(native_host) }
         begin
-          worker.call { |bridge| bridge.http_codec(action) }
+          worker.call { |bridge| bridge.http_codec(action, release: release) }
         ensure
           worker.close
         end
@@ -85,10 +85,22 @@ module Transit
       def inspect = "#<Transit::Station::HttpOutcome #{phase}>"
     end
     HttpRejected = Data.define(:reason)
+    HttpReleased = Data.define(:resource, :exchange) do
+      def initialize(resource:, exchange:)
+        raise ArgumentError, 'Expected ResourceRef' unless resource.is_a?(ResourceRef)
+        super(resource: resource, exchange: Internal.integer(exchange, max: U64_MAX))
+      end
+    end
     def self.decode_http_reply(realm, bytes, native_host: nil)
       Internal.integer(realm)
-      result = HttpValue.codec({ 'outcome' => Internal.bytes(bytes, 71).unpack1('H*') }, native_host)
+      bytes = Internal.bytes(bytes, 71)
+      result = HttpValue.codec({ 'outcome' => bytes.unpack1('H*') }, native_host, release: bytes.start_with?('HTK1'.b))
       return HttpRejected.new(reason: result.fetch('rejected').to_sym) if result.key?('rejected')
+      if result.key?('released')
+        value = result.fetch('released')
+        return HttpReleased.new(resource: ResourceRef.new(realm: realm, resource: value.fetch('resource')),
+          exchange: Value.wide(value.fetch('exchange'), min: 1))
+      end
       value = result.fetch('outcome')
       HttpOutcome.new(phase: value.fetch('phase').to_sym,
         resource: ResourceRef.new(realm: realm, resource: value.fetch('resource')),
@@ -105,11 +117,11 @@ module Transit
       def version = 1
       def max_encoded_bytes = [71, @application.max_encoded_bytes].max
       def encode(value)
-        raise CodecError, 'HTTP outcome records are receive-only' if value.is_a?(HttpOutcome) || value.is_a?(HttpRejected)
+        raise CodecError, 'HTTP outcome records are receive-only' if value.is_a?(HttpOutcome) || value.is_a?(HttpRejected) || value.is_a?(HttpReleased)
         @application.encode(value)
       end
       def decode(bytes)
-        if ['HTR1'.b, 'HTF1'.b].include?(bytes.byteslice(0, 4))
+        if ['HTR1'.b, 'HTF1'.b, 'HTK1'.b].include?(bytes.byteslice(0, 4))
           Station.decode_http_reply(@realm, bytes, native_host: @native_host)
         else @application.decode(bytes)
         end

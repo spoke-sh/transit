@@ -163,14 +163,20 @@ class HttpBytes
 end
 class HttpHandler < S::Handler
   attr_reader :result, :escaped
-  def initialize(peer, request)
-    @peer, @request = peer, request
+  def initialize(peer, request, disposal)
+    @peer, @request, @disposal = peer, request, disposal
     @correlation = S::Key.new('http-correlation'.b, codec: E::U64)
+    @release_correlation = S::Key.new('http-release-correlation'.b, codec: E::U64)
   end
   def on_message(turn, input)
     @escaped = turn
     if input.is_a?(S::Cast)
-      if turn.state.find(@correlation)
+      if input.value == 'dispose'.b
+        expect(ArgumentError) { turn.release_http(@peer, ResourceRef.new(realm: 73, resource: @disposal.resource.resource), @disposal.exchange) }
+        correlation = turn.release_http(@peer, @disposal.resource, @disposal.exchange)
+        turn.state.put(@release_correlation, correlation)
+        @result = { released: false }
+      elsif turn.state.find(@correlation)
         @result = { called: true }
       elsif turn.stage_http(@request)
         correlation = turn.call_http(@peer, @request)
@@ -179,6 +185,13 @@ class HttpHandler < S::Handler
       else @result = { called: false }
       end
     else
+      if input.is_a?(S::Reply) && input.value.is_a?(S::HttpReleased)
+        turn.require_reply(input, peer: @peer, correlation: turn.state.require(@release_correlation))
+        check input.value.resource == @disposal.resource && input.value.exchange == @disposal.exchange
+        turn.state.put(S::Key.new('http-disposed'.b, codec: E::U64), input.value.exchange)
+        @result = { released: true }
+        return
+      end
       check input.is_a?(S::Reply) && input.value.is_a?(S::HttpOutcome)
       turn.require_reply(input, peer: @peer, correlation: turn.state.require(@correlation))
       check input.value.phase == :observed && input.value.status == 200
@@ -200,7 +213,8 @@ def http_consumer(mode, cfg)
   config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
     activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
       credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
-  handler = HttpHandler.new(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request)
+  disposal = cfg['outcome'] && S.decode_http_reply(72, [cfg['outcome']].pack('H*'))
+  handler = HttpHandler.new(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request, disposal)
   owned = ''.b
   S::Runner.open(config, handler: handler, codec: S::HttpReplyCodec.new(HttpBytes.new, realm: 72), failure: :stop, recovery: :fence_on_restart) do |runner|
     if mode == 'http-async'
@@ -249,6 +263,7 @@ def http_consumer(mode, cfg)
         end
         check committed
         expect(TurnExpired) { handler.escaped.stage_http(request) }
+        expect(TurnExpired) { handler.escaped.release_http(ProcessRef.new(realm: 72, pid: cfg.fetch('peer')), request.resource, 1) }
         report(handler.result)
       when 'open'
         outcome = S.decode_http_reply(72, [cfg.fetch('outcome')].pack('H*'))
@@ -320,6 +335,11 @@ if mode == 'codecs'
   check S.decode_http_reply(72, [fixture.fetch('rejection')].pack('H*')).reason == :denied
   codec = S::HttpReplyCodec.new(E::U64, realm: 72)
   check codec.decode([fixture.fetch('outcome')].pack('H*')) == outcome
+  release = [JSON.parse(File.read(cfg.fetch('http_release_fixtures'))).fetch('reply')].pack('H*')
+  released = codec.decode(release)
+  check released == S::HttpReleased.new(resource: ResourceRef.new(realm: 72, resource: 7), exchange: (1 << 64) - 1) && released.frozen?
+  expect(CodecError) { codec.encode(released) }
+  expect(Error) { S.decode_http_reply(72, release.byteslice(0, 19)) }
   check codec.decode(codec.encode((1 << 64) - 1)) == (1 << 64) - 1
   expect(Error) { S.decode_http_reply(72, [fixture.fetch('outcome')].pack('H*').byteslice(0, 70)) }
   expect(Error) { S.prepare_http(ResourceRef.new(realm: 72, resource: 8), 1,

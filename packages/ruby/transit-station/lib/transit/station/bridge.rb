@@ -54,8 +54,9 @@ module Transit
       def apply(scope, action)
         port.request({ 'growing_apply' => { 'scope' => scope, 'action' => action } }, phase: :apply, response: 'GrowingResult')
       end
-      def http_codec(action)
+      def http_codec(action, release: false)
         raise UnsupportedCapability, 'Native HTTP requests unavailable' unless caps['http_requests']
+        raise UnsupportedCapability, 'Native HTTP disposal unavailable' if release && !caps['http_release']
         port.request({ 'http_codec' => action }, phase: :http_codec, response: 'HttpCodecResult')
       end
       def http_read(action)

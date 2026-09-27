@@ -119,7 +119,9 @@ The ordinary client/runner/Arrow regressions also passed.
 `just bindings::ruby-sdk-test` also passes the shared HTTP schedule through clean
 gems, with frozen owned strings, schema-validated port results and an interrupted
 controller wait whose native read is joined during runner disposal. Its local
-HTTP schedule took **31.15 seconds** including gem installation. The existing
+expanded HTTP schedule took **53.75 seconds** including gem installation and
+authenticated durable disposal before/after cleanup with transcript reads revoked.
+The existing
 Ruby client and Station recovery/query schedule remained passing.
 `just bindings::c-sdk-test` builds HTTP callbacks as C11 and a typed C++17
 consumer against installed archives. The C and C++ HTTP schedules passed locally

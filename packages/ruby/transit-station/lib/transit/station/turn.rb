@@ -148,6 +148,13 @@ module Transit
         http_request!(request)
         Value.wide(apply_native({ 'http_call' => { 'pid' => pid, 'reference' => request.reference.unpack1('H*') } }).fetch('correlation'), min: 1)
       end
+      def release_http(peer, resource, exchange)
+        pid = peer_id(peer)
+        raise ArgumentError, 'HTTP capture must belong to the current realm' unless resource.is_a?(ResourceRef) && resource.realm == self.resource.realm
+        raise UnsupportedCapability, 'Native HTTP disposal unavailable' unless caps['http_release']
+        Value.wide(apply_native({ 'http_release' => { 'pid' => pid, 'resource' => resource.resource,
+          'exchange' => Internal.integer(exchange, max: U64_MAX).to_s } }).fetch('correlation'), min: 1)
+      end
       def open_version(identity)
         check!
         Value.version_wire(identity)

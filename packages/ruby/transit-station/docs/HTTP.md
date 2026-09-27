@@ -32,8 +32,8 @@ Changed identity, unpublished calls and namespace reuse after retirement reject.
 Application objects/threads are not durable source recovery or scheduling.
 
 Wrap the application's codec with `HttpReplyCodec.new(codec, realm: realm)`.
-The explicit union reserves HTR1/HTF1 payload prefixes for shared decoding into
-`HttpOutcome`/`HttpRejected`. Verify each input against its durable wait using
+The explicit union reserves HTR1/HTF1/HTK1 payload prefixes for shared decoding into
+`HttpOutcome`/`HttpRejected`/`HttpReleased`. Verify each input against its durable wait using
 `turn.require_reply(input, peer: connector, correlation: saved_correlation)`.
 HTTP outcomes are receive-only through this codec. `Station.decode_http_reply`
 also validates saved outcome bytes through Zig; decoding confers no authority.
@@ -56,5 +56,12 @@ read, always close the owning runner to join pending work and dispose the native
 slot; interrupting its wait does not cancel native I/O. The block form of
 `Runner.open` owns that cleanup. Returned strings remain owned after runner close.
 Local reader/runner disposal does not release the durable caller capture hold.
-Public followup/release conveniences and the remaining language matrix remain
-M15 work.
+
+Use `turn.release_http(connector, outcome.resource, outcome.exchange)` inside a
+handler to request durable disposal. Save its correlation in state and authenticate
+the subsequent `HttpReleased` with `turn.require_reply`; check the resource and
+exchange too. Duplicates remain safe after worker restart and cleanup. No
+transcript read grant is required: the service checks the recorded holder and
+current admission policy. Release does not cancel remote work, retire the capture
+or clean up its members. The finite worker handles it in a fresh `poll` activation.
+Public followup helpers remain M15 work.

@@ -27,7 +27,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
     (execute or schedule)(node, cli, library, install, 'Ruby')
     if execute is None:
         from sdk_http_runner import run as http_schedule
-        http_schedule(node, cli, library, http_worker, install, 'Ruby')
+        http_schedule(node, cli, library, http_worker, install, 'Ruby', public_release=True)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])
