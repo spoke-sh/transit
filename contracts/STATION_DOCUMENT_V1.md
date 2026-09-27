@@ -132,7 +132,7 @@ reclaim that interval's unreachable nodes/request, with at most one bounded
 Publication operation per turn. Accepted job intervals and snapshots stay retained
 until an explicit checkpoint/lifetime policy permits their disposition. Capacity
 failure never chooses that policy. Disk and checkpoint recovery evidence is in
-the [test guide](../tests/README.md#m17-work-in-progress); remote placement remains
+the [test guide](../tests/README.md#m17-qualification); remote placement remains
 pending. Private-turn component tests alone are not evidence for those gates.
 
 ## Checkpoints and finite merge windows

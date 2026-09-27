@@ -1,11 +1,10 @@
 # Documents and collaborative text
 
-Status: M17 implementation in progress. Durable merge/checkpoint recovery and
-the installed change/read schedule pass across all ten M11 SDKs. Remote call
-components and the two-client local worker proof pass; Board and Compose/reference
-placement qualification remain open. [M14](roadmap/M14.md) supplies bounded immutable publication over
+Status: M17's declared growing profile is implemented and qualified: durable
+merge/checkpoint recovery, all ten installed SDKs, two independent editors,
+Board metadata and local/Compose/reference placement pass. [M14](roadmap/M14.md) supplies bounded immutable publication over
 growing KV. M15/M16 qualify HTTP/gRPC integrations; Document semantics remain
-independent of those transports. See [executed evidence](../tests/README.md#m17-work-in-progress).
+independent of those transports. See [executed evidence](../tests/README.md#m17-qualification).
 
 ## Authority and identity
 
@@ -109,11 +108,11 @@ missing/null/type-error/conflict distinctions and bounded list/text operations.
 Reuse exact source revisions, current read authorization and verified result
 delivery; sharing plans does not create cross-resource snapshots or transactions.
 
-All M11 SDK targets must eventually expose the shared Zig operations with exact
-change identities, scoped ownership and explicit accepted/tentative outcomes.
+All ten M11 SDK targets expose the shared Zig operations with exact change
+identities, scoped ownership and explicit accepted/tentative outcomes.
 The M14 Zig primitive is a storage prerequisite, not public Document support in
 those SDKs. The complete collaborative example, Board metadata and deployment
-proofs remain explicit [M17 exit criteria](roadmap/M17.md#exit-criteria).
+proofs have executed evidence under [M17 exit criteria](roadmap/M17.md#exit-criteria).
 Unified query APIs, Arrow ownership/fixtures and all-language query conformance
 remain [M18](roadmap/M18.md) obligations, separate from Document mutation APIs.
 

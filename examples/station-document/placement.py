@@ -18,6 +18,10 @@ class Compose(BaseCompose):
     def invoke(self, service, *args):
         return json.loads(self.call("run", "--rm", "--no-deps", "-T", service, *args, timeout=900))
 
+    def stop_for_recovery(self, service, process):
+        process.kill()
+        process.wait(timeout=10)
+
 
 class Reference(BaseReference):
     def __init__(self, work):
@@ -30,6 +34,22 @@ class Reference(BaseReference):
         self.values["ursula"]["existingConfigSecret"] = "document-store-config"
         return super().deploy()
 
+    def stop_for_recovery(self, service, process):
+        # Hold replacements until the durable store has recovered. Deleting a
+        # Deployment pod alone immediately creates another running executor.
+        self.kube("scale", "deployment/" + service, "--replicas=0", "--current-replicas=1")
+        process.kill()
+        process.wait(timeout=10)
+        deployment = self.get("deployment", service)
+        selector = ",".join(k + "=" + v for k, v in deployment["spec"]["selector"]["matchLabels"].items())
+        self.kube("wait", "--for=delete", "pod", "-l", selector, "--timeout=60s")
+
+    def start(self, service):
+        self.setup()
+        if self.get("deployment", service)["spec"]["replicas"] == 0:
+            self.kube("scale", "deployment/" + service, "--replicas=1", "--current-replicas=0")
+        return super().start(service)
+
     def finish(self, handle):
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline:
@@ -38,7 +58,7 @@ class Reference(BaseReference):
                 assert len(values) == 1
                 return values[0]
             time.sleep(.2)
-        raise TimeoutError("Substrate Document editor did not complete")
+        raise TimeoutError("Substrate Document editor did not complete: " + self.actor_logs(handle)[-3000:])
 
     def invoke(self, service, *args):
         if service == "caller-probe":

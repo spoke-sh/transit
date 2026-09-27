@@ -38,5 +38,5 @@ permissions, so current policy and retained-history checks apply to every read.
 handler against the same fixture/recovery schedule. It covers prepared-byte
 round trips, Unicode, full-width values, scope expiry, host replacement, retained
 references, read-only grants, prefix revocation, conflict visibility and retirement.
-The [test guide](../../../../tests/README.md#m17-work-in-progress) records results;
+The [test guide](../../../../tests/README.md#m17-qualification) records results;
 remote writer routing and placement remain separate proofs.

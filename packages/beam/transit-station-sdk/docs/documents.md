@@ -52,5 +52,5 @@ proof that native work was cancelled. In-flight uncertainty still uses the
 runner's recovery contract.
 
 `just bindings::document-beam` installs and exercises both Erlang and Elixir
-consumers against disk Ursula. See the [executed evidence](../../../../tests/README.md#m17-work-in-progress)
+consumers against disk Ursula. See the [executed evidence](../../../../tests/README.md#m17-qualification)
 for the bounded failure schedule and qualification limits.

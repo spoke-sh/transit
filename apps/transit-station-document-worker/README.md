@@ -4,7 +4,7 @@ Finite fenced Document worker over public Station calls. It composes the
 [Document package](../../packages/zig/transit-station-document/README.md) and
 bounded telemetry; it has no raw storage or effect connector access. The
 [two-client disk proof](../../examples/station-document/README.md) passes;
-Compose/reference placement qualification remains open.
+isolated Compose and reference placement proofs also pass.
 
 Build with `zig build transit-station-document-worker`, then run
 `zig-out/bin/transit-station-document-worker CONFIG.json`. Required configuration:

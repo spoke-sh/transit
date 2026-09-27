@@ -140,6 +140,11 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
                 generation = query({"process": record["pid"]})["body"]["process"]["process"]["generation"]
                 config = dict(url=placement.authority, realm=realm, pid=record["pid"], principal=record["principal"], generation=generation+1,
                     seed_file=f"/{role}/seed.key", activation_directory="/activations", document=17, mode=mode, **extra)
+                if profile == "reference" and role == "writer":
+                    # The trusted pod's firewall already pins this Service IP.
+                    # Resolve physical placement once, rather than adding a DNS
+                    # exchange to every bounded signed resource read.
+                    config["url"] = "http://" + placement.address("node") + ":8080"
                 if profile == "reference" and role != "writer":
                     config.pop("seed_file")
                     config["activation_directory"] = "/runtime-data"
@@ -195,8 +200,8 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
             assert pending["phase"] == "progress" and pending["revision"] == "0" and pending["active_job"] != "0"
             # Unpublished material survives physical node/store loss; only the
             # same durable PID under fresh ownership may resume its candidate.
-            authority.kill(); authority.wait(timeout=10)
-            storage.kill(); storage.wait(timeout=10)
+            placement.stop_for_recovery("node", authority)
+            placement.stop_for_recovery("ursula", storage)
             storage = placement.start("ursula")
             ready(storage, placement.url("ursula")+"/__ursula/ready")
             authority = placement.start("node")

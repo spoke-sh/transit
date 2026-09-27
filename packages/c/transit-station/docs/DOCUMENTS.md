@@ -45,4 +45,4 @@ and permanent Document retirement. Unlimited retention remains the default.
 
 Run `just bindings::document-c` for separately compiled installed C11 and C++17
 consumers over the shared disk-backed schedule. See the
-[proof evidence](../../../../tests/README.md#m17-work-in-progress).
+[proof evidence](../../../../tests/README.md#m17-qualification).

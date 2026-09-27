@@ -21,7 +21,7 @@ Arrow encoding uses a **4 MiB fixed workspace / 64 KiB output limit**; allocatio
 or output exhaustion fails without a result. This remains pure engine evidence;
 it does not establish durable capture or current source authorization.
 
-## M17 work in progress
+## M17 qualification
 
 The standalone Station suite passes **42 tests in 538 ms** with **18 MiB test
 process peak RSS**. Immutable-index cases cover 1024-key permutations, retained
@@ -173,7 +173,7 @@ no-cold-tier attempt exhausted the 512 MiB Ursula container; raising that limit
 was not the recovery. The chart now supports a separately created configuration
 Secret without copying credentials into Helm values or ConfigMaps; its deployment
 render/lint tests pass. The root `just check` also passes. These are local
-measurements; reference qualification remains pending.
+measurements; they do not establish hosted CI cost.
 
 `just transit-board::document-browser` passes the complete local two-editor
 schedule in **596.76 seconds**, including its real Chromium test (**12.0 seconds**).
@@ -186,6 +186,26 @@ history floor and retirement metadata. It records **621 cold objects /
 node/store restart and exact acceptance retry. Counts include retained text
 character registers, not just application field names. Component API tests,
 strict frontend checks and all nine frontend unit tests pass.
+
+`just examples::document-reference` passes in **497.08 seconds**, including cached
+builds. Two editors execute as independent Substrate/gVisor activations with
+fresh public registrations and exact operator-recorded ownership. The trusted
+writer runs in a separate confined Kubernetes pod. The schedule kills an editor
+worker, recovers the original call, interrupts an unpublished candidate with
+node/store loss, and completes conflict resolution, duplicate handling, finite
+window resynchronization and retirement. It records **610 cold objects /
+61,575,930 bytes**, with **8 MiB hot storage and 8 MiB cache**. Isolation probes
+deny direct storage, provider/control APIs and external TCP while permitting
+Transit. The proof owns and removes its namespace and atespace.
+
+Two failed reference attempts exposed a replacement-order race and intermittent
+five-second writer read timeouts at different operations. The successful schedule
+holds replacements until Ursula is ready and addresses the trusted writer's
+already-allowed fixed Service IP. This removes per-request writer DNS resolution;
+it does not qualify arbitrary DNS failures or change client timeout budgets.
+The manual restart used during diagnosis is excluded from the passing evidence.
+This is cold restart against retained disk/object data, not disk-loss recovery,
+automatic growing provider reconciliation or hosted CI qualification.
 
 ## M16 finite connector qualification
 

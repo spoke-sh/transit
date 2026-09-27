@@ -38,16 +38,17 @@ unlimited history, advance opted-in epochs/floors only at final publication,
 reject stale edits and recycled counters, and reclaim rejected/retired intervals.
 The disk-backed `just test::document` additionally qualifies real worker/node/
 store loss, exact retry, current-policy reads and bounded cleanup with a one-page
-authority cache. See [proof evidence](../../../tests/README.md#m17-work-in-progress).
+authority cache. See [proof evidence](../../../tests/README.md#m17-qualification).
 All ten public SDKs now pass the installed Document change/read recovery schedule.
-The real two-client local remote-submission proof passes. Board and
-Compose/reference placement proofs remain in progress.
+The real two-client local remote-submission proof, Board API/browser checks and
+isolated Compose/reference placement proofs pass.
 
 `Request`, `Caller` and `Remote` now provide [authenticated submission and
 original reply routing](docs/remote.md). Component tests qualify admission,
 recovery and final acceptance within the unchanged four-mutation budget;
 the two-client disk proof additionally qualifies actual worker/node/store loss
-and original correlated replies. Compose/reference placement remains pending.
+and original correlated replies. The placement guide records the additional
+[Compose/reference boundaries](../../../examples/station-document/docs/placement.md).
 
 `Client` provides current-policy descriptions, typed path/sequence reads, accepted
 tail changes and resynchronization independently of writer ownership. Its SDR1

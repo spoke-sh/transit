@@ -22,7 +22,9 @@ Reference runs editors as separate Substrate/gVisor actor activations in an owne
 atespace. Each activation creates an ephemeral key and emits only its public
 registration. The operator checks actor/template/worker identity, grants that key
 its scoped resource access, then records the exact expected next generation.
-The caller never adopts a later owner. The writer is a trusted, egress-confined
+The caller never adopts a later owner. The trusted writer uses the fixed node
+Service IP already permitted by its firewall; Substrate editors use the scoped
+hostname required by their egress policy. The writer is a trusted, egress-confined
 Kubernetes pod, not a Substrate actor or a new provider binding. Its network
 permits Transit and DNS; probes reject Ursula, Kubernetes, Substrate API and
 external TCP access. Ursula receives its bounded S3 configuration from a
@@ -33,7 +35,10 @@ call under fresh ownership, interrupts an unpublished candidate with node/store
 loss, then resumes the same durable writer. The reference proof additionally
 kills the editor's physical worker before recovery. It checks reordered structured
 and Unicode text edits, duplicate acceptance, explicit conflict resolution,
-checkpoint-window resynchronization and permanent retirement. A bounded writer
+checkpoint-window resynchronization and permanent retirement. During node/store
+recovery, the harness holds Deployment replicas at zero until the store is ready,
+then starts the node; Kubernetes must not create an early replacement against the
+still-stopping store. A bounded writer
 invocation reporting `progress` is not accepted completion.
 
 These placement proofs use disk WAL and owned MinIO cold storage with an 8 MiB
@@ -44,7 +49,7 @@ connect to either storage service. The separate local proof additionally qualifi
 writer SIGKILL and exact signed acceptance retry. Neither proof substitutes for
 the other. The initial no-cold-tier Compose attempt exhausted its 512 MiB memory
 limit; the bounded profile spills durable data instead of expiring history.
-See [executed evidence](../../../tests/README.md#m17-work-in-progress) for current
+See [executed evidence](../../../tests/README.md#m17-qualification) for current
 results; a task's existence does not establish that its profile passed.
 
 `example-station-document --bootstrap-json CONFIG` is intended for a trusted
