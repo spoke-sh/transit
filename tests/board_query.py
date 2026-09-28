@@ -146,7 +146,9 @@ def run(node, host, proof, board, browser=False):
             assert page["rows"][0][0] == {"int64": "9007199254740994"}
             assert page["manifest"]["rows"] == 1 and page["next"] is None
             # Validate the real wire body with the actual generated JS validators.
-            Path(".cache/verification/m13-query-wire.json").write_text(json.dumps({"source": source, "prepared": prepared, "page": page}))
+            wire_fixture = Path(".cache/verification/m13-query-wire.json")
+            wire_fixture.parent.mkdir(parents=True, exist_ok=True)
+            wire_fixture.write_text(json.dumps({"source": source, "prepared": prepared, "page": page}))
             subprocess.run(["node", "tests/board_query_client.mjs"], input=json.dumps({"source": source, "prepared": prepared, "page": page}).encode(), check=True, timeout=15)
             admin("revoke")
             api({"prepare": {"sql": "SELECT * FROM items"}}, status=403)
