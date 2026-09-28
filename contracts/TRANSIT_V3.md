@@ -199,6 +199,30 @@ verifies committed intent and root snapshot before advancing that floor. It does
 not delete catalog pages, receipts, accepted inputs, values or captured roots.
 This does not add a public history query or page-GC capability.
 
+### Conditional local worker replacement
+
+M25 adds `create_principal` and capability-gated `rotate_worker`. Both require
+root authorization. `create_principal` takes the existing Grant fields but
+refuses any previously allocated subject, including a revoked one. Exact retries
+retain their original receipt; a fresh operation cannot overwrite another
+installation's identity.
+
+`rotate_worker` requires an executable PID, its exact prior generation and a
+PID-scoped worker with the expected current public key and permission mask.
+The worker must retain inspect/execute rights. One native decision replaces its
+key, advances ownership and records its policy revision. Its signed sequence
+and resource-grant epoch remain unchanged: rotation cannot renew a removed
+resource permission. It rejects an unchanged key, revoked worker, foreign scope,
+stale generation, blocked process or permanent retirement. A revocation racing
+prepared activation fences its conditional journal append.
+
+This operation preserves PID, resources, mailbox, state, permit and outputs;
+it is eligible for the existing finite control reserve. It neither launches a
+worker nor declares application compatibility. The local manager attributes
+bootstrap evidence and checks artifact/configuration compatibility separately.
+Ordinary grant replacement still advances the grant epoch and invalidates old
+resource grants. Existing command signing bytes remain unchanged.
+
 The declared capabilities expose unsupported runtime-binding and Station
 extensions explicitly. The service reports history-reclamation support separately
 from its selected unlimited/checkpointed policy; only genesis opt-in allows a

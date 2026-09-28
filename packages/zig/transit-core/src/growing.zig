@@ -183,7 +183,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             };
             if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;
             const pid: ?u64 = switch (command) {
-                inline .own, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
+                inline .own, .rotate_worker, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
                 .turn_with_versions => |command_value| command_value.turn.pid,
                 .deliver => |id| (try work_ops.output(self, id)).destination,
                 .create_resource => |c| c.writer,
@@ -225,7 +225,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (self.head.position < ceiling) return;
             if (self.head.position >= ceiling + self.genesis.control_reserve) return error.ControlCapacity;
             switch (command) {
-                .revoke, .retry, .terminate, .expire, .own, .begin_turn, .close_view, .retire_resource, .expire_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint => {},
+                .revoke, .retry, .terminate, .expire, .own, .rotate_worker, .begin_turn, .close_view, .retire_resource, .expire_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint => {},
                 .grant_resource => |c| if (c.permissions != 0) return error.AdmissionClosed,
                 .turn => |t| {
                     if (t.effect != null) return error.AdmissionClosed;
@@ -243,7 +243,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var candidate = try self.state();
             var next = self.head;
             const needs_time = switch (request.command) {
-                .grant, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint => false,
+                .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint => false,
                 .close_effect => |c| c.reason == .deadline,
                 .deliver => |id| (try self.process((try work_ops.output(self, id)).source)).lifecycle == .running,
                 .cancel_effect => |c| (try self.process(c.pid)).lifecycle == .running,
@@ -304,11 +304,13 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         fn apply(self: *Self, candidate: *Catalog, next: *Head, request: g.Request, sample: ?core.Time.Sample) !void {
             const position = self.head.position;
             switch (request.command) {
-                .grant => |grant| {
+                .grant, .create_principal => |grant| {
                     if (request.principal != 0) return error.Forbidden;
                     if (grant.subject == 0 or grant.permissions & ~p.all_permissions != 0) return error.InvalidGrant;
                     _ = try p.Ed25519.PublicKey.fromBytes(grant.public_key);
-                    var subject = (try candidate.get(Principal, address(.principal, grant.subject))) orelse Principal{ .grant = grant, .revision = position, .epoch = 0 };
+                    const previous = try candidate.get(Principal, address(.principal, grant.subject));
+                    if (request.command == .create_principal and previous != null) return error.InvalidGrant;
+                    var subject = previous orelse Principal{ .grant = grant, .revision = position, .epoch = 0 };
                     subject.grant = grant;
                     subject.revision = position;
                     subject.epoch = position;
@@ -340,6 +342,27 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     process_value.generation += 1;
                     process_value.owner = own.worker;
                     try candidate.put(address(.process, own.pid), process_value);
+                },
+                .rotate_worker => |rotation| {
+                    if (request.principal != 0 or rotation.worker == 0) return error.Forbidden;
+                    var process_value = try self.process(rotation.pid);
+                    try self.executable(process_value, sample, true);
+                    if (process_value.generation != rotation.expected_generation) return error.StaleGeneration;
+                    var worker = try self.principal(rotation.worker);
+                    const required = p.permission(.inspect) | p.permission(.execute);
+                    if (worker.grant.pid != rotation.pid or worker.grant.permissions != rotation.expected_permissions or
+                        worker.grant.permissions & required != required or
+                        !std.mem.eql(u8, &worker.grant.public_key, &rotation.expected_public_key) or
+                        std.mem.eql(u8, &rotation.expected_public_key, &rotation.public_key)) return error.Forbidden;
+                    _ = try p.Ed25519.PublicKey.fromBytes(rotation.public_key);
+                    // Preserve both epoch (resource policy) and signed sequence.
+                    // A key rotation cannot restore a revoked resource grant.
+                    worker.grant.public_key = rotation.public_key;
+                    worker.revision = position;
+                    process_value.generation += 1;
+                    process_value.owner = rotation.worker;
+                    try candidate.put(address(.principal, rotation.worker), worker);
+                    try candidate.put(address(.process, rotation.pid), process_value);
                 },
                 .send => |send| {
                     var process_value = try self.process(send.pid);

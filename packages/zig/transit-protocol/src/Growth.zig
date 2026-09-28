@@ -73,6 +73,11 @@ pub const Command = union(enum) {
     checkpoint: void,
     // Additive variants preserve existing canonical request bytes and receipts.
     turn_with_versions: TurnWithVersions,
+    /// Rotate one PID-scoped worker without renewing its permissions/resource
+    /// grants. The expected key/generation fence a racing administrator.
+    rotate_worker: struct { pid: Id, worker: Id, expected_generation: u64, expected_public_key: [32]u8, expected_permissions: u16, public_key: [32]u8 },
+    /// Never replace an existing principal when provisioning an application.
+    create_principal: Grant,
 };
 pub const Request = struct { version: u32 = version, realm: Id, principal: Id, sequence: u64, command: Command };
 pub const SignedRequest = struct { request: Request, signature: [64]u8 };
@@ -191,6 +196,7 @@ pub const Capabilities = struct {
     retained_read_versions: bool = false,
     resource_read_access: bool = false,
     resource_read_batch: bool = false,
+    worker_rotation: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,

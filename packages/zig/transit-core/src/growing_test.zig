@@ -1235,3 +1235,72 @@ test "growing identity observes current grants and expires a prior inspection cu
     _ = try fixture.root(.{ .revoke = 65536 });
     try t.expectError(error.Forbidden, fixture.query(65536, .{ .identity = {} }));
 }
+
+test "worker rotation preserves current policy and accepted work while fencing old keys" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = pid } });
+    const permissions = core.permission(.inspect) | core.permission(.execute);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = permissions, .pid = pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = 7 } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 7 } });
+    _ = try f.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("state"), .resource = resource } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .worker = 65536, .expected_generation = (try f.engine.process(pid)).generation } });
+    const generation = (try f.engine.process(pid)).generation;
+    const accepted = try f.root(.{ .send = .{ .pid = pid, .value = try core.Value.init("retained") } });
+    const old = try g.signQuery(.{ .realm = 42, .principal = 65536, .kind = .{ .read_access = resource } }, f.worker_key);
+    const next = try core.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const rotation: g.Command = .{ .rotate_worker = .{ .pid = pid, .worker = 65536, .expected_generation = generation, .expected_public_key = f.worker_key.public_key.toBytes(), .expected_permissions = permissions, .public_key = next.public_key.toBytes() } };
+    const pending = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = rotation }, f.root_key);
+    const epoch = (try f.engine.principal(65536)).epoch;
+    const receipt = try f.root(rotation);
+    // A lost activation reply is recovered verbatim, even after reopening.
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectEqual(receipt, try f.engine.submit(pending));
+    try t.expectEqual(epoch, (try f.engine.principal(65536)).epoch);
+    try t.expectEqual(generation + 1, (try f.engine.process(pid)).generation);
+    try t.expectEqual(accepted, (try f.query(0, .{ .process = pid })).body.process.input.?.position);
+    try t.expectError(error.Unauthorized, f.engine.query(old));
+    f.worker_key = next;
+    _ = try f.query(65536, .{ .read_access = resource });
+    try t.expectError(error.StaleGeneration, f.root(rotation));
+
+    // Revoking resource read permission survives a later compatible rotation.
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 1 } });
+    const last = try core.Ed25519.KeyPair.generateDeterministic(@splat(10));
+    var next_rotation = rotation;
+    next_rotation.rotate_worker.expected_generation = generation + 1;
+    next_rotation.rotate_worker.expected_public_key = next.public_key.toBytes();
+    next_rotation.rotate_worker.public_key = last.public_key.toBytes();
+    _ = try f.root(next_rotation);
+    f.worker_key = last;
+    try t.expectError(error.Forbidden, f.query(65536, .{ .read_access = resource }));
+    // Revocation racing a prepared rotation wins the journal CAS; re-preparing
+    // cannot silently restore the worker's execute permission.
+    next_rotation.rotate_worker.expected_generation = generation + 2;
+    next_rotation.rotate_worker.expected_public_key = last.public_key.toBytes();
+    next_rotation.rotate_worker.public_key = next.public_key.toBytes();
+    const prepared = try f.engine.prepare(try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = next_rotation }, f.root_key));
+    _ = try f.root(.{ .revoke = 65536 });
+    try t.expectError(error.Conflict, f.engine.commit(prepared));
+    try t.expectError(error.Forbidden, f.root(next_rotation));
+    try t.expectEqual(generation + 2, (try f.engine.process(pid)).generation);
+}
+
+test "principal creation recovers exact receipts without replacing existing grants" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const grant: g.Command = .{ .create_principal = .{ .subject = 99, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } };
+    const pending = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = grant }, f.root_key);
+    const receipt = try f.root(grant);
+    try t.expectEqual(receipt, try f.engine.submit(pending));
+    var broaden = grant;
+    broaden.create_principal.permissions |= core.permission(.admin);
+    try t.expectError(error.InvalidGrant, f.root(broaden));
+    _ = try f.root(.{ .revoke = 99 });
+    try t.expectError(error.InvalidGrant, f.root(grant));
+    try t.expectEqual(@as(u16, 0), (try f.engine.principal(99)).grant.permissions);
+}

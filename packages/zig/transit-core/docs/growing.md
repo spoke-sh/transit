@@ -1,5 +1,11 @@
 # Growing authority integration
 
+M25 adds root-only conditional principal creation and worker rotation. Rotation
+changes the key and PID generation in one decision while preserving current
+resource permissions and the request sequence; it cannot restore revoked access.
+See the [wire contract](../../../../contracts/TRANSIT_V3.md#conditional-local-worker-replacement).
+These primitives do not advertise a growing runtime binding or a provider.
+
 Status: the explicit M10 growth profile is implemented and qualified within the
 [recorded workload and recovery limits](../../../../tests/verification/README.md#scale-and-offered-load).
 `transit_core.growing.Engine(Journal, PageStore)` is

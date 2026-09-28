@@ -1624,6 +1624,159 @@
                   }
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "rotate_worker"
+              ],
+              "properties": {
+                "rotate_worker": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "pid",
+                    "worker",
+                    "expected_generation",
+                    "expected_public_key",
+                    "expected_permissions",
+                    "public_key"
+                  ],
+                  "properties": {
+                    "pid": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "worker": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "expected_generation": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "expected_public_key": {
+                      "type": "array",
+                      "minItems": 32,
+                      "maxItems": 32,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "expected_permissions": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 65535,
+                      "x-transit-bits": 16,
+                      "x-transit-signed": false
+                    },
+                    "public_key": {
+                      "type": "array",
+                      "minItems": 32,
+                      "maxItems": 32,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "pid",
+                    "worker",
+                    "expected_generation",
+                    "expected_public_key",
+                    "expected_permissions",
+                    "public_key"
+                  ],
+                  "x-transit-defaults": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "create_principal"
+              ],
+              "properties": {
+                "create_principal": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "subject",
+                    "public_key",
+                    "permissions",
+                    "pid"
+                  ],
+                  "properties": {
+                    "subject": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "public_key": {
+                      "type": "array",
+                      "minItems": 32,
+                      "maxItems": 32,
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "permissions": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 65535,
+                      "x-transit-bits": 16,
+                      "x-transit-signed": false
+                    },
+                    "pid": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "public_key",
+                    "permissions"
+                  ],
+                  "x-transit-defaults": {
+                    "pid": null
+                  }
+                }
+              }
             }
           ]
         }
@@ -3232,6 +3385,159 @@
                           null,
                           null
                         ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "rotate_worker"
+                  ],
+                  "properties": {
+                    "rotate_worker": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "pid",
+                        "worker",
+                        "expected_generation",
+                        "expected_public_key",
+                        "expected_permissions",
+                        "public_key"
+                      ],
+                      "properties": {
+                        "pid": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "worker": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "expected_generation": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "expected_public_key": {
+                          "type": "array",
+                          "minItems": 32,
+                          "maxItems": 32,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255,
+                            "x-transit-bits": 8,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "expected_permissions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535,
+                          "x-transit-bits": 16,
+                          "x-transit-signed": false
+                        },
+                        "public_key": {
+                          "type": "array",
+                          "minItems": 32,
+                          "maxItems": 32,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255,
+                            "x-transit-bits": 8,
+                            "x-transit-signed": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "pid",
+                        "worker",
+                        "expected_generation",
+                        "expected_public_key",
+                        "expected_permissions",
+                        "public_key"
+                      ],
+                      "x-transit-defaults": {}
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "create_principal"
+                  ],
+                  "properties": {
+                    "create_principal": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "x-transit-field-order": [
+                        "subject",
+                        "public_key",
+                        "permissions",
+                        "pid"
+                      ],
+                      "properties": {
+                        "subject": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        "public_key": {
+                          "type": "array",
+                          "minItems": 32,
+                          "maxItems": 32,
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255,
+                            "x-transit-bits": 8,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "permissions": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 65535,
+                          "x-transit-bits": 16,
+                          "x-transit-signed": false
+                        },
+                        "pid": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991,
+                              "x-transit-bits": 64,
+                              "x-transit-signed": false
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "subject",
+                        "public_key",
+                        "permissions"
+                      ],
+                      "x-transit-defaults": {
+                        "pid": null
                       }
                     }
                   }
@@ -5074,6 +5380,7 @@
                     "retained_read_versions",
                     "resource_read_access",
                     "resource_read_batch",
+                    "worker_rotation",
                     "version_change_budget",
                     "runtime_bindings",
                     "history_reclamation",
@@ -5166,6 +5473,9 @@
                     "resource_read_batch": {
                       "type": "boolean"
                     },
+                    "worker_rotation": {
+                      "type": "boolean"
+                    },
                     "version_change_budget": {
                       "type": "integer",
                       "minimum": 0,
@@ -5229,6 +5539,7 @@
                     "retained_read_versions": false,
                     "resource_read_access": false,
                     "resource_read_batch": false,
+                    "worker_rotation": false,
                     "version_change_budget": 4,
                     "runtime_bindings": false,
                     "history_reclamation": false,
