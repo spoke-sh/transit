@@ -52,6 +52,11 @@ APIs and Board. Flight adds an Arrow protocol adapter over that layer. Reuse
 [M20 reactive API](REACTIVE_API.md) lifecycle/budget contracts where applicable;
 its WebSocket evidence cannot qualify an inbound gRPC server. Flight TLS,
 authentication and standard metadata need their own proofs.
+M20 also establishes transport obligations that apply here: bound final
+authority rechecks and writes, join cancelled tasks before releasing their
+buffers, and never append a second response after partial headers. Generate and
+validate the actual framing envelope as well as its decoded payload. Schema
+annotations alone do not validate embedded message content.
 [M21's reactive views](REACTIVE.md) do not imply continuous
 Flight query semantics.
 
@@ -139,6 +144,12 @@ resolve an existing ticket from durable result evidence; unavailable/expired
 results fail explicitly. Cancelling a query is an authorized durable disposition,
 not a socket-close side effect. Repeated SQL submissions are new queries unless
 the client supplies a supported stable request identity; SQL text is not a dedup key.
+
+Keep logical access lifetime independent of process recovery. M20's reference
+restart exceeded a session lease even though the original accepted operation was
+recoverable. Flight must likewise distinguish an expired access ticket from a
+missing result and from an uncertain admission. Replacing a ticket requires
+current authorization; it cannot resubmit the query or revive retired evidence.
 
 M22 must budget SQL/protobuf requests, standard metadata schemas, result bytes,
 ticket records and pending queries against the profile it actually deploys.

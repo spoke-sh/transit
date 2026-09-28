@@ -4,7 +4,9 @@ Status: proposed [M21](roadmap/M21.md) consumer of
 [M20 reactive APIs](REACTIVE_API.md) over [M19 serving](SERVING.md).
 The selected scope is live views with resumable change notifications and snapshot
 refresh, used by Board and an application interface. M20 owns the server/API
-contract; this document owns its use in interfaces. Neither is implemented yet.
+contract; this document owns its use in interfaces. M20's int64 Table API is
+implemented and qualified; M21's reusable consumer and view lifecycle remain
+planned. The M20 Chromium harness proves the protocol, not a public UI client.
 
 ## What changes for the user
 
@@ -79,6 +81,13 @@ sustained writes, show the last exact basis and pending refresh; promise converg
 after quiescence and available capacity, not every intermediate revision or an
 unmeasured latency bound.
 
+Complete replacement uses a bounded verification pass followed by a reread of
+the visible page from that same immutable result. Discard each verification page
+before fetching the next; a complete manifest or a displayed prefix alone does
+not establish ordered coverage. Recheck current authority on the reread. Denial
+between verification and display clears both the candidate and old protected
+view. The verification and reread count against the refresh budget.
+
 ## Subscription identity and resumption
 
 Use M20's [scope-bound session/subscription and cursor](REACTIVE_API.md#subscription-identity-and-resumption).
@@ -93,6 +102,12 @@ empty or current result. Preserve the original request identity for uncertain
 query submission/cancellation; do not silently turn transport reconnect into
 another durable query. Browser reload may obtain a fresh snapshot without
 persisting protected results offline.
+
+Physical restart can outlast the logical session lease. Reopen explicitly after
+expiry while recovering old accepted operations independently. A successful
+gateway restart does not renew a lease. SSE challenge and attachment requests
+need the same gateway until that connection-local challenge is consumed;
+portable durable cursors also require the qualified shared signing identity.
 
 ## Transport and API consumption
 

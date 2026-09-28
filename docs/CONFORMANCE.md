@@ -7,7 +7,9 @@ Results apply to their pinned topology, reviewed workload, and failure boundary;
 passing a subset does not establish every target guarantee.
 The [testing strategy](TESTING.md) defines verification layers and evidence/cost
 policy. [M10](roadmap/M10.md) adds systematic exploration and growing-state
-qualification; it has not yet supplied that evidence.
+qualification; its completed evidence and hosted budget are recorded in that
+milestone and the proof ledger. Later protocol, browser and placement profiles
+need their own evidence rather than inheriting qualification from M10.
 
 ## Adversarial scenarios
 
