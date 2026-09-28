@@ -69,3 +69,8 @@ quiescence, manual admission, generation fencing, pause, denial, outage and expi
 Native TLS/worker recovery uses `just test::reactive-refresh`. Browser rendering,
 physical node/store recovery and placement freshness/cost measurements remain
 separate M21 qualification gates.
+
+Session open/attach/renew controls do not create query demand or unconditional
+refresh wakeups. Query inputs and follow controls schedule separate refresh turns;
+clock inputs can release recorded spacing after a scheduler exists. Thus an idle
+metadata-only view does not pay for query wakeup/delivery cycles.

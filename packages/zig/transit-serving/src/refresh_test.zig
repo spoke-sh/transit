@@ -323,7 +323,7 @@ test "composed live owner initializes within four writes and fences internal con
     try t.expect(!try guard.reject(guard.context, &turn));
     try handler.handle(handler.context, &turn, try s.Frame.decode(turn.delivery.input.value));
     try store.commit(turn);
-    try t.expectEqualDeep(root.RefreshModel.wake, (try s.Frame.decode(turn.decision.outputs[0].?.value)).payload);
+    try t.expect(turn.decision.outputs[0] == null);
     for ([_]p.Value{ root.RefreshModel.wake, try q.UnifiedRequest.Command.encode(.{ .collect = 1 }), try q.UnifiedRequest.Command.encode(.initialize) }) |payload| {
         turn = try store.capture();
         turn.delivery.input.origin = .{ .external = .{ .principal = 999, .policy_revision = 1 } };

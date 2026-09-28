@@ -93,12 +93,14 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
         return;
     }
     const is_query = if (frame.kind == .cast) std.mem.startsWith(u8, frame.payload.slice(), "UQ") else (frame.kind == .reply or frame.kind == .timeout) and try turn.read(q.UnifiedRecords.key('i', frame.correlation, 0)) != null;
+    var wake = is_query;
     if (is_query) {
         const handler = query.interface();
         try handler.handle(handler.context, turn, frame);
     } else if (frame.kind == .cast) {
         const command = try root.Model.Command.decode(frame.payload);
         if (command == .refresh) {
+            wake = true;
             const before = turn.decision;
             self.refresh().apply(turn, if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0, command.refresh, self.reader(turn), self.upper_ms) catch |err| {
                 turn.decision = before;
@@ -108,12 +110,16 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
         } else {
             const handler = base.interface();
             try handler.handle(handler.context, turn, frame);
+            // Session attachment/renewal and ordinary application traffic do
+            // not create query demand. A clock tick can release recorded
+            // spacing only after the scheduler has selected work at least once.
+            wake = command == .reactive and command.reactive == .observe_clock and try turn.read(root.RefreshModel.scheduler_key) != null;
         }
     } else {
         const handler = base.interface();
         try handler.handle(handler.context, turn, frame);
     }
-    // Handler mutations and refresh work never share a turn. A self-message is
-    // committed with each relevant input and survives ownership replacement.
-    try turn.cast(turn.delivery.pid, root.RefreshModel.wake);
+    // Handler mutations and refresh work never share a turn. Only query work
+    // and qualified clock progress schedule recoverable refresh wakeups.
+    if (wake) try turn.cast(turn.delivery.pid, root.RefreshModel.wake);
 }

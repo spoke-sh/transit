@@ -94,4 +94,30 @@ describe("generated reactive transport boundary", () => {
     expect(held).toBe(false);
     expect(sent).toEqual([JSON.stringify(signed), JSON.stringify(signed)]);
   });
+  test("an unchanged observer sample cannot create another renewal", async () => {
+    const requests: unknown[] = [];
+    const session = new Session(
+      new Transport(async (_url, options) => {
+        requests.push(JSON.parse(options!.body as string));
+        return new Response(JSON.stringify({ clock: { observed_ms: 1000, max_lease_ms: 30000 } }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    session.scope = {
+      realm: 49,
+      principal: 65536,
+      service: 1,
+      ingress: 1,
+      session: 1,
+      generation: 2,
+      subscription: 3,
+      subscription_generation: 4,
+    };
+    session.leaseBefore = 30000;
+    await session.renew();
+    expect(requests).toEqual([{ clock: {} }]);
+    expect(session.pending).toBeNull();
+    expect(session.leaseBefore).toBe(30000);
+  });
 });

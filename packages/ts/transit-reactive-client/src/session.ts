@@ -95,7 +95,7 @@ export class Session {
         this.unlock();
         throw new ReactiveError(409, "control_rejected");
       }
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 250));
       signal?.throwIfAborted();
     }
     throw new ReactiveError(0, "control_uncertain");
@@ -233,6 +233,8 @@ export class Session {
     const response = await this.transport.host({ clock: {} }, signal, true);
     if (!("clock" in response)) return invalid();
     const lease = response.clock.observed_ms + (response.clock.max_lease_ms ?? 30000) - 1000;
+    // A repeated committed clock sample grants no additional lease.
+    if (lease <= this.leaseBefore) return;
     await this.command(
       {
         renew: {
