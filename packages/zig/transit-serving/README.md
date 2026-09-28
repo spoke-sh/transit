@@ -37,3 +37,18 @@ and [M20](../../../docs/roadmap/M20.md); this package's unit checks do not prove
 The [compatibility matrix](docs/compatibility.md) lists executed consumers,
 placements and limits. Run the [application example](../../../examples/serving/README.md)
 for native, Compose or operator-placed Substrate recovery.
+
+M20's [reactive v1 contract](../../../contracts/REACTIVE_V1.md) is in progress.
+`ReactiveModel` owns session/subscription/attachment identities and signed cursors;
+`ReactiveService` implements conditional controls inside the same `Service` turn.
+Four live sessions per service, two per caller and one subscription per session
+bound active work. Leases require authenticated monotonic observer input and obey
+process/resource bounds. Closed history remains readable without loading it all.
+An owner may close/unsubscribe its session after read-policy revocation; these
+controls only release its own live work and disclose no source data.
+
+Independent Python/OpenSSL fixtures pin every control, full-width IDs, cursors
+and scoped signatures (`python3 -B tests/reactive_fixtures.py` from the root).
+Deterministic tests cover competing attachments, stale subscription controls,
+renewal/expiry races, retained growth, aggregate quota and failed reads. These
+checks do not advertise SSE/WebSocket or prove deployed recovery.

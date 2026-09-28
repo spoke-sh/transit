@@ -223,3 +223,151 @@ test "canonical serving codecs enforce payload and trailing bytes at full-width 
     op.result = try p.Value.init(&@as([64]u8, @splat(255)));
     try t.expect(std.meta.eql(op, try c.decode(m.Operation, 'o', try c.encode('o', op))));
 }
+
+const reactive = root.ReactiveModel;
+const Reactive = root.ReactiveService;
+fn reactiveSetup(store: *Store, owner: *Service) !void {
+    try store.setup(owner);
+    var publication = try store.command(owner, 33, .{ .reactive = .{ .publish = .{ .expected = 0, .source = .{ .revision = 1, .target = 88, .resource = 8, .table = 1, .progress_key = try p.Value.init("data-progress"), .schema = @splat(5) } } } });
+    try store.commit(&publication);
+    var clock = try store.command(owner, 34, .{ .reactive = .{ .observe_clock = 1000 } });
+    try store.commit(&clock);
+}
+fn openSession(store: *Store, owner: *Service, principal: u64, id: u64) !reactive.SessionIdentity {
+    var candidate = try store.command(owner, principal, .{ .reactive = .{ .open = .{ .session = id, .source_revision = 1, .lease_before_ms = 5000 } } });
+    const value = (try Reactive.session(&candidate, principal, id)).?;
+    try store.commit(&candidate);
+    return .{ .session = id, .generation = value.generation };
+}
+test "reactive aggregate quota survives reconstruction and closed history grows independently" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner = service();
+    try reactiveSetup(&store, &owner);
+    const first = try openSession(&store, &owner, 65536, 1);
+    _ = try openSession(&store, &owner, 65536, 2);
+    owner = service();
+    try t.expectError(error.ReactiveCapacity, openSession(&store, &owner, 65536, 3));
+    _ = try openSession(&store, &owner, 65537, 1);
+    _ = try openSession(&store, &owner, 65537, 2);
+    var other = try store.command(&owner, 33, .{ .policy = .{ .principal = 65538, .expected = 0, .policy = .{ .revision = 1, .commands = true, .reads = true, .active_limit = 1 } } });
+    try store.commit(&other);
+    try t.expectError(error.ReactiveCapacity, openSession(&store, &owner, 65538, 1));
+    var close = try store.command(&owner, 65536, .{ .reactive = .{ .close = first } });
+    try store.commit(&close);
+    const original = try openSession(&store, &owner, 65536, 1);
+    try t.expectEqual(first.generation, original.generation);
+    try t.expectEqual(reactive.Phase.closed, (try Reactive.session(&close, 65536, 1)).?.phase);
+    for (3..131) |id| {
+        store.reads = 0;
+        const next = try openSession(&store, &owner, 65536, id);
+        try t.expect(store.reads <= 8);
+        var done = try store.command(&owner, 65536, .{ .reactive = .{ .close = next } });
+        try store.commit(&done);
+    }
+    try t.expect(store.entries.count() > 128);
+    const old = (try Reactive.session(&close, 65536, 1)).?;
+    try t.expectEqual(reactive.Phase.closed, old.phase);
+    _ = try openSession(&store, &owner, 65538, 1);
+}
+test "conditional attachments and subscription generations fence delayed controls" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner = service();
+    try reactiveSetup(&store, &owner);
+    const identity = try openSession(&store, &owner, 65536, 1);
+    try t.expectError(error.ReactiveSessionNotFound, store.command(&owner, 65537, .{ .reactive = .{ .close = identity } }));
+    var request: m.Command = .{ .reactive = .{ .attach = .{ .identity = identity, .expected = 0, .nonce = @splat(8) } } };
+    var attached = try store.command(&owner, 65536, request);
+    try store.commit(&attached);
+    try t.expectError(error.ReactiveAttachmentConflict, store.command(&owner, 65536, request));
+    request.reactive.attach.expected = 1;
+    request.reactive.attach.nonce = @splat(9);
+    var replacement = try store.command(&owner, 65536, request);
+    try store.commit(&replacement);
+    const observed = (try Reactive.session(&replacement, 65536, 1)).?;
+    try t.expectEqual(@as(u64, 2), observed.attachment);
+    try t.expectEqual(@as([16]u8, @splat(9)), observed.nonce);
+    request.reactive.attach.identity.generation += 1;
+    try t.expectError(error.ReactiveGenerationConflict, store.command(&owner, 65536, request));
+    var sub = try store.command(&owner, 65536, .{ .reactive = .{ .subscribe = .{ .identity = identity, .expected = 0, .subscription = 7, .operation = 11 } } });
+    const generation = sub.delivery.input.position;
+    try store.commit(&sub);
+    const unsubscribe: m.Command = .{ .reactive = .{ .unsubscribe = .{ .identity = identity, .subscription = 7, .generation = generation } } };
+    var removed = try store.command(&owner, 65536, unsubscribe);
+    try store.commit(&removed);
+    var resub = try store.command(&owner, 65536, .{ .reactive = .{ .subscribe = .{ .identity = identity, .expected = generation, .subscription = 7 } } });
+    try store.commit(&resub);
+    try t.expectError(error.ReactiveSubscriptionConflict, store.command(&owner, 65536, unsubscribe));
+    // Session shutdown never cancels the separate application wait.
+    var operation = try store.command(&owner, 65536, command(11));
+    try store.commit(&operation);
+    var done = try store.command(&owner, 65536, .{ .reactive = .{ .close = identity } });
+    try store.commit(&done);
+    try t.expectEqual(m.Phase.admitted, (try Service.operation(&done, 65536, 11)).?.phase);
+}
+test "authenticated monotonic observations, finite lease bounds, stale expiry and poisoned reads" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner = service();
+    try reactiveSetup(&store, &owner);
+    try t.expectError(error.ServingDenied, store.command(&owner, 65536, .{ .reactive = .{ .observe_clock = 5000 } }));
+    const identity = try openSession(&store, &owner, 65536, 1);
+    var request: m.Command = .{ .reactive = .{ .renew = .{ .identity = identity, .expected = 5000, .lease_before_ms = 6000 } } };
+    var turn = try store.turn(65536, .{ .kind = .cast, .payload = try request.encode() });
+    turn.resource_deadline_ms = 5999;
+    try t.expectError(error.InvalidReactiveLease, owner.apply(&turn, request, 65536));
+    try t.expect(turn.decision.mutations[0] == null);
+    turn.resource_deadline_ms = null;
+    turn.delivery.work_before_ms = 5999;
+    try t.expectError(error.InvalidReactiveLease, owner.apply(&turn, request, 65536));
+    var renewed = try store.command(&owner, 65536, request);
+    try store.commit(&renewed);
+    try t.expectError(error.ReactiveLeaseConflict, store.command(&owner, 65536, request));
+    const expiry: m.Command = .{ .reactive = .{ .expire = .{ .principal = 65536, .identity = identity, .observed_ms = 5000 } } };
+    try t.expectError(error.InvalidReactiveLease, store.command(&owner, 34, expiry));
+    var advanced = try store.command(&owner, 34, .{ .reactive = .{ .observe_clock = 6000 } });
+    try store.commit(&advanced);
+    var backward = try store.command(&owner, 34, .{ .reactive = .{ .observe_clock = 1000 } });
+    try store.commit(&backward);
+    try t.expectEqual(@as(u64, 6000), try Reactive.clock(&backward));
+    request.reactive.renew.expected = 6000;
+    request.reactive.renew.lease_before_ms = 7000;
+    try t.expectError(error.ReactiveSessionExpired, store.command(&owner, 65536, request));
+    var expired = expiry;
+    expired.reactive.expire.observed_ms = 6000;
+    var terminal = try store.command(&owner, 34, expired);
+    try store.commit(&terminal);
+    var duplicate = try store.command(&owner, 34, expired);
+    try t.expect(duplicate.decision.mutations[0] == null);
+    try t.expectEqual(reactive.Phase.expired, (try Reactive.session(&duplicate, 65536, 1)).?.phase);
+    store.fail = true;
+    var failed = try store.turn(65536, .{ .kind = .cast, .payload = try request.encode() });
+    const handler = owner.interface();
+    try t.expectError(error.Unavailable, handler.handle(handler.context, &failed, try s.Frame.decode(failed.delivery.input.value)));
+    try t.expectError(error.Unavailable, failed.validate());
+    try t.expect(failed.decision.mutations[0] == null);
+}
+
+test "independent reactive lifecycle bytes, wide cursor and scoped read signatures" {
+    const Fixture = struct {
+        version: u8,
+        commands: []const struct { command: m.Command, hex: p.Value },
+        public_key: [32]u8,
+        cursor: reactive.Cursor,
+        cursor_hex: p.Value,
+        read: reactive.SignedRead,
+    };
+    const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/reactive-v1.json"), .{});
+    defer parsed.deinit();
+    const fixture = parsed.value;
+    try t.expectEqual(@as(u8, 1), fixture.version);
+    for (fixture.commands) |case| {
+        try t.expect(case.hex.eql(try case.command.encode()));
+        try t.expect(std.meta.eql(case.command, try m.Command.decode(case.hex)));
+        _ = try (s.Frame{ .kind = .cast, .payload = case.hex }).encode();
+    }
+    try t.expect(fixture.cursor_hex.eql(try fixture.cursor.encode()));
+    try fixture.cursor.verify(fixture.public_key);
+    try fixture.read.verify(fixture.public_key);
+}

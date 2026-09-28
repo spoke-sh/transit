@@ -67,6 +67,7 @@ pub const Command = union(enum(u8)) {
     policy: struct { principal: u64, expected: u64, policy: Policy } = 2,
     submit: Submit = 3,
     cancel: u64 = 4,
+    reactive: root.ReactiveModel.Command = 5,
     pub fn encode(self: Command) !p.Value {
         return codec.encode('c', self);
     }

@@ -5,7 +5,10 @@ pub const Model = @import("Model.zig");
 pub const Codec = @import("Codec.zig");
 pub const Service = @import("Service.zig");
 pub const Adapter = @import("Adapter.zig");
+pub const ReactiveService = @import("ReactiveService.zig");
+pub const ReactiveModel = @import("ReactiveModel.zig");
 test {
     _ = @import("service_test.zig");
+    _ = ReactiveModel;
     @import("std").testing.refAllDecls(@This());
 }

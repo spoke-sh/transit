@@ -109,6 +109,7 @@ pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void 
             if (request.expected != (if (previous) |value| value.revision else 0) or request.policy.revision != try std.math.add(u64, request.expected, 1)) return error.ServiceRevisionConflict;
             try turn.write(m.key('p', request.principal, 0), try c.encode('p', request.policy));
         },
+        .reactive => |request| try root.ReactiveService.apply(self.configuration, turn, principal, request),
         .submit => |request| try self.submit(turn, principal, request),
         .cancel => |id| {
             const rights = (try policy(turn, principal)) orelse return error.ServingDenied;
@@ -187,6 +188,7 @@ fn resolve(self: Self, turn: *Turn, frame: s.Frame) !void {
     try complete(turn, &record);
 }
 fn requestError(err: anyerror) bool {
+    if (root.ReactiveService.requestError(err)) return true;
     return switch (err) {
         error.InvalidServingIdentity, error.InvalidServiceBinding, error.InvalidServicePolicy, error.InvalidServingCommand, error.ServingDenied, error.ServiceRevisionConflict, error.ServingIdentityConflict, error.ServingCapacity, error.ServiceUnpublished, error.InvalidWaitLifetime, error.ServingOperationNotFound => true,
         else => false,
