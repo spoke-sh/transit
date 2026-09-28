@@ -21,6 +21,13 @@ explicit recovery across browser reload;
 the package does not persist private keys or requests automatically. Keep the
 session above route and interface-generation replacement.
 
+The session shares M21's native caller Web Lock with other same-origin clients.
+It waits at most five seconds to acquire the caller sequence before preparing a
+submission and holds that lock while its reply is uncertain. Exact retry releases
+the lock only after a native receipt. Browser loss releases the physical lock,
+not the unresolved operation. This coordinates tabs on one origin; it does not
+coordinate separate origins or hosts or replace durable native admission.
+
 A native receipt confirms admission only. `reviewPublication` obtains the current
 head and freezes the next revision, complete canonical body, operation, record,
 expected base and publication digest under the exact operator and application

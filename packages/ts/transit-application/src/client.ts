@@ -1,3 +1,4 @@
+import { acquireCaller, type AcquireCaller } from "@rey/transit-reactive-client";
 import * as validate from "./validators.js";
 import type {
   Command,
@@ -82,11 +83,13 @@ export class OperatorSession {
   pending: Signed | null = null;
   lastAdmission: number | null = null;
   private busy = false;
+  private release: (() => void) | null = null;
   constructor(
     readonly scope: Scope,
     readonly principal: number,
     private sign: Signer,
     private transport: Transport = request,
+    private coordinate: AcquireCaller = acquireCaller,
   ) {}
   async read(selection: PreparedRead["selection"]): Promise<Observation> {
     const prepared = await this.transport({
@@ -112,6 +115,10 @@ export class OperatorSession {
     if (this.busy || this.pending) throw new Error("Recover the outstanding operation first");
     this.busy = true;
     try {
+      this.release ??= await this.coordinate(
+        { realm: this.scope.realm, principal: this.principal },
+        AbortSignal.timeout(5000),
+      );
       const identity = await this.read({ identity: {} });
       if (!("identity" in identity) || identity.identity.principal !== this.principal)
         throw new Error("Operator identity changed");
@@ -134,6 +141,10 @@ export class OperatorSession {
       this.pending = structuredClone(frozen);
       return await this.forward();
     } finally {
+      if (!this.pending) {
+        this.release?.();
+        this.release = null;
+      }
       this.busy = false;
     }
   }
@@ -141,8 +152,16 @@ export class OperatorSession {
     if (this.busy || !this.pending) throw new Error("No recoverable submission");
     this.busy = true;
     try {
+      this.release ??= await this.coordinate(
+        { realm: this.scope.realm, principal: this.principal },
+        AbortSignal.timeout(5000),
+      );
       return await this.forward();
     } finally {
+      if (!this.pending) {
+        this.release?.();
+        this.release = null;
+      }
       this.busy = false;
     }
   }

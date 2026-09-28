@@ -25,9 +25,23 @@ test("lost admission survives remount/export and retries the identical signature
     }
     throw new Error("Unexpected request");
   };
-  const session = new OperatorSession(scope, 44, async () => Array(64).fill(3), transport);
+  let held = 0;
+  const coordinate = async () => {
+    held++;
+    return () => {
+      held--;
+    };
+  };
+  const session = new OperatorSession(
+    scope,
+    44,
+    async () => Array(64).fill(3),
+    transport,
+    coordinate,
+  );
   await expect(session.submit({ publish: "18446744073709551615" })).rejects.toThrow("Reply lost");
   expect(session.pending?.prepared.sequence).toBe("10");
+  expect(held).toBe(1);
   await expect(session.submit({ publish: "2" })).rejects.toThrow("Recover");
   const mounted = new OperatorSession(
     scope,
@@ -36,6 +50,7 @@ test("lost admission survives remount/export and retries the identical signature
       throw new Error("Retry must not sign again");
     },
     transport,
+    coordinate,
   );
   mounted.restorePending(session.exportPending());
   expect(await mounted.retry()).toBe(91);
@@ -43,6 +58,7 @@ test("lost admission survives remount/export and retries the identical signature
   expect(submitted[0]).toEqual(submitted[1]);
   expect(sequenceReads).toBe(1);
   expect(mounted.pending).toBeNull();
+  expect(held).toBe(1); // Only the original unresolved session still holds its gate.
   const wrong = new OperatorSession({ ...scope, resource: 20 }, 44, async () => [], transport);
   expect(() => wrong.restorePending(session.exportPending())).toThrow("another scope");
 });

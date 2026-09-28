@@ -86,6 +86,9 @@ importers:
 
   packages/ts/transit-application:
     dependencies:
+      '@rey/transit-reactive-client':
+        specifier: workspace:*
+        version: link:../transit-reactive-client
       ajv:
         specifier: 8.20.0
         version: 8.20.0
