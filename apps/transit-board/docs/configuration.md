@@ -15,9 +15,18 @@
   "port": 8090,
   "request_timeout_ms": 1500,
   "upstream_timeout_ms": 800,
-  "read_interval_ms": 100
+  "read_interval_ms": 100,
+  "http_connections": 16,
+  "http_requests": 4
 }
 ```
+
+`http_connections` bounds accepted sockets (2–64); `http_requests` bounds data
+handlers, with two additional reserved health handlers. Their sum must fit the
+socket limit. Header reads use `min(1000, request_timeout_ms)` milliseconds.
+Request state is private; the read throttle and query-operation lock are shared
+within one instance. Size total memory for all permitted reader workspaces.
+This does not add cross-instance query-principal sequence coordination.
 
 An administrator provisions the realm and records a grant for this principal
 with **only `inspect` (16)**, optionally restricted to one PID. Board rejects

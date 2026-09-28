@@ -2,7 +2,8 @@
 
 Zig inspection service with optional separately credentialed query workspaces, containing the static [Board frontend](../transit-board-web/README.md)
 and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime libraries are `transit-client`, `transit-board-api`, `transit-query`, and the neutral
-`telemetry` package. It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/BOARD.md) owns the architecture.
+`telemetry` package, plus the neutral
+[HTTP server](../../packages/zig/transit-http-server/README.md). It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/BOARD.md) owns the architecture.
 
 ## Configuration guide
 
@@ -61,12 +62,19 @@ production guarantee or permission to use a resource.
 
 ## Bounds and observations
 
-One request executes at a time, with an overall deadline (100–5000 ms). Upstream
-calls have a shorter timeout; no redirects or response cache. The minimum spacing
+The shared listener defaults to 16 accepted sockets, four data handlers and two
+reserved `/health` handlers. Headers have at most one second; the overall request
+deadline remains 100–5000 ms. Every handler owns its upstream client, arena and
+observation. Query operations are serialized within this Board instance; callers
+still preserve exact frozen tokens and coordinate their principal's sequence.
+Concurrent gateway admission across instances remains M19 work.
+Upstream calls have a shorter timeout; no redirects or response cache. The minimum spacing
 between upstream reads is 100 ms by default (configurable up to 5000 ms), shared
-across viewers. Excess reads get `429 RateLimited`; clients back off. Headers are
+across concurrent viewers through an atomic throttle. Excess reads get
+`429 RateLimited`; clients back off. HTTP data capacity returns 503, while exhausted
+socket/task capacity closes the connection without claiming admission. Headers are
 8 KiB, inspection request bodies 4 KiB (routes accept empty bodies), query bodies
-16 KiB, request targets 1024 bytes,
+16 KiB (48 KiB for the v2 query route), request targets 1024 bytes,
 and upstream responses 256 KiB.
 
 Legacy inspection data preserves the public inspection observation plus explicit

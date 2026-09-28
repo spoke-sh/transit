@@ -1,7 +1,9 @@
 # Serving — inbound protocols over Transit services
 
-Status: proposed system design for [M19](roadmap/M19.md), not an implemented
-server framework. HTTP is the first protocol profile, exercised by application
+Status: [M19](roadmap/M19.md) implementation in progress. The shared bounded
+[HTTP listener](../packages/zig/transit-http-server/README.md) and Board migration
+are implemented; the service admission and deployment contracts below remain
+proposed until their qualification is recorded. HTTP is the first profile for application
 APIs and Board. [M20](roadmap/M20.md) adds [reactive APIs](REACTIVE_API.md),
 [M21](roadmap/M21.md) consumes them in live views, and
 [Flight/Flight SQL M22](roadmap/M22.md) qualifies an Arrow protocol adapter.
@@ -60,18 +62,19 @@ retry. Station and `transit-query` supply durable calls and captured results.
 M15/M16 supply qualified outbound framing, TLS verification and capture patterns.
 Those are reusable foundations, not proof of an inbound server.
 
-In particular, Board currently handles one request at a time. A long-lived
-response in that loop would block inspection and control. M19 must qualify
-bounded concurrent scheduling, per-request ownership, joined cancellation and
-fairness before M20 opens live subscriptions. The outbound gRPC transport has
+Board now uses bounded concurrent requests, private request observations, an
+atomic shared read throttle and reserved health capacity. Socket proofs exercise
+slow uploads, strict framing, deadlines and joined cancellation. Further M19
+admission and per-principal fairness proofs are required before M20 opens live
+subscriptions. The outbound gRPC transport has
 no server implementation; inbound TLS and HTTP/2 cannot be inferred from client
 qualification.
 
-Extract only demonstrated shared code. The proposed ownership is a neutral
-`transit-http-server` package for HTTP mechanics and `transit-serving` for
+Extract only demonstrated shared code. The implemented neutral
+`transit-http-server` package owns HTTP mechanics; the proposed `transit-serving` owns
 Transit/Station admission and delivery. Board's projections stay in
 `transit-board-api`; application codecs stay with the application; Fuze stays
-in `transit-fuze`. Names are package proposals, not directories to add now.
+in `transit-fuze`. Add remaining packages only with real consumers and checks.
 M20 tests reuse through SSE/WebSocket bindings; M22 adds Flight-specific evidence.
 Generalize adapter APIs only where these concrete consumers demonstrate reuse.
 Migrating the authority node's listener is not an M19 prerequisite.

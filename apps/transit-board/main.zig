@@ -1,6 +1,7 @@
 //! Public-client inspection plus a separately configured Table query capability.
 const std = @import("std");
 const telemetry = @import("telemetry");
+const http_server = @import("transit_http_server");
 const client = @import("transit_client");
 const api = @import("transit_board_api");
 const assets = @import("assets");
@@ -21,6 +22,8 @@ const Config = struct {
     request_timeout_ms: u32 = 1500,
     upstream_timeout_ms: u32 = 800,
     read_interval_ms: u32 = 100,
+    http_connections: u8 = 16,
+    http_requests: u8 = 4,
 };
 const Server = struct {
     io: std.Io,
@@ -28,10 +31,17 @@ const Server = struct {
     config: Config,
     host: []const u8,
     observation: telemetry.Http = .{},
-    next_read_ms: i64 = 0,
+    next_read_ms: *std.atomic.Value(i64),
+    query_lock: *std.Io.Mutex,
 
     fn now(self: *Server) i64 {
         return std.Io.Clock.boot.now(self.io).toMilliseconds();
+    }
+    fn admitRead(self: *Server) bool {
+        const current = self.now();
+        var next = self.next_read_ms.load(.monotonic);
+        while (current >= next) next = self.next_read_ms.cmpxchgWeak(next, current + self.config.read_interval_ms, .monotonic, .monotonic) orelse return true;
+        return false;
     }
     fn respond(self: *Server, req: *std.http.Server.Request, status: std.http.Status, body: []const u8, mime: []const u8) !void {
         self.observation.status = @backingInt(status);
@@ -76,8 +86,9 @@ const Server = struct {
     fn queryRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
         const config = self.config.query orelse return self.failure(req, .not_found, .QueryDisabled);
         if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
-        if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
-        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
+        defer self.query_lock.unlock(self.io);
+        if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const parsed = std.json.parseFromSlice(api.QueryRequest, arena.allocator(), body, .{}) catch return self.failure(req, .bad_request, .InvalidQuery);
@@ -97,8 +108,9 @@ const Server = struct {
     fn unifiedQueryRequest(self: *Server, req: *std.http.Server.Request, body: []const u8) !void {
         const config = self.config.query_v2 orelse return self.failure(req, .not_found, .QueryDisabled);
         if (req.head.method != .POST) return self.failure(req, .not_found, .NotFound);
-        if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
-        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        if (!self.query_lock.tryLock()) return self.failure(req, .too_many_requests, .RateLimited);
+        defer self.query_lock.unlock(self.io);
+        if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
         const parsed = std.json.parseFromSlice(api.UnifiedQueryRequest, arena.allocator(), body, .{}) catch return self.failure(req, .bad_request, .InvalidQuery);
@@ -125,8 +137,7 @@ const Server = struct {
         const grpc_metadata = parseMetadata(target, "grpc") catch return self.failure(req, .bad_request, .InvalidQuery);
         const document_metadata = parseDocument(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         const cursor = if (capabilities or records != null or http_metadata != null or grpc_metadata != null or document_metadata != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
-        if (self.now() < self.next_read_ms) return self.failure(req, .too_many_requests, .RateLimited);
-        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
         defer upstream.deinit();
         upstream.timeout_ms = self.config.upstream_timeout_ms;
@@ -167,13 +178,8 @@ const Server = struct {
         result.query_version = if (result.query_resource == null) null else if (self.config.query_v2 != null) 2 else 1;
         return self.json(req, .ok, result);
     }
-    fn handle(self: *Server, stream: std.Io.net.Stream) anyerror!void {
-        var rb: [8192]u8 = undefined;
-        var wb: [4096]u8 = undefined;
-        var reader = stream.reader(self.io, &rb);
-        var writer = stream.writer(self.io, &wb);
-        var http = std.http.Server.init(&reader.interface, &writer.interface);
-        var req = try http.receiveHead();
+    fn handle(self: *Server, request: *std.http.Server.Request) anyerror!void {
+        var req = request.*;
         self.observation.received(&req, logRoute(req.head.target), false);
         const host = (try header(&req, "host")) orelse return self.failure(&req, .forbidden, .InvalidOrigin);
         if (!std.mem.eql(u8, host, self.host)) return self.failure(&req, .forbidden, .InvalidOrigin);
@@ -211,8 +217,7 @@ const Server = struct {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
         const sq = parseStateQuery(target, self.config.realm, principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
         const q = if (capabilities or sq != null) i.Query{ .realm = self.config.realm, .principal = principal, .resource = .processes } else parseQuery(target, self.config.realm, principal) catch return self.failure(&req, .bad_request, .InvalidQuery);
-        if (self.now() < self.next_read_ms) return self.failure(&req, .too_many_requests, .RateLimited);
-        self.next_read_ms = self.now() + self.config.read_interval_ms;
+        if (!self.admitRead()) return self.failure(&req, .too_many_requests, .RateLimited);
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
         defer upstream.deinit();
         upstream.timeout_ms = self.config.upstream_timeout_ms;
@@ -473,9 +478,36 @@ fn browserRoute(path: []const u8) bool {
     if (parts.next()) |part| if (!std.mem.eql(u8, part, "journey")) return false;
     return parts.next() == null;
 }
-fn timeout(io: std.Io, milliseconds: u32) anyerror!void {
-    try io.sleep(.fromMilliseconds(milliseconds), .awake);
-}
+const Shared = struct {
+    config: Config,
+    host: []const u8,
+    diagnostics: *telemetry.Runtime,
+    next_read_ms: std.atomic.Value(i64) = .init(0),
+    query_lock: std.Io.Mutex = .init,
+
+    pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
+        var server: Server = .{
+            .io = io,
+            .allocator = allocator,
+            .config = self.config,
+            .host = self.host,
+            .next_read_ms = &self.next_read_ms,
+            .query_lock = &self.query_lock,
+            .observation = .{ .span = self.diagnostics.begin(.server, null) },
+        };
+        var failure: ?anyerror = null;
+        defer server.observation.finish("board.http.request", failure, if (failure) |err| err == error.Cancelled else false, std.mem.eql(u8, server.observation.route, "/health"));
+        server.handle(request) catch |err| {
+            failure = err;
+            return err;
+        };
+    }
+    pub fn connectionError(self: *@This(), err: anyerror, handler_started: bool) void {
+        if (handler_started) return; // The request-local observation already finished.
+        var observation: telemetry.Http = .{ .span = self.diagnostics.begin(.server, null) };
+        observation.finish("board.http.request", err, err == error.HttpDeadline, false);
+    }
+};
 fn originHost(origin: []const u8, development_allow_insecure_http: bool) ![]const u8 {
     const secure = std.mem.startsWith(u8, origin, "https://");
     if (!secure and !std.mem.startsWith(u8, origin, "http://")) return error.InvalidOrigin;
@@ -511,33 +543,19 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (config.query != null or config.profile != .growing_v3 or query.connection.realm != config.realm or query.connection.principal == config.principal or query.connection.principal == 0 or query.workspace.source.resource != query.connection.resource) return error.InvalidQueryConfiguration;
     }
     const host = try originHost(config.public_origin, config.development_allow_insecure_http);
-    var server: Server = .{ .io = init.io, .allocator = init.gpa, .config = config, .host = host };
+    const limits: http_server.Options = .{
+        .connections = config.http_connections,
+        .requests = config.http_requests,
+        .header_timeout_ms = @min(1000, config.request_timeout_ms),
+        .request_timeout_ms = config.request_timeout_ms,
+    };
+    try limits.validate();
+    var shared: Shared = .{ .config = config, .host = host, .diagnostics = diagnostics };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
     diagnostics.event(.{ .name = "service.ready" });
-    while (true) {
-        const stream = try listener.accept(init.io);
-        defer stream.close(init.io);
-        server.observation = .{ .span = diagnostics.begin(.server, null) };
-        var request_error: ?anyerror = null;
-        var timed_out = false;
-        defer server.observation.finish("board.http.request", request_error, timed_out, std.mem.eql(u8, server.observation.route, "/health"));
-        const Result = union(enum) { handled: anyerror!void, timeout: anyerror!void };
-        var results: [2]Result = undefined;
-        var select: std.Io.Select(Result) = .init(init.io, &results);
-        defer select.cancelDiscard();
-        try select.concurrent(.timeout, timeout, .{ init.io, config.request_timeout_ms });
-        try select.concurrent(.handled, Server.handle, .{ &server, stream });
-        switch (try select.await()) {
-            .handled => |value| value catch |err| {
-                request_error = err;
-            },
-            .timeout => {
-                timed_out = true;
-            },
-        }
-    }
+    try http_server.serve(init.io, init.gpa, &listener, limits, &shared);
 }
 test "development HTTP requires explicit opt-in and preserves origin validation" {
     const remote = "http://devbox.local:18102";

@@ -26,7 +26,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M16](M16.md) | gRPC connector and bounded streaming calls | Finite profile locally qualified: four shapes, ten SDKs, Board, three placements and recovery; hosted cost deferred |
 | [M17](M17.md) | Documents and collaborative text | Qualified growing profile: structured/text CRDTs, ten SDKs, Board and three placements; hosted cost deferred |
 | [M18](M18.md) | Unified state querying and versioned source contracts | Qualified growing profile: three state sources, ten SDKs, SQL/Board, native lifecycle and Table Compose/Substrate recovery; hosted cost deferred |
-| [M19](M19.md) | Serving foundation and HTTP APIs | Planned from M18 evidence; shared HTTP, coordinated admission and bounded concurrent Board/application serving |
+| [M19](M19.md) | Serving foundation and HTTP APIs | In progress; shared HTTP mechanics first, admission/Board/deployment gates open |
 | [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Planned; Table watch coverage, shared sessions/recovery and generated OpenAPI/AsyncAPI descriptions |
 | [M21](M21.md) | Reactive interfaces over reactive APIs | Planned; bounded, generation-safe snapshot refresh over M20, with shared-principal fairness |
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned from finite transport/query evidence; explicit Table protocol/type and client qualification |
@@ -100,7 +100,7 @@ the next implementation reviews. M18 qualifies native KV/Table/Document recovery
 ten SDKs and SQL/Board ingress; its physical query-host recovery covers Table.
 M15/M16 qualify finite outbound effects, not inbound serving. M17's accepted-state
 reads do not create a watch, and manual growing-host placement does not create a
-cluster controller. All five milestones below remain planned.
+cluster controller. M19 implementation has started; M20–M23 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |

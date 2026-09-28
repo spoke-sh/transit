@@ -79,6 +79,7 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-http-server && zig build test
     cd packages/zig/transit-station-document && zig build test
     cd packages/zig/transit-station-grpc && zig build test
     cd packages/zig/transit-grpc && zig build test
@@ -100,6 +101,7 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-http-server && zig build check
     cd packages/zig/transit-station-document && zig build check
     cd packages/zig/transit-station-grpc && zig build check
     cd packages/zig/transit-grpc && zig build check
@@ -242,6 +244,10 @@ public-query:
 # Signed v2 upload, all source adapters, nested results and disk recovery.
 unified-query *args="-Doptimize=ReleaseSafe":
     zig build test-unified-query {{args}}
+
+# Shared inbound HTTP framing, bounded concurrency and joined cancellation.
+serving-http:
+    zig build test-serving-http -Doptimize=ReleaseSafe
 
 # Explicit SQL shell and separately authorized Board query API/browser.
 unified-ingress source="table":

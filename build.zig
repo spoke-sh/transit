@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const http_server = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize });
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
     const grpc = b.dependency("transit_grpc", .{ .target = target, .optimize = optimize });
@@ -50,6 +51,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document.module("transit_station_document") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = grpc.module("transit_grpc") })).step);
@@ -73,6 +75,19 @@ pub fn build(b: *std.Build) void {
     grpc_contract_test.stdio = .inherit;
     test_step.dependOn(&grpc_contract_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
+    const serving_http_proof = b.addExecutable(.{ .name = "transit-serving-http-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/serving_http.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_http_server", .module = http_server.module("transit_http_server") }},
+    }) });
+    build_test_step.dependOn(&serving_http_proof.step);
+    const serving_http_test = b.addSystemCommand(&.{ "python3", "-B" });
+    serving_http_test.addFileArg(b.path("tests/serving_http.py"));
+    serving_http_test.addArtifactArg(serving_http_proof);
+    serving_http_test.has_side_effects = true;
+    serving_http_test.stdio = .inherit;
+    b.step("test-serving-http", "Qualify shared HTTP framing, capacity and joined deadlines").dependOn(&serving_http_test.step);
     const tls_alpn_proof = b.addExecutable(.{ .name = "transit-tls-alpn-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/tls_alpn.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_tls", .module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") }} }) });
     build_test_step.dependOn(&tls_alpn_proof.step);
     const tls_alpn_test = b.addSystemCommand(&.{ "python3", "-B" });
@@ -199,6 +214,7 @@ pub fn build(b: *std.Build) void {
     embed.has_side_effects = true;
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
     const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+        .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_client", .module = client.module("transit_client") },
         .{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") },

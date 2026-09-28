@@ -191,6 +191,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
+| [transit-http-server](../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 parsing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board | None |
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
 | [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and qualified paged accepted-state publication | transit-station |
 | [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 qualified finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
@@ -258,8 +259,8 @@ and protocol assertions belong under [tests/](../tests/README.md).
 ### Planned components
 
 - [M19](roadmap/M19.md) formalizes serving with HTTP application APIs and Board
-  as its first consumers. A proposed neutral `transit-http-server` owns HTTP
-  mechanics; `transit-serving` composes public Transit/Station admission and
+  as its first consumers. The implemented neutral `transit-http-server` owns HTTP
+  mechanics; proposed `transit-serving` composes public Transit/Station admission and
   response contracts. Board keeps its projections and private access profile.
   Create packages only with real implementations, manifests and consumers;
   core must not depend on these higher layers. [M20](roadmap/M20.md) adds

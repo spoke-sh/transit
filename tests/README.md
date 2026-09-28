@@ -1,5 +1,27 @@
 # Validation and milestone evidence
 
+## M19 work in progress
+
+`just test::serving-http` runs the neutral listener with an independent Python
+socket peer: ambiguous and duplicate headers, bounded chunked bodies, slow uploads,
+reserved health capacity, deadline recovery, concurrent requests and joined parent
+shutdown. The standalone `transit-http-server` tests also pass. This is a finite
+socket schedule, not throughput or inbound TLS qualification.
+
+Board's unit and real disk-backed service proofs pass after migration to the same
+listener. Four stalled body uploads exhaust its data slots, another data request
+receives 503, and health remains responsive. The existing inspection flooding,
+revocation, trimming, storage outage and diagnostic checks still pass; maximum
+measured control latency in this run is 0.007 seconds. Durable service admission,
+cross-instance coordination, TLS and physical placement remain separate open gates.
+
+`just test::unified-ingress table` also passes through the changed Board transport:
+SQL shell, generated client, Chromium workspace, identical signed retry, current
+prefix denial and worker/node/store recovery. It completes in 289.80 seconds
+excluding compilation, with 8 resident authority pages, an 8 MiB hot store and
+314 cold objects / 30,399,016 bytes. This extends the Table ingress regression;
+it does not add a reactive watch or a measured aggregate reader RSS bound.
+
 ## M18 qualification
 
 The declared Linux x86_64 growing profile is qualified: signed KV/Table/Document

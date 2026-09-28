@@ -179,9 +179,29 @@ def run(node, cli, board, browser=False):
         # connection. A refresh flood is throttled and control keeps progressing.
         with socket.create_connection(("127.0.0.1", port), timeout=3) as slow:
             slow.sendall(b"GET /api/v1/processes HTTP/1.1\r\nHost:")
+            health_started = time.monotonic()
+            request('/health')
+            assert time.monotonic() - health_started < .5
             started = time.monotonic()
             s.command({"send": {"pid": pids[1], "value": b"control".hex()}})
             assert time.monotonic() - started < 3
+        # All data handlers may wait for bodies without occupying health's
+        # reserved work slots. These requests have no admission or upstream I/O.
+        stalled_bodies = []
+        try:
+            for _ in range(4):
+                peer = socket.create_connection(('127.0.0.1', port), timeout=3)
+                peer.sendall(f'POST /api/v1/processes HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 100\r\n\r\nx'.encode())
+                stalled_bodies.append(peer)
+            time.sleep(.05)
+            health_started = time.monotonic()
+            request('/health')
+            assert time.monotonic() - health_started < .5
+            request('/api/v1/processes', status=503, retry=False)
+        finally:
+            for peer in stalled_bodies:
+                peer.close()
+        time.sleep(.1)
         statuses = []
         def flood():
             for _ in range(25):
