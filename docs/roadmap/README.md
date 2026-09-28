@@ -31,7 +31,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M21](M21.md) | Reactive interfaces over reactive APIs | Planned; bounded, generation-safe snapshot refresh over M20, with shared-principal fairness |
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned from finite transport/query evidence; explicit Table protocol/type and client qualification |
 | [M23](M23.md) | Board grammar and declarative reactive applications | Planned; implement design explorations, monochrome UI, shared SQL/visual definitions and recoverable application migrations |
-| [M24](M24.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
+| [M24](M24.md) | Transit CLI | Planned; local supervisor/gateway through `transit server` and grammar-aware SQL/meta-command shell through `transit console` |
+| [M25](M25.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
+| [M26](M26.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -76,16 +78,20 @@ remains later work. [M22](M22.md) then adds Flight/Flight SQL and ADBC
 interoperability over the qualified serving contracts. [M23](M23.md) implements
 [Board grammar](../design/board-grammar/README.md), bringing the Atlas/Console
 explorations into a monochrome reactive UI and a shared declarative application
-model with explicit publication and migrations. [M24](M24.md) qualifies
-these boundaries across broader authority/runtime topologies. Fuze remains Zig throughout; SQL or RPC transport
-never replaces durable authority.
+model with explicit publication and migrations. [M24](M24.md) formalizes
+`transit server` for a locally placed service neighborhood and `transit console`
+for SQL and slash commands with Board's shared grammar/catalog assistance.
+[M25](M25.md) publishes versioned Transit artifacts through tag-triggered GitHub
+release workflows and qualified installation channels. [M26](M26.md) then
+qualifies these boundaries across broader authority/runtime topologies. Fuze
+remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
 M19–M21 separately qualify the serving foundation, reactive API contracts and
 their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
 M15–M18 now have executed qualification within their declared profiles. The
-M19–M24 plans carry those findings forward; a planned server, watch or cluster
+M19–M26 plans carry those findings forward; a planned server, watch or cluster
 contract is still not an implemented dependency. Provider-specific integrations
 compose the existing components without a new durability model or application
 policy in the kernel.
@@ -96,7 +102,7 @@ as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../tests/README.md); implementation and operating details
 stay with their [owning components](../ARCHITECTURE.md#planned-monorepo-decomposition).
 
-## M15–M18 handoff to M19–M24
+## M15–M18 handoff to M19–M26
 
 The [query compatibility matrix](../../packages/zig/transit-query/docs/compatibility.md)
 and [proof ledger](../../tests/README.md#m18-qualification) are the baseline for
@@ -105,7 +111,7 @@ ten SDKs and SQL/Board ingress; its physical query-host recovery covers Table.
 M15/M16 qualify finite outbound effects, not inbound serving. M17's accepted-state
 reads do not create a watch, and manual growing-host placement does not create a
 cluster controller. M19 and M20 are qualified within their initial HTTP and
-int64 Table reactive profiles; M21–M24 remain planned.
+int64 Table reactive profiles; M21–M26 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
@@ -114,7 +120,9 @@ int64 Table reactive profiles; M21–M24 remain planned.
 | [M21](M21.md#m18-findings-applied-to-refresh) | M20 API and M18 frozen query/result verification | No missed changes or self-triggered refresh loop, bounded complete-result presentation and shared-principal scheduling |
 | [M22](M22.md#evidence-carried-from-m15m18) | Finite gRPC pieces, query/Arrow codecs and M19 serving seams | Inbound gRPC, explicit v1/v2 Table schemas, Flight message budgets, metadata and independent ADBC ownership |
 | [M23](M23.md#entry-gates) | M19–M22 public operations, reactive consumers and the Atlas/Console/Grammar designs | Shared SQL/visual definitions, monochrome UI, attributable controls, publication and application migration recovery |
-| [M24](M24.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
+| [M24](M24.md#baseline-and-owners) | Existing query shells, launcher recovery, serving and M23 language assistance | Local supervisor/gateway lifecycle, two-command CLI contract and bounded authorized terminal completion |
+| [M25](M25.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
+| [M26](M26.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
 
 At each entry, run the relevant existing proof unchanged, then extend it at the
 new boundary. Preserve accepted-but-lost receipts, changed-intent rejection,

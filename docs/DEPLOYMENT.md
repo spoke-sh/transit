@@ -28,6 +28,29 @@ across these profiles, with executable-owned configuration and bounded sinks.
 Service, launcher and provider diagnostics identify their own instances; telemetry
 availability never determines Transit ownership or changes retention authority.
 
+## Planned Transit CLI and publication
+
+[Transit CLI M24](roadmap/M24.md) formalizes `transit server` as a foreground
+supervisor/gateway for a functioning locally placed Transit service neighborhood.
+It will compose existing authority, storage, maintenance, delivery, serving and
+selected worker roles with explicit configuration, bootstrap, readiness, bounded
+restart and data-preserving shutdown. Native OS process management remains
+separate from Station supervision and durable PID ownership; any missing local
+runtime reconciliation contract must be qualified before automatic recovery is
+claimed. The existing launchers remain the implemented development entry points.
+`transit console` will connect through public, currently authorized operations;
+neither command is implemented by the milestone document.
+
+[Publication M25](roadmap/M25.md) formalizes tag-triggered GitHub release artifacts
+and installation via Nix flakes/derivations, verified archives and a shell
+installer, Homebrew, Docker/OCI images and Helm packages. Its artifact manifest
+must identify required external services, supported platforms and compatibility.
+Installing or upgrading a package does not initialize authority or authorize a
+worker. Durable data and credentials remain outside immutable artifacts; each
+channel needs its own installed-consumer and upgrade evidence. Local operation
+and published packages do not replace Kubernetes/Substrate as the reference or
+close [M26](roadmap/M26.md)'s cluster and disaster-recovery gates.
+
 ## Reference architecture
 
 The checked-in [Transit Helm chart](../charts/transit/README.md) packages the
@@ -96,7 +119,7 @@ records with separate administrative grants and retention rules described in
 Restoring an old backup is different from replacing a worker against current
 storage. The backup may predate revocation, process expiry, or an externally
 completed effect. M1 does not support automatic live restore from rolled-back
-history. M24 must prove an explicit procedure that fences the old deployment,
+history. M26 must prove an explicit procedure that fences the old deployment,
 establishes a new recovery generation/trust state, and reconciles external work
 before activation. A clone used for inspection is read-only; a new live import
 needs explicit identity and effect lineage. Neither may redispatch old attempts

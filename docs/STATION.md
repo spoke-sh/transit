@@ -258,7 +258,7 @@ Every namespace declares its authority, visibility, and lifetime. Local and
 cluster-wide registration must identify the logical scope in which a name is
 unique and how that scope survives worker replacement. Neither means an
 unqualified worker-memory map, a Kubernetes namespace, or a Substrate atespace.
-M9 defines the minimal scoped registry; M24 proves cluster-wide conflict and
+M9 defines the minimal scoped registry; M26 proves cluster-wide conflict and
 partition behavior.
 
 Serialize changes for each name under one fenced authority. Conditional updates

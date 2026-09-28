@@ -167,8 +167,13 @@ contracts that [reactive interfaces M21](roadmap/M21.md) consumes for live views
 [M23](roadmap/M23.md) implements the [Board design explorations](design/README.md)
 as a monochrome reactive UI and a shared SQL/visual application grammar, with
 explicit publication and recoverable application migrations.
-[M24](roadmap/M24.md)
-extends their authority and recovery proofs across cluster topologies. Station,
+[Transit CLI M24](roadmap/M24.md) formalizes `transit server` as a local
+supervisor/gateway and `transit console` as a psql-like SQL/slash-command shell
+with shared grammar/catalog typeahead. [Publication M25](roadmap/M25.md) makes
+tagged Transit artifacts installable through Nix, a shell installer, Homebrew,
+Docker/OCI and Helm, with GitHub release publication and an explicit SDK/library
+inventory. Both remain planned. [M26](roadmap/M26.md) extends their authority
+and recovery proofs across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](roadmap/README.md).
 

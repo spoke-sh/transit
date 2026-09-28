@@ -149,7 +149,7 @@ the earlier plan or a successful validation is not a grant.
 | Query, source schema, route or watch binding | Add a qualified binding, verify, then explicitly switch new admissions | Fence late results; reset incompatible watches; accepted commands retain the old target and receipt |
 | Data/schema transformation | Expand, bounded backfill, verify, switch consumers, then explicitly retire old definitions | Requires a selected writer/codec contract, concurrent-write policy and resumable progress; no automatic generic `ALTER TABLE` |
 | Credential or access change | Separate metadata revision, consumer rebinding and current-grant operations | Cannot be undone by restoring UI files; preserve independent recovery access and frozen effect references |
-| Physical worker/authority movement or disaster restore | Follow runtime/cluster recovery contracts | [M24](roadmap/M24.md) owns this broader proof; an application migration cannot revive retired authority |
+| Physical worker/authority movement or disaster restore | Follow runtime/cluster recovery contracts | [M26](roadmap/M26.md) owns this broader proof; an application migration cannot revive retired authority |
 
 **Plan** resolves dependencies within current disclosure rights, checks the exact
 base revision, capabilities, schema compatibility and bounds, and reports the
