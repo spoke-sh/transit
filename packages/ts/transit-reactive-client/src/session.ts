@@ -1,4 +1,5 @@
 import { ReactiveError, Transport } from "./index";
+import { acquireCaller, type AcquireCaller } from "./caller-gate";
 import type {
   Bootstrap,
   HostRequest,
@@ -8,13 +9,20 @@ import type {
   SignedCommand,
 } from "./types";
 type Command = Extract<HostRequest, { prepare: unknown }>["prepare"];
+export type RefreshCommand = Extract<HostRequest, { refresh_prepare: unknown }>["refresh_prepare"];
+export type RefreshView = Extract<HostResponse, { refresh_status: unknown }>["refresh_status"];
+export type Selection = Extract<HostRequest, { refresh_status: unknown }>["refresh_status"];
+type Control = Command | { refresh: RefreshCommand };
 type Read = ReactiveRead["read"];
 type Description = Extract<HostResponse, { description: unknown }>["description"];
 type Cursor = NonNullable<Read["cursor"]>;
 export type Inspection = Extract<HostResponse, { inspection: unknown }>["inspection"];
-export type Pending = { signed: SignedCommand; command: Command; input: number | null };
-const reserved = (command: Command) =>
-  "renew" in command || "unsubscribe" in command || "close" in command;
+export type Pending = { signed: SignedCommand; command: Control; input: number | null };
+const reserved = (command: Control) =>
+  "renew" in command ||
+  "unsubscribe" in command ||
+  "close" in command ||
+  ("refresh" in command && "pause" in command.refresh);
 const fresh = () => {
   const bytes = crypto.getRandomValues(new Uint32Array(2));
   return bytes[0]! * 2097152 + (bytes[1]! & 2097151) || 1;
@@ -33,8 +41,23 @@ export class Session {
   attachment = 0;
   nonce = Array<number>(16).fill(0);
   leaseBefore = 0;
+  selection: Selection | null = null;
   private activeControl = false;
-  constructor(readonly transport = new Transport()) {}
+  private releaseCaller: (() => void) | null = null;
+  constructor(
+    readonly transport = new Transport(),
+    private readonly acquire: AcquireCaller = acquireCaller,
+  ) {}
+
+  private async lock(signal?: AbortSignal) {
+    if (this.releaseCaller) return;
+    const description = this.description ?? (await this.describe(signal));
+    this.releaseCaller = await this.acquire(description.connection, signal);
+  }
+  private unlock() {
+    this.releaseCaller?.();
+    this.releaseCaller = null;
+  }
 
   async describe(signal?: AbortSignal) {
     const value = await this.transport.host({ describe: {} }, signal);
@@ -61,10 +84,12 @@ export class Session {
       if ("committed" in seen.observation) {
         this.applied(pending.command, pending.input);
         this.pending = null;
+        this.unlock();
         return pending.input;
       }
       if ("rejected" in seen.observation) {
         this.pending = null;
+        this.unlock();
         throw new ReactiveError(409, "control_rejected");
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -73,27 +98,59 @@ export class Session {
     throw new ReactiveError(0, "control_uncertain");
   }
   async recover(signal?: AbortSignal) {
+    if (!this.pending) return invalid();
     if (this.activeControl) throw new ReactiveError(429, "control_busy");
     this.activeControl = true;
     try {
+      await this.lock(signal);
       return await this.dispatch(signal);
     } finally {
+      if (!this.pending) this.unlock();
       this.activeControl = false;
     }
   }
   async command(command: Command, signal?: AbortSignal) {
+    return this.perform(command, signal);
+  }
+  async refresh(command: RefreshCommand, signal?: AbortSignal) {
+    return this.perform({ refresh: command }, signal);
+  }
+  async refreshStatus(signal?: AbortSignal): Promise<RefreshView> {
+    if (!this.selection) return invalid();
+    const response = await this.transport.host({ refresh_status: this.selection }, signal);
+    if (!("refresh_status" in response)) return invalid();
+    if (
+      response.refresh_status.generation !== this.selection.generation ||
+      response.refresh_status.session.session !== this.selection.session.session ||
+      response.refresh_status.session.generation !== this.selection.session.generation
+    )
+      return invalid();
+    return response.refresh_status;
+  }
+  private async perform(command: Control, signal?: AbortSignal) {
     if (this.activeControl || this.pending) throw new ReactiveError(409, "control_uncertain");
     this.activeControl = true;
     try {
-      const value = await this.transport.host({ prepare: command }, signal, reserved(command));
+      await this.lock(signal);
+      const value = await this.transport.host(
+        "refresh" in command ? { refresh_prepare: command.refresh } : { prepare: command },
+        signal,
+        reserved(command),
+      );
       if (!("prepared" in value)) return invalid();
       this.pending = { signed: value.prepared, command, input: null };
       return await this.dispatch(signal);
     } finally {
+      if (!this.pending) this.unlock();
       this.activeControl = false;
     }
   }
-  private applied(command: Command, input: number) {
+  private applied(command: Control, input: number) {
+    if ("refresh" in command) {
+      if ("follow" in command.refresh)
+        this.selection = { session: command.refresh.follow.session, generation: input };
+      return;
+    }
     if ("open" in command) {
       if (!this.description) invalid();
       this.scope = {
@@ -199,80 +256,93 @@ export class Session {
   async follow(consume: (value: ServerMessage) => void, signal: AbortSignal) {
     if (!this.scope || !this.scope.subscription || this.pending || this.activeControl)
       throw new ReactiveError(409, "control_uncertain");
-    const scope = this.scope;
-    const state = await this.transport.read(await this.signed("session", null, signal), signal);
-    if (state.session.phase !== "open") throw new ReactiveError(410, "expired");
-    this.leaseBefore = state.session.lease_before_ms;
-    const challenge = await this.transport.challenge(
-      await this.signed("session", null, signal),
-      signal,
-    );
-    const previous = state.session.attachment;
-    if (previous === undefined) return invalid();
-    const nextAttachment = previous + 1;
-    const attach: Command = {
-      attach: {
-        identity: { session: this.scope.session, generation: this.scope.generation },
-        expected: previous,
-        nonce: challenge.nonce,
-      },
-    };
-    const command = await this.transport.host({ prepare: attach }, signal);
-    if (!("prepared" in command)) return invalid();
-    this.pending = { signed: command.prepared, command: attach, input: null };
-    this.attachment = nextAttachment;
-    this.nonce = challenge.nonce;
-    const bootstrap: Bootstrap = {
-      version: 1,
-      attach: command.prepared,
-      read: await this.signed("events", this.cursor, signal),
-    };
-    await this.transport.events(
-      bootstrap,
-      (value) => {
-        if (this.scope !== scope || signal.aborted) throw new ReactiveError(409, "fenced");
-        if ("attached" in value) {
-          if (
-            value.attached.session !== scope.session ||
-            value.attached.generation !== scope.generation ||
-            value.attached.attachment !== this.attachment
-          )
-            invalid();
-          this.pending = null; // Host observed the exact signed attachment commit.
-        }
-        if ("event" in value) {
-          const next = value.event.cursor;
-          for (const field of [
-            "realm",
-            "principal",
-            "service",
-            "ingress",
-            "session",
-            "generation",
-            "subscription",
-            "subscription_generation",
-          ] as const) {
-            if (next.position.scope[field] !== scope[field]) invalid();
+    this.activeControl = true;
+    let attaching = true;
+    try {
+      await this.lock(signal);
+      const scope = this.scope;
+      const state = await this.transport.read(await this.signed("session", null, signal), signal);
+      if (state.session.phase !== "open") throw new ReactiveError(410, "expired");
+      this.leaseBefore = state.session.lease_before_ms;
+      const challenge = await this.transport.challenge(
+        await this.signed("session", null, signal),
+        signal,
+      );
+      const previous = state.session.attachment;
+      if (previous === undefined) return invalid();
+      const nextAttachment = previous + 1;
+      const attach: Command = {
+        attach: {
+          identity: { session: this.scope.session, generation: this.scope.generation },
+          expected: previous,
+          nonce: challenge.nonce,
+        },
+      };
+      const command = await this.transport.host({ prepare: attach }, signal);
+      if (!("prepared" in command)) return invalid();
+      this.pending = { signed: command.prepared, command: attach, input: null };
+      this.attachment = nextAttachment;
+      this.nonce = challenge.nonce;
+      const bootstrap: Bootstrap = {
+        version: 1,
+        attach: command.prepared,
+        read: await this.signed("events", this.cursor, signal),
+      };
+      await this.transport.events(
+        bootstrap,
+        (value) => {
+          if (this.scope !== scope || signal.aborted) throw new ReactiveError(409, "fenced");
+          if ("attached" in value) {
+            if (
+              value.attached.session !== scope.session ||
+              value.attached.generation !== scope.generation ||
+              value.attached.attachment !== this.attachment
+            )
+              invalid();
+            this.pending = null; // Host observed the exact signed attachment commit.
+            attaching = false;
+            this.activeControl = false;
+            this.unlock();
           }
-          const previous = this.cursor?.position;
-          if (
-            next.position.watch_revision !== this.description?.discovery.watch_revision ||
-            (previous &&
-              (next.position.resource !== previous.resource ||
-                next.position.schema.some((byte, i) => byte !== previous.schema[i])))
-          )
-            throw new ReactiveError(409, "reset_required");
-          if (
-            previous &&
-            (next.position.data_revision < previous.data_revision ||
-              (next.position.outcome_position ?? 0) < (previous.outcome_position ?? 0))
-          )
-            invalid();
-          this.cursor = next;
-        }
-        consume(value);
-      },
-      signal,
-    );
+          if ("event" in value) {
+            const next = value.event.cursor;
+            for (const field of [
+              "realm",
+              "principal",
+              "service",
+              "ingress",
+              "session",
+              "generation",
+              "subscription",
+              "subscription_generation",
+            ] as const) {
+              if (next.position.scope[field] !== scope[field]) invalid();
+            }
+            const previous = this.cursor?.position;
+            if (
+              next.position.watch_revision !== this.description?.discovery.watch_revision ||
+              (previous &&
+                (next.position.resource !== previous.resource ||
+                  next.position.schema.some((byte, i) => byte !== previous.schema[i])))
+            )
+              throw new ReactiveError(409, "reset_required");
+            if (
+              previous &&
+              (next.position.data_revision < previous.data_revision ||
+                (next.position.outcome_position ?? 0) < (previous.outcome_position ?? 0))
+            )
+              invalid();
+            this.cursor = next;
+          }
+          consume(value);
+        },
+        signal,
+      );
+    } finally {
+      if (attaching) {
+        if (!this.pending) this.unlock();
+        this.activeControl = false;
+      }
+    }
   }
 }

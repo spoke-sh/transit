@@ -109,6 +109,7 @@ pub fn apply(self: Self, turn: *Turn, command: m.Command, principal: u64) !void 
             if (request.expected != (if (previous) |value| value.revision else 0) or request.policy.revision != try std.math.add(u64, request.expected, 1)) return error.ServiceRevisionConflict;
             try turn.write(m.key('p', request.principal, 0), try c.encode('p', request.policy));
         },
+        .refresh => return error.InvalidServingCommand, // Requires the explicitly composed live-query owner.
         .reactive => |request| try root.ReactiveService.apply(self.configuration, turn, principal, request),
         .submit => |request| try self.submit(turn, principal, request),
         .cancel => |id| {

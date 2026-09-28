@@ -68,8 +68,8 @@ pub const Context = struct {
             self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
             const status: std.http.Status = switch (err) {
                 error.ServingDenied, error.AccessDenied, error.SignatureVerificationFailed => .forbidden,
-                error.ServingOperationNotFound, error.ReactiveSessionNotFound => .not_found,
-                error.ReactiveResetRequired, error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict, error.ServiceReadConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
+                error.ServingOperationNotFound, error.ReactiveSessionNotFound, error.RefreshNotFound => .not_found,
+                error.ReactiveResetRequired, error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict, error.RefreshGenerationConflict, error.ServiceReadConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
                 error.ResourceUnavailable, error.ReactiveSessionExpired => .gone,
                 error.AuthorityTimeout => .gateway_timeout,
                 error.StreamTooLong => .payload_too_large,

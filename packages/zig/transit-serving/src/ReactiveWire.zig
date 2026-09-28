@@ -59,6 +59,7 @@ pub fn terminal(err: anyerror) Terminal {
 /// Only controls which release/renew existing work enter the reserved HTTP pool.
 /// Neither publication nor new command/session admission may consume it.
 pub fn isControl(command: root.Model.Command) bool {
+    if (command == .refresh) return command.refresh == .pause;
     if (command != .reactive) return false;
     return switch (command.reactive) {
         .renew, .unsubscribe, .close, .expire, .observe_clock => true,

@@ -35,6 +35,17 @@ origin. Payload codec 1 is an i64 row ID followed by an i64 delta, little-endian
 the exact result is the resulting i64. Socket retries never invoke the application
 directly. Query/read bookkeeping cannot alter its data progress marker.
 
+M21's optional `live_ingress` role adds `query_principal` and `source` alongside
+the nested `service` configuration. It composes sessions and the v2 requester
+in one resource. Application `queries: true` enables existing v2 capture and
+initializer-only `UQA2` policy publication. Cross-resource read grants must be
+provisioned for both workers and the query caller. PID-scoped workers also need
+optional foreign-resource associations established
+before first activation; associations never replace those grants. The
+[refresh guide](../../packages/zig/transit-serving/docs/refresh.md) owns the bounds;
+`just test::reactive-refresh` exercises the actual composition. Query execution
+remains disabled by default.
+
 Build with `nix develop --command zig build serving-example -Doptimize=ReleaseSafe`.
 Run `nix develop --command just test::serving` for the independent Python/OpenSSL
 caller proof with owned disk Ursula, real workers and two gateway instances. It

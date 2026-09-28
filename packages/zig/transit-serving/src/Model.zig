@@ -68,6 +68,7 @@ pub const Command = union(enum(u8)) {
     submit: Submit = 3,
     cancel: u64 = 4,
     reactive: root.ReactiveModel.Command = 5,
+    refresh: root.RefreshModel.Command = 6,
     pub fn encode(self: Command) !p.Value {
         return codec.encode('c', self);
     }

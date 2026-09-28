@@ -15,7 +15,7 @@ pub const Config = struct {
     generation: u64 = 0,
     activation_directory: ?[]const u8 = null,
     request_timeout_ms: u32 = 3000,
-    role: union(enum) { gateway: hosting.Gateway, ingress: serving.Model.Configuration, application: Application },
+    role: union(enum) { gateway: hosting.Gateway, ingress: serving.Model.Configuration, live_ingress: serving.LiveService.Configuration, application: Application.Configuration },
 };
 pub fn main(init: std.process.Init) !void {
     var diagnostics = telemetry.Runtime.init(init.io, "transit-serving-example", try telemetry.Config.environment(init.environ_map));
@@ -34,7 +34,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (bytes.len > 16384) return error.ConfigurationTooLarge;
     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
-    var config = parsed.value;
+    const config = parsed.value;
     if (config.realm == 0 or config.principal == 0 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var key = if (bootstrap) key: {
         if (config.seed_file != null or config.role == .gateway) return error.InvalidBootstrap;
@@ -72,17 +72,34 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     file.close(init.io);
     host.failure_policy = .stop;
     var service: serving.Service = .{ .configuration = if (config.role == .ingress) config.role.ingress else undefined };
+    const live_scratch: []u8 = if (config.role == .live_ingress) try init.gpa.alloc(u8, 1024 * 1024) else &.{};
+    defer if (live_scratch.len != 0) init.gpa.free(live_scratch);
+    const resources: s.client.ResourceReader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key };
+    var live: serving.LiveService = .{ .configuration = if (config.role == .live_ingress) config.role.live_ingress else undefined, .resources = resources, .scratch = live_scratch, .upper_ms = 0 };
+    var application: Application = .{ .configuration = if (config.role == .application) config.role.application else undefined };
+    const queries = config.role == .application and config.role.application.queries;
+    const adapter: []u8 = if (queries) try init.gpa.alloc(u8, serving.query.UnifiedBehavior.adapter_bytes) else &.{};
+    defer if (adapter.len != 0) init.gpa.free(adapter);
+    const workspace: []u8 = if (queries) try init.gpa.alloc(u8, serving.query.fuze.Unified.Arrow.working_bytes) else &.{};
+    defer if (workspace.len != 0) init.gpa.free(workspace);
+    const cancellation = serving.query.fuze.execution.Cancellation.init(false);
+    if (queries) application.query = .{ .peer = application.configuration.ingress, .initializer = application.configuration.initializer, .resources = resources, .adapter = adapter, .workspace = workspace, .cancellation = &cancellation };
     const handler = switch (config.role) {
         .ingress => blk: {
             host.input_guard = service.guard();
             break :blk service.interface();
         },
-        .application => |*app| app.interface(),
+        .live_ingress => blk: {
+            host.input_guard = live.guard();
+            break :blk live.interface();
+        },
+        .application => application.interface(),
         .gateway => unreachable,
     };
     diagnostics.event(.{ .name = "service.ready", .operation = @tagName(config.role), .pid = config.pid, .generation = config.generation });
     while (true) {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
+        live.upper_ms = try std.math.add(u64, now, 1000);
         const step = host.step(handler, now + 30000) catch |err| {
             diagnostics.event(.{ .name = "serving.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
             if (err == error.AuthorityTimeout or err == error.AuthorityUnavailable) {

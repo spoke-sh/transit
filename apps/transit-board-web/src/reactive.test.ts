@@ -61,14 +61,36 @@ describe("generated reactive transport boundary", () => {
         headers: { "Content-Type": "application/json" },
       });
     });
-    const session = new Session(transport);
+    let held = false;
+    const session = new Session(transport, async () => {
+      expect(held).toBe(false);
+      held = true;
+      return () => {
+        held = false;
+      };
+    });
+    session.description = {
+      connection: { realm: 49, principal: 65536, service: 1, ingress: 1 },
+      max_lease_ms: 30000,
+      discovery: {
+        service: 1,
+        ingress: 1,
+        resource: 2,
+        binding_revision: 1,
+        watch_revision: 1,
+        openapi_sha256: Array(32).fill(0),
+        asyncapi_sha256: Array(32).fill(0),
+      },
+    };
     await expect(session.command({ close: { session: 1, generation: 2 } })).rejects.toThrow();
     expect(session.pending?.signed).toEqual(signed);
+    expect(held).toBe(true);
     await expect(session.command({ close: { session: 2, generation: 3 } })).rejects.toThrow(
       "control_uncertain",
     );
     await session.recover();
     expect(session.pending).toBeNull();
+    expect(held).toBe(false);
     expect(sent).toEqual([JSON.stringify(signed), JSON.stringify(signed)]);
   });
 });

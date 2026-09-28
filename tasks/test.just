@@ -321,3 +321,7 @@ reactive-descriptions:
 # Qualify the shared Zig caller and private host adapter over real TLS and disk.
 reactive-client:
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-client=true
+
+# Real shared requester, fair finite refresh and current grant recovery.
+reactive-refresh:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-refresh=true

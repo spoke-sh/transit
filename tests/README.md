@@ -2711,3 +2711,23 @@ Frontend consumer tests exercise partial SSE framing, wrapper/content agreement,
 malformed UTF-8 and fields, bounded buffers and uncertain-command identity. These
 are client foundation checks, not browser live-view, fairness, complete-result
 replacement or placement proofs. Those M21 exit gates remain open.
+
+`just test::reactive-refresh` passed in 224.56 seconds against real TLS, disk
+Ursula, the composed requester and counter Table source. Two sessions share one
+query principal. The proof loses a follow receipt, retries the identical native
+send, stops the source with one refresh admitted, replaces both worker
+activations, and observes the same accepted identity and the next fair view.
+Refresh namespaces cross `2^63` without losing integer precision. Revoking only
+entry-read permission leaves metadata readable but denies status and subsequent
+invalidation; retained signatures cannot use the worker's stronger grant.
+Restoring permission permits explicit pause/close and leaves all accepted results
+retained. The trace is `.cache/verification/m21-refresh-trace.json`.
+
+Component tests use actual finite uploads/captures/results, reconstruct requester
+storage after each copy turn, and enforce four mutations. They cover a source
+mutation during capture, dirty successors, quiescence, two-view fairness, start
+budgets/spacing, manual-admission blocking without self-spin, pause/replacement,
+read outages/denial and expiry without observer progress. The full `just check`
+passed after adding capability-gated native resource read-access observations.
+This native proof does not measure browser freshness, physical node/store recovery
+of the new owner, or Compose/reference presentation. Those gates remain open.

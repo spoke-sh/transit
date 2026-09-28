@@ -432,6 +432,7 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
     if (b.option(bool, "serving-growth", "Qualify retained service operations beyond resident pages") orelse false) serving_test.addArg("--growth");
     if (b.option(bool, "serving-reactive-client", "Qualify shared private reactive host client") orelse false) serving_test.addArg("--reactive-client");
+    if (b.option(bool, "serving-reactive-refresh", "Qualify durable refresh requester and counter source") orelse false) serving_test.addArg("--reactive-refresh");
     if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");
     if (b.option(bool, "serving-reactive-limits", "Qualify reactive capacity, cursor and expiry limits") orelse false) serving_test.addArg("--reactive-limits");
     if (b.option(bool, "serving-reactive-browser", "Qualify the real browser reactive bootstrap and transports") orelse false) serving_test.addArg("--reactive-browser");

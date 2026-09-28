@@ -21,6 +21,14 @@ consumers own pause/hide, reconnect/backoff and visible refresh scheduling. A
 reconnect observes the existing session and does not implicitly reopen an expired
 one. Close stops a subscription and does not cancel application work.
 
+The shared caller gate uses Web Locks for native preparation/receipt coordination
+across same-origin tabs. It keeps the lock across an uncertain mutation until the
+same frozen request resolves. This requires a secure browser context and Web Locks;
+it does not replace durable requester admission or coordinate different origins.
+Other native callers still need sequence coordination. The gate can be injected
+by another supported host. `refresh` controls and `refreshStatus` use the opt-in
+durable owner; namespace strings preserve all 64 bits.
+
 `inspect` returns metadata/progress through the qualified Table adapter.
 `snapshot` requires an explicitly enabled application viewer. Board's default
 private profile does not allow it. Neither method verifies an entire finite

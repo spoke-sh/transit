@@ -250,4 +250,12 @@ export function discovery(value: unknown): Discovery {
   if (!validate.Discovery(value)) invalid();
   return value as Discovery;
 }
-export { Session, type Inspection, type Pending } from "./session";
+export {
+  Session,
+  type Inspection,
+  type Pending,
+  type RefreshView,
+  type RefreshCommand,
+  type Selection,
+} from "./session";
+export { acquireCaller, type AcquireCaller, type Caller } from "./caller-gate";

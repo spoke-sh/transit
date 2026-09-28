@@ -16,6 +16,15 @@ remain outside this adapter. A separate upstream reader still checks current
 service and source authority; neither private reachability nor a signature
 supplies those permissions.
 
+Explicit `refresh` configuration enables preparation of follow, invalidate,
+acknowledge and pause for the composed finite-query owner. The generation and
+budget contract lives in the [refresh guide](../packages/zig/transit-serving/docs/refresh.md).
+Follow requires `resource_read_access` and signs the caller's identity and two
+resource read-access queries; the durable owner checks their current grants.
+Metadata-only resource inspection is insufficient. Status checks current resource
+read authority and returns view/query identities and progress, never rows.
+The read-only inspection credential does not acquire send authority.
+
 Prepare returns an owned native signed send. Submit forwards precisely those
 bytes. Retain them through unknown replies, including component remounts; retry
 never calls prepare again. Native acceptance returns an input position. Observe
@@ -45,7 +54,7 @@ schema; it is a deterministic relation, not an authorization decision. Complete
 query verification and a current authorized visible-page reread remain required.
 
 The `/reactive/v1/client/control` route reserves listener/caller capacity for
-renew, unsubscribe, close and committed-input observation. It rejects opening,
+renew, unsubscribe, close, refresh pause and committed-input observation. It rejects opening,
 attachment, discovery, snapshot and inspection work. Finite operations use the
 same bounded upstream allocator as the signed host. Per-caller data limits include
 both streams and reads: deployments serving two tabs must leave read capacity

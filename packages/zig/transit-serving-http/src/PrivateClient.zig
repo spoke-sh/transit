@@ -5,7 +5,7 @@ const host = @import("root.zig");
 const serving = @import("transit_serving");
 const http = @import("transit_http_server");
 const r = serving.ReactiveModel;
-pub const Configuration = struct { principal: u64, seed_file: []const u8, snapshot_values: bool = false };
+pub const Configuration = struct { principal: u64, seed_file: []const u8, snapshot_values: bool = false, refresh: bool = false };
 pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
     const config = context.config.gateway;
     const viewer = config.viewer orelse return http.respond(request, .not_found, "{}");
@@ -30,7 +30,7 @@ pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, 
     wire.timeout_ms = context.config.request_timeout_ms;
     wire.observer = context.diagnostics;
     const base: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = context.config.realm, .principal = context.config.principal, .key = context.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource };
-    const client: serving.ReactiveClient = .{ .wire = &wire, .connection = .{ .realm = context.config.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress }, .key = key };
+    const client: serving.ReactiveClient = .{ .wire = &wire, .connection = .{ .realm = context.config.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress }, .key = key, .refresh = viewer.refresh };
     var clock: Clock = .{ .io = io, .error_ms = config.clock_error_ms };
     const reactive: serving.ReactiveAdapter = .{ .base = base, .clock = .{ .context = &clock, .upper = Clock.upper } };
     const result: serving.ReactiveClient.Response = switch (operation) {
@@ -66,6 +66,7 @@ fn isControl(request: serving.ReactiveClient.Request) !bool {
     return switch (request) {
         .observe => true,
         .prepare => |command| serving.ReactiveWire.isControl(.{ .reactive = command.native() }),
+        .refresh_prepare => |command| command == .pause,
         .submit => |signed| blk: {
             const frame = try serving.station.Frame.decode(signed.request.command.send.value);
             break :blk serving.ReactiveWire.isControl(try serving.Model.Command.decode(frame.payload));

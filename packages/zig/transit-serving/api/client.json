@@ -1454,6 +1454,357 @@
             }
           }
         }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "refresh_prepare"
+        ],
+        "properties": {
+          "refresh_prepare": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "follow"
+                ],
+                "properties": {
+                  "follow": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "session",
+                      "expected",
+                      "template",
+                      "limit"
+                    ],
+                    "properties": {
+                      "session": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "session",
+                          "generation"
+                        ],
+                        "properties": {
+                          "session": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
+                          "generation": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "required": [
+                          "session",
+                          "generation"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "expected": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "template": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "maxLength": 20,
+                        "x-transit-encoding": "unsigned-decimal-u64"
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "session",
+                      "expected",
+                      "template",
+                      "limit"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "invalidate"
+                ],
+                "properties": {
+                  "invalidate": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "session",
+                      "generation"
+                    ],
+                    "properties": {
+                      "session": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "session",
+                          "generation"
+                        ],
+                        "properties": {
+                          "session": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
+                          "generation": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "required": [
+                          "session",
+                          "generation"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "generation": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "session",
+                      "generation"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "acknowledged"
+                ],
+                "properties": {
+                  "acknowledged": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "selection",
+                      "namespace"
+                    ],
+                    "properties": {
+                      "selection": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "session",
+                          "generation"
+                        ],
+                        "properties": {
+                          "session": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "session",
+                              "generation"
+                            ],
+                            "properties": {
+                              "session": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "x-transit-bits": 64,
+                                "x-transit-signed": false
+                              },
+                              "generation": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991,
+                                "x-transit-bits": 64,
+                                "x-transit-signed": false
+                              }
+                            },
+                            "required": [
+                              "session",
+                              "generation"
+                            ],
+                            "x-transit-defaults": {}
+                          },
+                          "generation": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "required": [
+                          "session",
+                          "generation"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "namespace": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "maxLength": 20,
+                        "x-transit-encoding": "unsigned-decimal-u64"
+                      }
+                    },
+                    "required": [
+                      "selection",
+                      "namespace"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "pause"
+                ],
+                "properties": {
+                  "pause": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "session",
+                      "generation"
+                    ],
+                    "properties": {
+                      "session": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "session",
+                          "generation"
+                        ],
+                        "properties": {
+                          "session": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          },
+                          "generation": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "x-transit-bits": 64,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "required": [
+                          "session",
+                          "generation"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "generation": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "session",
+                      "generation"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "refresh_status"
+        ],
+        "properties": {
+          "refresh_status": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "session",
+              "generation"
+            ],
+            "properties": {
+              "session": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "session",
+                  "generation"
+                ],
+                "properties": {
+                  "session": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "generation": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  }
+                },
+                "required": [
+                  "session",
+                  "generation"
+                ],
+                "x-transit-defaults": {}
+              },
+              "generation": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              }
+            },
+            "required": [
+              "session",
+              "generation"
+            ],
+            "x-transit-defaults": {}
+          }
+        }
       }
     ]
   },
@@ -3283,6 +3634,234 @@
               "identity"
             ],
             "x-transit-defaults": {}
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "refresh_status"
+        ],
+        "properties": {
+          "refresh_status": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "principal",
+              "session",
+              "generation",
+              "source",
+              "template",
+              "namespace",
+              "dirty",
+              "covered",
+              "starts",
+              "limit",
+              "next_start_ms",
+              "enabled",
+              "phase"
+            ],
+            "properties": {
+              "principal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "session": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "session",
+                  "generation"
+                ],
+                "properties": {
+                  "session": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "generation": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  }
+                },
+                "required": [
+                  "session",
+                  "generation"
+                ],
+                "x-transit-defaults": {}
+              },
+              "generation": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "revision",
+                  "target",
+                  "resource",
+                  "table",
+                  "progress_key",
+                  "schema",
+                  "published"
+                ],
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "target": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "resource": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "x-transit-bits": 64,
+                    "x-transit-signed": false
+                  },
+                  "table": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "x-transit-bits": 32,
+                    "x-transit-signed": false
+                  },
+                  "progress_key": {
+                    "type": "string",
+                    "pattern": "^(?:[0-9a-f]{2})*$",
+                    "maxLength": 512,
+                    "x-transit-encoding": "lowercase-hex"
+                  },
+                  "schema": {
+                    "type": "array",
+                    "minItems": 32,
+                    "maxItems": 32,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 255,
+                      "x-transit-bits": 8,
+                      "x-transit-signed": false
+                    }
+                  },
+                  "published": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "revision",
+                  "target",
+                  "resource",
+                  "table",
+                  "progress_key",
+                  "schema"
+                ],
+                "x-transit-defaults": {
+                  "published": true
+                }
+              },
+              "template": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "maxLength": 20,
+                "x-transit-encoding": "unsigned-decimal-u64"
+              },
+              "namespace": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$",
+                "maxLength": 20,
+                "x-transit-encoding": "unsigned-decimal-u64"
+              },
+              "dirty": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "covered": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "starts": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "x-transit-bits": 8,
+                "x-transit-signed": false
+              },
+              "limit": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "x-transit-bits": 8,
+                "x-transit-signed": false
+              },
+              "next_start_ms": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "x-transit-bits": 64,
+                "x-transit-signed": false
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "copying",
+                  "admitted",
+                  "ready",
+                  "paused",
+                  "denied",
+                  "exhausted",
+                  "failed"
+                ]
+              }
+            },
+            "required": [
+              "principal",
+              "session",
+              "generation",
+              "source",
+              "template",
+              "namespace",
+              "dirty",
+              "covered",
+              "limit"
+            ],
+            "x-transit-defaults": {
+              "starts": 0,
+              "next_start_ms": 0,
+              "enabled": true,
+              "phase": "idle"
+            }
           }
         }
       }

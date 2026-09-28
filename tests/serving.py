@@ -92,8 +92,8 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False):
-    if (reactive_browser or reactive_limits or reactive_client) and not (reactive and tls):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False):
+    if (reactive_browser or reactive_limits or reactive_client or reactive_refresh) and not (reactive and tls):
         raise ValueError("reactive browser/limits proofs require --reactive --tls")
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
@@ -133,14 +133,15 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
         def resource_grant(resource, principal, permissions):
             send({'grant_resource': dict(resource=resource, subject=principal, permissions=permissions)})
 
-        def provision(principal, resource_deadline=None, work_before=None):
+        def provision(principal, resource_deadline=None, work_before=None, activate=True):
             pid = send({'spawn': dict(code=1, work_before_ms=work_before, settle_before_ms=resource_deadline if work_before else None)})
             grant(principal, 88, pid)
             resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=resource_deadline)})
             for subject in (0, principal):
                 resource_grant(resource, subject, 7)
             send({'associate': dict(pid=pid, name=b'state'.hex(), expected_revision=0, resource=resource, required=True)})
-            send({'own': dict(pid=pid, expected_generation=1, worker=principal)})
+            if activate:
+                send({'own': dict(pid=pid, expected_generation=1, worker=principal)})
             return pid, resource
 
         def drained(pid, timeout=30):
@@ -220,8 +221,12 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             subprocess.run([node, str(configuration), '--initialize'], check=True, capture_output=True, env=store.env, timeout=30)
             authority = start('node-live', node, json.loads(configuration.read_text()))
             wait_ready(store.http, authority, url + '/health')
-            ingress, ingress_resource = provision(77)
-            application, application_resource = provision(78)
+            ingress, ingress_resource = provision(77, activate=not reactive_refresh)
+            application, application_resource = provision(78, activate=not reactive_refresh)
+            if reactive_refresh:
+                for pid, foreign, worker in ((ingress, application_resource, 77), (application, ingress_resource, 78)):
+                    send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
+                    send({'own': dict(pid=pid, expected_generation=2, worker=worker)})
             for principal in (33, 34): grant(principal, 20)
             grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
@@ -230,6 +235,12 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
             application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33)})
+            if reactive_refresh:
+                ingress_config['generation'] = application_config['generation'] = 3
+                ingress_config['role'] = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)}
+                application_config['role']['application']['queries'] = True
+                resource_grant(application_resource, 77, 3)
+                resource_grant(ingress_resource, 78, 3)
             ingress_worker = start('ingress', example, ingress_config)
             app_worker = start('application', example, application_config)
             cast(ingress, b'SV1c\x00')
@@ -242,6 +253,9 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             drained(ingress)
             # Initialize privately before exposing any untrusted native ingress.
             for principal in (65536, 65537): grant(principal, 20, ingress)
+            if reactive_refresh:
+                resource_grant(application_resource, 65536, 3)
+                resource_grant(ingress_resource, 65536, 3)
             courier_config = dict(url=worker_url, realm=REALM, principal=80, seed_file=str(keys[80].seed), role={'courier': dict(destinations=[ingress, application])})
             courier_worker = start('courier', courier, courier_config)
             gateway_ports = [free_port(), free_port()]
@@ -254,8 +268,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             gateway_config = dict(url=f'http://127.0.0.1:{proxy.server_port}', realm=REALM, principal=79, seed_file=str(keys[79].seed), role={'gateway': dict(service=1, ingress=ingress, resource=ingress_resource, port=gateway_ports[0], host=public_host, public_origin='https://' + public_host, callers=[dict(principal=p, public_key=keys[p].public) for p in (65536, 65537)])})
             if reactive:
                 gateway_config['role']['gateway'].update(reactive=True, options=dict(requests=4, request_timeout_ms=30000))
-            if reactive_client:
+            if reactive_client or reactive_refresh:
                 gateway_config['role']['gateway']['viewer'] = dict(principal=65536, seed_file=str(keys[65536].seed))
+            if reactive_refresh:
+                gateway_config['role']['gateway']['viewer']['refresh'] = True
             gateways = []
             for index, gateway_port in enumerate(gateway_ports):
                 gateway_config['role']['gateway']['port'] = gateway_port
@@ -267,6 +283,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             def read(kind, operation=0, principal=65536, expected=200):
                 return post(gateway_ports[0], '/serving/v1/read', signed_read(keys[principal], principal, ingress, kind, operation), public_host, expected)
 
+            if reactive_refresh:
+                from reactive_refresh import run as run_refresh
+                run_refresh(locals(), TLS)
+                return
             if reactive_client:
                 from reactive_client import run as run_client
                 run_client(locals(), TLS)
@@ -552,4 +572,5 @@ if __name__ == '__main__':
     parser.add_argument('--reactive-browser', action='store_true')
     parser.add_argument('--reactive-limits', action='store_true')
     parser.add_argument('--reactive-client', action='store_true')
+    parser.add_argument('--reactive-refresh', action='store_true')
     run(**vars(parser.parse_args()))
