@@ -5,7 +5,8 @@ This package has no Transit, Station, storage, credentials or application depend
 Consumers own identity, routes, durable admission, body/result budgets and responses.
 
 `serve` owns a configured pool of 2–64 accepted sockets, with independent active
-data and `/health` control limits. It bounds header reads and the whole request,
+data and control limits. `/health` is reserved automatically; an optional
+`Context.isControl(request)` may classify further bounded control routes. It bounds header reads and the whole request,
 joins cancelled work before releasing a slot, and closes connections when task or
 socket capacity is exhausted. A closed socket says nothing about durable admission.
 Every request gets 8 KiB input/4 KiB output buffers; consumer working memory is
@@ -23,3 +24,12 @@ The [HTTP profile](../../../contracts/HTTP_SERVING_V1.md) defines framing and
 connection limits. TLS termination and deployed concurrency qualification belong
 to the consuming application; unit checks are not a server security qualification.
 Run `zig build test` from this package in the pinned Nix environment.
+
+M20 adds `WebSocket.handshake` and `Decoder`: strict HTTP/1.1 upgrade with a
+selected subprotocol, no negotiated extensions, required client masking, 8 KiB
+reassembled text, at most 32 fragments, interleaved ping/pong/close and complete
+UTF-8 validation. The host must enforce exact Origin/Host, authenticate bootstrap,
+bound elapsed reads/writes, serialize writers and join both socket directions.
+Framing alone grants no application authority. Unit checks pin fragmented UTF-8,
+canonical lengths, control/close restrictions and exhaustion. Consuming peers and
+TLS/proxy qualification remain part of M20's separate integration matrix.

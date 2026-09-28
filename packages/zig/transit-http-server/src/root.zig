@@ -1,6 +1,10 @@
 //! Neutral bounded HTTP mechanics. No Transit identity, grant or durable state.
 const std = @import("std");
 const Io = std.Io;
+pub const WebSocket = @import("WebSocket.zig");
+test {
+    _ = WebSocket;
+}
 pub const Options = struct {
     connections: u8 = 16,
     requests: u8 = 8,
@@ -91,8 +95,9 @@ fn receive(server: *std.http.Server, request: *?std.http.Server.Request) anyerro
 }
 
 /// Context.handle(io, allocator, request) is called concurrently. It must own
-/// per-request state and coordinate shared mutations. Only /health uses the
-/// separate control pool; application authorization remains mandatory there.
+/// per-request state and coordinate shared mutations. The optional
+/// Context.isControl(request) classifies additional bounded control routes.
+/// Application authorization remains mandatory on every such route.
 /// Context.connectionError(error, handler_started) observes failed transports, without payloads.
 pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, options: Options, context: anytype) !void {
     try options.validate();
@@ -121,7 +126,8 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
         }
         fn dispatch(worker_io: Io, alloc: std.mem.Allocator, request: *std.http.Server.Request, limits: Options, admission: *Admission, ctx: @TypeOf(context), handler_started: *bool) anyerror!void {
             validateHead(request) catch return respond(request, .bad_request, "{\"err\":\"InvalidHttpRequest\"}");
-            const control = request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health");
+            const control = (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) or
+                (if (@hasDecl(@typeInfo(@TypeOf(ctx)).pointer.child, "isControl")) ctx.isControl(request) else false);
             if (!admission.acquire(control, if (control) limits.control_requests else limits.requests))
                 return respond(request, .service_unavailable, "{\"err\":\"HttpCapacity\"}");
             defer admission.release(control);
