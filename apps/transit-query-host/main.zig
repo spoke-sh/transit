@@ -118,9 +118,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
                 continue;
             }
             // Station retains every prepared mutation before dispatch and
-            // discards poisoned, unsent private proposals. A read timeout can
-            // therefore retry without replacing any uncertain signed command.
-            if (err == error.AuthorityTimeout) {
+            // discards poisoned, unsent private proposals. Temporary transport
+            // loss can retry without replacing any uncertain signed command.
+            if (q.wire.Client.unavailable(err)) {
                 if (server.pending == null and server.ready != null) try server.discard();
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
@@ -154,13 +154,13 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             continue;
         }
         const basis = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
-            if (err != error.AuthorityTimeout) return err;
+            if (!q.wire.Client.unavailable(err)) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
         const page = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
             if (err == error.Conflict and wire.last_rejection == .QueryExpired) continue;
-            if (err == error.AuthorityTimeout) {
+            if (q.wire.Client.unavailable(err)) {
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
             }

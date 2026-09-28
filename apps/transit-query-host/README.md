@@ -37,6 +37,13 @@ Uncertain mutations remain exact while the worker runs; fresh fencing after a
 crash prevents stale recomputation. There is no hidden ownership acquisition,
 automatic retry of a failed handler, source-data seeding or grant provisioning.
 
+The host and courier preserve their activation through transient authority
+transport loss, including DNS failure and closed connections. They use the
+shared client availability classification, retain exact pending mutations, and
+discard only poisoned unsent proposals. Denial, invalid responses and fencing
+remain terminal. Reference Flight qualification exposed the former timeout-only
+retry path when a Substrate worker encountered a temporary DNS failure.
+
 The real provisioning/proof uses a separate public-API caller and these actual
 binaries (`just test::public-query`), with disk Ursula, an authority, two workers
 and the scoped courier. It is not a production deployment launcher.
