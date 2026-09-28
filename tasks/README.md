@@ -35,6 +35,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just ci::growth`, `just ci::launchers` | Run the growing-state and launcher/build-smoke lanes from the same inventory |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs `just ci` without existing workspace outputs |
+| `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all five lane reports at the same committed revision |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |
 | `just build::debug`, `just build::release-safe`, `just build::release-fast`, `just build::release-small` | Builds platform executables and embedded Board with the selected optimization profile; accepts Zig steps/options |

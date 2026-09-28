@@ -2,6 +2,7 @@
 """Run the ordinary CI suite on committed HEAD without workspace build artifacts."""
 from pathlib import Path
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -16,7 +17,10 @@ def run(*args, cwd=ROOT, **kwargs):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--complete", action="store_true", help="include the installed Chromium proof")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--complete", action="store_true", help="include the installed Chromium proof")
+    lanes = json.loads((ROOT / "tests/verification/suite.json").read_text())["lanes"]
+    selection.add_argument("--lane", choices=lanes, help="qualify one lane in its own clean checkout; not the full suite")
     parser.add_argument("--work-root", type=Path, default=Path('/var/tmp'),
                         help="persistent short-path checkout parent (default: /var/tmp)")
     args = parser.parse_args()
@@ -40,8 +44,12 @@ def main():
         # must not leak from the calling shell into the isolated proof.
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("REY_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
-        for task in ("transit-board::install", "ci::complete" if args.complete else "ci"):
-            run("nix", "develop", "--command", "just", task, cwd=checkout, env=env)
+        selected = f"ci::{args.lane}" if args.lane else "ci::complete" if args.complete else "ci"
+        for task in ("transit-board::install", selected):
+            # Direct lane recipes expect their qualification tools in the shell;
+            # the ordinary/complete aggregate recipes enter this shell themselves.
+            shell = (".#bindings",) if args.lane and task == selected else ()
+            run("nix", "develop", *shell, "--command", "just", task, cwd=checkout, env=env)
     except (subprocess.CalledProcessError, KeyboardInterrupt):
         print(f"Clean CI did not complete; checkout and failure evidence retained at {directory}", flush=True)
         raise
@@ -50,7 +58,8 @@ def main():
             shutil.copytree(checkout / ".cache/ci", evidence)
             print(f"Clean CI timing and completion evidence: {evidence}", flush=True)
         shutil.rmtree(directory)
-    print("Clean CI passed without inherited workspace build outputs.", flush=True)
+    label = f"Clean CI lane {args.lane}" if args.lane else "Clean CI"
+    print(f"{label} passed without inherited workspace build outputs.", flush=True)
 
 
 if __name__ == "__main__":

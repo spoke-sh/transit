@@ -1407,7 +1407,8 @@ use `just fmt` to fix formatting.
 
 Before pushing committed work, run `just ci-clean`. It refuses uncommitted source
 changes, clones the exact HEAD into a temporary directory, installs the locked
-frontend dependencies, and runs the same core/experience/bindings task inventory as hosted CI. It inherits the
+frontend dependencies, and runs the same core/growth/experience/launchers/bindings
+task inventory as hosted CI. It inherits the
 Nix store and global compiler caches, but no checkout build outputs, launcher
 state, dotenv file or `node_modules`. Successful runs remove the temporary clone;
 timing/completion evidence survives under `.cache/ci/clean/`;
@@ -1417,6 +1418,14 @@ undeclared dependency. Compose explicitly builds a native caller for its
 host-side stale-credential check. The browser proof remains a separate
 `just transit-board::browser` step, as it is in hosted CI; neither command
 qualifies the separate reference or physical-capacity profiles.
+
+`just ci-clean --lane NAME` qualifies one inventory lane in its own fresh clone
+with the pinned binding toolchain. Independent invocations may run concurrently
+without sharing checkout outputs. A passing lane is partial evidence: the ordinary
+clean gate requires completed metadata and every expected task for core, growth,
+experience, launchers and bindings at the **same committed revision**. Retain all
+five reports; do not combine different revisions or count an interrupted lane.
+This changes neither hosted lane allocation nor the M10 feedback/cost budgets.
 
 Use `just ci::complete` or `just ci-clean --complete` to include Chromium in the
 same invocation after `just transit-board::browser-install`. `just test::unit`
@@ -3151,6 +3160,14 @@ uncertainty before asserting retirement. No accepted lifetime is extended.
 `just bindings::python-test` passes with this correction. The incomplete clean
 run and its evidence remain at `/var/tmp/transit-ci-ftq9vsk2`; it does not satisfy
 the final clean gate.
+
+The next clean run at `8fefb1c` passed all four non-binding lanes and the
+cross-language, Python, Node, Rust and Ruby SDK tasks before the C/C++ runner
+harness raised `UnboundLocalError`. Its Document command branch shadowed the
+ordinary codec-fixture path. The paths now have distinct names; this changes
+only fixture command construction. The failed run is retained at
+`/var/tmp/transit-ci-92t7owi1` and remains incomplete. Final qualification must
+execute every ordinary lane at one corrected committed revision.
 
 ## M24 console qualification
 
