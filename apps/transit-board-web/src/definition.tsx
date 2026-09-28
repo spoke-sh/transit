@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useReducer, useState } from "react";
 import {
   compile,
+  abandonPublication,
   diagram,
   importOperatorKey,
   keySigner,
@@ -342,10 +343,13 @@ export function DefinitionEditor() {
                 const receipt = previous.state.receipt;
                 if (
                   (receipt && receipt.phase !== "applied" && receipt.phase !== "abandoned") ||
+                  (receipt?.phase === "abandoned" &&
+                    receipt.owns_record &&
+                    previous.state.upload?.reserved !== false) ||
                   (!receipt && workspace.review.lastInput !== 0)
                 )
                   throw new Error(
-                    "Finish or explicitly abandon the retained reviewed operation before replacing it",
+                    "Finish publication or abandon and collect the retained upload before replacing it",
                   );
               }
               workspace.review = await reviewPublication(session!, workspace.compiled!);
@@ -398,6 +402,23 @@ export function DefinitionEditor() {
             >
               Publish reviewed definition
             </button>
+            <button
+              disabled={workspace.busy || !session || !!session.pending}
+              onClick={() =>
+                void run(() =>
+                  abandonPublication(session!, workspace.review!, (text) => {
+                    workspace.status = text;
+                    changed();
+                  }),
+                )
+              }
+            >
+              Abandon upload and release staging
+            </button>
+            <p>
+              Abandonment closes only an unpublished upload. Applied revisions and retained history
+              remain.
+            </p>
           </div>
         )}
         {session && (

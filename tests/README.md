@@ -2957,3 +2957,10 @@ to an active owner. The corrected fixture declares them on a fresh unowned PID.
 A missing observation position on association continuation also failed; cursors
 now preserve the native position and changed cuts require rescan. No kernel
 permission or fencing rule was weakened to make either proof pass.
+
+The application browser proof also covers staging interruption, explicit
+abandonment, a lost collect reply recovered with identical signed bytes, released
+staging capacity and refusal to abandon an applied revision. The expanded run
+passed in 52.3 seconds (53.0 seconds including the browser runner), excluding
+compilation and native setup. Package owner tests cover multiple collection turns,
+interrupted half chunks, exact proposal mismatch and the four-mutation bound.

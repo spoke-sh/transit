@@ -52,13 +52,21 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await page.getByRole("button", { name: "Review publication" }).click();
   await expect(page.getByLabel("Publication review")).toContainText("Base 0 → revision 1");
   let dropped = false;
+  let dropPart = false;
+  let dropCollect = false;
   const submitted: string[] = [];
   await page.route("**/api/v1/application", async (route) => {
     const value = route.request().postDataJSON();
     if (value.submit) {
       submitted.push(JSON.stringify(value.submit));
-      if (!dropped) {
+      if (
+        !dropped ||
+        (dropPart && value.submit.prepared.command.part?.second) ||
+        (dropCollect && value.submit.prepared.command.collect)
+      ) {
         dropped = true;
+        dropPart = false;
+        dropCollect = false;
         await route.fetch();
         await route.abort("failed");
         return;
@@ -67,7 +75,9 @@ test("complete definition editing and exact operator recovery", async ({ page, c
     await route.continue();
   });
   await page.getByRole("button", { name: "Publish reviewed definition" }).click();
-  await expect(page.getByRole("button", { name: "Retry exact submission" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry exact submission" })).toBeVisible({
+    timeout: 30000,
+  });
   const changedDraft = (await page.getByLabel("Interface SQL").inputValue()).replace(
     "My atlas",
     "Unreviewed atlas",
@@ -76,7 +86,9 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await expect(page.getByLabel("Publication review")).toContainText("Base 0 → revision 1");
   await page.getByRole("link", { name: "Back to atlas" }).click();
   await page.getByRole("link", { name: "Definition recovery", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Retry exact submission" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry exact submission" })).toBeVisible({
+    timeout: 30000,
+  });
   await page.getByRole("button", { name: "Retry exact submission" }).click();
   await expect(page.getByRole("status")).toContainText("Native admission recovered");
   expect(submitted[0]).toEqual(submitted[1]);
@@ -96,8 +108,32 @@ test("complete definition editing and exact operator recovery", async ({ page, c
   await expect(page.getByRole("status")).toContainText("original base remains frozen");
   await page.getByRole("button", { name: "Publish reviewed definition" }).click();
   await expect(page.getByRole("status")).toHaveText("Published revision 1", { timeout: 120000 });
+  await page.getByRole("button", { name: "Abandon upload and release staging" }).click();
+  await expect(page.getByRole("status")).toHaveText("QueryConflict");
   await page.getByRole("button", { name: "Load current definition" }).click();
   await expect(page.getByLabel("Interface SQL")).toHaveValue(/My atlas/);
+  await page.getByRole("button", { name: "Review publication" }).click();
+  await expect(page.getByLabel("Publication review")).toContainText("Base 1 → revision 2");
+  dropPart = true;
+  await page.getByRole("button", { name: "Publish reviewed definition" }).click();
+  await expect(page.getByRole("button", { name: "Retry exact submission" })).toBeVisible({
+    timeout: 30000,
+  });
+  await page.getByRole("button", { name: "Retry exact submission" }).click();
+  await expect(page.getByRole("status")).toContainText("Native admission recovered");
+  dropCollect = true;
+  await page.getByRole("button", { name: "Abandon upload and release staging" }).click();
+  await expect(page.getByRole("button", { name: "Retry exact submission" })).toBeVisible({
+    timeout: 30000,
+  });
+  const cleanupSubmission = submitted.at(-1);
+  await page.getByRole("button", { name: "Retry exact submission" }).click();
+  await expect(page.getByRole("status")).toContainText("Native admission recovered");
+  expect(submitted.at(-1)).toEqual(cleanupSubmission);
+  await page.getByRole("button", { name: "Abandon upload and release staging" }).click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Upload abandoned; staging reservation released. History retained.",
+  );
   await oldClient.bringToFront();
   await expect(oldClient.locator(".transit-shell")).toHaveAttribute(
     "data-interface-generation",

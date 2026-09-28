@@ -42,3 +42,11 @@ SQL compilation, Form/Canvas edits and upload planning cannot admit commands.
 `readInterface` returns either the explicitly labeled built-in artifact or one
 fully verified published revision acquired through current public reads. Hosts
 must not replace a denied published read with a stale or built-in definition.
+
+`abandonPublication` explicitly closes an unpublished reviewed operation and then
+uses the shared Zig continuation to collect at most two staged chunks per native
+turn. Observations expose collected chunks and reservation ownership. Completion
+means the staging reservation was released, not that historical roots were
+physically erased. Applied revisions cannot be abandoned. Cleanup uses the same
+frozen-signature recovery path; a lost collect reply must be retried exactly.
+The editor keeps the reviewed plan until abandonment and collection finish.

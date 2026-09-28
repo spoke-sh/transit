@@ -35,6 +35,7 @@ pub const Request = union(enum) {
     },
     format: root.Model.Definition,
     next_upload: root.Upload.Input,
+    next_cleanup: root.Upload.Cleanup,
     prepare: struct { principal: u64, sequence: root.Model.Wide, command: root.Request.Command },
     submit: n.Signed,
     prepare_read: struct { principal: u64, selection: n.Selection },
@@ -54,6 +55,7 @@ pub const Response = union(enum) {
     prepared: n.Prepared,
     admitted: client.Receipt,
     next_upload: ?root.Request.Command,
+    next_cleanup: ?root.Request.Command,
     prepared_read: n.PreparedRead,
     observation: n.Observation,
 };
@@ -93,6 +95,7 @@ pub fn run(allocator: std.mem.Allocator, wire: *client.Client, config: Config, r
     }
     const result: Response = switch (request) {
         .next_upload => |value| .{ .next_upload = try root.Upload.next(allocator, value) },
+        .next_cleanup => |value| .{ .next_cleanup = try root.Upload.nextCleanup(value) },
         .info => .{ .info = .{ .scope = config.scope } },
         .prepare => |value| blk: {
             try config.admit(value.principal);

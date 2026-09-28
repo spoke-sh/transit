@@ -2,6 +2,27 @@
 //! only the durable owner and current native authority can admit it.
 const std = @import("std");
 const root = @import("root.zig");
+pub const Cleanup = struct { proposal: root.Publication.Proposal, state: root.Native.State };
+/// Close only the caller's exact reviewed upload, then reclaim its staging
+/// reservation in bounded turns. Published revisions and permanent receipts stay.
+pub fn nextCleanup(input: Cleanup) !?root.Request.Command {
+    try root.Publication.validateProposal(input.proposal);
+    const receipt = input.state.receipt orelse return error.ApplicationOperationNotFound;
+    if (!std.meta.eql(receipt.proposal, input.proposal)) return error.ApplicationOperationConflict;
+    switch (receipt.phase) {
+        .applied => return error.ApplicationAlreadyApplied,
+        .staging, .conflict => return .{ .abandon = input.proposal.operation },
+        .abandoned => {},
+    }
+    if (!receipt.owns_record) return null;
+    const upload = input.state.upload orelse return error.ApplicationUploadUnavailable;
+    if (upload.state != .abandoned or upload.first_half or upload.collected > upload.written or upload.written > input.proposal.spec.chunks()) return error.ApplicationUploadUnavailable;
+    if (!upload.reserved) {
+        if (upload.collected != upload.written) return error.ApplicationUploadUnavailable;
+        return null;
+    }
+    return .{ .collect = input.proposal.operation };
+}
 pub const Input = struct {
     proposal: root.Publication.Proposal,
     canonical: []const u8,

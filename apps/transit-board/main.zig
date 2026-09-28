@@ -104,7 +104,7 @@ const Server = struct {
         upstream.parent_context = self.observation.span.context;
         var result = application.Host.run(self.allocator, &upstream, config, parsed.value) catch |err| {
             if (err == error.ApplicationOperatorDenied or err == error.ApplicationOperationDenied) return self.failure(req, .forbidden, .Forbidden);
-            if (err == error.ApplicationOperationConflict) return self.failure(req, .conflict, .QueryConflict);
+            if (err == error.ApplicationOperationConflict or err == error.ApplicationAlreadyApplied) return self.failure(req, .conflict, .QueryConflict);
             if (err == error.InvalidApplicationProgram) return self.failure(req, .bad_request, .UnsupportedQuery);
             if (err == error.ApplicationScopeChanged or err == error.ApplicationDigestMismatch or err == error.InvalidApplicationSelection or err == error.InvalidApplicationScope or err == error.InvalidApplicationOperation or err == error.InvalidApplicationPart or err == error.InvalidApplicationPolicy or err == error.InvalidApplicationProposal or err == error.InvalidSequence) return self.failure(req, .bad_request, .InvalidQuery);
             return self.queryFailure(req, &upstream, err);

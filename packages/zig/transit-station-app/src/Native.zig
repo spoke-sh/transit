@@ -30,7 +30,7 @@ pub const State = struct {
     policy: ?Pub.Policy,
     head: ?Pub.Head,
     receipt: ?Pub.Receipt,
-    upload: ?struct { written: u32, first_half: bool, state: root.station.Publication.State },
+    upload: ?struct { written: u32, collected: u32, reserved: bool, first_half: bool, state: root.station.Publication.State },
     disposition: ?p.Value,
 };
 pub const Observation = union(enum) { identity: Identity, state: State };
@@ -121,7 +121,7 @@ pub fn read(wire: *client.Client, scope: Scope, signed: SignedRead) !Observation
                 if (operation.owns_record) {
                     const descriptor = try root.station.Publication.Descriptor.decode((try batch.read(root.station.Publication.key(scope.namespace.value, 'r', selected.record.value, 0))) orelse return error.MissingPublicationChunk);
                     if (!std.meta.eql(descriptor.spec, operation.proposal.spec)) return error.ApplicationPublicationChanged;
-                    result.upload = .{ .written = descriptor.written, .first_half = try batch.read(root.Records.key(scope.application, 'x', signed.prepared.principal, selected.operation.value)) != null, .state = descriptor.state };
+                    result.upload = .{ .written = descriptor.written, .collected = descriptor.collected, .reserved = descriptor.reserved, .first_half = try batch.read(root.Records.key(scope.application, 'x', signed.prepared.principal, selected.operation.value)) != null, .state = descriptor.state };
                 }
             }
             return .{ .state = result };

@@ -73,6 +73,62 @@ fn mutationCount(turn: *const Turn) usize {
     };
     return count;
 }
+test "cleanup continuation closes exact staging work and releases its reservation in bounded turns" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const body = try canonicalBody(1, false);
+    defer t.allocator.free(body);
+    const proposal = try makeProposal(51, 61, null, body);
+    // Leave several complete chunks plus an interrupted half chunk.
+    var begin = try store.turn(44);
+    _ = try configured().beginUpload(&begin, proposal);
+    try store.commit(&begin);
+    for (0..7) |index| {
+        var turn = try store.turn(44);
+        const offset = index * s.PublicationParts.part_bytes;
+        _ = try configured().appendUpload(&turn, proposal.operation, .{ .ordinal = @intCast(index / 2), .second = index % 2 != 0, .bytes = body[offset..@min(body.len, offset + s.PublicationParts.part_bytes)] });
+        try store.commit(&turn);
+    }
+    var rounds: usize = 0;
+    while (true) {
+        var turn = try store.turn(44);
+        const receipt = (try configured().receipt(&turn, 44, proposal.operation)).?;
+        const descriptor = try s.Publication.Descriptor.decode((try turn.read(s.Publication.key(19, 'r', proposal.record.value, 0))).?);
+        const state: root.Native.State = .{
+            .revision = .{ .value = store.position },
+            .configuration = configured().configuration,
+            .policy = try configured().policy(&turn, 44),
+            .head = try configured().head(&turn),
+            .receipt = receipt,
+            .disposition = null,
+            .upload = .{ .written = descriptor.written, .collected = descriptor.collected, .reserved = descriptor.reserved, .state = descriptor.state, .first_half = try turn.read(root.Records.key(9, 'x', 44, proposal.operation.value)) != null },
+        };
+        var wrong = proposal;
+        wrong.record.value += 1;
+        try t.expectError(error.ApplicationOperationConflict, root.Upload.nextCleanup(.{ .proposal = wrong, .state = state }));
+        const next = (try root.Upload.nextCleanup(.{ .proposal = proposal, .state = state })) orelse {
+            try t.expectEqual(Pub.Phase.abandoned, receipt.phase);
+            try t.expectEqual(descriptor.written, descriptor.collected);
+            try t.expect(!descriptor.reserved);
+            break;
+        };
+        switch (next) {
+            .abandon => |operation| try configured().abandon(&turn, operation),
+            .collect => |operation| {
+                _ = try configured().collect(&turn, operation);
+            },
+            else => return error.UnexpectedContinuation,
+        }
+        try t.expect(mutationCount(&turn) <= 4);
+        try store.commit(&turn);
+        rounds += 1;
+        try t.expect(rounds <= 3);
+    }
+    try t.expectEqual(@as(usize, 3), rounds);
+    var final = try store.turn(44);
+    try t.expect(try configured().head(&final) == null);
+}
 test "independent AP1 layouts preserve full-width identities and reject unknown record data" {
     const Fixture = struct { version: u8, proposal: Pub.Proposal, proposal_hex: p.Value, receipt: Pub.Receipt, receipt_hex: p.Value, head: Pub.Head, head_hex: p.Value, key_hex: p.Value, commands: []const struct { command: root.Request.Command, hex: p.Value } };
     const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/publication-v1.json"));

@@ -242,17 +242,41 @@ export async function publish(
   progress: (text: string) => void,
   transport: Transport = request,
 ): Promise<void> {
+  return advancePublication(session, review, progress, transport, false);
+}
+
+/** Explicit abandonment never rolls back an applied interface. Collection only
+ * releases this upload's reservation; permanent receipts and history survive. */
+export async function abandonPublication(
+  session: OperatorSession,
+  review: Review,
+  progress: (text: string) => void,
+  transport: Transport = request,
+): Promise<void> {
+  return advancePublication(session, review, progress, transport, true);
+}
+
+async function advancePublication(
+  session: OperatorSession,
+  review: Review,
+  progress: (text: string) => void,
+  transport: Transport,
+  cleanup: boolean,
+): Promise<void> {
   if (!same(review.scope, session.scope) || review.principal !== session.principal)
     throw new Error("Reviewed plan has another operator or scope");
   if (session.pending) throw new Error("Retry the exact pending submission first");
   let previous = "";
   let unchanged = 0;
+  // A prior publication denial does not forbid an explicit attempt to abandon.
+  // Every input admitted by this invocation still requires its own observation.
+  let input = cleanup ? 0 : review.lastInput;
   for (let steps = 0; steps < 520;) {
     const observation = await session.read({
       state: {
         operation: review.proposal.operation,
         record: review.proposal.record,
-        input: review.lastInput,
+        input,
       },
     });
     if (!("state" in observation)) throw new Error("Missing application state");
@@ -261,15 +285,29 @@ export async function publish(
       throw new Error(
         "The application retained a rejected input; review current policy and operation status",
       );
-    const response = await transport({
-      next_upload: { proposal: review.proposal, canonical: review.compiled.canonical, state },
-    });
-    if (!("next_upload" in response)) throw new Error("Missing upload continuation");
-    if (response.next_upload === null) {
-      progress(`Published revision ${review.proposal.revision}`);
+    const response = await transport(
+      cleanup
+        ? { next_cleanup: { proposal: review.proposal, state } }
+        : {
+            next_upload: { proposal: review.proposal, canonical: review.compiled.canonical, state },
+          },
+    );
+    const next =
+      cleanup && "next_cleanup" in response
+        ? response.next_cleanup
+        : !cleanup && "next_upload" in response
+          ? response.next_upload
+          : undefined;
+    if (next === undefined) throw new Error("Missing publication continuation");
+    if (next === null) {
+      progress(
+        cleanup
+          ? "Upload abandoned; staging reservation released. History retained."
+          : `Published revision ${review.proposal.revision}`,
+      );
       return;
     }
-    const current = JSON.stringify(response.next_upload);
+    const current = JSON.stringify([next, state.upload, state.receipt?.phase]);
     if (current === previous) {
       if (++unchanged > 80)
         throw new Error(
@@ -280,9 +318,11 @@ export async function publish(
     }
     unchanged = 0;
     progress(
-      `Staging revision ${review.proposal.revision} · ${state.upload?.written ?? 0} committed chunks`,
+      cleanup
+        ? `Cleaning abandoned upload · ${state.upload?.collected ?? 0} of ${state.upload?.written ?? 0} chunks collected`
+        : `Staging revision ${review.proposal.revision} · ${state.upload?.written ?? 0} committed chunks`,
     );
-    review.lastInput = await session.submit(response.next_upload);
+    review.lastInput = input = await session.submit(next);
     steps++;
     previous = current;
   }

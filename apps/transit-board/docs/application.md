@@ -122,3 +122,10 @@ requires an explicit fresh scan; the UI clears the failed page rather than mergi
 incompatible counts. It holds one response, discards denied contributions and
 pauses hidden-tab reads. Ten shared aliases in the native proof still produce one
 backing-resource plot and one row per PID on each displayed association page.
+
+Use **Abandon upload and release staging** to close an unpublished reviewed
+operation and finish bounded collection. An interrupted collection retains the
+same recovery controls and reviewed plan. The editor permits replacing that plan
+only after cleanup releases its reservation. This does not retire an active
+interface or erase retained history; attempting to abandon an applied revision
+returns a conflict.

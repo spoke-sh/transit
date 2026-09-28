@@ -100,3 +100,8 @@ steps, exact reconstruction, conflicting plans and ordinals, current denial,
 explicit abandonment, source mismatch, infrastructure errors and rollback of
 partial decisions. These are ledger tests; migration ingress, actual Table data
 transformation and physical recovery are still unqualified.
+
+The host's `next_cleanup` continuation composes explicit abandonment with bounded
+publication collection. Signed state reads expose `collected` and `reserved` so
+clients distinguish closure from released staging capacity. Permanent descriptors
+and receipts remain; applied interface revisions are never rolled back by cleanup.
