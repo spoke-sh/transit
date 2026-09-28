@@ -1066,7 +1066,90 @@
         "Independent native signing digests; scoped host admission, current signed reads and exact browser retry after a real route remount",
         "Actual embedded SQL/Form/Canvas editing and conditional publication, then worker/node/disk restart and current reader revocation"
       ],
-      "limits": "64 KiB per body, two staged bodies, 128-byte transport parts, 512 KiB escaped host envelope and at most sixteen explicitly admitted host operators; four mutations for atomic visibility. Native proof uses a 1002-byte interface and 20 turns. Actual Board browser qualification covers one native installation. Interface-generation replacement, application data migration and Compose/reference application qualifications remain open. No new hosted CI budget.",
+      "limits": "64 KiB per body, two staged bodies, 128-byte transport parts, 512 KiB escaped host envelope and at most sixteen explicitly admitted host operators; four mutations for atomic visibility. Native proof uses a 1002-byte interface and 20 turns. Actual Board browser qualification covers one native installation. Generated application evolution and physical placement have their separate APPLICATION-02 proof boundary below. No new hosted CI budget.",
+      "model": null
+    },
+    {
+      "id": "APPLICATION-02",
+      "claim": "A generated interface can switch a verified bounded Table evolution while retaining exact publication and original-query recovery",
+      "owner": "contracts/APPLICATION_MIGRATION_V1.md",
+      "implementation": [
+        "packages/zig/transit-station-app/src/Migration.zig",
+        "examples/work-items/WorkItems.zig",
+        "examples/work-items/Gateway.zig",
+        "examples/work-items/web/browser/proof.mjs",
+        "examples/work-items/placed.py"
+      ],
+      "profile": "M23 work-item Table migration, native/Compose/Substrate generated application",
+      "tasks": [
+        "test::unit",
+        "test::work-items",
+        "test::work-items-browser",
+        "test::work-items-placement"
+      ],
+      "scenarios": [
+        "Independent ledger commitment/encoding, exact step recovery, explicit write pause and two-row backfill with separate complete verification",
+        "Nineteen rows across three verified result pages, conditional interface publication and write release after schema activation",
+        "Lost admitted upload, original-query recovery through source contract change, explicit new Run and current denial clearing",
+        "Fresh worker keys/generations after all owners, gateway, node and disk-store replacement in Compose and reference placements"
+      ],
+      "limits": "One int64 status-to-state evolution with paused writes, four mutations per normal step and no cross-resource atomicity or automatic inverse. Reference TLS edge retains an 8 KiB request cap and uses native operator publication; it does not qualify larger browser operator uploads. No generic schema evolution, cluster authority migration or hosted budget claim.",
+      "model": null
+    },
+    {
+      "id": "CLI-01",
+      "claim": "Terminal editing and authorized cursor assistance never submit implicitly, and lost replies retain the exact accepted query identity",
+      "owner": "contracts/TRANSIT_CLI_V1.md",
+      "implementation": [
+        "apps/transit-cli/Console.zig",
+        "apps/transit-cli/Terminal.zig",
+        "packages/zig/transit-query/src/Assistance.zig",
+        "packages/zig/transit-query/src/Workspace.zig",
+        "packages/ts/transit-query-client/src/assistance.ts",
+        "tests/console.py"
+      ],
+      "profile": "M24 finite read-only KV/Table/Document console and shared Board cursor assistance",
+      "tasks": [
+        "test::unit",
+        "test::console",
+        "test::unified-ingress"
+      ],
+      "scenarios": [
+        "Real controlling terminal and pipes: multiline comments/quotes, bracketed paste, UTF-8 boundaries, replacement/accept/undo, EOF, resize and signals",
+        "Current scoped metadata, stale-input/catalog rejection, one pending request and current denial clearing",
+        "Lost accepted reply followed by process loss and locked private recovery, exact retry, verified result pages and safe terminal rendering",
+        "Explicit private-CA TLS succeeds; wrong root/hostname fails; stalled stdout ends through a joined deadline"
+      ],
+      "limits": "One configured source, one finite bundle/pending request/cursor, 4096-byte SQL draft, eight suggestions and bounded in-memory history. Completion latency/RSS are single-run fixture measurements. No writes, administrative SQL, continuous terminal execution or implicit persistent history.",
+      "model": null
+    },
+    {
+      "id": "CLI-02",
+      "claim": "An owned local installation recovers persisted provisioning and fresh worker ownership without silently replacing history or substituting gateway credentials",
+      "owner": "contracts/TRANSIT_CLI_V1.md",
+      "implementation": [
+        "apps/transit-cli/server/Installation.zig",
+        "apps/transit-cli/server/Server.zig",
+        "apps/transit-cli/server/Process.zig",
+        "apps/transit-cli/server/Gateway.zig",
+        "tests/server.py",
+        "tests/server_faults.py",
+        "tests/server_capacity.py"
+      ],
+      "profile": "M24 Linux local_table_v1 with native MinIO, disk Ursula and eight owned child roles",
+      "tasks": [
+        "test::unit",
+        "test::server",
+        "test::server-faults",
+        "test::server-capacity"
+      ],
+      "scenarios": [
+        "Interrupted persisted bootstrap recovers identical identities/receipts; duplicate manager, listener conflicts, changed artifacts and missing/rolled-back storage reject",
+        "Manager SIGKILL, child/node/store loss, fresh keys/increasing generations and preserved activation markers; bounded restart exhaustion and forced shutdown join children and pipe readers",
+        "Independent console verifies empty Table COUNT through a gateway that preserves signed bodies/native denial and reserves control under stalled data",
+        "Real ext4 ENOSPC after accepted query; bounded control/shutdown and exact query recovery after space is released; full log prefixes keep draining"
+      ],
+      "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M25 owns upgrade transitions.",
       "model": null
     }
   ]

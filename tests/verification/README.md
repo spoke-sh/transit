@@ -50,6 +50,13 @@ includes inbound transport and metadata checks; the complete browser lane owns
 M21's consumer schedules. Local pass evidence does not establish a new hosted
 feedback or aggregate runner-minute budget for either addition.
 
+M23/M24 register generated application, placement, terminal and local-supervisor
+proofs as explicit focused/external tasks. The application migration, console and
+local installation invariants identify the owning implementations and their
+executed limits. These additions do not expand the ordinary five CI lanes;
+physical ENOSPC and reference placements remain explicit environment-dependent
+proofs. The proof ledger records each selected source and placement separately.
+
 ## CI and clean-run cost evidence
 
 The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback

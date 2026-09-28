@@ -120,7 +120,9 @@
       "examples::serving-reference",
       "test::reactive-placement",
       "test::reactive-views-placement",
-      "test::flight-placement"
+      "test::flight-placement",
+      "test::work-items-placement",
+      "test::server-capacity"
     ],
     "discovery": [
       "test::mutations"
@@ -171,7 +173,12 @@
       "test::flight-outbound",
       "test::application-grammar",
       "test::application",
-      "test::application-browser"
+      "test::application-browser",
+      "test::work-items",
+      "test::work-items-browser",
+      "test::console",
+      "test::server",
+      "test::server-faults"
     ]
   },
   "nested_tasks": {

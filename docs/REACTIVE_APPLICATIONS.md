@@ -3,8 +3,9 @@
 Status: [M23](roadmap/M23.md) implementation in progress, reviewed through
 [board-grammar D1](design/board-grammar/D1.md). The bounded application v1 compiler, conditional publication, declared Board
 shell, finite Table draft scheduler and data-owner migration ledger are
-implemented in their owning packages. The generated downstream workflow and
-placement matrix remain open; this design document is not executable evidence.
+implemented in their owning packages. The generated work-item workflow passes
+its native, Compose and reference placement proofs; final clean-checkout
+qualification is tracked in M23. This design document is not executable evidence.
 [Serving](SERVING.md), [reactive APIs](REACTIVE_API.md), [reactive interfaces](REACTIVE.md)
 and [Arrow](ARROW.md) retain their M19–M22 contracts and qualification limits.
 
@@ -197,8 +198,10 @@ The first implemented boundary is [application v1](../contracts/APPLICATION_V1.m
 one bounded SQL/JSON model and a conditional Station publication owner. Operator
 policy is outside editable presentation; each immutable body and exact proposal
 has retained evidence. Publication and active-head visibility share an ordinary
-four-mutation turn. The offline compiler and owner tests do not yet qualify
-administrative ingress, generated browser clients or physical migration recovery.
+four-mutation turn. Administrative ingress, generated browser clients and
+physical migration recovery have separate executed proofs in the
+[test ledger](../tests/README.md#m23-application-declaration-boundary); offline
+compiler and owner tests alone do not qualify those boundaries.
 
 
 ## Current M23 implementation boundary
