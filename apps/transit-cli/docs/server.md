@@ -1,5 +1,9 @@
 # Local server
 
+`transit serve` is an alias for `transit server`, with the same options and
+recovery contract. The [Nix packages](../../../nix/README.md#transit-cli-packages)
+supply the CLI and pinned native neighborhood artifacts.
+
 `transit server --config server.json --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
 `--initialize`. The Linux `local_table_v1` bootstrap, independent console and
