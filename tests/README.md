@@ -3029,3 +3029,11 @@ placement, a distributed controller or authority transfer. Four unit tests and
 independent Python command/cursor fixtures cover empty and 33-row migrations,
 full-width keys/ordinals, exact reconstruction, target corruption and abandoned
 Table identities. Retention remains unlimited.
+
+The v2 Document workspace also passes the M23 SQL candidate/profile browser
+checks with current denial and the original worker/store and exact-retry suite.
+The full run measured 831.88 seconds (473.65 seconds provisioning), twelve rows
+in two result segments, 37,576,704 bytes RSS across two Board instances and
+148,158,801 retained cold bytes. Searching `count` can match Document column
+names as well as COUNT; the catalog filters before its eight-result bound.
+This does not enable Document Live draft or change the hosted M10 budget.
