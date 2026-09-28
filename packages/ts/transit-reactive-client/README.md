@@ -1,5 +1,11 @@
 # transit-reactive-client
 
+Attachment recovery reserves lease headroom before taking the caller's control
+sequence. The client renews first near expiry and waits for an advancing committed
+clock sample when necessary. The HTTP host allows ten seconds for the attachment
+to become observable within its thirty-second joined request budget. This avoids
+repeated uncertain attachments starving renewal; it does not extend the lease.
+
 Reusable, framework-independent TypeScript consumer of the
 [shared reactive API](../../../contracts/REACTIVE_V1.md) and its explicit
 [private host adapter](../../../contracts/REACTIVE_CLIENT_V1.md). No signing seed,

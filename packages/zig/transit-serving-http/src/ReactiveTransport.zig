@@ -87,7 +87,11 @@ const Task = struct {
             _ = try self.adapter(&client).attach(bootstrap, key);
         }
         const start = Io.Clock.awake.now(self.io);
-        while (start.durationTo(Io.Clock.awake.now(self.io)).toMilliseconds() < 2000) {
+        // Native acceptance and owner commit are separate. A two-second window
+        // can repeatedly abandon already accepted attachments during capture,
+        // creating control churn and starving lease renewal on slower hosts.
+        // This finite wait still fits the declared 30-second joined HTTP task.
+        while (start.durationTo(Io.Clock.awake.now(self.io)).toMilliseconds() < 10000) {
             fixed.reset();
             // Observe the committed attachment and current source authority.
             // Acquiring an event/cursor here would duplicate the stream's first

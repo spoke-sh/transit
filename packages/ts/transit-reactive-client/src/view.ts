@@ -312,8 +312,16 @@ export class LiveView<T> {
   private async stream(epoch: number, signal: AbortSignal) {
     while (!signal.aborted && epoch === this.epoch) {
       try {
-        if (!this.session.pending && !this.session.busy)
+        if (!this.session.pending && !this.session.busy) {
+          // Attaching owns the caller sequence until its receipt is known.
+          // Give renewal priority before entering that bounded wait.
+          if (Date.now() + 20000 >= this.session.leaseBefore) await this.session.renew(signal);
+          if (Date.now() + 15000 >= this.session.leaseBefore) {
+            await sleep(500, signal);
+            continue;
+          }
           await this.session.follow((message) => this.accept(message), signal);
+        }
       } catch (error) {
         if (!signal.aborted && epoch === this.epoch) this.fail(error);
       }

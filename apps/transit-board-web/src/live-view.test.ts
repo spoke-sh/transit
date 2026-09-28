@@ -186,6 +186,36 @@ test("pause retries transient control capacity after joining local tasks", async
   expect(session.scope).toBeNull();
 });
 
+test("a reconnect renews before owning the sequence for attachment", async () => {
+  const session = attachedSession();
+  const acquired = deferred<void>();
+  let renewals = 0;
+  session.open = async () => {
+    session.scope = scope;
+    session.leaseBefore = Date.now() + 10000;
+  };
+  session.renew = async () => {
+    ++renewals;
+    session.leaseBefore = Date.now() + 30000;
+  };
+  const follow = session.follow.bind(session);
+  session.follow = async (consume, signal) => {
+    expect(renewals).toBe(1);
+    expect(session.leaseBefore).toBeGreaterThan(Date.now() + 15000);
+    return follow(consume, signal);
+  };
+  session.close = async () => {
+    session.scope = null;
+  };
+  const view = new LiveView(session, async () => {
+    acquired.resolve();
+    return snapshot;
+  });
+  await view.start();
+  await acquired.promise;
+  await view.pause();
+});
+
 test("startup reconciles accepted control before subscribing or acquiring", async () => {
   const session = attachedSession();
   const acquired = deferred<void>();
