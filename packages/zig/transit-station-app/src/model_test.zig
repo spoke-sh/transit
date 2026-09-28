@@ -50,6 +50,8 @@ test "whole-program validation rejects unknown unsupported and cross-kind defini
         .{ "path = '/explore'", "path = '/atlas'", error.DuplicateInterfacePath },
         .{ "path = '/explore'", "path = '//evil'", error.InvalidInterfacePath },
         .{ "profile = 'unified_v2'", "profile = 'table_v1'", error.UnsupportedInterfaceWatch },
+        .{ "source_kind = 'table'", "source_kind = 'kv'", error.UnsupportedInterfaceWatch },
+        .{ "source_kind = 'table'", "source_kind = 'document'", error.UnsupportedInterfaceWatch },
     };
     inline for (cases) |case| {
         const changed = try std.mem.replaceOwned(u8, t.allocator, fixture, case[0], case[1]);

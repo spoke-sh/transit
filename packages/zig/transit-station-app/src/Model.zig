@@ -29,6 +29,7 @@ pub const Query = struct {
     pub const json_schema_fields = .{ .name = name_schema, .sql = .{ .type = "string", .minLength = 1, .maxLength = 4096 } };
     resource: u64,
     name: []const u8,
+    source_kind: enum { table, kv, document },
     schema: [32]u8,
     profile: enum { table_v1, unified_v2 },
     sql: []const u8,
@@ -96,7 +97,8 @@ pub const Definition = struct {
                 try text(value.sql, 4096);
                 _ = try root.serving.query.fuze.Sql.parse(value.sql);
                 if (value.starts == 0 or value.starts > 8 or (value.refresh == .snapshot and value.starts != 1)) return error.InvalidQueryBudget;
-                if (value.refresh == .follow and value.profile != .unified_v2) return error.UnsupportedInterfaceWatch;
+                if (value.refresh == .follow and (value.profile != .unified_v2 or value.source_kind != .table)) return error.UnsupportedInterfaceWatch;
+                if (value.profile == .table_v1 and value.source_kind != .table) return error.UnsupportedInterfaceSource;
             },
             .command => |value| {
                 try native(value.service);

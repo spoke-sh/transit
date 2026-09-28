@@ -1,0 +1,10 @@
+export function Definition(value: unknown): boolean;
+export function Theme(value: unknown): boolean;
+export function Screen(value: unknown): boolean;
+export function Binding(value: unknown): boolean;
+export function Action(value: unknown): boolean;
+export function Configuration(value: unknown): boolean;
+export function Policy(value: unknown): boolean;
+export function Proposal(value: unknown): boolean;
+export function Receipt(value: unknown): boolean;
+export function Head(value: unknown): boolean;

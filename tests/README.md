@@ -2861,3 +2861,12 @@ compilation). This proves native publication recovery; application browser,
 HTTP operator ingress, data migration and Compose/reference placements remain open.
 The proof and independent grammar are explicit focused tasks, without expanding
 ordinary PR lanes or claiming a new hosted budget.
+
+The application browser package has strict type/format/lint checks and executable
+Vite+ tests in `just transit-board::check`. Its generated CSP-compatible validators
+reject unknown fields, coercion, unsupported component versions and full-width
+identity overflow. Pure theme/diagram edits preserve operation definitions;
+generation keys distinguish scope, revision, record and exact body commitment.
+`just transit-board::contract` checks the Zig schema and both generated browser
+artifacts for drift. Structural browser checks never replace native graph/source
+validation or current authorization.

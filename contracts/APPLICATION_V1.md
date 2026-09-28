@@ -17,9 +17,9 @@ artifacts; the program cannot load code or interpolate credentials.
 
 Bindings distinguish inspection, finite query and explicit service command.
 Inspection names a qualified public projection and holds one bounded page.
-Query bindings name an exact resource, source/schema contract, query profile and
+Query bindings name an exact resource, source kind (Table/KV/Document), source/schema contract, query profile and
 immutable SQL. Compilation uses the owning Fuze compiler with an authorized
-source. Follow requires the qualified Table watch and M21 admission owner.
+source. Follow requires the qualified Table watch and M21 admission owner; a KV or Document source explicitly rejects Follow even with a unified query profile.
 A command names a service, destination, binding revision and codec; a renderer
 cannot substitute any of them. Neither bindings nor associations grant access.
 

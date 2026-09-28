@@ -18,6 +18,10 @@ generate:
     zig-out/bin/transit-serving-api client > packages/zig/transit-serving/api/client.json
     python3 -B packages/ts/transit-reactive-client/generate.py
     vp exec node packages/ts/transit-reactive-client/validators.mjs
+    zig build transit-app
+    zig-out/bin/transit-app schema > packages/zig/transit-station-app/api/application.schema.json
+    python3 -B packages/ts/transit-application/generate.py
+    vp exec node packages/ts/transit-application/validators.mjs
 
 # Check typed contract and generated browser-resource drift.
 contract:
@@ -28,11 +32,18 @@ contract:
     python3 -B tests/reactive_client_contract.py zig-out/bin/transit-serving-api
     python3 -B packages/ts/transit-reactive-client/generate.py --check
     vp exec node packages/ts/transit-reactive-client/validators.mjs --check
+    zig build transit-app
+    python3 -B tests/application_schema.py zig-out/bin/transit-app
+    python3 -B packages/ts/transit-application/generate.py --check
+    vp exec node packages/ts/transit-application/validators.mjs --check
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
     cd packages/ts/transit-board-client && vp check
     cd packages/ts/transit-reactive-client && vp check
+    cd packages/ts/transit-application && vp check
+    cd packages/ts/transit-application && vp exec tsc --noEmit
+    cd packages/ts/transit-application && vp test run
     cd apps/transit-board-web && vp check
     vp exec --filter @rey/transit-board-web tsc --noEmit
     cd apps/transit-board-web && vp test run

@@ -81,6 +81,16 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/ts/transit-application:
+    dependencies:
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/ts/transit-board-client:
     dependencies:
       ajv:

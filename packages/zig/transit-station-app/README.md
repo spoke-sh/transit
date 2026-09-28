@@ -44,3 +44,11 @@ partial-decision rollback and retained revision growth. `just test::application`
 exact lost replies, worker fencing and node/disk-store restart. Browser generation
 switching, administrative HTTP ingress and physical application placements remain
 open; the native proof is not those broader qualifications.
+
+The committed `api/application.schema.json` is reflected by `transit-app schema`.
+`just transit-board::generate` regenerates it and the shared browser package;
+`just transit-board::contract` checks compiler/schema/type/validator drift.
+[transit-application](../../ts/transit-application/README.md) consumes these exact
+types for presentation, visual edits and generation identity. Query declarations
+explicitly identify Table/KV/Document; only the qualified Table/unified profile
+admits Follow. Finite query capability alone never implies a watch.

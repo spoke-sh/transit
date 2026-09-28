@@ -182,7 +182,7 @@ const Parser = struct {
                         if (schema.len != 64) return error.InvalidInterfaceSchema;
                         _ = std.fmt.hexToBytes(&digest, schema) catch return error.InvalidInterfaceSchema;
                         const Q = @FieldType(@FieldType(m.Binding, "source"), "query");
-                        source = .{ .query = .{ .resource = try fields.number("resource", u64), .name = try fields.string("source"), .schema = digest, .profile = try fields.enumeration("profile", @FieldType(Q, "profile")), .sql = try fields.string("query"), .refresh = try fields.enumeration("refresh", m.Refresh), .starts = try fields.number("starts", u8) } };
+                        source = .{ .query = .{ .resource = try fields.number("resource", u64), .name = try fields.string("source"), .source_kind = try fields.enumeration("source_kind", @FieldType(Q, "source_kind")), .schema = digest, .profile = try fields.enumeration("profile", @FieldType(Q, "profile")), .sql = try fields.string("query"), .refresh = try fields.enumeration("refresh", m.Refresh), .starts = try fields.number("starts", u8) } };
                     },
                     .command => source = .{ .command = .{ .service = try fields.number("service", u64), .target = try fields.number("target", u64), .revision = try fields.number("revision", u64), .codec = try fields.number("codec", u16) } },
                 }
@@ -252,6 +252,8 @@ pub fn format(value: m.Definition, out: *std.Io.Writer) !void {
             .query => |binding| {
                 try out.print("resource = {d}, ", .{binding.resource});
                 try option(out, "source", binding.name);
+                try out.writeAll(", ");
+                try option(out, "source_kind", @tagName(binding.source_kind));
                 try out.writeAll(", ");
                 try option(out, "schema", &std.fmt.bytesToHex(binding.schema, .lower));
                 try out.writeAll(", ");
