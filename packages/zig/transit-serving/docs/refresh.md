@@ -29,6 +29,9 @@ existing identities cannot be overwritten. `UnifiedUpload` copies one 256-byte
 template chunk per turn, seals and submits. Selection, copying, admission,
 completion and acknowledgment have separate turns within the four-write limit.
 Namespaces are decimal JSON strings preserving all 64 bits.
+An occupied automatic namespace fails only that view and advances selection;
+it cannot stop ingress progress. Rejected query commands use the query client's
+disposition records, including when rejection occurs during initialization.
 
 Budget charges selection before copying, including failed copies, not successful
 results. Two views may select sixteen intents for their explicit generations.

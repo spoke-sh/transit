@@ -329,6 +329,7 @@ test "composed live owner initializes within four writes and fences internal con
         turn.delivery.input.origin = .{ .external = .{ .principal = 999, .policy_revision = 1 } };
         turn.delivery.input.value = try (s.Frame{ .kind = .cast, .payload = payload }).encode();
         try t.expect(try guard.reject(guard.context, &turn));
+        if (std.mem.startsWith(u8, payload.slice(), "UQ")) try t.expect(try turn.read(q.UnifiedRecords.key('e', turn.delivery.input.position, 0)) != null);
         try store.commit(turn);
     }
     turn = try store.capture();
@@ -337,4 +338,27 @@ test "composed live owner initializes within four writes and fences internal con
     try t.expect(!try guard.reject(guard.context, &turn));
     try handler.handle(handler.context, &turn, try s.Frame.decode(turn.delivery.input.value));
     try store.commit(turn);
+}
+
+test "occupied refresh namespace fails one view and preserves ingress progress" {
+    var rig: Rig = .{};
+    defer rig.deinit();
+    try rig.init();
+    const selection = try rig.follow(try rig.session(1), 0, 2);
+    try rig.mutate();
+    try rig.apply(.{ .invalidate = selection });
+    var turn = try rig.requests.capture();
+    const namespace = (@as(u64, 1) << 63) | turn.delivery.input.position;
+    const key = s.Publication.key(namespace, 'b', 0, 0);
+    const original = try p.Value.init("occupied");
+    try rig.requests.state.put(t.allocator, key, original);
+    try rig.requests.revisions.put(t.allocator, key, rig.requests.revision);
+    try t.expect(try owner.drive(&turn, rig.reader(), 1000));
+    try rig.requests.commit(turn);
+    const value = try rig.view(selection);
+    try t.expectEqual(.failed, value.phase);
+    try t.expect(!value.enabled);
+    try t.expectEqual(@as(u8, 0), value.starts);
+    try t.expectEqualDeep(original, rig.requests.state.get(key).?);
+    try t.expect(!try rig.drive());
 }

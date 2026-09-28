@@ -46,6 +46,12 @@ fn reject(turn: *Turn, reason: []const u8) !bool {
     try turn.write(root.Model.key('e', principal, turn.delivery.input.position), try p.Value.init(reason));
     return true;
 }
+fn rejectQuery(turn: *Turn, reason: []const u8) !bool {
+    // Use the owning client's disposition contract. One write also preserves
+    // the four-mutation bound when an input is rejected during initialization.
+    try turn.write(q.UnifiedRecords.key('e', turn.delivery.input.position, 0), try p.Value.init(reason));
+    return true;
+}
 fn selfCast(turn: *Turn) bool {
     return turn.delivery.input.origin == .process and (s.Frame.source(turn.delivery.input) catch 0) == turn.delivery.pid;
 }
@@ -55,16 +61,16 @@ fn rejectInput(raw: ?*anyopaque, turn: *Turn) anyerror!bool {
     if (frame.kind == .cast) {
         if (frame.payload.eql(root.RefreshModel.wake)) return if (selfCast(turn)) false else reject(turn, "UnexpectedRefreshWake");
         if (std.mem.startsWith(u8, frame.payload.slice(), "UQ")) {
-            const command = q.UnifiedRequest.Command.decode(&frame.payload) catch return reject(turn, "InvalidQueryUpload");
+            const command = q.UnifiedRequest.Command.decode(&frame.payload) catch return rejectQuery(turn, "InvalidQueryUpload");
             if (turn.delivery.input.origin == .external and turn.delivery.input.origin.external.principal == self.configuration.query_principal) return false;
-            return if (command == .collect and selfCast(turn)) false else reject(turn, "QueryPrincipalMismatch");
+            return if (command == .collect and selfCast(turn)) false else rejectQuery(turn, "QueryPrincipalMismatch");
         }
     }
     if (frame.kind == .timeout and try turn.read(q.UnifiedRecords.key('i', frame.correlation, 0)) != null) {
-        if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != self.configuration.query_principal) return reject(turn, "UnexpectedTimerObserver");
-        const wait = (try turn.waiting(frame.correlation)) orelse return reject(turn, "UnknownServingCorrelation");
-        if (wait.observer != self.configuration.query_principal or frame.payload.len != 12 or !std.mem.eql(u8, frame.payload.data[0..4], "TMO1")) return reject(turn, "InvalidTimerObservation");
-        if (std.mem.readInt(u64, frame.payload.data[4..12], .little) < (wait.deadline_ms orelse return reject(turn, "InvalidTimerObservation"))) return reject(turn, "PrematureTimer");
+        if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != self.configuration.query_principal) return rejectQuery(turn, "UnexpectedTimerObserver");
+        const wait = (try turn.waiting(frame.correlation)) orelse return rejectQuery(turn, "UnknownServingCorrelation");
+        if (wait.observer != self.configuration.query_principal or frame.payload.len != 12 or !std.mem.eql(u8, frame.payload.data[0..4], "TMO1")) return rejectQuery(turn, "InvalidTimerObservation");
+        if (std.mem.readInt(u64, frame.payload.data[4..12], .little) < (wait.deadline_ms orelse return rejectQuery(turn, "InvalidTimerObservation"))) return rejectQuery(turn, "PrematureTimer");
         return false;
     }
     var base = self.service();
