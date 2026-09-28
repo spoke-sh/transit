@@ -174,9 +174,10 @@ The M21 browser integration exposed that dependency under simultaneous views.
 Shorter-lived transport tasks do not justify extending the logical lease.
 
 Current status means that the displayed basis covers observed progress; it is
-not a latency guarantee. The first actual M21 Compose consumer run needed about
-7.2 seconds for the counter and 102 seconds for a fully verified 20-row query
-refresh. A bounded page keeps memory finite but does not make full coverage cheap.
+not a latency guarantee. M21's final Compose/reference consumer runs measured
+about 7.6/6.2 seconds for the counter and 127/155 seconds for a fully verified
+20-row query refresh. A bounded page keeps memory finite but does not make full
+coverage cheap.
 Keep earlier permitted data visibly tied to its own basis while work completes,
 and measure each acquisition/delivery/verification phase before adding draft
 execution or a freshness target. The [proof ledger](../tests/README.md) distinguishes
@@ -189,13 +190,13 @@ these observations from hosted CI cost and broader capacity claims.
 [reactive application workflow](REACTIVE_APPLICATIONS.md). It owns themeable
 monochrome presentation, explicit binding definitions, bounded opt-in draft
 execution and application publication/migrations. M21 still supplies snapshot
-refresh of an already submitted query; its completed scope will not imply
+refresh of an already submitted query; its completed scope does not imply
 those later capabilities or incremental continuous SQL.
 
 ## Selected proof surface and later scope
 
-Qualify a bounded Board inspection projection, a declared Table query view and
-a non-trading application view over the M20 API. Keep a source matrix for KV and
+M21 qualifies a bounded Board inspection projection, a declared Table query view
+and a non-trading application view over the M20 API. Keep a source matrix for KV and
 Document: decoder/schema, accepted-change, retention and deletion semantics need
 explicit view qualification. Missing source adapters must implement the same
 public M20 contract; UI code never reads raw storage or defines its own tail.

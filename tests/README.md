@@ -2687,126 +2687,64 @@ passed. The M19 lifetime regression also passed in 30.74 s after the host change
 ordered cancellation, duplicate/late timeout, finite process/wait/resource bounds
 and hard expiry remain distinct. No push or `ci-clean` run is claimed here.
 
-## M21 consumer foundation (in progress)
+## M21 qualification
 
-The extracted `transit-serving-http` host passed the existing real
-`just test::reactive` TLS/disk regression in 19.40 seconds, including exact retry,
-attachment fencing, revocation and gateway/worker/node/store recovery. Extraction
-is reuse evidence; it does not establish the new view lifecycle.
+M21 qualifies the selected int64 Table consumers: Board's metadata-only progress
+view, its explicitly submitted finite v2 query and the counter application's
+bounded snapshot. These consumers share the private Zig caller, generated
+runtime-validated TypeScript transport and `LiveView`; Board's inspection,
+watch-control and query identities remain separate. KV/Document watches and
+continuous SQL are not qualified.
 
-`just test::reactive-client` exercises the shared Zig caller and its opt-in private
-host adapter against actual disk-backed workers and TLS. The initial run passed
-in 7.04 seconds: prepared native bytes survive a deliberately lost acceptance
-reply, exact retry recovers the same receipt, and committed-control observations
-supply session/subscription generations. It checks exact private Origin, rejection
-of administrative controls, separate reserved close routing, metadata-only Table
-inspection, shared source coverage, foreign scope/snapshot denial, terminal close
-and current read revocation. An initial failure found route classification after
-body reading; the fix preserves the route decision before borrowed request-head
-bytes can be reused. The failed run is not qualification evidence.
+| Executed proof | Evidence |
+| --- | --- |
+| `just test::reactive-client` | Actual TLS/disk hosts, frozen lost-reply recovery, scoped descriptions/clock, private Origin, reserved close, metadata-only reads, denial and 40 schema-validated envelopes; 7.52 s for the clock-policy extension |
+| `just test::reactive-refresh` | Two sessions sharing one requester, round-robin progress, lost follow reply, stopped source and replacement activations, exact accepted identity, full-width namespace and entry-read-only revocation; 224.56 s initial run, 153.08 s repeated regression |
+| Requester/component and frontend checks | Four-mutation copy turns, writes during capture, dirty successors, quiescence without self-triggering, start budgets, late-candidate fencing, queued pause, startup uncertainty, independent renewal and terminal control rejection |
+| `just test::reactive-views` | Real Chromium counter/Board over TLS, lost accepted upload, failing atlas plus route remount, exact recovery, complete 20-row verification with one eight-row resident page, distinct finite refresh and read-only revocation; 327.65 s |
+| `just test::reactive-views-lifecycle` | Shared-principal tabs, actual broken SSE/resume with unchanged sessions, pagehide/expiry, watch reset, explicit resnapshot and source retirement after displayed state; final run 89.03 s |
+| `just test::reactive-views-placement compose` | Full consumer schedule plus worker/gateway/node/disk restart, same-result recovery and denial between complete verification and visible-page reread; 389.04 s browser / 402.90 s including packaging |
+| `just test::reactive-views-placement reference` | Same extended schedule with fresh Substrate worker activations and confined gateways; 518.32 s browser / 663.06 s including packaging |
 
-`tests/reactive_client_contract.py` validates reflected schema drift and can check
-an actual `--trace`; the latest run validates 40 request/response envelopes.
-The reserved authorized clock sample and its policy-denial check passed with
-`just test::reactive-client` in 7.52 seconds. It avoids repeating discovery before
-renewal. Browser lifecycle tests cover pause joining pending acquisition,
-late-candidate fencing, known denial, queued-start cancellation and independent
-renewal during a blocked result read. `just check` and root `zig build test`
-passed after those changes; simultaneous-view qualification remains open.
-Frontend consumer tests exercise partial SSE framing, wrapper/content agreement,
-malformed UTF-8 and fields, bounded buffers and uncertain-command identity. These
-are client foundation checks, not browser live-view, fairness, complete-result
-replacement or placement proofs. Those M21 exit gates remain open.
+The final placement runs measured the following single observations, including
+client scheduling, source observation and full verification. They are not peak
+memory, latency percentiles or sustainable-rate guarantees. The visibility
+measurement starts at the mutation trigger, so it includes admission before the
+source commit; it is an upper bound on commit-to-visible delay in that run.
 
-`just test::reactive-refresh` passed in 224.56 seconds against real TLS, disk
-Ursula, the composed requester and counter Table source. Two sessions share one
-query principal. The proof loses a follow receipt, retries the identical native
-send, stops the source with one refresh admitted, replaces both worker
-activations, and observes the same accepted identity and the next fair view.
-Refresh namespaces cross `2^63` without losing integer precision. Revoking only
-entry-read permission leaves metadata readable but denies status and subsequent
-invalidation; retained signatures cannot use the worker's stronger grant.
-Restoring permission permits explicit pause/close and leaves all accepted results
-retained. The trace is `.cache/verification/m21-refresh-trace.json`.
+| Measurement | Compose | Reference |
+| --- | ---: | ---: |
+| Counter trigger to visible snapshot | 7,563 ms | 6,223 ms |
+| Finite 20-row verified refresh | 126,895 ms | 155,111 ms |
+| Physical restart to authorized same-result read | 6,289 ms | 18,338 ms |
+| Observed Board / counter JS heap | 9,433,188 / 4,794,296 bytes | 10,397,376 / 4,637,604 bytes |
+| Retained cold objects / bytes | 493 / 49,035,893 | 504 / 57,849,285 |
 
-Component tests use actual finite uploads/captures/results, reconstruct requester
-storage after each copy turn, and enforce four mutations. They cover a source
-mutation during capture, dirty successors, quiescence, two-view fairness, start
-budgets/spacing, manual-admission blocking without self-spin, pause/replacement,
-read outages/denial and expiry without observer progress. The full `just check`
-passed after adding capability-gated native resource read-access observations.
-This native proof does not measure browser freshness, physical node/store recovery
-of the new owner, or Compose/reference presentation. Those gates remain open.
+The fixture checks a 128 MiB per-page heap ceiling. The implementation retains one
+visible page, one bounded candidate/verification page and one newest dirty
+revision; it does not collect the complete result. Server admission remains four
+sessions/service, two/caller, one active finite requester query and at most eight
+selected refresh intents per explicit Follow generation. Accepted query and
+clock/control history remain retained unless separately opted into retention.
 
-The two-view browser integration exposed point-read races with clock/control
-commits. The additive native `resource_read_batch` capability now acquires at
-most eight named keys at one current cut. Root Zig tests and `just check` passed
-with tests for missing-key slots, stale revisions, signatures, scope, read-only
-revocation, deadlines, retirement and the final authority-tail race. Serving's
-configuration/policy/session checks use fresh batches, including their final
-checks. This unit evidence does not close browser or deployment qualification.
+Qualification exposed three lifecycle bugs: attachment recovery could consume
+renewal headroom, lost HTTP replies escaped the recoverable error vocabulary, and
+a known rejected renewal could loop as a disconnect. The fixes preserve exact
+pending bytes, prioritize renewal using the committed clock and observe current
+scope after a committed rejection. HTTP attachment observation allows ten seconds
+inside the thirty-second joined host budget; logical leases remain thirty seconds.
+Frontend tests cover denial/expiry/reset after rejection; the final actual
+multi-tab run above passes. Failed earlier schedules are not passed evidence.
 
-Publication reference materialization now uses capability-gated groups of one
-current descriptor and at most seven chunks, with the original ordered digest
-and a final fresh authorization check. Root Zig tests passed for multi-group and
-empty bodies, denial at every acquisition/final check, missing/corrupt content,
-retirement, changed reference and older-host fallback. `just test::publication`
-also passed unchanged: stage 36.126 s, seal 4.776 s, publish 18.869 s, cleanup
-21.146 s, finish 91.861 s; four killed workers, 64 KiB, 42 retained records,
-four mutations maximum and 256-byte values. That regression uses the original
-publication cursor and establishes preservation; actual public batched-reader
-browser/placement evidence remains a separate gate.
-
-The actual `just test::reactive-views` native browser proof now passed in
-327.65 seconds. Chromium ran the embedded counter and Board metadata/query
-interfaces against the disk-backed composed requester and source through TLS.
-It covered concurrent counter/metadata observations, committed counter change,
-logical pause, an accepted-but-lost query upload receipt, real navigation/remount
-while metadata failed, exact explicit recovery, complete verification of a
-20-row result larger than one resident page, a distinct finite refresh, and
-clearing displayed results when only source entry-read permission was revoked.
-Four abandoned sessions were expired by the explicit observer; their history
-remained. The browser stored no keys, cookies or local/session storage. The
-327.65 seconds is whole-fixture cost, not a freshness target. Further browser
-race schedules and Compose/reference consumer recovery remain open.
-
-The first Compose consumer schedule passed in 263.99 seconds (363.44 seconds
-including local packaging). It recovered the same displayed query identity after
-workers, both gateways, authority and disk store restarted. The counter mutation
-trigger-to-visible observation was 7,213 ms; the finite 20-row query refresh was
-102,268 ms; physical recovery through the next authorized result read was 6,233 ms.
-These are single local observations, not percentiles. The cold backend retained
-355 objects / 37,231,755 bytes at completion. The script subsequently gained a
-more precise denial-between-verification-and-reread schedule; that extension
-requires its own executed result.
-
-`just test::reactive-views-lifecycle` passed in 84.47 seconds. Two actual tabs
-shared the counter principal while Board watched metadata. Chromium network
-emulation broke one real SSE connection; its resumed view covered a committed
-change with the original logical sessions. Navigation/pagehide released the
-peer's slot, watch-generation replacement displayed reset-required, explicit
-resnapshot restored the counter, and permanent source retirement cleared it.
-The first attempt incorrectly tried to retire an in-use source; the corrected
-schedule terminates its required owner first. A second attempt raced the reset
-with an older session's expiry; the reset check now explicitly reopens that
-session first, keeping expiry and generation evidence separate. Neither failed
-attempt is qualification evidence.
-
-
-The extended final-placement consumer schedule passes in Compose (389.04 s;
-402.90 s with packaging) and reference (518.32 s; 663.06 s with packaging).
-Both revoke only entry reads between the candidate's complete verification and
-its visible-page reread. Compose measured counter visibility 7,563 ms, physical
-same-result recovery 6,289 ms and verified finite refresh 126,895 ms; reference
-measured 6,223 / 18,338 / 155,111 ms respectively. Observed Board/counter heaps
-were 9,433,188 / 4,794,296 bytes in Compose and 10,397,376 / 4,637,604 bytes in
-reference, below the fixture's 128 MiB per-page ceiling. These samples are not
-peak memory or latency percentiles. Retained cold objects/bytes were 493 /
-49,035,893 and 504 / 57,849,285. The final multi-tab lifecycle regression remains
-under investigation after an uncertain startup control; its failed rerun is not
-passed evidence. Attachment waits now allow ten seconds within the thirty-second
-HTTP budget, and renewal takes priority before attachment; the lease remains
-thirty seconds.
+The shared `resource_read_batch` capability acquires at most eight named keys at
+one current cut; serving policy/session reads and immutable publication chunks
+reuse it. Root checks cover scope, signatures, stale revisions, deadline,
+retirement and final-tail races. Publication still verifies ordered digests and
+fresh final authorization. The unchanged `just test::publication` passed in
+91.861 s with four worker kills, 64 KiB, 42 retained records, four mutations and
+256-byte values. This is shared-boundary regression evidence, separate from
+consumer placement qualification. M20's independent SSE/WebSocket proofs remain
+protocol evidence; M21 selects SSE without copying its protocol into the UI.
 
 ## M22 qualification in progress
 

@@ -1,6 +1,6 @@
 # Durable finite refresh
 
-M21 implementation in progress. `LiveService` composes `Service`, M20 sessions
+M21's qualified `LiveService` composes `Service`, M20 sessions
 and the v2 query requester in one Station owner/resource. Install its handler and
 input guard together, initialize privately, and provision caller, worker and
 resource grants before exposing ingress. Standalone `Service` rejects refreshes.
@@ -66,9 +66,11 @@ authority without renewing the view or exposing rows.
 Component tests use actual uploads/captures/manifests and reconstruct requester
 state at each committed copy step. They cover fairness, capture-time mutation,
 quiescence, manual admission, generation fencing, pause, denial, outage and expiry.
-Native TLS/worker recovery uses `just test::reactive-refresh`. Browser rendering,
-physical node/store recovery and placement freshness/cost measurements remain
-separate M21 qualification gates.
+Native TLS/worker recovery uses `just test::reactive-refresh`. The separate
+[consumer proof ledger](../../../../tests/README.md#m21-qualification) records
+actual browser rendering, physical node/store recovery and measured
+Compose/reference freshness and cost. Finite correctness does not imply an
+interactive refresh latency target.
 
 Session open/attach/renew controls do not create query demand or unconditional
 refresh wakeups. Query inputs and follow controls schedule separate refresh turns;
