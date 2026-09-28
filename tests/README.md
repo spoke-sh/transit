@@ -2855,8 +2855,8 @@ three workers at chunk/activation boundaries, restarts node and disk store,
 rejects saved stale-generation proposals, retries lost append/activation replies
 byte-for-byte, and verifies persistent operator denial plus current resource-read
 denial. Recovery uses one resident authority page. The 1002-byte interface took
-15 turns, 128 point reads, at most four mutations and 256-byte values; measured
-phase times were 0.607/0.756/0.355/0.867 seconds (stage/seal/publish/finish, excluding
+20 turns, 197 point reads, at most four mutations and 256-byte values; measured
+phase times were 0.907/1.660/0.405/0.917 seconds (stage/seal/publish/finish, excluding
 compilation). This proves native publication recovery; application browser,
 HTTP operator ingress, data migration and Compose/reference placements remain open.
 The proof and independent grammar are explicit focused tasks, without expanding
@@ -2870,3 +2870,10 @@ generation keys distinguish scope, revision, record and exact body commitment.
 `just transit-board::contract` checks the Zig schema and both generated browser
 artifacts for drift. Structural browser checks never replace native graph/source
 validation or current authorization.
+
+The native application proof now sends `Request.Command` uploads to the actual
+`Behavior`, including a pending first half across a kill. It checks retained
+denial dispositions and explicit administrator restoration. Additional owner tests
+reject mixing full-body and half-chunk upload paths and prove that unsupported
+program bytes cannot become an active interface. Allocation/read failures do not
+become terminal caller rejections. Independent fixtures cover every command tag.

@@ -18,6 +18,8 @@ pub fn schema(writer: *std.Io.Writer) !void {
         try out.objectField(name);
         try root.protocol.Schema.write(@field(root.Publication, name), &out, .{ .safe_integers = true });
     }
+    try out.objectField("Command");
+    try root.protocol.Schema.write(root.Request.Command, &out, .{ .safe_integers = true });
     try out.endObject();
     try out.endObject();
     try writer.writeByte('\n');

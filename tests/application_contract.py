@@ -22,9 +22,19 @@ def fixture():
             'principal': 44, 'operation': proposal['operation'], 'input': 57}
     head_bytes = (struct.pack('<QQII', maximum - 1, maximum - 1, spec['format'], 17)
                  + bytes(spec['digest']) + struct.pack('<QQQ', 44, maximum, 57))
+    commands = [
+        ({'initialize': {}}, b'\x00'),
+        ({'policy': {'principal': 44, 'expected': '0', 'next': {'revision': '1', 'publish': True}}}, b'\x01' + struct.pack('<QQQ?', 44, 0, 1, True)),
+        ({'begin': proposal}, b'\x02' + proposal_bytes),
+        ({'part': {'operation': str(maximum), 'ordinal': 2, 'second': True, 'bytes': '000102'}}, b'\x03' + struct.pack('<QI?B', maximum, 2, True, 3) + b'\x00\x01\x02'),
+        ({'publish': str(maximum)}, b'\x04' + struct.pack('<Q', maximum)),
+        ({'abandon': str(maximum)}, b'\x05' + struct.pack('<Q', maximum)),
+        ({'collect': str(maximum)}, b'\x06' + struct.pack('<Q', maximum)),
+    ]
     return {'version': 1, 'proposal': proposal, 'proposal_hex': (b'AP1r' + proposal_bytes).hex(),
             'receipt': receipt, 'receipt_hex': (b'AP1o' + proposal_bytes + b'\x02' + struct.pack('<Q', 57) + b'\x01').hex(),
             'head': head, 'head_hex': (b'AP1h' + head_bytes).hex(),
+            'commands': [{'command': command, 'hex': (b'AP1i' + encoded).hex()} for command, encoded in commands],
             'key_hex': (b'\x00A' + struct.pack('>Q', 9) + b'o' + struct.pack('>QQ', 44, maximum)).hex()}
 
 

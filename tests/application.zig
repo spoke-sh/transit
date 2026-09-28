@@ -34,26 +34,19 @@ fn definition(allocator: std.mem.Allocator) ![]u8 {
     return allocator.dupe(u8, try app.Api.canonical(parsed.definition, &buffer));
 }
 const Handler = struct {
-    allocator: std.mem.Allocator,
-    body: []const u8,
-    proposal: Owner.Proposal,
+    behavior: app.Behavior,
     handled: usize = 0,
     lost: usize = 0,
-    fn initialize(_: ?*anyopaque, turn: *s.GrowingTurn) !void {
-        try owner().initialize(turn);
-        try owner().setPolicy(turn, Operator, .{}, .{ .revision = .{ .value = 1 }, .publish = true });
+    fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
+        const self: *Handler = @ptrCast(@alignCast(raw.?));
+        const target = self.behavior.interface();
+        try target.initialize.?(target.context, turn);
     }
     fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
         const self: *Handler = @ptrCast(@alignCast(raw.?));
         self.handled += 1;
-        switch (try frame.payload.asInteger()) {
-            0 => {},
-            1 => _ = try owner().step(self.allocator, turn, self.proposal, self.body),
-            2 => try owner().setPolicy(turn, Operator, .{ .value = 1 }, .{ .revision = .{ .value = 2 }, .publish = false }),
-            3 => try t.expectError(error.ApplicationDenied, owner().step(self.allocator, turn, self.proposal, self.body)),
-            4 => try owner().setPolicy(turn, Operator, .{ .value = 2 }, .{ .revision = .{ .value = 3 }, .publish = true }),
-            else => return error.UnknownCommand,
-        }
+        const target = self.behavior.interface();
+        try target.handle(target.context, turn, frame);
     }
     fn interface(self: *Handler) Server.Handler {
         return .{ .context = self, .initialize = initialize, .handle = handle };
@@ -85,12 +78,28 @@ const Caller = struct {
     wire: *client.Client,
     key: p.Ed25519.KeyPair,
     sequence: u64,
-    fn send(self: *Caller, io: std.Io, server: *Server, handler: *Handler, code: i64, freeze: bool) !void {
-        _ = try self.wire.submitGrowing(try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = server.session.pid, .value = try (s.Frame{ .kind = .cast, .payload = p.Value.integer(code) }).encode() } } }, self.key));
+    last_input: u64 = 0,
+    fn send(self: *Caller, io: std.Io, server: *Server, handler: *Handler, command: app.Request.Command, freeze: bool) !void {
+        self.last_input = (try self.wire.submitGrowing(try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = server.session.pid, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.key))).position;
         self.sequence += 1;
         try drive(io, server, handler, freeze);
     }
 };
+fn sendPart(caller: *Caller, io: std.Io, server: *Server, handler: *Handler, proposal: Owner.Proposal, body: []const u8, ordinal: u32, second: bool, freeze: bool) !void {
+    const length = try proposal.spec.size(ordinal);
+    const offset: usize = if (second) s.PublicationParts.part_bytes else 0;
+    try caller.send(io, server, handler, .{ .part = .{
+        .operation = proposal.operation,
+        .ordinal = ordinal,
+        .second = second,
+        .bytes = try p.Value.init(body[@as(usize, ordinal) * s.Publication.chunk_bytes + offset ..][0..@min(s.PublicationParts.part_bytes, length - offset)]),
+    } }, freeze);
+}
+fn expectDenied(source: client.ResourceReader, resource: u64, input: u64) !void {
+    var reader = try source.open(resource);
+    const value = (try reader.read(app.Records.key(9, 'e', Operator, input))) orelse return error.MissingDisposition;
+    try t.expectEqualStrings("ApplicationDenied", value.slice());
+}
 fn descriptor(source: client.ResourceReader, resource: u64) !s.Publication.Descriptor {
     var reader = try source.open(resource);
     return (s.Publication{ .resource = resource, .namespace = 19 }).inspect(&reader, 100);
@@ -138,12 +147,16 @@ pub fn main(init: std.process.Init) !void {
     const body = try definition(init.gpa);
     defer init.gpa.free(body);
     const proposal: Owner.Proposal = .{ .operation = .{ .value = 1 }, .record = .{ .value = 100 }, .expected = .{}, .expected_digest = @splat(0), .revision = .{ .value = 1 }, .spec = try s.Publication.Digest.of(Owner.format, body) };
-    var handler: Handler = .{ .allocator = init.gpa, .body = body, .proposal = proposal };
+    var handler: Handler = .{ .behavior = .{ .allocator = init.gpa, .owner = owner() } };
+    server.input_guard = handler.behavior.guard();
     if (std.mem.eql(u8, phase, "stage")) {
-        try caller.send(init.io, &server, &handler, 0, false);
-        try caller.send(init.io, &server, &handler, 1, false);
-        for (0..3) |_| try caller.send(init.io, &server, &handler, 1, false);
-        try caller.send(init.io, &server, &handler, 1, true);
+        try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .publish = true } } }, false);
+        try caller.send(init.io, &server, &handler, .{ .begin = proposal }, false);
+        for (0..3) |i| {
+            try sendPart(&caller, init.io, &server, &handler, proposal, body, @intCast(i), false, false);
+            try sendPart(&caller, init.io, &server, &handler, proposal, body, @intCast(i), true, false);
+        }
+        try sendPart(&caller, init.io, &server, &handler, proposal, body, 3, false, true);
         saved.stale = server.pending.?.signed;
         try t.expectEqual(@as(u32, 3), (try descriptor(source, saved.resource)).written);
         try t.expectEqual(@as(usize, 1), handler.lost);
@@ -151,10 +164,11 @@ pub fn main(init: std.process.Init) !void {
         try drive(init.io, &server, &handler, false);
         var current = try descriptor(source, saved.resource);
         while (current.written < current.spec.chunks()) {
-            try caller.send(init.io, &server, &handler, 1, false);
+            try sendPart(&caller, init.io, &server, &handler, proposal, body, current.written, false, false);
+            if (try current.spec.size(current.written) > s.PublicationParts.part_bytes) try sendPart(&caller, init.io, &server, &handler, proposal, body, current.written, true, false);
             current = try descriptor(source, saved.resource);
         }
-        try caller.send(init.io, &server, &handler, 1, true);
+        try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, true);
         saved.stale = server.pending.?.signed;
         try t.expectEqual(s.Publication.State.staging, (try descriptor(source, saved.resource)).state);
         var reader = try source.open(saved.resource);
@@ -162,7 +176,7 @@ pub fn main(init: std.process.Init) !void {
     } else if (std.mem.eql(u8, phase, "publish")) {
         try drive(init.io, &server, &handler, false);
         try t.expectEqual(@as(usize, 1), handler.lost);
-        try caller.send(init.io, &server, &handler, 1, false); // exact application duplicate
+        try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false); // exact application duplicate
         var reader = try source.open(saved.resource);
         const head = (try owner().head(&reader)).?;
         const receipt = (try owner().receipt(&reader, Operator, proposal.operation)).?;
@@ -171,13 +185,15 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqual(head.input, receipt.input);
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         try t.expectEqualStrings(body, try owner().reference(saved.resource, head).read(source, &bytes));
-        try caller.send(init.io, &server, &handler, 2, false);
-        try caller.send(init.io, &server, &handler, 3, false);
+        try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 1 }, .next = .{ .revision = .{ .value = 2 }, .publish = false } } }, false);
+        try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
+        try expectDenied(source, saved.resource, caller.last_input);
         _ = try admin.submit(.{ .checkpoint = {} });
     } else if (std.mem.eql(u8, phase, "finish")) {
-        try caller.send(init.io, &server, &handler, 3, false); // denial persists across disk restart
-        try caller.send(init.io, &server, &handler, 4, false); // independent bootstrap recovery
-        try caller.send(init.io, &server, &handler, 1, false);
+        try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
+        try expectDenied(source, saved.resource, caller.last_input); // denial persists across disk restart
+        try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 2 }, .next = .{ .revision = .{ .value = 3 }, .publish = true } } }, false); // independent bootstrap recovery
+        try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
         var reader = try source.open(saved.resource);
         const head = (try owner().head(&reader)).?;
         try t.expectEqual(@as(u64, 1), head.revision.value);

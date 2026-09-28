@@ -74,7 +74,7 @@ fn mutationCount(turn: *const Turn) usize {
     return count;
 }
 test "independent AP1 layouts preserve full-width identities and reject unknown record data" {
-    const Fixture = struct { version: u8, proposal: Pub.Proposal, proposal_hex: p.Value, receipt: Pub.Receipt, receipt_hex: p.Value, head: Pub.Head, head_hex: p.Value, key_hex: p.Value };
+    const Fixture = struct { version: u8, proposal: Pub.Proposal, proposal_hex: p.Value, receipt: Pub.Receipt, receipt_hex: p.Value, head: Pub.Head, head_hex: p.Value, key_hex: p.Value, commands: []const struct { command: root.Request.Command, hex: p.Value } };
     const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/publication-v1.json"));
     defer fixture.deinit();
     const value = fixture.value;
@@ -90,6 +90,11 @@ test "independent AP1 layouts preserve full-width identities and reject unknown 
         extra = expected;
         extra.data[2] = '2';
         try t.expectError(error.InvalidApplicationRecord, root.Records.decode(item[3], item[2], extra));
+    }
+    for (value.commands) |item| {
+        try t.expect(item.hex.eql(try item.command.encode()));
+        try t.expectEqualDeep(item.command, try root.Request.Command.decode(item.hex));
+        _ = try (s.Frame{ .kind = .cast, .payload = item.hex }).encode();
     }
     try t.expect(value.key_hex.eql(root.Records.key(9, 'o', 44, std.math.maxInt(u64))));
 }
@@ -221,4 +226,84 @@ test "retained interface revisions grow beyond active staging quota" {
     }
     var read = try store.turn(44);
     try t.expectEqual(Pub.Phase.applied, (try configured().receipt(&read, 44, .{ .value = 1 })).?.phase);
+}
+
+fn uploadParts(store: *Store, who: u64, request: Pub.Proposal, bytes: []const u8) !void {
+    for (0..request.spec.chunks()) |i| {
+        const size = try request.spec.size(@intCast(i));
+        for (0..if (size > s.PublicationParts.part_bytes) @as(usize, 2) else 1) |part| {
+            var input = try store.turn(who);
+            const offset = part * s.PublicationParts.part_bytes;
+            _ = try configured().appendUpload(&input, request.operation, .{ .ordinal = @intCast(i), .second = part == 1, .bytes = bytes[i * 256 + offset ..][0..@min(s.PublicationParts.part_bytes, size - offset)] });
+            try t.expect(mutationCount(&input) <= 3);
+            try store.commit(&input);
+        }
+    }
+}
+test "ordinary envelope parts retain exact halves and validate the whole program before visibility" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const bytes = try canonicalBody(1, false);
+    defer t.allocator.free(bytes);
+    const request = try makeProposal(1, 100, null, bytes);
+    var start = try store.turn(44);
+    _ = try configured().beginUpload(&start, request);
+    try store.commit(&start);
+    var half = try store.turn(44);
+    _ = try configured().appendUpload(&half, request.operation, .{ .ordinal = 0, .second = false, .bytes = bytes[0..128] });
+    try store.commit(&half);
+    var other_path = try store.turn(44);
+    try t.expectError(error.ApplicationUploadPartConflict, configured().step(t.allocator, &other_path, request, bytes));
+    try t.expectError(error.IncompletePublication, configured().finishUpload(t.allocator, &other_path, request.operation));
+    // A caller crash restarts from descriptor progress, resending the exact half.
+    try uploadParts(&store, 44, request, bytes);
+    var complete = try store.turn(44);
+    try t.expectEqual(Pub.Phase.applied, try configured().finishUpload(t.allocator, &complete, request.operation));
+    try t.expectEqual(@as(usize, 4), mutationCount(&complete));
+    try store.commit(&complete);
+    var duplicate = try store.turn(44);
+    try t.expectEqual(Pub.Phase.applied, try configured().finishUpload(t.allocator, &duplicate, request.operation));
+    try t.expectEqual(@as(usize, 0), mutationCount(&duplicate));
+}
+test "a signed unsupported program can stage bytes but never activate or acquire authority" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const invalid = "GRANT everything TO everybody;";
+    const request = try makeProposal(1, 100, null, invalid);
+    var start = try store.turn(44);
+    _ = try configured().beginUpload(&start, request);
+    try store.commit(&start);
+    try uploadParts(&store, 44, request, invalid);
+    var complete = try store.turn(44);
+    try t.expectError(error.InvalidApplicationProgram, configured().finishUpload(t.allocator, &complete, request.operation));
+    try t.expectEqual(@as(usize, 0), mutationCount(&complete));
+    try t.expect(try configured().head(&complete) == null);
+    const descriptor = try (s.Publication{ .resource = 7, .namespace = 19 }).inspect(&complete, 100);
+    try t.expectEqual(s.Publication.State.staging, descriptor.state);
+    try configured().abandon(&complete, request.operation);
+    try store.commit(&complete);
+}
+test "public behavior records denial but does not turn infrastructure failure into rejection" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    var behavior: root.Behavior = .{ .allocator = t.allocator, .owner = configured() };
+    const handler = behavior.interface();
+    var denied = try store.turn(46);
+    const command: root.Request.Command = .{ .publish = .{ .value = 1 } };
+    try handler.handle(handler.context, &denied, .{ .kind = .cast, .payload = try command.encode() });
+    try store.commit(&denied);
+    try t.expectEqualStrings("ApplicationDenied", (try denied.read(root.Records.key(9, 'e', 46, denied.delivery.input.position))).?.slice());
+    var unavailable = try store.turn(44);
+    store.fail_at = store.reads + 1;
+    try t.expectError(error.Unavailable, handler.handle(handler.context, &unavailable, .{ .kind = .cast, .payload = try command.encode() }));
+    try t.expectEqual(@as(usize, 0), mutationCount(&unavailable));
+    try t.expectError(error.Unavailable, store.commit(&unavailable));
+    store.fail_at = null;
+    var malformed = try store.turn(44);
+    const guard = behavior.guard();
+    try t.expect(try guard.reject(guard.context, &malformed));
+    try t.expectEqual(@as(usize, 1), mutationCount(&malformed));
 }

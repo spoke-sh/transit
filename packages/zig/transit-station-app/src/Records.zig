@@ -27,16 +27,34 @@ pub fn decode(comptime T: type, comptime tag: u8, value: p.Value) !T {
     return result;
 }
 fn write(out: *std.Io.Writer, value: anytype) anyerror!void {
+    if (@TypeOf(value) == p.Value) {
+        try value.validate();
+        if (value.len > 128) return error.ApplicationPartTooLarge;
+        try out.writeByte(@intCast(value.len));
+        return out.writeAll(value.slice());
+    }
     switch (@typeInfo(@TypeOf(value))) {
         .int => try out.writeInt(@TypeOf(value), value, .little),
         .bool => try out.writeByte(@intFromBool(value)),
         .@"enum" => try out.writeByte(@backingInt(value)),
         .array => for (value) |item| try write(out, item),
         .@"struct" => |info| inline for (info.field_names) |name| try write(out, @field(value, name)),
+        .@"union" => {
+            try out.writeByte(@backingInt(std.meta.activeTag(value)));
+            switch (value) {
+                inline else => |item| try write(out, item),
+            }
+        },
+        .void => {},
         else => @compileError("Application records require bounded fixed fields"),
     }
 }
 fn read(input: *std.Io.Reader, comptime T: type) anyerror!T {
+    if (T == p.Value) {
+        const length = try input.takeByte();
+        if (length > 128) return error.ApplicationPartTooLarge;
+        return p.Value.init(try input.take(length));
+    }
     return switch (@typeInfo(T)) {
         .int => try input.takeInt(T, .little),
         .bool => switch (try input.takeByte()) {
@@ -55,6 +73,12 @@ fn read(input: *std.Io.Reader, comptime T: type) anyerror!T {
             inline for (info.field_names, info.field_types) |name, F| @field(result, name) = try read(input, F);
             break :blk result;
         },
+        .@"union" => |info| blk: {
+            const tag = std.enums.fromInt(std.meta.Tag(T), try input.takeByte()) orelse return error.InvalidApplicationRecord;
+            inline for (info.field_names, info.field_types) |name, F| if (tag == @field(std.meta.Tag(T), name)) break :blk @unionInit(T, name, try read(input, F));
+            unreachable;
+        },
+        .void => {},
         else => @compileError("Application records require bounded fixed fields"),
     };
 }

@@ -7,6 +7,8 @@ pub const Model = @import("Model.zig");
 pub const Api = @import("Api.zig");
 pub const Records = @import("Records.zig");
 pub const Publication = @import("Publication.zig");
+pub const Request = @import("Request.zig");
+pub const Behavior = @import("Behavior.zig");
 test {
     _ = @import("model_test.zig");
     _ = @import("publication_test.zig");

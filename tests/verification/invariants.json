@@ -1040,7 +1040,9 @@
         "packages/zig/transit-station-app/src/Publication.zig",
         "tests/application_grammar.py",
         "tests/application.zig",
-        "tests/application.py"
+        "tests/application.py",
+        "packages/zig/transit-station-app/src/Request.zig",
+        "packages/zig/transit-station-app/src/Behavior.zig"
       ],
       "profile": "M23 bounded declarations and signed native publication owner",
       "tasks": [
@@ -1052,9 +1054,10 @@
         "Independent ANTLR/model agreement and semantic visual-edit round-trip; whole-program rejection and allocation failures",
         "Competing bases, attributed receipts, non-owned record abandonment refusal and explicit staging cleanup",
         "Current operator denial between chunks and after completed admission; resource-read revocation",
-        "Three actual worker kills with node and disk Ursula restart, one-page recovery, stale generation refusal and exact lost append/activation replies"
+        "Three actual worker kills with node and disk Ursula restart, one-page recovery, stale generation refusal and exact lost append/activation replies",
+        "Native two-part uploads resume a first half across worker loss; complete unsupported programs remain staging and never activate"
       ],
-      "limits": "64 KiB per body, two staged bodies and one 256-byte chunk per step, four mutations for atomic visibility. The native proof uses a 1002-byte interface and 15 turns. No browser generation switching, administrative HTTP ingress, application data migration or Compose/reference application claim yet. No new hosted CI budget.",
+      "limits": "64 KiB per body, two staged bodies and one 256-byte chunk per step, four mutations for atomic visibility. The native proof uses a 1002-byte interface and 20 turns. No browser generation switching, administrative HTTP ingress, application data migration or Compose/reference application claim yet. No new hosted CI budget.",
       "model": null
     }
   ]

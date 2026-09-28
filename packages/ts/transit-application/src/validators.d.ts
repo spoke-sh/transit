@@ -8,3 +8,4 @@ export function Policy(value: unknown): boolean;
 export function Proposal(value: unknown): boolean;
 export function Receipt(value: unknown): boolean;
 export function Head(value: unknown): boolean;
+export function Command(value: unknown): boolean;

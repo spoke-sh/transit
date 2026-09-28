@@ -125,3 +125,32 @@ plans, bounded backfill and compatibility. Real Board and generated work-item
 clients must qualify accessibility, typed envelopes, publication and migration
 through native, Compose and reference placements. These gates are independent;
 parser success alone is not an executable administrative capability.
+
+## Native upload commands
+
+`Request.Command` uses `AP1i` and a one-byte variant: initialize=0, policy=1,
+begin=2, part=3, publish=4, abandon=5, collect=6. Fields use the fixed record
+encoding above. `part` carries operation:u64, ordinal:u32, second:bool and a
+one-byte length followed by 1–128 bytes. The JSON value is lowercase hex; all
+other identities retain their declared native-counter/decimal-string encoding.
+Every encoded command fits an ordinary Station cast frame. The independent AP1
+fixtures include all variants. No kernel opcode or frame bound changes.
+
+`beginUpload` explicitly admits bounded byte staging for one frozen proposal.
+Normal clients compile the whole program first; a direct malicious caller may
+stage invalid bytes, but staging is not administrative publication. `appendUpload`
+uses Station's shared two-part assembly, current operator policy and the exact
+base. It cannot replace a pending half through the full-body helper. `finishUpload`
+materializes at most 64 KiB from the captured turn, verifies the commitment,
+validates/canonicalizes the whole program and then uses the same atomic activation.
+Invalid programs never activate. Each finish performs at most 256 chunk reads
+plus bounded metadata reads; deployment deadlines still govern progress.
+
+`Behavior` provides the real Station handler and pre-frame guard. Malformed or
+unauthorized inputs produce retained, payload-free dispositions keyed by the
+actual operator and native input position. Unavailable reads and allocation
+failures remain unresolved infrastructure failures; they cannot be reported as
+successful publication or terminal caller rejection. Bootstrap config must be
+initialized through the separately provisioned administrator before opening
+ordinary operator admission. There are no browser keys, query identities or
+administrative privileges implicit in a definition.

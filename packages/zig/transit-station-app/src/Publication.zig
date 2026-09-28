@@ -94,13 +94,73 @@ fn baseMatches(previous: ?Head, proposal: Proposal) bool {
     const digest = if (previous) |value| value.spec.digest else @as([32]u8, @splat(0));
     return revision == proposal.expected.value and std.mem.eql(u8, &digest, &proposal.expected_digest);
 }
+pub fn validateProposal(proposal: Proposal) !void {
+    if (proposal.operation.value == 0 or proposal.record.value == 0 or proposal.revision.value != try std.math.add(u64, proposal.expected.value, 1) or proposal.spec.format != format or proposal.spec.length == 0 or proposal.spec.length > m.max_program_bytes) return error.InvalidApplicationProposal;
+}
+fn reserve(self: Self, turn: *Turn, who: u64, proposal: Proposal) !void {
+    if (try turn.read(Pub.key(self.configuration.namespace.value, 'r', proposal.record.value, 0)) != null) return error.ApplicationRecordOccupied;
+    _ = try self.publication(turn).begin(turn, proposal.record.value, proposal.spec);
+    try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .staging, .input = turn.delivery.input.position, .owns_record = true }));
+}
+fn conflict(self: Self, turn: *Turn, who: u64, proposal: Proposal, owns_record: bool) !Phase {
+    try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .conflict, .input = turn.delivery.input.position, .owns_record = owns_record }));
+    return .conflict;
+}
+/// Explicit byte-upload admission, not administrative publication. The compiler
+/// validates before a normal caller uploads; the owner still validates the entire
+/// assembled program before activation, even for a malicious direct native caller.
+pub fn beginUpload(self: Self, turn: *Turn, proposal: Proposal) !Phase {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const who = try self.authorize(turn);
+    try validateProposal(proposal);
+    if (try self.receipt(turn, who, proposal.operation)) |old| {
+        if (!std.meta.eql(old.proposal, proposal)) return error.ApplicationIdentityConflict;
+        return old.phase;
+    }
+    if (!baseMatches(try self.head(turn), proposal)) return self.conflict(turn, who, proposal, false);
+    try self.reserve(turn, who, proposal);
+    return .staging;
+}
+pub fn appendUpload(self: Self, turn: *Turn, operation: m.Wide, part: s.PublicationParts.Part) !Phase {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const who = try self.authorize(turn);
+    const current = (try self.receipt(turn, who, operation)) orelse return error.ApplicationOperationNotFound;
+    if (current.phase != .staging) return current.phase;
+    if (!current.owns_record) return error.ApplicationPublicationChanged;
+    try validateProposal(current.proposal);
+    if (!baseMatches(try self.head(turn), current.proposal)) return self.conflict(turn, who, current.proposal, true);
+    try s.PublicationParts.append(turn, .{ .resource = turn.view.resource, .namespace = self.configuration.namespace.value, .record = current.proposal.record.value, .spec = current.proposal.spec }, self.key('x', who, operation.value), part);
+    return .staging;
+}
+pub fn finishUpload(self: Self, allocator: std.mem.Allocator, turn: *Turn, operation: m.Wide) !Phase {
+    const who = try self.authorize(turn);
+    const current = (try self.receipt(turn, who, operation)) orelse return error.ApplicationOperationNotFound;
+    if (current.phase != .staging) return current.phase;
+    if (!current.owns_record) return error.ApplicationPublicationChanged;
+    try validateProposal(current.proposal);
+    if (!baseMatches(try self.head(turn), current.proposal)) return self.conflict(turn, who, current.proposal, true);
+    const descriptor = try self.publication(turn).inspect(turn, current.proposal.record.value);
+    if (descriptor.state != .staging or !std.meta.eql(descriptor.spec, current.proposal.spec)) return error.ApplicationPublicationChanged;
+    if (descriptor.written != descriptor.spec.chunks()) return error.IncompletePublication;
+    var bytes: [m.max_program_bytes]u8 = undefined;
+    for (0..descriptor.written) |i| {
+        const index: u32 = @intCast(i);
+        const chunk = (try turn.read(Pub.key(self.configuration.namespace.value, 'c', current.proposal.record.value, index))) orelse return error.MissingPublicationChunk;
+        if (chunk.len != try descriptor.spec.size(index)) return error.InvalidPublicationChunk;
+        @memcpy(bytes[i * Pub.chunk_bytes ..][0..chunk.len], chunk.slice());
+    }
+    return self.step(allocator, turn, current.proposal, bytes[0..descriptor.spec.length]);
+}
 /// One bounded staging operation, or atomic publish/head/receipt (four mutations).
 /// A transport retry recovers this exact proposal; it cannot change the body/base.
 pub fn step(self: Self, allocator: std.mem.Allocator, turn: *Turn, proposal: Proposal, body: []const u8) !Phase {
     const before = turn.decision;
     errdefer turn.decision = before;
     const who = try self.authorize(turn);
-    if (proposal.operation.value == 0 or proposal.record.value == 0 or proposal.revision.value != try std.math.add(u64, proposal.expected.value, 1) or proposal.spec.format != format or body.len > m.max_program_bytes) return error.InvalidApplicationProposal;
+    try validateProposal(proposal);
+    if (body.len > m.max_program_bytes) return error.InvalidApplicationProposal;
     if (!std.meta.eql(proposal.spec, try Pub.Digest.of(format, body))) return error.ApplicationDigestMismatch;
     const old = try self.receipt(turn, who, proposal.operation);
     if (old) |receipt_value| {
@@ -108,7 +168,7 @@ pub fn step(self: Self, allocator: std.mem.Allocator, turn: *Turn, proposal: Pro
         if (receipt_value.phase != .staging) return receipt_value.phase;
     }
     // Reject complete invalid programs before even reserving staging quota.
-    var program = try root.Sql.parse(allocator, body);
+    var program = root.Sql.parse(allocator, body) catch |err| return if (err == error.OutOfMemory) err else error.InvalidApplicationProgram;
     defer program.deinit();
     var canonical: [m.max_program_bytes]u8 = undefined;
     if (!std.mem.eql(u8, body, try root.Api.canonical(program.definition, &canonical))) return error.NoncanonicalApplicationProgram;
@@ -116,19 +176,17 @@ pub fn step(self: Self, allocator: std.mem.Allocator, turn: *Turn, proposal: Pro
     const pub_record = self.publication(turn);
     if (!baseMatches(try self.head(turn), proposal)) {
         // A conflict is durable evidence, not implicit expiry/cleanup of its body.
-        try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .conflict, .input = turn.delivery.input.position, .owns_record = if (old) |value| value.owns_record else false }));
-        return .conflict;
+        return self.conflict(turn, who, proposal, if (old) |value| value.owns_record else false);
     }
     if (old == null) {
         // Each body identity has exactly one attributable owner/proposal.
-        if (try turn.read(Pub.key(self.configuration.namespace.value, 'r', proposal.record.value, 0)) != null) return error.ApplicationRecordOccupied;
-        _ = try pub_record.begin(turn, proposal.record.value, proposal.spec);
-        try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .staging, .input = turn.delivery.input.position, .owns_record = true }));
+        try self.reserve(turn, who, proposal);
         return .staging;
     }
     const descriptor = try pub_record.inspect(turn, proposal.record.value);
     if (!std.meta.eql(descriptor.spec, proposal.spec) or descriptor.state != .staging) return error.ApplicationPublicationChanged;
     if (descriptor.written < descriptor.spec.chunks()) {
+        if (try turn.read(self.key('x', who, proposal.operation.value)) != null) return error.ApplicationUploadPartConflict;
         const index = descriptor.written;
         const size = try descriptor.spec.size(index);
         _ = try pub_record.append(turn, proposal.record.value, index, body[@as(usize, index) * Pub.chunk_bytes ..][0..size]);
@@ -153,6 +211,7 @@ pub fn abandon(self: Self, turn: *Turn, operation: m.Wide) !void {
     if (value.owns_record) _ = try pub_record.abandon(turn, value.proposal.record.value);
     value.phase = .abandoned;
     try turn.write(self.key('o', who, operation.value), try c.encode('o', value));
+    try turn.write(self.key('x', who, operation.value), null);
 }
 
 pub fn collect(self: Self, turn: *Turn, operation: m.Wide) !bool {

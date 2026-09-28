@@ -52,3 +52,14 @@ The committed `api/application.schema.json` is reflected by `transit-app schema`
 types for presentation, visual edits and generation identity. Query declarations
 explicitly identify Table/KV/Document; only the qualified Table/unified profile
 admits Follow. Finite query capability alone never implies a watch.
+
+For actual transports, `Request.Command` and `Behavior` implement bounded signed
+Station uploads. `begin`, 128-byte `part` messages and explicit `publish` preserve
+one frozen proposal; `publish` validates the complete canonical body before
+visibility. `Behavior.guard()` runs before Station frame processing, retaining
+malformed/denied dispositions and leaving infrastructure failures unresolved.
+Initialize the owner with its independent administrator before granting operator
+admission. Application policy revocation is separate from resource-read grants.
+The native fault proof uses these real commands and handler, including a committed
+first half resumed after a worker kill; it no longer supplies a preloaded body to
+the publication handler.
