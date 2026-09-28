@@ -98,8 +98,11 @@ ledger work independent of historical plan/step cardinality.
 The independent record/digest fixtures and package tests cover twenty retained
 steps, exact reconstruction, conflicting plans and ordinals, current denial,
 explicit abandonment, source mismatch, infrastructure errors and rollback of
-partial decisions. These are ledger tests; migration ingress, actual Table data
-transformation and physical recovery are still unqualified.
+partial decisions. The [work-item example](../../../examples/work-items/README.md) additionally
+qualifies signed native migration commands, an actual Table transformation,
+worker replacement and node/disk recovery. Generated browser and Compose/reference
+placement qualification remain open. Its post-activation write pause separates
+data activation from interface publication and explicit administrator release.
 
 The host's `next_cleanup` continuation composes explicit abandonment with bounded
 publication collection. Signed state reads expose `collected` and `reserved` so

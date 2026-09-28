@@ -1,8 +1,10 @@
 # Declarative reactive applications
 
 Status: [M23](roadmap/M23.md) implementation in progress, reviewed through
-[board-grammar D1](design/board-grammar/D1.md). No new SQL syntax, public operation,
-generator, migration runner or interface runtime is implemented by this document.
+[board-grammar D1](design/board-grammar/D1.md). The bounded application v1 compiler, conditional publication, declared Board
+shell, finite Table draft scheduler and data-owner migration ledger are
+implemented in their owning packages. The generated downstream workflow and
+placement matrix remain open; this design document is not executable evidence.
 [Serving](SERVING.md), [reactive APIs](REACTIVE_API.md), [reactive interfaces](REACTIVE.md)
 and [Arrow](ARROW.md) retain their M19–M22 contracts and qualification limits.
 
@@ -61,8 +63,8 @@ The [grammar contract](../contracts/sql/README.md) is the current parser authori
 | `CREATE TABLE`, `KV`, `DOCUMENT`, `CONNECTION`, `SOURCE`, `SINK`; `GRANT`, `REVOKE`, `SHOW`, `DESCRIBE` | Reference grammar only; production rejects administrative statements | Select and qualify typed owners, catalog resolution and complete lowering for the advertised subset |
 | `SECRET('reference')` option | Reference grammar only | Reuse the proposed metadata lifecycle from Console D6; never resolve a private value in Board |
 | Managed SECRET, service/endpoint/watch declarations, conditional alter/retire | Missing executable syntax and/or semantics | Version semantic operations and lifecycle first, then grammar and public lowering |
-| `CREATE INTERFACE`, `SCREEN`, `BINDING`, `ACTION`, `THEME` | New naming and syntax proposals only | Review vocabulary, define AST/types/fixtures, implement bounded validation and round-trip |
-| Migration plan/apply/recover | No general contract or command today | Qualify public conditional operations and durable coordinator receipts; syntax is a later spelling |
+| `CREATE INTERFACE`, `SCREEN`, `BINDING`, `ACTION`, `THEME` | Bounded application v1 compiler and conditional publication implemented | Qualify the complete renderer/dependency inventory and downstream placement matrix |
+| Migration plan/apply/recover | Versioned data-owner ledger and work-item Table transform implemented | Complete generated workflow and physical placement proofs; no universal schema evolution |
 
 [The candidate Board program](design/board-grammar/board.proposed.sql) illustrates
 all proposed destinations. Every statement there is **non-executable proposal**,
@@ -212,3 +214,20 @@ denial. Interface-driven shell generation, generic migration/data evolution and
 generated application placements remain unqualified until their own proofs run.
 See the [implementation guide](../apps/transit-board/docs/application.md) and
 [test evidence](../tests/README.md#m23-application-declaration-boundary).
+
+## Migration implementation boundaries
+
+The [work-item example](../examples/work-items/README.md) separates bounded copy,
+complete verification, data activation and explicit write release. Its two domain
+writes plus progress and receipt fit the unchanged four-write turn. Activation
+changes one active-Table record and three ledger records; normal writes stay
+paused so interface publication and validation can occur separately. Releasing
+that pause is an administrator action over the exact epoch/source contract. It
+is not a transaction spanning data, configuration and interface owners.
+
+A durable last-key cursor is safe here because the exclusive application owner
+pauses all normal writes. Each step uses a new bounded read position. Other
+applications must supply their own write coordination or versioned source;
+copying this cursor alone cannot stabilize mutable contents. Abandonment leaves
+target Table identities and receipts retained, so another attempt needs a fresh
+plan/target identity. M24 must preserve these roots and pauses during movement.

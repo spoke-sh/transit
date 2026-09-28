@@ -3014,3 +3014,18 @@ a same-result visible-page profile/chart. Its combined run measured 329.00 secon
 and two concurrent Board instances measured 35,663,872 bytes RSS. Native catalog
 tests cover all eight column positions, type-aware sums and allocation failure.
 These measurements cover the Table placement, not a distributed latency target.
+
+`just test::work-items` qualifies the actual `transit-work-items` application
+worker against native growing authority and disk Ursula. Nineteen rows cross ten
+two-row copy turns and a complete verification pass before activation. Two worker
+kills, fresh-key registration/regrants and exact generations span copying and
+verification; the node and disk store restart after the first copy. Lost operator
+and worker receipts retry identical bytes, and an old-key accepted proposal is
+refused after replacement. Current migration revocation preserves progress;
+activation keeps writes paused until explicit administrator release. The run
+measured 15.75 seconds, 53 observed turns, 20 page reads, at most four mutations
+and 142 bytes/value. This does not qualify generated UI, Compose/reference
+placement, a distributed controller or authority transfer. Four unit tests and
+independent Python command/cursor fixtures cover empty and 33-row migrations,
+full-width keys/ordinals, exact reconstruction, target corruption and abandoned
+Table identities. Retention remains unlimited.

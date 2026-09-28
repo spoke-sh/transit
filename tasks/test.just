@@ -214,6 +214,10 @@ document-remote:
 application:
     zig build test-application -Doptimize=ReleaseSafe
 
+# Actual non-trading Table migration worker and disk recovery.
+work-items:
+    zig build test-work-items -Doptimize=ReleaseSafe
+
 # Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
 publication:
     zig build test-publication

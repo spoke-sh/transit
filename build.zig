@@ -81,6 +81,18 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    const work_items_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/WorkItems.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_query", .module = query.module("transit_query") } } });
+    const work_items_test = b.addRunArtifact(b.addTest(.{ .root_module = work_items_module }));
+    const work_items = b.addExecutable(.{ .name = "transit-work-items", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "work_items", .module = work_items_module }} }) });
+    const install_work_items = b.addInstallArtifact(work_items, .{});
+    b.step("example-work-items", "Install the work-item application worker").dependOn(&install_work_items.step);
+    b.step("test-work-items-unit", "Check the application-owned Table migration").dependOn(&work_items_test.step);
+    test_step.dependOn(&work_items_test.step);
+    const work_items_contract = b.addSystemCommand(&.{ "python3", "-B" });
+    work_items_contract.addFileArg(b.path("tests/work_items_contract.py"));
+    work_items_contract.has_side_effects = true;
+    work_items_contract.stdio = .inherit;
+    test_step.dependOn(&work_items_contract.step);
     const application_contract = b.addSystemCommand(&.{ "python3", "-B" });
     application_contract.addFileArg(b.path("tests/application_contract.py"));
     application_contract.has_side_effects = true;
@@ -128,6 +140,10 @@ pub fn build(b: *std.Build) void {
     grpc_contract_test.stdio = .inherit;
     test_step.dependOn(&grpc_contract_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
+    build_test_step.dependOn(&work_items.step);
+    const work_items_proof = b.addExecutable(.{ .name = "transit-work-items-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/work_items.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "work_items", .module = work_items_module }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
+    build_test_step.dependOn(&work_items_proof.step);
+    b.step("work-items-proof", "Build the native work-item qualification caller").dependOn(&b.addInstallArtifact(work_items_proof, .{}).step);
     build_test_step.dependOn(&application.artifact("transit-app").step);
     build_test_step.dependOn(&query.artifact("transit-query-api").step);
     build_test_step.dependOn(&serving_example.step);
@@ -687,6 +703,14 @@ pub fn build(b: *std.Build) void {
     document_test.has_side_effects = true;
     document_test.stdio = .inherit;
     b.step("test-document", "Prove Document publication, checkpoint and disk recovery").dependOn(&document_test.step);
+    const work_items_native = b.addSystemCommand(&.{ "python3", "-B" });
+    work_items_native.addFileArg(b.path("tests/work_items.py"));
+    work_items_native.addArtifactArg(node_artifact);
+    work_items_native.addArtifactArg(work_items);
+    work_items_native.addArtifactArg(work_items_proof);
+    work_items_native.has_side_effects = true;
+    work_items_native.stdio = .inherit;
+    b.step("test-work-items", "Qualify the actual Table migration worker through disk recovery").dependOn(&work_items_native.step);
     const application_proof = b.addExecutable(.{ .name = "transit-application-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/application.zig"),
         .target = target,
@@ -779,6 +803,7 @@ pub fn build(b: *std.Build) void {
     b.step("readiness-caller", "Install the runtime readiness caller proof").dependOn(&b.addInstallArtifact(readiness_caller, .{}).step);
     build_test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
+    examples_step.dependOn(&install_work_items.step);
     examples_step.dependOn(&install_query_example.step);
     examples_step.dependOn(&install_document_caller.step);
     examples_step.dependOn(&install_http_caller.step);

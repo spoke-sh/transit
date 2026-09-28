@@ -6,6 +6,7 @@ against Transit; no example is required to run the authority.
 
 | Example | Binary | Application behavior |
 | --- | --- | --- |
+| [Work items](work-items/README.md) | `transit-work-items` | Two-column application with bounded, verified data migration and native disk recovery; generated UI/placements pending |
 | [Counter](counter/README.md) | `example-counter` | Add decimal-text integers with checked arithmetic |
 | [Byte log](byte-log/README.md) | `example-byte-log` | Concatenate opaque input bytes into bounded state |
 | [Station ledger](station-ledger/README.md) | `example-station-ledger` | Three behaviors with Tables, durable calls, Arrow queries, registry and supervision |
