@@ -22,6 +22,8 @@ pub const Log = struct {
     }
 };
 child: ?std.process.Child = null,
+stdout_file: ?std.Io.File = null,
+stderr_file: ?std.Io.File = null,
 stdout: Log = .{},
 stderr: Log = .{},
 stdout_task: ?std.Io.Future(void) = null,
@@ -35,12 +37,18 @@ pub fn start(self: *Self, init: std.process.Init, executable: []const u8, launch
     self.stdout = .{};
     self.stderr = .{};
     self.child = try std.process.spawn(init.io, .{ .argv = &.{ executable, "__transit_child_v1", try std.fmt.bufPrint(&parent, "{d}", .{std.c.getpid()}), launch_path }, .environ_map = &environment, .stdin = .ignore, .stdout = .pipe, .stderr = .pipe, .pgid = 0 });
+    // Child.kill closes its attached streams. The drain tasks own these handles
+    // until joined, so detach them before any shutdown or forced-kill path.
+    self.stdout_file = self.child.?.stdout;
+    self.stderr_file = self.child.?.stderr;
+    self.child.?.stdout = null;
+    self.child.?.stderr = null;
     errdefer self.stop(init.io);
-    self.stderr_task = try std.Io.concurrent(init.io, Log.drain, .{ &self.stderr, init.io, self.child.?.stderr.? });
+    self.stderr_task = try std.Io.concurrent(init.io, Log.drain, .{ &self.stderr, init.io, self.stderr_file.? });
     if (!needs_registration) try self.drainStdout(init.io);
 }
 pub fn drainStdout(self: *Self, io: std.Io) !void {
-    self.stdout_task = try std.Io.concurrent(io, Log.drain, .{ &self.stdout, io, self.child.?.stdout.? });
+    self.stdout_task = try std.Io.concurrent(io, Log.drain, .{ &self.stdout, io, self.stdout_file.? });
 }
 pub fn registration(self: *Self, io: std.Io, buffer: []u8) ![]const u8 {
     var n: usize = 0;
@@ -48,7 +56,7 @@ pub fn registration(self: *Self, io: std.Io, buffer: []u8) ![]const u8 {
     while (started.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() < 10000) {
         if (@import("../Signals.zig").interrupted()) return error.ServerStopped;
         if (!self.alive()) return error.ChildExited;
-        var fd: [1]std.c.pollfd = .{.{ .fd = self.child.?.stdout.?.handle, .events = std.c.POLL.IN, .revents = 0 }};
+        var fd: [1]std.c.pollfd = .{.{ .fd = self.stdout_file.?.handle, .events = std.c.POLL.IN, .revents = 0 }};
         if (std.c.poll(&fd, 1, 100) <= 0) continue;
         if (n == buffer.len) return error.InvalidRegistration;
         if (std.c.read(fd[0].fd, @ptrCast(&buffer[n]), 1) != 1) return error.ChildExited;
@@ -85,10 +93,12 @@ pub fn stop(self: *Self, io: std.Io) void {
         }
         if (self.stdout_task) |*task| task.cancel(io);
         if (self.stderr_task) |*task| task.cancel(io);
-        if (child.stdout) |file| file.close(io);
-        if (child.stderr) |file| file.close(io);
+        if (self.stdout_file) |file| file.close(io);
+        if (self.stderr_file) |file| file.close(io);
     }
     self.child = null;
+    self.stdout_file = null;
+    self.stderr_file = null;
     self.stdout_task = null;
     self.stderr_task = null;
 }
@@ -104,4 +114,43 @@ pub fn trampoline(init: std.process.Init, args: []const []const u8) !void {
     defer environment.deinit();
     for (launch.environment) |entry| try environment.put(entry.name, entry.value);
     return std.process.replace(init.io, .{ .argv = launch.argv, .environ_map = &environment });
+}
+
+test "full diagnostic prefix keeps draining a real pipe without retaining backlog" {
+    const t = std.testing;
+    const io = t.io;
+    var descriptors: [2]std.c.fd_t = undefined;
+    if (std.c.pipe2(&descriptors, .{ .CLOEXEC = true }) != 0) return error.PipeFailed;
+    const input: std.Io.File = .{ .handle = descriptors[0], .flags = .{ .nonblocking = false } };
+    defer input.close(io);
+    const output: std.Io.File = .{ .handle = descriptors[1], .flags = .{ .nonblocking = false } };
+    var output_owned = true;
+    defer if (output_owned) output.close(io);
+    var log: Log = .{};
+    var drain = try std.Io.concurrent(io, Log.drain, .{ &log, io, input });
+    defer drain.cancel(io);
+    const Task = struct {
+        fn write(task_io: std.Io, file: std.Io.File) anyerror!void {
+            defer file.close(task_io);
+            const block: [8192]u8 = @splat('x');
+            for (0..256) |_| try file.writeStreamingAll(task_io, &block);
+        }
+        fn timeout(task_io: std.Io) anyerror!void {
+            try task_io.sleep(.fromSeconds(5), .awake);
+        }
+    };
+    const Result = union(enum) { written: anyerror!void, timeout: anyerror!void };
+    var results: [2]Result = undefined;
+    var selection: std.Io.Select(Result) = .init(io, &results);
+    defer selection.cancelDiscard();
+    try selection.concurrent(.timeout, Task.timeout, .{io});
+    try selection.concurrent(.written, Task.write, .{ io, output });
+    output_owned = false;
+    switch (try selection.await()) {
+        .written => |result| try result,
+        .timeout => return error.LogDrainStalled,
+    }
+    drain.await(io);
+    try t.expectEqual(log_bytes, log.length);
+    for (log.bytes) |byte| try t.expectEqual('x', byte);
 }

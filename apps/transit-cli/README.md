@@ -1,16 +1,16 @@
 # transit-cli
 
-The `transit` executable provides the explicit-submit `console` and the existing
-signed query shells. Existing `rey-cli` administration commands remain separate.
+The `transit` executable provides the local `server`, explicit-submit `console`
+and existing signed query shells. Existing `rey-cli` administration commands remain separate.
 
-[M24](../../docs/roadmap/M24.md) is implementing the selected
+[M24](../../docs/roadmap/M24.md) implements the selected
 [server/console contract](../../contracts/TRANSIT_CLI_V1.md). Shared parser and
 cursor assistance lives in Fuze/query packages. The [console guide](docs/console.md)
 covers versioned configuration, terminal editing, trust and exact recovery.
 The [local server guide](docs/server.md) describes the implemented supervisor,
-private native gateway and selected dependency/credential profile. Its lifecycle
-qualification is in progress; existing query entry points below keep their
-qualified contracts during that transition.
+private native gateway and selected dependency/credential profile. Focused recovery,
+gateway pressure and physical capacity proofs pass; the final clean-checkout gate
+is tracked in M24. Existing query entry points retain their qualified contracts.
 
 `transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
 [unified shell guide](docs/unified-query.md) covers source declarations, finite

@@ -68,8 +68,8 @@ def joined(pids):
 
 
 class Fixture:
-    def __init__(self, cli, node, host):
-        self.root = Path(tempfile.mkdtemp(prefix="transit-server-proof-", dir="/var/tmp"))
+    def __init__(self, cli, node, host, parent="/var/tmp"):
+        self.root = Path(tempfile.mkdtemp(prefix="transit-server-proof-", dir=parent))
         self.cli = str(Path(cli).resolve())
         ports = []
         while len(ports) < 5:
@@ -84,6 +84,8 @@ class Fixture:
         self.path.write_text(json.dumps(self.config))
         self.process = None
         self.logs = []
+        self.activation = None
+        self.markers = set()
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         self.url = f"http://127.0.0.1:{ports[-1]}"
 
@@ -115,6 +117,14 @@ class Fixture:
                     raise AssertionError(Path(self.logs[-1].name).read_text())
                 report = json.loads(line)
                 assert report["ready"] and report["profile"] == "local_table_v1", report
+                activation = self.record()["registration"]
+                markers = {path.name for path in (self.installation / "activations").glob("*.activation")}
+                if self.activation is not None:
+                    assert activation["pid"] == self.activation["pid"]
+                    assert activation["generation"] > self.activation["generation"]
+                    assert activation["public_key"] != self.activation["public_key"]
+                    assert self.markers < markers, (self.markers, markers)
+                self.activation, self.markers = activation, markers
                 with self.http.open(self.url + "/health", timeout=5) as response:
                     assert response.status == 200
                 return report
@@ -124,9 +134,12 @@ class Fixture:
         if self.process is None:
             return
         owned = children(self.process.pid)
-        if self.process.poll() is None:
+        running = self.process.poll() is None
+        if running:
             self.process.kill() if kill else self.process.terminate()
         self.process.wait(timeout=20)
+        if running and not kill:
+            assert self.process.returncode == 0, Path(self.logs[-1].name).read_text()
         joined(owned)
         self.process.stdout.close()
         self.process = None
@@ -197,6 +210,7 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
+        assert fixture.console("/resume 1\n/next\n/quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
@@ -206,6 +220,7 @@ def run(cli, node, host):
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
             fixture.console("/schema\n/quit\n")
+            assert fixture.console("/resume 1\n/next\n/quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         assert "RestartBudgetExhausted" in Path(fixture.logs[-1].name).read_text()
@@ -226,6 +241,10 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         fixture.console("/schema\n/quit\n")
+        # A stopped child cannot process SIGTERM. Force the supervisor's timed
+        # SIGKILL path and join its pipe drainers before closing their handles.
+        source = next(pid for pid in children(fixture.process.pid) if "table_source" in command(pid))
+        os.kill(source, signal.SIGSTOP)
         fixture.stop()
         success = True
         print(f"Transit server core lifecycle: passed in {time.monotonic() - start:.2f}s", flush=True)
@@ -238,4 +257,9 @@ def run(cli, node, host):
 
 
 if __name__ == "__main__":
-    run(*sys.argv[1:])
+    faults = sys.argv[-1] == "--faults"
+    args = sys.argv[1:-1] if faults else sys.argv[1:]
+    run(*args)
+    if faults:
+        from server_faults import run as fault_proof
+        fault_proof(*args)

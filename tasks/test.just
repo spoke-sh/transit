@@ -307,6 +307,14 @@ console source="table":
 server:
     zig build test-server -Doptimize=ReleaseSafe
 
+server-faults:
+    zig build test-server -Doptimize=ReleaseSafe -Dserver-faults=true
+
+# Linux/Docker: real ENOSPC inside one newly allocated ext4 image.
+server-capacity:
+    zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host
+
 # Current grant changes/cancellation after a durable segment staging decision.
 unified-lifecycle source="kv":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-lifecycle=true

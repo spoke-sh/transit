@@ -56,6 +56,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v2 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
+| `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
+| `just test::server-capacity` | Fill a newly allocated ext4 image to real ENOSPC, preserve accepted query identity and recover the same installation |
 | `just test::unified-codec` | Check independent v2 bundles and nested Arrow through the native library and local port |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |
 | `just test::publication` | Qualify 64 KiB immutable records, bounded staging/cleanup, exact retry and worker/node/store recovery |

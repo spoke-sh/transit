@@ -3111,7 +3111,7 @@ read-conflict correction and parser instrumentation.
 `just test::unified-ingress table` passes the native assistance endpoint and real
 Board editor against a disk-backed authorized Table, alongside the existing
 finite upload, worker/node/store recovery, full coverage, Live budget and exact
-retry proofs. The combined run took **332.91 seconds** excluding compilation.
+retry proofs. The final combined run took **331.57 seconds** excluding compilation.
 It checks source scoping, unsupported column/cursor rejection, Ctrl-Space,
 whole-token replacement at an interior cursor, Tab acceptance, completion undo,
 dismissal and current denial clearing. Neither editing nor acceptance submits.
@@ -3120,10 +3120,12 @@ UTF-8 boundaries, comments, literals, eight-result bounds and allocation failure
 The shared browser owner tests delayed generations, one outstanding request,
 contract changes, revocation and safe replacement (15 query-client tests).
 
-This is native/Board evidence. Terminal parity and its latency measurements
-remain open until the actual console proof runs. Browser timing is collected
-inside the fixture and subsequent runs expose it in the parent proof log; no
-completion latency target is inferred from the combined query runtime.
+The final browser fixture measured completion at **823.74 ms cold / 811.18 ms
+warm**, including debounce and current authorization, with two gateway processes
+using 33,234,944 bytes RSS. The [console fixtures](#m24-console-qualification)
+exercise the same parser, authorization and cursor-assistance contract through
+an actual terminal for Table, KV and Document. These single-run measurements
+establish evidence for the selected fixtures, not a completion latency target.
 
 The first M23 clean-checkout run at `ac287122ea1d` passed core, growth,
 experience, launchers and the earlier binding tasks, then stopped in the Node
@@ -3190,13 +3192,13 @@ Document provisioning accounts for 493.70 seconds of its total; the fixture
 retains twelve rows across two segments, 64 resident authority pages and
 133,852,226 cold bytes. KV retains forty-one rows across six segments, eight
 resident pages and 26,816,531 cold bytes. Both cap Ursula hot storage at 8 MiB.
-These focused costs do not change M10's hosted CI budget. The M24 server/lifecycle
-proof remains separate qualification work.
+These focused costs do not change M10's hosted CI budget. The separate server
+lifecycle and physical-capacity evidence follows below.
 
 ## M24 local server qualification
 
 `just test::server` passes the Linux `local_table_v1` core lifecycle proof in
-**28.42 seconds**, excluding compilation. The actual supervisor launches native
+**29.12 seconds** in the final fault run, excluding compilation. The actual supervisor launches native
 MinIO and disk Ursula, authority, maintenance, source, requester, courier and a
 separate gateway with an empty `PATH`. A separately launched console discovers
 the empty declared Table and reads a verified `COUNT(*) = 0` result through that
@@ -3211,10 +3213,34 @@ shutdown, manager SIGKILL and automatic source/node/store replacement. A fourth
 role failure exhausts the invocation's three-restart budget. A Linux test
 subreaper verifies joined children after manager loss; the implementation itself
 uses kernel parent-death handling, fresh worker keys and exact native ownership.
+Assertions check increasing generations, different public keys, retained activation
+markers and the original verified query after recovery. A SIGSTOP child exercises
+the timed SIGKILL path; pipe readers join before their handles close. A real pipe
+unit proof drains 2 MiB while retaining only the configured 64 KiB log prefix.
 
 Early attempts exposed a directory `fsync` descriptor issue and HTTP target use
 after request-body parsing invalidated its memory. Both were fixed before the
 passing run. The fixture now selects an explicit query namespace, waits for
 verified completion and sets socket reuse when testing an occupied listener.
-Interrupted bootstrap, provider rollback, gateway capacity, full storage and the
-M24 committed-HEAD clean gate remain separate qualification work.
+`just test::server-faults` additionally passes interrupted persisted provisioning,
+exact receipt recovery, wrong caller-key denial, unchanged native status/body,
+forbidden identity headers, oversized bodies, four stalled data requests with
+reserved control, executable hash mismatch and provider rollback refusal. The
+additional schedule took **12.96 seconds**; health took **3.00 ms** under data
+pressure and gateway sampled RSS was **9,035,776 bytes** (64 MiB fixture ceiling).
+Rollback is a negative test against the persisted observation floor, not evidence
+of a supported snapshot restore or a global latest-history oracle.
+
+`just test::server-capacity` passes in **16.61 seconds** after fixture setup.
+It uses one owned 2 GiB ext4 image mounted inside an isolated privileged test
+container, with native service processes running as the unprivileged host user.
+After accepting a query, a filler leaves 4 MiB metadata headroom and a separate
+32 MiB allocation proves actual ENOSPC. A preallocated 512 MiB reserve is released
+with the filler before restart. Control attempts and shutdown remain bounded;
+ordinary recovery preserves provisioned identities and completes the original
+query using its independently persisted console record. This is the selected
+capacity fault schedule, not a storage throughput or zero-free-byte guarantee.
+
+`just check` passes with the final server and console implementation. The final
+M23/M24 committed-HEAD clean gate remains outstanding until the complete run
+succeeds. These focused tasks do not change M10's hosted CI budgets.

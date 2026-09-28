@@ -526,10 +526,15 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
+    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true }) }));
+    test_step.dependOn(&lifecycle_test.step);
+    b.step("test-cli-lifecycle", "Prove bounded local process log draining").dependOn(&lifecycle_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
     for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host }) |artifact| server_test.addArtifactArg(artifact);
+    if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     server_test.has_side_effects = true;
+    server_test.step.dependOn(&lifecycle_test.step);
     server_test.stdio = .inherit;
     b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });

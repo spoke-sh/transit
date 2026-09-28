@@ -25,5 +25,6 @@ pub fn read(comptime T: type, io: std.Io, allocator: std.mem.Allocator, path: []
         std.crypto.secureZero(u8, bytes);
         allocator.free(bytes);
     }
+    if (bytes.len > 65536) return error.InstallationRecordTooLarge;
     return (try std.json.parseFromSlice(T, allocator, bytes, .{ .allocate = .alloc_always })).value;
 }

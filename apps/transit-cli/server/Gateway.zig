@@ -36,6 +36,7 @@ const Context = struct {
         defer allocator.free(url);
         const body = request.readerExpectNone(&.{}).allocRemaining(allocator, .limited(if (health) 1 else wire.max_body + 1)) catch return http.respond(request, .payload_too_large, "{\"err\":\"InvalidBody\"}");
         defer allocator.free(body);
+        if (body.len > (if (health) @as(usize, 0) else wire.max_body)) return http.respond(request, .payload_too_large, "{\"err\":\"InvalidBody\"}");
         var client: std.http.Client = .{ .allocator = allocator, .io = io };
         defer client.deinit();
         const output = try allocator.alloc(u8, wire.max_body);

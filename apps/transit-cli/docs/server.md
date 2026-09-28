@@ -3,8 +3,8 @@
 `transit server --config server.json --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
 `--initialize`. The Linux `local_table_v1` bootstrap, independent console and
-core process-recovery proof passes; additional M24 fault/capacity qualification
-is in progress. Completed evidence belongs in the
+process-recovery, interrupted bootstrap, gateway pressure and physical ENOSPC
+proofs pass. Completed evidence belongs in the
 [test guide](../../../tests/README.md). It is a trusted single-user placement,
 with Kubernetes/Substrate remaining the reference isolation profile.
 
@@ -102,8 +102,10 @@ the trampoline arms SIGKILL and checks the expected parent before exec. Killing
 the manager therefore kills its owned service processes. The next manager
 preflights every listener and never adopts a process by PID number or port.
 
+The manager checks child exits every 100 ms and observes authority every second.
 An exited role or failed authority observation withdraws the gateway and stops
-dependents before restarting the same history. One invocation permits three
+dependents before restarting the same history. Gateway health is a sampled
+availability observation, not a query completion or ownership guarantee. One invocation permits three
 restarts after the initial attempt, with 250/500/750 ms backoff. Registration has
 a 10-second deadline; provider/authority/gateway readiness has 30 seconds per
 role; initialized query inspection has 60 seconds. Native operations have a
@@ -131,7 +133,7 @@ ownership and disaster recovery remain M26.
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
 | Gateway | No signing key or raw provider access | Eight sockets, four data requests plus two control requests; 8 KiB headers, 256 KiB body/reply; 500 ms header and four-second whole-request deadlines |
-| Console | Scoped caller key and two resource read grants | Its separate [console bounds](console.md) and optional private recovery file |
+| Console | Realm-scoped inspect/send caller key and two specific resource read grants | Its separate [console bounds](console.md) and optional private recovery file |
 
 Each child has two independent 64 KiB in-memory log prefixes. After each prefix
 fills, the drain continues and discards additional diagnostics; there is no
