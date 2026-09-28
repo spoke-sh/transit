@@ -6,6 +6,7 @@ const telemetry = observability.telemetry;
 pub const Session = @import("Session.zig");
 pub const GrowingSession = @import("GrowingSession.zig");
 pub const bootstrap = @import("bootstrap.zig");
+pub const Application = @import("Application.zig");
 pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
 const transit = protocol;
@@ -280,6 +281,7 @@ test {
     _ = @import("ConcurrencyTests.zig");
     _ = Session;
     _ = GrowingSession;
+    _ = Application;
     const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, largestFields(protocol.Inspection.Page), .{});
     defer std.testing.allocator.free(bytes);
     try std.testing.expect(bytes.len + 1024 <= max_body);

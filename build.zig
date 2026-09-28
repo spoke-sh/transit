@@ -311,6 +311,10 @@ pub fn build(b: *std.Build) void {
     const board_contract = b.addExecutable(.{ .name = "transit-board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") }} }) });
     b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
+    const installation_fixture = b.addRunArtifact(client.artifact("transit-application-installation-contract"));
+    installation_fixture.addArg("--fixture");
+    b.step("application-installation-fixture", "Export a shared application signing fixture").dependOn(&installation_fixture.step);
+    b.step("application-installation-contract", "Export language-neutral application installation schema").dependOn(&b.addRunArtifact(client.artifact("transit-application-installation-contract")).step);
     b.step("client-contract", "Export reflected client ABI signatures").dependOn(&b.addRunArtifact(client.artifact("transit-client-contract")).step);
     b.step("client-abi", "Build the shared client library").dependOn(&b.addInstallArtifact(client.artifact("transit_client"), .{}).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);

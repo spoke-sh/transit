@@ -28,6 +28,14 @@ pub fn build(b: *std.Build) void {
     }) });
     b.installArtifact(contract);
     b.step("contract", "Export reflected C ABI signatures").dependOn(&b.addRunArtifact(contract).step);
+    const installation_contract = b.addExecutable(.{ .name = "transit-application-installation-contract", .root_module = b.createModule(.{
+        .root_source_file = b.path("src/application_contract.zig"),
+        .target = b.graph.host,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_client", .module = module }},
+    }) });
+    b.installArtifact(installation_contract);
+    b.step("application-contract", "Export public application installation types").dependOn(&b.addRunArtifact(installation_contract).step);
     const test_step = b.step("test", "Check the protocol client");
     const check_step = b.step("check", "Compile standalone client and ABI tests without executing them");
     for ([_]*std.Build.Module{ module, abi }) |subject| {

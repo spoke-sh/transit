@@ -1,5 +1,11 @@
 # transit-client
 
+M25's in-progress `Application` API defines language-neutral local application
+declarations, signed management requests and fresh-worker bootstrap values.
+The [installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md)
+owns the intended workflow and qualification limits. Semantic validation rejects
+conflicting names, dependency order and grant scopes before provisioning.
+
 `Session.receive` distinguishes permanent `ProcessExpired`/`ProcessTerminated`
 from `StaleActivation`. Only the latter may be resolved by obtaining a valid new
 activation for the same PID. A failed read or uncertain deadline is never proof

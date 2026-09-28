@@ -5,6 +5,13 @@ import sys
 
 root = Path(__file__).resolve().parents[1]
 actual = sys.stdin.buffer.read()
+if sys.argv[1:] == ["--installation"]:
+    expected = (root / "contracts/application-installation-v1.schema.json").read_bytes()
+    if actual != expected:
+        raise SystemExit("Application installation contract drift: run just contract::generate")
+    assert json.loads(actual)["$id"] == "urn:transit:application-installation:v1"
+    print("Application installation schema matches the public client types.")
+    raise SystemExit(0)
 growth = sys.argv[1:] == ["--growth"]
 assert not sys.argv[1:] or growth, "unsupported contract check arguments"
 expected = (root / ("contracts/transit-v3.schema.json" if growth else "contracts/transit-v2.schema.json")).read_bytes()

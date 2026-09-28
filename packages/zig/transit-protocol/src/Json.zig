@@ -23,6 +23,11 @@ pub fn write(value: anytype, out: *std.json.Stringify) std.Io.Writer.Error!void 
         .optional => if (value) |item| try write(item, out) else try out.write(null),
         .@"struct" => |info| {
             if (@hasDecl(T, "jsonStringify")) return out.write(value);
+            if (comptime info.is_tuple) {
+                try out.beginArray();
+                inline for (info.field_names) |name| try write(@field(value, name), out);
+                return out.endArray();
+            }
             try out.beginObject();
             inline for (info.field_names) |name| {
                 try out.objectField(name);
@@ -74,10 +79,18 @@ pub fn valueAlloc(allocator: std.mem.Allocator, value: anytype) ![]u8 {
 /// Validate reflected host wire shapes before typed decoding. Zig's generic
 /// parser also accepts strings for byte arrays; public host schemas do not.
 pub fn parseFromSlice(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
+    return parseWithOptions(T, allocator, bytes, .{});
+}
+
+/// Own decoded strings as well as collections; safe after releasing input bytes.
+pub fn parseFromSliceOwned(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
+    return parseWithOptions(T, allocator, bytes, .{ .allocate = .alloc_always });
+}
+fn parseWithOptions(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8, options: std.json.ParseOptions) !std.json.Parsed(T) {
     const tree = try std.json.parseFromSlice(std.json.Value, allocator, bytes, .{});
     defer tree.deinit();
     try shape(T, tree.value);
-    return std.json.parseFromSlice(T, allocator, bytes, .{});
+    return std.json.parseFromSlice(T, allocator, bytes, options);
 }
 fn shape(comptime T: type, value: std.json.Value) anyerror!void {
     switch (@typeInfo(T)) {
@@ -146,4 +159,18 @@ test "host JSON rejects quoted integers and preserves escaped UTF-8 at wide valu
     try std.testing.expectEqual(@import("root.zig").max_counter, decoded.value.position);
     try std.testing.expectEqualStrings("\x00\n\"é", decoded.value.text);
     try std.testing.expectError(error.InvalidJsonShape, parseFromSlice(Message, a, "{\"position\":\"1\",\"text\":\"ok\"}"));
+}
+
+test "owned host JSON survives input buffer reuse" {
+    var bytes = "{\"label\":\"kept\"}".*;
+    const decoded = try parseFromSliceOwned(struct { label: []const u8 }, std.testing.allocator, &bytes);
+    defer decoded.deinit();
+    @memset(&bytes, 0);
+    try std.testing.expectEqualStrings("kept", decoded.value.label);
+}
+
+test "anonymous tuple configuration values preserve array shape" {
+    const encoded = try valueAlloc(std.testing.allocator, .{ .destinations = .{ @as(u64, 5), @as(u64, 1) } });
+    defer std.testing.allocator.free(encoded);
+    try std.testing.expectEqualStrings("{\"destinations\":[5,1]}", encoded);
 }
