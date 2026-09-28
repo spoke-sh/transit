@@ -1,10 +1,10 @@
 # Serving — inbound protocols over Transit services
 
-Status: [M19](roadmap/M19.md) implementation in progress. The shared bounded
-[HTTP listener](../packages/zig/transit-http-server/README.md) and Board migration
-are implemented. The [service profile](../contracts/SERVING_V1.md) selects explicit
-signed service callers and a Station-owned ingress; its admission implementation
-is under qualification. Deployment gates remain open. HTTP is the first profile for application
+Status: [M19](roadmap/M19.md) initial HTTP profile is qualified. The shared bounded
+[HTTP listener](../packages/zig/transit-http-server/README.md), Board migration and
+[service profile](../contracts/SERVING_V1.md) pass their separately recorded
+[admission, lifecycle, TLS and placement proofs](../tests/README.md#m19-qualification).
+HTTP is the first profile for application
 APIs and Board. [M20](roadmap/M20.md) adds [reactive APIs](REACTIVE_API.md),
 [M21](roadmap/M21.md) consumes them in live views, and
 [Flight/Flight SQL M22](roadmap/M22.md) qualifies an Arrow protocol adapter.
@@ -65,9 +65,10 @@ Those are reusable foundations, not proof of an inbound server.
 
 Board now uses bounded concurrent requests, private request observations, an
 atomic shared read throttle and reserved health capacity. Socket proofs exercise
-slow uploads, strict framing, deadlines and joined cancellation. Further M19
-admission and per-principal fairness proofs are required before M20 opens live
-subscriptions. The outbound gRPC transport has
+slow uploads/readers, strict framing, deadlines and joined cancellation, including
+scheduling failure. Application admission, caller fairness and Board cross-instance
+sequence/active-work arbitration pass their declared profiles. M20 adds the separate
+long-lived session and subscription controls. The outbound gRPC transport has
 no server implementation; inbound TLS and HTTP/2 cannot be inferred from client
 qualification.
 

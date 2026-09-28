@@ -34,6 +34,8 @@ HTTP and RPC connectors over shared capture and explicit outcome policies.
 [M17](docs/roadmap/M17.md) adds structured Documents and collaborative text.
 [M18](docs/roadmap/M18.md) extends querying across those state sources, with all
 ten SDKs, explicit SQL ingress and bounded current-authority result readers.
+[M19](docs/roadmap/M19.md) qualifies shared HTTP serving, durable application
+admission, concurrent Board reads and recovery across native, Compose and Substrate placements.
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

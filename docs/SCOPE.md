@@ -12,7 +12,9 @@ for bounded inspection. The [M7 KV profile](roadmap/M7.md) and
 [HTTP M15](roadmap/M15.md), [RPC M16](roadmap/M16.md) and
 [Documents M17](roadmap/M17.md) are qualified within their declared profiles.
 [Unified querying M18](roadmap/M18.md) implements the shared state-query model;
-its proof ledger qualifies native source/lifecycle coverage and Table physical recovery. Broader deployment,
+its proof ledger qualifies native source/lifecycle coverage and Table physical recovery.
+[Serving M19](roadmap/M19.md) qualifies the initial signed HTTP service, shared
+Board listener and separate native/Compose/Substrate recovery profiles. Broader deployment,
 transport and application outcomes below remain design direction.
 
 ## Purpose

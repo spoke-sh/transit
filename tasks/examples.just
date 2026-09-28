@@ -82,3 +82,12 @@ query-compose source="table":
 query-reference source="table":
     zig build unified-query-proof example-state-query transit-query-host -Doptimize=ReleaseSafe
     python3 -B examples/state-query/run.py --profile reference --source {{quote(source)}}
+
+# Two private HTTP/TLS gateways and fenced workers recover owned Compose storage.
+serving-compose:
+    nix develop .#serving --command python3 -B examples/serving/run.py --profile compose
+
+# Fresh Substrate worker keys and exact generations; an owned namespace only.
+serving-reference:
+    zig build transit-query-host -Doptimize=ReleaseSafe
+    nix develop .#serving --command python3 -B examples/serving/run.py --profile reference

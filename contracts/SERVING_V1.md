@@ -1,8 +1,8 @@
 # Serving profile v1
 
-Status: M19 implementation in progress. This contract selects the initial service
-caller profile; socket qualification alone does not qualify durable admission or
-deployment. [Serving](../docs/SERVING.md) owns the architecture.
+Status: qualified M19 initial service-caller profile. The
+[proof ledger](../tests/README.md#m19-qualification) separates socket, durable
+admission, lifecycle and physical deployment evidence. [Serving](../docs/SERVING.md) owns the architecture.
 
 ## Owner and publication
 

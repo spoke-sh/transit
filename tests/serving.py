@@ -92,7 +92,7 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False):
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
     with Fixture() as store, ExitStack() as owned:
@@ -101,7 +101,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
         port = free_port()
         url = f'http://127.0.0.1:{port}'
         configuration = store.root / 'node.json'
-        configuration.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000), ursula_url=store.url, bucket='serving', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
+        configuration.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), ursula_url=store.url, bucket='serving', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
         children, logs = [], []
 
         def start(name, executable, config):
@@ -152,7 +152,8 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
             raise AssertionError(('undrained', pid, value))
 
         fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'blocked': 0,
-                 'ingress_commit': None, 'application_commit': None, 'commit_retries': set()}
+                 'ingress_commit': None, 'application_commit': None, 'destination_delivery': None,
+                 'reply_delivery': None, 'commit_retries': set()}
         fault_lock = threading.Lock()
         release_reads = threading.Event()
 
@@ -178,6 +179,11 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
                         admission = request['principal'] == 77 and any(mutation and bytes.fromhex(mutation['key']).startswith(b'\x00sv1o') for mutation in turn.get('mutations', []))
                         application_reply = request['principal'] == 78 and any(output and bytes.fromhex(output['value'])[:5] == b'STN1\x03' for output in turn.get('outputs', []))
                         stage = 'ingress_commit' if admission else 'application_commit' if application_reply else None
+                        if request['principal'] == 80 and 'deliver' in request['command']:
+                            for candidate in ('destination_delivery', 'reply_delivery'):
+                                if fault[candidate] is None or body == fault[candidate][0]:
+                                    stage = candidate
+                                    break
                         if stage:
                             if fault[stage] is None:
                                 fault[stage] = body, result
@@ -190,6 +196,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
                         if fault['armed']:
                             fault['armed'] = False
                             fault['lost'] = body, result
+                            if capacity: time.sleep(3.5)  # acceptance precedes the gateway's 3s upstream deadline
                             self.close_connection = True
                             return
                         if fault['lost'] and body == fault['lost'][0]:
@@ -226,13 +233,13 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
             cast(application, b'')
             drained(ingress)
             drained(application)
-            deadline_ms = int(time.time() * 1000) + 600000
+            deadline_ms = int(time.time() * 1000) + (1800000 if growth else 600000)
             cast(ingress, publication(1, application, deadline_ms))
             for principal in (65536, 65537): cast(ingress, policy(principal))
             drained(ingress)
             # Initialize privately before exposing any untrusted native ingress.
             for principal in (65536, 65537): grant(principal, 20, ingress)
-            courier_config = dict(url=url, realm=REALM, principal=80, seed_file=str(keys[80].seed), role={'courier': dict(destinations=[ingress, application])})
+            courier_config = dict(url=worker_url, realm=REALM, principal=80, seed_file=str(keys[80].seed), role={'courier': dict(destinations=[ingress, application])})
             courier_worker = start('courier', courier, courier_config)
             gateway_ports = [free_port(), free_port()]
             public_host = 'serving.example.test'
@@ -258,7 +265,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
                 post(gateway_ports[0], '/serving/v1/read', probe, public_host, 403, {'Origin': 'https://foreign.example.test'})
             frozen = native_command(keys[65536], 65536, 1, {'send': dict(pid=ingress, value=frame(submit(1, deadline_ms)))})
             fault['armed'] = True
-            post(gateway_ports[0], '/serving/v1/command', frozen, public_host, 503)
+            post(gateway_ports[0], '/serving/v1/command', frozen, public_host, 504 if capacity else 503)
             assert fault['lost']
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
                 receipts = list(pool.map(lambda p: post(p, '/serving/v1/command', frozen, public_host, 202), gateway_ports))
@@ -270,20 +277,27 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
                 while time.monotonic() < until:
                     try:
                         status = read('status', operation)
+                        if status['stage'] == 'completed':
+                            value = read('result', operation)
+                            assert struct.unpack('<q', bytes.fromhex(value['operation']['result']))[0] == expected, value
+                            return value
                     except AssertionError as error:
-                        if error.args[0][1] in (404, 409):
+                        if isinstance(error.args[0], tuple) and error.args[0][1] in (404, 409, 503, 504):
                             time.sleep(.03)
                             continue
                         raise
-                    if status['stage'] == 'completed':
-                        value = read('result', operation)
-                        assert struct.unpack('<q', bytes.fromhex(value['operation']['result']))[0] == expected, value
-                        return value
+                    except (OSError, ConnectionError):
+                        # A read interruption changes no durable outcome. The
+                        # outer observation deadline still bounds all retries.
+                        continue
                     time.sleep(.03)
                 raise AssertionError(('incomplete', operation, status))
 
             first = completed(1, 1)
-            assert fault['commit_retries'] == {'ingress_commit', 'application_commit'}, fault
+            expected_retries = {'ingress_commit', 'application_commit', 'destination_delivery', 'reply_delivery'}
+            until = time.monotonic() + 5
+            while fault['commit_retries'] != expected_retries and time.monotonic() < until: time.sleep(.01)
+            assert fault['commit_retries'] == expected_retries, fault
             if capacity:
                 probe = signed_read(keys[65536], 65536, ingress, 'status', 1)
                 other = signed_read(keys[65537], 65537, ingress, 'discovery')
@@ -423,6 +437,21 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
                     if entries[0] and bytes.fromhex(entries[0]['value']) == b'station.closed-reply.v1': break
                     time.sleep(.03)
                 else: raise AssertionError('late reply was not consumed after closure')
+            if growth:
+                # Retained cardinality exceeds the authority's resident-page
+                # budget; every lookup remains a bounded public point read.
+                for ordinal in range(128):
+                    operation = 100 + ordinal
+                    sequences[65536] += 1
+                    message = native_command(keys[65536], 65536, sequences[65536], {'send': dict(pid=ingress, value=frame(submit(operation, deadline_ms)))})
+                    post(gateway_ports[0], '/serving/v1/command', message, public_host, 202)
+                    completed(operation, ordinal + 4)
+                    if (ordinal + 1) % 32 == 0: print(f'Serving growth: retained {ordinal + 1}/128 operations', flush=True)
+                for ordinal in (0, 31, 63, 127): completed(100 + ordinal, ordinal + 4)
+                completed(1, 1)
+                rss = sum(int(next(line for line in Path(f'/proc/{worker.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1]) * 1024 for worker in (authority, ingress_worker, app_worker, gateways[0]))
+                assert rss <= 512 * 1024 * 1024, ('authority/workers/gateway exceeded finite growth profile ceiling', rss)
+                print(f'Serving growth: 128 additional retained operations and bounded old-result reads with 8 resident authority pages; authority/two workers/gateway RSS {rss} bytes <= 536870912 ceiling', flush=True)
             cast(ingress, publication(2, application, deadline_ms, False))
             drained(ingress)
             completed(2, 3)
@@ -499,4 +528,5 @@ if __name__ == '__main__':
     parser.add_argument('--tls', action='store_true')
     parser.add_argument('--capacity', action='store_true')
     parser.add_argument('--lifetimes', action='store_true')
+    parser.add_argument('--growth', action='store_true')
     run(**vars(parser.parse_args()))

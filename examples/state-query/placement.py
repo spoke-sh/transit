@@ -28,8 +28,8 @@ class Compose(BaseCompose):
 
 class Reference(module.Reference):
     binary_names = BINARIES
-    def __init__(self, work):
-        super().__init__(work, 'query')
+    def __init__(self, work, protocol='query'):
+        super().__init__(work, protocol)
 
     def register_host(self, config):
         self.counter += 1

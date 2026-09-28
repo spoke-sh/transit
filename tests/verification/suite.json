@@ -110,7 +110,9 @@
       "examples::document-compose",
       "examples::document-reference",
       "examples::query-compose",
-      "examples::query-reference"
+      "examples::query-reference",
+      "examples::serving-compose",
+      "examples::serving-reference"
     ],
     "discovery": [
       "test::mutations"
@@ -149,7 +151,8 @@
       "test::serving",
       "test::serving-tls",
       "test::serving-capacity",
-      "test::serving-lifetimes"
+      "test::serving-lifetimes",
+      "test::serving-growth"
     ]
   },
   "nested_tasks": {

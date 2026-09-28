@@ -11,7 +11,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{ .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") } },
     }) });
-    b.step("serving-example", "Install the signed HTTP service example").dependOn(&b.addInstallArtifact(serving_example, .{}).step);
+    const install_serving = b.addInstallArtifact(serving_example, .{});
+    b.step("serving-example", "Install the signed HTTP service example").dependOn(&install_serving.step);
+    b.step("transit-serving-example", "Install the signed HTTP service artifact").dependOn(&install_serving.step);
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
     const grpc = b.dependency("transit_grpc", .{ .target = target, .optimize = optimize });
@@ -419,6 +421,7 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
+    if (b.option(bool, "serving-growth", "Qualify retained service operations beyond resident pages") orelse false) serving_test.addArg("--growth");
     serving_test.has_side_effects = true;
     serving_test.stdio = .inherit;
     b.step("test-serving", "Qualify durable HTTP service admission and recovery").dependOn(&serving_test.step);

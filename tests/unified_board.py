@@ -117,9 +117,13 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
         input=json.dumps([{'description': description}, {'compiled': compiled}, *[{'page': p} for p in pages]]).encode(),
         check=True, timeout=15)
     with ThreadPoolExecutor(max_workers=2) as pool:
-        concurrent_pages = list(pool.map(lambda i: api({'page': {'namespace': namespace}}, instance=i)['page'], range(2)))
+        pending_pages = [pool.submit(lambda i: api({'page': {'namespace': namespace}}, instance=i)['page'], i) for i in range(2)]
+        rss = 0
+        while not all(pending.done() for pending in pending_pages):
+            rss = max(rss, sum(int(next(line for line in Path(f'/proc/{child.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1])*1024 for child in (server, second)))
+            time.sleep(.005)
+        concurrent_pages = [pending.result() for pending in pending_pages]
     assert concurrent_pages[0] == concurrent_pages[1] == pages[0]
-    rss = sum(int(next(line for line in Path(f'/proc/{child.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1])*1024 for child in (server, second))
     assert rss <= 256*1024*1024, ('two Board result readers exceeded declared 256 MiB RSS ceiling', rss)
     print(f'Board concurrent {kind}: competing prepared sequences and durable active quota, identical cross-instance retry, bounded Arrow/escaped JSON readers; two-instance RSS {rss} bytes.', flush=True)
     if browser:

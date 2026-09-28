@@ -913,12 +913,15 @@
         "packages/zig/transit-serving/src/Adapter.zig",
         "packages/zig/transit-station/src/GenServer.zig"
       ],
-      "profile": "serving-v1/growing-v3; local HTTP service callers",
+      "profile": "serving-v1/growing-v3; signed HTTP/TLS service callers",
       "tasks": [
         "test::unit",
         "test::serving",
         "test::serving-capacity",
-        "test::serving-lifetimes"
+        "test::serving-lifetimes",
+        "test::serving-growth",
+        "examples::serving-compose",
+        "examples::serving-reference"
       ],
       "scenarios": [
         "Concurrent identical and conflicting native sequences across two gateways",
@@ -929,9 +932,12 @@
         "Lost ingress and application commit responses recover identical signed bytes and receipts",
         "Per-caller HTTP capacity preserves unrelated callers and reserved health under delayed reads",
         "Authenticated cancellation/timeout and late replies retain terminal results across restart",
-        "Finite process wait bounds and hard resource expiry without observer delivery"
+        "Finite process wait bounds and hard resource expiry without observer delivery",
+        "Lost destination/reply delivery receipts and gateway timeout after native acceptance",
+        "Fresh operator-attributed Substrate keys, resource grants and exact ownership after physical loss",
+        "Retained operation growth beyond resident pages with explicit native admission/control budgets"
       ],
-      "limits": "Finite native/TLS schedules; remote placement and reactive APIs are separate gates. Capacity RSS covers gateway processes at the declared stalled-read point. Growing native receipts remain retained.",
+      "limits": "Qualified finite native/Compose/Substrate profiles; no reactive APIs or automatic growing runtime controller. RSS observations have declared process/workload scopes. Native receipts remain retained without finite reclamation.",
       "model": null
     }
   ]

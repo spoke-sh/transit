@@ -1,6 +1,6 @@
 # Serving example
 
-M19 work in progress: an actual signed HTTP gateway, Station ingress and separate
+An actual signed HTTP gateway, Station ingress and separate
 non-trading Table counter application. The [serving contract](../../contracts/SERVING_V1.md)
 owns admission, provenance and recovery. The gateway exposes command admission,
 current bounded discovery/status/result reads and a health route through the
@@ -20,8 +20,9 @@ workers and does not acquire ownership automatically.
 The HTTPS origin names the independently provisioned TLS terminator; the clear
 listener must remain on its private loopback/network boundary. No forwarding
 header can establish identity. The [termination guide](docs/termination.md) owns
-the real nginx template, local TLS proof and concurrency budget. Remote deployment
-qualification remains open. Each admitted HTTP data request uses at most
+the real nginx template, TLS proofs and concurrency budget. The
+[running guide](docs/running.md) covers owned native, Compose and Substrate
+placements and exact recovery. Each admitted HTTP data request uses at most
 2 MiB for parsing/upstream work, plus the listener's bounded buffers. Default
 four data handlers, two per caller and two reserved health handlers are separate from the durable
 service quota. The owning resource retains terminal operations with no implicit
@@ -40,4 +41,6 @@ provisions its own keys/rights and leaves existing launcher deployments alone.
 `just test::serving-lifetimes` adds real cancel/timeout ordering and finite
 process/resource expiry. Clock uncertainty returns temporary unavailability until
 the authority can establish expiry; it is not a fabricated terminal outcome.
-No complete M19 or M20 qualification is claimed by this local example.
+`just test::serving-growth` retains 128 additional operations beyond the resident
+page budget. The [compatibility matrix](../../packages/zig/transit-serving/docs/compatibility.md)
+records qualification per consumer and placement. Reactive APIs remain unavailable.

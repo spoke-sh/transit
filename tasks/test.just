@@ -267,6 +267,10 @@ serving-capacity:
 serving-lifetimes:
     zig build test-serving -Doptimize=ReleaseSafe -Dserving-lifetimes=true
 
+# Bounded point reads and retained operations beyond the resident-page budget.
+serving-growth:
+    zig build test-serving -Doptimize=ReleaseSafe -Dserving-growth=true
+
 # Explicit SQL shell and separately authorized Board query API/browser.
 unified-ingress source="table":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true

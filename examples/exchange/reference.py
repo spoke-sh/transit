@@ -181,14 +181,14 @@ class Reference(Compose):
         data = {p.name: base64.b64encode(p.read_bytes()).decode() for p in directory.iterdir() if p.is_file() and p.name in ("seed.key", "credential", "ca.pem", "tls.key", "config.json")}
         self.apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": name}, "data": data})
 
-    def pod_deployment(self, name, container, volumes):
+    def pod_deployment(self, name, container, volumes, init_containers=()):
         container.update(securityContext={"allowPrivilegeEscalation": False, "readOnlyRootFilesystem": True, "capabilities": {"drop": ["ALL"]}},
                          resources={"requests": {"cpu": "100m", "memory": "64Mi"}, "limits": {"cpu": "1", "memory": "512Mi"}})
         self.apply({"apiVersion": "apps/v1", "kind": "Deployment", "metadata": {"name": name}, "spec": {
             "replicas": 1, "strategy": {"type": "Recreate"}, "selector": {"matchLabels": {"app": "exchange-" + name}},
             "template": {"metadata": {"labels": {"app": "exchange-" + name}}, "spec": {"automountServiceAccountToken": False,
                 "securityContext": {"runAsUser": 65532, "runAsGroup": 65532, "runAsNonRoot": True, "fsGroup": 65532},
-                "containers": [container], "volumes": volumes}}}})
+                "initContainers": list(init_containers), "containers": [container], "volumes": volumes}}}})
 
     def caller_template(self, name, config):
         return {"metadata": {"atespace": self.namespace, "name": name},

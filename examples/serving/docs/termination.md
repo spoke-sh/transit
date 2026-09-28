@@ -1,13 +1,13 @@
 # Private TLS termination
 
 The first M19 termination profile uses pinned nginx from `nix develop .#serving`,
-with the Zig gateway on private loopback. Run `just test::serving-tls` from the
+with the Zig gateway on private loopback or the declared private deployment network. Run `just test::serving-tls` from the
 project environment to exercise the actual [template](../nginx.conf.in), signed
 clients, two gateway instances and disk recovery. The fixture generates a short
 lived certificate/key in its owned temporary directory, verifies its trust and
 hostname independently, and removes the processes/files on exit. This qualifies
-the local termination configuration; remote Compose/Substrate placement remains
-a separate gate.
+the local termination configuration. The [physical examples](running.md) separately
+exercise the same terminator with private Compose or reference backends.
 
 An operator supplies the real certificate chain, a restricted private-key file,
 public Host/HTTPS Origin, private backend address, and explicit caller keys. The
@@ -43,6 +43,6 @@ authorized reads from two callers across two gateways are held in upstream I/O.
 It proves one caller's limit leaves capacity for the other. It requires the
 ninth data request to receive 503 and health to finish within one second. The
 declared aggregate gateway ceiling for this finite configuration is 256 MiB;
-the [proof ledger](../../../tests/README.md#m19-work-in-progress) records the
+the [proof ledger](../../../tests/README.md#m19-qualification) records the
 observed value. This is not an Internet flood/throughput qualification. Proxy,
 authority, worker and kernel memory are outside that gateway RSS measurement.

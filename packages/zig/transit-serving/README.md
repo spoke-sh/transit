@@ -1,6 +1,6 @@
 # transit-serving
 
-M19 implementation in progress of the [serving profile](../../../contracts/SERVING_V1.md).
+Qualified M19 implementation of the [serving profile](../../../contracts/SERVING_V1.md).
 This library composes public growing Station turns. It has no HTTP, raw storage,
 private key storage, clock or gateway retry database. Admission and disposition
 records live in the service's private resource; reads use current public clients.
@@ -33,3 +33,7 @@ signatures and scoped reads bind the ingress explicitly.
 Run `zig build test` in the pinned Nix environment. Full HTTP/TLS/deployment and
 reactive API qualification are separate gates in [M19](../../../docs/roadmap/M19.md)
 and [M20](../../../docs/roadmap/M20.md); this package's unit checks do not prove them.
+
+The [compatibility matrix](docs/compatibility.md) lists executed consumers,
+placements and limits. Run the [application example](../../../examples/serving/README.md)
+for native, Compose or operator-placed Substrate recovery.

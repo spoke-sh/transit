@@ -1,8 +1,8 @@
 # HTTP serving profile v1
 
-Status: M19 implementation in progress. Neutral listener mechanics are the first
-slice and Board uses them. Application admission and deployment qualification
-remain open. [Serving](../docs/SERVING.md) owns the architecture.
+Status: qualified M19 neutral listener profile, used by Board and application
+serving. The [proof ledger](../tests/README.md#m19-qualification) records separate
+application admission, TLS and deployment evidence. [Serving](../docs/SERVING.md) owns the architecture.
 
 The listener accepts bounded HTTP/1.1 origin-form requests, requires exactly one
 valid Host and uses one request per connection. Consumers check their exact

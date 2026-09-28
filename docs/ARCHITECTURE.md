@@ -192,7 +192,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
 | [transit-http-server](../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 parsing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board | None |
-| [transit-serving](../packages/zig/transit-serving/README.md) / `transit_serving` | M19 service bindings, scoped caller policy, durable operation admission and bounded current result reads; deployment qualification in progress | transit-station |
+| [transit-serving](../packages/zig/transit-serving/README.md) / `transit_serving` | M19 service bindings, scoped caller policy, durable operation admission and bounded current result reads; native/Compose/Substrate HTTP qualification | transit-station |
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
 | [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and qualified paged accepted-state publication | transit-station |
 | [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 qualified finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |

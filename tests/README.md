@@ -1,95 +1,71 @@
 # Validation and milestone evidence
 
-## M19 work in progress
+## M19 qualification
 
-`just test::serving-http` runs the neutral listener with an independent Python
-socket peer: ambiguous and duplicate headers, bounded chunked bodies, slow uploads,
-reserved health capacity, deadline recovery, concurrent requests and joined parent
-shutdown. The standalone `transit-http-server` tests also pass. This is a finite
-socket schedule, not throughput or inbound TLS qualification.
+The initial HTTP serving profile is qualified on Linux x86_64 with the pinned
+Zig/Nix toolchain. Application service callers use explicit native signing keys;
+Board keeps private shared viewer admission and its separate query identity.
+The [compatibility matrix](../packages/zig/transit-serving/docs/compatibility.md)
+separates consumers, placements and unsupported protocols.
 
-The extended socket proof also stalls two 8 MiB response writes behind small
-receive windows, checks reserved health and data refusal, and observes deadline
-recovery. A unit fault injects scheduling failure after the deadline timer starts
-and verifies that cancellation joins the timer before returning.
+| Proof | Executed evidence and measured cost |
+| --- | --- |
+| `just test::serving-http` and standalone HTTP tests | Real socket framing/chunking, duplicate/ambiguous headers, slow uploads, two blocked 8 MiB response writes, 413/503, reserved health, header/request deadlines and joined parent shutdown. Injected scheduling failure joins the already-started timer |
+| Board unit/service proof | Existing inspection flooding, revocation, trimming, storage outage and diagnostics pass; four stalled uploads exhaust data capacity while reserved health remains responsive (0.007s maximum control latency in that run) |
+| `just test::unified-ingress table` | Two actual Board instances, shell, generated client and Chromium; competing principal sequences, exact retries, durable active-upload quota, current prefix denial, nested Arrow/JSON pages and worker/node/store recovery. Final run: 290.33s; 331 cold objects / 31,238,036 bytes |
+| `just test::serving-capacity` | Real nginx 1.30.5 TLS, two gateways, per-caller fairness, eight stalled authorized reads, excess caller 429/data 503 and health 0.003s. Lost native admission, worker commits, destination delivery and reply-delivery receipts recover exact bytes. Accepted mutation exceeds the gateway deadline, then recovers. Final run: 15.74s |
+| `just test::serving-lifetimes` | Explicit cancel, authenticated timeout, duplicate observation, late replies after restart, finite process/wait bounds and hard resource expiry without observer delivery. Final run: 30.05s including real-clock waits |
+| `just test::serving-growth` | 128 additional retained operations, old point reads and exact original results with only 8 resident authority pages. Final run with explicit native ceiling/reserve: 501.27s |
+| `just examples::serving-compose` | Two TLS gateways, immutable results, current denial, physical worker/gateway/node/disk recovery and fresh ownership. Final cached-image run: 16.73s; 17 cold objects / 880,092 bytes |
+| `just examples::serving-reference` | Operator-attributed fresh Substrate worker keys and exact generations; private gateway Secrets, real egress-denial probes, two TLS gateways and physical recovery. Final cached-image run: 89.49s; 14 cold objects / 890,245 bytes |
+| `just launchers::compose::test` / `just launchers::reference::test-launcher` | Board and persistent launcher regressions pass in separately owned installations: isolated updates, same-PID replacement, queued outbox/reply evidence, authority/store restart, stop/start and missing-store refusal |
+| `just test::growing-quota` | Explicit quota exhaustion retains pending Station work/backlog, uses the control reserve and recovers from disk |
 
-Board's unit and real disk-backed service proofs pass after migration to the same
-listener. Four stalled body uploads exhaust its data slots, another data request
-receives 503, and health remains responsive. The existing inspection flooding,
-revocation, trimming, storage outage and diagnostic checks still pass; maximum
-measured control latency in this run is 0.007 seconds. Durable service admission,
-cross-instance coordination, TLS and physical placement remain separate open gates.
+Native timings exclude compilation. Placement timings include image preparation,
+deployment and the scenario, excluding final cleanup; first-use downloads/builds
+can cost more (the first Compose image run took 111.40s). These are finite schedules,
+not throughput/latency promises. New integration tasks remain focused or external;
+expanded hosted CI costs are deferred under M10. No CI lane expansion is inferred
+from these local runs. `just check` and standalone Station/serving checks pass.
 
-`just test::unified-ingress table` also passes through the changed Board transport:
-SQL shell, generated client, Chromium workspace, identical signed retry, current
-prefix denial and worker/node/store recovery. It completes in 289.80 seconds
-excluding compilation, with 8 resident authority pages, an 8 MiB hot store and
-314 cold objects / 30,399,016 bytes. This extends the Table ingress regression;
-it does not add a reactive watch or a measured aggregate reader RSS bound.
+The TLS peers verify trust/hostname and reject foreign Host/Origin. The actual
+private nginx template bounds framing/body/write/upstream work, disables proxy
+retry, buffering/spooling and access logging. Termination is on the operator host;
+physical backends use an isolated bridge or authenticated Kubernetes port-forward.
+The reference gateway denies storage/cold-store/public-network/Kubernetes/Substrate
+egress before startup and carries no service-account token. Owned namespace UID
+checks protect cleanup; the default installation is not adopted or modified.
 
-The extended Table ingress run passes two actual Board instances racing different
-prepared commands at one principal sequence. Exactly one receives a native receipt;
-the loser receives `409 QueryConflict`. Both recover the identical winning token,
-and a later competing upload is rejected by the requester's durable active quota.
-Concurrent Arrow/escaped-JSON result reads match exactly. Aggregate Board RSS after
-those reads is 20,877,312 bytes, below the finite two-instance 256 MiB ceiling;
-this is a measured point, not a peak bound. The full shell/generated-client/browser/
-recovery run takes 294.69 seconds, with 324 cold objects / 30,992,194 bytes.
+The independent Python/OpenSSL callers pin binary layouts and scoped signatures.
+The native schedule rejects forged/cross-principal reads and forwarding headers,
+deduplicates operation IDs across new native sequences, and preserves the original
+target after publication retirement. Malformed native frames, spoofed replies and
+premature timers become ordered dispositions without poisoning the service queue.
+Gateway, worker, node and store loss leave the same operation/result recoverable.
+Current service-policy and native-grant revocation deny disclosure.
 
-`just test::serving` passes the real application/ingress workers, scoped reader
-gateway and independent Python/OpenSSL callers over disk Ursula. Its two gateways
-race identical native requests and conflicting requests sharing one native
-sequence. It loses an accepted upstream response, recovers the same receipt,
-deduplicates the same operation under a new sequence, checks immutable target and
-digest, and rejects cross-principal reads, forged scope and forwarding headers.
-Direct malformed native frames, spoofed replies and premature timer observations
-produce ordered dispositions without blocking the service. Gateway/worker/node/
-store loss after admission preserves the original operation and exact result.
-Publication retirement retains recovery, and current service-policy/native-grant
-revocation denies disclosure. The final run takes 13.39 seconds excluding compilation,
-using 8 resident authority pages and disk storage without cold offload.
+Capacity observations are scoped. The two delayed-read gateways use 47,792,128 bytes
+RSS against a declared 256 MiB ceiling and private 2 MiB request allocators. During
+two concurrent Board result reads, sampled aggregate RSS reaches 29,532,160 bytes
+against the same two-instance ceiling. The 128-operation growth run measures
+38,035,456 bytes across node, two workers and gateway against a 512 MiB profile
+ceiling. These measurements exclude proxy/kernel memory and are not peak guarantees
+for every configurable workload. The physical fixtures use an 8 MiB hot store.
 
-Standalone serving tests exercise conditional publication, per-principal/global
-active limits, cancellation/reply/timeout races, poisoned reads, finite wait bounds
-and 128 retained operations with bounded point reads. Independent shared fixtures
-pin binary layouts and scope signatures. Growing native receipts remain retained
-across newer sequences; this does not qualify receipt reclamation or a finite
-retry horizon. `just check` and Station's standalone tests pass for this slice.
-Physical placement and M20 remain open and are not
-inferred from this local proof.
+All service fixtures now configure a 50,000-position native admission ceiling and
+2,000-position recovery/control reserve. Service active slots and caller quotas
+are separate from retained cardinality. Standalone tests exercise 128 retained
+records, bounded point reads, conditional publication, target immutability,
+quota refusal, poisoned reads and cancellation/reply/timeout races. No retention
+opt-in or total-cardinality array is used to permit growth.
 
-`just test::serving-tls` passes the same independent signed recovery schedule
-through the real nginx termination template (nginx 1.30.5, pinned nixpkgs).
-Untrusted certificates, wrong certificate hostnames, mismatched HTTP Host and
-foreign Origin reject. The local run completes in 13.98 seconds excluding build
-and first-use tool downloads. TLS termination remains inside the declared private
-proxy/gateway boundary; remote placement is not implied.
-
-`just test::serving-capacity` additionally holds eight authorized result/status
-reads in upstream I/O across two gateways. The ninth request receives 503 while
-health completes in 0.003 seconds. Aggregate gateway RSS at the stalled-read point
-is 49,094,656 bytes, below the declared 256 MiB ceiling, with private 2 MiB request
-allocators. This full TLS/recovery schedule completes in 14.87 seconds. The RSS
-measurement excludes proxy/authority/workers and is one declared finite profile,
-not a peak bound for every configurable workload or Internet-scale qualification.
-
-The extended capacity schedule enforces two in-flight requests per caller per
-gateway: excess caller work receives 429 while a second caller uses the remaining
-slots. With all eight data handlers held, health still completes in 0.003 seconds;
-aggregate gateway RSS is 47,759,360 bytes. This TLS/recovery run takes 14.43 seconds.
-Both worker commits now also lose their first accepted response; the ingress and
-application retry identical signed bytes and recover identical receipts, preserving
-the once-only domain update.
-
-`just test::serving-lifetimes` passes explicit cancellation, authenticated timeout,
-duplicate observations and late replies after worker/node recovery. It rejects a
-wait extending beyond finite process work bounds and observes hard resource expiry
-without timer delivery. The clock's uncertainty window returns temporary
-unavailability until expiry is definite. The final native run takes 30.71 seconds,
-including those real-clock waits. Socket deadlines never renew a durable wait or
-erase its retained terminal record.
-These tasks remain focused, with hosted expanded cost qualification deferred under
-M10. The optional serving Nix shell pins the proxy through the existing lockfile.
+Growing native receipts and terminal service records remain retained across newer
+sequences. This profile does not advertise finite receipt reclamation. Finite
+process/resource expiry is separate: clock uncertainty yields temporary
+unavailability until expiry is definite, and socket deadlines do not renew waits.
+The observer is explicitly provisioned; no automatic timer daemon or growing
+runtime reconciliation controller is qualified. Reactive transports, watch
+coverage and reactive SDKs remain M20 work; inbound gRPC/Flight have separate gates.
 
 ## M18 qualification
 
