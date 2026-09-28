@@ -123,4 +123,64 @@ describe("generated reactive transport boundary", () => {
     expect(session.pending).toBeNull();
     expect(session.leaseBefore).toBe(30000);
   });
+  test.each([403, 410, 409])(
+    "rejected control observes current scope before terminal presentation (%s)",
+    async (status) => {
+      const signed = {
+        request: {
+          version: 3,
+          realm: 49,
+          principal: 65536,
+          sequence: 1,
+          command: { send: { pid: 1, value: "00" } },
+        },
+        signature: Array(64).fill(0),
+      };
+      let inspections = 0;
+      const session = new Session(
+        new Transport(async (_url, options) => {
+          const request = JSON.parse(options!.body as string);
+          if ("inspect" in request) {
+            ++inspections;
+            return new Response("", { status });
+          }
+          const response =
+            "prepare" in request
+              ? { prepared: signed }
+              : "submit" in request
+                ? { receipt: { receipt: { position: 10 } } }
+                : { observation: { rejected: "526561637469766552657365745265717569726564" } };
+          return new Response(JSON.stringify(response), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }),
+        async () => () => {},
+      );
+      session.description = {
+        connection: { realm: 49, principal: 65536, service: 1, ingress: 1 },
+      } as never;
+      session.scope = {
+        realm: 49,
+        principal: 65536,
+        service: 1,
+        ingress: 1,
+        session: 5,
+        generation: 6,
+        subscription: 7,
+        subscription_generation: 8,
+      };
+      session.attachment = 9;
+      session.nonce = Array(16).fill(1);
+      await expect(
+        session.command({
+          renew: { identity: { session: 5, generation: 6 }, expected: 1000, lease_before_ms: 2000 },
+        }),
+      ).rejects.toMatchObject({
+        status,
+        reason: status === 403 ? "denied" : status === 410 ? "expired" : "reset_required",
+      });
+      expect(inspections).toBe(1);
+      expect(session.pending).toBeNull();
+    },
+  );
 });

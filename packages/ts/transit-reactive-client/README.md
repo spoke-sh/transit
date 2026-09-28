@@ -22,7 +22,10 @@ need no `eval` and are suitable for Board's CSP.
 `Session` prepares controls through the configured Zig host, retains frozen bytes
 on uncertainty and waits for committed dispositions before proceeding. Keep the
 object above disposable components. Call `recover` explicitly before preparing
-more controls when `pending` is present. `follow` owns one abortable stream;
+more controls when `pending` is present. A committed rejection clears uncertainty
+and observes current scope to report denial, expiry or reset before another
+control. It cannot become an endless renewal/reconnection loop.
+`follow` owns one abortable stream;
 consumers own pause/hide, reconnect/backoff and visible refresh scheduling. A
 reconnect observes the existing session and does not implicitly reopen an expired
 one. Close stops a subscription and does not cancel application work.
@@ -42,8 +45,10 @@ query result; the shared query reader and M21 refresh lifecycle own that work.
 
 Run `just transit-board::check` for generated drift, strict types and consumer
 checks. `just test::reactive-client` exercises the real Zig host, TLS, exact
-lost-reply recovery and metadata-only boundary. Full M21 browser/view qualification
-remains in progress; M20's browser harness is separate protocol evidence.
+lost-reply recovery and metadata-only boundary. The
+[M21 proof ledger](../../../tests/README.md#m21-qualification) records the separate
+native/Compose/reference browser and multi-tab lifecycle qualification; M20's
+browser harness remains protocol evidence.
 
 `LiveView<T>` owns a single joined stream/read lifecycle and one newest dirty
 revision outside rendering. `start` is explicit; reconnect observes the same

@@ -93,7 +93,11 @@ export class Session {
       if ("rejected" in seen.observation) {
         this.pending = null;
         this.unlock();
-        throw new ReactiveError(409, "control_rejected");
+        // A committed rejection is no longer uncertain. Observe current scope
+        // so expiry/denial clears protected state, including when renewal was
+        // rejected before an attachment could report a changed watch.
+        if (this.scope && this.attachment > 0) await this.inspect(signal);
+        throw new ReactiveError(409, "reset_required");
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
       signal?.throwIfAborted();
