@@ -36,6 +36,7 @@ const retained = {
   work: { current: empty() },
   active: false,
   follow: false,
+  blocked: false,
   release: null as (() => void) | null,
 };
 function freshNamespace() {
@@ -89,6 +90,9 @@ export function UnifiedWorkspace({
     // returns. Clear unsubmitted plan/presentation rather than inventing rejection.
     work.current.bundle = null;
     retained.follow = false;
+    retained.blocked = true;
+    abort.current.abort();
+    abort.current = new AbortController();
     verified.current = null;
     setSource(null);
     setDraft("");
@@ -199,7 +203,10 @@ export function UnifiedWorkspace({
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      if (disposed || document.hidden) return;
+      // A known terminal result stops automatic disclosure until the user
+      // explicitly checks access again. A previously running read is aborted
+      // by clear(), including when the denial came from the independent stream.
+      if (disposed || document.hidden || retained.blocked) return;
       if (liveQuery.following) {
         // Keep one local wakeup so automatic budget exhaustion resumes current
         // reads without a user click. No request is sent while follow owns work.
@@ -351,7 +358,13 @@ export function UnifiedWorkspace({
       <div className="atlas-toolbar">
         <button onClick={onBack}>← Neighborhood</button>
         <span>Resource {resource} · separate v2 query capability</span>
-        <button disabled={working} onClick={() => refresh((n) => n + 1)}>
+        <button
+          disabled={working}
+          onClick={() => {
+            retained.blocked = false;
+            refresh((n) => n + 1);
+          }}
+        >
           Refresh query access
         </button>
       </div>

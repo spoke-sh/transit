@@ -97,9 +97,9 @@ pub fn validate(self: Self, prepared: r.SignedSend) !void {
 fn refreshPrepare(self: Self, adapter: root.Adapter, input: root.RefreshModel.Input) !r.SignedSend {
     if (!self.refresh) return error.ServingDenied;
     if (!(try self.query(.capabilities)).body.capabilities.resource_read_access) return error.ReadAccessUnavailable;
-    var scoped = try adapter.reader(self.connection.principal);
     const command: root.RefreshModel.Command = switch (input) {
         .follow => |view| blk: {
+            var scoped = try adapter.readerFor(self.connection.principal, &.{m.key('W', 0, 0)});
             const source = (try root.ReactiveService.source(&scoped.data)) orelse return error.ReactiveResetRequired;
             const identity = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .identity }, self.key);
             const source_proof = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .{ .read_access = source.resource } }, self.key);
@@ -121,16 +121,24 @@ fn refreshStatus(self: Self, adapter: root.Adapter, selection: root.RefreshModel
 }
 fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshModel.Selection) !root.RefreshModel.View {
     if (!self.refresh) return error.ServingDenied;
-    const signed = try m.SignedRead.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .service = self.connection.service, .ingress = self.connection.ingress, .kind = .discovery }, self.key);
-    _ = try adapter.read(signed, self.key.public_key.toBytes());
-    var scoped = try adapter.reader(self.connection.principal);
+    const identity = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = .identity }, self.key);
+    try adapter.authorize(identity, self.key.public_key.toBytes());
+    var scoped = try adapter.readerFor(self.connection.principal, &.{
+        root.RefreshModel.headKey(self.connection.principal, selection.session.session),
+        root.RefreshModel.viewKey(self.connection.principal, selection.generation),
+    });
     if (try root.Refresh.head(&scoped.data, self.connection.principal, selection.session.session) != selection.generation) return error.RefreshGenerationConflict;
     const view = (try root.Refresh.view(&scoped.data, self.connection.principal, selection.generation)) orelse return error.RefreshNotFound;
     if (!std.meta.eql(view.session, selection.session)) return error.ReactiveGenerationConflict;
     const source = (try self.query(.{ .read_access = view.source.resource })).body.read_access;
     const requester = (try self.query(.{ .read_access = adapter.resource })).body.read_access;
     if (source.writer != view.source.target or source.phase != .active or requester.writer != self.connection.ingress or requester.phase != .active) return error.ResourceUnavailable;
-    _ = try adapter.read(signed, self.key.public_key.toBytes());
+    // These copied records are not disclosed until caller identity and current
+    // service policy have been checked again. Mutable ingress writes cannot
+    // expire the bounded head/view acquisition halfway through its read.
+    try adapter.authorize(identity, self.key.public_key.toBytes());
+    const latest = try adapter.readerFor(self.connection.principal, &.{});
+    if (latest.policy.revision != scoped.policy.revision) return error.ServiceReadConflict;
     return view;
 }
 /// A clock sample for lease renewal does not rediscover source schemas or
@@ -153,8 +161,9 @@ pub fn signRead(self: Self, read: r.Read) !r.SignedRead {
 pub fn observe(self: Self, adapter: root.Adapter, input: u64) !Observation {
     try m.identity(input);
     const signed = try m.SignedRead.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .service = self.connection.service, .ingress = self.connection.ingress, .kind = .disposition, .operation = input }, self.key);
-    // Current service/native/resource policy before and after the input check.
-    _ = try adapter.read(signed, self.key.public_key.toBytes());
+    // The process observation uses the actual caller's native inspection right.
+    // The subsequent disposition read checks caller/service/resource authority
+    // before and after copying any protected service bytes for disclosure.
     const current = try self.query(.{ .process = self.connection.ingress });
     if (input > current.position) return error.InvalidServingReceipt;
     const state = current.body.process;

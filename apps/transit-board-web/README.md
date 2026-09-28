@@ -54,7 +54,9 @@ One verified result segment is resident at a time, with exact int64 strings,
 nulls and binary labels. Five-second current-policy observations continue while
 the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
-source, draft and result. The v2 workspace retains frozen pending requests across
+source, draft and result. In v2 it also stops automatic reads, including after
+follow-lease expiry; **Refresh query access** explicitly rechecks authorization.
+The v2 workspace retains frozen pending requests across
 in-app route remounts for exact recovery; known denial does not invent their
 rejection. Temporary connection failures retain permitted v2 rows with their
 original source basis. A full page reload loses in-memory recovery bytes; no

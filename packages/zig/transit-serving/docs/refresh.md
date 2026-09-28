@@ -74,3 +74,10 @@ Session open/attach/renew controls do not create query demand or unconditional
 refresh wakeups. Query inputs and follow controls schedule separate refresh turns;
 clock inputs can release recorded spacing after a scheduler exists. Thus an idle
 metadata-only view does not pay for query wakeup/delivery cycles.
+
+The private caller reads refresh head/view records in one bounded native cut,
+then rechecks current caller identity, resource read rights and service policy
+before disclosure. Receipt observation reads the caller-authorized process once
+and performs one protected disposition read with its own before/after checks.
+It does not rediscover the service twice per poll. These reductions preserve
+authorization boundaries; they do not extend a lease or promise a latency bound.
