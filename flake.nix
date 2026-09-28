@@ -74,6 +74,10 @@
             ;
         in
         rec {
+          serving = pkgs.mkShell {
+            inputsFrom = [ default ];
+            packages = [ pkgs.nginx ];
+          };
           ci-bindings = import ./nix/ci-bindings.nix {
             inherit pkgs;
             inherit (toolchains.${system}) sql-tools;

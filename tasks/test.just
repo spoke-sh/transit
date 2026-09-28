@@ -255,6 +255,14 @@ serving-http:
 serving:
     zig build test-serving -Doptimize=ReleaseSafe
 
+# Same service admission/recovery through pinned nginx HTTPS termination.
+serving-tls:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-tls=true
+
+# Linux: aggregate resident memory and health progress through the real TLS proxy.
+serving-capacity:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-tls=true -Dserving-capacity=true
+
 # Explicit SQL shell and separately authorized Board query API/browser.
 unified-ingress source="table":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true

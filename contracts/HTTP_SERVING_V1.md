@@ -34,5 +34,6 @@ capacity and application per-principal fairness need separate measured proofs.
 
 TLS, application service bindings, caller provenance, command/reply records,
 stable operation identity and current read policy remain with M19's serving
-consumer. This document does not yet qualify remote TLS termination. SSE and
+consumer. The [serving example's local nginx termination](../examples/serving/docs/termination.md)
+passes its real signed-call/recovery proof; remote TLS placement remains separate. SSE and
 WebSocket are M20 extensions and remain unavailable until their own proofs.

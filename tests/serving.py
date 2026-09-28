@@ -1,7 +1,9 @@
 """Independent signed HTTP peers against real Station workers and disk authority."""
+import argparse
 import concurrent.futures
+from contextlib import ExitStack
 import hashlib
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPSConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
@@ -15,6 +17,7 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 REALM = 49
+TLS = {}
 
 
 def compact(value):
@@ -72,7 +75,7 @@ def signed_read(key, principal, ingress, kind, operation=0):
 
 
 def post(port, path, value, host=None, status=200, headers=None):
-    connection = HTTPConnection('127.0.0.1', port, timeout=10)
+    connection = HTTPSConnection('127.0.0.1', TLS[port].port, context=TLS[port].context, timeout=10) if port in TLS else HTTPConnection('127.0.0.1', port, timeout=10)
     try:
         request_headers = {'Content-Type': 'application/json'}
         if host:
@@ -89,10 +92,10 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier):
+def run(node, example, courier, tls=False, capacity=False):
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
-    with Fixture() as store:
+    with Fixture() as store, ExitStack() as owned:
         keys = {p: Key(store.root, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
         port = free_port()
@@ -148,13 +151,20 @@ def run(node, example, courier):
                 time.sleep(.03)
             raise AssertionError(('undrained', pid, value))
 
-        fault = {'armed': False, 'lost': None, 'retried': False}
+        fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'blocked': 0}
+        fault_lock = threading.Lock()
+        release_reads = threading.Event()
 
         class FaultProxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
 
             def do_POST(self):
                 body = self.rfile.read(int(self.headers['Content-Length']))
+                message = json.loads(body)
+                if self.path == '/v3/query' and message['query']['principal'] == 79 and 'resource' in message['query']['kind'] and fault['stall_reads']:
+                    with fault_lock:
+                        fault['blocked'] += 1
+                    release_reads.wait(timeout=4)
                 connection = HTTPConnection('127.0.0.1', port, timeout=10)
                 try:
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
@@ -215,6 +225,9 @@ def run(node, example, courier):
             for index, gateway_port in enumerate(gateway_ports):
                 gateway_config['role']['gateway']['port'] = gateway_port
                 gateways.append(start(f'gateway-{index}', example, gateway_config))
+                if tls:
+                    from serving_tls import TLSProxy
+                    TLS[gateway_port] = owned.enter_context(TLSProxy(store.root / f'tls-{index}', gateway_port))
             time.sleep(.4)
 
             def read(kind, operation=0, principal=65536, expected=200):
@@ -222,6 +235,10 @@ def run(node, example, courier):
 
             discovery = read('discovery')
             assert discovery['binding']['revision'] == 1 and not discovery['capabilities']['websocket'], discovery
+            if tls:
+                probe = signed_read(keys[65536], 65536, ingress, 'discovery')
+                post(gateway_ports[0], '/serving/v1/read', probe, 'foreign.example.test', 403)
+                post(gateway_ports[0], '/serving/v1/read', probe, public_host, 403, {'Origin': 'https://foreign.example.test'})
             frozen = native_command(keys[65536], 65536, 1, {'send': dict(pid=ingress, value=frame(submit(1, deadline_ms)))})
             fault['armed'] = True
             post(gateway_ports[0], '/serving/v1/command', frozen, public_host, 503)
@@ -249,6 +266,35 @@ def run(node, example, courier):
                 raise AssertionError(('incomplete', operation, status))
 
             first = completed(1, 1)
+            if capacity:
+                probe = signed_read(keys[65536], 65536, ingress, 'status', 1)
+                fault['stall_reads'] = True
+                with concurrent.futures.ThreadPoolExecutor(max_workers=8) as readers:
+                    pending = [readers.submit(post, gateway_port, '/serving/v1/read', probe, public_host) for gateway_port in gateway_ports for _ in range(4)]
+                    try:
+                        until = time.monotonic() + 2
+                        while fault['blocked'] < 8 and time.monotonic() < until:
+                            time.sleep(.005)
+                        assert fault['blocked'] == 8, fault
+                        rss = sum(int(next(line for line in Path(f'/proc/{worker.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1]) * 1024 for worker in gateways)
+                        assert rss <= 256 * 1024 * 1024, ('aggregate gateway RSS exceeded declared qualification ceiling', rss)
+                        response = post(gateway_ports[0], '/serving/v1/read', probe, public_host, 503)
+                        assert response['err'] == 'HttpCapacity', response
+                        health_started = time.monotonic()
+                        health = HTTPSConnection('127.0.0.1', TLS[gateway_ports[0]].port, context=TLS[gateway_ports[0]].context, timeout=1) if tls else HTTPConnection('127.0.0.1', gateway_ports[0], timeout=1)
+                        try:
+                            health.request('GET', '/health', headers={'Host': public_host})
+                            status = health.getresponse()
+                            assert status.status == 200 and json.loads(status.read())['ready']
+                        finally:
+                            health.close()
+                        elapsed = time.monotonic() - health_started
+                        assert elapsed < 1, elapsed
+                    finally:
+                        fault['stall_reads'] = False
+                        release_reads.set()
+                    assert all(item.result()['operation'] == first['operation'] for item in pending)
+                print(f'Serving capacity: eight delayed authorized reads, ninth refused, health {elapsed:.3f}s; two-gateway RSS {rss} bytes <= 268435456 ceiling; private 2 MiB request buffers', flush=True)
             # Same operation with a later native sequence still has one destination call.
             duplicate = native_command(keys[65536], 65536, 2, frozen['request']['command'])
             post(gateway_ports[1], '/serving/v1/command', duplicate, public_host, 202)
@@ -328,6 +374,8 @@ def run(node, example, courier):
             send({'revoke': 65536})
             read('result', 2, expected=403)
             print(f'Serving: worker/gateway/node/disk recovery, route retirement and current policy/native revocation passed in {time.monotonic() - started:.2f}s; 8 resident authority pages', flush=True)
+            if tls:
+                print('Serving TLS: real nginx template, verified certificates/hostnames, exact Host/Origin and signed recovery passed; ' + subprocess.check_output(['nginx', '-v'], stderr=subprocess.STDOUT, text=True).strip(), flush=True)
         finally:
             proxy.shutdown(); proxy.server_close()
             for child in reversed(children):
@@ -337,7 +385,13 @@ def run(node, example, courier):
                 if sys.exc_info()[0]:
                     log.seek(0); print(log.read()[-8000:], file=sys.stderr)
                 log.close()
+            TLS.clear()
 
 
 if __name__ == '__main__':
-    run(*sys.argv[1:])
+    parser = argparse.ArgumentParser()
+    for name in ('node', 'example', 'courier'):
+        parser.add_argument(name)
+    parser.add_argument('--tls', action='store_true')
+    parser.add_argument('--capacity', action='store_true')
+    run(**vars(parser.parse_args()))

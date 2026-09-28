@@ -19,8 +19,9 @@ workers and does not acquire ownership automatically.
 
 The HTTPS origin names the independently provisioned TLS terminator; the clear
 listener must remain on its private loopback/network boundary. No forwarding
-header can establish identity. The configuration is not proof of deployed TLS:
-that qualification remains open. Each admitted HTTP data request uses at most
+header can establish identity. The [termination guide](docs/termination.md) owns
+the real nginx template, local TLS proof and concurrency budget. Remote deployment
+qualification remains open. Each admitted HTTP data request uses at most
 2 MiB for parsing/upstream work, plus the listener's bounded buffers. Default
 four data handlers and two reserved health handlers are separate from the durable
 service quota. The owning resource retains terminal operations with no implicit

@@ -13,6 +13,9 @@ general development-package pins remain unchanged.
 M19 explicitly includes the existing locked nixpkgs OpenSSL in the default shell
 and toolchain check. This removes the serving peer's dependency on an ambient
 system executable; no lockfile input revision changes are required.
+The optional `nix develop .#serving` shell adds nginx from that same locked nixpkgs
+input for the real serving TLS/capacity proofs. It does not add those tasks to
+ordinary hosted lanes. The qualified local proxy currently reports nginx 1.30.5.
 
 ## Current setup
 

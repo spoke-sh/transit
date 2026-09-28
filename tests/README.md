@@ -41,8 +41,25 @@ and 128 retained operations with bounded point reads. Independent shared fixture
 pin binary layouts and scope signatures. Growing native receipts remain retained
 across newer sequences; this does not qualify receipt reclamation or a finite
 retry horizon. `just check` and Station's standalone tests pass for this slice.
-Inbound TLS, physical placement, aggregate RSS, full lifetime schedules and M20
-remain open and are not inferred from this local proof.
+Physical placement, full lifetime schedules and M20 remain open and are not
+inferred from this local proof.
+
+`just test::serving-tls` passes the same independent signed recovery schedule
+through the real nginx termination template (nginx 1.30.5, pinned nixpkgs).
+Untrusted certificates, wrong certificate hostnames, mismatched HTTP Host and
+foreign Origin reject. The local run completes in 13.98 seconds excluding build
+and first-use tool downloads. TLS termination remains inside the declared private
+proxy/gateway boundary; remote placement is not implied.
+
+`just test::serving-capacity` additionally holds eight authorized result/status
+reads in upstream I/O across two gateways. The ninth request receives 503 while
+health completes in 0.003 seconds. Aggregate gateway RSS at the stalled-read point
+is 49,094,656 bytes, below the declared 256 MiB ceiling, with private 2 MiB request
+allocators. This full TLS/recovery schedule completes in 14.87 seconds. The RSS
+measurement excludes proxy/authority/workers and is one declared finite profile,
+not a peak bound for every configurable workload or Internet-scale qualification.
+These tasks remain focused, with hosted expanded cost qualification deferred under
+M10. The optional serving Nix shell pins the proxy through the existing lockfile.
 
 ## M18 qualification
 

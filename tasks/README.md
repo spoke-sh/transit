@@ -77,6 +77,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
 | `nix develop .#bindings -c just bindings::sdk-interop` | Builds public SDK/example artifacts, installs external consumers and qualifies ten different-language counter/query pairs; writes a local timing record |
 | `just test::packages` | Runs each library’s standalone test suite for focused package work |
+| `just test::serving`, `just test::serving-tls`, `just test::serving-capacity` | Signed application admission/recovery, actual nginx termination and bounded concurrent gateway reads; focused M19 proofs |
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
 | `just test::compute` | Runs the pinned Arrow compute dependency’s additional tests with Fuze’s configuration |
 | `just test::dev-environment`, `just test::kubectl-transit` | Verify checkout kubeconfig isolation and the plugin CLI, query limits, origin checks and signal handling offline; included in `ci` |

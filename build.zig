@@ -416,6 +416,8 @@ pub fn build(b: *std.Build) void {
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host }) |artifact| serving_test.addArtifactArg(artifact);
+    if (b.option(bool, "serving-tls", "Qualify the real private nginx TLS termination template") orelse false) serving_test.addArg("--tls");
+    if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     serving_test.has_side_effects = true;
     serving_test.stdio = .inherit;
     b.step("test-serving", "Qualify durable HTTP service admission and recovery").dependOn(&serving_test.step);

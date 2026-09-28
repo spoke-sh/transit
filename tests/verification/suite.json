@@ -146,7 +146,9 @@
       "examples::query",
       "bindings::unified-all",
       "test::serving-http",
-      "test::serving"
+      "test::serving",
+      "test::serving-tls",
+      "test::serving-capacity"
     ]
   },
   "nested_tasks": {
