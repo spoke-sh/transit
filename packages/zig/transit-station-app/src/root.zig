@@ -12,10 +12,12 @@ pub const Behavior = @import("Behavior.zig");
 pub const Native = @import("Native.zig");
 pub const Upload = @import("Upload.zig");
 pub const Host = @import("Host.zig");
+pub const Migration = @import("Migration.zig");
 test {
     _ = @import("model_test.zig");
     _ = @import("publication_test.zig");
     _ = @import("native_test.zig");
     _ = @import("host_test.zig");
+    _ = @import("migration_test.zig");
     @import("std").testing.refAllDecls(@This());
 }

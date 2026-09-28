@@ -12,7 +12,7 @@ Full-width interface revisions reuse serving's decimal encoding. Static renderer
 and theme enums describe compatibility, never grant authority or load code.
 
 Run `nix develop --command sh -c 'cd packages/zig/transit-station-app && zig build test'`.
-Definition histories will use ordinary durable publication; per-definition bounds
+Definition histories use ordinary durable publication; per-definition bounds
 must not become a fixed total revision or application cardinality.
 
 `zig build transit-app` at the repository root installs the offline compiler:
@@ -42,8 +42,8 @@ helpers are not network endpoints. Explicit `abandon`/`collect` close unused
 staging without expiring published history. See the contract for exact layout,
 limits and quota recovery. Tests cover races, denial, lost-result reconstruction,
 partial-decision rollback and retained revision growth. `just test::application` additionally qualifies signed native operator admission,
-exact lost replies, worker fencing and node/disk-store restart. Browser generation
-switching and physical application placements remain open; the native proof is not those broader qualifications.
+exact lost replies, worker fencing and node/disk-store restart. The separate browser proof covers declared navigation and exact operation recovery.
+Cross-schema application migration and physical application placements remain open.
 
 The committed `api/application.schema.json` is reflected by `transit-app schema`.
 `just transit-board::generate` regenerates it and the shared browser package;
@@ -83,3 +83,20 @@ missing chunk or denied read invalidates the whole acquisition. Hosts can compos
 these helpers without protocol encoding or publication policy in TypeScript.
 The optional [Board endpoint](../../../apps/transit-board/docs/application.md)
 uses these shared types and retains the default inspection boundary.
+
+`Migration` adds the separate [data-owner ledger](../../../contracts/APPLICATION_MIGRATION_V1.md).
+Initialize its immutable configuration, provision current per-operator migration
+policy, then conditionally `begin` a reviewed supported plan. `apply` invokes the
+domain transition only when that exact step lacks a receipt. Its callback returns
+a bounded cursor or activation and shares the ordinary four-write private turn.
+The owner must reject unsupported transforms before beginning, enforce its write
+pause, and prove complete target verification before activating. Policy is
+separate from interface publication permission. `abandon` cannot undo activation
+or discard plan/step evidence. Point reads and caller-owned fixed values keep
+ledger work independent of historical plan/step cardinality.
+
+The independent record/digest fixtures and package tests cover twenty retained
+steps, exact reconstruction, conflicting plans and ordinals, current denial,
+explicit abandonment, source mismatch, infrastructure errors and rollback of
+partial decisions. These are ledger tests; migration ingress, actual Table data
+transformation and physical recovery are still unqualified.

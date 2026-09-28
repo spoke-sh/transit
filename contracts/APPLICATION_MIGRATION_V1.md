@@ -1,6 +1,6 @@
 # Application migration ledger v1
 
-Status: selected for M23 implementation; not yet an executable wire profile.
+Status: shared ledger core implemented; domain ingress and physical qualification pending.
 [Application definitions](APPLICATION_V1.md) and
 [reactive applications](../docs/REACTIVE_APPLICATIONS.md) own the surrounding model.
 This ledger belongs above Station. It neither grants execution authority nor
@@ -91,3 +91,38 @@ generated work-item binary must additionally prove bounded copy/verification,
 unknown admission replies, native/disk recovery, old/new binding separation and
 explicit rollback limits through native, Compose and reference placements.
 These obligations remain open until executable evidence is recorded in tests.
+
+## Implemented ledger records
+
+The shared Zig ledger core and its independent fixtures are implemented. There is
+no network migration endpoint yet. Keys are `00 4d`, application u64 big-endian,
+a one-byte tag, then two u64 big-endian identifiers. Values reuse the bounded
+`AP1` version envelope with the same tag, followed by declared-order fixed
+little-endian integers, one-byte enums/bools, fixed byte arrays and length-prefixed
+values of at most 128 bytes. Full-width JSON counters use canonical decimal
+strings. Unknown enums, trailing bytes and oversized values reject.
+
+| Tag | Key identifiers | Record fields in order |
+| --- | --- | --- |
+| `C` | 0, 0 | application u64, realm u64, administrator u64, initial epoch u64, initial contract [32] |
+| `P` | principal, 0 | policy revision u64, migrate bool |
+| `H` | 0, 0 | epoch u64, contract [32], active plan u64 (zero means none) |
+| `A` | plan, 0 | proposal, plan digest [32], principal u64, admission input u64 |
+| `G` | plan, 0 | next ordinal u64, phase u8, cursor value, last committing input u64 |
+| `S` | plan, ordinal | plan u64, ordinal u64, step digest [32], admission input u64, progress |
+
+A proposal encodes plan/expected/next u64, transform u16 and source/target [32]
+commitments. Plan digests are SHA-256 over
+`transit.application.migration.plan.v1\0`, `AP1D`, application u64 and proposal.
+Step digests use `transit.application.migration.step.v1\0`, `AP1D`, application
+u64, plan digest, then plan/ordinal u64, operation u16 and argument value.
+Phases are active=1, applied=2, abandoned=3. Independent Python fixtures cover
+full-width IDs, canonical key/record bytes and both domain commitments.
+
+`Migration.apply` checks current policy and exact receipts before invoking the
+domain callback. It restores the caller's original turn decision on any failure,
+including tentative domain writes. A normal step uses two ledger mutations;
+activation uses three, leaving at most one domain mutation in that turn. This
+protects the commit boundary, not the honesty of arbitrary domain computation.
+The selected work-item owner must still implement and qualify its transform,
+write pause and complete verification before using activation.

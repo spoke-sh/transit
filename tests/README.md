@@ -2923,3 +2923,19 @@ Browser proofs use the same Playwright output directory and run sequentially;
 concurrent invocations corrupt trace artifacts. Source-contract guard tests reject
 foreign/mixed contracts and a different Table with identical columns. These do
 not yet qualify the generated application's data migration or physical placement.
+
+M23 migration ledger package tests now cover independent full-width AP1/key/hash
+fixtures, twenty retained step receipts, exact reapply without invoking domain
+code again, concurrent proposals, changed step digests, future ordinals, revoked
+operators, source conflicts, explicit abandonment and activation limits. Injected
+read failure and domain failure preserve the original turn decision, and a third
+domain write rejects without partial effects when the two ledger writes would
+exceed the four-write budget. `tests/application_migration_contract.py` runs in
+the root unit task. These deterministic owner tests do not yet qualify migration
+network admission, a real data transform or a physical deployment.
+
+The shell/source-fencing changes also passed `just test::unified-ingress table`:
+actual shell and browser, scoped descriptions, frozen retries, source/requester/
+node/disk restart, prefix revocation and released source pins. The complete
+focused run took 236.81 seconds excluding compilation. This is a regression proof
+of the existing Table v2 path, not a new cross-schema migration qualification.
