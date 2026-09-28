@@ -196,3 +196,16 @@ test "reactive records fit one bounded value and signatures bind scope and progr
     try t.expect(std.meta.eql(record, try c.decode(Session, 'S', try c.encode('S', record))));
     _ = try c.encode('L', Active{});
 }
+
+/// Lossless JSON integer for the selected int64 Table watch profile. Protocol
+/// identities stay safe JSON counters; application integers do not.
+pub const Integer = struct {
+    value: i64,
+    pub fn jsonStringify(self: Integer, out: *std.json.Stringify) !void {
+        var bytes: [20]u8 = undefined;
+        try out.write(std.fmt.bufPrint(&bytes, "{d}", .{self.value}) catch unreachable);
+    }
+    pub fn jsonSchema(out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try out.write(.{ .type = "string", .pattern = "^(0|-[1-9][0-9]*|[1-9][0-9]*)$", .maxLength = 20, .@"x-transit-encoding" = "signed-decimal-i64" });
+    }
+};

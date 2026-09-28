@@ -3,6 +3,6 @@
     .fingerprint = 0xede453b05fba298,
     .version = "0.0.0",
     .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
-    .dependencies = .{ .transit_station = .{ .path = "../transit-station" } },
+    .dependencies = .{ .transit_station = .{ .path = "../transit-station" }, .transit_query = .{ .path = "../transit-query" } },
     .paths = .{ "build.zig", "build.zig.zon", "src" },
 }

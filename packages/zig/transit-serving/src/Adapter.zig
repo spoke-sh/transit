@@ -44,12 +44,17 @@ pub fn submit(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt 
 fn identity(self: Self, signed: m.SignedRead, public_key: [32]u8) !void {
     if (signed.read.realm != self.resources.realm or signed.read.service != self.service or signed.read.ingress != self.ingress) return error.ServingDenied;
     try signed.verify(public_key);
-    const response = try self.resources.wire.call(g.Response, "/v3/query", signed.identity);
-    try g.validateResponse(response, signed.identity.query);
-    const current = response.body.identity;
-    if (current.principal != signed.read.principal or current.pid != self.ingress or current.permissions & p.permission(.inspect) == 0) return error.ServingDenied;
+    try self.authorize(signed.identity, public_key);
 }
-fn reader(self: Self, principal: u64) !struct { data: root.station.client.ResourceReader.Reader, policy: m.Policy } {
+pub fn authorize(self: Self, signed: g.SignedQuery, public_key: [32]u8) !void {
+    if (signed.query.realm != self.resources.realm or signed.query.kind != .identity) return error.ServingDenied;
+    try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.queryDigest(signed.query), try p.Ed25519.PublicKey.fromBytes(public_key));
+    const response = try self.resources.wire.call(g.Response, "/v3/query", signed);
+    try g.validateResponse(response, signed.query);
+    const current = response.body.identity;
+    if (current.principal != signed.query.principal or current.pid != self.ingress or current.permissions & p.permission(.inspect) == 0) return error.ServingDenied;
+}
+pub fn reader(self: Self, principal: u64) !struct { data: root.station.client.ResourceReader.Reader, policy: m.Policy } {
     const response = try self.resources.query(.{ .resource = self.resource });
     const metadata = response.body.resource;
     if (metadata.writer != self.ingress or metadata.id != self.resource or metadata.phase != .active) return error.ResourceUnavailable;

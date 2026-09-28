@@ -52,3 +52,18 @@ and scoped signatures (`python3 -B tests/reactive_fixtures.py` from the root).
 Deterministic tests cover competing attachments, stale subscription controls,
 renewal/expiry races, retained growth, aggregate quota and failed reads. These
 checks do not advertise SSE/WebSocket or prove deployed recovery.
+
+`TableWatch` acquires the declared Table descriptor, data-progress entry and
+first bounded page at one exact current resource revision. The initial transport
+profile is an int64 Table; application integers encode as decimal strings. A
+`more` flag directs larger snapshots to the existing finite query reader.
+`covered` reuses `transit-query`'s source contract/schema basis, checking the
+identical resource and data watermark. It does not extend a query's released pin.
+
+`ReactiveAdapter` checks signed scopes, current native/service authority, leases,
+attachments and subscription generations before and after bounded observations.
+It also rechecks the watched resource's writer, current grant and declaration.
+The host supplies a qualified conservative wall-clock upper bound and performs
+a final `check` before each protected transport release. A cursor is signed
+integrity evidence, never a grant. Snapshot races restart the whole acquisition
+up to three times; loss of coverage is explicit reset or interruption.

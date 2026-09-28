@@ -18,6 +18,9 @@ pub const Options = struct {
 };
 pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Options) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
+    if (comptime @typeInfo(T) == .@"struct") {
+        if (comptime @hasDecl(T, "jsonSchema")) return T.jsonSchema(out);
+    }
     try out.beginObject();
     if (T == p.Value) {
         try field(out, "type", "string");
@@ -115,4 +118,17 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
         else => @compileError("Public contract contains an unsupported wire type: " ++ @typeName(T)),
     }
     try out.endObject();
+}
+
+test "public owned scalar schema follows its JSON codec hook" {
+    const Scalar = struct {
+        pub fn jsonSchema(out: *std.json.Stringify) std.Io.Writer.Error!void {
+            try out.write(.{ .type = "string", .pattern = "^[0-9]+$" });
+        }
+    };
+    var bytes: [256]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&bytes);
+    var out: std.json.Stringify = .{ .writer = &writer };
+    try write(Scalar, &out, .{});
+    try std.testing.expectEqualStrings("{\"type\":\"string\",\"pattern\":\"^[0-9]+$\"}", writer.buffered());
 }

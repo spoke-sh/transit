@@ -13,21 +13,25 @@ pub const Reader = struct {
     view: struct { id: u64 = 0, resource: u64, revision: u64 },
     failed: ?anyerror = null,
     pub fn read(self: *Reader, address: p.Value) !?p.Value {
+        return if (try self.entry(address)) |value| value.value else null;
+    }
+    /// Exact entry metadata at this reader's cut; revision is resource-local.
+    pub fn entry(self: *Reader, address: p.Value) !?g.Entry {
         const batch = try self.fetch(address, null);
         if (batch.next != null) {
             self.failed = error.InvalidResourceRead;
             return error.InvalidResourceRead;
         }
-        for (batch.entries[1..]) |entry| if (entry != null) {
+        for (batch.entries[1..]) |slot| if (slot != null) {
             self.failed = error.InvalidResourceRead;
             return error.InvalidResourceRead;
         };
-        if (batch.entries[0]) |entry| {
-            if (!entry.key.eql(address)) {
+        if (batch.entries[0]) |item| {
+            if (!item.key.eql(address)) {
                 self.failed = error.InvalidResourceRead;
                 return error.InvalidResourceRead;
             }
-            return entry.value;
+            return item;
         }
         return null;
     }

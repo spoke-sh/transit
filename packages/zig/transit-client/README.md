@@ -132,3 +132,6 @@ point/page reads without requiring PID ownership. It rechecks current read grant
 on every query, rejects changed/invalid sources and preserves a read failure for
 that source. It owns no retained version and cannot grant execution authority.
 Station Document uses this shared adapter for public accepted-state reads.
+`Reader.entry` returns the same bounded point observation with its resource-local
+entry revision. The serving Table watch uses that revision for its application
+progress marker; it never compares entry positions from unrelated resources.
