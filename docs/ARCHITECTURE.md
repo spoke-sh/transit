@@ -102,7 +102,7 @@ No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M24](roadmap/M24.md) qualifies
+the single-realm serialization bottleneck in M10; [M26](roadmap/M26.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -305,6 +305,18 @@ and protocol assertions belong under [tests/](../tests/README.md).
   generated, runtime-validated types and M20/M21 clients. SQL lowers to owning
   operations or Fuze plans, never a UI authority database. Create shared packages
   only when Board and the downstream example exercise them.
+- [M24](roadmap/M24.md) formalizes the Zig `transit` entry point around `server`
+  and `console`. The server composes a supervisor/gateway and the locally placed
+  service neighborhood; OS lifecycle does not replace durable ownership or
+  Station supervision. The console reuses public clients, Fuze and M23's shared
+  grammar/catalog assistance. [Deployment](DEPLOYMENT.md#planned-transit-cli-and-publication)
+  owns the local-placement boundary; [Query language](QUERY_LANGUAGE.md#planned-terminal-console)
+  owns the terminal semantic boundary.
+- [M25](roadmap/M25.md) publishes the declared Transit artifact matrix from a
+  tagged commit through GitHub Releases/Packages, Nix, an install script,
+  Homebrew, OCI images and Helm. Existing component build/package owners remain
+  authoritative; release orchestration binds their outputs to one verified
+  manifest and platform/compatibility matrix.
 - Application libraries and entry points: compose these primitives without
   adding application policy to core. Further TypeScript/Vite+ frontends and
   shared libraries follow concrete consumers.
