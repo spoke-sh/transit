@@ -73,6 +73,7 @@ describe("exchange metadata boundary", () => {
       next: null,
     },
     documents: Array(8).fill(null),
+    queries: Array(8).fill(null),
     exchanges: [
       {
         version: 1,

@@ -165,8 +165,8 @@ export function Records({ resource }: { resource: number }) {
     <section aria-label={`Resource ${resource} records`} className="panel">
       <h2>Resource {resource} records</h2>
       <p>
-        Eight authorized records per page. Recognized Exchange and Document metadata includes source
-        keys and revisions.
+        Eight authorized records per page. Recognized Exchange, Document and query metadata includes
+        source keys and revisions.
       </p>
       <button
         onClick={() => {
@@ -227,6 +227,36 @@ export function Records({ resource }: { resource: number }) {
                     Inspect Document metadata
                   </button>
                 </>
+              )}
+              {page.queries[index] && (
+                <section aria-label="Finite query metadata">
+                  {"capture" in page.queries[index].declaration ? (
+                    <>
+                      <h3>Query capture {page.queries[index].declaration.capture.result}</h3>
+                      <p>Recorded phase: {page.queries[index].declaration.capture.phase}</p>
+                      <p>
+                        Correlation {page.queries[index].declaration.capture.correlation} ·
+                        destination PID {page.queries[index].declaration.capture.destination}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3>Query manifest {page.queries[index].declaration.manifest.result}</h3>
+                      <p>
+                        Source resource {page.queries[index].declaration.manifest.basis.resource} ·
+                        revision {page.queries[index].declaration.manifest.basis.revision}
+                      </p>
+                      <p>
+                        {page.queries[index].declaration.manifest.rows} recorded rows ·{" "}
+                        {page.queries[index].declaration.manifest.segments} segments
+                      </p>
+                    </>
+                  )}
+                  <p>
+                    Recorded evidence at this resource revision. Retained segment coverage and
+                    current result access are checked separately when reading a result.
+                  </p>
+                </section>
               )}
               <p>
                 Source: writer PID {page.resource.writer}, entry revision {entry.revision}

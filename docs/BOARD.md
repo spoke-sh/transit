@@ -506,3 +506,14 @@ visible-field totals. Continuations preserve an exact resource cut and current
 read grants. Board never interprets application Document/text values. This is a
 view over the typed Document read contract; no Document DDL or mutation UI is
 implied by this inspection surface.
+
+### Finite query metadata
+
+M22 adds bounded growing-record lenses for public v1 capture and manifest
+metadata. Board reports recorded phase, source basis and row/segment counts with
+the original writer, key and entry/resource revisions. It does not decode SQL,
+Arrow bodies or Flight access tickets. A manifest can remain recorded when result
+segments or current access are unavailable; only the public result reader can
+establish complete coverage under current authority. Retired resources fail
+closed rather than appearing as empty results. These read-only lenses require
+no query identity and do not enable query admission.

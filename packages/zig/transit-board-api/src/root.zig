@@ -7,11 +7,13 @@ pub const Grpc = @import("Grpc.zig");
 pub const GrpcResponse = Grpc.Response;
 pub const Document = @import("Document.zig");
 pub const DocumentResponse = Document.Response;
+pub const Query = @import("Query.zig");
 pub const Json = @import("Json.zig");
 test {
     _ = Json;
     _ = Exchange;
     _ = Document;
+    _ = Query;
 }
 pub const protocol = @import("transit_protocol");
 const p = protocol;
@@ -48,11 +50,13 @@ pub const RecordsResponse = struct {
     page: p.Growth.Batch(RecordIdentity, p.Value),
     exchanges: [p.Growth.page_size]?ExchangeLens = @splat(null),
     documents: [p.Growth.page_size]?Document.Lens = @splat(null),
+    queries: [p.Growth.page_size]?Query.Lens = @splat(null),
 };
 pub fn projectRecords(allocator: std.mem.Allocator, realm: u64, position: u64, resource: p.Growth.Resource, page: p.Growth.Batch(p.Growth.Entry, p.Value)) !RecordsResponse {
     var result: RecordsResponse = .{ .realm = realm, .position = position, .resource = resource, .page = .{ .next = page.next } };
     for (page.entries, 0..) |slot, index| if (slot) |entry| {
         result.page.entries[index] = .{ .key = entry.key, .revision = entry.revision };
+        if (Query.decode(resource.writer, resource.id, entry.key, entry.value)) |detail| result.queries[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
         if (try Document.decode(allocator, entry.key, entry.value)) |detail| result.documents[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
         if (try Exchange.decode(allocator, resource.writer, entry.key, entry.value)) |detail| result.exchanges[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
     };

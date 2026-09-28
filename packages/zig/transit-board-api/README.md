@@ -36,7 +36,8 @@ the shared query client.
 | `Response` / `project` | One authorized inspection page plus bounded recorded causal edges |
 | `StateResponse` / `projectState` | One authorized state page without business-value interpretation |
 | `AtlasResponse` | Growing process/resource pages and the current inspection identity at one cut |
-| `RecordsResponse` / `projectRecords` | Eight growing record identities and recognized Exchange/Document metadata, with exact source evidence |
+| `RecordsResponse` / `projectRecords` | Eight growing record identities and recognized Exchange/Document/query metadata, with exact source evidence |
+| `Query.Lens` / `Query.decode` | Canonical finite capture/manifest records without SQL, application rows or access tickets |
 | `HttpResponse` / `Http.project` | Selected HTTP policy/timing/omission/completion metadata and its committed member references |
 | `GrpcResponse` / `Grpc.project` | Selected RPC shape/schema, directional counts, half-close and terminal evidence without protobuf interpretation |
 | `DocumentResponse` / `Document.project` | Accepted identity, profile, revision, retained floor and bounded register conflict counts, without field or text values |
@@ -50,6 +51,14 @@ All projections are deterministic and have no I/O, credential or cache ownership
 Array bounds are part of the wire contract; missing history remains an explicit
 coverage value. A new framework projection must preserve source evidence and
 unknown-version fallback without broadening authorization.
+
+The `queries` lenses recognize canonical public v1 query capture and manifest
+keys through Station's owning codecs, checking the recorded writer/destination
+or source resource. They retain exact record provenance. Recorded phase, row
+count and segment count are evidence about the capture, not proof of current
+result access or complete retained coverage. The result reader checks those
+separately; unknown versions and malformed records remain opaque. Reading these
+lenses does not enable Board's separately authorized query execution route.
 
 The growing records projection exposes keys/revisions and allowlisted capture,
 obligation, lineage and attempt-budget fields. It omits raw values, captured
