@@ -17,6 +17,11 @@ pub fn Type(comptime growing: bool) type {
         pending: ?Session.Pending = null,
         pending_kind: PendingKind = .permit,
         failure_policy: enum { block_input, stop } = .block_input,
+        /// Optional application admission before frame decoding/framework dispatch.
+        /// Return true after recording a bounded durable rejection to consume the
+        /// input. It cannot bypass current ownership, view checks or turn budgets.
+        /// Provision and initialize the behavior before exposing untrusted ingress.
+        input_guard: ?InputGuard = null,
         /// Owned confirmation of the most recent successful dispatch. A foreign
         /// host must copy/record it before driving another dispatch.
         confirmation: ?Confirmation = null,
@@ -39,6 +44,10 @@ pub fn Type(comptime growing: bool) type {
             context: ?*anyopaque = null,
             initialize: ?*const fn (?*anyopaque, *Turn) anyerror!void = null,
             handle: *const fn (?*anyopaque, *Turn, Frame) anyerror!void,
+        };
+        pub const InputGuard = struct {
+            context: ?*anyopaque = null,
+            reject: *const fn (?*anyopaque, *Turn) anyerror!bool,
         };
         pub const descriptor_key = p.Value.init("\x00station") catch unreachable;
         pub const descriptor = p.Value.init(if (growing) "station.genserver.growing.v1" else "station.genserver.v1") catch unreachable;
@@ -207,6 +216,7 @@ pub fn Type(comptime growing: bool) type {
             } else {
                 try turn.write(descriptor_key, descriptor);
             }
+            if (self.input_guard) |guard| if (try guard.reject(guard.context, turn)) return true;
             const frame = try Frame.decode(turn.delivery.input.value);
             if (try @import("Waiting.zig").dispatch(turn, frame)) return true;
             if (growing) {

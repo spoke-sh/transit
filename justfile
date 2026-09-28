@@ -35,6 +35,7 @@ doctor:
     just --version
     python3 --version
     process-compose version
+    openssl version
     zig version
     node --version
     pnpm --version

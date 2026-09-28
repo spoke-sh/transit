@@ -15,6 +15,17 @@ activation and association name. Keep the host and its borrowed client at stable
 addresses while a turn is ready; the view reader borrows that host until `finish`.
 Concurrent calls on the same host/client are unsupported.
 
+An optional `input_guard` runs after the framework descriptor check and before
+frame decoding, reply/timeout preprocessing or handler dispatch. A host exposing
+untrusted external inputs can record a bounded private disposition and return
+`true` to consume a malformed/unauthorized frame without blocking its input queue.
+Reads, writes, input progress and the disposition still share the ordinary fenced
+turn. Read failures poison the proposal and guard errors follow the configured
+failure policy; no exception grants permission to skip accepted work. Initialize
+the behavior through trusted provisioning before exposing ingress. Hosts without
+a guard retain their existing dispatch/error semantics. The serving package uses
+this hook to reject spoofed reply origins and timer observations before dispatch.
+
 `poll` resolves the named association, opens a view and returns a `GrowingTurn`.
 It reads only the behavior descriptor before calling application code. `step`
 adds Zig handler dispatch; the growing ABI exposes the explicit preparation and

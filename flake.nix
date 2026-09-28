@@ -107,6 +107,7 @@
                   ps.mypy
                 ]))
                 pkgs.process-compose
+                pkgs.openssl
                 pkgs.protobuf
                 zig
                 vite-plus

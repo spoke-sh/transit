@@ -10,6 +10,14 @@ arbitrary native handlers, and broader topologies remain outside that proof.
 
 ## Responsibility in the stack
 
+M19's [serving caller profile](../contracts/SERVING_V1.md) preserves caller-signed
+native ingress commands and authority-derived external origins. Scoped status
+reads combine a signature over the exact service/operation read with a matching
+native identity proof and current service policy. Its trusted gateway reader has
+an independent resource grant; callers receive no raw grant to other callers'
+records. Provisioned public keys are bounded gateway configuration, not a grant
+database. Inbound TLS/deployment qualification is separate and remains in progress.
+
 Authentication establishes who is calling. Authorization decides which action
 that principal may perform on which resource. Execution ownership separately
 decides which activation may commit. None substitutes for the other two.

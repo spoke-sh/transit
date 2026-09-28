@@ -903,6 +903,30 @@
       ],
       "limits": "Nine sends/eight remote applications against independent grpcio. Public caller SDKs, placement and remaining final-publication races are not qualified by this controller proof. No transparent retry or stream resume.",
       "model": null
+    },
+    {
+      "id": "SERVE-01",
+      "claim": "A service operation keeps one admitted identity and original target across gateways and recovery",
+      "owner": "contracts/SERVING_V1.md",
+      "implementation": [
+        "packages/zig/transit-serving/src/Service.zig",
+        "packages/zig/transit-serving/src/Adapter.zig",
+        "packages/zig/transit-station/src/GenServer.zig"
+      ],
+      "profile": "serving-v1/growing-v3; local HTTP service callers",
+      "tasks": [
+        "test::unit",
+        "test::serving"
+      ],
+      "scenarios": [
+        "Concurrent identical and conflicting native sequences across two gateways",
+        "Accepted receipt lost; gateway/worker/node/disk restart",
+        "Same operation under a new native sequence; conflicting payload",
+        "Current scoped policy and native grant revoked before result disclosure",
+        "Malformed or spoofed framework frames become durable dispositions"
+      ],
+      "limits": "Finite local schedule; no TLS, remote placement, expiry or reactive qualification is implied. Growing native receipts remain retained.",
+      "model": null
     }
   ]
 }

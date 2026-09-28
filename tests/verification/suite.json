@@ -145,7 +145,8 @@
       "test::unified-expiry",
       "examples::query",
       "bindings::unified-all",
-      "test::serving-http"
+      "test::serving-http",
+      "test::serving"
     ]
   },
   "nested_tasks": {

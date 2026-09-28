@@ -2,8 +2,9 @@
 
 Status: [M19](roadmap/M19.md) implementation in progress. The shared bounded
 [HTTP listener](../packages/zig/transit-http-server/README.md) and Board migration
-are implemented; the service admission and deployment contracts below remain
-proposed until their qualification is recorded. HTTP is the first profile for application
+are implemented. The [service profile](../contracts/SERVING_V1.md) selects explicit
+signed service callers and a Station-owned ingress; its admission implementation
+is under qualification. Deployment gates remain open. HTTP is the first profile for application
 APIs and Board. [M20](roadmap/M20.md) adds [reactive APIs](REACTIVE_API.md),
 [M21](roadmap/M21.md) consumes them in live views, and
 [Flight/Flight SQL M22](roadmap/M22.md) qualifies an Arrow protocol adapter.
@@ -71,7 +72,7 @@ no server implementation; inbound TLS and HTTP/2 cannot be inferred from client
 qualification.
 
 Extract only demonstrated shared code. The implemented neutral
-`transit-http-server` package owns HTTP mechanics; the proposed `transit-serving` owns
+`transit-http-server` package owns HTTP mechanics; `transit-serving` owns
 Transit/Station admission and delivery. Board's projections stay in
 `transit-board-api`; application codecs stay with the application; Fuze stays
 in `transit-fuze`. Add remaining packages only with real consumers and checks.

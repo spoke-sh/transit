@@ -22,6 +22,28 @@ excluding compilation, with 8 resident authority pages, an 8 MiB hot store and
 314 cold objects / 30,399,016 bytes. This extends the Table ingress regression;
 it does not add a reactive watch or a measured aggregate reader RSS bound.
 
+`just test::serving` passes the real application/ingress workers, scoped reader
+gateway and independent Python/OpenSSL callers over disk Ursula. Its two gateways
+race identical native requests and conflicting requests sharing one native
+sequence. It loses an accepted upstream response, recovers the same receipt,
+deduplicates the same operation under a new sequence, checks immutable target and
+digest, and rejects cross-principal reads, forged scope and forwarding headers.
+Direct malformed native frames, spoofed replies and premature timer observations
+produce ordered dispositions without blocking the service. Gateway/worker/node/
+store loss after admission preserves the original operation and exact result.
+Publication retirement retains recovery, and current service-policy/native-grant
+revocation denies disclosure. The final run takes 13.39 seconds excluding compilation,
+using 8 resident authority pages and disk storage without cold offload.
+
+Standalone serving tests exercise conditional publication, per-principal/global
+active limits, cancellation/reply/timeout races, poisoned reads, finite wait bounds
+and 128 retained operations with bounded point reads. Independent shared fixtures
+pin binary layouts and scope signatures. Growing native receipts remain retained
+across newer sequences; this does not qualify receipt reclamation or a finite
+retry horizon. `just check` and Station's standalone tests pass for this slice.
+Inbound TLS, physical placement, aggregate RSS, full lifetime schedules and M20
+remain open and are not inferred from this local proof.
+
 ## M18 qualification
 
 The declared Linux x86_64 growing profile is qualified: signed KV/Table/Document
