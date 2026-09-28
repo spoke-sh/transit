@@ -77,6 +77,42 @@ fn atlasOnce(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.Ke
     } else null;
     return .{ .realm = realm, .position = reader.position, .identity = reader.body.identity, .processes = processes.body.processes, .resources = resources.body.resources, .query_resource = visible };
 }
+pub const ParticipationCursor = struct { resource: u64, after: ?u64 = null, pid: ?u64 = null, association_after: ?u64 = null, position: ?u64 = null };
+pub fn participation(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: ParticipationCursor) !api.ParticipationResponse {
+    const reader = try identity(wire, realm, principal, key);
+    if (cursor.position) |expected| if (reader.position != expected) return error.QueryChanged;
+    _ = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key);
+    var pids: [g.page_size]?u64 = @splat(null);
+    var position: ?u64 = null;
+    var next: ?u64 = null;
+    if (cursor.pid) |pid| {
+        pids[0] = pid;
+    } else {
+        const processes = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .processes = .{ .after = cursor.after, .position = cursor.position } } }, key);
+        position = processes.position;
+        next = processes.body.processes.next;
+        for (processes.body.processes.entries, 0..) |slot, index| if (slot) |process| {
+            pids[index] = process.pid;
+        };
+    }
+    var result: api.ParticipationResponse = .{ .realm = realm, .resource = undefined, .resource_position = 0, .process_position = position, .policy_revision = reader.body.identity.policy_revision, .next = next };
+    for (pids, 0..) |slot, index| if (slot) |pid| {
+        const page = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .associations = .{ .pid = pid, .after = cursor.association_after, .position = if (cursor.association_after != null) cursor.position else null } } }, key);
+        var matches: u8 = 0;
+        for (page.body.associations.entries) |entry| if (entry) |association| {
+            // The native reader filters grants before returning any names. Only
+            // the selected resource contributes; no hidden-resource counts leak.
+            if (association.resource == cursor.resource) matches += 1;
+        };
+        result.members[index] = .{ .pid = pid, .association_position = page.position, .matches = matches, .next = page.body.associations.next };
+    };
+    const resource = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key);
+    const current = try identity(wire, realm, principal, key);
+    if (current.body.identity.policy_revision != reader.body.identity.policy_revision) return error.QueryChanged;
+    result.resource = resource.body.resource;
+    result.resource_position = resource.position;
+    return result;
+}
 pub fn records(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: RecordsCursor, allocator: std.mem.Allocator) !api.RecordsResponse {
     _ = try identity(wire, realm, principal, key);
     const revision = cursor.revision orelse (try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key)).body.resource.revision;

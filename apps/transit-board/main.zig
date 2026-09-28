@@ -199,11 +199,12 @@ const Server = struct {
     }
     fn growingRequest(self: *Server, req: *std.http.Server.Request, target: []const u8) !void {
         const capabilities = std.mem.eql(u8, target, "/api/v1/capabilities");
+        const participation = parseParticipation(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         const records = parseRecords(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         const http_metadata = parseMetadata(target, "http") catch return self.failure(req, .bad_request, .InvalidQuery);
         const grpc_metadata = parseMetadata(target, "grpc") catch return self.failure(req, .bad_request, .InvalidQuery);
         const document_metadata = parseDocument(target) catch return self.failure(req, .bad_request, .InvalidQuery);
-        const cursor = if (capabilities or records != null or http_metadata != null or grpc_metadata != null or document_metadata != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
+        const cursor = if (capabilities or participation != null or records != null or http_metadata != null or grpc_metadata != null or document_metadata != null) growing.Cursor{} else parseAtlas(target) catch return self.failure(req, .bad_request, .InvalidQuery);
         if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
         defer upstream.deinit();
@@ -215,6 +216,10 @@ const Server = struct {
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
             return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null or self.config.query_v2 != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = if (self.config.query_v2 != null) 49152 else 16384, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
+        }
+        if (participation) |selection| {
+            const result = growing.participation(&upstream, self.config.realm, self.config.principal, key, selection) catch |err| return self.queryFailure(req, &upstream, err);
+            return self.json(req, .ok, result);
         }
         if (records) |page| {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -348,6 +353,7 @@ fn logRoute(target: []const u8) []const u8 {
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
     inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
+    if ((parseParticipation(path) catch null) != null) return "/api/v1/resources/{resource}/participation";
     if ((parseRecords(path) catch null) != null) return "/api/v1/resources/{resource}/records";
     if ((parseMetadata(path, "http") catch null) != null) return "/api/v1/resources/{resource}/http/{exchange}";
     if ((parseDocument(path) catch null) != null) return "/api/v1/resources/{resource}/documents/{document}";
@@ -485,6 +491,40 @@ fn parseDocument(target: []const u8) !?growing.DocumentCursor {
             }
         }
         if (result.after != null and result.revision == null) return error.InvalidQuery;
+    }
+    return result;
+}
+fn parseParticipation(target: []const u8) !?growing.ParticipationCursor {
+    const end = std.mem.indexOfScalar(u8, target, '?') orelse target.len;
+    const path = target[0..end];
+    const prefix = "/api/v1/resources/";
+    const suffix = "/participation";
+    if (!std.mem.startsWith(u8, path, prefix) or !std.mem.endsWith(u8, path, suffix)) return null;
+    if (path.len <= prefix.len + suffix.len) return error.InvalidQuery;
+    const id = try number(path[prefix.len .. path.len - suffix.len]);
+    if (id == 0) return error.InvalidQuery;
+    var result: growing.ParticipationCursor = .{ .resource = id };
+    if (end != target.len) {
+        var fields = std.mem.splitScalar(u8, target[end + 1 ..], '&');
+        var seen: u8 = 0;
+        while (fields.next()) |field| {
+            const split = std.mem.indexOfScalar(u8, field, '=') orelse return error.InvalidQuery;
+            const name = field[0..split];
+            const value = try number(field[split + 1 ..]);
+            if (value == 0) return error.InvalidQuery;
+            const bit: u8 = if (std.mem.eql(u8, name, "after")) 1 else if (std.mem.eql(u8, name, "pid")) 2 else if (std.mem.eql(u8, name, "association_after")) 4 else if (std.mem.eql(u8, name, "position")) 8 else return error.InvalidQuery;
+            if (seen & bit != 0) return error.InvalidQuery;
+            seen |= bit;
+            switch (bit) {
+                1 => result.after = value,
+                2 => result.pid = value,
+                4 => result.association_after = value,
+                8 => result.position = value,
+                else => unreachable,
+            }
+        }
+        if ((seen & 5 != 0) != (seen & 8 != 0)) return error.InvalidQuery;
+        if ((seen & 1 != 0 and seen & 6 != 0) or (seen & 4 != 0 and seen & 2 == 0)) return error.InvalidQuery;
     }
     return result;
 }
@@ -733,4 +773,15 @@ test "Document metadata selection binds bounded continuation and hides cursor fr
     try t.expectEqualStrings("R", cursor.after.?.slice());
     try t.expectEqualStrings("/api/v1/resources/{resource}/documents/{document}", logRoute(target));
     inline for (.{ "?after=52", "?revision=9&after=5g", "?revision=9&revision=10", "?value=secret", "/body" }) |suffix| try t.expectError(error.InvalidQuery, parseDocument("/api/v1/resources/7/documents/1" ++ suffix));
+}
+
+test "participation cursors separate process and association coverage" {
+    const t = std.testing;
+    const process = (try parseParticipation("/api/v1/resources/7/participation?after=3&position=10")).?;
+    try t.expectEqual(@as(?u64, 3), process.after);
+    const member = (try parseParticipation("/api/v1/resources/7/participation?pid=2&association_after=9&position=10")).?;
+    try t.expectEqual(@as(?u64, 2), member.pid);
+    try t.expectEqual(@as(?u64, 9), member.association_after);
+    try t.expectEqualStrings("/api/v1/resources/{resource}/participation", logRoute("/api/v1/resources/7/participation?pid=2"));
+    for ([_][]const u8{ "/api/v1/resources/participation", "/api/v1/resources/0/participation", "/api/v1/resources/7/participation?association_after=1", "/api/v1/resources/7/participation?after=1&pid=2", "/api/v1/resources/7/participation?pid=1&pid=2", "/api/v1/resources/7/participation?pid=2&association_after=0" }) |target| try t.expectError(error.InvalidQuery, parseParticipation(target));
 }

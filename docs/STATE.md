@@ -327,3 +327,11 @@ growing indexes and bounded-memory access are selected for [M10](roadmap/M10.md)
 Writer transfer, multi-resource/cross-authority transactions, per-key TTL and
 automatic data migration require later explicit scope. Compatibility for any
 new storage profile is an M10 gate, not permission for implicit migration.
+
+The growing profile requires a running but unowned PID with no outstanding turn
+permit before changing associations, including optional ones. Declare the graph
+before activation, or use an authorized fencing/reconfiguration procedure. A
+reference does not bypass this boundary. Board's bounded participation projection
+uses native authorized association pages; each continuation keeps its original
+observation position and must rescan when that cut changes. Independent PID pages
+are not one globally consistent membership snapshot.

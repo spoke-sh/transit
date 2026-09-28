@@ -106,3 +106,10 @@ cells, whose control characters may expand sixfold in JSON. Schema, conflict and
 provenance overhead stays bounded. The streaming limit applies before parsing,
 and generated plus semantic validators still enforce eight rows/columns and
 individual scalar bounds. Other routes retain their 256 KiB transport budget.
+
+`participation(resource, cursor?, signal?)` reads the bounded shared-resource
+projection. Preserve `position` with `after` for process continuation, or the
+member's `association_position` with `pid`/`association_after`. The response is
+one page, not an accumulated membership set; `QueryExpired` requires a fresh scan
+and denial invalidates previous contributions. This metadata endpoint never
+submits queries or grants value access.

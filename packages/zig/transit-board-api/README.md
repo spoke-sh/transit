@@ -114,3 +114,14 @@ requires the original resource revision and an opaque exclusive index key.
 Changed cuts fail explicitly. Retirement keeps head metadata inspectable while
 withholding register reads. This maps the shared Document read contract; it adds
 no administrative capability or runnable Document SQL syntax.
+
+`ParticipationResponse` is a separate growing-profile metadata surface, leaving
+`AtlasResponse` unchanged. It contains one selected resource, at most eight PID
+contributions and independent resource/process/association positions. Nullable
+`process_position` marks an explicit single-PID association read. `matches`
+counts only this authorized association page; `next` on a member indicates
+incomplete PID coverage, while top-level `next` continues the process scan. No
+value bytes, names of hidden associations, global count or traffic rate is
+inferred. The host performs only public client reads. See the
+[Atlas guide](../../../apps/transit-board/docs/application.md#bounded-atlas-evidence)
+for cursor and failure semantics.

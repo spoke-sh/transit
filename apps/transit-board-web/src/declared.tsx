@@ -25,6 +25,14 @@ export function DeclaredView() {
     case "atlas":
       view = (
         <Atlas
+          projection={
+            "inspection" in binding.source && binding.source.inspection.projection === "resources"
+              ? "resources"
+              : "inspection" in binding.source &&
+                  binding.source.inspection.projection === "processes"
+                ? "processes"
+                : "all"
+          }
           initialEmphasis={
             "inspection" in binding.source && binding.source.inspection.projection === "resources"
               ? "resources"
@@ -34,7 +42,7 @@ export function DeclaredView() {
       );
       break;
     case "records":
-      view = <Atlas initialEmphasis="resources" />;
+      view = <Atlas initialEmphasis="resources" projection="resources" />;
       break;
     case "activity":
       view = <Activity />;

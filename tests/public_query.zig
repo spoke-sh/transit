@@ -198,6 +198,21 @@ pub fn main(init: std.process.Init) !void {
         const pid = if (requester) c.requester else c.source;
         const process = (try admin.query(.{ .process = pid })).body.process.process;
         _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = process.generation, .worker = if (requester) 65537 else 65536 } });
+    } else if (std.mem.eql(u8, args[2], "participation")) {
+        // Associations are established before execution ownership. Do not mutate
+        // the topology of the already active query workers to build a UI fixture.
+        const participant = try admin.submit(.{ .spawn = .{} });
+        for (0..10) |index| {
+            var name: [32]u8 = undefined;
+            _ = try admin.submit(.{ .associate = .{ .pid = participant, .name = try p.Value.init(try std.fmt.bufPrint(&name, "shared-{d}", .{index})), .resource = c.resource, .required = false } });
+        }
+        const hidden = try admin.submit(.{ .create_resource = .{ .writer = c.source } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = hidden, .subject = 0, .permissions = p.State.all_permissions } });
+        _ = try admin.submit(.{ .associate = .{ .pid = participant, .name = try p.Value.init("hidden-participation"), .resource = hidden, .required = false } });
+        try std.json.Stringify.value(.{ .pid = participant }, .{}, &output.interface);
+        return output.interface.flush();
+    } else if (std.mem.eql(u8, args[2], "revoke-inspector-resource") or std.mem.eql(u8, args[2], "restore-inspector-resource")) {
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 55, .permissions = if (std.mem.eql(u8, args[2], "revoke-inspector-resource")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
     } else if (std.mem.eql(u8, args[2], "revoke") or std.mem.eql(u8, args[2], "revoke-read")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 1234, .permissions = if (std.mem.eql(u8, args[2], "revoke-read")) p.State.permission(.inspect) else 0 } });
     } else if (std.mem.eql(u8, args[2], "restore")) {

@@ -114,8 +114,10 @@ identity. Disclosed association cohorts do not establish active use or ownership
 Solid observed size and dashed conditional growth share a stable plot and
 explicit metric; day-to-decade cases disclose their assumptions. Readiness
 compares named planning requirements with matching evidence and preserves
-unknown write/query/recovery capacity. History, scalable participation summaries
-and qualification data require future public read capabilities. Local scenario
+unknown write/query/recovery capacity. M23 adds bounded per-resource participation
+pages with independent observation bases and current-grant filtering. Global
+history, whole-catalog summaries and workload qualification still require further
+public capabilities and evidence. Local scenario
 edits authorize no resource mutation, retention change or future-data query.
 
 ## Implemented M13 workspace

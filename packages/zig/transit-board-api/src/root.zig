@@ -115,6 +115,19 @@ pub const AtlasResponse = struct {
     query_version: ?u8 = null,
 };
 
+/// One bounded process page and one authorized association page per process.
+/// Every association page has its own basis; these are not a global census.
+pub const ParticipationResponse = struct {
+    version: u8 = 1,
+    realm: u64,
+    resource: p.Growth.Resource,
+    resource_position: u64,
+    process_position: ?u64,
+    policy_revision: u64,
+    members: [p.Growth.page_size]?struct { pid: u64, association_position: u64, matches: u8, next: ?u64 } = @splat(null),
+    next: ?u64,
+};
+
 fn reference(page: i.Page, pid: u64, kind: @FieldType(Reference, "kind"), id: u64) Reference {
     return .{ .realm = page.realm, .pid = pid, .kind = kind, .id = id };
 }

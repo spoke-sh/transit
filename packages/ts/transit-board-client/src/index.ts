@@ -129,6 +129,7 @@ export type {
   UnifiedQueryRequest,
   UnifiedQueryResponse,
   AtlasResponse,
+  ParticipationResponse,
   QueryRequest,
   QueryResponse,
   RecordsResponse,
@@ -140,6 +141,7 @@ import type {
   UnifiedQueryRequest,
   UnifiedQueryResponse,
   AtlasResponse,
+  ParticipationResponse,
   QueryRequest,
   QueryResponse,
   RecordsResponse,
@@ -149,6 +151,7 @@ import type {
 } from "./types";
 import {
   AtlasResponse as atlasValidator,
+  ParticipationResponse as participationValidator,
   QueryResponse as queryValidator,
   RecordsResponse as recordsValidator,
   HttpResponse as httpValidator,
@@ -494,6 +497,30 @@ export function atlas(
     fields.set(key, String(value));
   }
   return request(`/api/v1/atlas${fields.size ? `?${fields}` : ""}`, validateAtlas, { signal });
+}
+export type ParticipationCursor = {
+  after?: number;
+  pid?: number;
+  association_after?: number;
+  position?: number;
+};
+export function participation(
+  resource: number,
+  cursor: ParticipationCursor = {},
+  signal?: AbortSignal,
+) {
+  if (!Number.isSafeInteger(resource) || resource <= 0) throw new BoardError(0, "InvalidQuery");
+  const fields = new URLSearchParams();
+  for (const [key, value] of Object.entries(cursor)) {
+    if (value === undefined) continue;
+    if (!Number.isSafeInteger(value) || value <= 0) throw new BoardError(0, "InvalidQuery");
+    fields.set(key, String(value));
+  }
+  return request(
+    `/api/v1/resources/${resource}/participation${fields.size ? `?${fields}` : ""}`,
+    (value: unknown): value is ParticipationResponse => participationValidator(value),
+    { signal },
+  );
 }
 export async function query(operation: QueryRequest, signal?: AbortSignal): Promise<QueryResponse> {
   // A rate refusal occurs before dispatch. Retry the same body; never compile a

@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
@@ -25,6 +26,39 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
     })
     .click();
   await expect(page.getByRole("button", { name: "Enter resource" })).toBeVisible();
+  await page
+    .getByLabel("Search this authorized page")
+    .fill(`resource ${process.env.BOARD_QUERY_RESOURCE}`);
+  await expect(page.locator(".atlas-evidence")).toContainText("0 processes and 1 resources match");
+  await page.getByLabel("Search this authorized page").fill("");
+  await page.getByRole("button", { name: "Inspect participation", exact: true }).click();
+  await expect(
+    page.getByRole("table", {
+      name: `Authorized associations to resource ${process.env.BOARD_QUERY_RESOURCE}`,
+    }),
+  ).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole("button", { name: /^Next associations for PID/ })).toBeVisible();
+  await page.getByRole("button", { name: /^Next associations for PID/ }).click();
+  await expect(page.getByLabel("Resource participation")).toContainText("One selected PID.");
+  execFileSync(process.env.BOARD_QUERY_PROOF!, [
+    process.env.BOARD_QUERY_AUTHORITY!,
+    "revoke-inspector-resource",
+    process.env.BOARD_QUERY_CONFIG!,
+  ]);
+  await expect(page.getByLabel("Resource participation")).toHaveCount(0, { timeout: 15000 });
+  execFileSync(process.env.BOARD_QUERY_PROOF!, [
+    process.env.BOARD_QUERY_AUTHORITY!,
+    "restore-inspector-resource",
+    process.env.BOARD_QUERY_CONFIG!,
+  ]);
+  await page.getByRole("button", { name: "Refresh observation", exact: true }).click();
+  await expect(page.getByLabel("Resource participation")).toBeVisible({ timeout: 15000 });
+  for (const density of ["comfortable", "compact"]) {
+    await page.getByLabel("Preview density").selectOption(density);
+    expect(
+      (await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze()).violations,
+    ).toEqual([]);
+  }
   await page.getByRole("button", { name: "Resources", exact: true }).click();
   await page.getByLabel("Detail zoom").focus();
   await page.getByLabel("Detail zoom").press("End");

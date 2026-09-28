@@ -2939,3 +2939,21 @@ actual shell and browser, scoped descriptions, frozen retries, source/requester/
 node/disk restart, prefix revocation and released source pins. The complete
 focused run took 236.81 seconds excluding compilation. This is a regression proof
 of the existing Table v2 path, not a new cross-schema migration qualification.
+
+The M23 Atlas/participation extension passes the native Board query/browser
+harness with three PIDs, two visible resources and one hidden resource. A newly
+provisioned unowned PID has ten shared aliases plus a hidden association; two
+bounded pages recover the ten visible aliases without exposing the hidden name.
+Resource revocation rejects the metadata API and removes browser contributions;
+restoration requires current reads. Invalid/mixed continuations reject. The
+browser covers local filtering before visible summaries, per-PID continuation,
+both density variants with WCAG A/AA axe checks, and the existing exact query
+retry/remount/retirement schedule. The browser case took 30.8 seconds (31.5 with
+runner), excluding compilation and fixture setup. This finite population proves
+neither complete realm aggregation nor billion-scale rendering or throughput.
+
+The first fixture attempt correctly failed because it tried to add associations
+to an active owner. The corrected fixture declares them on a fresh unowned PID.
+A missing observation position on association continuation also failed; cursors
+now preserve the native position and changed cuts require rescan. No kernel
+permission or fencing rule was weakened to make either proof pass.

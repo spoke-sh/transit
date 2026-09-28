@@ -116,31 +116,31 @@
   min-height: 116px;
   text-align: left;
 }
-.inbox-shoulder {
-  height: 8px;
+.inbox-well {
+  height: 16px;
   width: 38px;
-  background: #c6c6c6;
-  border: 1px solid #a7a7a7;
+  background: #fafafa;
+  border: 1px solid #606060;
 }
-.relief .inbox-shoulder.raised {
-  height: 18px;
-  box-shadow: 3px 4px 0 #8a8a8a66;
-  background: #9f9f9f;
+.relief .inbox-well {
+  box-shadow: inset 0 calc(var(--inbox-depth, 0) * 1px) 0 #606060;
 }
-.outbox-well {
+.outbox-shoulder {
   position: absolute;
   right: 12px;
   top: 12px;
-  width: 25px;
+  width: 30px;
   height: 9px;
-  border: 1px dashed #939393;
-  border-radius: 50%;
+  border: 2px dashed #606060;
 }
-.resources .process-fabric {
-  opacity: 0.68;
+.resources .resource-district,
+.processes .process-fabric {
+  outline: 2px solid #333;
+  outline-offset: 3px;
 }
-.processes .resource-district {
-  opacity: 0.88;
+.landmark strong,
+.process-tile strong {
+  overflow-wrap: anywhere;
 }
 .atlas-surface .selected {
   outline: 3px solid #666666;

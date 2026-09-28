@@ -94,3 +94,31 @@ An explicitly resumed prior upload preserves its original frozen plan. Follow is
 available only for declared Table follow bindings and uses their finite starts
 budget; snapshots never acquire Follow implicitly. Business renderers and command
 codecs belong to the downstream application artifact.
+
+## Bounded Atlas evidence
+
+Atlas filters only its authorized eight-process/eight-resource page before
+computing visible counts or ordering outliers. Identity order is stable; waiting
+inputs and current KV key counts have separate explicit sort choices. Resource
+bindings display the resource projection. Every backing resource has one plot;
+current keys are not Table rows, value bytes or disk use. The monochrome inbox
+well uses one inset pixel per waiting input, capped at eight with the exact count
+still labeled. The independent dashed outbox shoulder represents unavailable
+count evidence. Age and physical worker readiness remain unavailable.
+
+**Inspect participation** reads `/api/v1/resources/{id}/participation`. It checks
+current metadata access before and after bounded acquisition, plus current
+inspection identity. One process page and one association page per process cost
+at most thirteen native reads. Counts are filtered by native authorization before
+a selected resource contributes. This is association evidence, not traffic,
+readiness, a census or permission to read values. Each association page preserves
+its own observation position; the process page and final resource metadata may
+have different positions. No global snapshot is inferred.
+
+`after` with `position` continues the process page. `pid` selects one participant;
+`association_after` with that PID and the original association `position` follows
+its association page. Mixed process/association cursors reject. A changed cut
+requires an explicit fresh scan; the UI clears the failed page rather than merging
+incompatible counts. It holds one response, discards denied contributions and
+pauses hidden-tab reads. Ten shared aliases in the native proof still produce one
+backing-resource plot and one row per PID on each displayed association page.

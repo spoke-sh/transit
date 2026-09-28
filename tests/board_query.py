@@ -81,6 +81,33 @@ def run(node, host, proof, board, browser=False):
             atlas = current_atlas()
             assert [row["id"] for row in atlas["resources"]["entries"] if row] == [caller["connection"]["resource"], caller["connection"]["requests"]]
             assert atlas["identity"]["permissions"] == 16
+            participant = json.loads(admin("participation").stdout)
+            resource, pid = caller["connection"]["resource"], participant["pid"]
+            path = f"/api/v1/resources/{resource}/participation"
+            group = request(path)
+            assert group["resource"]["id"] == resource and len(group["members"]) == 8
+            assert group["process_position"] is not None
+            selected = request(path + f"?pid={pid}")
+            total, pages = 0, 0
+            while True:
+                assert selected["process_position"] is None
+                members = [member for member in selected["members"] if member]
+                assert len(members) == 1 and members[0]["pid"] == pid
+                member = members[0]
+                total += member["matches"]
+                pages += 1
+                assert member["matches"] <= 8 and pages <= 3
+                if member["next"] is None: break
+                selected = request(path + f"?pid={pid}&association_after={member['next']}&position={member['association_position']}")
+            assert total == 10 and pages == 2
+            assert "hidden-participation" not in json.dumps(group)
+            admin("revoke-inspector-resource")
+            request(path, status=403)
+            admin("restore-inspector-resource")
+            assert request(path)["resource"]["id"] == resource
+            for suffix in ("?after=0", "?pid=0", "?association_after=1", "?after=1&pid=1", "?pid=1&pid=1"):
+                request(path + suffix, status=400)
+            request("/api/v1/resources/participation", status=400)
             assert api({"status": {"correlation": 9007199254740991}})["status"]["phase"] == "unobserved"
             api({"status": {"correlation": 0}}, status=400)
             source = api({"describe": {}})["source"]
