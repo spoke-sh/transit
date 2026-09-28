@@ -3124,3 +3124,11 @@ This is native/Board evidence. Terminal parity and its latency measurements
 remain open until the actual console proof runs. Browser timing is collected
 inside the fixture and subsequent runs expose it in the parent proof log; no
 completion latency target is inferred from the combined query runtime.
+
+The first M23 clean-checkout run at `ac287122ea1d` passed core, growth,
+experience, launchers and the earlier binding tasks, then stopped in the Node
+SDK source tests. A query bridge parameter property was unsupported by Node's
+strip-only TypeScript loader. The SDK now uses explicit fields and enforces
+`erasableSyntaxOnly`; all ten source scope/runner tests and TypeScript checking
+pass. This correction does not turn the incomplete clean run into a pass; the
+full committed-HEAD gate remains outstanding until repeated successfully.

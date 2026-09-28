@@ -335,11 +335,15 @@ export async function decodeArrow(
   return Object.freeze(value.rows.map((row) => Object.freeze(row.map(fromCell))));
 }
 export class Connection {
+  readonly source: ProcessRef;
+  readonly resource: ResourceRef;
+  readonly requester: ProcessRef;
+  readonly requests: ResourceRef;
   constructor(
-    readonly source: ProcessRef,
-    readonly resource: ResourceRef,
-    readonly requester: ProcessRef,
-    readonly requests: ResourceRef,
+    source: ProcessRef,
+    resource: ResourceRef,
+    requester: ProcessRef,
+    requests: ResourceRef,
   ) {
     if (
       !(source instanceof ProcessRef) ||
@@ -349,6 +353,10 @@ export class Connection {
       new Set([source.realm, resource.realm, requester.realm, requests.realm]).size !== 1
     )
       throw new TypeError("Query connection requires one realm");
+    this.source = source;
+    this.resource = resource;
+    this.requester = requester;
+    this.requests = requests;
     Object.freeze(this);
   }
 }
@@ -364,15 +372,14 @@ export class Prepared {
   }
 }
 export class Uncertain extends UnknownOutcome {
-  constructor(
-    readonly prepared: Prepared,
-    cause: UnknownOutcome,
-  ) {
+  readonly prepared: Prepared;
+  constructor(prepared: Prepared, cause: UnknownOutcome) {
     super("Query admission is uncertain; retain the identical prepared command", {
       status: 6,
       ...(cause.code === undefined ? {} : { code: cause.code }),
       phase: "submit-query",
     });
+    this.prepared = prepared;
   }
 }
 /** Verification progress, never an authorization token. */
@@ -439,14 +446,24 @@ export interface Manifest {
 }
 export class Page {
   readonly #ipc: Uint8Array;
+  readonly manifest: Manifest;
+  readonly columns: readonly Column[];
+  readonly ordinal: bigint;
+  readonly rows: number;
+  readonly next: Cursor | undefined;
   constructor(
-    readonly manifest: Manifest,
-    readonly columns: readonly Column[],
-    readonly ordinal: bigint,
-    readonly rows: number,
+    manifest: Manifest,
+    columns: readonly Column[],
+    ordinal: bigint,
+    rows: number,
     ipc: Uint8Array,
-    readonly next: Cursor | undefined,
+    next: Cursor | undefined,
   ) {
+    this.manifest = manifest;
+    this.columns = columns;
+    this.ordinal = ordinal;
+    this.rows = rows;
+    this.next = next;
     this.#ipc = owned(ipc, 65536);
     Object.freeze(this);
   }
@@ -500,10 +517,12 @@ function page(value: WirePage, realm: number): Page {
 }
 /** One native port, one in-flight operation; close joins before releasing ownership. */
 export class Client {
-  private constructor(
-    readonly connection: Connection,
-    private readonly bridge: QueryBridge,
-  ) {}
+  readonly connection: Connection;
+  private readonly bridge: QueryBridge;
+  private constructor(connection: Connection, bridge: QueryBridge) {
+    this.connection = connection;
+    this.bridge = bridge;
+  }
   static async open(
     input: ClientConfig,
     credential: Credential,

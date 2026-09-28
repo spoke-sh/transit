@@ -293,7 +293,10 @@ export class Bridge {
 
 /** A query caller owns no behavior activation. Generated schemas validate both directions. */
 export class QueryBridge {
-  private constructor(readonly port: Port) {}
+  readonly port: Port;
+  private constructor(port: Port) {
+    this.port = port;
+  }
   static async open(
     url: string,
     seedFile: string,

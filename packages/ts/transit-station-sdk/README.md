@@ -4,6 +4,8 @@ Typed Station runners for Node.js 24, over the version-matched shared Zig host.
 This M11 package is separate from the compatible `@rey/transit-station` M9 wrapper.
 It depends on the independent `@transit/client` and `@transit/native-station`
 artifacts. Importing starts no process and discovers no credentials.
+Source declarations use erasable TypeScript so Node's strip-only unit-test loader
+can import the same public modules; the package check enforces that constraint.
 
 Build tarballs with `nix develop --command just bindings::node-build`. Install
 version 0.2.0 with its matching native packages; local tarball overrides follow
