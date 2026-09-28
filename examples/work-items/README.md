@@ -26,4 +26,4 @@ Worker diagnostics exclude data and keys. Current read failures leave the input
 unresolved; malformed/denied commands have retained dispositions.
 
 See [the selected migration](docs/migration.md). Work is tied to
-[M23](../../docs/roadmap/M23.md), with authority movement reserved for M24.
+[M23](../../docs/roadmap/M23.md), with authority movement reserved for [M26](../../docs/roadmap/M26.md).

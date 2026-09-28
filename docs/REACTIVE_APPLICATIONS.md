@@ -230,4 +230,4 @@ pauses all normal writes. Each step uses a new bounded read position. Other
 applications must supply their own write coordination or versioned source;
 copying this cursor alone cannot stabilize mutable contents. Abandonment leaves
 target Table identities and receipts retained, so another attempt needs a fresh
-plan/target identity. M24 must preserve these roots and pauses during movement.
+plan/target identity. M26 must preserve these roots and pauses during movement.
