@@ -36,7 +36,18 @@ pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, 
     const result: serving.ReactiveClient.Response = switch (operation) {
         .describe => blk: {
             const signed = try serving.Model.SignedRead.sign(.{ .realm = client.connection.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress, .kind = .discovery }, key);
-            break :blk .{ .description = .{ .connection = client.connection, .discovery = try reactive.discovery(signed, key.public_key.toBytes(), alloc) } };
+            const discovery = try reactive.discovery(signed, key.public_key.toBytes(), alloc);
+            var scoped = try base.reader(viewer.principal);
+            const observed = try serving.ReactiveService.clock(&scoped.data);
+            const upper = try Clock.upper(&clock);
+            if (observed == 0 or observed > upper or upper - observed > 10000) return error.ClockUnavailable;
+            break :blk .{ .description = .{ .connection = client.connection, .discovery = discovery, .observed_ms = observed } };
+        },
+        .clock => blk: {
+            const observed = try client.observedClock(base);
+            const upper = try Clock.upper(&clock);
+            if (observed == 0 or observed > upper or upper - observed > 10000) return error.ClockUnavailable;
+            break :blk .{ .clock = .{ .observed_ms = observed } };
         },
         .inspect => |read| try reactive.inspect(try client.signRead(read), key.public_key.toBytes()),
         .sign_read => |read| blk: {
@@ -64,7 +75,7 @@ const Clock = struct {
 
 fn isControl(request: serving.ReactiveClient.Request) !bool {
     return switch (request) {
-        .observe => true,
+        .observe, .clock => true,
         .prepare => |command| serving.ReactiveWire.isControl(.{ .reactive = command.native() }),
         .refresh_prepare => |command| command == .pause,
         .submit => |signed| blk: {

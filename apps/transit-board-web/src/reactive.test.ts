@@ -72,6 +72,7 @@ describe("generated reactive transport boundary", () => {
     session.description = {
       connection: { realm: 49, principal: 65536, service: 1, ingress: 1 },
       max_lease_ms: 30000,
+      observed_ms: 1,
       discovery: {
         service: 1,
         ingress: 1,

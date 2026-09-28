@@ -66,3 +66,14 @@ Zig schemas. It validates SSE fields and separately validates their JSON data;
 9216-byte framing buffer and no history queue. Finite JSON responses are capped
 at 16 KiB and five seconds. Application int64 values remain exact decimal strings.
 The host's lease and final current-authority checks remain authoritative.
+
+Descriptions include `observed_ms`, the ingress owner's committed observer clock.
+The private host rejects samples absent or more than ten seconds behind its
+conservative upper clock bound. Callers choose open/renew deadlines from that
+sample and the advertised maximum lease. Reading a description does not emit an
+observer command. Only the separately authorized observer records clock progress.
+
+The read-only `clock` operation returns the same qualified observer sample through
+reserved control capacity, with current native/service authorization. Renewal
+uses it without repeating discovery/schema reads. It grants no extra lease;
+the owner still validates the subsequently recorded conditional renew command.

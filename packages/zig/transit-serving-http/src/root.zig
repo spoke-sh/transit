@@ -13,6 +13,7 @@ pub const Gateway = struct {
     port: u16,
     host: []const u8,
     public_origin: []const u8,
+    development_allow_insecure_http: bool = false,
     callers: []const Caller,
     listen: []const u8 = "127.0.0.1",
     options: http.Options = .{ .requests = 4 },
@@ -24,8 +25,11 @@ pub const Gateway = struct {
         try gateway.options.validate();
         if (gateway.reactive and (gateway.options.request_timeout_ms < 5000 or gateway.clock_error_ms > 10000)) return error.InvalidGatewayConfiguration;
         if (gateway.per_caller_requests == 0 or gateway.per_caller_requests > gateway.options.requests) return error.InvalidGatewayConfiguration;
-        if (gateway.callers.len == 0 or gateway.callers.len > 32 or !std.mem.startsWith(u8, gateway.public_origin, "https://")) return error.InvalidGatewayConfiguration;
-        if (!std.mem.eql(u8, gateway.host, gateway.public_origin[8..])) return error.InvalidGatewayOrigin;
+        if (gateway.callers.len == 0 or gateway.callers.len > 32) return error.InvalidGatewayConfiguration;
+        const secure = std.mem.startsWith(u8, gateway.public_origin, "https://");
+        if (!secure and !(gateway.development_allow_insecure_http and std.mem.startsWith(u8, gateway.public_origin, "http://"))) return error.InvalidGatewayOrigin;
+        const host = gateway.public_origin[if (secure) 8 else 7..];
+        if (host.len == 0 or host.len > 200 or std.mem.indexOfAny(u8, host, "/@?#\\\r\n\t ,") != null or !std.mem.eql(u8, gateway.host, host)) return error.InvalidGatewayOrigin;
         for (gateway.callers, 0..) |caller, index| {
             try serving.Model.identity(caller.principal);
             for (gateway.callers[0..index]) |previous| if (caller.principal == previous.principal) return error.DuplicateCaller;
@@ -69,7 +73,7 @@ pub const Context = struct {
             const status: std.http.Status = switch (err) {
                 error.ServingDenied, error.AccessDenied, error.SignatureVerificationFailed => .forbidden,
                 error.ServingOperationNotFound, error.ReactiveSessionNotFound, error.RefreshNotFound => .not_found,
-                error.ReactiveResetRequired, error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict, error.RefreshGenerationConflict, error.ServiceReadConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
+                error.ReactiveResetRequired, error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict, error.RefreshGenerationConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
                 error.ResourceUnavailable, error.ReactiveSessionExpired => .gone,
                 error.AuthorityTimeout => .gateway_timeout,
                 error.StreamTooLong => .payload_too_large,
@@ -80,11 +84,15 @@ pub const Context = struct {
             return http.respond(request, status, "{\"err\":\"ServingRequestFailed\"}");
         };
     }
-    fn dispatch(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+    pub fn validateRequest(self: *@This(), request: *std.http.Server.Request) !void {
         const config = self.config.gateway;
         if (!std.mem.eql(u8, (try http.header(request, "host")) orelse "", config.host)) return error.ServingDenied;
         if (try http.header(request, "origin")) |origin| if (!std.mem.eql(u8, origin, config.public_origin)) return error.ServingDenied;
         for ([_][]const u8{ "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for", "x-transit-principal" }) |name| if (try http.header(request, name) != null) return error.ServingDenied;
+    }
+    fn dispatch(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+        try self.validateRequest(request);
+        const config = self.config.gateway;
         if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"ready\":true}");
         if (config.reactive and (std.mem.eql(u8, request.head.target, "/reactive/v1/client") or std.mem.eql(u8, request.head.target, "/reactive/v1/client/control"))) return @import("PrivateClient.zig").handle(self, io, allocator, request);
         if (config.reactive and std.mem.startsWith(u8, request.head.target, "/reactive/v1/")) return @import("ReactiveTransport.zig").handle(self, io, allocator, request);

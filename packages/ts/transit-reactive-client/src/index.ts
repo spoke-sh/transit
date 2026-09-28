@@ -95,7 +95,7 @@ export class SseDecoder {
 }
 
 export class Transport {
-  constructor(private readonly fetcher: typeof fetch = fetch) {}
+  constructor(private readonly fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {}
   private async post(path: string, body: unknown, signal?: AbortSignal) {
     return this.fetcher(path, {
       method: "POST",
@@ -158,13 +158,36 @@ export class Transport {
   }
   async host(request: HostRequest, signal?: AbortSignal, control = false): Promise<HostResponse> {
     if (!validate.HostRequest(request)) throw new ReactiveError(0, "invalid_request");
-    const value = await this.json(
-      control ? "/reactive/v1/client/control" : "/reactive/v1/client",
-      request,
-      signal,
-    );
-    if (!validate.HostResponse(value)) invalid();
-    return value as HostResponse;
+    const readOnly =
+      "describe" in request ||
+      "clock" in request ||
+      "inspect" in request ||
+      "covered" in request ||
+      "observe" in request ||
+      "sign_read" in request ||
+      "refresh_status" in request;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const value = await this.json(
+          control ? "/reactive/v1/client/control" : "/reactive/v1/client",
+          request,
+          signal,
+        );
+        if (!validate.HostResponse(value)) invalid();
+        return value as HostResponse;
+      } catch (error) {
+        if (
+          !readOnly ||
+          attempt >= 2 ||
+          signal?.aborted ||
+          !(error instanceof ReactiveError) ||
+          (error.status !== 429 && error.status !== 503)
+        )
+          throw error;
+        await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+        signal?.throwIfAborted();
+      }
+    }
   }
   async read(request: ReactiveRead, signal?: AbortSignal): Promise<ReactiveResponse> {
     if (!validate.ReactiveRead(request)) throw new ReactiveError(0, "invalid_request");
@@ -259,3 +282,12 @@ export {
   type Selection,
 } from "./session";
 export { acquireCaller, type AcquireCaller, type Caller } from "./caller-gate";
+
+export {
+  LiveView,
+  type ViewState,
+  type Snapshot,
+  type ViewReader,
+  type Basis,
+  type ViewPhase,
+} from "./view";

@@ -51,7 +51,11 @@ fn sourceReader(self: Self, source: r.Source) !root.station.client.ResourceReade
     if (metadata.id != source.resource or metadata.writer != source.target or metadata.phase != .active) return error.ResourceUnavailable;
     return .{ .client = self.base.resources, .view = .{ .resource = source.resource, .revision = metadata.revision } };
 }
+const Acquisition = struct { response: Response, observation: ?root.TableWatch.Observation = null };
 pub fn read(self: Self, signed: r.SignedRead, public_key: [32]u8) !Response {
+    return (try self.acquire(signed, public_key)).response;
+}
+fn acquire(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
     for (0..3) |_| return self.readOnce(signed, public_key) catch |err| {
         if (err == error.Rejected or err == error.Conflict) switch (self.base.resources.wire.last_rejection orelse return err) {
             .StaleStateResource, .QueryExpired => continue,
@@ -62,9 +66,10 @@ pub fn read(self: Self, signed: r.SignedRead, public_key: [32]u8) !Response {
     };
     return error.ServiceReadConflict;
 }
-fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Response {
+fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Acquisition {
     const before = try self.context(signed, public_key);
     var result: Response = .{ .session = before.session, .source = before.source };
+    var acquired: ?root.TableWatch.Observation = null;
     if (signed.read.kind != .session) {
         const source = before.source.?;
         var reader = try self.sourceReader(source);
@@ -72,6 +77,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Response {
             result.snapshot = try root.TableWatch.snapshot(&reader, source);
             break :blk result.snapshot.?.observation;
         } else try root.TableWatch.observe(&reader, source);
+        acquired = observation;
         var outcome: ?Outcome = null;
         if (before.session.operation != 0) {
             var scoped = try self.base.reader(signed.read.scope.principal);
@@ -99,7 +105,7 @@ fn readOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !Response {
     }
     const after = try self.context(signed, public_key);
     if (!std.meta.eql(before, after)) return error.ServiceReadConflict;
-    return result;
+    return .{ .response = result, .observation = acquired };
 }
 
 /// Verify the new socket's proof before forwarding the caller's exact attach
@@ -163,21 +169,11 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     return result;
 }
 
-/// Metadata-only projection of the qualified Table adapter for Board and live
-/// query consumers. The earlier cursor may repeat a change captured by the
-/// later metadata observation; it cannot skip a concurrent change.
+/// Metadata-only projection of the same authorized acquisition as snapshot/events.
+/// Reuse its exact observation and final authority check; a second independent
+/// observation both adds I/O and needlessly widens the concurrent-write window.
 pub fn inspect(self: Self, signed: r.SignedRead, public_key: [32]u8) !root.ReactiveClient.Response {
     if (signed.read.kind != .events) return error.InvalidReactiveScope;
-    for (0..3) |_| return self.inspectOnce(signed, public_key) catch |err| {
-        if ((err == error.Rejected or err == error.Conflict) and (self.base.resources.wire.last_rejection == .StaleStateResource or self.base.resources.wire.last_rejection == .QueryExpired)) continue;
-        return err;
-    };
-    return error.ServiceReadConflict;
-}
-fn inspectOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !root.ReactiveClient.Response {
-    const response = try self.read(signed, public_key);
-    var reader = try self.sourceReader(response.source.?);
-    const observation = try root.TableWatch.observe(&reader, response.source.?);
-    try self.check(signed, public_key);
-    return .{ .inspection = .{ .response = response, .observation = observation } };
+    const result = try self.acquire(signed, public_key);
+    return .{ .inspection = .{ .response = result.response, .observation = result.observation.? } };
 }

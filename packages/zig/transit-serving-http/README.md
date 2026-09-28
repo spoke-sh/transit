@@ -14,7 +14,9 @@ commands. Its reader credential and accepted service/watch publication remain
 separate from caller identity. No handler, raw store or provider is imported.
 
 `Gateway.validate` checks declared connection/request limits, caller uniqueness,
-HTTPS origin and reactive clock/deadline requirements. Configuration owns the
+HTTPS origin and reactive clock/deadline requirements. Explicit
+`development_allow_insecure_http` permits a configured development HTTP origin;
+exact Host/Origin validation remains mandatory. Configuration owns the
 lifetime of borrowed URL/origin/caller slices; `Context` outlives all listener
 tasks. Each task owns a bounded upstream allocator. Challenges stay local to this
 context: route SSE challenge and events to the same instance. Durable session
@@ -37,3 +39,8 @@ merely providing an inspection credential. The default `snapshot_values = false`
 profile exposes Table metadata/progress and denies signing application snapshots;
 applications must opt in to the bounded snapshot profile. Dedicated control
 routing preserves renew/close capacity while streams occupy data slots.
+
+Private descriptions include the committed observer clock and refuse a sample
+more than ten seconds behind the configured conservative host upper bound. This
+lets callers select a lease within the owner's recorded 30-second interval.
+It neither observes a new clock implicitly nor delegates observer authority.

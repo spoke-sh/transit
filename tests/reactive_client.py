@@ -27,6 +27,7 @@ def run(env, tls):
     drained(ingress)
     description = client({'describe': {}})['description']
     assert description['connection'] == dict(realm=49, principal=principal, service=1, ingress=ingress)
+    assert client({'clock': {}}, control=True)['clock']['observed_ms'] == now
     post(port, '/reactive/v1/client', {'describe': {}}, host, 403)
     client({'prepare': {'observe_clock': now}}, 400)
     client({'describe': {}}, 400, True)
@@ -77,5 +78,6 @@ def run(env, tls):
     cast(ingress, policy(principal, revision=2, reads=False))
     drained(ingress)
     client({'describe': {}}, 403)
+    client({'clock': {}}, 403, True)
     Path('.cache/verification/m21-client-trace.json').write_text(json.dumps(trace))
     print(f'Reactive shared client: Zig preparation, exact lost-reply retry, committed controls, private Origin, metadata-only watch/coverage, reserved close and denial passed in {time.monotonic() - start:.2f}s', flush=True)

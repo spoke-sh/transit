@@ -28,6 +28,7 @@ pub const Command = union(enum) {
 pub const Observation = union(enum) { pending, committed, rejected: p.Value };
 pub const Request = union(enum) {
     describe,
+    clock,
     inspect: r.Read,
     covered: struct { observation: root.TableWatch.Observation, captured: root.query.fuze.Unified.Basis },
     prepare: Command,
@@ -38,7 +39,8 @@ pub const Request = union(enum) {
     refresh_status: root.RefreshModel.Selection,
 };
 pub const Response = union(enum) {
-    description: struct { connection: Connection, discovery: root.Api.Discovery, max_lease_ms: u32 = r.max_lease_ms },
+    description: struct { connection: Connection, discovery: root.Api.Discovery, observed_ms: u64, max_lease_ms: u32 = r.max_lease_ms },
+    clock: struct { observed_ms: u64, max_lease_ms: u32 = r.max_lease_ms },
     inspection: struct { response: root.ReactiveAdapter.Response, observation: root.TableWatch.Observation },
     covered: bool,
     prepared: r.SignedSend,
@@ -131,6 +133,18 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
     _ = try adapter.read(signed, self.key.public_key.toBytes());
     return view;
 }
+/// A clock sample for lease renewal does not rediscover source schemas or
+/// compute an API-description digest. All reads retain current caller/service
+/// authority and one exact ingress cut; this never records time itself.
+pub fn observedClock(self: Self, adapter: root.Adapter) !u64 {
+    const before = try self.query(.identity);
+    if (before.body.identity.pid != self.connection.ingress) return error.ServingDenied;
+    var scoped = try adapter.reader(self.connection.principal);
+    const observed = try root.ReactiveService.clock(&scoped.data);
+    const after = try self.query(.identity);
+    if (after.body.identity.pid != self.connection.ingress) return error.ServingDenied;
+    return observed;
+}
 pub fn signRead(self: Self, read: r.Read) !r.SignedRead {
     const scope = read.scope;
     if (scope.realm != self.connection.realm or scope.principal != self.connection.principal or scope.service != self.connection.service or scope.ingress != self.connection.ingress) return error.ServingDenied;
@@ -151,7 +165,7 @@ pub fn observe(self: Self, adapter: root.Adapter, input: u64) !Observation {
 }
 pub fn apply(self: Self, adapter: root.Adapter, request: Request) !Response {
     return switch (request) {
-        .describe, .inspect => error.ReactiveAdapterRequired,
+        .describe, .clock, .inspect => error.ReactiveAdapterRequired,
         .covered => |input| .{ .covered = root.TableWatch.covered(input.observation, input.captured) },
         .prepare => |command| .{ .prepared = try self.prepare(command) },
         .submit => |prepared| blk: {

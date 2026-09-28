@@ -89,7 +89,10 @@ const Task = struct {
         const start = Io.Clock.awake.now(self.io);
         while (start.durationTo(Io.Clock.awake.now(self.io)).toMilliseconds() < 2000) {
             fixed.reset();
-            _ = self.read(bootstrap.read, key) catch |err| {
+            // Observe the committed attachment and current source authority.
+            // Acquiring an event/cursor here would duplicate the stream's first
+            // read and consume the finite attachment observation budget.
+            self.check(bootstrap.read, key) catch |err| {
                 if (err != error.ReactiveAttachmentConflict and err != error.ServiceReadConflict and err != error.Conflict) return err;
                 try self.io.sleep(.fromMilliseconds(20), .awake);
                 continue;

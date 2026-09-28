@@ -2706,7 +2706,13 @@ body reading; the fix preserves the route decision before borrowed request-head
 bytes can be reused. The failed run is not qualification evidence.
 
 `tests/reactive_client_contract.py` validates reflected schema drift and can check
-an actual `--trace`; the recorded run validates 38 request/response envelopes.
+an actual `--trace`; the latest run validates 40 request/response envelopes.
+The reserved authorized clock sample and its policy-denial check passed with
+`just test::reactive-client` in 7.52 seconds. It avoids repeating discovery before
+renewal. Browser lifecycle tests cover pause joining pending acquisition,
+late-candidate fencing, known denial, queued-start cancellation and independent
+renewal during a blocked result read. `just check` and root `zig build test`
+passed after those changes; simultaneous-view qualification remains open.
 Frontend consumer tests exercise partial SSE framing, wrapper/content agreement,
 malformed UTF-8 and fields, bounded buffers and uncertain-command identity. These
 are client foundation checks, not browser live-view, fairness, complete-result

@@ -38,3 +38,19 @@ Run `just transit-board::check` for generated drift, strict types and consumer
 checks. `just test::reactive-client` exercises the real Zig host, TLS, exact
 lost-reply recovery and metadata-only boundary. Full M21 browser/view qualification
 remains in progress; M20's browser harness is separate protocol evidence.
+
+`LiveView<T>` owns a single joined stream/read lifecycle and one newest dirty
+revision outside rendering. `start` is explicit; reconnect observes the same
+session and never reopens expiry. A host supplies the authorized snapshot reader
+and calls `pause` on hide/unmount. Known denial clears the snapshot; transient
+failure retains its original basis. Query readers must verify complete coverage
+and reread the visible page before returning; this generic owner does not decode
+or verify finite query segments itself. One listener set (at most four), snapshot,
+refresh record and frozen control are resident; event history is not accumulated.
+Renewal runs independently of bounded result verification and shares the single
+control owner. Pause joins both tasks before releasing the session.
+
+Private descriptions carry the committed observer clock. Open/renew deadlines
+use that recorded value, leaving margin within the 30-second bound; browser wall
+time only prompts renewal. A stale/unavailable observer cannot authorize a longer
+lease. Clock observation and all accepted controls have durable retention cost.

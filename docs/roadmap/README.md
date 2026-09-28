@@ -28,7 +28,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M18](M18.md) | Unified state querying and versioned source contracts | Qualified growing profile: three state sources, ten SDKs, SQL/Board, native lifecycle and Table Compose/Substrate recovery; hosted cost deferred |
 | [M19](M19.md) | Serving foundation and HTTP APIs | Qualified HTTP profile: durable application admission, concurrent Board, TLS and three placements; hosted cost deferred |
 | [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Qualified initial int64 Table profile; TLS SSE/WebSocket, Chromium, physical recovery, bounded lifetimes and generated contracts |
-| [M21](M21.md) | Reactive interfaces over reactive APIs | Planned; bounded, generation-safe snapshot refresh over M20, with shared-principal fairness |
+| [M21](M21.md) | Reactive interfaces over reactive APIs | In progress; bounded, generation-safe snapshot refresh over M20, with shared-principal fairness |
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Planned from finite transport/query evidence; explicit Table protocol/type and client qualification |
 | [M23](M23.md) | Board grammar and declarative reactive applications | Planned; implement design explorations, monochrome UI, shared SQL/visual definitions and recoverable application migrations |
 | [M24](M24.md) | Transit CLI | Planned; local supervisor/gateway through `transit server` and grammar-aware SQL/meta-command shell through `transit console` |

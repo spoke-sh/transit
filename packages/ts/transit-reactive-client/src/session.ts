@@ -43,6 +43,9 @@ export class Session {
   leaseBefore = 0;
   selection: Selection | null = null;
   private activeControl = false;
+  get busy() {
+    return this.activeControl;
+  }
   private releaseCaller: (() => void) | null = null;
   constructor(
     readonly transport = new Transport(),
@@ -187,7 +190,7 @@ export class Session {
           open: {
             session,
             source_revision: description.discovery.watch_revision,
-            lease_before_ms: Date.now() + lease - 2000,
+            lease_before_ms: description.observed_ms + lease - 1000,
           },
         },
         signal,
@@ -227,7 +230,9 @@ export class Session {
   }
   async renew(signal?: AbortSignal) {
     if (!this.scope) return;
-    const lease = Date.now() + (this.description?.max_lease_ms ?? 30000) - 2000;
+    const response = await this.transport.host({ clock: {} }, signal, true);
+    if (!("clock" in response)) return invalid();
+    const lease = response.clock.observed_ms + (response.clock.max_lease_ms ?? 30000) - 1000;
     await this.command(
       {
         renew: {
