@@ -270,6 +270,18 @@ Arrivals and departures are presentation terms mapped to mailbox admissions,
 committed outputs, and effect stages. They do not change those stages' guarantees.
 See [Board](BOARD.md) for the visual language and evidence rules.
 
+## Declarative application interfaces (proposed)
+
+| Term | Meaning |
+| --- | --- |
+| Interface definition | Proposed M23 typed composition of screens, public bindings, actions and theme references, authored through equivalent SQL/visual/API surfaces. It grants no authority. |
+| Interface revision | An immutable validated definition with explicit component/contract compatibility; conditional publication selects the active revision without atomically changing unrelated resources. |
+| Interface binding | A declared connection from presentation to an exact public inspection projection, finite query or command target, with schema, capability and budget requirements. Distinct from a service or runtime binding. |
+| Application migration | A proposed immutable plan between application revisions, with conditional public operations, bounded progress and recoverable step receipts. Not an implicit cross-resource transaction or authority restore. |
+
+[Reactive applications](REACTIVE_APPLICATIONS.md) owns this proposed M23 model;
+[Board grammar](design/board-grammar/README.md) owns its interface review.
+
 ## Operational observability
 
 | Term | Meaning |

@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Regional scale / One hundred million</title><desc id="desc">Atlas D4 · Figure 3 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Regional scale / One hundred million</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D4 · Figure 3 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="32" y="204" font-family="sans-serif" font-size="16" font-weight="700" text-anchor="start" fill="black">100,000,000 processes · 20 primary groups · group geometry is schematic</text>
+<path d="M65.0 302.0Q112.2 259.5 183.0 285.0Q324.6 276.5 301.0 344.5Q230.2 382.75 135.8 370.0Q41.4 353.0 65.0 302.0Z" fill="none" stroke="black" stroke-width="2"/>
+<ellipse cx="178.28" cy="323.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="325.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<text x="77.0" y="394.0" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Group A.01</text>
+<path d="M325.0 302.0Q372.2 259.5 443.0 285.0Q584.6 276.5 561.0 344.5Q490.2 382.75 395.8 370.0Q301.4 353.0 325.0 302.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="323.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="325.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<text x="337.0" y="394.0" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Group A.02</text>
+<path d="M585.0 302.0Q632.2 259.5 703.0 285.0Q844.6 276.5 821.0 344.5Q750.2 382.75 655.8 370.0Q561.4 353.0 585.0 302.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="323.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="325.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<text x="597.0" y="394.0" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Group A.03</text>
+<path d="M845.0 302.0Q892.2 259.5 963.0 285.0Q1104.6 276.5 1081.0 344.5Q1010.2 382.75 915.8 370.0Q821.4 353.0 845.0 302.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="323.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="325.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1105.0 302.0Q1152.2 259.5 1223.0 285.0Q1364.6 276.5 1341.0 344.5Q1270.2 382.75 1175.8 370.0Q1081.4 353.0 1105.0 302.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="323.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="325.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M65.0 427.0Q112.2 384.5 183.0 410.0Q324.6 401.5 301.0 469.5Q230.2 507.75 135.8 495.0Q41.4 478.0 65.0 427.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="448.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="450.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M325.0 427.0Q372.2 384.5 443.0 410.0Q584.6 401.5 561.0 469.5Q490.2 507.75 395.8 495.0Q301.4 478.0 325.0 427.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="448.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="450.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M585.0 427.0Q632.2 384.5 703.0 410.0Q844.6 401.5 821.0 469.5Q750.2 507.75 655.8 495.0Q561.4 478.0 585.0 427.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="448.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="450.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M845.0 427.0Q892.2 384.5 963.0 410.0Q1104.6 401.5 1081.0 469.5Q1010.2 507.75 915.8 495.0Q821.4 478.0 845.0 427.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="448.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="450.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1105.0 427.0Q1152.2 384.5 1223.0 410.0Q1364.6 401.5 1341.0 469.5Q1270.2 507.75 1175.8 495.0Q1081.4 478.0 1105.0 427.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="448.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="450.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M65.0 552.0Q112.2 509.5 183.0 535.0Q324.6 526.5 301.0 594.5Q230.2 632.75 135.8 620.0Q41.4 603.0 65.0 552.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="573.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="575.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M325.0 552.0Q372.2 509.5 443.0 535.0Q584.6 526.5 561.0 594.5Q490.2 632.75 395.8 620.0Q301.4 603.0 325.0 552.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="573.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="575.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M585.0 552.0Q632.2 509.5 703.0 535.0Q844.6 526.5 821.0 594.5Q750.2 632.75 655.8 620.0Q561.4 603.0 585.0 552.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="573.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="575.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M845.0 552.0Q892.2 509.5 963.0 535.0Q1104.6 526.5 1081.0 594.5Q1010.2 632.75 915.8 620.0Q821.4 603.0 845.0 552.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="573.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="575.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1105.0 552.0Q1152.2 509.5 1223.0 535.0Q1364.6 526.5 1341.0 594.5Q1270.2 632.75 1175.8 620.0Q1081.4 603.0 1105.0 552.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="573.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="575.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M65.0 677.0Q112.2 634.5 183.0 660.0Q324.6 651.5 301.0 719.5Q230.2 757.75 135.8 745.0Q41.4 728.0 65.0 677.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="698.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="178.28" cy="700.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M325.0 677.0Q372.2 634.5 443.0 660.0Q584.6 651.5 561.0 719.5Q490.2 757.75 395.8 745.0Q301.4 728.0 325.0 677.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="698.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="438.28" cy="700.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M585.0 677.0Q632.2 634.5 703.0 660.0Q844.6 651.5 821.0 719.5Q750.2 757.75 655.8 745.0Q561.4 728.0 585.0 677.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="698.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="698.28" cy="700.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M845.0 677.0Q892.2 634.5 963.0 660.0Q1104.6 651.5 1081.0 719.5Q1010.2 757.75 915.8 745.0Q821.4 728.0 845.0 677.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="698.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="958.28" cy="700.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1105.0 677.0Q1152.2 634.5 1223.0 660.0Q1364.6 651.5 1341.0 719.5Q1270.2 757.75 1175.8 745.0Q1081.4 728.0 1105.0 677.0Z" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="698.25" rx="70.8" ry="28.900000000000002" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1218.28" cy="700.8" rx="33.040000000000006" ry="16.15" fill="none" stroke="black" stroke-width="1"/>
+<rect x="62" y="230" width="248" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="77" y="253" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">47m · oldest in first group</text>
+<text x="32" y="824" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox total 297,769,225   /   Outbox total 72,147,692   ·   Separate compressed scales</text>
+<text x="32" y="849" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Parent, child and outlier counts are never added together. Fixed layout area does not encode population.</text>
+</svg>

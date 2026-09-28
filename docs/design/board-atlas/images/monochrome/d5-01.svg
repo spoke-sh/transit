@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Resource cityscape / Different structures, comparable height</title><desc id="desc">Atlas D5 · Figure 1 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Resource cityscape / Different structures, comparable height</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D5 · Figure 1 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<path d="M160 570L340 570L362 548L182 548Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M160 570L160 340L340 340L340 570Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M340 570L362 548L362 318L340 340Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M160 340L182 318L362 318L340 340Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M160 512.5L340 512.5" fill="none" stroke="black" stroke-width="1"/>
+<path d="M160 455.0L340 455.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M160 397.5L340 397.5" fill="none" stroke="black" stroke-width="1"/>
+<path d="M205.0 340L205.0 570" fill="none" stroke="black" stroke-width="1"/>
+<path d="M250.0 340L250.0 570" fill="none" stroke="black" stroke-width="1"/>
+<path d="M295.0 340L295.0 570" fill="none" stroke="black" stroke-width="1"/>
+<text x="260.0" y="628" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">TABLE</text>
+<text x="250" y="686" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="black">32 MiB</text>
+<path d="M693.6 570L780.0 570L802.0 548L715.6 548Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M693.6 570L693.6 422.79999999999995L780.0 422.79999999999995L780.0 570Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M780.0 570L802.0 548L802.0 400.79999999999995L780.0 422.79999999999995Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M693.6 422.79999999999995L715.6 400.79999999999995L802.0 400.79999999999995L780.0 422.79999999999995Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M600 570L682.8 570L704.8 548L622 548Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M600 570L600 340L682.8 340L682.8 570Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M682.8 570L704.8 548L704.8 318L682.8 340Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M600 340L622 318L704.8 318L682.8 340Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M600 494.1L682.8 494.1" fill="none" stroke="black" stroke-width="1"/>
+<path d="M600 415.9L682.8 415.9" fill="none" stroke="black" stroke-width="1"/>
+<text x="700.0" y="628" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">KV</text>
+<text x="690" y="686" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="black">32 MiB</text>
+<path d="M1040 570L1220 570L1242 548L1062 548Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1040 570L1040 494.1L1220 494.1L1220 570Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1220 570L1242 548L1242 472.1L1220 494.1Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1040 494.1L1062 472.1L1242 472.1L1220 494.1Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1052 494.1L1181.6 494.1L1203.6 472.1L1074 472.1Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1052 494.1L1052 418.20000000000005L1181.6 418.20000000000005L1181.6 494.1Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1181.6 494.1L1203.6 472.1L1203.6 396.20000000000005L1181.6 418.20000000000005Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1052 418.20000000000005L1074 396.20000000000005L1203.6 396.20000000000005L1181.6 418.20000000000005Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1064 418.2L1146.8 418.2L1168.8 396.2L1086 396.2Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1064 418.2L1064 340.0L1146.8 340.0L1146.8 418.2Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1146.8 418.2L1168.8 396.2L1168.8 318.0L1146.8 340.0Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1064 340.0L1086 318.0L1168.8 318.0L1146.8 340.0Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1140.0" y="628" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">DOCUMENT</text>
+<text x="1130" y="686" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="black">32 MiB</text>
+<path d="M90 318L1350 318" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="32" y="810" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">One shared height reference. Structure changes the motif; kind does not determine size.</text>
+<text x="32" y="835" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Facades, modules and terraces are not literal row/key/node counts.</text>
+</svg>

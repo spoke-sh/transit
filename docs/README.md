@@ -26,6 +26,7 @@ are experimental; their bounded implementation does not imply support for every 
 | [Serving](SERVING.md) | Proposed inbound service/route, identity, admission and response contracts; HTTP for applications and Board |
 | [Reactive APIs](REACTIVE_API.md) | Proposed SSE/WebSocket hosting, shared sessions/subscriptions, resumable events and generated OpenAPI/AsyncAPI contracts |
 | [Reactive interfaces](REACTIVE.md) | Proposed live views, exact snapshot refresh and visible freshness over reactive APIs |
+| [Reactive applications](REACTIVE_APPLICATIONS.md) | Proposed M23 declarative interface model, downstream workflow, publication and migrations |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, growing atlas, optional Table workspace and observation semantics |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |

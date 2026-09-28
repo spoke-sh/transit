@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Resource workspace / Browse shows the same query and result</title><desc id="desc">Atlas D7 · Figure 4 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Resource workspace / Browse shows the same query and result</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D7 · Figure 4 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="32" y="206" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">R17 / T1 / Q1 · Browse selected · Complete for sample S1 only</text>
+<rect x="32" y="248" width="1376" height="122" fill="white" stroke="black" stroke-width="1"/>
+<text x="54" y="284" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">Source: T1   /   Scope: sample S1 (6 rows)</text>
+<text x="54" y="332" font-family="monospace" font-size="17" font-weight="400" text-anchor="start" fill="black">Filter: group_id = 2</text>
+<rect x="1210" y="292" width="174" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="1224" y="315" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Run query</text>
+<path d="M32 433L1408.0 433" fill="none" stroke="black" stroke-width="2"/>
+<text x="42" y="460" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">sample_id · int64</text>
+<text x="500.6666666666667" y="460" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">group_id · int64</text>
+<text x="959.3333333333334" y="460" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">value · int64</text>
+<path d="M32 481L1408.0 481" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="508" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">102</text>
+<text x="500.6666666666667" y="508" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">2</text>
+<text x="959.3333333333334" y="508" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">13</text>
+<path d="M32 529L1408.0 529" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="556" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">104</text>
+<text x="500.6666666666667" y="556" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">2</text>
+<text x="959.3333333333334" y="556" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">34</text>
+<path d="M32 577L1408.0 577" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="604" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">105</text>
+<text x="500.6666666666667" y="604" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">2</text>
+<text x="959.3333333333334" y="604" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">55</text>
+<path d="M32 625L1408.0 625" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="759" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Result: synthetic-q1-result-1 · rows 102, 104, 105 · complete for S1 only</text>
+<text x="32" y="784" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Switching Canvas/Browse does not rerun Q1 or replace its observation basis.</text>
+</svg>

@@ -1,0 +1,125 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Inbox, outbox and age / Queue counts with age on the well walls</title><desc id="desc">Atlas D2 · Figure 7 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Atlas</text>
+<path d="M16 134L16 155" fill="none" stroke="black" stroke-width="3"/>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Explore</text>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Activity</text>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Inbox, outbox and age / Queue counts with age on the well walls</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D2 · Figure 7 · monochrome translation · synthetic evidence</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<ellipse cx="365" cy="355" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="365" cy="342.4904545570495" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="365" cy="329.980909114099" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="365" cy="313.301515190165" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M307 355 Q315.7 321.641212152132 336.0 313.301515190165" fill="none" stroke="black" stroke-width="1"/>
+<path d="M423 355 Q414.3 321.641212152132 394.0 313.301515190165" fill="none" stroke="black" stroke-width="1"/>
+<text x="365" y="398" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P01   18 in / 0 out</text>
+<ellipse cx="605" cy="315" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="304.1253866082107" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="293.2507732164214" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="278.75128869403574" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M547 315 Q555.7 286.0010309552286 576.0 278.75128869403574" fill="none" stroke="black" stroke-width="1"/>
+<path d="M663 315 Q654.3 286.0010309552286 634.0 278.75128869403574" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="278.75128869403574" rx="20" ry="7" fill="white" stroke="black" stroke-width="1"/>
+<path d="M585 278.75128869403574L592 300.75128869403574 Q605 306.75128869403574 618 300.75128869403574L625 278.75128869403574" fill="none" stroke="black" stroke-width="1"/>
+<path d="M596 283.75128869403574L599.6 298.75128869403574" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M605 283.75128869403574L605.0 298.75128869403574" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M614 283.75128869403574L610.4 298.75128869403574" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="605" y="358" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P02   12 in / 4 out</text>
+<text x="605" y="381" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="black">Oldest 2m</text>
+<ellipse cx="845" cy="355" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="345.460303038033" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="335.920606076066" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="323.2010101267767" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 355 Q795.7 329.56080810142134 816.0 323.2010101267767" fill="none" stroke="black" stroke-width="1"/>
+<path d="M903 355 Q894.3 329.56080810142134 874.0 323.2010101267767" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="323.2010101267767" rx="20" ry="7" fill="white" stroke="black" stroke-width="1"/>
+<path d="M825 323.2010101267767L832 350.17157287525384 Q845 356.17157287525384 858 350.17157287525384L865 323.2010101267767" fill="none" stroke="black" stroke-width="1"/>
+<path d="M836 328.2010101267767L839.6 348.17157287525384" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M845 328.2010101267767L845.0 348.17157287525384" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M854 328.2010101267767L850.4 348.17157287525384" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="845" y="398" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P03   8 in / 8 out</text>
+<text x="845" y="421" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="black">Oldest 6m</text>
+<ellipse cx="605" cy="535" rx="58" ry="20" fill="white" stroke="black" stroke-width="2"/>
+<ellipse cx="605" cy="518.8" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="502.6" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="481.0" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M547 535 Q555.7 491.8 576.0 481.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M663 535 Q654.3 491.8 634.0 481.0" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="481.0" rx="20" ry="7" fill="white" stroke="black" stroke-width="1"/>
+<path d="M585 481.0L592 511.7846096908265 Q605 517.7846096908265 618 511.7846096908265L625 481.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M596 486.0L599.6 509.7846096908265" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M605 486.0L605.0 509.7846096908265" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M614 486.0L610.4 509.7846096908265" fill="none" stroke="black" stroke-width="0.7"/>
+<rect x="538" y="511" width="134" height="52" fill="none" stroke="black" stroke-width="2"/>
+<text x="605" y="578" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">P04   36 in / 12 out</text>
+<text x="605" y="601" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="black">Oldest 18m</text>
+<ellipse cx="845" cy="535" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="526.2560715401553" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="517.5121430803107" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="505.8535718005178" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 535 Q795.7 511.6828574404142 816.0 505.8535718005178" fill="none" stroke="black" stroke-width="1"/>
+<path d="M903 535 Q894.3 511.6828574404142 874.0 505.8535718005178" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="505.8535718005178" rx="20" ry="7" fill="white" stroke="black" stroke-width="1"/>
+<path d="M825 505.8535718005178L832 524.3388531747563 Q845 530.3388531747563 858 524.3388531747563L865 505.8535718005178" fill="none" stroke="black" stroke-width="1"/>
+<path d="M836 510.8535718005178L839.6 522.3388531747563" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M845 510.8535718005178L845.0 522.3388531747563" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M854 510.8535718005178L850.4 522.3388531747563" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="845" y="578" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P05   6 in / 2 out</text>
+<text x="845" y="601" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="black">Oldest 45s</text>
+<ellipse cx="845" cy="720" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="712.2" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="704.4" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="694.0" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 720 Q795.7 699.2 816.0 694.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M903 720 Q894.3 699.2 874.0 694.0" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="694.0" rx="20" ry="7" fill="white" stroke="black" stroke-width="1"/>
+<path d="M825 694.0L832 718.6969384566991 Q845 724.6969384566991 858 718.6969384566991L865 694.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M836 699.0L839.6 716.6969384566991" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M845 699.0L845.0 716.6969384566991" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M854 699.0L850.4 716.6969384566991" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="845" y="763" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P06   4 in / 6 out</text>
+<text x="845" y="786" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="black">Oldest 4m</text>
+<ellipse cx="605" cy="745" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="745" rx="20" ry="7" fill="white" stroke="black" stroke-width="1"/>
+<path d="M585 745L592 775.7846096908265 Q605 781.7846096908265 618 775.7846096908265L625 745" fill="none" stroke="black" stroke-width="1"/>
+<path d="M596 750L599.6 773.7846096908265" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M605 750L605.0 773.7846096908265" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M614 750L610.4 773.7846096908265" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="605" y="807" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P07   0 in / 12 out</text>
+<text x="605" y="829" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="middle" fill="black">Oldest 25m</text>
+<ellipse cx="365" cy="625" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<text x="365" y="668" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P08   0 in / 0 out</text>
+<text x="1096" y="242" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P04 · two independent queues</text>
+<text x="1096" y="272" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox   36</text>
+<text x="1096" y="297" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Outbox awaiting delivery   12</text>
+<text x="1096" y="322" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Oldest pending output   18m</text>
+<text x="1096" y="347" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Age marks belong to well walls.</text>
+<text x="1096" y="372" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Selection uses a strong perimeter.</text>
+<path d="M1096 425L1386 425" fill="none" stroke="black" stroke-width="1"/>
+<text x="1096" y="468" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">Monochrome encoding</text>
+<text x="1096" y="498" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Shoulder height → inbox count</text>
+<text x="1096" y="523" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Depth from shoulder → outbox</text>
+<text x="1096" y="548" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Wall marks + number → age</text>
+<text x="1096" y="573" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Empty outbox → no oldest age</text>
+<text x="1096" y="598" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Missing evidence → unavailable</text>
+<text x="1096" y="693" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Displayed totals</text>
+<text x="1096" y="718" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox 84   /   Outbox 44</text>
+<text x="1096" y="743" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Ages are synthetic.</text>
+<text x="1096" y="768" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No runtime timestamp proof.</text>
+</svg>

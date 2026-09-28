@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Resource cityscape / One resource, several processes</title><desc id="desc">Atlas D5 · Figure 5 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Resource cityscape / One resource, several processes</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D5 · Figure 5 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<ellipse cx="320" cy="370" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<text x="320" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">PID 41</text>
+<path d="M340 370L714 510" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<ellipse cx="660" cy="310" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<text x="660" y="353" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">PID 52</text>
+<path d="M680 310L714 510" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<ellipse cx="430" cy="700" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<text x="430" y="743" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">PID 63</text>
+<path d="M450 700L714 510" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<rect x="632" y="524" width="209" height="54" fill="none" stroke="black" stroke-width="2"/>
+<path d="M650 535L710 535L732 513L672 513Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M650 535L650 430L710 430L710 535Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710 535L732 513L732 408L710 430Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M650 430L672 408L732 408L710 430Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M650 508.75L710 508.75" fill="none" stroke="black" stroke-width="1"/>
+<path d="M650 482.5L710 482.5" fill="none" stroke="black" stroke-width="1"/>
+<path d="M650 456.25L710 456.25" fill="none" stroke="black" stroke-width="1"/>
+<path d="M665.0 430L665.0 535" fill="none" stroke="black" stroke-width="1"/>
+<path d="M680.0 430L680.0 535" fill="none" stroke="black" stroke-width="1"/>
+<path d="M695.0 430L695.0 535" fill="none" stroke="black" stroke-width="1"/>
+<path d="M742 535L802 535L824 513L764 513Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M742 535L742 430L802 430L802 535Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M802 535L824 513L824 408L802 430Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M742 430L764 408L824 408L802 430Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M742 508.75L802 508.75" fill="none" stroke="black" stroke-width="1"/>
+<path d="M742 482.5L802 482.5" fill="none" stroke="black" stroke-width="1"/>
+<path d="M742 456.25L802 456.25" fill="none" stroke="black" stroke-width="1"/>
+<path d="M757.0 430L757.0 535" fill="none" stroke="black" stroke-width="1"/>
+<path d="M772.0 430L772.0 535" fill="none" stroke="black" stroke-width="1"/>
+<path d="M787.0 430L787.0 535" fill="none" stroke="black" stroke-width="1"/>
+<text x="680" y="569" font-family="sans-serif" font-size="13" font-weight="700" text-anchor="middle" fill="black">T1</text>
+<text x="772" y="569" font-family="sans-serif" font-size="13" font-weight="700" text-anchor="middle" fill="black">T2</text>
+<text x="734" y="602" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">R17 · one backing resource</text>
+<path d="M939.2 365L980.0 365L1002.0 343L961.2 343Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M939.2 365L939.2 313.8L980.0 313.8L980.0 365Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M980.0 365L1002.0 343L1002.0 291.8L980.0 313.8Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M939.2 313.8L961.2 291.8L1002.0 291.8L980.0 313.8Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M895 365L934.1 365L956.1 343L917 343Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M895 365L895 285L934.1 285L934.1 365Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M934.1 365L956.1 343L956.1 263L934.1 285Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M895 285L917 263L956.1 263L934.1 285Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M895 338.6L934.1 338.6" fill="none" stroke="black" stroke-width="1"/>
+<path d="M895 311.4L934.1 311.4" fill="none" stroke="black" stroke-width="1"/>
+<text x="947.5" y="423" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">R18 · KV</text>
+<path d="M887 700L987 700L1009 678L909 678Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M887 700L887 660.4L987 660.4L987 700Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M987 700L1009 678L1009 638.4L987 660.4Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M887 660.4L909 638.4L1009 638.4L987 660.4Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M899 660.4L971.0 660.4L993.0 638.4L921 638.4Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M899 660.4L899 620.8L971.0 620.8L971.0 660.4Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M971.0 660.4L993.0 638.4L993.0 598.8L971.0 620.8Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M899 620.8L921 598.8L993.0 598.8L971.0 620.8Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M911 620.8L957.0 620.8L979.0 598.8L933 598.8Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M911 620.8L911 580.0L957.0 580.0L957.0 620.8Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M957.0 620.8L979.0 598.8L979.0 558.0L957.0 580.0Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M911 580.0L933 558.0L979.0 558.0L957.0 580.0Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="947.0" y="758" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">R19 · Document</text>
+<text x="515" y="613" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">association</text>
+<rect x="1096" y="230" width="290" height="322" fill="white" stroke="black" stroke-width="2"/>
+<text x="1116" y="264" font-family="sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="black">R17 · Table resource</text>
+<text x="1116" y="300" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Current values   32 MiB</text>
+<text x="1116" y="325" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Writer   PID 41</text>
+<text x="1116" y="350" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Lifetime   Independent</text>
+<text x="1116" y="375" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">3 disclosed associations</text>
+<text x="1116" y="400" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">T1   24 MiB   /   T2   6 MiB</text>
+<text x="1116" y="425" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Framework   2 MiB</text>
+<rect x="1116" y="490" width="132" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="1130" y="513" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Open resource</text>
+<text x="32" y="869" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Resources · current value bytes</text>
+</svg>

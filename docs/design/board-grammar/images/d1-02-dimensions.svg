@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Meaning before theme</title><desc id="desc">Stable semantic dimensions · monochrome presentation tokens. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Atlas</text>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Explore</text>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Activity</text>
+<path d="M16 344L16 365" fill="none" stroke="black" stroke-width="3"/>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Meaning before theme</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Stable semantic dimensions · monochrome presentation tokens</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<path d="M285 403L395 403L417 381L307 381Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M285 403L285 287L395 287L395 403Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M395 403L417 381L417 265L395 287Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M285 287L307 265L417 265L395 287Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M285 374.0L395 374.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M285 345.0L395 345.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M285 316.0L395 316.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M312.5 287L312.5 403" fill="none" stroke="black" stroke-width="1"/>
+<path d="M340.0 287L340.0 403" fill="none" stroke="black" stroke-width="1"/>
+<path d="M367.5 287L367.5 403" fill="none" stroke="black" stroke-width="1"/>
+<text x="350.0" y="461" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">TABLE</text>
+<path d="M587.2 403L640.0 403L662.0 381L609.2 381Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M587.2 403L587.2 328.76L640.0 328.76L640.0 403Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M640.0 403L662.0 381L662.0 306.76L640.0 328.76Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M587.2 328.76L609.2 306.76L662.0 306.76L640.0 328.76Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M530 403L580.6 403L602.6 381L552 381Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M530 403L530 287L580.6 287L580.6 403Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M580.6 403L602.6 381L602.6 265L580.6 287Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M530 287L552 265L602.6 265L580.6 287Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M530 364.72L580.6 364.72" fill="none" stroke="black" stroke-width="1"/>
+<path d="M530 325.28L580.6 325.28" fill="none" stroke="black" stroke-width="1"/>
+<text x="595.0" y="461" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">KV</text>
+<path d="M775 403L885 403L907 381L797 381Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M775 403L775 364.72L885 364.72L885 403Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M885 403L907 381L907 342.72L885 364.72Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M775 364.72L797 342.72L907 342.72L885 364.72Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 364.72L866.2 364.72L888.2 342.72L809 342.72Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 364.72L787 326.44000000000005L866.2 326.44000000000005L866.2 364.72Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M866.2 364.72L888.2 342.72L888.2 304.44000000000005L866.2 326.44000000000005Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 326.44000000000005L809 304.44000000000005L888.2 304.44000000000005L866.2 326.44000000000005Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M799 326.44L849.6 326.44L871.6 304.44L821 304.44Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M799 326.44L799 287.0L849.6 287.0L849.6 326.44Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M849.6 326.44L871.6 304.44L871.6 265.0L849.6 287.0Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M799 287.0L821 265.0L871.6 265.0L849.6 287.0Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="840.0" y="461" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">DOCUMENT</text>
+<ellipse cx="1184" cy="403" rx="78.30000000000001" ry="27.0" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="1184" cy="381.13" rx="66.555" ry="18.635400000000004" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="1184" cy="359.26" rx="54.81" ry="15.346800000000002" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="1184" cy="330.1" rx="39.150000000000006" ry="10.962000000000003" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1105.7 403 Q1117.445 344.68 1144.85 330.1" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1262.3 403 Q1250.555 344.68 1223.15 330.1" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="1184" cy="330.1" rx="27.0" ry="9.450000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1157.0 330.1L1166.45 371.6592230826158 Q1184 379.75922308261585 1201.55 371.6592230826158L1211.0 330.1" fill="none" stroke="black" stroke-width="1"/>
+<path d="M1171.85 336.85L1176.71 368.95922308261584" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M1184.0 336.85L1184.0 368.95922308261584" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M1196.15 336.85L1191.29 368.95922308261584" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="1184" y="461.05" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">Inbox 36 / Outbox 12</text>
+<path d="M240 531L1408 531" fill="none" stroke="black" stroke-width="2"/>
+<text x="250" y="558" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Dimension</text>
+<text x="485" y="558" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Monochrome expression</text>
+<text x="845" y="558" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Invariant</text>
+<path d="M240 579L1408 579" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="606" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Selection / focus</text>
+<text x="485" y="606" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Perimeter / focus outline</text>
+<text x="845" y="606" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Never permission or health</text>
+<path d="M240 627L1408 627" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="654" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Association</text>
+<text x="485" y="654" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Dashed, labeled edge</text>
+<text x="845" y="654" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No traffic or ownership implied</text>
+<path d="M240 675L1408 675" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="702" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Dependency</text>
+<text x="485" y="702" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Solid arrow + verb</text>
+<text x="845" y="702" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Exact declared reference</text>
+<path d="M240 723L1408 723" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="750" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Proposed change</text>
+<text x="485" y="750" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Before / After + dashed frame</text>
+<text x="845" y="750" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Draft is not accepted state</text>
+<path d="M240 771L1408 771" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="798" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Unknown / denied</text>
+<text x="485" y="798" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Explicit text / cleared content</text>
+<text x="845" y="798" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No fabricated zero or stale disclosure</text>
+<path d="M240 819L1408 819" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="846" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Theme tokens</text>
+<text x="485" y="846" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Ink, surface, type, spacing</text>
+<text x="845" y="846" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Cannot change semantic encoding</text>
+<path d="M240 867L1408 867" fill="none" stroke="black" stroke-width="1"/>
+</svg>

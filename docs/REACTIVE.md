@@ -133,6 +133,16 @@ with explicit opt-in lifetimes for automatic query results if selected. A new
 refresh never implicitly deletes accepted evidence. If durable capture cost makes
 the desired refresh rate impractical, qualify a new contract before increasing it.
 
+## Declarative composition after M21
+
+[M23](roadmap/M23.md) composes these primitives into the
+[Board grammar](design/board-grammar/README.md) and a reusable
+[reactive application workflow](REACTIVE_APPLICATIONS.md). It owns themeable
+monochrome presentation, explicit binding definitions, bounded opt-in draft
+execution and application publication/migrations. M21 still supplies snapshot
+refresh of an already submitted query; its completed scope will not imply
+those later capabilities or incremental continuous SQL.
+
 ## Selected proof surface and later scope
 
 Qualify a bounded Board inspection projection, a declared Table query view and

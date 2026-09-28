@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Venues and growth / Readiness is a set of evidence-backed questions</title><desc id="desc">Atlas D8 · Figure 3 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Venues and growth / Readiness is a set of evidence-backed questions</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D8 · Figure 3 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="32" y="213" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="start" fill="black">R17 / Growth readiness / One year · selected +1 MiB per day</text>
+<path d="M32 255L1408 255" fill="none" stroke="black" stroke-width="2"/>
+<text x="42" y="282" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Question</text>
+<text x="342" y="282" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Requirement / assumption</text>
+<text x="692" y="282" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Evidence</text>
+<text x="1042" y="282" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Assessment</text>
+<path d="M32 316L1408 316" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="343" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Current-value size</text>
+<text x="342" y="343" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">256 MiB planning level</text>
+<text x="692" y="343" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">397 MiB at 365 days</text>
+<text x="1042" y="343" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Exceeds assumption</text>
+<path d="M32 377L1408 377" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="404" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Physical capacity</text>
+<text x="342" y="404" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Not supplied</text>
+<text x="692" y="404" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No physical accounting</text>
+<text x="1042" y="404" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Unknown</text>
+<path d="M32 438L1408 438" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Write contention</text>
+<text x="342" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Not supplied</text>
+<text x="692" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">2,000 associations ≠ writers</text>
+<text x="1042" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Unknown</text>
+<path d="M32 499L1408 499" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="526" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Query performance</text>
+<text x="342" y="526" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Not supplied</text>
+<text x="692" y="526" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No matching workload proof</text>
+<text x="1042" y="526" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Unknown</text>
+<path d="M32 560L1408 560" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="587" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Recovery time</text>
+<text x="342" y="587" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Not supplied</text>
+<text x="692" y="587" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No matching recovery proof</text>
+<text x="1042" y="587" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Unknown</text>
+<path d="M32 621L1408 621" fill="none" stroke="black" stroke-width="1"/>
+<text x="42" y="648" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Lifecycle</text>
+<text x="342" y="648" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Existing declared policy</text>
+<text x="692" y="648" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">No change proposed</text>
+<text x="1042" y="648" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Independent decision</text>
+<path d="M32 682L1408 682" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="720" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">At +1 MiB/day: reaches 256 MiB in 224 days; exceeds it thereafter.</text>
+<text x="32" y="745" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Across low/high cases: reaches the planning level in 448 / 112 days.</text>
+<text x="32" y="770" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">An arithmetic budget fit cannot prove readiness. No overall health score.</text>
+<rect x="32" y="832" width="156" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="46" y="855" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Edit assumptions</text>
+<text x="220" y="854" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Local scenario only · does not resize, migrate or expire resources</text>
+</svg>

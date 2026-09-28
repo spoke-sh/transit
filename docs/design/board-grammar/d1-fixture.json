@@ -1,0 +1,191 @@
+{
+  "synthetic": true,
+  "status": "Proposed review data; not a wire schema, parser corpus or implemented capability map.",
+  "interface": {
+    "name": "board",
+    "theme": "mono",
+    "entry": "workspace.atlas",
+    "shell": "transit_console",
+    "definitionRevision": "12"
+  },
+  "screens": [
+    {
+      "id": "workspace.atlas",
+      "label": "Atlas",
+      "renderer": "atlas",
+      "binding": "atlas",
+      "source": "board.catalog",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/workspace/atlas"
+    },
+    {
+      "id": "workspace.explore",
+      "label": "Explore",
+      "renderer": "worksheet",
+      "binding": "explore",
+      "source": "query.items",
+      "refresh": "snapshot",
+      "support": "proposed_missing_contract",
+      "path": "/workspace/explore"
+    },
+    {
+      "id": "workspace.connections",
+      "label": "Connections",
+      "renderer": "definition_collection",
+      "binding": "connections",
+      "source": "catalog.connections",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/workspace/connections"
+    },
+    {
+      "id": "workspace.sources",
+      "label": "Sources",
+      "renderer": "definition_collection",
+      "binding": "sources",
+      "source": "catalog.sources",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/workspace/sources"
+    },
+    {
+      "id": "workspace.sinks",
+      "label": "Sinks",
+      "renderer": "definition_collection",
+      "binding": "sinks",
+      "source": "catalog.sinks",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/workspace/sinks"
+    },
+    {
+      "id": "workspace.activity",
+      "label": "Activity",
+      "renderer": "evidence_sequence",
+      "binding": "activity",
+      "source": "operations.receipts",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/workspace/activity"
+    },
+    {
+      "id": "operations.overview",
+      "label": "Overview",
+      "renderer": "dependency_list",
+      "binding": "overview",
+      "source": "operations.foundations",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/operations/overview"
+    },
+    {
+      "id": "operations.access",
+      "label": "Access",
+      "renderer": "definition_collection",
+      "binding": "access",
+      "source": "security.metadata",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/operations/access"
+    },
+    {
+      "id": "operations.secrets_trust",
+      "label": "Secrets & trust",
+      "renderer": "definition_collection",
+      "binding": "secrets_trust",
+      "source": "security.secret_trust_metadata",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/operations/secrets_trust"
+    },
+    {
+      "id": "operations.capabilities",
+      "label": "Capabilities",
+      "renderer": "capability_list",
+      "binding": "capabilities",
+      "source": "services.capabilities",
+      "refresh": "snapshot",
+      "support": "proposed_missing_contract",
+      "path": "/operations/capabilities"
+    },
+    {
+      "id": "operations.runtime_storage",
+      "label": "Runtime & storage",
+      "renderer": "evidence_list",
+      "binding": "runtime_storage",
+      "source": "runtime.observations",
+      "refresh": "follow_changes",
+      "support": "proposed_missing_contract",
+      "path": "/operations/runtime_storage"
+    },
+    {
+      "id": "operations.diagnostics",
+      "label": "Diagnostics",
+      "renderer": "signal_list",
+      "binding": "diagnostics",
+      "source": "telemetry.observations",
+      "refresh": "snapshot",
+      "support": "proposed_missing_contract",
+      "path": "/operations/diagnostics"
+    }
+  ],
+  "actions": [
+    {
+      "name": "run_query",
+      "class": "durable_query",
+      "trigger": "explicit",
+      "operation": "query.submit"
+    },
+    {
+      "name": "follow_changes",
+      "class": "read_session_control",
+      "trigger": "explicit",
+      "operation": "view.follow"
+    },
+    {
+      "name": "apply_change",
+      "class": "durable_command",
+      "trigger": "explicit_review",
+      "operation": "definitions.apply",
+      "authority": "separate_attributable_operator"
+    }
+  ],
+  "reactiveExample": {
+    "draft": "8",
+    "displayedQuery": "7",
+    "displayedBasis": "104",
+    "dirtyThrough": "107",
+    "candidateStatus": "verifying",
+    "displayedResult": "Q17",
+    "displayedSql": "SELECT id, value FROM items LIMIT 32",
+    "draftSql": "SELECT id, value FROM items WHERE id > 103"
+  },
+  "migrationExample": {
+    "plan": "change-24",
+    "base": "12",
+    "target": "13",
+    "step": "backfill-2",
+    "operation": "op-812",
+    "status": "uncertain",
+    "retry": "same frozen operation"
+  },
+  "figures": [
+    {
+      "figure": 1,
+      "asset": "images/d1-01-definition.svg"
+    },
+    {
+      "figure": 2,
+      "asset": "images/d1-02-dimensions.svg"
+    },
+    {
+      "figure": 3,
+      "asset": "images/d1-03-reactive.svg"
+    },
+    {
+      "figure": 4,
+      "asset": "images/d1-04-migration.svg"
+    }
+  ]
+}

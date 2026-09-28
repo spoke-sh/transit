@@ -274,6 +274,23 @@ and exact snapshot refresh. This selects the Follow changes foundation; D4's
 continuous Stream results and predictive execution while editing remain proposed.
 It does not implement D6's operator controls or individual sign-in implicitly.
 
+## Board grammar implementation direction
+
+[Board grammar D1](design/board-grammar/D1.md) brings the Atlas and Console
+explorations together as a monochrome reactive UI with themeable presentation
+dimensions. [Atlas D10](design/board-atlas/D10.md) redraws every D1–D8 figure as
+a vector wireframe while preserving the historical review outcomes. Labels,
+geometry, line styles and evidence remain meaningful without color.
+
+[M23](roadmap/M23.md) owns implementation after M19–M22: shared SQL/visual
+definitions, qualified public bindings, the full selected Board experience and
+a downstream application workflow with explicit migrations.
+[Reactive applications](REACTIVE_APPLICATIONS.md) owns the proposed composition,
+publication and migration model. These proposals add no executable UI grammar
+or administrative right to the current Board. In particular, typed definition
+preview never applies a change, and application migration never implies
+cross-resource atomicity or cluster authority recovery.
+
 ## Boundary and packaging
 
 ```mermaid

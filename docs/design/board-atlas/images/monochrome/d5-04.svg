@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Resource cityscape / A metropolitan overview</title><desc id="desc">Atlas D5 · Figure 4 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Resource cityscape / A metropolitan overview</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D5 · Figure 4 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<path d="M70.0 355L240.0 355L262.0 333L92.0 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 355L70.0 290.71514032822193L240.0 290.71514032822193L240.0 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M240.0 355L262.0 333L262.0 268.71514032822193L240.0 290.71514032822193Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 290.71514032822193L92.0 268.71514032822193L262.0 268.71514032822193L240.0 290.71514032822193Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="165.0" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A</text>
+<path d="M390.0 355L560.0 355L582.0 333L412.0 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 355L390.0 308.7227787270514L560.0 308.7227787270514L560.0 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M560.0 355L582.0 333L582.0 286.7227787270514L560.0 308.7227787270514Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 308.7227787270514L412.0 286.7227787270514L582.0 286.7227787270514L560.0 308.7227787270514Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="485.0" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group B</text>
+<path d="M710.0 355L880.0 355L902.0 333L732.0 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 355L710.0 303.96894020335225L880.0 303.96894020335225L880.0 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M880.0 355L902.0 333L902.0 281.96894020335225L880.0 303.96894020335225Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 303.96894020335225L732.0 281.96894020335225L902.0 281.96894020335225L880.0 303.96894020335225Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="805.0" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group C</text>
+<path d="M1030.0 355L1200.0 355L1222.0 333L1052.0 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 355L1030.0 300.96920248769754L1200.0 300.96920248769754L1200.0 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1200.0 355L1222.0 333L1222.0 278.96920248769754L1200.0 300.96920248769754Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 300.96920248769754L1052.0 278.96920248769754L1222.0 278.96920248769754L1200.0 300.96920248769754Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1125.0" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group D</text>
+<path d="M70.0 473L240.0 473L262.0 451L92.0 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 473L70.0 416.7584106233877L240.0 416.7584106233877L240.0 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M240.0 473L262.0 451L262.0 394.7584106233877L240.0 416.7584106233877Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 416.7584106233877L92.0 394.7584106233877L262.0 394.7584106233877L240.0 416.7584106233877Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="165.0" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group E</text>
+<path d="M390.0 473L560.0 473L582.0 451L412.0 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 473L390.0 415.00357558127234L560.0 415.00357558127234L560.0 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M560.0 473L582.0 451L582.0 393.00357558127234L560.0 415.00357558127234Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 415.00357558127234L412.0 393.00357558127234L582.0 393.00357558127234L560.0 415.00357558127234Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="485.0" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group F</text>
+<path d="M710.0 473L880.0 473L902.0 451L732.0 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 473L710.0 421.30183787610537L880.0 421.30183787610537L880.0 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M880.0 473L902.0 451L902.0 399.30183787610537L880.0 421.30183787610537Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 421.30183787610537L732.0 399.30183787610537L902.0 399.30183787610537L880.0 421.30183787610537Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="805.0" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group G</text>
+<path d="M1030.0 473L1200.0 473L1222.0 451L1052.0 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 473L1030.0 426.7227787270514L1200.0 426.7227787270514L1200.0 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1200.0 473L1222.0 451L1222.0 404.7227787270514L1200.0 426.7227787270514Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 426.7227787270514L1052.0 404.7227787270514L1222.0 404.7227787270514L1200.0 426.7227787270514Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1125.0" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group H</text>
+<path d="M70.0 591L240.0 591L262.0 569L92.0 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 591L70.0 539.9689402033522L240.0 539.9689402033522L240.0 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M240.0 591L262.0 569L262.0 517.9689402033522L240.0 539.9689402033522Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 539.9689402033522L92.0 517.9689402033522L262.0 517.9689402033522L240.0 539.9689402033522Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="165.0" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group I</text>
+<path d="M390.0 591L560.0 591L582.0 569L412.0 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 591L390.0 536.9692024876975L560.0 536.9692024876975L560.0 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M560.0 591L582.0 569L582.0 514.9692024876975L560.0 536.9692024876975Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 536.9692024876975L412.0 514.9692024876975L582.0 514.9692024876975L560.0 536.9692024876975Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="485.0" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group J</text>
+<path d="M710.0 591L880.0 591L902.0 569L732.0 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 591L710.0 534.7584106233877L880.0 534.7584106233877L880.0 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M880.0 591L902.0 569L902.0 512.7584106233877L880.0 534.7584106233877Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 534.7584106233877L732.0 512.7584106233877L902.0 512.7584106233877L880.0 534.7584106233877Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="805.0" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group K</text>
+<path d="M1030.0 591L1200.0 591L1222.0 569L1052.0 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 591L1030.0 540.7579385115658L1200.0 540.7579385115658L1200.0 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1200.0 591L1222.0 569L1222.0 518.7579385115658L1200.0 540.7579385115658Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 540.7579385115658L1052.0 518.7579385115658L1222.0 518.7579385115658L1200.0 540.7579385115658Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1125.0" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group L</text>
+<path d="M70.0 709L240.0 709L262.0 687L92.0 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 709L70.0 654.9692024876975L240.0 654.9692024876975L240.0 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M240.0 709L262.0 687L262.0 632.9692024876975L240.0 654.9692024876975Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 654.9692024876975L92.0 632.9692024876975L262.0 632.9692024876975L240.0 654.9692024876975Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="165.0" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group M</text>
+<path d="M390.0 709L560.0 709L582.0 687L412.0 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 709L390.0 652.5472501339672L560.0 652.5472501339672L560.0 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M560.0 709L582.0 687L582.0 630.5472501339672L560.0 652.5472501339672Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M390.0 652.5472501339672L412.0 630.5472501339672L582.0 630.5472501339672L560.0 652.5472501339672Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="485.0" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group N</text>
+<path d="M710.0 709L880.0 709L902.0 687L732.0 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 709L710.0 659.723565437064L880.0 659.723565437064L880.0 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M880.0 709L902.0 687L902.0 637.723565437064L880.0 659.723565437064Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 659.723565437064L732.0 637.723565437064L902.0 637.723565437064L880.0 659.723565437064Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="805.0" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group O</text>
+<path d="M1030.0 709L1200.0 709L1222.0 687L1052.0 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 709L1030.0 655.7582532470583L1200.0 655.7582532470583L1200.0 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1200.0 709L1222.0 687L1222.0 633.7582532470583L1200.0 655.7582532470583Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1030.0 655.7582532470583L1052.0 633.7582532470583L1222.0 633.7582532470583L1200.0 655.7582532470583Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1125.0" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group P</text>
+<text x="32" y="205" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">1,000,000 resources · 16 disjoint group summaries</text>
+<rect x="40" y="230" width="247" height="40" fill="white" stroke="black" stroke-width="2"/>
+<text x="54" y="256" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">R3 · Document · 4 GiB</text>
+<text x="32" y="844" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Sum unique current-value bytes before compression. Parent and child masses never coexist as totals.</text>
+<text x="32" y="869" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">A group mass is not an invented population of small buildings. Scope and coverage remain explicit.</text>
+</svg>

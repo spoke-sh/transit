@@ -102,7 +102,7 @@ No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M23](roadmap/M23.md) qualifies
+the single-realm serialization bottleneck in M10; [M24](roadmap/M24.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -298,6 +298,12 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
   `apps/transit-station-grpc-worker`: compose behaviors or connector execution
   with explicitly supplied runtime capabilities.
+- [M23](roadmap/M23.md) implements [declarative reactive applications](REACTIVE_APPLICATIONS.md),
+  using Board as the first consumer. Shared Zig definition/publication/migration
+  owners remain above the public client and Station; TypeScript renderers consume
+  generated, runtime-validated types and M20/M21 clients. SQL lowers to owning
+  operations or Fuze plans, never a UI authority database. Create shared packages
+  only when Board and the downstream example exercise them.
 - Application libraries and entry points: compose these primitives without
   adding application policy to core. Further TypeScript/Vite+ frontends and
   shared libraries follow concrete consumers.

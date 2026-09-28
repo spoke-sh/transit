@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Browser and relief / Flat investigation</title><desc id="desc">Atlas D1 · Figure 3 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Atlas</text>
+<path d="M16 134L16 155" fill="none" stroke="black" stroke-width="3"/>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Explore</text>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Activity</text>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Browser and relief / Flat investigation</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D1 · Figure 3 · monochrome translation · synthetic evidence</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<rect x="240" y="230" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="256" y="262" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P01</text>
+<text x="256" y="298" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 18</text>
+<text x="256" y="325" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="450" y="230" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="466" y="262" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P02</text>
+<text x="466" y="298" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 12</text>
+<text x="466" y="325" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="660" y="230" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="676" y="262" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P03</text>
+<text x="676" y="298" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 8</text>
+<text x="676" y="325" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="870" y="230" width="190" height="115" fill="white" stroke="black" stroke-width="2"/>
+<text x="886" y="262" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P04</text>
+<text x="886" y="298" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 36</text>
+<text x="886" y="325" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="240" y="380" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="256" y="412" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P05</text>
+<text x="256" y="448" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 6</text>
+<text x="256" y="475" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="450" y="380" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="466" y="412" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P06</text>
+<text x="466" y="448" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 4</text>
+<text x="466" y="475" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="660" y="380" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="676" y="412" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P07</text>
+<text x="676" y="448" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 0</text>
+<text x="676" y="475" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="870" y="380" width="190" height="115" fill="white" stroke="black" stroke-width="1"/>
+<text x="886" y="412" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">P08</text>
+<text x="886" y="448" font-family="sans-serif" font-size="16" font-weight="400" text-anchor="start" fill="black">Inbox 0</text>
+<text x="886" y="475" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">Observed · position 240</text>
+<rect x="1096" y="230" width="290" height="322" fill="white" stroke="black" stroke-width="2"/>
+<text x="1116" y="264" font-family="sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="black">Process 04 · PID 4</text>
+<text x="1116" y="300" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox pending   36</text>
+<text x="1116" y="325" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Generation   3</text>
+<text x="1116" y="350" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">State revision   18</text>
+<text x="1116" y="375" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Observation   240</text>
+<text x="1116" y="400" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Policy revision   7</text>
+<text x="1116" y="425" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Retained from   160</text>
+<rect x="1116" y="490" width="124" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="1130" y="513" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Open process</text>
+<rect x="260" y="675" width="170" height="80" fill="white" stroke="black" stroke-width="1"/>
+<text x="274" y="705" font-family="sans-serif" font-size="16" font-weight="700" text-anchor="start" fill="black">Input 41</text>
+<text x="274" y="734" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">PID 4</text>
+<path d="M430 715L465 715" fill="none" stroke="black" stroke-width="1"/>
+<path d="M465 715L457.32727930146444 719.704185060376" fill="none" stroke="black" stroke-width="1"/>
+<path d="M465 715L457.32727930146444 710.295814939624" fill="none" stroke="black" stroke-width="1"/>
+<rect x="465" y="675" width="170" height="80" fill="white" stroke="black" stroke-width="1"/>
+<text x="479" y="705" font-family="sans-serif" font-size="16" font-weight="700" text-anchor="start" fill="black">Turn 18</text>
+<text x="479" y="734" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">Committed</text>
+<path d="M635 715L670 715" fill="none" stroke="black" stroke-width="1"/>
+<path d="M670 715L662.3272793014645 719.704185060376" fill="none" stroke="black" stroke-width="1"/>
+<path d="M670 715L662.3272793014645 710.295814939624" fill="none" stroke="black" stroke-width="1"/>
+<rect x="670" y="675" width="170" height="80" fill="white" stroke="black" stroke-width="1"/>
+<text x="684" y="705" font-family="sans-serif" font-size="16" font-weight="700" text-anchor="start" fill="black">Output 7</text>
+<text x="684" y="734" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">Recorded</text>
+<path d="M840 715L875 715" fill="none" stroke="black" stroke-width="1"/>
+<path d="M875 715L867.3272793014645 719.704185060376" fill="none" stroke="black" stroke-width="1"/>
+<path d="M875 715L867.3272793014645 710.295814939624" fill="none" stroke="black" stroke-width="1"/>
+<rect x="875" y="675" width="170" height="80" fill="white" stroke="black" stroke-width="1"/>
+<text x="889" y="705" font-family="sans-serif" font-size="16" font-weight="700" text-anchor="start" fill="black">Input 22</text>
+<text x="889" y="734" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">PID 5 · admitted</text>
+</svg>
