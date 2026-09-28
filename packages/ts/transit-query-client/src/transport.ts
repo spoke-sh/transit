@@ -11,7 +11,7 @@ export class QueryError extends Error {
 }
 export type Transport = (request: Request, signal?: AbortSignal) => Promise<Response>;
 /** One same-origin private host. A native prepared token is frozen on uncertainty;
- * only pre-dispatch throttling retries automatically, always with identical bytes. */
+ * retry only pre-dispatch throttling or explicit conflicts on read/preparation. */
 export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
   if (
     !endpoint.startsWith("/") ||
@@ -24,6 +24,22 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
     if (!validRequest(request)) throw new QueryError(0, "InvalidRequest");
     const body = JSON.stringify(request);
     if (new TextEncoder().encode(body).length > 49152) throw new QueryError(0, "RequestTooLarge");
+    // These operations read or prepare only. Keep this allowlist explicit so a
+    // future effectful request cannot inherit read-conflict retry accidentally.
+    const readOnly = [
+      "describe",
+      "suggest",
+      "compile",
+      "next",
+      "next_draft",
+      "draft_open",
+      "draft_close",
+      "draft_status",
+      "observe",
+      "status",
+      "page",
+      "prepare_control",
+    ].some((operation) => operation in request);
     for (let attempt = 0; ; attempt++) {
       const response = await fetch(endpoint, {
         method: "POST",
@@ -74,6 +90,16 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
           /^[A-Za-z][A-Za-z0-9_]{0,127}$/.test(value.err)
             ? value.err
             : "InvalidResponse";
+        if (
+          response.status === 409 &&
+          (code === "QueryReadConflict" || code === "QueryExpired") &&
+          readOnly &&
+          attempt < 3 &&
+          !signal?.aborted
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          continue;
+        }
         throw new QueryError(response.status, code);
       }
       if (!validateUnifiedQuery(value)) throw new QueryError(0, "InvalidResponse");

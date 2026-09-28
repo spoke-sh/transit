@@ -7,9 +7,12 @@ the same owning definitions. This package does not compile SQL or confer authori
 
 `httpTransport(path, timeoutMs)` calls one configured same-origin host. It bounds
 requests to 48 KiB and decoded replies to 1 MiB before parsing, validates response
-structure and semantic cell/budget bounds, and retries only pre-dispatch 429s with
-the identical request. Keep frozen prepared tokens through every uncertain
-submission. Choose the timeout above the host's bounded request deadline; the
+structure and semantic cell/budget bounds. At most three retries, 250 ms apart,
+use the identical request for pre-dispatch 429s or explicit 409 read conflicts
+(`QueryReadConflict` / Board's `QueryExpired`) on an allowlisted read/preparation
+operation. Signed `submit` never retries a conflict automatically. Denial, changed
+contracts and unknown failures do not acquire this retry policy. Keep frozen
+prepared tokens through every uncertain submission. Choose the timeout above the host's bounded request deadline; the
 default six seconds matches Board's five-second host profile.
 
 `verifiedPage` performs a bounded full-coverage pass over one immutable result,

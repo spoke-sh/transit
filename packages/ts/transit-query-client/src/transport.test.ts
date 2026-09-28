@@ -64,3 +64,43 @@ test("structurally valid but impossible draft state is rejected", async () => {
     code: "InvalidResponse",
   });
 });
+
+test("read conflict retries keep the same preparation and remain finite", async () => {
+  const conflict = () => Response.json({ err: "QueryReadConflict" }, { status: 409 });
+  const fetcher = vi
+    .fn()
+    .mockImplementationOnce(conflict)
+    .mockResolvedValueOnce(Response.json({ err: "QueryExpired" }, { status: 409 }))
+    .mockResolvedValueOnce(Response.json({ prepared: { token: "exact-token" } }));
+  vi.stubGlobal("fetch", fetcher);
+  const call = httpTransport("/query");
+  const request = { next_draft: { namespace: "5", generation: "2", bundle: "00" } };
+  expect(await call(request)).toEqual({ prepared: { token: "exact-token" } });
+  expect(fetcher.mock.calls[0]?.[1].body).toBe(fetcher.mock.calls[1]?.[1].body);
+  fetcher.mockClear().mockImplementation(conflict);
+  await expect(call(request)).rejects.toMatchObject({ code: "QueryReadConflict" });
+  expect(fetcher).toHaveBeenCalledTimes(4);
+});
+
+test("signed submissions and semantic/authority conflicts never inherit read retries", async () => {
+  const fetcher = vi
+    .fn()
+    .mockImplementation(() => Response.json({ err: "QueryReadConflict" }, { status: 409 }));
+  vi.stubGlobal("fetch", fetcher);
+  const call = httpTransport("/query");
+  await expect(call({ submit: { token: "exact-token" } })).rejects.toMatchObject({
+    code: "QueryReadConflict",
+  });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  for (const [status, code] of [
+    [409, "QueryIdentityMismatch"],
+    [403, "QueryAccessDenied"],
+    [410, "QuerySourceUnavailable"],
+  ] as const) {
+    fetcher.mockClear().mockResolvedValueOnce(Response.json({ err: code }, { status }));
+    await expect(
+      call({ next_draft: { namespace: "5", generation: "2", bundle: "00" } }),
+    ).rejects.toMatchObject({ status, code });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  }
+});
