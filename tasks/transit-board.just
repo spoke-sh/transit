@@ -36,6 +36,8 @@ check: contract
     cd apps/transit-board-web && vp check
     vp exec --filter @rey/transit-board-web tsc --noEmit
     cd apps/transit-board-web && vp test run
+    cd examples/serving/web && vp check
+    cd examples/serving/web && vp exec tsc --noEmit
 
 # Format frontend source and Markdown; generated contracts have their own recipe.
 fmt:

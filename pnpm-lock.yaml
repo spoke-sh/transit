@@ -55,6 +55,16 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  examples/serving/web:
+    dependencies:
+      '@rey/transit-reactive-client':
+        specifier: workspace:*
+        version: link:../../../packages/ts/transit-reactive-client
+    devDependencies:
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   examples/station-sdk/typescript:
     dependencies:
       '@transit/client':

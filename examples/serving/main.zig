@@ -5,17 +5,19 @@ const s = serving.station;
 const p = s.protocol;
 const telemetry = s.client.observability.telemetry;
 const Application = @import("Application.zig");
+const ClockObserver = @import("ClockObserver.zig");
 const hosting = @import("transit_serving_http");
 pub const Config = struct {
     url: []const u8,
     realm: u64,
     principal: u64,
     seed_file: ?[]const u8 = null,
+    counter_view: bool = false,
     pid: u64 = 0,
     generation: u64 = 0,
     activation_directory: ?[]const u8 = null,
     request_timeout_ms: u32 = 3000,
-    role: union(enum) { gateway: hosting.Gateway, ingress: serving.Model.Configuration, live_ingress: serving.LiveService.Configuration, application: Application.Configuration },
+    role: union(enum) { clock_observer: ClockObserver.Configuration, gateway: hosting.Gateway, ingress: serving.Model.Configuration, live_ingress: serving.LiveService.Configuration, application: Application.Configuration },
 };
 pub fn main(init: std.process.Init) !void {
     var diagnostics = telemetry.Runtime.init(init.io, "transit-serving-example", try telemetry.Config.environment(init.environ_map));
@@ -37,7 +39,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const config = parsed.value;
     if (config.realm == 0 or config.principal == 0 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var key = if (bootstrap) key: {
-        if (config.seed_file != null or config.role == .gateway) return error.InvalidBootstrap;
+        if (config.seed_file != null or (config.role == .gateway or config.role == .clock_observer)) return error.InvalidBootstrap;
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);
@@ -53,7 +55,19 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         var listener = try (try std.Io.net.IpAddress.parseIp4(gateway.listen, gateway.port)).listen(init.io, .{ .reuse_address = true });
         defer listener.deinit(init.io);
         diagnostics.event(.{ .name = "service.ready", .operation = "http" });
+        if (config.counter_view) {
+            if (!(gateway.viewer orelse return error.MissingCounterViewer).snapshot_values) return error.MissingCounterViewer;
+            var counter: @import("CounterView.zig") = .{ .host = &context };
+            return http.serve(init.io, init.gpa, &listener, gateway.options, &counter);
+        }
         return http.serve(init.io, init.gpa, &listener, gateway.options, &context);
+    }
+    if (config.role == .clock_observer) {
+        var observer_wire = s.client.Client.init(init.gpa, init.io, config.url);
+        defer observer_wire.deinit();
+        observer_wire.timeout_ms = config.request_timeout_ms;
+        observer_wire.observer = diagnostics;
+        return ClockObserver.run(init.io, &observer_wire, config.realm, config.principal, key, config.role.clock_observer);
     }
     if (config.pid == 0 or config.generation == 0) return error.MissingActivation;
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
@@ -94,7 +108,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             break :blk live.interface();
         },
         .application => application.interface(),
-        .gateway => unreachable,
+        .gateway, .clock_observer => unreachable,
     };
     diagnostics.event(.{ .name = "service.ready", .operation = @tagName(config.role), .pid = config.pid, .generation = config.generation });
     while (true) {

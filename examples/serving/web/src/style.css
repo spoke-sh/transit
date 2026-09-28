@@ -1,0 +1,67 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #102d36;
+  background: #f3f6f5;
+  line-height: 1.5;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 54rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  background: white;
+  border: 1px solid #bbcacc;
+  border-radius: 1rem;
+}
+h1 {
+  font-size: 2.4rem;
+  line-height: 1.1;
+}
+.eyebrow {
+  letter-spacing: 0.13em;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.controls {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+button {
+  border: 1px solid #18434c;
+  border-radius: 0.35rem;
+  padding: 0.7rem 1rem;
+  background: #e2edef;
+  color: #102d36;
+  font: inherit;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 3px solid #187789;
+  outline-offset: 3px;
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+[hidden] {
+  display: none;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+caption {
+  text-align: left;
+  font-weight: 700;
+  margin: 1rem 0;
+}
+th,
+td {
+  text-align: left;
+  border-bottom: 1px solid #bbcacc;
+  padding: 0.7rem;
+}

@@ -91,6 +91,7 @@ pub const Capabilities = struct {
     http_connector: bool = false,
     grpc_connector: bool = false,
     documents: bool = false,
+    reactive_table: bool = false,
     push: bool = false,
 };
 pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict } };

@@ -134,3 +134,38 @@ test("renewal progresses while complete-result acquisition is pending", async ()
   await stopped;
   expect(view.getSnapshot().snapshot).toBeNull();
 });
+
+test("a new query template cannot publish the previous paused candidate", async () => {
+  const session = attachedSession();
+  session.open = async () => {
+    session.scope = scope;
+  };
+  session.close = async () => {
+    session.scope = null;
+  };
+  session.inspect = async () =>
+    ({
+      observation: { data_revision: 10, basis: snapshot.basis, schema: { columns: [] } },
+    }) as never;
+  session.refresh = async () => 1;
+  const first = deferred<void>();
+  const second = deferred<Snapshot<string>>();
+  let reads = 0;
+  const view = new LiveView(session, async () => {
+    if (++reads === 1) return { ...snapshot, namespace: "old" };
+    return second.promise;
+  });
+  view.subscribe(() => {
+    if (view.getSnapshot().snapshot?.namespace === "old") first.resolve();
+  });
+  await view.start();
+  await first.promise;
+  await view.pause();
+  expect(view.getSnapshot().snapshot?.namespace).toBe("old");
+  await view.start("new");
+  expect(view.getSnapshot().snapshot).toBeNull();
+  const stopped = view.pause();
+  second.resolve({ ...snapshot, namespace: "new" });
+  await stopped;
+  expect(view.getSnapshot().snapshot).toBeNull();
+});

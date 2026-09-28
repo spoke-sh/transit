@@ -2,6 +2,7 @@
 const std = @import("std");
 const telemetry = @import("telemetry");
 const http_server = @import("transit_http_server");
+const hosting = @import("transit_serving_http");
 const client = @import("transit_client");
 const api = @import("transit_board_api");
 const assets = @import("assets");
@@ -14,6 +15,7 @@ const Config = struct {
     profile: enum { legacy_v2, growing_v3 } = .legacy_v2,
     query: ?growing.QueryConfig = null,
     query_v2: ?growing.UnifiedQueryConfig = null,
+    reactive: ?struct { principal: u64, seed_file: []const u8, gateway: hosting.Gateway } = null,
     seed_file: []const u8,
     public_origin: []const u8,
     development_allow_insecure_http: bool = false,
@@ -150,7 +152,7 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         if (capabilities) {
             const reader = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
-            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null or self.config.query_v2 != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = if (self.config.query_v2 != null) 49152 else 16384, .http_connector = true, .grpc_connector = true, .documents = true });
+            return self.json(req, .ok, api.Capabilities{ .profile = .growing_v3, .query_enabled = self.config.query != null or self.config.query_v2 != null, .realm = self.config.realm, .scope_pid = reader.body.identity.pid, .page_size = client.protocol.Growth.page_size, .max_request_bytes = if (self.config.query_v2 != null) 49152 else 16384, .http_connector = true, .grpc_connector = true, .documents = true, .reactive_table = self.config.reactive != null });
         }
         if (records) |page| {
             var arena = std.heap.ArenaAllocator.init(self.allocator);
@@ -487,8 +489,14 @@ const Shared = struct {
     diagnostics: *telemetry.Runtime,
     next_read_ms: std.atomic.Value(i64) = .init(0),
     query_lock: std.Io.Mutex = .init,
+    reactive: ?*hosting.Context = null,
+
+    pub fn isControl(self: *@This(), request: *std.http.Server.Request) bool {
+        return if (self.reactive) |context| context.isControl(request) else false;
+    }
 
     pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
+        if (self.reactive) |context| if (std.mem.startsWith(u8, request.head.target, "/reactive/v1/")) return context.handle(io, allocator, request);
         var server: Server = .{
             .io = io,
             .allocator = allocator,
@@ -500,7 +508,7 @@ const Shared = struct {
         };
         var failure: ?anyerror = null;
         defer server.observation.finish("board.http.request", failure, if (failure) |err| err == error.Cancelled else false, std.mem.eql(u8, server.observation.route, "/health"));
-        server.handle(request) catch |err| {
+        http_server.deadline(io, self.config.request_timeout_ms, Server.handle, .{ &server, request }) catch |err| {
             failure = err;
             return err;
         };
@@ -550,10 +558,32 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .connections = config.http_connections,
         .requests = config.http_requests,
         .header_timeout_ms = @min(1000, config.request_timeout_ms),
-        .request_timeout_ms = config.request_timeout_ms,
+        .request_timeout_ms = if (config.reactive) |reactive| reactive.gateway.options.request_timeout_ms else config.request_timeout_ms,
     };
     try limits.validate();
-    var shared: Shared = .{ .config = config, .host = host, .diagnostics = diagnostics };
+    var reactive_context: ?hosting.Context = null;
+    defer if (reactive_context) |*context| {
+        context.deinit();
+        std.crypto.secureZero(u8, std.mem.asBytes(&context.key));
+    };
+    if (config.reactive) |reactive| {
+        const gateway = reactive.gateway;
+        try gateway.validate();
+        const viewer = gateway.viewer orelse return error.InvalidReactiveConfiguration;
+        if (config.profile != .growing_v3 or !gateway.reactive or viewer.snapshot_values or
+            viewer.principal == config.principal or reactive.principal == 0 or
+            !std.mem.eql(u8, gateway.host, host) or !std.mem.eql(u8, gateway.public_origin, config.public_origin) or
+            gateway.options.requests > config.http_requests or gateway.options.request_timeout_ms > 30000)
+            return error.InvalidReactiveConfiguration;
+        if (viewer.refresh) {
+            const query = config.query_v2 orelse return error.InvalidReactiveConfiguration;
+            if (query.connection.principal != viewer.principal or query.connection.requester != gateway.ingress or query.connection.requests != gateway.resource)
+                return error.InvalidReactiveConfiguration;
+        }
+        reactive_context = .{ .config = .{ .url = config.upstream, .realm = config.realm, .principal = reactive.principal, .request_timeout_ms = config.upstream_timeout_ms, .gateway = gateway }, .key = try client.readKey(init.gpa, init.io, reactive.seed_file), .diagnostics = diagnostics };
+        try reactive_context.?.loadViewer(init.gpa, init.io);
+    }
+    var shared: Shared = .{ .config = config, .host = host, .diagnostics = diagnostics, .reactive = if (reactive_context) |*context| context else null };
     const address = try std.Io.net.IpAddress.parseIp4(config.listen, config.port);
     var listener = try address.listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);

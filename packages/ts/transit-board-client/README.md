@@ -16,8 +16,8 @@ malformed tagged unions are rejected. A type assertion never replaces validation
 The small transport wrapper exposes `capabilities` and
 `read(resource, pid?, continuation?, signal?)`. Inspection fetches are GET-only and manage
 no Board credentials. Same-origin credentials can support deployment-managed
-ingress; Board issues no cookies. Requests use no redirects/cache, a four-second
-timeout, and a streaming 256 KiB decoded-response
+ingress; Board issues no cookies. Requests use no redirects/cache, a six-second
+timeout (covering Board’s configurable five-second server budget), and a streaming 256 KiB decoded-response
 limit. Consumers own refresh/backoff and lifecycle; they must discard assembled
 pages on `QueryExpired`/`HistoryReclaimed`, clear sensitive views on denial, and
 label connection failures instead of returning empty data. API errors are typed

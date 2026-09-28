@@ -7,14 +7,16 @@ import subprocess
 import sys
 import tempfile
 
-repo = Path(__file__).resolve().parents[2]
+repo = Path(__file__).resolve().parents[1]
+application = repo / sys.argv[2]
+contract = repo / sys.argv[3] if len(sys.argv) > 3 else None
 output = Path(sys.argv[1]).resolve()
 output.parent.mkdir(parents=True, exist_ok=True)
 # Separate launcher builds can run together. Each embeds its own complete build,
 # rather than racing over Vite's shared, emptied dist directory.
-with tempfile.TemporaryDirectory(prefix="board-assets-", dir=output.parent) as directory:
+with tempfile.TemporaryDirectory(prefix="web-assets-", dir=output.parent) as directory:
     dist = Path(directory)
-    subprocess.run(["vp", "build", "--outDir", str(dist)], cwd=repo / "apps/transit-board-web", check=True)
+    subprocess.run(["vp", "build", "--outDir", str(dist)], cwd=application, check=True)
     assets = sorted(path for path in dist.rglob("*") if path.is_file())
     assert (dist / "index.html") in assets and len(assets) <= 128
     assert sum(path.stat().st_size for path in assets) <= 8 * 1024 * 1024
@@ -26,8 +28,9 @@ with tempfile.TemporaryDirectory(prefix="board-assets-", dir=output.parent) as d
         lines.append(f'const a{index} = @embedFile("{name}");')
         if path.name == "index.html":
             lines.append(f'pub const index = a{index};')
-    shutil.copyfile(repo / "contracts/transit-board-v1.openapi.json", output.parent / "openapi.json")
-    lines.append('pub const openapi = @embedFile("openapi.json");')
+    if contract:
+        shutil.copyfile(contract, output.parent / "openapi.json")
+        lines.append('pub const openapi = @embedFile("openapi.json");')
     lines.append('pub fn get(path: []const u8) ?Asset {')
     for index, path in enumerate(assets):
         name = "/" + path.relative_to(dist).as_posix()

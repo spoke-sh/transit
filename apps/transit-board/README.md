@@ -51,7 +51,7 @@ The deployment boundary controls who can reach Board.
 | Source | Owns |
 | --- | --- |
 | [main.zig](main.zig) | Listener/origin checks, bounded upstream reads, API routing, static serving and diagnostics |
-| [embed.py](embed.py) | Isolated frontend build, bounded embedded asset manifest and OpenAPI bytes |
+| [embed_web.py](../../tasks/embed_web.py) | Isolated frontend build, bounded embedded asset manifest and OpenAPI bytes |
 | [transit-board-api](../../packages/zig/transit-board-api/README.md) | Typed evidence projections and generated OpenAPI |
 | [transit-board-web](../transit-board-web/README.md) | Routes, polling and presentation using the generated client |
 
@@ -203,3 +203,7 @@ at most eight retained register counts. No application values or tentative chang
 are returned. Changed cuts return `QueryExpired`, retained gaps `HistoryReclaimed`,
 and current denial `Forbidden`; permanent Document retirement remains visible as
 head metadata with no register page. The inspection identity gains no write power.
+
+The opt-in [live Table guide](docs/reactive.md) describes the composed reactive
+host, metadata-only inspection panel, finite query Follow/Pause lifecycle and
+separate control credential. M21 browser/placement qualification is in progress.

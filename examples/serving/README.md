@@ -64,3 +64,24 @@ for physical SSE/WebSocket recovery. The placement runner also accepts
 `--reactive` directly. Each proof owns its temporary services and preserves the
 existing reference installation. See the [reactive guide](docs/reactive.md) for
 bootstrap affinity, clock bounds, recovery and unsupported profiles.
+
+The [counter browser application](web/README.md) is embedded in the gateway binary
+and enabled by `counter_view: true` with an explicitly permitted snapshot viewer.
+It shares the reactive client with Board while owning its application rendering.
+
+The separate `clock_observer` role takes `ingress`, its state `resource`, and `interval_ms` (1000–5000,
+default 5000). Provision a dedicated inspect/send principal scoped to that ingress
+and configured as its trusted observer, with inspect/read on that resource. It freezes one signed clock input through
+unknown I/O, waits for its consumption, and samples again. Restart first drains
+a finite accepted prefix captured once at restart, so later live controls cannot
+starve clock progress. Pending consumption is checked every 250 ms independently
+of the sampling interval. A stopped worker cannot accumulate unbounded observer work.
+This example relies on the deployment's qualified host clock bound; wall samples
+are recorded before the deterministic owner uses them. At a five-second interval,
+an otherwise idle running observer can retain 720 clock inputs per hour plus
+owner turns (and refresh wakeups after a query scheduler exists). Visible sessions additionally retain renewals/attachments;
+After each consumed sample it checks the four active session slots and submits
+one conditional expiry at a time; a concurrent renewal invalidates stale expiry.
+This reclaims abandoned live capacity without deleting session history. Lease
+bounds do not expire this history. Stop the observer with the deployment,
+and select retention only through explicit application policy.

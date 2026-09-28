@@ -56,6 +56,16 @@ pub fn identity(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519
     return response;
 }
 pub fn atlas(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: Cursor, query_resource: ?u64) !api.AtlasResponse {
+    // Restart only a fresh acquisition. A caller's continuation remains tied to
+    // its original position and cannot silently switch to a newer atlas cut.
+    for (0..3) |_| return atlasOnce(wire, realm, principal, key, cursor, query_resource) catch |err| {
+        if (cursor.position == null and (err == error.QueryChanged or
+            ((err == error.Conflict or err == error.Rejected) and wire.last_rejection == .QueryExpired))) continue;
+        return err;
+    };
+    return error.QueryChanged;
+}
+fn atlasOnce(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: Cursor, query_resource: ?u64) !api.AtlasResponse {
     const reader = try identity(wire, realm, principal, key);
     if (cursor.position) |position| if (position != reader.position) return error.QueryChanged;
     const processes = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .processes = .{ .after = cursor.process_after, .position = reader.position } } }, key);

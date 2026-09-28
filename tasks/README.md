@@ -146,3 +146,9 @@ recovery peers, `just test::reactive-browser` for actual Chromium/WebCrypto,
 for owned physical recovery, and `just test::reactive-descriptions` for generated OpenAPI 3.2.1
 and AsyncAPI 3.0 drift plus pinned offline validation. These are focused proofs;
 they do not expand the measured M10 hosted PR lane budget.
+
+`embed_web.py` builds a named frontend with Vite+ in an isolated temporary output
+and emits a Zig module containing at most 128 files / 8 MiB. Board passes its
+OpenAPI file as an optional third argument; the counter application uses the same
+asset builder without importing Board. Real binaries embed the resulting closed
+asset set and need no JavaScript server at runtime.

@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   BoardError,
   unifiedQuery as query,
   unifiedCellText,
   type UnifiedQueryResponse,
 } from "@rey/transit-board-client";
+
+import { acquireCaller } from "@rey/transit-reactive-client";
+import { verifiedPage } from "./unified-result";
+import { liveQuery, querySession, selectLiveTemplate } from "./query-live";
+import { useScope } from "./state";
 
 type Description = Extract<UnifiedQueryResponse, { description: unknown }>["description"];
 type Compiled = Extract<UnifiedQueryResponse, { compiled: unknown }>["compiled"];
@@ -24,9 +29,18 @@ const empty = (): Work => ({
   pending: null,
   cursor: null,
 });
+// One configured workspace per Board origin. Frozen work and its caller lock
+// outlive route components; no browser storage or result history is created.
+const retained = {
+  resource: 0,
+  work: { current: empty() },
+  active: false,
+  follow: false,
+  release: null as (() => void) | null,
+};
 function freshNamespace() {
   const bytes = crypto.getRandomValues(new Uint32Array(2));
-  return ((BigInt(bytes[0]!) << 32n) | BigInt(bytes[1]!) | 1n).toString();
+  return ((BigInt(bytes[0]! & 0x7fffffff) << 32n) | BigInt(bytes[1]!) | 1n).toString();
 }
 function errorText(error: unknown) {
   if (!(error instanceof BoardError))
@@ -63,12 +77,19 @@ export function UnifiedWorkspace({
   const [revision, refresh] = useState(0);
   const [resume, setResume] = useState("");
   const [, render] = useState(0);
-  const work = useRef<Work>(empty());
-  const lock = useRef(false);
+  const { scope } = useScope();
+  const live = useSyncExternalStore(liveQuery.subscribe, liveQuery.getSnapshot);
+  const work = retained.work;
+  if (retained.resource === 0) retained.resource = resource;
+  const verified = useRef<string | null>(null);
   const alive = useRef(true);
   const abort = useRef(new AbortController());
   const clear = useCallback(() => {
-    work.current = empty();
+    // Frozen signed bytes survive known denial for exact recovery if authority
+    // returns. Clear unsubmitted plan/presentation rather than inventing rejection.
+    work.current.bundle = null;
+    retained.follow = false;
+    verified.current = null;
     setSource(null);
     setDraft("");
     setRunDraft("");
@@ -80,16 +101,16 @@ export function UnifiedWorkspace({
   }, []);
   const task = useCallback(
     async (operation: (signal: AbortSignal) => Promise<void>) => {
-      if (lock.current) return;
-      lock.current = true;
+      if (retained.active) return;
+      retained.active = true;
+      const signal = abort.current.signal;
       setWorking(true);
       try {
-        await operation(abort.current.signal);
+        if (retained.resource !== resource) throw new BoardError(409, "QueryConflict");
+        await operation(signal);
       } catch (cause) {
-        if (alive.current && !abort.current.signal.aborted) {
+        if (alive.current && !signal.aborted) {
           setError(errorText(cause));
-          setAuthorized(false);
-          setPage(null);
           if (
             cause instanceof BoardError &&
             (cause.status === 403 || cause.status === 410 || cause.code === "HistoryReclaimed")
@@ -97,14 +118,18 @@ export function UnifiedWorkspace({
             clear();
         }
       } finally {
-        lock.current = false;
+        if (!work.current.pending) {
+          retained.release?.();
+          retained.release = null;
+        }
+        retained.active = false;
         if (alive.current) {
           setWorking(false);
           render((n) => n + 1);
         }
       }
     },
-    [clear],
+    [clear, resource],
   );
   useEffect(() => {
     alive.current = true;
@@ -112,6 +137,7 @@ export function UnifiedWorkspace({
     return () => {
       alive.current = false;
       abort.current.abort();
+      void liveQuery.pause();
     };
   }, []);
   const dispatch = async (signal: AbortSignal) => {
@@ -122,43 +148,64 @@ export function UnifiedWorkspace({
     if (signal.aborted) return;
     work.current.pending = null;
     work.current.input = response.receipt.position;
+    retained.release?.();
+    retained.release = null;
   };
-  const advance = useCallback(async (signal: AbortSignal) => {
-    const current = work.current;
-    // Continue only a user-started finite upload. Reads never create a new query;
-    // an unconfirmed signed request requires the visible explicit retry action.
-    if (current.pending || !current.namespace) return;
-    if (current.input !== null) {
-      const response = await query({ observe: current.input }, signal);
-      if (!("observation" in response)) throw new BoardError(0, "InvalidResponse");
-      if ("pending" in response.observation) return;
-      current.input = null;
-      if ("rejected" in response.observation) {
-        current.bundle = null;
-        throw new BoardError(409, "QueryRejected");
+  const caller = async (signal: AbortSignal) => {
+    if (retained.release) return;
+    const response = await query({ describe: {} }, signal);
+    if (!("description" in response)) throw new BoardError(0, "InvalidResponse");
+    retained.release = await acquireCaller(response.description.connection, signal);
+  };
+  const advance = useCallback(
+    async (signal: AbortSignal) => {
+      const current = work.current;
+      // Continue only a user-started finite upload. Reads never create a new query;
+      // an unconfirmed signed request requires the visible explicit retry action.
+      if (current.pending || !current.namespace) return;
+      if (current.input !== null) {
+        const response = await query({ observe: current.input }, signal);
+        if (!("observation" in response)) throw new BoardError(0, "InvalidResponse");
+        if ("pending" in response.observation) return;
+        current.input = null;
+        if ("rejected" in response.observation) {
+          current.bundle = null;
+          throw new BoardError(409, "QueryRejected");
+        }
       }
-    }
-    if (current.bundle !== null && !document.hidden) {
-      const next = await query(
-        { next: { namespace: current.namespace, bundle: current.bundle } },
-        signal,
-      );
-      if (!("prepared" in next)) throw new BoardError(0, "InvalidResponse");
-      if (signal.aborted) return;
-      if (next.prepared === null) current.bundle = null;
-      else {
-        current.pending = next.prepared;
-        render((n) => n + 1);
-        if (document.hidden) return;
-        await dispatch(signal);
+      if (current.bundle !== null && !document.hidden && visible) {
+        await caller(signal);
+        const next = await query(
+          { next: { namespace: current.namespace, bundle: current.bundle } },
+          signal,
+        );
+        if (!("prepared" in next)) throw new BoardError(0, "InvalidResponse");
+        if (signal.aborted) return;
+        if (next.prepared === null) {
+          current.bundle = null;
+          retained.release?.();
+          retained.release = null;
+        } else {
+          current.pending = next.prepared;
+          render((n) => n + 1);
+          if (document.hidden) return;
+          await dispatch(signal);
+        }
       }
-    }
-  }, []);
+    },
+    [visible],
+  );
   useEffect(() => {
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       if (disposed || document.hidden) return;
+      if (liveQuery.following) {
+        // Keep one local wakeup so automatic budget exhaustion resumes current
+        // reads without a user click. No request is sent while follow owns work.
+        timer = setTimeout(() => void poll(), 1000);
+        return;
+      }
       await task(async (signal) => {
         const response = await query({ describe: {} }, signal);
         if (
@@ -182,12 +229,27 @@ export function UnifiedWorkspace({
             return;
           }
           if (observation.status?.phase === "complete") {
-            const result = await query(
-              { page: { namespace: current.namespace, cursor: current.cursor } },
-              signal,
-            );
+            const namespace = current.namespace;
+            const result =
+              verified.current === namespace
+                ? await query({ page: { namespace, cursor: current.cursor } }, signal)
+                : {
+                    page: await verifiedPage(
+                      namespace,
+                      current.cursor,
+                      response.description.budgets.segments,
+                      signal,
+                    ),
+                  };
             if (!("page" in result)) throw new BoardError(0, "InvalidResponse");
-            if (disposed || signal.aborted || document.hidden) return;
+            if (
+              disposed ||
+              signal.aborted ||
+              document.hidden ||
+              work.current.namespace !== namespace
+            )
+              return;
+            verified.current = namespace;
             setPage(result.page);
           } else setPage(null);
         }
@@ -203,6 +265,7 @@ export function UnifiedWorkspace({
     const visibility = () => {
       clearTimeout(timer);
       if (document.hidden) {
+        void liveQuery.pause();
         setAuthorized(false);
         setPage(null);
       } else void poll();
@@ -215,12 +278,30 @@ export function UnifiedWorkspace({
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [resource, revision, task, advance, clear]);
+  useEffect(() => {
+    if (!visible) void liveQuery.pause();
+  }, [visible]);
+  useEffect(() => {
+    if (live.phase === "denied") {
+      clear();
+      setError("Query access denied. Protected workspace data cleared.");
+      return;
+    }
+    if (retained.follow && liveQuery.following && live.snapshot && visible && !document.hidden) {
+      work.current.namespace = live.snapshot.namespace!;
+      work.current.cursor = null;
+      verified.current = work.current.namespace;
+      setPage(live.snapshot.value);
+      setAuthorized(true);
+    }
+  }, [live.snapshot, live.phase, visible, clear, work]);
   const execute = () =>
     void task(async (signal) => {
       if (work.current.pending || work.current.input !== null || work.current.bundle) return;
       const response = await query({ compile: { sql: draft } }, signal);
       if (!("compiled" in response)) throw new BoardError(0, "InvalidResponse");
       if (signal.aborted) return;
+      retained.follow = false;
       work.current = { ...empty(), namespace: freshNamespace(), bundle: response.compiled.bundle };
       setCompiled(response.compiled);
       setRunDraft(draft);
@@ -234,6 +315,7 @@ export function UnifiedWorkspace({
     void task(async (signal) => {
       const current = work.current;
       if (!current.namespace || current.pending || current.input !== null) return;
+      await caller(signal);
       const response = await query(
         { prepare_control: { namespace: current.namespace, operation } },
         signal,
@@ -258,10 +340,12 @@ export function UnifiedWorkspace({
     });
   const busy =
     working ||
+    liveQuery.following ||
     !!work.current.pending ||
     work.current.input !== null ||
     work.current.bundle !== null;
-  const controlBusy = working || !!work.current.pending || work.current.input !== null;
+  const controlBusy =
+    working || liveQuery.following || !!work.current.pending || work.current.input !== null;
   return (
     <section className="query-workspace" hidden={!visible} aria-label="Unified query workspace">
       <div className="atlas-toolbar">
@@ -282,11 +366,12 @@ export function UnifiedWorkspace({
       {work.current.pending && (
         <div className="uncertain">
           <strong>Submission not yet confirmed.</strong>
-          <p>Keep this workspace open to retry the identical signed request.</p>
+          <p>The identical signed request is retained across Board navigation in this tab.</p>
           <button
             disabled={working}
             onClick={() =>
               void task(async (signal) => {
+                await caller(signal);
                 await dispatch(signal);
                 refresh((n) => n + 1);
               })
@@ -294,6 +379,37 @@ export function UnifiedWorkspace({
           >
             Retry exact submission
           </button>
+        </div>
+      )}
+      {scope?.reactive_table && source && "table" in source.source.source.source && (
+        <div aria-label="Query follow controls">
+          <p role="status">
+            {live.phase.replaceAll("_", " ")} · {live.detail}
+          </p>
+          <button
+            disabled={busy || status?.phase !== "complete" || !page}
+            onClick={() => {
+              retained.follow = true;
+              selectLiveTemplate();
+              void liveQuery.start(work.current.namespace).catch(() => {});
+            }}
+          >
+            Follow changes
+          </button>
+          <button onClick={() => void liveQuery.pause().then(() => refresh((n) => n + 1))}>
+            Pause changes
+          </button>
+          {querySession.pending && (
+            <button onClick={() => void liveQuery.recover().catch(() => {})}>
+              Recover exact control
+            </button>
+          )}
+          {live.refresh && (
+            <p>
+              {live.refresh.starts} / {live.refresh.limit} refresh intents used. Accepted results
+              remain retained.
+            </p>
+          )}
         </div>
       )}
       {authorized && source && (
@@ -373,6 +489,7 @@ export function UnifiedWorkspace({
               BigInt(resume || "0") > 18446744073709551615n
             }
             onClick={() => {
+              retained.follow = false;
               work.current = { ...empty(), namespace: resume };
               setPage(null);
               setCompiled(null);
@@ -425,7 +542,7 @@ export function UnifiedWorkspace({
               <p>
                 {page.evidence.next === null
                   ? "Complete ordered coverage verified."
-                  : "More verified segments remain."}
+                  : "Complete coverage verified; more pages are available from this result."}
               </p>
             </div>
           )}

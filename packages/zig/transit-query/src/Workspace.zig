@@ -20,7 +20,7 @@ pub const SqlCapabilities = struct {
     writes: bool = false,
     continuous: bool = false,
 };
-pub const Description = struct { name: []const u8, source: b.Description, sql: SqlCapabilities = .{}, budgets: v.Limits, columns: []const v.Column };
+pub const Description = struct { connection: q.UnifiedClient.Connection, name: []const u8, source: b.Description, sql: SqlCapabilities = .{}, budgets: v.Limits, columns: []const v.Column };
 pub const Frozen = struct { token: []const u8 };
 pub const Compiled = struct { bundle: []const u8, source: v.Source, plan: v.Plan, limits: v.Limits, contract: [32]u8, schema: [32]u8 };
 pub const Request = union(enum) {
@@ -52,7 +52,7 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
         .describe => {
             const description = (try b.apply(allocator, client, .{ .describe = config.source })).description;
             var columns: [m.max_columns]m.Column = undefined;
-            return .{ .description = .{ .name = config.name, .source = description, .budgets = config.limits, .columns = try v.foreignColumns(allocator, try definition.schema(&columns)) } };
+            return .{ .description = .{ .connection = client.connection, .name = config.name, .source = description, .budgets = config.limits, .columns = try v.foreignColumns(allocator, try definition.schema(&columns)) } };
         },
         .compile => |input| {
             const bundle = try client.compileSql(allocator, definition, name, input.sql, limits);

@@ -5695,6 +5695,7 @@
           "http_connector",
           "grpc_connector",
           "documents",
+          "reactive_table",
           "push"
         ],
         "properties": {
@@ -5792,6 +5793,9 @@
           "documents": {
             "type": "boolean"
           },
+          "reactive_table": {
+            "type": "boolean"
+          },
           "push": {
             "type": "boolean"
           }
@@ -5814,6 +5818,7 @@
           "http_connector",
           "grpc_connector",
           "documents",
+          "reactive_table",
           "push"
         ],
         "x-transit-defaults": {
@@ -5832,6 +5837,7 @@
           "http_connector": false,
           "grpc_connector": false,
           "documents": false,
+          "reactive_table": false,
           "push": false
         }
       },
@@ -11163,6 +11169,7 @@
                 "type": "object",
                 "additionalProperties": false,
                 "x-transit-field-order": [
+                  "connection",
                   "name",
                   "source",
                   "sql",
@@ -11170,6 +11177,71 @@
                   "columns"
                 ],
                 "properties": {
+                  "connection": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "realm",
+                      "principal",
+                      "source",
+                      "resource",
+                      "requester",
+                      "requests"
+                    ],
+                    "properties": {
+                      "realm": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "principal": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "source": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "resource": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "requester": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      },
+                      "requests": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991,
+                        "x-transit-bits": 64,
+                        "x-transit-signed": false
+                      }
+                    },
+                    "required": [
+                      "realm",
+                      "principal",
+                      "source",
+                      "resource",
+                      "requester",
+                      "requests"
+                    ],
+                    "x-transit-defaults": {}
+                  },
                   "name": {
                     "type": "string",
                     "maxLength": 131072
@@ -11911,6 +11983,7 @@
                   }
                 },
                 "required": [
+                  "connection",
                   "name",
                   "source",
                   "sql",

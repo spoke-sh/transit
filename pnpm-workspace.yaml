@@ -1,5 +1,6 @@
 packages:
   - apps/transit-board-web
+  - examples/serving/web
   - packages/ts/*
   - examples/station-sdk/typescript
 onlyBuiltDependencies:

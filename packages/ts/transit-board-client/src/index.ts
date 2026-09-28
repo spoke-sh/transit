@@ -31,7 +31,9 @@ export async function request<T>(
   options?: { signal?: AbortSignal; body?: QueryRequest | UnifiedQueryRequest },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
-  const abort = AbortSignal.timeout(4000);
+  // Board permits a five-second request budget; leave bounded time for its
+  // response instead of aborting a valid slow page before that deadline.
+  const abort = AbortSignal.timeout(6000);
   const response = await fetch(path, {
     method: options?.body ? "POST" : "GET",
     headers: options?.body ? { "content-type": "application/json" } : undefined,

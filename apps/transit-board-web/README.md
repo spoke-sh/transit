@@ -54,9 +54,13 @@ One verified result segment is resident at a time, with exact int64 strings,
 nulls and binary labels. Five-second current-policy observations continue while
 the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
-source, draft, result and frozen pending request. A connection failure hides
-protected rows and preserves uncertain submission identity for explicit retry.
-No storage, history or retention pin survives leaving the page.
+source, draft and result. The v2 workspace retains frozen pending requests across
+in-app route remounts for exact recovery; known denial does not invent their
+rejection. Temporary connection failures retain permitted v2 rows with their
+original source basis. A full page reload loses in-memory recovery bytes; no
+browser storage or client retention pin is created. The v1 workspace keeps its
+existing hide-on-failure behavior. See the [live-view guide](../transit-board/docs/reactive.md)
+for explicit Follow/Pause, complete-result verification and finite refresh budgets.
 
 The atlas shows at most eight processes and eight authorized resources. Relief
 marks pending work qualitatively; unavailable bytes, outbox counts and age stay

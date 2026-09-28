@@ -62,6 +62,9 @@ export class LiveView<T> {
     readonly session: Session,
     private readonly read: ViewReader<T>,
   ) {}
+  get stopping() {
+    return this.closing !== null;
+  }
   get following() {
     return this.task !== null && !this.abort?.signal.aborted;
   }
@@ -117,6 +120,8 @@ export class LiveView<T> {
         phase: "loading",
         detail: "Acquiring an authorized snapshot…",
         refresh: null,
+        snapshot:
+          template && this.state.snapshot?.namespace !== template ? null : this.state.snapshot,
       });
       this.task = this.run(epoch, abort.signal, limit)
         .catch((error: unknown) => {
@@ -124,6 +129,7 @@ export class LiveView<T> {
         })
         .finally(() => {
           this.task = null;
+          this.publish({});
         });
       // Errors/progress belong to observable state; ownership outlives render.
     } finally {
@@ -315,7 +321,7 @@ export class LiveView<T> {
     this.connected = false;
     this.publish({
       phase: "paused",
-      detail: "Follow paused. Accepted queries continue independently.",
+      detail: "Local work stopped; resolving logical closure…",
     });
     const task = this.task;
     this.closing = (async () => {
@@ -327,11 +333,16 @@ export class LiveView<T> {
           await this.session.refresh({ pause: this.session.selection }, signal);
         await this.session.close(signal);
         this.session.selection = null;
+        this.publish({
+          phase: "paused",
+          detail: "Follow paused. Accepted queries continue independently.",
+        });
       } catch (error) {
         this.fail(error);
       }
     })().finally(() => {
       this.closing = null;
+      this.publish({});
     });
     return this.closing;
   }

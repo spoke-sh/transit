@@ -2756,3 +2756,16 @@ also passed unchanged: stage 36.126 s, seal 4.776 s, publish 18.869 s, cleanup
 four mutations maximum and 256-byte values. That regression uses the original
 publication cursor and establishes preservation; actual public batched-reader
 browser/placement evidence remains a separate gate.
+
+The actual `just test::reactive-views` native browser proof now passed in
+327.65 seconds. Chromium ran the embedded counter and Board metadata/query
+interfaces against the disk-backed composed requester and source through TLS.
+It covered concurrent counter/metadata observations, committed counter change,
+logical pause, an accepted-but-lost query upload receipt, real navigation/remount
+while metadata failed, exact explicit recovery, complete verification of a
+20-row result larger than one resident page, a distinct finite refresh, and
+clearing displayed results when only source entry-read permission was revoked.
+Four abandoned sessions were expired by the explicit observer; their history
+remained. The browser stored no keys, cookies or local/session storage. The
+327.65 seconds is whole-fixture cost, not a freshness target. Further browser
+race schedules and Compose/reference consumer recovery remain open.

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Transit counter</title>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">TRANSIT / APPLICATION EXAMPLE</p>
+      <h1>Counter live view</h1>
+      <p>
+        The current finite snapshot and its source position stay together. Following coalesces
+        changes.
+      </p>
+      <div class="controls">
+        <button id="follow">Follow counter</button><button id="pause">Pause counter</button
+        ><button id="recover" hidden>Recover exact control</button>
+      </div>
+      <p id="status" role="status">paused · Follow is off.</p>
+      <p id="basis">No snapshot acquired.</p>
+      <table>
+        <caption>
+          Authorized counter snapshot
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">ID</th>
+            <th scope="col">Count</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <p id="coverage"></p>
+      <p>
+        Pause and hiding stop new reads and lease renewal. Already accepted work continues
+        independently.
+      </p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

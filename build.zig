@@ -13,11 +13,17 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_serving", .module = serving.module("transit_serving") }},
     }) });
     b.step("serving-api", "Export reflected OpenAPI and AsyncAPI descriptions").dependOn(&b.addInstallArtifact(serving_api, .{}).step);
+    const counter_embed = b.addSystemCommand(&.{ "python3", "-B" });
+    counter_embed.addFileArg(b.path("tasks/embed_web.py"));
+    const counter_assets = counter_embed.addOutputFileArg("assets.zig");
+    counter_embed.addArg("examples/serving/web");
+    counter_embed.has_side_effects = true;
+    const counter_asset_module = b.createModule(.{ .root_source_file = counter_assets, .target = target, .optimize = optimize });
     const serving_example = b.addExecutable(.{ .name = "transit-serving-example", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/serving/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") } },
+        .imports = &.{ .{ .name = "assets", .module = counter_asset_module }, .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") } },
     }) });
     const install_serving = b.addInstallArtifact(serving_example, .{});
     b.step("serving-example", "Install the signed HTTP service example").dependOn(&install_serving.step);
@@ -228,13 +234,15 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("client_abi") })).step);
     const embed = b.addSystemCommand(&.{ "python3", "-B" });
-    embed.addFileArg(b.path("apps/transit-board/embed.py"));
+    embed.addFileArg(b.path("tasks/embed_web.py"));
     const asset_source = embed.addOutputFileArg("assets.zig");
+    embed.addArgs(&.{ "apps/transit-board-web", "contracts/transit-board-v1.openapi.json" });
     // Vite owns its dependency graph. Always rebuild the closed asset manifest;
     // Zig still caches compilation by the resulting bytes.
     embed.has_side_effects = true;
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
     const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+        .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
         .{ .name = "transit_client", .module = client.module("transit_client") },
@@ -432,6 +440,10 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
     if (b.option(bool, "serving-growth", "Qualify retained service operations beyond resident pages") orelse false) serving_test.addArg("--growth");
     if (b.option(bool, "serving-reactive-client", "Qualify shared private reactive host client") orelse false) serving_test.addArg("--reactive-client");
+    if (b.option(bool, "serving-reactive-views", "Qualify real Board and counter live views") orelse false) {
+        serving_test.addArgs(&.{ "--reactive-views", "--board" });
+        serving_test.addArtifactArg(board);
+    }
     if (b.option(bool, "serving-reactive-refresh", "Qualify durable refresh requester and counter source") orelse false) serving_test.addArg("--reactive-refresh");
     if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");
     if (b.option(bool, "serving-reactive-limits", "Qualify reactive capacity, cursor and expiry limits") orelse false) serving_test.addArg("--reactive-limits");

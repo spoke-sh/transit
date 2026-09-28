@@ -43,6 +43,7 @@ describe("inspection semantics", () => {
       http_connector: false,
       grpc_connector: false,
       documents: false,
+      reactive_table: false,
       push: false,
     };
     expect(validateCapabilities(caps)).toBe(true);

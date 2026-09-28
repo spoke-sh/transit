@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { atlas, BoardError, type AtlasResponse } from "@rey/transit-board-client";
 import { message, useScope } from "./state";
 import { QueryWorkspace } from "./query-workspace";
 import { UnifiedWorkspace } from "./unified-workspace";
+import { LiveTable } from "./live-table";
 import { Records } from "./records";
 import "./atlas.css";
 
@@ -108,6 +110,15 @@ export function Atlas({
   ));
   return (
     <main className="atlas-main">
+      <nav aria-label="Board navigation">
+        <Link to="/" search={{ status: "all", sort: "pid" }}>
+          Process directory
+        </Link>
+        {" · "}
+        <Link to="/resources" search={{}}>
+          Resource directory
+        </Link>
+      </nav>
       <div className="page-heading">
         <div>
           <p className="eyebrow">TRANSIT / AUTHORIZED NEIGHBORHOOD</p>
@@ -143,6 +154,7 @@ export function Atlas({
           onBack={() => setEntered(false)}
         />
       )}
+      {!entered && scope?.reactive_table && <LiveTable />}
       {!entered && (
         <>
           <div className="atlas-toolbar">
