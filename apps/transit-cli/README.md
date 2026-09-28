@@ -62,3 +62,5 @@ its signed mutation sequence. An uncertain result must be reconciled with
 `/retry`, not replaced by rerunning SQL. Resource observation conflicts can be
 retried with the same read command. The shell does not claim automatic polling,
 saved sessions, multiline editing or indefinite in-memory result accumulation.
+
+See [local applications](docs/applications.md) for M25 installation, public connection exports, compatible replacement and exact retry.

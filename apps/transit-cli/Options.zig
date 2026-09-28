@@ -44,6 +44,7 @@ pub const help =
     \\Transit — explicit local services and signed SQL
     \\  transit console [--config PATH] [--format table|json]
     \\  transit server|serve --config PATH [--initialize]
+    \\  transit app --help (local application installation and replacement)
     \\  transit --help | --version
     \\  transit query CONFIG | query-v2 CONFIG (existing single-line shells)
     \\Configuration is explicit versioned JSON; paths are relative to its file.

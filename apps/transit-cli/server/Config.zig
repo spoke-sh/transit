@@ -8,6 +8,8 @@ admission_ceiling: u64 = 65536,
 control_reserve: u64 = 4096,
 ports: Ports,
 executables: Executables,
+applications: ?Applications = null,
+pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };
 pub const Executables = struct { minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8 };
 pub const Identity = struct { config: [32]u8, cli: [32]u8, minio: [32]u8, ursula: [32]u8, node: [32]u8, query_host: [32]u8 };
@@ -15,7 +17,11 @@ pub fn load(init: std.process.Init, path: []const u8) !Self {
     const allocator = init.arena.allocator();
     const absolute = try std.Io.Dir.cwd().realPathFileAlloc(init.io, path, allocator);
     var self = try Files.read(Self, init.io, allocator, absolute);
-    if (self.version != 1 or self.realm == 0 or self.realm > @import("transit_query").protocol.max_counter or @import("builtin").os.tag != .linux) return error.InvalidConfiguration;
+    if ((self.version != 1 and self.version != 2) or (self.version == 1 and self.applications != null) or (self.version == 2 and self.applications == null) or self.realm == 0 or self.realm > @import("transit_query").protocol.max_counter or @import("builtin").os.tag != .linux) return error.InvalidConfiguration;
+    if (self.applications) |apps| {
+        if (apps.port < 1024 or apps.max_applications == 0 or apps.max_applications > 64 or apps.max_roles == 0 or apps.max_roles > 256) return error.InvalidConfiguration;
+        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (apps.port == @field(self.ports, name)) return error.InvalidConfiguration;
+    }
     if (self.admission_ceiling < 128 or self.admission_ceiling > 65536 or self.control_reserve > 65536) return error.InvalidConfiguration;
     const base = std.fs.path.dirname(absolute).?;
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
@@ -41,7 +47,7 @@ pub fn identities(self: Self, init: std.process.Init, executable: []const u8) !I
     inline for (@typeInfo(Executables).@"struct".field_names) |name| @field(result, name) = try digest(init, @field(self.executables, name));
     return result;
 }
-fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
+pub fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
     const file = try std.Io.Dir.cwd().openFile(init.io, path, .{});
     defer file.close(init.io);
     const stat = try file.stat(init.io);
@@ -60,7 +66,8 @@ fn digest(init: std.process.Init, path: []const u8) ![32]u8 {
     return hash.finalResult();
 }
 pub fn preflight(self: Self, io: std.Io) !void {
-    var listeners: [5]?std.Io.net.Server = @splat(null);
+    var listeners: [6]?std.Io.net.Server = @splat(null);
     defer for (&listeners) |*listener| if (listener.*) |*server| server.deinit(io);
     inline for (@typeInfo(Ports).@"struct".field_names, 0..) |name, i| listeners[i] = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", @field(self.ports, name))).listen(io, .{ .reuse_address = true });
+    if (self.applications) |apps| listeners[5] = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", apps.port)).listen(io, .{ .reuse_address = true });
 }

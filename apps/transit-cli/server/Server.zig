@@ -121,6 +121,9 @@ fn cycle(self: *Self) !void {
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
     try self.ready(node_health);
     _ = try installation.query(.{ .capabilities = {} });
+    const applications = if (config.applications != null) try @import("Applications.zig").create(self.init, installation, self.executable) else null;
+    defer if (applications) |manager| manager.destroy();
+    if (applications) |manager| try manager.recover();
     try installation.provision();
     try self.start(allocator, .maintenance, &.{ config.executables.node, node_config, "--maintain" }, &.{}, false);
     try self.worker(allocator, .source);
@@ -151,13 +154,14 @@ fn cycle(self: *Self) !void {
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     const console_path = try installation.path("console.json");
     try Files.json(self.init.io, allocator, console_path, @import("../Console.zig").Config{ .version = 1, .profile = .unified_v2, .url = try Provider.url(allocator, config.ports.gateway), .transport = .loopback, .seed_file = "caller.seed", .connection = connection, .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) }, .recovery_file = "console-recovery.json" });
-    const report = try std.json.Stringify.valueAlloc(allocator, .{ .ready = true, .profile = "local_table_v1", .console_config = console_path }, .{});
+    const report = try std.json.Stringify.valueAlloc(allocator, .{ .ready = true, .profile = if (applications != null) "local_applications_v1" else "local_table_v1", .console_config = console_path, .management_config = if (applications != null) try installation.path("management.json") else null }, .{});
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
     try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));
     var last = std.Io.Clock.awake.now(self.init.io);
     while (!Signals.interrupted()) {
         if (!self.allAlive()) return error.ChildExited;
+        if (applications) |manager| try manager.tick();
         const now = std.Io.Clock.awake.now(self.init.io);
         if (last.durationTo(now).toMilliseconds() >= 1000) {
             self.active_role = .node;

@@ -10,6 +10,7 @@ pub const source = 20;
 pub const requester = 21;
 pub const courier = 22;
 pub const maintenance = 23;
+pub const installer = 24;
 pub const read_permissions = p.State.permission(.inspect) | p.State.permission(.read);
 pub const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 128, .result_bytes = 1048576 };
 pub const Record = struct {
@@ -24,8 +25,9 @@ pub const Record = struct {
     complete: bool = false,
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
     pending: ?Pending = null,
+    installer_receipt: ?u64 = null,
 };
-const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation }, index: u8 };
+const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer }, index: u8 };
 const Self = @This();
 init: std.process.Init,
 config: Config,
@@ -61,6 +63,7 @@ pub fn flush(self: *Self) !void {
         .provision => self.record.provision[pending.index] = receipt.position,
         .initialize => self.record.initialized[pending.index] = true,
         .activation => {},
+        .installer => self.record.installer_receipt = receipt.position,
     }
     self.record.position = @max(self.record.position, receipt.position);
     self.record.pending = null;
@@ -108,6 +111,11 @@ pub fn provision(self: *Self) !void {
         };
         try self.submit(0, command, .provision, @intCast(i));
     }
+    if (self.config.applications != null and self.record.installer_receipt == null) {
+        var key = try q.wire.readKey(self.init.gpa, self.init.io, try self.path("installer.seed"));
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        try self.submit(0, .{ .create_principal = .{ .subject = installer, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.admin) } }, .installer, 0);
+    }
 }
 pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration) !void {
     // The child owns the private key. Record its public registration before
@@ -139,12 +147,12 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
     try std.Io.Dir.cwd().createDir(init.io, temporary, .fromMode(0o700));
     const directory = try std.Io.Dir.cwd().openDir(init.io, temporary, .{ .iterate = true });
     defer directory.close(init.io);
-    for ([_][]const u8{ "wal", "cold", "activations", "provider-home", "certs" }) |name| {
+    for ([_][]const u8{ "wal", "cold", "activations", "provider-home", "certs", "applications", "management-recovery" }) |name| {
         try directory.createDir(init.io, name, .fromMode(0o700));
         if (std.mem.eql(u8, name, "wal") or std.mem.eql(u8, name, "cold")) try Files.write(init.io, try std.fs.path.join(allocator, &.{ temporary, name, "transit-installation" }), &std.fmt.bytesToHex(random, .lower));
     }
     var root_public: [32]u8 = undefined;
-    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "cold" }) |name| {
+    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "cold", "installer" }) |name| {
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);
