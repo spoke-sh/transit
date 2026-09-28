@@ -263,6 +263,10 @@ serving-tls:
 serving-capacity:
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-tls=true -Dserving-capacity=true
 
+# Finite waits, durable cancellation, duplicate/late timeouts and hard expiry.
+serving-lifetimes:
+    zig build test-serving -Doptimize=ReleaseSafe -Dserving-lifetimes=true
+
 # Explicit SQL shell and separately authorized Board query API/browser.
 unified-ingress source="table":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true

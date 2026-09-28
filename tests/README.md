@@ -41,7 +41,7 @@ and 128 retained operations with bounded point reads. Independent shared fixture
 pin binary layouts and scope signatures. Growing native receipts remain retained
 across newer sequences; this does not qualify receipt reclamation or a finite
 retry horizon. `just check` and Station's standalone tests pass for this slice.
-Physical placement, full lifetime schedules and M20 remain open and are not
+Physical placement and M20 remain open and are not
 inferred from this local proof.
 
 `just test::serving-tls` passes the same independent signed recovery schedule
@@ -58,6 +58,22 @@ is 49,094,656 bytes, below the declared 256 MiB ceiling, with private 2 MiB requ
 allocators. This full TLS/recovery schedule completes in 14.87 seconds. The RSS
 measurement excludes proxy/authority/workers and is one declared finite profile,
 not a peak bound for every configurable workload or Internet-scale qualification.
+
+The extended capacity schedule enforces two in-flight requests per caller per
+gateway: excess caller work receives 429 while a second caller uses the remaining
+slots. With all eight data handlers held, health still completes in 0.003 seconds;
+aggregate gateway RSS is 47,759,360 bytes. This TLS/recovery run takes 14.43 seconds.
+Both worker commits now also lose their first accepted response; the ingress and
+application retry identical signed bytes and recover identical receipts, preserving
+the once-only domain update.
+
+`just test::serving-lifetimes` passes explicit cancellation, authenticated timeout,
+duplicate observations and late replies after worker/node recovery. It rejects a
+wait extending beyond finite process work bounds and observes hard resource expiry
+without timer delivery. The clock's uncertainty window returns temporary
+unavailability until expiry is definite. The final native run takes 30.71 seconds,
+including those real-clock waits. Socket deadlines never renew a durable wait or
+erase its retained terminal record.
 These tasks remain focused, with hosted expanded cost qualification deferred under
 M10. The optional serving Nix shell pins the proxy through the existing lockfile.
 

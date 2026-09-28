@@ -148,7 +148,8 @@
       "test::serving-http",
       "test::serving",
       "test::serving-tls",
-      "test::serving-capacity"
+      "test::serving-capacity",
+      "test::serving-lifetimes"
     ]
   },
   "nested_tasks": {

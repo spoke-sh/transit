@@ -27,13 +27,20 @@ underlying directives. WebSocket upgrade is not enabled by this template yet.
 
 Default gateway limits are 16 sockets, four data handlers and two reserved health
 handlers, with a 1 second header deadline and 5 second total request deadline.
+After signature verification, each provisioned caller can occupy at most two
+handlers per gateway (`per_caller_requests`, bounded by its data-handler limit).
+Excess caller work receives 429, leaving the remaining slots for other callers.
+This local transport bound is separate from the Station owner's aggregate durable
+operation quotas across all gateways. Unauthenticated body/header work still has
+the listener's finite socket and time limits; this is not a DDoS protection claim.
 Each data handler has a separate 2 MiB fixed allocator; upstream calls have a
 3 second deadline inside that total. The durable service independently limits
 active operations and per-caller work. A disconnected or timed-out transport does
 not cancel a Station wait or remove its retained result.
 
 `just test::serving-capacity` adds a Linux `/proc` RSS measurement while eight
-authorized reads across two gateways are held in upstream I/O. It requires the
+authorized reads from two callers across two gateways are held in upstream I/O.
+It proves one caller's limit leaves capacity for the other. It requires the
 ninth data request to receive 503 and health to finish within one second. The
 declared aggregate gateway ceiling for this finite configuration is 256 MiB;
 the [proof ledger](../../../tests/README.md#m19-work-in-progress) records the

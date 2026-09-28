@@ -16,6 +16,7 @@ const Gateway = struct {
     callers: []const Caller,
     listen: []const u8 = "127.0.0.1",
     options: http.Options = .{ .requests = 4 },
+    per_caller_requests: u8 = 2,
 };
 const Config = struct {
     url: []const u8,
@@ -58,6 +59,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (config.role == .gateway) {
         const gateway = config.role.gateway;
         try gateway.options.validate();
+        if (gateway.per_caller_requests == 0 or gateway.per_caller_requests > gateway.options.requests) return error.InvalidGatewayConfiguration;
         if (gateway.callers.len == 0 or gateway.callers.len > 32 or !std.mem.startsWith(u8, gateway.public_origin, "https://")) return error.InvalidGatewayConfiguration;
         if (!std.mem.eql(u8, gateway.host, gateway.public_origin[8..])) return error.InvalidGatewayOrigin;
         for (gateway.callers, 0..) |caller, index| {
@@ -100,7 +102,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         const step = host.step(handler, now + 30000) catch |err| {
             diagnostics.event(.{ .name = "serving.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (err == error.AuthorityTimeout) {
+            if (err == error.AuthorityTimeout or err == error.AuthorityUnavailable) {
                 if (host.pending == null and host.ready != null) try host.discard();
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
                 if (wire.last_rejection == .StateViewExpired) host.view_id = null;
@@ -116,6 +118,7 @@ const Context = struct {
     config: Config,
     key: p.Ed25519.KeyPair,
     diagnostics: *telemetry.Runtime,
+    callers: [32]http.Admission = @splat(.{}),
     pub fn connectionError(self: *@This(), err: anyerror, _: bool) void {
         self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
     }
@@ -129,7 +132,8 @@ const Context = struct {
                 error.ResourceUnavailable => .gone,
                 error.AuthorityTimeout => .gateway_timeout,
                 error.StreamTooLong => .payload_too_large,
-                error.InvalidServingCommand, error.InvalidServingRead, error.InvalidFrame, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .bad_request,
+                error.ServingCallerCapacity => .too_many_requests,
+                error.InvalidServingCommand, error.InvalidServingRead, error.InvalidServingIdentity, error.InvalidServingRecord, error.ServingPayloadTooLarge, error.InvalidFrame, error.UnsupportedFrame, error.InvalidCorrelation, error.MessageTooLarge, error.ValueTooLarge, error.InvalidValue, error.InvalidSequence, error.WrongProtocolRealm, error.InvalidCharacter, error.Overflow, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .bad_request,
                 else => .service_unavailable,
             };
             return http.respond(request, status, "{\"err\":\"ServingRequestFailed\"}");
@@ -159,15 +163,25 @@ const Context = struct {
         const adapter: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource };
         if (submit) {
             const parsed = try std.json.parseFromSlice(p.Growth.SignedRequest, alloc, body, .{});
-            const result = try adapter.submit(parsed.value, try self.publicKey(parsed.value.request.principal));
+            const index = try self.callerIndex(parsed.value.request.principal);
+            const public_key = config.callers[index].public_key;
+            try p.Ed25519.Signature.fromBytes(parsed.value.signature).verify(&try p.Growth.digest(parsed.value.request), try p.Ed25519.PublicKey.fromBytes(public_key));
+            if (!self.callers[index].acquire(false, config.per_caller_requests)) return error.ServingCallerCapacity;
+            defer self.callers[index].release(false);
+            const result = try adapter.submit(parsed.value, public_key);
             return http.respond(request, .accepted, try std.json.Stringify.valueAlloc(alloc, result, .{}));
         }
         const parsed = try std.json.parseFromSlice(serving.Model.SignedRead, alloc, body, .{});
-        const result = try adapter.read(parsed.value, try self.publicKey(parsed.value.read.principal));
+        const index = try self.callerIndex(parsed.value.read.principal);
+        const public_key = config.callers[index].public_key;
+        try parsed.value.verify(public_key);
+        if (!self.callers[index].acquire(false, config.per_caller_requests)) return error.ServingCallerCapacity;
+        defer self.callers[index].release(false);
+        const result = try adapter.read(parsed.value, public_key);
         return http.respond(request, .ok, try std.json.Stringify.valueAlloc(alloc, result, .{}));
     }
-    fn publicKey(self: *@This(), principal: u64) ![32]u8 {
-        for (self.config.role.gateway.callers) |caller| if (caller.principal == principal) return caller.public_key;
+    fn callerIndex(self: *@This(), principal: u64) !usize {
+        for (self.config.role.gateway.callers, 0..) |caller, index| if (caller.principal == principal) return index;
         return error.ServingDenied;
     }
 };

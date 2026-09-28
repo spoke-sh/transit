@@ -25,6 +25,11 @@ and revalidate before disclosing protected data. Incoming commands preserve thei
 caller-signed native bytes. The service owner deduplicates across native sequences
 and gateway instances using the durable operation key and content digest.
 
+The service identity includes realm and ingress PID as well as its service number.
+Replacing that ingress creates a different authority/history scope; a gateway
+cannot recover or retarget the old command merely by reusing the number. Native
+signatures and scoped reads bind the ingress explicitly.
+
 Run `zig build test` in the pinned Nix environment. Full HTTP/TLS/deployment and
 reactive API qualification are separate gates in [M19](../../../docs/roadmap/M19.md)
 and [M20](../../../docs/roadmap/M20.md); this package's unit checks do not prove them.

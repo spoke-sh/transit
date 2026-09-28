@@ -7,7 +7,9 @@ deployment. [Serving](../docs/SERVING.md) owns the architecture.
 ## Owner and publication
 
 One growing Station ingress process and its private resource own one service.
-The service identity, administrator and timer observer are fixed at bootstrap.
+Service identity is `(realm, ingress PID, service number)`; the number alone is
+not a global name or alias that can retarget accepted work. These identities,
+administrator and timer observer are fixed at bootstrap.
 An administrator's ordered `publish(expected_revision, binding)` input commits
 the accepted revision and a retained immutable revision record together. A
 binding names the exact application PID, application codec, route profile and

@@ -55,8 +55,8 @@ def frame(payload, kind=1, correlation=0):
     return (b'STN1' + bytes([kind]) + struct.pack('<Q', correlation) + payload).hex()
 
 
-def submit(operation, deadline, delta=1, revision=1):
-    value = struct.pack('<qq', 1, delta)
+def submit(operation, deadline, delta=1, revision=1, row=1):
+    value = struct.pack('<qq', row, delta)
     return b'SV1c\x03' + struct.pack('<QQHQB', operation, revision, 1, deadline, len(value)) + value
 
 
@@ -92,7 +92,7 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False):
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
     with Fixture() as store, ExitStack() as owned:
@@ -131,10 +131,10 @@ def run(node, example, courier, tls=False, capacity=False):
         def resource_grant(resource, principal, permissions):
             send({'grant_resource': dict(resource=resource, subject=principal, permissions=permissions)})
 
-        def provision(principal):
-            pid = send({'spawn': dict(code=1, work_before_ms=None, settle_before_ms=None)})
+        def provision(principal, resource_deadline=None, work_before=None):
+            pid = send({'spawn': dict(code=1, work_before_ms=work_before, settle_before_ms=resource_deadline if work_before else None)})
             grant(principal, 88, pid)
-            resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=None)})
+            resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=resource_deadline)})
             for subject in (0, principal):
                 resource_grant(resource, subject, 7)
             send({'associate': dict(pid=pid, name=b'state'.hex(), expected_revision=0, resource=resource, required=True)})
@@ -151,7 +151,8 @@ def run(node, example, courier, tls=False, capacity=False):
                 time.sleep(.03)
             raise AssertionError(('undrained', pid, value))
 
-        fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'blocked': 0}
+        fault = {'armed': False, 'lost': None, 'retried': False, 'stall_reads': False, 'blocked': 0,
+                 'ingress_commit': None, 'application_commit': None, 'commit_retries': set()}
         fault_lock = threading.Lock()
         release_reads = threading.Event()
 
@@ -171,6 +172,20 @@ def run(node, example, courier, tls=False, capacity=False):
                     response = connection.getresponse()
                     result = response.read()
                     message = json.loads(body)
+                    if self.path == '/v3/command' and response.status == 200:
+                        request = message['request']
+                        turn = request['command'].get('turn', request['command'].get('turn_with_versions', {}).get('turn', {}))
+                        admission = request['principal'] == 77 and any(mutation and bytes.fromhex(mutation['key']).startswith(b'\x00sv1o') for mutation in turn.get('mutations', []))
+                        application_reply = request['principal'] == 78 and any(output and bytes.fromhex(output['value'])[:5] == b'STN1\x03' for output in turn.get('outputs', []))
+                        stage = 'ingress_commit' if admission else 'application_commit' if application_reply else None
+                        if stage:
+                            if fault[stage] is None:
+                                fault[stage] = body, result
+                                self.close_connection = True
+                                return
+                            if body == fault[stage][0]:
+                                assert result == fault[stage][1]
+                                fault['commit_retries'].add(stage)
                     if self.path == '/v3/command' and message['request']['principal'] == 65536 and response.status == 200:
                         if fault['armed']:
                             fault['armed'] = False
@@ -202,8 +217,9 @@ def run(node, example, courier, tls=False, capacity=False):
             grant(79, 16, ingress)
             resource_grant(ingress_resource, 79, 3)
             grant(80, 148)
-            ingress_config = dict(url=url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
-            application_config = dict(url=url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33)})
+            worker_url = f'http://127.0.0.1:{proxy.server_port}'
+            ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
+            application_config = dict(url=worker_url, realm=REALM, principal=78, seed_file=str(keys[78].seed), pid=application, generation=2, activation_directory=str(store.root), role={'application': dict(ingress=ingress, initializer=33)})
             ingress_worker = start('ingress', example, ingress_config)
             app_worker = start('application', example, application_config)
             cast(ingress, b'SV1c\x00')
@@ -235,6 +251,7 @@ def run(node, example, courier, tls=False, capacity=False):
 
             discovery = read('discovery')
             assert discovery['binding']['revision'] == 1 and not discovery['capabilities']['websocket'], discovery
+            post(gateway_ports[0], '/serving/v1/read', signed_read(keys[65536], 65536, ingress, 'status', 0), public_host, 400)
             if tls:
                 probe = signed_read(keys[65536], 65536, ingress, 'discovery')
                 post(gateway_ports[0], '/serving/v1/read', probe, 'foreign.example.test', 403)
@@ -266,13 +283,20 @@ def run(node, example, courier, tls=False, capacity=False):
                 raise AssertionError(('incomplete', operation, status))
 
             first = completed(1, 1)
+            assert fault['commit_retries'] == {'ingress_commit', 'application_commit'}, fault
             if capacity:
                 probe = signed_read(keys[65536], 65536, ingress, 'status', 1)
+                other = signed_read(keys[65537], 65537, ingress, 'discovery')
                 fault['stall_reads'] = True
                 with concurrent.futures.ThreadPoolExecutor(max_workers=8) as readers:
-                    pending = [readers.submit(post, gateway_port, '/serving/v1/read', probe, public_host) for gateway_port in gateway_ports for _ in range(4)]
+                    pending = [readers.submit(post, gateway_port, '/serving/v1/read', probe, public_host) for gateway_port in gateway_ports for _ in range(2)]
                     try:
                         until = time.monotonic() + 2
+                        while fault['blocked'] < 4 and time.monotonic() < until:
+                            time.sleep(.005)
+                        assert fault['blocked'] == 4, fault
+                        post(gateway_ports[0], '/serving/v1/read', probe, public_host, 429)
+                        pending += [readers.submit(post, gateway_port, '/serving/v1/read', other, public_host) for gateway_port in gateway_ports for _ in range(2)]
                         while fault['blocked'] < 8 and time.monotonic() < until:
                             time.sleep(.005)
                         assert fault['blocked'] == 8, fault
@@ -293,8 +317,9 @@ def run(node, example, courier, tls=False, capacity=False):
                     finally:
                         fault['stall_reads'] = False
                         release_reads.set()
-                    assert all(item.result()['operation'] == first['operation'] for item in pending)
-                print(f'Serving capacity: eight delayed authorized reads, ninth refused, health {elapsed:.3f}s; two-gateway RSS {rss} bytes <= 268435456 ceiling; private 2 MiB request buffers', flush=True)
+                    assert all(item.result()['operation'] == first['operation'] for item in pending[:4])
+                    assert all(item.result()['binding']['revision'] == 1 for item in pending[4:])
+                print(f'Serving capacity: per-caller refusal preserves unrelated callers, eight delayed authorized reads, ninth refused, health {elapsed:.3f}s; two-gateway RSS {rss} bytes <= 268435456 ceiling; private 2 MiB request buffers', flush=True)
             # Same operation with a later native sequence still has one destination call.
             duplicate = native_command(keys[65536], 65536, 2, frozen['request']['command'])
             post(gateway_ports[1], '/serving/v1/command', duplicate, public_host, 202)
@@ -344,6 +369,26 @@ def run(node, example, courier, tls=False, capacity=False):
             # This caller sees only its own disposition, not the observer's.
             assert read('disposition', premature)['disposition'] is None
             assert bytes.fromhex(read('disposition', spoofed)['disposition']) == b'UnexpectedServingReplySource'
+            if lifetimes:
+                cast(ingress, submit(7, deadline_ms, row=2), 65537)
+                drained(ingress)
+                assert read('status', 7, principal=65537)['stage'] == 'service_admitted'
+                cast(ingress, b'SV1c\x04' + struct.pack('<Q', 7), 65537)
+                drained(ingress)
+                assert read('status', 7, principal=65537)['stage'] == 'cancelled'
+                timeout_at = int(time.time() * 1000) + 1000
+                cast(ingress, submit(8, timeout_at, row=2), 65537)
+                drained(ingress)
+                waiting = read('status', 8, principal=65537)['operation']['correlation']
+                time.sleep(max(0, timeout_at / 1000 - time.time()))
+                observation = frame(b'TMO1' + struct.pack('<Q', int(time.time() * 1000)), 8, waiting)
+                send({'send': dict(pid=ingress, value=observation)}, 34)
+                drained(ingress)
+                terminal = read('status', 8, principal=65537)
+                assert terminal['stage'] == 'timed_out'
+                send({'send': dict(pid=ingress, value=observation)}, 34)
+                drained(ingress)
+                assert read('status', 8, principal=65537)['operation'] == terminal['operation']
             for process in (*gateways, ingress_worker, app_worker, authority):
                 process.kill(); process.wait(timeout=10)
             store.stop(); store.start()
@@ -362,6 +407,22 @@ def run(node, example, courier, tls=False, capacity=False):
             post(gateway_ports[0], '/serving/v1/command', second_request, public_host, 202)
             completed(2, 3)
             completed(1, 1)
+            if lifetimes:
+                assert read('status', 7, principal=65537)['stage'] == 'cancelled'
+                assert read('status', 8, principal=65537)['operation'] == terminal['operation']
+                # Late application replies are consumed by Station without
+                # reopening either terminal wait after physical recovery.
+                until = time.monotonic() + 10
+                while time.monotonic() < until:
+                    resource = query(0, {'resource': ingress_resource})['body']['resource']
+                    try:
+                        entries = query(0, {'entries': dict(view=None, resource=ingress_resource, revision=resource['revision'], key=b'\x00disposition'.hex(), after=None)})['body']['entries']['page']['entries']
+                    except AssertionError as error:
+                        if error.args[0][1] in (409, 422): continue
+                        raise
+                    if entries[0] and bytes.fromhex(entries[0]['value']) == b'station.closed-reply.v1': break
+                    time.sleep(.03)
+                else: raise AssertionError('late reply was not consumed after closure')
             cast(ingress, publication(2, application, deadline_ms, False))
             drained(ingress)
             completed(2, 3)
@@ -373,6 +434,49 @@ def run(node, example, courier, tls=False, capacity=False):
             completed(2, 3)
             send({'revoke': 65536})
             read('result', 2, expected=403)
+            if lifetimes:
+                # An independently created finite ingress expires with no timer
+                # observer or courier delivering a notification. No retention
+                # opt-in or physical deletion is inferred from that expiry.
+                courier_worker.kill(); courier_worker.wait(timeout=10)
+                expires_at = int(time.time() * 1000) + 10000
+                work_before = expires_at - 2000
+                ephemeral, ephemeral_resource = provision(77, expires_at, work_before)
+                offline = send({'spawn': dict(code=1, work_before_ms=None, settle_before_ms=None)})
+                ephemeral_config = dict(ingress_config, pid=ephemeral, generation=2)
+                ephemeral_worker = start('finite-ingress', example, ephemeral_config)
+                cast(ephemeral, b'SV1c\x00')
+                drained(ephemeral)
+                cast(ephemeral, publication(1, offline, expires_at))
+                cast(ephemeral, policy(65537))
+                drained(ephemeral)
+                grant(65537, 20, ephemeral)
+                grant(79, 16, ephemeral)
+                resource_grant(ephemeral_resource, 79, 3)
+                too_late = cast(ephemeral, submit(10, expires_at), 65537)
+                cast(ephemeral, submit(9, work_before), 65537)
+                drained(ephemeral)
+                gateways[0].kill(); gateways[0].wait(timeout=10)
+                gateway_config['role']['gateway'].update(ingress=ephemeral, resource=ephemeral_resource)
+                gateways[0] = start('finite-gateway', example, gateway_config)
+                time.sleep(.2)
+                finite_read = signed_read(keys[65537], 65537, ephemeral, 'status', 9)
+                finite = post(gateway_ports[0], '/serving/v1/read', finite_read, public_host)
+                assert finite['stage'] == 'service_admitted' and finite['operation']['deadline_ms'] == work_before
+                disposition = post(gateway_ports[0], '/serving/v1/read', signed_read(keys[65537], 65537, ephemeral, 'disposition', too_late), public_host)
+                assert bytes.fromhex(disposition['disposition']) == b'InvalidWaitLifetime'
+                time.sleep(max(0, (expires_at + 100) / 1000 - time.time()))
+                # Linux's measured clock uncertainty can straddle the deadline.
+                # Keep that explicit 503 distinct from definite unavailability.
+                until = time.monotonic() + 11
+                while True:
+                    status, value = post(gateway_ports[0], '/serving/v1/read', finite_read, public_host, None)
+                    if status == 410: break
+                    assert status == 503 and time.monotonic() < until, (status, value)
+                    time.sleep(.1)
+                expired_command = native_command(keys[65537], 65537, sequences[65537] + 1, {'send': dict(pid=ephemeral, value=frame(submit(11, work_before)))})
+                post(gateway_ports[0], '/serving/v1/command', expired_command, public_host, 410)
+                print('Serving lifetimes: ordered cancellation, authenticated timeout and duplicate observation, late replies after restart, finite process/wait/resource bounds and hard expiry without observer delivery passed', flush=True)
             print(f'Serving: worker/gateway/node/disk recovery, route retirement and current policy/native revocation passed in {time.monotonic() - started:.2f}s; 8 resident authority pages', flush=True)
             if tls:
                 print('Serving TLS: real nginx template, verified certificates/hostnames, exact Host/Origin and signed recovery passed; ' + subprocess.check_output(['nginx', '-v'], stderr=subprocess.STDOUT, text=True).strip(), flush=True)
@@ -394,4 +498,5 @@ if __name__ == '__main__':
         parser.add_argument(name)
     parser.add_argument('--tls', action='store_true')
     parser.add_argument('--capacity', action='store_true')
+    parser.add_argument('--lifetimes', action='store_true')
     run(**vars(parser.parse_args()))

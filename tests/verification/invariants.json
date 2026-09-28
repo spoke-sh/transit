@@ -916,16 +916,22 @@
       "profile": "serving-v1/growing-v3; local HTTP service callers",
       "tasks": [
         "test::unit",
-        "test::serving"
+        "test::serving",
+        "test::serving-capacity",
+        "test::serving-lifetimes"
       ],
       "scenarios": [
         "Concurrent identical and conflicting native sequences across two gateways",
         "Accepted receipt lost; gateway/worker/node/disk restart",
         "Same operation under a new native sequence; conflicting payload",
         "Current scoped policy and native grant revoked before result disclosure",
-        "Malformed or spoofed framework frames become durable dispositions"
+        "Malformed or spoofed framework frames become durable dispositions",
+        "Lost ingress and application commit responses recover identical signed bytes and receipts",
+        "Per-caller HTTP capacity preserves unrelated callers and reserved health under delayed reads",
+        "Authenticated cancellation/timeout and late replies retain terminal results across restart",
+        "Finite process wait bounds and hard resource expiry without observer delivery"
       ],
-      "limits": "Finite local schedule; no TLS, remote placement, expiry or reactive qualification is implied. Growing native receipts remain retained.",
+      "limits": "Finite native/TLS schedules; remote placement and reactive APIs are separate gates. Capacity RSS covers gateway processes at the declared stalled-read point. Growing native receipts remain retained.",
       "model": null
     }
   ]

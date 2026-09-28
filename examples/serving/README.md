@@ -23,7 +23,7 @@ header can establish identity. The [termination guide](docs/termination.md) owns
 the real nginx template, local TLS proof and concurrency budget. Remote deployment
 qualification remains open. Each admitted HTTP data request uses at most
 2 MiB for parsing/upstream work, plus the listener's bounded buffers. Default
-four data handlers and two reserved health handlers are separate from the durable
+four data handlers, two per caller and two reserved health handlers are separate from the durable
 service quota. The owning resource retains terminal operations with no implicit
 expiry. Read diagnostics contain finite error categories, not request data.
 
@@ -37,4 +37,7 @@ Build with `nix develop --command zig build serving-example -Doptimize=ReleaseSa
 Run `nix develop --command just test::serving` for the independent Python/OpenSSL
 caller proof with owned disk Ursula, real workers and two gateway instances. It
 provisions its own keys/rights and leaves existing launcher deployments alone.
+`just test::serving-lifetimes` adds real cancel/timeout ordering and finite
+process/resource expiry. Clock uncertainty returns temporary unavailability until
+the authority can establish expiry; it is not a fabricated terminal outcome.
 No complete M19 or M20 qualification is claimed by this local example.
