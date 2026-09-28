@@ -51,9 +51,9 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::down`, `reset` | Stop while preserving data, or explicitly delete a stopped installation; Compose has the same tasks |
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
+| `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
-| `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::unified-query` | Run signed v2 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::unified-codec` | Check independent v2 bundles and nested Arrow through the native library and local port |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |
@@ -167,3 +167,12 @@ physical placements remain explicit external proofs.
 M16 outbound calls. `just test::flight-metadata` checks pinned protobuf drift and
 standard metadata IPC with PyArrow. Both run in the ordinary growth CI lane;
 full Flight/ADBC qualification remains separate.
+
+M22 adds `just test::flight` for TLS PyArrow and pinned ADBC C/Python clients,
+`just test::flight-faults` for current-read revocation, retained-result recovery,
+concurrency and bounded slow clients, and `just test::flight-outbound` for recorded
+RPC capture and network-free replay. `just test::flight-placement compose` and
+`just test::flight-placement reference` exercise owned physical installations.
+The manual [Flight workflow](../.github/workflows/flight.yml) runs native and
+Compose qualification and retains timing logs. It is outside the measured PR
+budget; no hosted timing is claimed until that workflow executes.

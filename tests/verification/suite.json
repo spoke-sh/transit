@@ -74,7 +74,10 @@
       "transit-board::browser",
       "transit-board::query-browser",
       "transit-board::http-browser",
-      "transit-board::grpc-browser"
+      "transit-board::grpc-browser",
+      "test::reactive-browser",
+      "test::reactive-views",
+      "test::reactive-views-lifecycle"
     ]
   },
   "tiers": {
@@ -114,7 +117,10 @@
       "examples::query-compose",
       "examples::query-reference",
       "examples::serving-compose",
-      "examples::serving-reference"
+      "examples::serving-reference",
+      "test::reactive-placement",
+      "test::reactive-views-placement",
+      "test::flight-placement"
     ],
     "discovery": [
       "test::mutations"
@@ -154,7 +160,15 @@
       "test::serving-tls",
       "test::serving-capacity",
       "test::serving-lifetimes",
-      "test::serving-growth"
+      "test::serving-growth",
+      "test::reactive",
+      "test::reactive-limits",
+      "test::reactive-client",
+      "test::reactive-refresh",
+      "test::reactive-descriptions",
+      "test::flight",
+      "test::flight-faults",
+      "test::flight-outbound"
     ]
   },
   "nested_tasks": {

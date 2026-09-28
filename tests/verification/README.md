@@ -34,6 +34,22 @@ are negative controls. The growing profile's bounded qualification is recorded
 in the [test guide](../README.md#m10-verification-and-scale-foundations);
 inventory coverage does not imply all M10 gates have passed.
 
+M21 registers the reactive API/client/refresh and placement proofs and adds the
+actual M20 browser peer plus Board/counter consumer schedules to the complete
+browser lane. The ordinary five lanes keep their existing task allocation.
+These additions have local proof timings in `tests/README.md`; no new hosted
+warm/cold feedback or runner-minute qualification is claimed for the expanded
+complete suite. Preserve the measured M10 budgets until new hosted evidence is
+available rather than deriving a new budget from one local browser run.
+
+M22's manual [Flight workflow](../../.github/workflows/flight.yml) runs the pinned
+native clients, fault/load schedules, recorded outbound replay and Compose
+recovery, retaining logs and elapsed times. Reference placement remains an
+explicit proof against owned reference infrastructure. The ordinary growth lane
+includes inbound transport and metadata checks; the complete browser lane owns
+M21's consumer schedules. Local pass evidence does not establish a new hosted
+feedback or aggregate runner-minute budget for either addition.
+
 ## CI and clean-run cost evidence
 
 The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback

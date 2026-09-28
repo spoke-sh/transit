@@ -941,6 +941,38 @@
       "model": null
     },
     {
+      "id": "REACTIVE-01",
+      "claim": "A live consumer preserves bounded snapshot identity, exact uncertain operations and current read authority",
+      "owner": "docs/REACTIVE.md",
+      "implementation": [
+        "packages/zig/transit-serving/src/Refresh.zig",
+        "packages/zig/transit-serving/src/ReactiveAdapter.zig",
+        "packages/ts/transit-reactive-client/src/view.ts",
+        "apps/transit-board-web/src/unified-result.ts"
+      ],
+      "profile": "M20/M21 selected int64 Table, private shared browser caller, growing-v3",
+      "tasks": [
+        "test::unit",
+        "test::reactive",
+        "test::reactive-limits",
+        "test::reactive-refresh",
+        "test::reactive-views",
+        "test::reactive-views-lifecycle",
+        "test::reactive-views-placement"
+      ],
+      "scenarios": [
+        "Lost native receipt and exact recovery across real navigation and metadata failure",
+        "Bounded ordered result verification followed by a fresh authorized visible read",
+        "Dirty source mutation during actual capture; bookkeeping does not perpetuate refreshes",
+        "Shared-principal sessions and fair single-requester finite refresh scheduling",
+        "Actual SSE loss/resume, watch-generation reset and explicit resnapshot",
+        "Logical pause, pagehide, abandoned expiry and permanent source retirement",
+        "Physical worker/gateway/node/disk recovery of the same displayed result"
+      ],
+      "limits": "Four service sessions, two per principal, one subscription/session, 30-second maximum lease, eight finite refresh intents per explicit follow generation. Finite native/Compose/reference schedules and measurements are recorded in tests/README.md; no continuous SQL, KV/Document watch, latency target or general multi-origin native-sequence coordination.",
+      "model": null
+    },
+    {
       "id": "FLIGHT-01",
       "claim": "Pinned Flight codecs preserve standard bounded metadata schemas and scoped ticket references",
       "owner": "contracts/FLIGHT_V1.md",
@@ -964,6 +996,38 @@
         "Inbound unary/server-streaming RPCs join cancellation and deadlines and bound blocked credit/write work"
       ],
       "limits": "No gateway authorization, ADBC, TLS placement, retained-result recovery or outbound Flight claim from these codec/transport checks.",
+      "model": null
+    },
+    {
+      "id": "FLIGHT-02",
+      "claim": "Finite Flight queries retain native admission identity and current scoped disclosure while outbound Flight remains a recorded effect",
+      "owner": "contracts/FLIGHT_V1.md",
+      "implementation": [
+        "packages/zig/transit-flight/src/Gateway.zig",
+        "packages/zig/transit-station-flight/src/Replay.zig",
+        "packages/zig/transit-serving/src/FiniteService.zig",
+        "tests/flight.py",
+        "tests/flight_lifecycle.py",
+        "tests/flight_load.py",
+        "tests/flight_outbound.py",
+        "examples/flight/run.py"
+      ],
+      "profile": "M22 finite Table v1/int64 TLS gateway; independent pinned PyArrow and ADBC C/Python",
+      "tasks": [
+        "test::flight",
+        "test::flight-faults",
+        "test::flight-outbound",
+        "test::flight-placement"
+      ],
+      "scenarios": [
+        "Canonical explicit sequences recover accepted-but-lost admissions across gateway restart",
+        "Per-RPC pooled identity, tampered/foreign/expired tickets and current read-only revocation after an actual batch",
+        "Released source pins, permanent requester/source retirement, and retained result recovery after node/store/worker loss",
+        "Concurrent delayed fetches, reserved current-schema control, data capacity refusal and bounded HTTP/2 credit stalls",
+        "Independent C/Python installed consumers release handles and preserve exact int64/null/empty/aggregate semantics",
+        "Recorded outbound TLS capture is replayed after physical loss with the peer stopped and credential removed"
+      ],
+      "limits": "One configured int64 Table per caller, one active finite query per requester, two data RPCs per caller, 16 KiB messages, 256 KiB framed response, 64 response messages. Metadata union/list/map coverage does not expand application types. Only executed placements in tests/README.md are qualified; no continuous Flight, writes, prepared parameters or hosted cost claim.",
       "model": null
     }
   ]

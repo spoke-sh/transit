@@ -1,0 +1,40 @@
+name: Flight interoperability
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: transit-flight-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  qualify:
+    # Explicit qualification, outside the measured ordinary PR feedback budget.
+    runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - run: nix develop .#flight --command just transit-board::install
+      - name: Run independent clients and physical recovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/verification
+          for task in flight-metadata flight flight-faults flight-outbound; do
+            started=$(date +%s)
+            nix develop .#flight --command just "test::$task" 2>&1 | tee ".cache/verification/$task.log"
+            elapsed=$(( $(date +%s) - started ))
+            printf '%s %s\n' "$task" "$elapsed" >> .cache/verification/flight-times.txt
+          done
+          nix develop .#flight --command just test::flight-placement compose 2>&1 | tee .cache/verification/flight-compose.log
+      - name: Preserve measured qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: flight-${{ github.run_attempt }}
+          path: .cache/verification/flight-*
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
