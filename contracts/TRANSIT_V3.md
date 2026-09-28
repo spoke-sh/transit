@@ -111,6 +111,23 @@ It grants no authority to a later read or mutation. Clients must require the
 capability; older nodes may reject the new variant. Existing query and signature
 encodings remain unchanged.
 
+With `resource_read_batch`, `read_entries` acquires one to eight distinct keys
+from one resource in a single authorized observation. Its fixed eight-slot
+`keys` array is a nonempty contiguous prefix followed by nulls. The response
+contains active resource metadata and eight corresponding optional entries;
+null at a requested slot means that key was absent at the returned revision.
+Unrequested slots are null. Input order is preserved, without sorting or a
+continuation. Optional `revision` requires that exact current revision; null
+selects the current cut. This does not retain a version or permit stale reads.
+
+The query uses the existing signed-query domain, native PID association scope,
+current resource inspect/read permissions, dependency/lifetime checks and final
+authority-tail fence. Its memory and read work use the existing eight-entry
+page budget; mutation limits are unchanged. Clients validate slot/key identity,
+entry revisions and active resource metadata. They require the new capability;
+older nodes reject this additive variant. Acquired bytes are one observation,
+not an authorization cache for later disclosure.
+
 Process lists expose recorded metadata. An individual process read checks current
 execution eligibility before releasing its next mailbox input. Required dependency
 expiry may fence execution before background work materializes terminal metadata;

@@ -38,7 +38,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);
@@ -60,6 +60,20 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             const resource = try state.resource(engine, id);
             try state.usable(engine, resource, try sample(engine));
             break :blk .{ .read_access = resource };
+        },
+        .read_entries => |q| blk: {
+            try resourceScope(engine, principal, q.resource);
+            try state.allowed(engine, q.resource, query.principal, p.State.permission(.inspect) | p.State.permission(.read));
+            const resource = try state.resource(engine, q.resource);
+            try state.usable(engine, resource, try sample(engine));
+            if (q.revision) |revision| if (resource.revision != revision) return error.StaleStateResource;
+            var result: [g.page_size]?g.Entry = @splat(null);
+            for (q.keys, 0..) |slot, i| if (slot) |key| {
+                result[i] = try current.get(g.Entry, try c.key(.entry, resource.id, 0, key.slice()));
+                if (result[i]) |entry| if (!entry.key.eql(key)) return error.InvalidHistory;
+            };
+            try state.usable(engine, resource, try sample(engine));
+            break :blk .{ .read_entries = .{ .resource = resource, .entries = result } };
         },
         .view => |id| blk: {
             const value = try state.view(engine, id);

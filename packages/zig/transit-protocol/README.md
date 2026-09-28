@@ -15,6 +15,10 @@ inspection and entry-read authority without disclosing entries or retaining a
 view. Ordinary `resource` metadata only requires inspection and cannot substitute
 for this check. Both observations remain subject to current keys, scope, grants,
 and the authority-tail fence.
+`resource_read_batch` advertises bounded `read_entries`: up to eight requested
+keys at one current authorized resource cut, preserving missing-key slots and
+optional exact-revision checking. It shares ordinary read rights and the final
+authority fence; it neither creates a retained version nor raises turn budgets.
 
 Public, language-neutral Transit contract types, exported as `transit_protocol`.
 This library depends only on Zig's standard library. It contains no authority,

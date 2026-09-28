@@ -167,6 +167,7 @@ pub const Query = struct {
         read_versions: struct { pid: Id, after: ?ReadVersionId = null, position: ?Id = null },
         identity: void,
         read_access: Id,
+        read_entries: struct { resource: Id, revision: ?u64 = null, keys: [page_size]?p.Value },
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
@@ -189,6 +190,7 @@ pub const Capabilities = struct {
     scoped_retry: bool = false,
     retained_read_versions: bool = false,
     resource_read_access: bool = false,
+    resource_read_batch: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
@@ -223,6 +225,7 @@ pub const Response = struct {
         read_versions: Batch(ReadVersion, ReadVersionId),
         identity: Identity,
         read_access: Resource,
+        read_entries: struct { resource: Resource, entries: [page_size]?Entry },
     },
 };
 
@@ -294,6 +297,19 @@ pub fn validateQuery(query: Query) !void {
     try counters(query);
     switch (query.kind) {
         .association => |c| try validateKey(c.name),
+        .read_entries => |c| {
+            if (c.resource == 0 or c.keys[0] == null) return error.InvalidRead;
+            var ended = false;
+            for (c.keys, 0..) |slot, i| {
+                const key = slot orelse {
+                    ended = true;
+                    continue;
+                };
+                if (ended) return error.InvalidRead;
+                try validateKey(key);
+                for (c.keys[0..i]) |previous| if (previous.?.eql(key)) return error.InvalidRead;
+            }
+        },
         .entries => |c| {
             if ((c.view == null) == (c.resource == null) or (c.resource == null) != (c.revision == null)) return error.InvalidRead;
             if (c.key != null and c.after != null) return error.InvalidRead;
@@ -348,6 +364,15 @@ pub fn validateResponse(response: Response, query: Query) !void {
         },
         .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
         .read_access => |id| if (response.body.read_access.id != id or response.body.read_access.phase != .active) return error.InvalidRead,
+        .read_entries => |q| {
+            const value = response.body.read_entries;
+            if (value.resource.id != q.resource or value.resource.phase != .active) return error.InvalidRead;
+            if (q.revision) |revision| if (value.resource.revision != revision) return error.InvalidRead;
+            for (value.entries, q.keys) |slot, key| if (slot) |entry| {
+                if (key == null or !entry.key.eql(key.?) or entry.revision == 0 or entry.revision > value.resource.revision) return error.InvalidRead;
+                try validateKey(entry.key);
+            };
+        },
         .view => |id| if (response.body.view.id != id) return error.InvalidRead,
         .read_version => |id| {
             try validateVersion(response.body.read_version, response.position);
@@ -623,4 +648,30 @@ test "growing identity response is scoped and cannot claim an unobserved policy"
     response.body.identity.principal = 65536;
     response.body.identity.policy_revision = 9;
     try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
+}
+
+test "bounded multi-key read validation preserves slot identity and absence" {
+    const t = std.testing;
+    var keys: [page_size]?p.Value = @splat(null);
+    keys[0] = try p.Value.init("second");
+    keys[1] = try p.Value.init("missing");
+    keys[2] = try p.Value.init("first");
+    const query: Query = .{ .realm = 1, .principal = 2, .kind = .{ .read_entries = .{ .resource = 3, .keys = keys } } };
+    try validateQuery(query);
+    var response: Response = .{ .realm = 1, .position = 10, .principal_sequence = 0, .body = .{ .read_entries = .{ .resource = .{ .id = 3, .writer = 4, .owner = null, .revision = 7, .entries = 2, .deadline_ms = null }, .entries = @splat(null) } } };
+    response.body.read_entries.entries[0] = .{ .key = keys[0].?, .value = p.Value.integer(2), .revision = 7 };
+    response.body.read_entries.entries[2] = .{ .key = keys[2].?, .value = p.Value.integer(1), .revision = 6 };
+    try validateResponse(response, query);
+    var bad = query;
+    bad.kind.read_entries.keys[1] = keys[0];
+    try t.expectError(error.InvalidRead, validateQuery(bad));
+    bad.kind.read_entries.keys[1] = null;
+    try t.expectError(error.InvalidRead, validateQuery(bad));
+    bad.kind.read_entries.keys = @splat(null);
+    try t.expectError(error.InvalidRead, validateQuery(bad));
+    response.body.read_entries.entries[2].?.key = keys[0].?;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
+    response.body.read_entries.entries[2].?.key = keys[2].?;
+    response.body.read_entries.entries[2].?.revision = 8;
+    try t.expectError(error.InvalidRead, validateResponse(response, query));
 }

@@ -135,3 +135,12 @@ Station Document uses this shared adapter for public accepted-state reads.
 `Reader.entry` returns the same bounded point observation with its resource-local
 entry revision. The serving Table watch uses that revision for its application
 progress marker; it never compares entry positions from unrelated resources.
+
+With the native `resource_read_batch` capability, `ResourceReader.readBatch`
+acquires up to eight distinct keys in one current authorized cut. The returned
+owned `Batch` exposes only those keys and their exact absence/entry revisions;
+asking for another key fails. Its local accessors perform no I/O or fresh
+authorization. Use it within one bounded acquisition and revalidate before
+disclosure; never reuse it as a grant or cache across requests. Serving uses it
+to read configuration, policy and session together while clock/control commits
+continue, then acquires a fresh batch for its final check.

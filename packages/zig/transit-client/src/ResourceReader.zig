@@ -70,3 +70,30 @@ pub fn open(self: Self, resource: u64) !Reader {
     if (metadata.id != resource or metadata.phase != .active) return error.ResourceUnavailable;
     return .{ .client = self, .view = .{ .resource = resource, .revision = metadata.revision } };
 }
+
+/// One owned observation, not a retained version or an authorization cache.
+/// It supports only the requested keys. Consumers revalidate current authority
+/// before disclosure and never reuse it across independent acquisitions.
+pub const Batch = struct {
+    resource: g.Resource,
+    view: struct { resource: u64, revision: u64 },
+    keys: [g.page_size]?p.Value,
+    entries: [g.page_size]?g.Entry,
+    pub fn read(self: *const Batch, key: p.Value) !?p.Value {
+        return if (try self.entry(key)) |item| item.value else null;
+    }
+    pub fn entry(self: *const Batch, key: p.Value) !?g.Entry {
+        for (self.keys, self.entries) |slot, item| if (slot) |requested| {
+            if (requested.eql(key)) return item;
+        };
+        return error.UnrequestedResourceKey;
+    }
+};
+pub fn readBatch(self: Self, resource: u64, revision: ?u64, keys: []const p.Value) !Batch {
+    if (keys.len == 0 or keys.len > g.page_size) return error.InvalidResourceRead;
+    if (!(try self.query(.capabilities)).body.capabilities.resource_read_batch) return error.ResourceReadBatchUnavailable;
+    var requested: [g.page_size]?p.Value = @splat(null);
+    for (keys, 0..) |key, i| requested[i] = key;
+    const result = (try self.query(.{ .read_entries = .{ .resource = resource, .revision = revision, .keys = requested } })).body.read_entries;
+    return .{ .resource = result.resource, .view = .{ .resource = resource, .revision = result.resource.revision }, .keys = requested, .entries = result.entries };
+}

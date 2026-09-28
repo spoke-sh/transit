@@ -555,6 +555,19 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
     const direct = try fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision, .key = core.Value.integer(36) } });
     try t.expectEqual(@as(i64, 135), try direct.body.entries.page.entries[0].?.value.asInteger());
     try t.expectError(error.StaleStateResource, fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = resource } }));
+    var batch_keys: [g.page_size]?core.Value = @splat(null);
+    batch_keys[0] = core.Value.integer(36);
+    batch_keys[1] = core.Value.integer(999);
+    batch_keys[2] = core.Value.integer(1);
+    const batch_query: g.Query = .{ .realm = 42, .principal = 65536, .kind = .{ .read_entries = .{ .resource = resource, .keys = batch_keys } } };
+    const batched = try fixture.query(65536, batch_query.kind);
+    try g.validateResponse(batched, batch_query);
+    try t.expectEqual(revision, batched.body.read_entries.resource.revision);
+    try t.expectEqualDeep(direct.body.entries.page.entries[0], batched.body.read_entries.entries[0]);
+    try t.expect(batched.body.read_entries.entries[1] == null);
+    try t.expect(batched.body.read_entries.entries[2].?.key.eql(core.Value.integer(1)));
+    try t.expectError(error.StaleStateResource, fixture.query(65536, .{ .read_entries = .{ .resource = resource, .revision = resource, .keys = batch_keys } }));
+
     var snapshot = try core.catalog.Catalog(PageStore).open(&fixture.pages, first_snapshot.?);
     try t.expectEqual(@as(?g.Entry, null), try snapshot.get(g.Entry, try core.catalog.key(.entry, resource, 0, core.Value.integer(1).slice())));
     const recovered = try Engine.open(&fixture.journal, &fixture.pages, fixture.genesis);
@@ -569,6 +582,7 @@ test "growing turns publish rows, progress, outputs and retained views as one ro
     try t.expectEqual(revision, try fixture.engine.submit(last));
     try t.expectError(error.StateResourceInUse, fixture.root(.{ .retire_resource = resource }));
     clock.now = 300;
+    try t.expectError(error.StateResourceExpired, fixture.query(65536, batch_query.kind));
     _ = try fixture.root(.{ .expire_resource = resource });
     try t.expectError(error.StateResourceExpired, fixture.root(.{ .send = .{ .pid = pid, .value = .{} } }));
     try t.expectError(error.StateResourceExpired, fixture.root(.{ .associate = .{ .pid = dependent, .name = try core.Value.init("dependency"), .expected_revision = association, .resource = null } }));
@@ -723,6 +737,40 @@ test "resource read-access proof checks current read grant scope and lifetime wi
     fixture.journal.race_at = null;
     _ = try fixture.root(.{ .terminate = pid });
     try t.expectError(error.StateResourceExpired, fixture.engine.query(signed));
+}
+
+test "bounded multi-key reads preserve current grant scope lifetime and authority tail" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = 7 } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 3 } });
+    var keys: [g.page_size]?core.Value = @splat(null);
+    keys[0] = try core.Value.init("absent");
+    const kind: @FieldType(g.Query, "kind") = .{ .read_entries = .{ .resource = resource, .keys = keys } };
+    try t.expectError(error.Forbidden, f.query(65536, kind));
+    _ = try f.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("state"), .resource = resource, .required = false } });
+    const signed = try g.signQuery(.{ .realm = 42, .principal = 65536, .kind = kind }, f.worker_key);
+    const first = try f.engine.query(signed);
+    try g.validateResponse(first, signed.query);
+    try t.expectEqual(resource, first.body.read_entries.resource.id);
+    for (first.body.read_entries.entries) |entry| try t.expect(entry == null);
+    try t.expect((try f.query(65536, .capabilities)).body.capabilities.resource_read_batch);
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 1 } });
+    _ = try f.query(65536, .{ .resource = resource });
+    try t.expectError(error.Forbidden, f.engine.query(signed));
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 3 } });
+    f.journal.race_at = f.journal.tail_calls + 2;
+    try t.expectError(error.Conflict, f.engine.query(signed));
+    f.journal.race_at = null;
+    var foreign = signed;
+    foreign.query.kind.read_entries.keys[0] = try core.Value.init("tampered");
+    try t.expectError(error.Unauthorized, f.engine.query(foreign));
+    _ = try f.root(.{ .terminate = pid });
+    try t.expectError(error.StateResourceExpired, f.engine.query(signed));
 }
 
 test "growing outboxes preserve routes, permission ordering and lost delivery receipts" {
