@@ -2848,8 +2848,8 @@ edit round-trips and complete-program rejection. Full-width revisions remain
 canonical decimal strings. Package tests (also in `just test::unit`) exercise
 allocator failures, source-buffer ownership, incompatible references and budgets.
 These prove the offline boundary only; the separate native publication and
-editor proofs below cover ingress and restart. Migration/placement recovery
-remains outstanding.
+editor proofs below cover ingress and restart. The generated work-item proofs
+below separately qualify the selected migration and physical placements.
 
 Application publication owner tests add two competing operators, exact accepted
 proposal recovery after owner reconstruction, atomic four-mutation activation,
@@ -2930,8 +2930,8 @@ and Atlas timers could starve Atlas. The consolidated static artifact, independe
 static navigation and bounded Atlas read retries fixed these observed failures.
 Browser proofs use the same Playwright output directory and run sequentially;
 concurrent invocations corrupt trace artifacts. Source-contract guard tests reject
-foreign/mixed contracts and a different Table with identical columns. These do
-not yet qualify the generated application's data migration or physical placement.
+foreign/mixed contracts and a different Table with identical columns. The generated
+application's migration and physical placements have separate proofs below.
 
 M23 migration ledger package tests now cover independent full-width AP1/key/hash
 fixtures, twenty retained step receipts, exact reapply without invoking domain
@@ -2940,8 +2940,9 @@ operators, source conflicts, explicit abandonment and activation limits. Injecte
 read failure and domain failure preserve the original turn decision, and a third
 domain write rejects without partial effects when the two ledger writes would
 exceed the four-write budget. `tests/application_migration_contract.py` runs in
-the root unit task. These deterministic owner tests do not yet qualify migration
-network admission, a real data transform or a physical deployment.
+the root unit task. Migration network admission, the selected data transform and
+physical deployment have separate work-item proofs below; deterministic owner
+tests alone do not establish those results.
 
 The shell/source-fencing changes also passed `just test::unified-ingress table`:
 actual shell and browser, scoped descriptions, frozen retries, source/requester/
@@ -2995,8 +2996,8 @@ the actual requester/source and disk Ursula: a one-row finite query, cross-insta
 identical signed retries, no reset on repeated open, exhausted-budget refusal,
 closed-generation replay and revoked source access. This slice took 27.21 seconds;
 the expanded full Table run took 266.30 seconds excluding compilation. It includes
-the existing worker/node/store recovery and browser regression; it does not yet
-qualify an automatic Live draft browser scheduler or draft-specific process loss.
+the existing worker/node/store recovery and browser regression; the subsequent
+Table Live browser proof below separately qualifies scheduling and saved recovery.
 
 The neutral query-browser extraction passed generated schema equality with Board,
 strict types, semantic validators, bounded response/UTF-8 handling, exact throttle
@@ -3004,7 +3005,7 @@ retries, no retry of uncertain/503 submissions and complete-result coverage test
 Board's actual Table native/API/browser regression now uses the shared transport,
 value validator and result reader. It passed in 265.51 seconds excluding compilation;
 the draft-budget host slice took 26.58 seconds and two Board readers peaked at
-34,537,472 bytes RSS. This does not yet qualify automatic draft scheduling.
+34,537,472 bytes RSS. Automatic draft scheduling has its separate browser proof below.
 
 M23 Table Live draft browser qualification is part of `just test::unified-ingress
 table`: a lost accepted upload reply is saved, the browser reloads, and the exact
@@ -3068,7 +3069,7 @@ without stopping the data owner. Per-process peak RSS was 23,080,960 bytes for t
 8,278,016 for publication, 13,434,880 for the requester and 8,515,584 for delivery.
 These are one local run's observed peaks, not configured ceilings or distributed
 throughput. `just check` passed with the new workspace. Generated-application
-M23 clean committed-HEAD qualification remains open; this focused task does not
+M23 clean committed-HEAD qualification is recorded below; this focused task does not
 change the hosted PR matrix or M10 budget.
 
 `just test::work-items-placement compose` and `reference` qualify that same
@@ -3141,8 +3142,8 @@ experience, launchers and the earlier binding tasks, then stopped in the Node
 SDK source tests. A query bridge parameter property was unsupported by Node's
 strip-only TypeScript loader. The SDK now uses explicit fields and enforces
 `erasableSyntaxOnly`; all ten source scope/runner tests and TypeScript checking
-pass. This correction does not turn the incomplete clean run into a pass; the
-full committed-HEAD gate remains outstanding until repeated successfully.
+pass. This correction does not turn the incomplete clean run into a pass;
+final clean qualification is recorded below.
 
 The retry at `a3f1733c6423` and a simultaneous console proof encountered a full
 61 GiB `/tmp` tmpfs. Compilation and the console's private recovery write failed
@@ -3259,5 +3260,42 @@ query using its independently persisted console record. This is the selected
 capacity fault schedule, not a storage throughput or zero-free-byte guarantee.
 
 `just check` passes with the final server and console implementation. The final
-M23/M24 committed-HEAD clean gate remains outstanding until the complete run
-succeeds. These focused tasks do not change M10's hosted CI budgets.
+M23/M24 committed-HEAD clean gate also passes, as recorded below. These focused
+tasks do not change M10's hosted CI budgets.
+
+
+## M23 and M24 final clean qualification
+
+The final implementation and proof harnesses at **`21089bb654f0`** pass all
+**59 ordinary CI tasks** through `just ci-clean --lane NAME`, with one fresh
+checkout per lane. Every completion report names that same full revision;
+expected task lists, task order, unique coverage and zero exit codes were checked
+against its committed `suite.json`. All five invocations exited successfully.
+The [retained report](verification/results/m23-m24-clean-2026-09-28.json) includes
+task timings, machine information and the original local evidence directories.
+
+| Lane | Tasks | Local lane task time |
+| --- | ---: | ---: |
+| Core | 17 | 385.38 s |
+| Growth | 18 | 1,970.07 s |
+| Experience | 6 | 341.32 s |
+| Launchers | 2 | 312.88 s |
+| Bindings | 16 | 3,943.77 s |
+
+Lanes ran concurrently on one local machine, with tasks sequential within each
+lane. Times exclude clone/dependency installation; their 6,953.42-second sum is
+aggregate local lane time, not PR feedback or a hosted runner-minute measurement.
+The bindings lane includes every installed SDK, the ten-language public ring,
+model checks, SQL qualification and RPC fault recovery. The ordinary gate does
+not include the complete browser tier: M23 application/placement/browser and
+M24 Table/KV/Document terminal/TLS/server/capacity proofs are recorded separately
+above. No new hosted warm/cold budget, platform or production-scale claim follows.
+
+The first isolated experience attempt at `3717c50` exposed an implicit evidence
+directory dependency in `board_query.py`. The proof now creates its own parent
+directory before writing the real wire fixture. The other four attempts were
+interrupted so all final lanes could run the corrected revision; no processes
+remained from those interrupted checkouts. They do not count as passing evidence.
+The corrected full C/C++ SDK task also passed separately, and a pinned Ruff
+`F823` scan of `tests/` found no further unbound-local fixture errors. Earlier
+failed clean runs remain incomplete and are not included in the final report.

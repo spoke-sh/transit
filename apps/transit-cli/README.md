@@ -9,8 +9,8 @@ cursor assistance lives in Fuze/query packages. The [console guide](docs/console
 covers versioned configuration, terminal editing, trust and exact recovery.
 The [local server guide](docs/server.md) describes the implemented supervisor,
 private native gateway and selected dependency/credential profile. Focused recovery,
-gateway pressure and physical capacity proofs pass; the final clean-checkout gate
-is tracked in M24. Existing query entry points retain their qualified contracts.
+gateway pressure, physical capacity and clean-checkout qualification pass within
+the selected M24 profiles. Existing query entry points retain their qualified contracts.
 
 `transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
 [unified shell guide](docs/unified-query.md) covers source declarations, finite

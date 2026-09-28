@@ -1,11 +1,12 @@
 # Declarative reactive applications
 
-Status: [M23](roadmap/M23.md) implementation in progress, reviewed through
+Status: [M23](roadmap/M23.md) selected profiles implemented and qualified, reviewed through
 [board-grammar D1](design/board-grammar/D1.md). The bounded application v1 compiler, conditional publication, declared Board
 shell, finite Table draft scheduler and data-owner migration ledger are
 implemented in their owning packages. The generated work-item workflow passes
-its native, Compose and reference placement proofs; final clean-checkout
-qualification is tracked in M23. This design document is not executable evidence.
+its native, Compose and reference placement proofs, and final clean-checkout
+qualification passes for the selected profile. This design document is not
+executable evidence.
 [Serving](SERVING.md), [reactive APIs](REACTIVE_API.md), [reactive interfaces](REACTIVE.md)
 and [Arrow](ARROW.md) retain their M19–M22 contracts and qualification limits.
 

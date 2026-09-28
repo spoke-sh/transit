@@ -40,8 +40,8 @@ admission, concurrent Board reads and recovery across native, Compose and Substr
 views; [M22](docs/roadmap/M22.md) qualifies finite Flight SQL/ADBC access.
 [M23](docs/roadmap/M23.md) implements declarative Board/application publication
 and migration, and [M24](docs/roadmap/M24.md) adds a local server and SQL terminal
-with shared authorized completion. Their focused proofs pass; final clean-checkout
-qualification is tracked in the roadmap.
+with shared authorized completion. Their selected profiles pass focused and
+clean-checkout qualification.
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

@@ -25,8 +25,8 @@ are experimental; their bounded implementation does not imply support for every 
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
 | [Serving](SERVING.md) | Inbound service/route, identity, admission and response contracts; qualified M19 HTTP profile for applications and Board |
 | [Reactive APIs](REACTIVE_API.md) | M20 Table SSE/WebSocket profile, shared sessions/subscriptions, resumable invalidations and generated OpenAPI/AsyncAPI contracts |
-| [Reactive interfaces](REACTIVE.md) | Proposed live views, exact snapshot refresh and visible freshness over reactive APIs |
-| [Reactive applications](REACTIVE_APPLICATIONS.md) | Proposed M23 declarative interface model, downstream workflow, publication and migrations |
+| [Reactive interfaces](REACTIVE.md) | Qualified Table live views, exact snapshot refresh and visible freshness; source/placement limits |
+| [Reactive applications](REACTIVE_APPLICATIONS.md) | Qualified M23 declaration/publication boundary and selected generated application migration; broader design limits |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, growing atlas, optional Table workspace and observation semantics |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |

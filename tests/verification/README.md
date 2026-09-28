@@ -57,6 +57,12 @@ executed limits. These additions do not expand the ordinary five CI lanes;
 physical ENOSPC and reference placements remain explicit environment-dependent
 proofs. The proof ledger records each selected source and placement separately.
 
+M23/M24's [final clean report](results/m23-m24-clean-2026-09-28.json) records all
+59 ordinary tasks at `21089bb654f0`, using one fresh checkout per lane. The five
+completed reports share a revision and cover the committed inventory exactly.
+These local timings do not requalify the earlier hosted 33-task budget samples.
+Individual lanes and interrupted attempts must never be reported as the full gate.
+
 ## CI and clean-run cost evidence
 
 The [CI budgets](ci-budgets.json) allow under fifteen minutes of warm feedback
