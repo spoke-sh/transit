@@ -200,3 +200,31 @@ test "framing validates host, duplicate identity headers and unambiguous bodies"
         try std.testing.expect(case.valid);
     }
 }
+
+test "deadline joins its already scheduled timer when handler scheduling fails" {
+    const Injection = struct {
+        var scheduled: usize = 0;
+        var timer_exited: std.atomic.Value(bool) = .init(false);
+        fn schedule(userdata: ?*anyopaque, group: *Io.Group, context: []const u8, alignment: std.mem.Alignment, start: *const fn (*const anyopaque) void) Io.ConcurrentError!void {
+            scheduled += 1;
+            if (scheduled == 2) return error.ConcurrencyUnavailable;
+            try std.testing.io.vtable.groupConcurrent(userdata, group, context, alignment, start);
+        }
+        fn sleep(userdata: ?*anyopaque, duration: Io.Timeout) Io.Cancelable!void {
+            defer timer_exited.store(true, .release);
+            return std.testing.io.vtable.sleep(userdata, duration);
+        }
+        fn work() anyerror!void {
+            return error.UnexpectedHandler;
+        }
+    };
+    Injection.scheduled = 0;
+    Injection.timer_exited.store(false, .monotonic);
+    var vtable = std.testing.io.vtable.*;
+    vtable.groupConcurrent = Injection.schedule;
+    vtable.sleep = Injection.sleep;
+    const io: Io = .{ .userdata = std.testing.io.userdata, .vtable = &vtable };
+    try std.testing.expectError(error.ConcurrencyUnavailable, deadline(io, 60000, Injection.work, .{}));
+    try std.testing.expectEqual(@as(usize, 2), Injection.scheduled);
+    try std.testing.expect(Injection.timer_exited.load(.acquire));
+}

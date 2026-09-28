@@ -3,10 +3,16 @@ const http = @import("transit_http_server");
 const Context = struct {
     active: std.atomic.Value(usize) = .init(0),
     errors: std.atomic.Value(usize) = .init(0),
-    pub fn handle(self: *@This(), io: std.Io, _: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
+    pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
         _ = self.active.fetchAdd(1, .monotonic);
         defer _ = self.active.fetchSub(1, .monotonic);
         if (std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"ready\":true}");
+        if (std.mem.eql(u8, request.head.target, "/large")) {
+            const bytes = try allocator.alloc(u8, 8 * 1024 * 1024);
+            defer allocator.free(bytes);
+            @memset(bytes, 'x');
+            return http.respond(request, .ok, bytes);
+        }
         if (std.mem.eql(u8, request.head.target, "/slow")) try io.sleep(.fromMilliseconds(1000), .awake);
         var body: [64]u8 = undefined;
         const bytes = request.readerExpectNone(&.{}).readSliceShort(&body) catch return http.respond(request, .bad_request, "{}");

@@ -8,6 +8,11 @@ reserved health capacity, deadline recovery, concurrent requests and joined pare
 shutdown. The standalone `transit-http-server` tests also pass. This is a finite
 socket schedule, not throughput or inbound TLS qualification.
 
+The extended socket proof also stalls two 8 MiB response writes behind small
+receive windows, checks reserved health and data refusal, and observes deadline
+recovery. A unit fault injects scheduling failure after the deadline timer starts
+and verifies that cancellation joins the timer before returning.
+
 Board's unit and real disk-backed service proofs pass after migration to the same
 listener. Four stalled body uploads exhaust its data slots, another data request
 receives 503, and health remains responsive. The existing inspection flooding,
@@ -21,6 +26,15 @@ prefix denial and worker/node/store recovery. It completes in 289.80 seconds
 excluding compilation, with 8 resident authority pages, an 8 MiB hot store and
 314 cold objects / 30,399,016 bytes. This extends the Table ingress regression;
 it does not add a reactive watch or a measured aggregate reader RSS bound.
+
+The extended Table ingress run passes two actual Board instances racing different
+prepared commands at one principal sequence. Exactly one receives a native receipt;
+the loser receives `409 QueryConflict`. Both recover the identical winning token,
+and a later competing upload is rejected by the requester's durable active quota.
+Concurrent Arrow/escaped-JSON result reads match exactly. Aggregate Board RSS after
+those reads is 20,877,312 bytes, below the finite two-instance 256 MiB ceiling;
+this is a measured point, not a peak bound. The full shell/generated-client/browser/
+recovery run takes 294.69 seconds, with 324 cold objects / 30,992,194 bytes.
 
 `just test::serving` passes the real application/ingress workers, scoped reader
 gateway and independent Python/OpenSSL callers over disk Ursula. Its two gateways

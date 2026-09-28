@@ -26,7 +26,12 @@ handlers, with two additional reserved health handlers. Their sum must fit the
 socket limit. Header reads use `min(1000, request_timeout_ms)` milliseconds.
 Request state is private; the read throttle and query-operation lock are shared
 within one instance. Size total memory for all permitted reader workspaces.
-This does not add cross-instance query-principal sequence coordination.
+Across instances, the native principal sequence arbitrates competing prepared
+requests: identical signed bytes recover the same receipt, while different work
+using that sequence returns `409 QueryConflict`. The requester enforces its
+durable active-upload quota even after another instance prepares a new sequence.
+Retain the prepared token across interruption; a failed socket must not trigger
+automatic preparation of replacement work.
 
 An administrator provisions the realm and records a grant for this principal
 with **only `inspect` (16)**, optionally restricted to one PID. Board rejects

@@ -10,7 +10,7 @@ import time
 with socket.socket() as port_socket:
     port_socket.bind(('127.0.0.1', 0))
     port = port_socket.getsockname()[1]
-process = subprocess.Popen([sys.argv[1], str(port), '6000'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+process = subprocess.Popen([sys.argv[1], str(port), '10000'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 opened = []
 
 
@@ -73,6 +73,21 @@ try:
     assert request('/echo', b'x')[0] == 503
     time.sleep(.8)
     assert request('/echo', b'after-deadline') == (200, b'after-deadline')
+    assert request('/echo', b'x'*64)[0] == 413
+    # A peer that stops reading must lose only its finite response task. Bound
+    # the receive window so the 8 MiB response cannot fit in socket buffers.
+    for _ in range(2):
+        peer = socket.socket()
+        peer.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)
+        peer.settimeout(2)
+        peer.connect(('127.0.0.1', port))
+        peer.sendall(b'GET /large HTTP/1.1\r\nHost: test\r\n\r\n')
+        opened.append(peer)
+    time.sleep(.08)
+    assert request()[0] == 200
+    assert request('/echo', b'x')[0] == 503
+    time.sleep(.8)
+    assert request('/echo', b'after-slow-readers') == (200, b'after-slow-readers')
     # Header deadlines release partial requests independently of body deadlines.
     peer = socket.create_connection(('127.0.0.1', port), timeout=2)
     peer.sendall(b'GET /health HTTP/1.1\r\nHost:')
@@ -83,7 +98,7 @@ try:
         results = list(pool.map(lambda _: request('/echo', b'bounded'), range(12)))
     assert all(status in (200, 503) for status, _ in results)
     # Parent deadline cancels and joins accepted work before stack/pool teardown.
-    time.sleep(max(0, 5.7-(time.monotonic()-started)))
+    time.sleep(max(0, 9.7-(time.monotonic()-started)))
     peer = socket.create_connection(('127.0.0.1', port), timeout=2)
     peer.sendall(b'GET /slow HTTP/1.1\r\nHost: test\r\n\r\n')
     opened.append(peer)

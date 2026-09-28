@@ -1,5 +1,6 @@
 """Real v2 Board boundary over the recovered source; inspection stays separate."""
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 import time
@@ -22,18 +23,26 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     config.write_text(json.dumps(options))
     server = start('board-v2', [binary, str(config)])
     wait_ready(fixture.http, server, origin+'/health')
+    second_port = free_port()
+    second_origin = f'http://127.0.0.1:{second_port}'
+    second_config = root/'board-v2-second.json'
+    second_config.write_text(json.dumps(options | dict(public_origin=second_origin, port=second_port)))
+    second = start('board-v2-second', [binary, str(second_config)])
+    wait_ready(fixture.http, second, second_origin+'/health')
 
-    def request(path, operation=None, status=200, headers=None):
+    def request(path, operation=None, status=200, headers=None, instance=0):
+        endpoint = second_origin if instance else origin
         for attempt in range(12):
             time.sleep(0.12)
             body = None if operation is None else json.dumps(operation).encode()
-            req = urllib.request.Request(origin+path, body,
-                {'Origin': origin, 'Content-Type': 'application/json'} | (headers or {}))
+            req = urllib.request.Request(endpoint+path, body,
+                {'Origin': endpoint, 'Content-Type': 'application/json'} | (headers or {}))
             try: response = fixture.http.open(req, timeout=10)
             except urllib.error.HTTPError as error: response = error
             with response:
                 data = json.loads(response.read())
                 if response.status == 429 and status != 429: continue
+                if status is None: return response.status, data
                 read = operation is None or next(iter(operation)) in ('describe', 'status', 'page', 'observe')
                 if read and status == 200 and response.status == 409 and data.get('err') == 'QueryExpired': continue
                 assert response.status == status, (path, operation and next(iter(operation)), response.status, data)
@@ -64,20 +73,40 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     sql = 'SELECT * FROM items LIMIT 33' if kind == 'document' else 'SELECT value FROM items LIMIT 33'
     compiled = api({'compile': {'sql': sql}})['compiled']
     deadline = time.monotonic()+300
+    # Independent instances have disposable locks. The native sequence and
+    # requester-owned active slot must arbitrate their actual competing work.
+    prepared = [api({'next': {'namespace': str(3+i), 'bundle': compiled['bundle']}}, instance=i)['prepared'] for i in range(2)]
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        admissions = list(pool.map(lambda i: api({'submit': prepared[i]}, instance=i, status=None), range(2)))
+    assert sorted(code for code, _ in admissions) == [200, 409], admissions
+    winner = next(i for i, (code, _) in enumerate(admissions) if code == 200)
+    namespace, refused = str(3+winner), str(4-winner)
+    receipt = admissions[winner][1]['receipt']
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        retries = list(pool.map(lambda i: api({'submit': prepared[winner]}, instance=i)['receipt'], range(2)))
+    assert retries == [receipt, receipt]
+    while 'pending' in api({'observe': receipt['position']})['observation']:
+        assert time.monotonic() < deadline
+    contender = api({'next': {'namespace': refused, 'bundle': compiled['bundle']}}, instance=1)['prepared']
+    refused_receipt = api({'submit': contender}, instance=1)['receipt']
+    while 'pending' in (observed := api({'observe': refused_receipt['position']})['observation']):
+        assert time.monotonic() < deadline
+    assert bytes.fromhex(observed['rejected']) == b'QueryBusy', observed
+    assert api({'status': refused})['status'] is None
     while True:
-        prepared = api({'next': {'namespace': '3', 'bundle': compiled['bundle']}})['prepared']
+        prepared = api({'next': {'namespace': namespace, 'bundle': compiled['bundle']}})['prepared']
         if prepared is None: break
         receipt = api({'submit': prepared})['receipt']
         assert api({'submit': prepared})['receipt'] == receipt
         while 'pending' in api({'observe': receipt['position']})['observation']:
             assert time.monotonic() < deadline
         assert 'committed' in api({'observe': receipt['position']})['observation']
-    while api({'status': '3'})['status']['phase'] != 'complete':
+    while api({'status': namespace})['status']['phase'] != 'complete':
         assert time.monotonic() < deadline
         time.sleep(0.1)
     cursor, rows, pages = None, [], []
     while True:
-        page = api({'page': {'namespace': '3', 'cursor': cursor}})['page']
+        page = api({'page': {'namespace': namespace, 'cursor': cursor}})['page']
         assert page['evidence']['manifest']['basis']['kind'] == kind
         assert page['evidence']['manifest']['basis']['contract'] == compiled['contract']
         rows += page['cells']; pages.append(page)
@@ -87,6 +116,12 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     subprocess.run(['node', 'tests/unified_board_client.mjs'],
         input=json.dumps([{'description': description}, {'compiled': compiled}, *[{'page': p} for p in pages]]).encode(),
         check=True, timeout=15)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        concurrent_pages = list(pool.map(lambda i: api({'page': {'namespace': namespace}}, instance=i)['page'], range(2)))
+    assert concurrent_pages[0] == concurrent_pages[1] == pages[0]
+    rss = sum(int(next(line for line in Path(f'/proc/{child.pid}/status').read_text().splitlines() if line.startswith('VmRSS:')).split()[1])*1024 for child in (server, second))
+    assert rss <= 256*1024*1024, ('two Board result readers exceeded declared 256 MiB RSS ceiling', rss)
+    print(f'Board concurrent {kind}: competing prepared sequences and durable active quota, identical cross-instance retry, bounded Arrow/escaped JSON readers; two-instance RSS {rss} bytes.', flush=True)
     if browser:
         marker = root/'board-browser-ready'
         process = start('board-v2-browser', ['vp', 'exec', '--filter', '@rey/transit-board-web',
@@ -104,3 +139,4 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     print(f'Unified {kind} Board: separate inspection/query grants, scoped SQL, identical signed retry, '
           f'current prefix denial, nested provenance and generated client passed; browser={browser}.', flush=True)
     server.terminate(); assert server.wait(timeout=10) in (0, -15)
+    second.terminate(); assert second.wait(timeout=10) in (0, -15)
