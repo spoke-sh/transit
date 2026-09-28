@@ -16,7 +16,7 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, console=None, console_tls=False):
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
@@ -35,13 +35,17 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             native, port_client = None, None
             callers = []
             fault = {"lost": None, "retry": False, "stage": threading.Event(), "resume": threading.Event(),
-                     "read_timeout": threading.Event(), "timed_out": threading.Event()}
+                     "read_timeout": threading.Event(), "timed_out": threading.Event(), "console_sends": 0,
+                     "console_delay": threading.Event(), "console_waiting": threading.Event()}
 
             class Proxy(BaseHTTPRequestHandler):
                 def log_message(self, *_): pass
                 def do_POST(self):
                     body = self.rfile.read(int(self.headers["Content-Length"]))
                     message = json.loads(body)
+                    if self.path == '/v3/query' and message['query']['principal'] == 1234 and fault['console_delay'].is_set() and not fault['console_waiting'].is_set():
+                        fault['console_waiting'].set()
+                        time.sleep(2)
                     if self.path == '/v3/query' and message['query']['principal'] == 65537 and fault['read_timeout'].is_set() and not fault['timed_out'].is_set():
                         fault['timed_out'].set()
                         time.sleep(6)
@@ -54,6 +58,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                             request = message["request"]
                             command = request["command"]
                             if request["principal"] == 1234 and "send" in command:
+                                fault['console_sends'] += 1
                                 payload = bytes.fromhex(command["send"]["value"])[13:]
                                 if payload.startswith(b"UQP2"):
                                     if fault["lost"] is None:
@@ -211,6 +216,11 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 if board:
                     from unified_board import check
                     check(board, root, kind, invoke, expected, fixture, start, browser=browser)
+                if console:
+                    from console import check
+                    console_config = json.loads((root / 'shell.json').read_text())
+                    console_config['url'] = proxy_url
+                    check(console, root, kind, invoke, expected, fault, console_config, tls=console_tls)
                 if lifecycle:
                     from unified_lifecycle import check
                     check(native, root, invoke, fault, kind)
@@ -268,6 +278,8 @@ if __name__ == "__main__":
     parser.add_argument('kinds', nargs='*', choices=('kv', 'table', 'document'))
     parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'))
     parser.add_argument('--shell')
+    parser.add_argument('--console')
+    parser.add_argument('--console-tls', action='store_true')
     parser.add_argument('--board')
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--lifecycle', action='store_true')
@@ -280,4 +292,4 @@ if __name__ == "__main__":
         raise SystemExit(0)
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
-        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example)
+        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, console=args.console, console_tls=args.console_tls)

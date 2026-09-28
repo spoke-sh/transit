@@ -19,7 +19,7 @@ class Shell:
                 selector.register(self.process.stdout, selectors.EVENT_READ)
                 assert selector.select(60), 'shell response deadline'
             block = os.read(self.process.stdout.fileno(), 65536)
-            assert block, ('shell exited', self.process.poll(), self.process.stderr.read())
+            assert block, ('shell exited', self.process.poll(), self.process.stderr.read() if self.process.stderr else getattr(self, 'screen', b''))
             self.buffer += block
             assert len(self.buffer) <= 1048576, 'shell response bound'
         line, self.buffer = self.buffer.split(b'\n', 1)

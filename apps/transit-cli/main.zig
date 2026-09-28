@@ -17,9 +17,28 @@ const Session = struct {
     }
 };
 pub fn main(init: std.process.Init) !void {
+    dispatch(init) catch |err| {
+        std.debug.print("transit: {s}\n", .{@errorName(err)});
+        std.process.exit(switch (err) {
+            error.ConsoleInterrupted => 130,
+            error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile => 2,
+            else => 1,
+        });
+    };
+}
+fn dispatch(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 3 and std.mem.eql(u8, args[1], "query-v2")) return @import("Unified.zig").run(init, args[2]);
-    if (args.len != 3 or !std.mem.eql(u8, args[1], "query")) return error.ExpectedTransitQueryConfiguration;
+    if (args.len != 3 or !std.mem.eql(u8, args[1], "query")) {
+        const options = try @import("Options.zig").parse(args[1..]);
+        if (options.command == .help or options.help) return std.Io.File.stdout().writeStreamingAll(init.io, @import("Options.zig").help);
+        return switch (options.command) {
+            .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit development; CLI contract 1\n"),
+            .console => @import("Console.zig").run(init, options),
+            .server => error.ServerNotImplemented,
+            .help => unreachable,
+        };
+    }
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.gpa, .limited(8192));
     defer init.gpa.free(bytes);
     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});

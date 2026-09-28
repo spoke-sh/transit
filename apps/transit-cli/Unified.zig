@@ -5,7 +5,7 @@ const q = @import("transit_query");
 const w = q.Workspace;
 const m = q.fuze.Unified;
 const Config = struct { url: []const u8, seed_file: []const u8, connection: q.UnifiedClient.Connection, workspace: w.Config, request_timeout_ms: u32 = 5000 };
-const Session = struct {
+pub const Session = struct {
     namespace: ?u64 = null,
     bundle: [q.Bundle.max_bytes]u8 = undefined,
     length: usize = 0,
@@ -13,13 +13,27 @@ const Session = struct {
     input: ?u64 = null,
     cursor: ?q.UnifiedResult.Cursor = null,
     complete: bool = false,
-    fn clear(self: *Session) void {
+    format: enum { json, table } = .json,
+    checkpoint_context: ?*anyopaque = null,
+    checkpoint_fn: ?*const fn (*anyopaque, *const Session) anyerror!void = null,
+    interrupted: ?*const fn () bool = null,
+    pub fn clear(self: *Session) void {
+        const format = self.format;
+        const context = self.checkpoint_context;
+        const callback = self.checkpoint_fn;
+        const interrupted = self.interrupted;
         std.crypto.secureZero(u8, &self.bundle);
-        self.* = .{};
+        self.* = .{ .format = format, .checkpoint_context = context, .checkpoint_fn = callback, .interrupted = interrupted };
+    }
+    pub fn checkpoint(self: *const Session) !void {
+        if (self.checkpoint_fn) |callback| try callback(self.checkpoint_context.?, self);
+    }
+    fn checkInterrupt(self: *const Session) !void {
+        if (self.interrupted) |interrupted| if (interrupted()) return error.ConsoleInterrupted;
     }
 };
 fn json(out: *std.Io.Writer, value: anytype) !void {
-    try std.json.Stringify.value(value, .{}, out);
+    try std.json.Stringify.value(value, .{ .escape_unicode = true }, out);
     try out.writeByte('\n');
 }
 pub fn run(init: std.process.Init, path: []const u8) !void {
@@ -55,7 +69,7 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
         try output.interface.flush();
     }
 }
-fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, line: []const u8, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, line: []const u8, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     if (std.mem.eql(u8, line, "/help")) return out.writeAll("/sources /schema /info /new ID /resume ID /status /advance /next /cancel /retire /collect /bundle /restore-bundle HEX /pending /restore TOKEN /retry /quit\nSQL compiles and uploads explicitly. /advance continues committed upload progress.\nA receipt is input admission; /status reports result completion. /next reads one verified page.\nSave /bundle and /pending before disconnecting after uncertainty; restoring both keeps the frozen upload and signed identity.\n/new requires a fresh positive namespace. /quit never cancels durable work.\n");
     if (std.mem.eql(u8, line, "/sources") or std.mem.eql(u8, line, "/schema")) return json(out, try w.apply(allocator, client, config, .describe));
     if (std.mem.eql(u8, line, "/info")) {
@@ -97,9 +111,7 @@ fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, 
     }
     if (std.mem.eql(u8, line, "/retry")) {
         const pending = session.pending orelse return error.NoPendingSubmission;
-        const receipt = try client.submit(pending);
-        session.pending = null;
-        session.input = receipt.position;
+        const receipt = try submit(session, client, pending);
         try json(out, .{ .receipt = receipt });
         return advance(init, session, client, allocator, out);
     }
@@ -113,7 +125,22 @@ fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, 
         const page = (try w.apply(allocator, client, config, .{ .page = .{ .namespace = namespace, .cursor = cursor } })).page;
         // JSON escaping preserves terminal boundaries and wide scalars. The
         // opaque cursor is copied only after the full verified page is written.
-        try json(out, .{ .manifest = page.evidence.manifest, .ordinal = page.evidence.ordinal, .columns = page.evidence.columns, .cells = page.cells, .complete_coverage = page.evidence.next == null });
+        if (session.format == .json) try json(out, .{ .manifest = page.evidence.manifest, .ordinal = page.evidence.ordinal, .columns = page.evidence.columns, .cells = page.cells, .complete_coverage = page.evidence.next == null }) else {
+            try out.writeAll("Verified complete result; page evidence: ");
+            try json(out, .{ .manifest = page.evidence.manifest, .ordinal = page.evidence.ordinal, .complete_coverage = page.evidence.next == null });
+            for (page.evidence.columns) |column| {
+                try std.json.Stringify.value(column.name, .{ .escape_unicode = true }, out);
+                try out.writeByte('\t');
+            }
+            try out.writeByte('\n');
+            for (page.cells) |row| {
+                for (row) |cell| {
+                    try std.json.Stringify.value(cell, .{ .escape_unicode = true }, out);
+                    try out.writeByte('\t');
+                }
+                try out.writeByte('\n');
+            }
+        }
         session.cursor = if (page.evidence.next) |next| (try std.json.parseFromSlice(q.UnifiedResult.Cursor, allocator, next, .{})).value else null;
         session.complete = page.evidence.next == null;
         return;
@@ -133,11 +160,19 @@ fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, 
         session.length = bytes.len;
         session.pending = try client.prepareNext(id, try q.Bundle.decode(allocator, session.bundle[0..session.length]));
     }
-    const receipt = try client.submit(session.pending orelse return error.NoPendingSubmission);
-    session.pending = null;
-    session.input = receipt.position;
+    const receipt = try submit(session, client, session.pending orelse return error.NoPendingSubmission);
     try json(out, .{ .receipt = receipt });
     return advance(init, session, client, allocator, out);
+}
+fn submit(session: *Session, client: *q.UnifiedClient, pending: q.UnifiedClient.Prepared) !q.protocol.Receipt {
+    try session.checkpoint(); // Persist the exact intent before any possible acceptance.
+    try session.checkInterrupt();
+    const receipt = try client.submit(pending);
+    session.pending = null;
+    session.input = receipt.position;
+    try session.checkpoint();
+    try session.checkInterrupt();
+    return receipt;
 }
 fn advance(init: std.process.Init, session: *Session, client: *q.UnifiedClient, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     if (session.pending != null) return error.UnresolvedSubmission;
@@ -145,13 +180,18 @@ fn advance(init: std.process.Init, session: *Session, client: *q.UnifiedClient, 
     // Each finite upload has at most 128 parts, plus begin/seal/submit. Each
     // successful step is committed before another signed command is prepared.
     for (0..132) |_| {
+        try session.checkInterrupt();
         while (session.input) |input| {
+            try session.checkInterrupt();
             switch (try client.observe(input)) {
                 .pending => {
                     if (std.Io.Clock.boot.now(init.io).toMilliseconds() >= deadline) return json(out, .{ .waiting_for_input = input });
                     try init.io.sleep(.fromMilliseconds(20), .awake);
                 },
-                .committed => session.input = null,
+                .committed => {
+                    session.input = null;
+                    try session.checkpoint();
+                },
                 .rejected => |reason| {
                     session.input = null;
                     session.length = 0;
@@ -166,9 +206,7 @@ fn advance(init: std.process.Init, session: *Session, client: *q.UnifiedClient, 
         const bundle = try q.Bundle.decode(step_arena.allocator(), session.bundle[0..session.length]);
         session.pending = try client.prepareNext(id, bundle);
         if (session.pending == null) break;
-        const receipt = try client.submit(session.pending.?);
-        session.pending = null;
-        session.input = receipt.position;
+        _ = try submit(session, client, session.pending.?);
     }
     const id = session.namespace orelse return;
     const status = try client.status(id);

@@ -299,6 +299,10 @@ serving-growth:
 unified-ingress source="table":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true
 
+# Actual versioned console on disk-backed native query workers.
+console source="table":
+    nix develop .#serving --command zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-console=true -Dunified-console-tls=true
+
 # Current grant changes/cancellation after a durable segment staging decision.
 unified-lifecycle source="kv":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-lifecycle=true

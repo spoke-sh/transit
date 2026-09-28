@@ -31,7 +31,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M21](M21.md) | Reactive interfaces over reactive APIs | Complete for selected Table views; bounded snapshot refresh, shared-principal fairness and three-placement browser recovery |
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Complete for finite Table v1/int64; TLS Flight/ADBC, scoped recovery, bounded load, outbound replay and three placements |
 | [M23](M23.md) | Board grammar and declarative reactive applications | Selected UI, publication, migration and three-placement application proofs pass; final clean-checkout qualification in progress |
-| [M24](M24.md) | Transit CLI | In progress; command contract and shared parser/cursor-assistance foundations; local supervisor/gateway and terminal commands remain open |
+| [M24](M24.md) | Transit CLI | In progress; shared assistance and Table console pipe/terminal/TLS proof pass; additional sources and local supervisor/gateway remain open |
 | [M25](M25.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M26](M26.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 

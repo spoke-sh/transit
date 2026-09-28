@@ -3139,3 +3139,32 @@ with `NoSpaceLeft`; Ursula cold storage also refused writes. No run is counted
 as passed. Clean checkouts now default to `/var/tmp` (configurable with
 `--work-root`) to separate build outputs from short-lived storage fixtures.
 The two owned failed checkouts were removed after preserving their CI evidence.
+
+## M24 console qualification
+
+`just test::console table` passes the actual versioned command against forty-one
+rows on disk Ursula, bounded cold storage and separate native query workers.
+The combined recovery/console proof took **186.62 seconds** excluding compilation;
+the added console checks took 105.30 seconds. The Linux controlling-PTY fixture
+measured completion at 970.18 ms cold / 290.37 ms warm and 15,208,448 bytes RSS
+high-water (64 MiB fixture ceiling). These single-run costs include current
+authorization; they do not establish an interactive latency target.
+
+Coverage includes offline help/version, strict options/configuration and relative
+credential paths, multiline/comment-aware SQL, rejection before mutation, one
+private locked recovery record, a lost reply followed by SIGKILL and exact signed
+retry, verified bounded pages, machine/human formats and current denial. The real
+PTY covers whole-token replacement, Tab/Enter acceptance, undo, UTF-8 editing with
+safe visible escapes, bracketed paste, queued-input invalidation, metadata expiry,
+resize, history clearing and interrupt restoration. A stalled stdout exits through
+a joined two-second write deadline without submitting cancellation. Native HTTPS
+schema reads pass with an explicit private CA; untrusted roots and a different
+hostname reject. Existing `query-v2` keeps its independent contract.
+
+The first terminal attempt delayed every metadata read in the test; the fixture
+now delays one read. A later test stopped consuming PTY display bytes while
+waiting for JSON output; it now drains both streams, and the editor coalesces
+queued redraws. The signal path buffers one command before presentation and
+checks interruption before emitting it. The space-exhausted run above is not
+counted as passed. KV/Document console runs and the M24 server/lifecycle proof
+remain separate qualification work.

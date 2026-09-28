@@ -38,8 +38,10 @@ restart and data-preserving shutdown. Native OS process management remains
 separate from Station supervision and durable PID ownership; any missing local
 runtime reconciliation contract must be qualified before automatic recovery is
 claimed. The existing launchers remain the implemented development entry points.
-`transit console` will connect through public, currently authorized operations;
-neither command is implemented by the milestone document.
+The implemented [console](../apps/transit-cli/docs/console.md) connects through
+signed, currently authorized operations, with explicit endpoint/trust selection
+and opt-in exact recovery files. Its qualification is recorded separately from
+the server lifecycle work; a local recovery file never becomes authority.
 
 [Publication M25](roadmap/M25.md) formalizes tag-triggered GitHub release artifacts
 and installation via Nix flakes/derivations, verified archives and a shell
