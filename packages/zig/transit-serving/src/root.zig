@@ -6,6 +6,7 @@ pub const TableWatch = @import("TableWatch.zig");
 pub const Refresh = @import("Refresh.zig");
 pub const RefreshModel = @import("RefreshModel.zig");
 pub const RefreshReader = @import("RefreshReader.zig");
+pub const FiniteService = @import("FiniteService.zig");
 pub const LiveService = @import("LiveService.zig");
 pub const ReactiveClient = @import("ReactiveClient.zig");
 pub const ReactiveWire = @import("ReactiveWire.zig");

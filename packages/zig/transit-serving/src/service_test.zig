@@ -371,3 +371,43 @@ test "independent reactive lifecycle bytes, wide cursor and scoped read signatur
     try fixture.cursor.verify(fixture.public_key);
     try fixture.read.verify(fixture.public_key);
 }
+
+test "finite Table composition keeps service policy and one-query admission in four writes" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    var owner: root.FiniteService = .{ .configuration = .{ .service = service().configuration, .query_principal = 65536, .source = 88 } };
+    const handler = owner.interface();
+    const guard = owner.guard();
+    var boot = try store.turn(33, .{ .kind = .cast, .payload = try m.Command.encode(.initialize) });
+    try handler.initialize.?(handler.context, &boot);
+    try boot.write(try p.Value.init("framework-descriptor"), try p.Value.init("GenServer"));
+    try store.commit(&boot);
+    var base = service();
+    var registered = binding(1, true);
+    registered.active_limit = 1;
+    var publish = try store.command(&base, 33, .{ .publish = .{ .expected = 0, .binding = registered } });
+    try store.commit(&publish);
+    const start: root.query.Request.Start = .{ .schema = @splat(4), .plan = .{} };
+    const frame: s.Frame = .{ .kind = .cast, .payload = try start.encode() };
+    var no_policy = try store.turn(65536, frame);
+    try t.expect(try guard.reject(guard.context, &no_policy));
+    for (no_policy.decision.outputs) |output| try t.expect(output == null);
+    var policy = try store.command(&base, 33, .{ .policy = .{ .principal = 65536, .expected = 0, .policy = .{ .revision = 1, .commands = true, .reads = true, .active_limit = 1 } } });
+    try store.commit(&policy);
+    var first = try store.turn(65536, frame);
+    try t.expect(!try guard.reject(guard.context, &first));
+    try handler.handle(handler.context, &first, frame);
+    try store.commit(&first);
+    try t.expectEqual(@as(u64, 88), first.decision.outputs[0].?.pid);
+    var second = try store.turn(65536, frame);
+    try handler.handle(handler.context, &second, frame);
+    try store.commit(&second);
+    try t.expectEqualStrings("busy", store.entries.get(root.query.Request.statusKey(second.delivery.input.position)).?.slice());
+    registered.revision = 2;
+    registered.published = false;
+    var withdraw = try store.command(&base, 33, .{ .publish = .{ .expected = 1, .binding = registered } });
+    try store.commit(&withdraw);
+    var unpublished = try store.turn(65536, frame);
+    try t.expect(try guard.reject(guard.context, &unpublished));
+    try t.expectEqual(first.delivery.input.position, try root.query.Request.readIdentity(store.entries.get(root.query.Request.activeKey()).?));
+}

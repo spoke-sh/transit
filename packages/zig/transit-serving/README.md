@@ -100,3 +100,12 @@ M21's opt-in `LiveService` composes the ingress with the v2 finite requester.
 The [refresh guide](docs/refresh.md) owns its bounded round-robin scheduler,
 eight-intent limit per follow generation, current scoped proofs and plan copying.
 Accepted work survives view closure; only new scheduling depends on a live lease.
+
+
+`FiniteService` is the M22 opt-in composition of `Service` and the public v1
+Table requester. Initialization uses three mutations plus GenServer's descriptor,
+keeping the four-write limit. Native query admission rechecks current serving
+read/command policy and the configured published binding inside the owning turn.
+The original requester enforces one active query and owns its retained statuses,
+waiting and result publication. Tickets, SQL and sockets stay outside this owner.
+Composition unit tests pass; gateway/client and placement qualification is open.
