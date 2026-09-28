@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Emphasis and zoom / Zoom within Resources reveals flat detail</title><desc id="desc">Atlas D6 · Figure 4 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Emphasis and zoom / Zoom within Resources reveals flat detail</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D6 · Figure 4 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<rect x="300" y="260" width="665" height="400" fill="white" stroke="black" stroke-width="2"/>
+<text x="324" y="296" font-family="sans-serif" font-size="20" font-weight="700" text-anchor="start" fill="black">R17 · one backing resource</text>
+<rect x="328" y="340" width="320" height="245" fill="white" stroke="black" stroke-width="1"/>
+<text x="348" y="377" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">T1</text>
+<text x="348" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Table keyspace</text>
+<rect x="682" y="340" width="250" height="245" fill="white" stroke="black" stroke-width="1"/>
+<text x="702" y="377" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">T2</text>
+<text x="702" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Table keyspace</text>
+<ellipse cx="340" cy="746" rx="24" ry="24" fill="white" stroke="black" stroke-width="1"/>
+<text x="340" y="751" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">41</text>
+<path d="M340 720L620 661" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<ellipse cx="620" cy="746" rx="24" ry="24" fill="white" stroke="black" stroke-width="1"/>
+<text x="620" y="751" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">52</text>
+<path d="M620 720L620 661" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<ellipse cx="910" cy="746" rx="24" ry="24" fill="white" stroke="black" stroke-width="1"/>
+<text x="910" y="751" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">63</text>
+<path d="M910 720L620 661" fill="none" stroke="black" stroke-width="1" stroke-dasharray="6 5"/>
+<text x="310" y="805" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Recorded associations · 3 disclosed · no grants or lifetime ownership</text>
+<rect x="1096" y="230" width="290" height="322" fill="white" stroke="black" stroke-width="2"/>
+<text x="1116" y="264" font-family="sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="black">R17 · Table resource</text>
+<text x="1116" y="300" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Current values   32 MiB</text>
+<text x="1116" y="325" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Writer   PID 41</text>
+<text x="1116" y="350" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Lifetime   Independent</text>
+<text x="1116" y="375" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">3 disclosed associations</text>
+<text x="1116" y="400" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">T1   24 MiB   /   T2   6 MiB</text>
+<text x="1116" y="425" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Framework   2 MiB</text>
+<rect x="1116" y="490" width="132" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="1130" y="513" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Open resource</text>
+<text x="32" y="869" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Relief flattened for reading</text>
+</svg>

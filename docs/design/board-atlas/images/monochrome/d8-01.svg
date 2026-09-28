@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Venues and growth / One resource, three shared-place layouts</title><desc id="desc">Atlas D8 · Figure 1 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Venues and growth / One resource, three shared-place layouts</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D8 · Figure 1 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="240" y="229" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="black">Stadium</text>
+<ellipse cx="240" cy="510" rx="192" ry="177" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="240" cy="510" rx="116" ry="98" fill="white" stroke="black" stroke-width="1"/>
+<text x="120" y="399" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">A · 600</text>
+<text x="335" y="399" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">B · 500</text>
+<text x="386" y="570" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">C · 400</text>
+<text x="240" y="673" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">D · 300</text>
+<text x="90" y="570" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">E · 200</text>
+<rect x="168" y="460" width="144" height="92" fill="white" stroke="black" stroke-width="2"/>
+<text x="240" y="489" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="black">R17</text>
+<text x="240" y="524" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="black">T1 / T2</text>
+<text x="240" y="764" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="black">2,000 disclosed associations</text>
+<text x="720" y="229" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="black">Park</text>
+<ellipse cx="600" cy="394" rx="52" ry="28" fill="white" stroke="black" stroke-width="1"/>
+<text x="600" y="399" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">A · 600</text>
+<ellipse cx="815" cy="394" rx="52" ry="28" fill="white" stroke="black" stroke-width="1"/>
+<text x="815" y="399" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">B · 500</text>
+<ellipse cx="866" cy="565" rx="52" ry="28" fill="white" stroke="black" stroke-width="1"/>
+<text x="866" y="570" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">C · 400</text>
+<ellipse cx="720" cy="668" rx="52" ry="28" fill="white" stroke="black" stroke-width="1"/>
+<text x="720" y="673" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">D · 300</text>
+<ellipse cx="570" cy="565" rx="52" ry="28" fill="white" stroke="black" stroke-width="1"/>
+<text x="570" y="570" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">E · 200</text>
+<rect x="648" y="460" width="144" height="92" fill="white" stroke="black" stroke-width="2"/>
+<text x="720" y="489" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="black">R17</text>
+<text x="720" y="524" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="black">T1 / T2</text>
+<text x="720" y="764" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="black">2,000 disclosed associations</text>
+<text x="1200" y="229" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="black">Fairground</text>
+<rect x="1028" y="367" width="104" height="54" fill="white" stroke="black" stroke-width="1"/>
+<text x="1080" y="399" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">A · 600</text>
+<rect x="1243" y="367" width="104" height="54" fill="white" stroke="black" stroke-width="1"/>
+<text x="1295" y="399" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">B · 500</text>
+<rect x="1294" y="538" width="104" height="54" fill="white" stroke="black" stroke-width="1"/>
+<text x="1346" y="570" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">C · 400</text>
+<rect x="1148" y="641" width="104" height="54" fill="white" stroke="black" stroke-width="1"/>
+<text x="1200" y="673" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">D · 300</text>
+<rect x="998" y="538" width="104" height="54" fill="white" stroke="black" stroke-width="1"/>
+<text x="1050" y="570" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">E · 200</text>
+<rect x="1128" y="460" width="144" height="92" fill="white" stroke="black" stroke-width="2"/>
+<text x="1200" y="489" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="middle" fill="black">R17</text>
+<text x="1200" y="524" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="black">T1 / T2</text>
+<text x="1200" y="764" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="middle" fill="black">2,000 disclosed associations</text>
+<text x="32" y="835" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Three layouts of the same resource and the same five groups. Byte-height scale is inactive.</text>
+<text x="32" y="860" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Sectors are schematic, not seats or concurrent users. Associations establish neither access nor active use.</text>
+</svg>

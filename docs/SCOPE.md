@@ -164,7 +164,10 @@ first composes HTTP application APIs and Board.
 [Reactive APIs M20](roadmap/M20.md) supplies the session, event and protocol
 contracts that [reactive interfaces M21](roadmap/M21.md) consumes for live views.
 [Arrow interoperability M22](roadmap/M22.md) reuses serving for Flight SQL/ADBC.
-[M23](roadmap/M23.md)
+[M23](roadmap/M23.md) implements the [Board design explorations](design/README.md)
+as a monochrome reactive UI and a shared SQL/visual application grammar, with
+explicit publication and recoverable application migrations.
+[M24](roadmap/M24.md)
 extends their authority and recovery proofs across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](roadmap/README.md).

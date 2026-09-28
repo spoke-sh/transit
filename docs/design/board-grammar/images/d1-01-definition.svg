@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">One definition, several representations</title><desc id="desc">SQL / visual composition · draft revision 13 · accepted revision 12. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Atlas</text>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Explore</text>
+<path d="M16 176L16 197" fill="none" stroke="black" stroke-width="3"/>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Activity</text>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">One definition, several representations</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">SQL / visual composition · draft revision 13 · accepted revision 12</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="240" y="207" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">Definition · SQL</text>
+<text x="866" y="207" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">Rendered preview · fixture</text>
+<rect x="240" y="235" width="576" height="370" fill="white" stroke="black" stroke-width="1"/>
+<text x="260" y="268" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">-- PROPOSED; not executable SQL</text>
+<text x="260" y="299" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">CREATE SCREEN board.workspace.explore</text>
+<text x="260" y="330" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">WITH (renderer = &#x27;worksheet&#x27;,</text>
+<text x="260" y="361" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">      binding = &#x27;items&#x27;);</text>
+<text x="260" y="392" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black"></text>
+<text x="260" y="423" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">CREATE BINDING board.items WITH (</text>
+<text x="260" y="454" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">  kind = &#x27;finite_query&#x27;,</text>
+<text x="260" y="485" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">  source = &#x27;items&#x27;,</text>
+<text x="260" y="516" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">  refresh = &#x27;follow_changes&#x27;);</text>
+<rect x="850" y="235" width="558" height="370" fill="white" stroke="black" stroke-width="1"/>
+<text x="872" y="273" font-family="sans-serif" font-size="20" font-weight="700" text-anchor="start" fill="black">Explore / items</text>
+<text x="872" y="310" font-family="monospace" font-size="14" font-weight="400" text-anchor="start" fill="black">SELECT id, value FROM items LIMIT 32</text>
+<path d="M872 340L1386 340" fill="none" stroke="black" stroke-width="2"/>
+<text x="882" y="367" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">id</text>
+<text x="1122" y="367" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">value</text>
+<path d="M872 382L1386 382" fill="none" stroke="black" stroke-width="1"/>
+<text x="882" y="409" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">102</text>
+<text x="1122" y="409" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">13</text>
+<path d="M872 424L1386 424" fill="none" stroke="black" stroke-width="1"/>
+<text x="882" y="451" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">104</text>
+<text x="1122" y="451" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">34</text>
+<path d="M872 466L1386 466" fill="none" stroke="black" stroke-width="1"/>
+<text x="882" y="493" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">105</text>
+<text x="1122" y="493" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">55</text>
+<path d="M872 508L1386 508" fill="none" stroke="black" stroke-width="1"/>
+<text x="872" y="562" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">Fixture · Q17 · basis 104 · complete</text>
+<path d="M240 660L1408 660" fill="none" stroke="black" stroke-width="2"/>
+<text x="250" y="687" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Reference</text>
+<text x="460" y="687" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Meaning</text>
+<text x="830" y="687" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Authority</text>
+<path d="M240 702L1408 702" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="729" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">items</text>
+<text x="460" y="729" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Exact declared source/schema</text>
+<text x="830" y="729" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Query service + current resource rights</text>
+<path d="M240 744L1408 744" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="771" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Follow changes</text>
+<text x="460" y="771" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Qualified watch and budget</text>
+<text x="830" y="771" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Explicit view-session admission</text>
+<path d="M240 786L1408 786" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="813" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Apply definition</text>
+<text x="460" y="813" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Conditional revision 12 → 13</text>
+<text x="830" y="813" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Separate attributable operator</text>
+<path d="M240 828L1408 828" fill="none" stroke="black" stroke-width="1"/>
+</svg>

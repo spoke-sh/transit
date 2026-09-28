@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Inbox, outbox and age / Both sides flatten into an inspector</title><desc id="desc">Atlas D2 · Figure 9 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Atlas</text>
+<path d="M16 134L16 155" fill="none" stroke="black" stroke-width="3"/>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Explore</text>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Activity</text>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Inbox, outbox and age / Both sides flatten into an inspector</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D2 · Figure 9 · monochrome translation · synthetic evidence</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="335" y="240" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="start" fill="black">Fabric</text>
+<ellipse cx="445" cy="450" rx="104.4" ry="36.0" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="445" cy="420.84" rx="88.74000000000001" ry="24.847200000000004" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="445" cy="391.68" rx="73.08" ry="20.462400000000002" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="445" cy="352.8" rx="52.2" ry="14.616000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M340.6 450 Q356.26 372.24 392.8 352.8" fill="none" stroke="black" stroke-width="1"/>
+<path d="M549.4 450 Q533.74 372.24 497.2 352.8" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="445" cy="352.8" rx="36.0" ry="12.6" fill="white" stroke="black" stroke-width="1"/>
+<path d="M409.0 352.8L421.6 408.2122974434878 Q445 419.0122974434878 468.4 408.2122974434878L481.0 352.8" fill="none" stroke="black" stroke-width="1"/>
+<path d="M428.8 361.8L435.28 404.61229744348776" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M445.0 361.8L445.0 404.61229744348776" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M461.2 361.8L454.72 404.61229744348776" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="335" y="555" font-family="sans-serif" font-size="17" font-weight="400" text-anchor="start" fill="black">Inbox 36 / Outbox 12</text>
+<text x="335" y="585" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Oldest 18m</text>
+<text x="730" y="240" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="start" fill="black">Approach</text>
+<ellipse cx="840" cy="450" rx="40.599999999999994" ry="14.0" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="840" cy="438.66" rx="34.50999999999999" ry="9.662799999999999" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="840" cy="427.32" rx="28.419999999999995" ry="7.957599999999999" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="840" cy="412.2" rx="20.299999999999997" ry="5.684" fill="white" stroke="black" stroke-width="1"/>
+<path d="M799.4 450 Q805.49 419.76 819.7 412.2" fill="none" stroke="black" stroke-width="1"/>
+<path d="M880.6 450 Q874.51 419.76 860.3 412.2" fill="none" stroke="black" stroke-width="1"/>
+<ellipse cx="840" cy="412.2" rx="14.0" ry="4.8999999999999995" fill="white" stroke="black" stroke-width="1"/>
+<path d="M826.0 412.2L830.9 433.74922678357854 Q840 437.9492267835785 849.1 433.74922678357854L854.0 412.2" fill="none" stroke="black" stroke-width="1"/>
+<path d="M833.7 415.7L836.22 432.34922678357856" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M840.0 415.7L840.0 432.34922678357856" fill="none" stroke="black" stroke-width="0.7"/>
+<path d="M846.3 415.7L843.78 432.34922678357856" fill="none" stroke="black" stroke-width="0.7"/>
+<text x="730" y="555" font-family="sans-serif" font-size="17" font-weight="400" text-anchor="start" fill="black">Inbox 36 / Outbox 12</text>
+<text x="730" y="585" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Oldest 18m</text>
+<text x="1125" y="240" font-family="sans-serif" font-size="19" font-weight="700" text-anchor="start" fill="black">Flat inspection</text>
+<rect x="1105" y="300" width="290" height="310" fill="white" stroke="black" stroke-width="1"/>
+<text x="1125" y="338" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox   36</text>
+<text x="1125" y="363" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Outbox   12</text>
+<text x="1125" y="388" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Oldest   18m</text>
+<text x="1125" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Age groups</text>
+<text x="1125" y="438" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">&lt; 1m      3 outputs</text>
+<text x="1125" y="463" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">1–10m    5 outputs</text>
+<text x="1125" y="488" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">10–30m  4 outputs</text>
+<text x="240" y="740" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Relief amplitude changes only presentation. Values and selected identity stay fixed.</text>
+<text x="240" y="765" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">At reading distance, exact queues and age coverage replace depth.</text>
+</svg>

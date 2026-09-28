@@ -6,7 +6,7 @@ This design item covers Board’s browser, relief atlas and resource workspace.
 Reviews form one linear sequence, read from top to bottom. Each review owns
 its question, proposal, visual evidence and recorded outcome.
 
-**Current review:** [D9 — Implemented bounded atlas and Table workspace](D9.md).
+**Current review:** [D10 — Atlas D1–D8 in monochrome](D10.md).
 **Selected visual direction:** [D2, Figure 7 — Queue-count fabric](D2.md#figure-7-queue-counts-with-age-on-the-well-walls).
 The reviewer also endorsed [D5's architecture](D5.md#visual-studies),
 [D6's subtle fabric](D6.md#figure-1-processes-in-front-resources-as-landmarks)
@@ -23,6 +23,7 @@ and [overhead detail](D6.md#figure-4-zoom-within-resources-reveals-flat-detail).
 | [D7](D7.md) | Neighborhood navigation, resource portals and query workspaces | In review | Review Auto/pinned emphasis, deliberate resource entry, and Canvas/Browse representations of one sample query |
 | [D8](D8.md) | Shared-resource venues, past/future growth and readiness | In review | Compare stadium/park/fairground layouts, conditional day-to-decade envelopes, and separate capacity/workload evidence |
 | [D9](D9.md) | Implemented bounded atlas and Table workspace | In review | M13 engineering baseline: explicit emphasis/entry and one draft/result; no new reviewer acceptance |
+| [D10](D10.md) | All 34 D1–D8 figures redrawn as monochrome vector wireframes | In review | User selected monochrome vector redraws for implementation review; original outcomes and open decisions preserved |
 
 Review status records the design discussion. D1–D8 contain proposed
 interfaces and synthetic imagery; none establishes implemented capacity. D9
@@ -37,8 +38,14 @@ Follow the shared [review workflow](../README.md#maintaining-the-sequence)
 and [template](../TEMPLATE.md) when adding the next review. Keep this table,
 the current-review link and previous/next navigation in sync.
 
+[Board grammar](../board-grammar/README.md) and [M23](../../roadmap/M23.md) now
+formalize the shared monochrome reactive interface and its implementation gates.
+The [D10 gallery](monochrome.html) provides one-to-one comparison with the originals.
+
 ## Supporting material
 
+- [D10 vector redraws](images/monochrome/), [mapping fixture](monochrome-fixture.json),
+  [gallery](monochrome.html) and [reproduction script](../board-grammar/render.py).
 - [Images](images/): thirty-four generated figures, including the thirty-one
   unchanged D1–D7 images and three D8 venue/growth/readiness studies, plus
   two D9 screenshots from the real embedded UI proof.

@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Resource cityscape / Districts replace buildings</title><desc id="desc">Atlas D5 · Figure 3 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<text x="32" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Resource cityscape / Districts replace buildings</text>
+<text x="32" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D5 · Figure 3 · monochrome translation · synthetic evidence</text>
+<path d="M32 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<path d="M70.0 355L180.0 355L202.0 333L92.0 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 355L70.0 301.4462168967118L180.0 301.4462168967118L180.0 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M180.0 355L202.0 333L202.0 279.4462168967118L180.0 301.4462168967118Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 301.4462168967118L92.0 279.4462168967118L202.0 279.4462168967118L180.0 301.4462168967118Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="135.0" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.01</text>
+<path d="M283.33333333333337 355L393.33333333333337 355L415.33333333333337 333L305.33333333333337 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 355L283.33333333333337 312.30993869288307L393.33333333333337 312.30993869288307L393.33333333333337 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M393.33333333333337 355L415.33333333333337 333L415.33333333333337 290.30993869288307L393.33333333333337 312.30993869288307Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 312.30993869288307L305.33333333333337 290.30993869288307L415.33333333333337 290.30993869288307L393.33333333333337 312.30993869288307Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="348.33333333333337" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.02</text>
+<path d="M496.6666666666667 355L606.6666666666667 355L628.6666666666667 333L518.6666666666667 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 355L496.6666666666667 307.5430553817027L606.6666666666667 307.5430553817027L606.6666666666667 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M606.6666666666667 355L628.6666666666667 333L628.6666666666667 285.5430553817027L606.6666666666667 307.5430553817027Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 307.5430553817027L518.6666666666667 285.5430553817027L628.6666666666667 285.5430553817027L606.6666666666667 307.5430553817027Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="561.6666666666667" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.03</text>
+<path d="M710.0 355L820.0 355L842.0 333L732.0 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 355L710.0 304.53886469102895L820.0 304.53886469102895L820.0 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M820.0 355L842.0 333L842.0 282.53886469102895L820.0 304.53886469102895Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 304.53886469102895L732.0 282.53886469102895L842.0 282.53886469102895L820.0 304.53886469102895Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="775.0" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.04</text>
+<path d="M923.3333333333334 355L1033.3333333333335 355L1055.3333333333335 333L945.3333333333334 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 355L923.3333333333334 302.32581427515237L1033.3333333333335 302.32581427515237L1033.3333333333335 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1033.3333333333335 355L1055.3333333333335 333L1055.3333333333335 280.32581427515237L1033.3333333333335 302.32581427515237Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 302.32581427515237L945.3333333333334 280.32581427515237L1055.3333333333335 280.32581427515237L1033.3333333333335 302.32581427515237Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="988.3333333333334" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.05</text>
+<path d="M1136.6666666666667 355L1246.6666666666667 355L1268.6666666666667 333L1158.6666666666667 333Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 355L1136.6666666666667 300.5753548492379L1246.6666666666667 300.5753548492379L1246.6666666666667 355Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1246.6666666666667 355L1268.6666666666667 333L1268.6666666666667 278.5753548492379L1246.6666666666667 300.5753548492379Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 300.5753548492379L1158.6666666666667 278.5753548492379L1268.6666666666667 278.5753548492379L1246.6666666666667 300.5753548492379Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1201.6666666666667" y="379" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.06</text>
+<path d="M70.0 473L180.0 473L202.0 451L92.0 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 473L70.0 424.8904487885404L180.0 424.8904487885404L180.0 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M180.0 473L202.0 451L202.0 402.8904487885404L180.0 424.8904487885404Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 424.8904487885404L92.0 402.8904487885404L202.0 402.8904487885404L180.0 424.8904487885404Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="135.0" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.07</text>
+<path d="M283.33333333333337 473L393.33333333333337 473L415.33333333333337 451L305.33333333333337 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 473L283.33333333333337 430.295547706648L393.33333333333337 430.295547706648L393.33333333333337 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M393.33333333333337 473L415.33333333333337 451L415.33333333333337 408.295547706648L393.33333333333337 430.295547706648Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 430.295547706648L305.33333333333337 408.295547706648L415.33333333333337 408.295547706648L393.33333333333337 430.295547706648Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="348.33333333333337" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.08</text>
+<path d="M496.6666666666667 473L606.6666666666667 473L628.6666666666667 451L518.6666666666667 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 473L496.6666666666667 425.5382663520327L606.6666666666667 425.5382663520327L606.6666666666667 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M606.6666666666667 473L628.6666666666667 451L628.6666666666667 403.5382663520327L606.6666666666667 425.5382663520327Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 425.5382663520327L518.6666666666667 403.5382663520327L628.6666666666667 403.5382663520327L606.6666666666667 425.5382663520327Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="561.6666666666667" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.09</text>
+<path d="M710.0 473L820.0 473L842.0 451L732.0 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 473L710.0 422.53647183119045L820.0 422.53647183119045L820.0 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M820.0 473L842.0 451L842.0 400.53647183119045L820.0 422.53647183119045Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 422.53647183119045L732.0 400.53647183119045L842.0 400.53647183119045L820.0 422.53647183119045Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="775.0" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.10</text>
+<path d="M923.3333333333334 473L1033.3333333333335 473L1055.3333333333335 451L945.3333333333334 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 473L923.3333333333334 420.33012261407896L1033.3333333333335 420.33012261407896L1033.3333333333335 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1033.3333333333335 473L1055.3333333333335 451L1055.3333333333335 398.33012261407896L1033.3333333333335 420.33012261407896Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 420.33012261407896L945.3333333333334 398.33012261407896L1055.3333333333335 398.33012261407896L1033.3333333333335 420.33012261407896Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="988.3333333333334" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.11</text>
+<path d="M1136.6666666666667 473L1246.6666666666667 473L1268.6666666666667 451L1158.6666666666667 451Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 473L1136.6666666666667 426.34631718920514L1246.6666666666667 426.34631718920514L1246.6666666666667 473Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1246.6666666666667 473L1268.6666666666667 451L1268.6666666666667 404.34631718920514L1246.6666666666667 426.34631718920514Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 426.34631718920514L1158.6666666666667 404.34631718920514L1268.6666666666667 404.34631718920514L1246.6666666666667 426.34631718920514Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1201.6666666666667" y="497" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.12</text>
+<path d="M70.0 591L180.0 591L202.0 569L92.0 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 591L70.0 540.5436543831738L180.0 540.5436543831738L180.0 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M180.0 591L202.0 569L202.0 518.5436543831738L180.0 540.5436543831738Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 540.5436543831738L92.0 518.5436543831738L202.0 518.5436543831738L180.0 540.5436543831738Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="135.0" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.13</text>
+<path d="M283.33333333333337 591L393.33333333333337 591L415.33333333333337 569L305.33333333333337 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 591L283.33333333333337 538.1170563811785L393.33333333333337 538.1170563811785L393.33333333333337 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M393.33333333333337 591L415.33333333333337 569L415.33333333333337 516.1170563811785L393.33333333333337 538.1170563811785Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 538.1170563811785L305.33333333333337 516.1170563811785L415.33333333333337 516.1170563811785L393.33333333333337 538.1170563811785Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="348.33333333333337" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.14</text>
+<path d="M496.6666666666667 591L606.6666666666667 591L628.6666666666667 569L518.6666666666667 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 591L496.6666666666667 545.2901633993528L606.6666666666667 545.2901633993528L606.6666666666667 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M606.6666666666667 591L628.6666666666667 569L628.6666666666667 523.2901633993528L606.6666666666667 545.2901633993528Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 545.2901633993528L518.6666666666667 523.2901633993528L628.6666666666667 523.2901633993528L606.6666666666667 545.2901633993528Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="561.6666666666667" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.15</text>
+<path d="M710.0 591L820.0 591L842.0 569L732.0 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 591L710.0 541.329763421986L820.0 541.329763421986L820.0 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M820.0 591L842.0 569L842.0 519.329763421986L820.0 541.329763421986Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 541.329763421986L732.0 519.329763421986L842.0 519.329763421986L820.0 541.329763421986Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="775.0" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.16</text>
+<path d="M923.3333333333334 591L1033.3333333333335 591L1055.3333333333335 569L945.3333333333334 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 591L923.3333333333334 546.5562526022811L1033.3333333333335 546.5562526022811L1033.3333333333335 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1033.3333333333335 591L1055.3333333333335 569L1055.3333333333335 524.5562526022811L1033.3333333333335 546.5562526022811Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 546.5562526022811L945.3333333333334 524.5562526022811L1055.3333333333335 524.5562526022811L1033.3333333333335 546.5562526022811Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="988.3333333333334" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.17</text>
+<path d="M1136.6666666666667 591L1246.6666666666667 591L1268.6666666666667 569L1158.6666666666667 569Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 591L1136.6666666666667 542.2982423742391L1246.6666666666667 542.2982423742391L1246.6666666666667 591Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1246.6666666666667 591L1268.6666666666667 569L1268.6666666666667 520.2982423742391L1246.6666666666667 542.2982423742391Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 542.2982423742391L1158.6666666666667 520.2982423742391L1268.6666666666667 520.2982423742391L1246.6666666666667 542.2982423742391Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1201.6666666666667" y="615" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.18</text>
+<path d="M70.0 709L180.0 709L202.0 687L92.0 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 709L70.0 657.573200084093L180.0 657.573200084093L180.0 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M180.0 709L202.0 687L202.0 635.573200084093L180.0 657.573200084093Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M70.0 657.573200084093L92.0 635.573200084093L202.0 635.573200084093L180.0 657.573200084093Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="135.0" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.19</text>
+<path d="M283.33333333333337 709L393.33333333333337 709L415.33333333333337 687L305.33333333333337 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 709L283.33333333333337 655.5367708663322L393.33333333333337 655.5367708663322L393.33333333333337 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M393.33333333333337 709L415.33333333333337 687L415.33333333333337 633.5367708663322L393.33333333333337 655.5367708663322Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M283.33333333333337 655.5367708663322L305.33333333333337 633.5367708663322L415.33333333333337 633.5367708663322L393.33333333333337 655.5367708663322Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="348.33333333333337" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.20</text>
+<path d="M496.6666666666667 709L606.6666666666667 709L628.6666666666667 687L518.6666666666667 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 709L496.6666666666667 653.9082117965005L606.6666666666667 653.9082117965005L606.6666666666667 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M606.6666666666667 709L628.6666666666667 687L628.6666666666667 631.9082117965005L606.6666666666667 653.9082117965005Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M496.6666666666667 653.9082117965005L518.6666666666667 631.9082117965005L628.6666666666667 631.9082117965005L606.6666666666667 653.9082117965005Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="561.6666666666667" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.21</text>
+<path d="M710.0 709L820.0 709L842.0 687L732.0 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 709L710.0 669.3063364578665L820.0 669.3063364578665L820.0 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M820.0 709L842.0 687L842.0 647.3063364578665L820.0 669.3063364578665Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M710.0 669.3063364578665L732.0 647.3063364578665L842.0 647.3063364578665L820.0 669.3063364578665Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="775.0" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.22</text>
+<path d="M923.3333333333334 709L1033.3333333333335 709L1055.3333333333335 687L945.3333333333334 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 709L923.3333333333334 663.2973439652845L1033.3333333333335 663.2973439652845L1033.3333333333335 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1033.3333333333335 709L1055.3333333333335 687L1055.3333333333335 641.2973439652845L1033.3333333333335 663.2973439652845Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M923.3333333333334 663.2973439652845L945.3333333333334 641.2973439652845L1055.3333333333335 641.2973439652845L1033.3333333333335 663.2973439652845Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="988.3333333333334" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.23</text>
+<path d="M1136.6666666666667 709L1246.6666666666667 709L1268.6666666666667 687L1158.6666666666667 687Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 709L1136.6666666666667 659.661076206849L1246.6666666666667 659.661076206849L1246.6666666666667 709Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1246.6666666666667 709L1268.6666666666667 687L1268.6666666666667 637.661076206849L1246.6666666666667 659.661076206849Z" fill="white" stroke="black" stroke-width="1"/>
+<path d="M1136.6666666666667 659.661076206849L1158.6666666666667 637.661076206849L1268.6666666666667 637.661076206849L1246.6666666666667 659.661076206849Z" fill="white" stroke="black" stroke-width="1"/>
+<text x="1201.6666666666667" y="733" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="middle" fill="black">Group A.24</text>
+<text x="32" y="205" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">10,000 resources · 24 disjoint group summaries</text>
+<text x="32" y="844" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Sum unique current-value bytes before compression. Parent and child masses never coexist as totals.</text>
+<text x="32" y="869" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">A group mass is not an invented population of small buildings. Scope and coverage remain explicit.</text>
+</svg>

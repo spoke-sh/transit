@@ -111,6 +111,15 @@ or independent configuration authority. [Reactive interfaces M21](roadmap/M21.md
 source changes by scheduling new finite snapshots of an already submitted query.
 It adds neither SUBSCRIBE syntax nor continuous operators or automatic draft execution.
 
+[Board grammar D1](design/board-grammar/D1.md) extends this model to the
+composition of Board itself: interfaces, screens, bindings, actions and themes.
+The [support map](REACTIVE_APPLICATIONS.md#sql-and-support-levels) and
+[candidate Board program](design/board-grammar/board.proposed.sql) explicitly
+mark the new syntax as non-executable. [M23](roadmap/M23.md) scopes shared typed
+validation, public-operation lowering, semantic round-trip, publication and
+application migrations. It does not silently add these statements to the
+reference grammar or turn administrative operations into Fuze plans.
+
 ## DDL: mostly a spelling problem, with one real prerequisite
 
 `CREATE TABLE` is not a new capability. Station already has a typed
@@ -156,9 +165,10 @@ surface — this document's scope — is bigger than that existing commitment in
 two ways: it writes, and M22 ties its SQL specifically to the Flight SQL
 ingress path. M12 now supplies the local read compiler; M22 supplies remote Flight SQL
 ingress over it. Neither delivers the full relational surface; a general DDL/DML surface
-(`transit query`'s shell, a future direct SQL endpoint) is separate,
-unscoped work this document intentionally does not turn into a milestone
-number yet.
+(`transit query`'s shell, a future direct SQL endpoint) is separate work.
+[M23](roadmap/M23.md) now scopes the bounded declarative
+subset needed by Board and its application example; the general relational
+surface remains broader than that selected profile.
 
 ## The dataframe surface
 

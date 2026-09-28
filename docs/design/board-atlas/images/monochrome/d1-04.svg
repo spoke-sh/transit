@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Browser and relief / Browser overview</title><desc id="desc">Atlas D1 · Figure 4 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Atlas</text>
+<path d="M16 134L16 155" fill="none" stroke="black" stroke-width="3"/>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Explore</text>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Activity</text>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Browser and relief / Browser overview</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D1 · Figure 4 · monochrome translation · synthetic evidence</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="240" y="202" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Browse   /   Map</text>
+<path d="M240 230L1040 230" fill="none" stroke="black" stroke-width="2"/>
+<text x="250" y="257" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Process</text>
+<text x="480" y="257" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">PID</text>
+<text x="600" y="257" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Lifecycle</text>
+<text x="830" y="257" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Inbox pending</text>
+<path d="M240 282L1040 282" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="309" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 01</text>
+<text x="480" y="309" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">1</text>
+<text x="600" y="309" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Running</text>
+<text x="830" y="309" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">18</text>
+<path d="M240 334L1040 334" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="361" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 02</text>
+<text x="480" y="361" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">2</text>
+<text x="600" y="361" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Running</text>
+<text x="830" y="361" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">12</text>
+<path d="M240 386L1040 386" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 03</text>
+<text x="480" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">3</text>
+<text x="600" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Suspended</text>
+<text x="830" y="413" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">8</text>
+<path d="M240 438L1040 438" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 04</text>
+<text x="480" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">4</text>
+<text x="600" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Running</text>
+<text x="830" y="465" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">36</text>
+<path d="M240 490L1040 490" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="517" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 05</text>
+<text x="480" y="517" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">5</text>
+<text x="600" y="517" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Running</text>
+<text x="830" y="517" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">6</text>
+<path d="M240 542L1040 542" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="569" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 06</text>
+<text x="480" y="569" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">6</text>
+<text x="600" y="569" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Running</text>
+<text x="830" y="569" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">4</text>
+<path d="M240 594L1040 594" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="621" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 07</text>
+<text x="480" y="621" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">7</text>
+<text x="600" y="621" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Running</text>
+<text x="830" y="621" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">0</text>
+<path d="M240 646L1040 646" fill="none" stroke="black" stroke-width="1"/>
+<text x="250" y="673" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Process 08</text>
+<text x="480" y="673" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">8</text>
+<text x="600" y="673" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Terminated</text>
+<text x="830" y="673" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">0</text>
+<path d="M240 698L1040 698" fill="none" stroke="black" stroke-width="1"/>
+<rect x="240" y="438" width="800" height="52" fill="none" stroke="black" stroke-width="2"/>
+<rect x="1096" y="230" width="290" height="322" fill="white" stroke="black" stroke-width="2"/>
+<text x="1116" y="264" font-family="sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="black">Process 04 · PID 4</text>
+<text x="1116" y="300" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox pending   36</text>
+<text x="1116" y="325" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Generation   3</text>
+<text x="1116" y="350" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">State revision   18</text>
+<text x="1116" y="375" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Observation   240</text>
+<text x="1116" y="400" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Policy revision   7</text>
+<text x="1116" y="425" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Retained from   160</text>
+<rect x="1116" y="490" width="124" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="1130" y="513" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Open process</text>
+<rect x="240" y="770" width="116" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="254" y="793" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Show on map</text>
+</svg>

@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="960" viewBox="0 0 1440 960" role="img" aria-labelledby="title desc"><title id="title">Browser and relief / Relief overview</title><desc id="desc">Atlas D1 · Figure 1 · monochrome translation · synthetic evidence. Synthetic monochrome review; not implemented UI.</desc>
+<defs><pattern id="gap" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M-2 2L2 -2M0 10L10 0M8 12L12 8" stroke="black" stroke-width="0.7"/></pattern></defs>
+<rect x="0" y="0" width="1440" height="960" fill="white" stroke="black" stroke-width="1"/>
+<text x="24" y="36" font-family="sans-serif" font-size="22" font-weight="700" text-anchor="start" fill="black">Transit</text>
+<rect x="420" y="10" width="600" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="440" y="34" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Search Transit…</text>
+<text x="948" y="33" font-family="sans-serif" font-size="13" font-weight="400" text-anchor="start" fill="black">⌘ K</text>
+<rect x="1178" y="10" width="230" height="36" fill="white" stroke="black" stroke-width="1"/>
+<text x="1194" y="34" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Storefront  ▾</text>
+<path d="M0 56L1440 56" fill="none" stroke="black" stroke-width="1"/>
+<path d="M208 56L208 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="28" y="94" font-family="sans-serif" font-size="12" font-weight="700" text-anchor="start" fill="black">Workspace / Operations</text>
+<text x="32" y="150" font-family="sans-serif" font-size="15" font-weight="700" text-anchor="start" fill="black">Atlas</text>
+<path d="M16 134L16 155" fill="none" stroke="black" stroke-width="3"/>
+<text x="32" y="192" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Explore</text>
+<text x="32" y="234" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Connections</text>
+<text x="32" y="276" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sources</text>
+<text x="32" y="318" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Sinks</text>
+<text x="32" y="360" font-family="sans-serif" font-size="15" font-weight="400" text-anchor="start" fill="black">Activity</text>
+<text x="240" y="108" font-family="sans-serif" font-size="24" font-weight="700" text-anchor="start" fill="black">Browser and relief / Relief overview</text>
+<text x="240" y="140" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Atlas D1 · Figure 1 · monochrome translation · synthetic evidence</text>
+<path d="M240 168L1408 168" fill="none" stroke="black" stroke-width="1"/>
+<path d="M0 918L1440 918" fill="none" stroke="black" stroke-width="1"/>
+<text x="24" y="944" font-family="sans-serif" font-size="12" font-weight="400" text-anchor="start" fill="black">DESIGN STUDY  ·  Synthetic evidence  ·  Schematic geometry  ·  No capacity or implementation claim</text>
+<text x="240" y="200" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="start" fill="black">Map   /   Browse</text>
+<ellipse cx="365" cy="355" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="365" cy="342.4904545570495" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="365" cy="329.980909114099" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="365" cy="313.301515190165" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M307 355 Q315.7 321.641212152132 336.0 313.301515190165" fill="none" stroke="black" stroke-width="1"/>
+<path d="M423 355 Q414.3 321.641212152132 394.0 313.301515190165" fill="none" stroke="black" stroke-width="1"/>
+<text x="365" y="398" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P01   18 in</text>
+<ellipse cx="605" cy="315" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="304.1253866082107" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="293.2507732164214" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="278.75128869403574" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M547 315 Q555.7 286.0010309552286 576.0 278.75128869403574" fill="none" stroke="black" stroke-width="1"/>
+<path d="M663 315 Q654.3 286.0010309552286 634.0 278.75128869403574" fill="none" stroke="black" stroke-width="1"/>
+<text x="605" y="358" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P02   12 in</text>
+<ellipse cx="845" cy="355" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="345.460303038033" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="335.920606076066" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="323.2010101267767" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 355 Q795.7 329.56080810142134 816.0 323.2010101267767" fill="none" stroke="black" stroke-width="1"/>
+<path d="M903 355 Q894.3 329.56080810142134 874.0 323.2010101267767" fill="none" stroke="black" stroke-width="1"/>
+<text x="845" y="398" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P03   8 in</text>
+<ellipse cx="605" cy="535" rx="58" ry="20" fill="white" stroke="black" stroke-width="2"/>
+<ellipse cx="605" cy="518.8" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="502.6" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="605" cy="481.0" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M547 535 Q555.7 491.8 576.0 481.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M663 535 Q654.3 491.8 634.0 481.0" fill="none" stroke="black" stroke-width="1"/>
+<rect x="538" y="511" width="134" height="52" fill="none" stroke="black" stroke-width="2"/>
+<text x="605" y="578" font-family="sans-serif" font-size="14" font-weight="700" text-anchor="middle" fill="black">P04   36 in</text>
+<ellipse cx="845" cy="535" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="526.2560715401553" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="517.5121430803107" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="505.8535718005178" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 535 Q795.7 511.6828574404142 816.0 505.8535718005178" fill="none" stroke="black" stroke-width="1"/>
+<path d="M903 535 Q894.3 511.6828574404142 874.0 505.8535718005178" fill="none" stroke="black" stroke-width="1"/>
+<text x="845" y="578" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P05   6 in</text>
+<ellipse cx="845" cy="720" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="712.2" rx="49.3" ry="13.804" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="704.4" rx="40.599999999999994" ry="11.368" fill="white" stroke="black" stroke-width="1"/>
+<ellipse cx="845" cy="694.0" rx="29.0" ry="8.120000000000001" fill="white" stroke="black" stroke-width="1"/>
+<path d="M787 720 Q795.7 699.2 816.0 694.0" fill="none" stroke="black" stroke-width="1"/>
+<path d="M903 720 Q894.3 699.2 874.0 694.0" fill="none" stroke="black" stroke-width="1"/>
+<text x="845" y="763" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P06   4 in</text>
+<ellipse cx="605" cy="745" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<text x="605" y="788" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P07   0 in</text>
+<ellipse cx="365" cy="625" rx="58" ry="20" fill="white" stroke="black" stroke-width="1"/>
+<text x="365" y="668" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="middle" fill="black">P08   0 in</text>
+<rect x="1096" y="230" width="290" height="322" fill="white" stroke="black" stroke-width="2"/>
+<text x="1116" y="264" font-family="sans-serif" font-size="18" font-weight="700" text-anchor="start" fill="black">Process 04 · PID 4</text>
+<text x="1116" y="300" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Inbox pending   36</text>
+<text x="1116" y="325" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Generation   3</text>
+<text x="1116" y="350" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">State revision   18</text>
+<text x="1116" y="375" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Observation   240</text>
+<text x="1116" y="400" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Policy revision   7</text>
+<text x="1116" y="425" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Retained from   160</text>
+<rect x="1116" y="490" width="124" height="34" fill="white" stroke="black" stroke-width="1"/>
+<text x="1130" y="513" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Open process</text>
+<text x="1096" y="606" font-family="sans-serif" font-size="17" font-weight="700" text-anchor="start" fill="black">Displayed page</text>
+<text x="1096" y="636" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">8 displayed processes</text>
+<text x="1096" y="661" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">84 pending inputs</text>
+<text x="1096" y="686" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Height = inbox pending</text>
+<text x="1096" y="711" font-family="sans-serif" font-size="14" font-weight="400" text-anchor="start" fill="black">Not a realm-wide total.</text>
+</svg>
