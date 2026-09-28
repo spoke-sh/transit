@@ -9,6 +9,7 @@
         .transit_serving = .{ .path = "packages/zig/transit-serving" },
         .transit_station_document = .{ .path = "packages/zig/transit-station-document" },
         .transit_station_grpc = .{ .path = "packages/zig/transit-station-grpc" },
+        .transit_flight_gateway = .{ .path = "apps/transit-flight-gateway" },
         .transit_flight = .{ .path = "packages/zig/transit-flight" },
         .transit_grpc = .{ .path = "packages/zig/transit-grpc" },
         .transit_tls = .{ .path = "packages/zig/transit-tls" },

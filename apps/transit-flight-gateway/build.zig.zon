@@ -1,0 +1,8 @@
+.{
+    .name = .transit_flight_gateway,
+    .fingerprint = 0xc067e00a138b6375,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.17.0-dev.2267+48abf1a34",
+    .dependencies = .{ .transit_flight = .{ .path = "../../packages/zig/transit-flight" } },
+    .paths = .{ "build.zig", "build.zig.zon", "src", "README.md" },
+}

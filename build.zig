@@ -443,6 +443,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
         }) });
+        if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
@@ -473,10 +474,19 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/public_query.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+        .imports = &.{ .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
     }) });
     b.step("public-query-proof", "Install the public query provisioning proof").dependOn(&b.addInstallArtifact(public_query, .{}).step);
     build_test_step.dependOn(&public_query.step);
+    const flight_gateway = b.dependency("transit_flight_gateway", .{ .target = target, .optimize = optimize }).artifact("transit-flight-gateway");
+    b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
+    build_test_step.dependOn(&flight_gateway.step);
+    const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
+    flight_test.addFileArg(b.path("tests/flight.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, query_host, flight_gateway, public_query }) |artifact| flight_test.addArtifactArg(artifact);
+    flight_test.has_side_effects = true;
+    flight_test.stdio = .inherit;
+    b.step("test-flight", "Qualify real finite queries with independent Flight and ADBC clients").dependOn(&flight_test.step);
     const public_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     public_query_test.addFileArg(b.path("tests/public_query.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, query_shell, public_query }) |artifact| public_query_test.addArtifactArg(artifact);

@@ -1,0 +1,37 @@
+# Private finite gRPC edge. No credential logging, retries or response buffering.
+daemon off;
+worker_processes 1;
+pid @PID@;
+error_log @ERROR_LOG@ warn;
+events { worker_connections 128; }
+http {
+    access_log off;
+    client_header_timeout 5s;
+    client_body_timeout 5s;
+    send_timeout 5s;
+    keepalive_timeout 300s;
+    keepalive_requests 64;
+    client_max_body_size 17k;
+    client_body_buffer_size 17k;
+    client_header_buffer_size 1k;
+    large_client_header_buffers 2 4k;
+    client_body_temp_path @BODY_TEMP@;
+    ssl_certificate @CERTIFICATE@;
+    ssl_certificate_key @PRIVATE_KEY@;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache off;
+    ssl_session_tickets off;
+    server {
+        listen 127.0.0.1:@PORT@ ssl;
+        http2 on;
+        http2_max_concurrent_streams 16;
+        server_name serving.example.test;
+        location /arrow.flight.protocol.FlightService/ {
+            grpc_pass @BACKEND_URL@;
+            grpc_connect_timeout 1s;
+            grpc_read_timeout @READ_TIMEOUT@s;
+            grpc_send_timeout 5s;
+            grpc_next_upstream off;
+        }
+    }
+}

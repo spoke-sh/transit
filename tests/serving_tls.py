@@ -10,12 +10,14 @@ from storage import free_port
 
 
 class TLSProxy:
-    def __init__(self, directory, backend, backend_host='127.0.0.1'):
+    def __init__(self, directory, backend, backend_host='127.0.0.1', port=None, read_timeout=6, grpc=False):
         self.root = directory
         self.root.mkdir()
-        self.port = free_port()
+        self.port = port or free_port()
         self.backend = backend
         self.backend_host = backend_host
+        self.read_timeout = read_timeout
+        self.grpc = grpc
         self.process = None
         self.log = None
 
@@ -24,8 +26,8 @@ class TLSProxy:
             certificate, private = self.root / 'certificate.pem', self.root / 'private.pem'
             subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', str(private), '-out', str(certificate), '-days', '1', '-subj', '/CN=serving.example.test', '-addext', 'subjectAltName=DNS:serving.example.test,IP:127.0.0.1'], check=True, capture_output=True)
             private.chmod(0o600)
-            template = (Path(__file__).resolve().parents[1] / 'examples/serving/nginx.conf.in').read_text()
-            values = dict(PORT=self.port, BACKEND_URL=f'http://{self.backend_host}:{self.backend}', PID=self.root / 'nginx.pid', ERROR_LOG=self.root / 'nginx.log', BODY_TEMP=self.root / 'body', PROXY_TEMP=self.root / 'proxy', CERTIFICATE=certificate, PRIVATE_KEY=private)
+            template = (Path(__file__).resolve().parents[1] / ('examples/flight/nginx.conf.in' if self.grpc else 'examples/serving/nginx.conf.in')).read_text()
+            values = dict(READ_TIMEOUT=self.read_timeout, PORT=self.port, BACKEND_URL=f'{"grpc" if self.grpc else "http"}://{self.backend_host}:{self.backend}', PID=self.root / 'nginx.pid', ERROR_LOG=self.root / 'nginx.log', BODY_TEMP=self.root / 'body', PROXY_TEMP=self.root / 'proxy', CERTIFICATE=certificate, PRIVATE_KEY=private)
             for key, value in values.items():
                 template = template.replace('@' + key + '@', str(value) if isinstance(value, int) else json.dumps(str(value)))
             configuration = self.root / 'nginx.conf'

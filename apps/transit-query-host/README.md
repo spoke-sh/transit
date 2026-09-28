@@ -19,6 +19,7 @@ hex Ed25519 seed), and a `role`. Defaults: `interval_ms: 20`,
 | Requester | `{"requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource and inspect/execute/publish worker; separate first `PQI1` initialization cast from the query principal |
 | Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v2 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
 | Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI2` cast, authenticating the configured principal |
+| Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | M22 opt-in composition with current M19 policy/publication, one active v1 query and the same durable result transfer; qualification in progress |
 | Courier | `{"courier":{"destinations":[SOURCE_PID,REQUESTER_PID]}}` | Dedicated unscoped inspect/delivery/send principal; no execution/storage credentials |
 
 Each OS worker owns one activation. V1 uses a bounded 1 MiB query workspace;

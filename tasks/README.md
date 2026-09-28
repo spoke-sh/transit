@@ -51,6 +51,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::local::down`, `reset` | Stop while preserving data, or explicitly delete a stopped installation; Compose has the same tasks |
 | `just launchers::local::test`, `just launchers::compose::test` | Qualify persistence, duplicate-safe provisioning, fresh ownership and missing-store refusal in isolated installations |
 | `just transit-board::query-test`, `just transit-board::query-browser` | Qualify the optional growing query API and real Canvas/Browse workspace, exact integers and live revocation |
+| `just test::flight` | Qualify native TLS Flight SQL through pinned PyArrow and ADBC Python/C consumers |
 | `just test::public-query` | Exercise the real query shell/hosts, exact retry, fenced recovery and current authorization over disk Ursula |
 | `just test::unified-query` | Run signed v2 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::unified-codec` | Check independent v2 bundles and nested Arrow through the native library and local port |

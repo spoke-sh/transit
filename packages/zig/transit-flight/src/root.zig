@@ -5,6 +5,7 @@ pub const query = @import("transit_query");
 pub const serving = @import("transit_serving");
 pub const Wire = @import("Wire.zig");
 pub const Ipc = @import("Ipc.zig");
+pub const Gateway = @import("Gateway.zig");
 pub const Metadata = @import("Metadata.zig");
 pub const Ticket = @import("Ticket.zig");
 pub const method_prefix = "/arrow.flight.protocol.FlightService/";
@@ -13,6 +14,7 @@ test {
     _ = Ipc;
     _ = Ticket;
     _ = Metadata;
+    _ = Gateway;
 }
 
 test "Flight encodes real protobuf field tags with full-width counts" {

@@ -1,0 +1,10 @@
+{
+  "release": "Apache ADBC 24 (1.12.0)",
+  "files": [
+    {
+      "path": "adbc.h",
+      "url": "https://raw.githubusercontent.com/apache/arrow-adbc/apache-arrow-adbc-24/c/include/arrow-adbc/adbc.h",
+      "sha256": "b6ce3eb8394d4877af1693654d34bc11648a2dfb1f0eacc0c47d062ca69feb71"
+    }
+  ]
+}

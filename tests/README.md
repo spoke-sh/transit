@@ -2782,6 +2782,15 @@ batches, all six union children and the published int64 Table schema. Package
 units cover IPC boundaries and signed ticket tampering/scope/expiry. Fuze's
 zero-body primitive IPC regression and compatible compute tests pass (119 tests).
 
-These are codec and inbound transport results. Actual gateway/ADBC C/Python,
-authorization/recovery, outbound Flight effects and all three placements remain
-open; they must not be inferred from M16 transport or these metadata fixtures.
+`just test::flight` also passes the real native gateway and disk-backed finite
+query hosts through verified nginx TLS. PyArrow checks schema/catalogs, all 41
+exact int64/null rows, duplicate retrieval and exact admission retry (71 seconds
+for this portion on the measured development host). Apache ADBC release 24's
+Flight SQL 1.12.0 Python consumer checks native schema, rows, empty results,
+count, checked sum and unprepared fallback. The independent C vtable consumer
+checks the same schema/rows through Arrow C Stream and releases every handle.
+The unchanged public-query recovery/authorization regression also passes.
+
+These runs do not yet qualify Flight-specific adversarial authorization/recovery,
+outbound effects, aggregate load or Compose/reference placements. Those gates
+remain open; they must not be inferred from successful native interoperability.

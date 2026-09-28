@@ -337,3 +337,7 @@ reactive-views:
 flight-metadata:
     nix develop .#flight --command python3 -B packages/zig/transit-flight/generate.py --check
     nix develop .#flight --command zig build test-flight-metadata -Doptimize=ReleaseSafe
+
+# Real finite native queries over verified TLS with pinned Python and C consumers.
+flight:
+    nix develop .#flight --command zig build test-flight -Doptimize=ReleaseSafe

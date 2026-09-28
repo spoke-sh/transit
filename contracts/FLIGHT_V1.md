@@ -1,7 +1,9 @@
 # Finite Flight gateway profile v1
 
 Status: selected M22 profile under implementation. Wire declarations, bounded
-inbound transport, ticket codecs and IPC splitting have local tests. Pinned PyArrow validates the metadata IPC. Gateway RPC/ADBC and placement
+inbound transport, ticket codecs and IPC splitting have local tests. Pinned
+PyArrow validates metadata IPC and real native TLS queries. ADBC C/Python pass
+schema, row and selected SQL checks; adversarial lifecycle and placement
 qualification remain open. This contract
 extends [serving](SERVING_V1.md) and [public Table query](PUBLIC_QUERY_V1.md);
 it does not replace their authorization, admission or result evidence.

@@ -1,5 +1,6 @@
 const std = @import("std");
 const q = @import("transit_query");
+const serving = @import("transit_serving");
 const telemetry = q.wire.observability.telemetry;
 const s = q.station;
 const p = q.protocol;
@@ -19,6 +20,7 @@ const Config = struct {
     role: union(enum) {
         source: q.Behavior.Source,
         requester: q.Behavior.Requester,
+        finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: [2]u64 },
@@ -87,9 +89,14 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .workspace = workspace,
         .cancellation = &cancellation,
     };
+    var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
         .source => |*source| source.interface(),
         .requester => |*requester| requester.interface(),
+        .finite_service => blk: {
+            server.input_guard = finite.guard();
+            break :blk finite.interface();
+        },
         .unified_source => unified_source.interface(),
         .unified_requester => |*requester| requester.interface(),
         .courier => unreachable,
