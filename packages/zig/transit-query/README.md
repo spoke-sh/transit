@@ -40,6 +40,12 @@ committed-input observation, status and verified result pages. The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its v2 requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
+`TableSource` is the M24 local composition for an explicitly configured empty
+int64 Table. Its owning Station activation atomically creates the Table, native
+source configuration and revision-one peer policy in three mutations. It rejects
+existing Table metadata and delegates execution to `UnifiedBehavior.Source`.
+This initializer has no kernel/provider dependency and grants no native resource
+rights. Automatic local lifecycle qualification remains separate server work.
 `Bundle.fromSql` compiles the [v2 SQL profile](../transit-fuze/docs/unified-sql.md)
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`
 first verifies current source policy. The [compatibility matrix](docs/compatibility.md)

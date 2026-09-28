@@ -22,6 +22,7 @@ const Config = struct {
         requester: q.Behavior.Requester,
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
+        table_source: q.TableSource.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: [2]u64 },
     },
@@ -73,22 +74,31 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         return err;
     };
     file.close(init.io);
-    const unified = config.role == .unified_source or config.role == .unified_requester;
+    const unified = config.role == .unified_source or config.role == .unified_requester or config.role == .table_source;
     const workspace = try init.gpa.alloc(u8, if (unified) q.fuze.Unified.Arrow.working_bytes else q.fuze.execution.working_bytes);
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
     if (!unified) server.query = .{ .workspace = workspace, .cancellation = &cancellation };
     server.failure_policy = if (unified) .stop else .block_input;
-    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source) q.UnifiedBehavior.adapter_bytes else 0);
+    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source or config.role == .table_source) q.UnifiedBehavior.adapter_bytes else 0);
     defer init.gpa.free(adapter);
     var unified_source: q.UnifiedBehavior.Source = .{
-        .peer = if (config.role == .unified_source) config.role.unified_source.peer else 0,
-        .initializer = if (config.role == .unified_source) config.role.unified_source.initializer else 0,
+        .peer = switch (config.role) {
+            .unified_source => |value| value.peer,
+            .table_source => |value| value.peer,
+            else => 0,
+        },
+        .initializer = switch (config.role) {
+            .unified_source => |value| value.initializer,
+            .table_source => |value| value.initializer,
+            else => 0,
+        },
         .resources = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key },
         .adapter = adapter,
         .workspace = workspace,
         .cancellation = &cancellation,
     };
+    var table: q.TableSource = .{ .configuration = if (config.role == .table_source) config.role.table_source else undefined, .source = &unified_source };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
         .source => |*source| source.interface(),
@@ -98,6 +108,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             break :blk finite.interface();
         },
         .unified_source => unified_source.interface(),
+        .table_source => table.interface(),
         .unified_requester => |*requester| requester.interface(),
         .courier => unreachable,
     };
