@@ -3166,5 +3166,19 @@ now delays one read. A later test stopped consuming PTY display bytes while
 waiting for JSON output; it now drains both streams, and the editor coalesces
 queued redraws. The signal path buffers one command before presentation and
 checks interruption before emitting it. The space-exhausted run above is not
-counted as passed. KV/Document console runs and the M24 server/lifecycle proof
-remain separate qualification work.
+counted as passed.
+
+The same actual-command, PTY and explicit TLS proof also passes for KV and
+Document with their distinct source adapters:
+
+| Source | Combined native proof | Added console checks | Cold / warm completion | Terminal RSS high-water |
+| --- | --- | --- | --- | --- |
+| KV | 195.32 s | 123.43 s | 792.42 / 276.61 ms | 16,261,120 bytes |
+| Document | 738.32 s | 141.55 s | 356.81 / 57.08 ms | 16,265,216 bytes |
+
+Document provisioning accounts for 493.70 seconds of its total; the fixture
+retains twelve rows across two segments, 64 resident authority pages and
+133,852,226 cold bytes. KV retains forty-one rows across six segments, eight
+resident pages and 26,816,531 cold bytes. Both cap Ursula hot storage at 8 MiB.
+These focused costs do not change M10's hosted CI budget. The M24 server/lifecycle
+proof remains separate qualification work.
