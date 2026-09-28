@@ -276,3 +276,123 @@ test "finite query waits bind the earliest lifetime and authenticated timeout re
         try cleanup(&store, ref);
     }
 }
+
+fn completeTemplate(store: *Store, bundle: q.Bundle, namespace: u64) !s.PublicationReference {
+    const ref = try bundle.reference(store.resource, namespace);
+    var bytes: [q.Bundle.max_bytes]u8 = undefined;
+    const body = try bundle.encode(&bytes);
+    var turn = try store.capture();
+    try upload.begin(&turn, ref);
+    try store.commit(turn);
+    try stage(store, ref, body);
+    turn = try store.capture();
+    try upload.seal(&turn, namespace);
+    try store.commit(turn);
+    turn = try store.capture();
+    const correlation = try upload.submit(&turn, namespace, 3);
+    try store.commit(turn);
+    const manifest: s.PublicationReference = .{ .resource = 7, .namespace = 900, .record = r.manifest_record, .spec = try s.Publication.Digest.of(r.manifest_format, "manifest") };
+    const frame: s.Frame = .{ .kind = .reply, .correlation = correlation, .payload = try manifest.encode() };
+    turn = try store.capture();
+    turn.delivery.input.value = try frame.encode();
+    turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
+    try t.expect(try turn.acceptReply() == .accepted);
+    try upload.reply(&turn, frame, 3);
+    try store.commit(turn);
+    return ref;
+}
+
+test "new finite refresh copies one bounded chunk per turn and recovers from every committed cut" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    const original = try completeTemplate(&store, fixture(), std.math.maxInt(u64));
+    var reference = original;
+    reference.namespace = 2;
+    var complete = false;
+    for (0..original.spec.chunks() + 4) |_| {
+        var turn = try store.capture();
+        complete = try upload.copyNext(&turn, original.namespace, 2);
+        try t.expect(writes(turn) <= 4);
+        for (turn.decision.outputs) |out| try t.expect(out == null);
+        try store.commit(turn);
+        // Destroy all owner-local progress after every step; only the committed
+        // private state selects the successor, without a materialized bundle.
+        const restored = try store.clone();
+        store.deinit();
+        store = restored;
+        if (complete) break;
+    }
+    try t.expect(complete);
+    var bytes: [q.Bundle.max_bytes]u8 = undefined;
+    var expected: [q.Bundle.max_bytes]u8 = undefined;
+    try t.expectEqualSlices(u8, try fixture().encode(&expected), try reference.read(Source{ .store = &store }, &bytes));
+    var turn = try store.capture();
+    try t.expectEqual(.sealed, (try upload.status(&turn, 2)).?.phase);
+    try t.expect(try upload.copyNext(&turn, original.namespace, 2));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    const correlation = try upload.submit(&turn, 2, 3);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expect(try upload.copyNext(&turn, original.namespace, 2));
+    try t.expectEqual(correlation, try upload.submit(&turn, 2, 3));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+}
+
+test "refresh copy cannot reuse identity bypass active quota or revive a retired template" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    const ref = try completeTemplate(&store, fixture(), 1);
+    var turn = try store.capture();
+    try t.expectError(error.QueryUploadIdentityConflict, upload.copyNext(&turn, 1, 1));
+    try turn.write(try p.Value.init("other"), .{});
+    const before = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, upload.copyNext(&turn, 1, 2));
+    try t.expectEqualDeep(before, turn.decision);
+    turn = try store.capture();
+    try t.expect(!try upload.copyNext(&turn, 1, 2));
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryBusy, upload.copyNext(&turn, 1, 3));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try upload.retire(&turn, ref.namespace);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryUploadClosed, upload.copyNext(&turn, 1, 2));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    // Accepted partial work stays observable and keeps quota until explicit
+    // cancellation/collection. Retirement never authorizes silent eviction.
+    try t.expectEqual(.uploading, (try upload.status(&turn, 2)).?.phase);
+    try t.expectEqual(@as(?u64, 2), try upload.active(&turn));
+}
+
+test "refresh copy rejects mixed half-upload and corrupt template bytes before admission" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    const ref = try completeTemplate(&store, fixture(), 1);
+    var turn = try store.capture();
+    try t.expect(!try upload.copyNext(&turn, 1, 2));
+    try store.commit(turn);
+    turn = try store.capture();
+    const chunk = store.state.get(s.Publication.key(1, 'c', ref.record, 0)).?;
+    try upload.part(&turn, .{ .namespace = 2, .ordinal = 0, .second = false, .bytes = chunk.slice()[0..request.part_bytes] });
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryUploadIdentityConflict, upload.copyNext(&turn, 1, 2));
+    try upload.cancel(&turn, 2);
+    try store.commit(turn);
+    var abandoned = ref;
+    abandoned.namespace = 2;
+    try cleanup(&store, abandoned);
+    var corrupt = chunk;
+    corrupt.data[0] ^= 1;
+    try store.state.put(t.allocator, s.Publication.key(1, 'c', ref.record, 0), corrupt);
+    for (0..ref.spec.chunks() + 1) |_| {
+        turn = try store.capture();
+        try t.expect(!try upload.copyNext(&turn, 1, 3));
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    try t.expectError(error.InvalidPublicationDigest, upload.copyNext(&turn, 1, 3));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try t.expectEqual(@as(u64, 0), (try upload.status(&turn, 3)).?.correlation);
+}

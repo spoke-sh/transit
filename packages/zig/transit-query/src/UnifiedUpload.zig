@@ -195,3 +195,44 @@ pub fn collect(turn: *Turn, namespace: u64) !bool {
     if (try active(turn) == namespace) try turn.write(r.key('a', 0, 0), null);
     return true;
 }
+
+/// Copy an already submitted immutable bundle into a deliberately NEW query
+/// namespace. One step reserves, copies one canonical chunk, or seals; it never
+/// admits a source call. The composing owner freezes each Station commit and
+/// resumes from committed progress after restart. This is not a retry operation.
+/// Both identities live in this requester's currently authorized resource.
+pub fn copyNext(turn: *Turn, template: u64, namespace: u64) !bool {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    if (template == namespace or namespace == 0) return error.QueryUploadIdentityConflict;
+    const original = try required(turn, template);
+    if (original.phase != .complete) return error.QueryUploadClosed;
+    const source = try original.reference.publication().inspect(turn, original.reference.record);
+    if (source.state != .published or !std.meta.eql(source.spec, original.reference.spec)) return error.QueryUploadClosed;
+    var reference = original.reference;
+    reference.namespace = namespace;
+    const current = (try status(turn, namespace)) orelse {
+        try begin(turn, reference);
+        return false;
+    };
+    if (!std.meta.eql(current.reference, reference)) return error.QueryUploadIdentityConflict;
+    switch (current.phase) {
+        .sealed, .admitted, .complete, .denied, .rejected => return true,
+        .cancelled, .retired => return error.QueryUploadClosed,
+        .uploading => {},
+    }
+    try checkActive(turn, namespace);
+    // A half uploaded through the public client cannot be silently overwritten
+    // by this owner-side composition path.
+    if (try turn.read(r.key('h', namespace, 0)) != null) return error.QueryUploadIdentityConflict;
+    const target = try reference.publication().inspect(turn, reference.record);
+    if (target.written == reference.spec.chunks()) {
+        try seal(turn, namespace);
+        return false;
+    }
+    const bytes = (try turn.read(Pub.key(template, 'c', reference.record, target.written))) orelse return error.MissingPublicationChunk;
+    _ = try reference.publication().append(turn, reference.record, target.written, bytes.slice());
+    // Sealing independently verifies the full original commitment. No partial
+    // or unverified copied bundle can become an executable source request.
+    return false;
+}

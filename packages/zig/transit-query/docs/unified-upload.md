@@ -62,3 +62,26 @@ by Transit even when no observer runs; neither timer delivery nor cleanup can
 extend it. The daemon does not supply a timer service. Unlimited lifetimes retain
 an unlimited wait. `UnifiedUpload.submitWithObserver` exposes this composition;
 low-level `submit` without an observer rejects finite waits before any mutation.
+
+## Reusing a submitted plan for a new finite query
+
+M21 adds owner-side `UnifiedUpload.copyNext(turn, template, namespace)`. The
+explicitly selected template must be a completed query with a still-published
+request bundle in this same requester resource. Each step either reserves the
+new namespace, copies one 256-byte Publication chunk, or seals it. Sealing verifies
+the complete original commitment. The operation never admits a source call;
+only the existing explicit `submit` transition can do that.
+
+This is a new finite evaluation of identical source/plan/budgets, not recovery of
+an uncertain query. Exact retry still retains the original signed request/call.
+A composing durable owner chooses a new permanent namespace and freezes each
+Station commit, then reconstructs copy progress from the retained upload record.
+The helper uses at most four mutations and one chunk of resident payload, rejects
+mixed public half-uploads and preserves the requester's one-active-query quota.
+Retired/unavailable templates reject. Failure leaves accepted staging observable
+and subject to ordinary explicit cancellation/collection; it never evicts work.
+
+Component tests reconstruct the owner after every step of a bundle larger than
+4 KiB and test quota/identity conflicts, four-mutation rollback, template retirement,
+partial-upload mixing and corrupted bytes. This foundation does not itself qualify
+the M21 scheduler or browser views.
