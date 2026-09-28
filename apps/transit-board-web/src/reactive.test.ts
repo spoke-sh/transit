@@ -83,7 +83,10 @@ describe("generated reactive transport boundary", () => {
         asyncapi_sha256: Array(32).fill(0),
       },
     };
-    await expect(session.command({ close: { session: 1, generation: 2 } })).rejects.toThrow();
+    await expect(session.command({ close: { session: 1, generation: 2 } })).rejects.toMatchObject({
+      status: 503,
+      reason: "unavailable",
+    });
     expect(session.pending?.signed).toEqual(signed);
     expect(held).toBe(true);
     await expect(session.command({ close: { session: 2, generation: 3 } })).rejects.toThrow(

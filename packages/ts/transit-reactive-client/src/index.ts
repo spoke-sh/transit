@@ -105,6 +105,9 @@ export class Transport {
       redirect: "error",
       cache: "no-store",
       signal,
+    }).catch((error: unknown) => {
+      if (signal?.aborted && signal.reason?.name !== "TimeoutError") throw error;
+      throw new ReactiveError(503, "unavailable");
     });
   }
   private async json(path: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
@@ -139,7 +142,10 @@ export class Transport {
     let length = 0;
     try {
       while (true) {
-        const part = await reader.read();
+        const part = await reader.read().catch((error: unknown) => {
+          if (signal?.aborted) throw error;
+          throw new ReactiveError(503, "unavailable");
+        });
         if (part.done) break;
         if (length + part.value.length > bytes.length)
           throw new ReactiveError(0, "response_too_large");
@@ -154,7 +160,7 @@ export class Transport {
         return invalid();
       }
     } finally {
-      await reader.cancel();
+      await reader.cancel().catch(() => {});
       reader.releaseLock();
     }
   }
