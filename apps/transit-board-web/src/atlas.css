@@ -8,7 +8,7 @@
 .segmented {
   display: inline-flex;
   gap: 0;
-  border: 1px solid var(--line, #d5d1c5);
+  border: 1px solid var(--line, #d1d1d1);
   border-radius: 7px;
   overflow: hidden;
 }
@@ -17,8 +17,8 @@
   border-radius: 0;
 }
 .segmented button[aria-pressed="true"] {
-  background: #203b35;
-  color: #fffdf6;
+  background: #353535;
+  color: #fdfdfd;
 }
 .atlas-toolbar {
   display: flex;
@@ -37,10 +37,10 @@
 }
 .atlas-evidence,
 .result-evidence {
-  border-left: 3px solid #ae803d;
+  border-left: 3px solid #858585;
   padding: 8px 14px;
   font-size: 0.86rem;
-  background: #ece9dc;
+  background: #e9e9e9;
 }
 .atlas-layout {
   display: grid;
@@ -48,12 +48,12 @@
   gap: 20px;
 }
 .atlas-surface {
-  background: #eae8db;
+  background: #e7e7e7;
   background-image:
-    linear-gradient(#d7dbcf66 1px, transparent 1px),
-    linear-gradient(90deg, #d7dbcf66 1px, transparent 1px);
+    linear-gradient(#d9d9d966 1px, transparent 1px),
+    linear-gradient(90deg, #d9d9d966 1px, transparent 1px);
   background-size: 30px 30px;
-  border: 1px solid #c5cebd;
+  border: 1px solid #cbcbcb;
   border-radius: 12px;
   padding: 34px 25px;
   min-height: 430px;
@@ -72,8 +72,8 @@
   flex-direction: column;
   gap: 7px;
   min-height: 165px;
-  background: #f5f0df;
-  border: 1px solid #b8bba8;
+  background: #f0f0f0;
+  border: 1px solid #b9b9b9;
   padding: 16px;
   position: relative;
 }
@@ -85,20 +85,20 @@
   width: 100%;
 }
 .resource-roof i {
-  border: 1px solid #718c7d;
-  background: #c2d0bc;
+  border: 1px solid #858585;
+  background: #cccccc;
 }
 .table-landmark .resource-roof {
-  border-top: 4px solid #2f6b56;
+  border-top: 4px solid #5d5d5d;
 }
 .table-landmark .resource-roof i {
-  background: #89b3a0;
+  background: #a9a9a9;
 }
 .kv-landmark .resource-roof i:nth-child(even) {
   transform: translateY(5px);
 }
 .relief .landmark {
-  box-shadow: 7px 9px 0 #738c754d;
+  box-shadow: 7px 9px 0 #8585854d;
 }
 .process-fabric {
   display: grid;
@@ -111,21 +111,21 @@
   flex-direction: column;
   gap: 6px;
   padding: 12px;
-  border: 1px solid #bdc7b4;
-  background: #e0e4d6;
+  border: 1px solid #c4c4c4;
+  background: #e2e2e2;
   min-height: 116px;
   text-align: left;
 }
 .inbox-shoulder {
   height: 8px;
   width: 38px;
-  background: #becbb0;
-  border: 1px solid #9bad93;
+  background: #c6c6c6;
+  border: 1px solid #a7a7a7;
 }
 .relief .inbox-shoulder.raised {
   height: 18px;
-  box-shadow: 3px 4px 0 #7b917566;
-  background: #c69b4e;
+  box-shadow: 3px 4px 0 #8a8a8a66;
+  background: #9f9f9f;
 }
 .outbox-well {
   position: absolute;
@@ -133,7 +133,7 @@
   top: 12px;
   width: 25px;
   height: 9px;
-  border: 1px dashed #869884;
+  border: 1px dashed #939393;
   border-radius: 50%;
 }
 .resources .process-fabric {
@@ -143,7 +143,7 @@
   opacity: 0.88;
 }
 .atlas-surface .selected {
-  outline: 3px solid #307761;
+  outline: 3px solid #666666;
   outline-offset: 3px;
   opacity: 1;
 }
@@ -155,9 +155,9 @@
   transform: none;
 }
 .atlas-inspector {
-  border-top: 3px solid #375447;
+  border-top: 3px solid #4d4d4d;
   padding: 18px 15px;
-  background: #f5f2e9;
+  background: #f2f2f2;
 }
 .atlas-inspector h2 {
   margin-top: 8px;
@@ -171,7 +171,7 @@
   overflow-wrap: anywhere;
 }
 .atlas-inspector dt {
-  color: #657265;
+  color: #6e6e6e;
   font-size: 0.8rem;
 }
 .atlas-pagination {
@@ -194,11 +194,11 @@
   align-items: start;
 }
 .source-card {
-  border: 1px solid #b7c5b5;
-  border-top: 6px solid #42846b;
+  border: 1px solid #c1c1c1;
+  border-top: 6px solid #747474;
   border-radius: 8px;
   padding: 22px;
-  background: #e7eddf;
+  background: #ebebeb;
 }
 .source-card ul {
   list-style: none;
@@ -209,15 +209,15 @@
   flex-wrap: wrap;
   gap: 10px;
   padding: 11px 0;
-  border-bottom: 1px solid #bccbb8;
+  border-bottom: 1px solid #c6c6c6;
 }
 .source-card li span {
   font-size: 0.85rem;
-  color: #526953;
+  color: #636363;
 }
 .query-composer {
-  background: #f5f2e8;
-  border: 1px solid #d2d0c3;
+  background: #f2f2f2;
+  border: 1px solid #cfcfcf;
   padding: 24px;
   border-radius: 8px;
 }
@@ -231,13 +231,13 @@
   box-sizing: border-box;
   resize: vertical;
   padding: 16px;
-  border: 1px solid #9fae9a;
+  border: 1px solid #a9a9a9;
   border-radius: 5px;
   font-family: monospace;
   line-height: 1.7;
   font-size: 0.95rem;
-  background: #fcfaf3;
-  color: #254234;
+  background: #fafafa;
+  color: #3b3b3b;
 }
 .query-steps {
   display: flex;
@@ -248,16 +248,16 @@
   list-style: none;
 }
 .query-steps li {
-  border: 1px solid #b6c8b4;
+  border: 1px solid #c3c3c3;
   padding: 10px 14px;
-  background: #e8eddc;
+  background: #ebebeb;
   border-radius: 4px;
   font-size: 0.82rem;
 }
 .query-steps li::before {
   counter-increment: steps;
   content: counter(steps) " / ";
-  color: #61775c;
+  color: #707070;
 }
 .worksheet.browse {
   grid-template-columns: minmax(0, 1fr);
@@ -274,16 +274,16 @@
   min-height: 1.6em;
 }
 .uncertain {
-  border: 1px solid #bb8c35;
-  background: #f3e6c4;
+  border: 1px solid #909090;
+  background: #e6e6e6;
   padding: 20px;
   margin: 18px 0;
 }
 .draft-changed {
-  color: #816323;
+  color: #656565;
 }
 .query-result {
-  border-top: 2px solid #427c62;
+  border-top: 2px solid #6e6e6e;
   margin-top: 26px;
   padding-top: 12px;
 }
@@ -293,8 +293,8 @@
   gap: 14px;
 }
 .result-tile {
-  background: #eef0e3;
-  border: 1px solid #bccbb5;
+  background: #efefef;
+  border: 1px solid #c6c6c6;
   border-radius: 7px;
   padding: 16px;
 }

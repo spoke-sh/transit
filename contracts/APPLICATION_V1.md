@@ -183,3 +183,18 @@ artifact is explicitly identified before first publication or when no publicatio
 scope is configured. A denied or failed published read cannot expose cached data
 or silently switch to that artifact. Interface-generation fencing in renderers is
 an additional obligation; a successful materialization does not prove it.
+
+### Declared route and query binding acquisition
+
+Paths under `/api`, `/assets`, `/health`, `/openapi`, `/processes` and `/recovery`
+are reserved (including their exact roots). The independent Board recovery route
+is `/recovery/definition`. Inspection renderers require a compatible projection;
+`atlas` includes the bounded catalog/identity projection used by its detail views.
+
+A query binding's `schema` is the full `SourceDefinition.fingerprint()` (`UQS2`)
+commitment, including resource, Table identity or declared decoder/projection
+versions. It is not just a column schema hash. Acquisition checks that commitment
+and the configured source name/kind. Result display separately checks the retained
+manifest basis. Published interface changes cannot relabel an old result as a new
+source. Exact pending commands outlive disposable routes and retain their original
+native identity even when the replacement binding is incompatible.

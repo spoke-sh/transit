@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { attention, Evidence, present } from "../components";
-import { Atlas } from "../atlas";
+import { DeclaredView } from "../declared";
 import { useScope, useObservation } from "../state";
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
         : "all",
     sort: search.sort === "backlog" ? "backlog" : "pid",
   }),
-  component: () => (useScope().scope?.profile === "growing_v3" ? <Atlas /> : <Overview />),
+  component: () => (useScope().scope?.profile === "growing_v3" ? <DeclaredView /> : <Overview />),
 });
 function Overview() {
   const view = useObservation("processes");

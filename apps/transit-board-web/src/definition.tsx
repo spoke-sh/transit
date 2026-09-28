@@ -1,3 +1,5 @@
+import { useInterface } from "./interface";
+import { useScope } from "./state";
 import "./definition.css";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useReducer, useState } from "react";
@@ -50,6 +52,8 @@ function download(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function DefinitionEditor() {
+  const current = useInterface();
+  const canInspect = useScope().scope?.profile !== "growing_v3" || current !== null;
   const [, render] = useReducer((value: number) => value + 1, 0);
   const [mode, setMode] = useState<"sql" | "form" | "canvas">("sql");
   const [scope, setScope] = useState<Scope | null>(null);
@@ -120,141 +124,150 @@ export function DefinitionEditor() {
         </div>
       </div>
       <p>{available}. Compilation and visual edits do not publish changes.</p>
-      <div className="editor-toolbar">
-        <button disabled={workspace.busy} onClick={() => void run(load)}>
-          Load current definition
-        </button>
-        <button
-          disabled={workspace.busy || !scope}
-          onClick={() =>
-            void run(async () => {
-              workspace.compiled = await compile(workspace.draft);
-              workspace.status = "Complete program validated; not published.";
-            })
-          }
-        >
-          Validate program
-        </button>
-        <nav aria-label="Definition views">
-          {(["sql", "form", "canvas"] as const).map((view) => (
-            <button key={view} aria-pressed={mode === view} onClick={() => setMode(view)}>
-              {view === "sql" ? "SQL" : view === "form" ? "Form" : "Canvas"}
-            </button>
-          ))}
-        </nav>
-      </div>
-      {mode === "sql" ? (
-        <label>
-          Interface SQL
-          <textarea
-            aria-label="Interface SQL"
-            maxLength={64 * 1024}
-            spellCheck={false}
-            value={workspace.draft}
-            disabled={workspace.busy}
-            onChange={(event) => {
-              workspace.draft = event.target.value;
-              workspace.compiled = null;
-              changed();
-            }}
-          />
-        </label>
-      ) : !definition ? (
-        <p>Load or validate a complete program first.</p>
-      ) : (
+      {!canInspect && (
+        <p>
+          Current definition access is unavailable. Exact pending submissions remain recoverable.
+        </p>
+      )}
+      {canInspect && (
         <>
-          <label>
-            Theme
-            <select
-              aria-label="Interface theme"
+          <div className="editor-toolbar">
+            <button disabled={workspace.busy} onClick={() => void run(load)}>
+              Load current definition
+            </button>
+            <button
               disabled={workspace.busy || !scope}
-              value={definition.theme}
-              onChange={(event) =>
-                void run(() => format({ ...definition, theme: event.target.value }))
+              onClick={() =>
+                void run(async () => {
+                  workspace.compiled = await compile(workspace.draft);
+                  workspace.status = "Complete program validated; not published.";
+                })
               }
             >
-              {definition.themes.map((theme) => (
-                <option key={theme.name}>{theme.name}</option>
+              Validate program
+            </button>
+            <nav aria-label="Definition views">
+              {(["sql", "form", "canvas"] as const).map((view) => (
+                <button key={view} aria-pressed={mode === view} onClick={() => setMode(view)}>
+                  {view === "sql" ? "SQL" : view === "form" ? "Form" : "Canvas"}
+                </button>
               ))}
-            </select>
-          </label>
-          {mode === "form" ? (
-            <div className="definition-form">
-              {definition.screens.map((item, index) => (
-                <fieldset key={item.name}>
-                  <legend>
-                    {item.name} · {item.renderer}
-                  </legend>
-                  <label>
-                    Screen label
-                    <input
-                      aria-label={`${item.name} label`}
-                      key={item.label}
-                      defaultValue={item.label}
-                      disabled={workspace.busy || !scope}
-                      onBlur={(event) => {
-                        if (event.target.value !== item.label)
-                          void run(() =>
-                            format({
-                              ...definition,
-                              screens: definition.screens.map((value, at) =>
-                                at === index ? { ...value, label: event.target.value } : value,
-                              ),
-                            }),
-                          );
-                      }}
-                    />
-                  </label>
-                  <p>
-                    {item.path} · {item.area} · binding {item.binding}
-                  </p>
-                </fieldset>
-              ))}
-            </div>
+            </nav>
+          </div>
+          {mode === "sql" ? (
+            <label>
+              Interface SQL
+              <textarea
+                aria-label="Interface SQL"
+                maxLength={64 * 1024}
+                spellCheck={false}
+                value={workspace.draft}
+                disabled={workspace.busy}
+                onChange={(event) => {
+                  workspace.draft = event.target.value;
+                  workspace.compiled = null;
+                  changed();
+                }}
+              />
+            </label>
+          ) : !definition ? (
+            <p>Load or validate a complete program first.</p>
           ) : (
             <>
-              <ul className="definition-canvas" aria-label="Definition graph">
-                {graph?.nodes.map((node) => (
-                  <li key={node.id}>
-                    <button
-                      aria-pressed={selected === node.id}
-                      onClick={() => setSelected(node.id)}
-                    >
-                      {node.kind}: {node.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <ul aria-label="Definition connections">
-                {graph?.edges.map((edge) => (
-                  <li key={`${edge.from}/${edge.to}`}>
-                    {edge.from} → {edge.to}
-                  </li>
-                ))}
-              </ul>
-              {screen && (
-                <label>
-                  Selected screen label
-                  <input
-                    aria-label="Selected screen label"
-                    key={screen.label}
-                    defaultValue={screen.label}
-                    disabled={workspace.busy || !scope}
-                    onBlur={(event) => {
-                      if (event.target.value !== screen.label)
-                        void run(() =>
-                          format({
-                            ...definition,
-                            screens: definition.screens.map((value) =>
-                              value.name === screen.name
-                                ? { ...value, label: event.target.value }
-                                : value,
-                            ),
-                          }),
-                        );
-                    }}
-                  />
-                </label>
+              <label>
+                Theme
+                <select
+                  aria-label="Interface theme"
+                  disabled={workspace.busy || !scope}
+                  value={definition.theme}
+                  onChange={(event) =>
+                    void run(() => format({ ...definition, theme: event.target.value }))
+                  }
+                >
+                  {definition.themes.map((theme) => (
+                    <option key={theme.name}>{theme.name}</option>
+                  ))}
+                </select>
+              </label>
+              {mode === "form" ? (
+                <div className="definition-form">
+                  {definition.screens.map((item, index) => (
+                    <fieldset key={item.name}>
+                      <legend>
+                        {item.name} · {item.renderer}
+                      </legend>
+                      <label>
+                        Screen label
+                        <input
+                          aria-label={`${item.name} label`}
+                          key={item.label}
+                          defaultValue={item.label}
+                          disabled={workspace.busy || !scope}
+                          onBlur={(event) => {
+                            if (event.target.value !== item.label)
+                              void run(() =>
+                                format({
+                                  ...definition,
+                                  screens: definition.screens.map((value, at) =>
+                                    at === index ? { ...value, label: event.target.value } : value,
+                                  ),
+                                }),
+                              );
+                          }}
+                        />
+                      </label>
+                      <p>
+                        {item.path} · {item.area} · binding {item.binding}
+                      </p>
+                    </fieldset>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <ul className="definition-canvas" aria-label="Definition graph">
+                    {graph?.nodes.map((node) => (
+                      <li key={node.id}>
+                        <button
+                          aria-pressed={selected === node.id}
+                          onClick={() => setSelected(node.id)}
+                        >
+                          {node.kind}: {node.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <ul aria-label="Definition connections">
+                    {graph?.edges.map((edge) => (
+                      <li key={`${edge.from}/${edge.to}`}>
+                        {edge.from} → {edge.to}
+                      </li>
+                    ))}
+                  </ul>
+                  {screen && (
+                    <label>
+                      Selected screen label
+                      <input
+                        aria-label="Selected screen label"
+                        key={screen.label}
+                        defaultValue={screen.label}
+                        disabled={workspace.busy || !scope}
+                        onBlur={(event) => {
+                          if (event.target.value !== screen.label)
+                            void run(() =>
+                              format({
+                                ...definition,
+                                screens: definition.screens.map((value) =>
+                                  value.name === screen.name
+                                    ? { ...value, label: event.target.value }
+                                    : value,
+                                ),
+                              }),
+                            );
+                        }}
+                      />
+                    </label>
+                  )}
+                </>
               )}
             </>
           )}
@@ -308,7 +321,13 @@ export function DefinitionEditor() {
           </>
         )}
         <button
-          disabled={!session || !workspace.compiled || workspace.busy || session.pending !== null}
+          disabled={
+            !canInspect ||
+            !session ||
+            !workspace.compiled ||
+            workspace.busy ||
+            session.pending !== null
+          }
           onClick={() =>
             void run(async () => {
               if (workspace.review) {
@@ -337,7 +356,7 @@ export function DefinitionEditor() {
         >
           Review publication
         </button>
-        {workspace.review && (
+        {workspace.review && canInspect && (
           <div className="publication-review" aria-label="Publication review">
             <details>
               <summary>Exact reviewed program</summary>

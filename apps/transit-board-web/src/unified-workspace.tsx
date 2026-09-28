@@ -10,6 +10,7 @@ import { acquireCaller } from "@rey/transit-reactive-client";
 import { verifiedPage } from "./unified-result";
 import { liveQuery, querySession, selectLiveTemplate } from "./query-live";
 import { useScope } from "./state";
+import { unifiedContract, unifiedPage, mismatch, type QueryBinding } from "./binding";
 
 type Description = Extract<UnifiedQueryResponse, { description: unknown }>["description"];
 type Compiled = Extract<UnifiedQueryResponse, { compiled: unknown }>["compiled"];
@@ -32,11 +33,15 @@ const empty = (): Work => ({
 // One configured workspace per Board origin. Frozen work and its caller lock
 // outlive route components; no browser storage or result history is created.
 const retained = {
+  draft: "",
+  draftBinding: "",
+  runDraft: "",
   resource: 0,
   work: { current: empty() },
   active: false,
   follow: false,
   blocked: false,
+  binding: null as string | null,
   release: null as (() => void) | null,
 };
 function freshNamespace() {
@@ -46,6 +51,8 @@ function freshNamespace() {
 function errorText(error: unknown) {
   if (!(error instanceof BoardError))
     return "Connection unavailable. Durable submission may be uncertain.";
+  if (error.code === "BindingChanged")
+    return "Declared source contract changed. Prior accepted work remains recoverable; its results are not shown in this binding.";
   if (error.code === "UnsupportedQuery")
     return "Unsupported SQL for the displayed source capabilities.";
   if (error.code === "Forbidden") return "Query access denied. Protected workspace data cleared.";
@@ -60,15 +67,35 @@ export function UnifiedWorkspace({
   mode,
   visible,
   onBack,
+  binding,
+  followLabel,
 }: {
   resource: number;
+  binding?: QueryBinding;
+  followLabel?: string;
   mode: "canvas" | "browse";
   visible: boolean;
   onBack: () => void;
 }) {
   const [source, setSource] = useState<Description | null>(null);
-  const [draft, setDraft] = useState("");
-  const [runDraft, setRunDraft] = useState("");
+  const draftBinding = binding ? JSON.stringify(binding) : `resource/${resource}`;
+  const [draft, updateDraft] = useState(() => {
+    if (retained.draftBinding !== draftBinding) {
+      retained.draft = binding?.sql ?? "";
+      retained.draftBinding = draftBinding;
+    }
+    return retained.draft;
+  });
+  const setDraft = (value: string | ((previous: string) => string)) => {
+    const next = typeof value === "function" ? value(retained.draft) : value;
+    retained.draft = next;
+    updateDraft(next);
+  };
+  const [runDraft, updateRunDraft] = useState(retained.runDraft);
+  const setRunDraft = (value: string) => {
+    retained.runDraft = value;
+    updateRunDraft(value);
+  };
   const [compiled, setCompiled] = useState<Compiled | null>(null);
   const [status, setStatus] = useState<Status>(null);
   const [page, setPage] = useState<Page | null>(null);
@@ -81,6 +108,7 @@ export function UnifiedWorkspace({
   const { scope } = useScope();
   const live = useSyncExternalStore(liveQuery.subscribe, liveQuery.getSnapshot);
   const work = retained.work;
+  const bindingId = binding ? JSON.stringify(binding) : null;
   if (retained.resource === 0) retained.resource = resource;
   const verified = useRef<string | null>(null);
   const alive = useRef(true);
@@ -115,6 +143,10 @@ export function UnifiedWorkspace({
       } catch (cause) {
         if (alive.current && !signal.aborted) {
           setError(errorText(cause));
+          if (cause instanceof BoardError && cause.code === "BindingChanged") {
+            setAuthorized(false);
+            setPage(null);
+          }
           if (
             cause instanceof BoardError &&
             (cause.status === 403 || cause.status === 410 || cause.code === "HistoryReclaimed")
@@ -221,9 +253,16 @@ export function UnifiedWorkspace({
         )
           throw new BoardError(0, "InvalidResponse");
         if (disposed || signal.aborted) return;
+        if (binding) {
+          if (response.description.name !== binding.name) mismatch();
+          const contract = await query({ compile: { sql: binding.sql } }, signal);
+          if (!("compiled" in contract)) throw new BoardError(0, "InvalidResponse");
+          unifiedContract(binding, contract.compiled);
+        }
+        if (disposed || signal.aborted || document.hidden) return;
         setSource(response.description);
         setDraft((text) => text || `SELECT * FROM ${response.description.name}`);
-        await advance(signal);
+        if (retained.binding === bindingId) await advance(signal);
         const current = work.current;
         if (current.namespace) {
           const observation = await query({ status: current.namespace }, signal);
@@ -256,6 +295,7 @@ export function UnifiedWorkspace({
               work.current.namespace !== namespace
             )
               return;
+            if (binding) unifiedPage(binding, result.page);
             verified.current = namespace;
             setPage(result.page);
           } else setPage(null);
@@ -284,7 +324,7 @@ export function UnifiedWorkspace({
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [resource, revision, task, advance, clear]);
+  }, [resource, revision, task, advance, clear, binding, bindingId]);
   useEffect(() => {
     if (!visible) void liveQuery.pause();
   }, [visible]);
@@ -298,16 +338,27 @@ export function UnifiedWorkspace({
       work.current.namespace = live.snapshot.namespace!;
       work.current.cursor = null;
       verified.current = work.current.namespace;
+      try {
+        if (binding) unifiedPage(binding, live.snapshot.value);
+      } catch (cause) {
+        setPage(null);
+        setAuthorized(false);
+        setError(errorText(cause));
+        void liveQuery.pause();
+        return;
+      }
       setPage(live.snapshot.value);
       setAuthorized(true);
     }
-  }, [live.snapshot, live.phase, visible, clear, work]);
+  }, [live.snapshot, live.phase, visible, clear, work, binding]);
   const execute = () =>
     void task(async (signal) => {
       if (work.current.pending || work.current.input !== null || work.current.bundle) return;
       const response = await query({ compile: { sql: draft } }, signal);
       if (!("compiled" in response)) throw new BoardError(0, "InvalidResponse");
       if (signal.aborted) return;
+      if (binding) unifiedContract(binding, response.compiled);
+      retained.binding = bindingId;
       retained.follow = false;
       work.current = { ...empty(), namespace: freshNamespace(), bundle: response.compiled.bundle };
       setCompiled(response.compiled);
@@ -341,6 +392,7 @@ export function UnifiedWorkspace({
       const response = await query({ page: { namespace: work.current.namespace, cursor } }, signal);
       if (!("page" in response)) throw new BoardError(0, "InvalidResponse");
       if (signal.aborted || document.hidden) return;
+      if (binding) unifiedPage(binding, response.page);
       work.current.cursor = cursor;
       setPage(response.page);
       setAuthorized(true);
@@ -376,6 +428,19 @@ export function UnifiedWorkspace({
               ? `Query ${work.current.namespace}: ${status.phase}`
               : "Run is explicit; switching views does not execute.")}
       </p>
+      {retained.binding !== bindingId &&
+        (work.current.bundle || work.current.input !== null) &&
+        !work.current.pending && (
+          <div className="uncertain">
+            <p>
+              An earlier binding has an accepted upload. Continue its exact retained plan
+              independently of this screen.
+            </p>
+            <button disabled={working} onClick={() => void task(advance)}>
+              Resume prior binding upload
+            </button>
+          </div>
+        )}
       {work.current.pending && (
         <div className="uncertain">
           <strong>Submission not yet confirmed.</strong>
@@ -394,37 +459,40 @@ export function UnifiedWorkspace({
           </button>
         </div>
       )}
-      {scope?.reactive_table && source && "table" in source.source.source.source && (
-        <div aria-label="Query follow controls">
-          <p role="status">
-            {live.phase.replaceAll("_", " ")} · {live.detail}
-          </p>
-          <button
-            disabled={busy || status?.phase !== "complete" || !page}
-            onClick={() => {
-              retained.follow = true;
-              selectLiveTemplate();
-              void liveQuery.start(work.current.namespace).catch(() => {});
-            }}
-          >
-            Follow changes
-          </button>
-          <button onClick={() => void liveQuery.pause().then(() => refresh((n) => n + 1))}>
-            Pause changes
-          </button>
-          {querySession.pending && (
-            <button onClick={() => void liveQuery.recover().catch(() => {})}>
-              Recover exact control
-            </button>
-          )}
-          {live.refresh && (
-            <p>
-              {live.refresh.starts} / {live.refresh.limit} refresh intents used. Accepted results
-              remain retained.
+      {(!binding || binding.refresh === "follow") &&
+        scope?.reactive_table &&
+        source &&
+        "table" in source.source.source.source && (
+          <div aria-label="Query follow controls">
+            <p role="status">
+              {live.phase.replaceAll("_", " ")} · {live.detail}
             </p>
-          )}
-        </div>
-      )}
+            <button
+              disabled={busy || status?.phase !== "complete" || !page}
+              onClick={() => {
+                retained.follow = true;
+                selectLiveTemplate();
+                void liveQuery.start(work.current.namespace, binding?.starts ?? 8).catch(() => {});
+              }}
+            >
+              {followLabel ?? "Follow changes"}
+            </button>
+            <button onClick={() => void liveQuery.pause().then(() => refresh((n) => n + 1))}>
+              Pause changes
+            </button>
+            {querySession.pending && (
+              <button onClick={() => void liveQuery.recover().catch(() => {})}>
+                Recover exact control
+              </button>
+            )}
+            {live.refresh && (
+              <p>
+                {live.refresh.starts} / {live.refresh.limit} refresh intents used. Accepted results
+                remain retained.
+              </p>
+            )}
+          </div>
+        )}
       {authorized && source && (
         <>
           <div className="query-source">

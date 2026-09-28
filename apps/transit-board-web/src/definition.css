@@ -22,7 +22,7 @@
   padding: 16px;
   border: 1px solid var(--muted);
   border-radius: 0;
-  background: #fff;
+  background: #ffffff;
   color: var(--ink);
   font:
     14px/1.65 ui-monospace,
@@ -35,7 +35,7 @@
 }
 .definition-editor button[aria-pressed="true"] {
   background: var(--ink);
-  color: #fff;
+  color: #ffffff;
 }
 .definition-editor .definition-form {
   display: grid;

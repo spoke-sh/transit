@@ -42,7 +42,40 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await expect(draft).toHaveValue(sql);
   await page.getByRole("button", { name: "Canvas", exact: true }).click();
   expect(submissions).toBe(0);
+  let dropped = false;
+  const frozen: string[] = [];
+  await page.route("**/api/v1/query", async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.submit) {
+      frozen.push(JSON.stringify(body));
+      if (!dropped) {
+        dropped = true;
+        await route.fetch();
+        await route.abort("failed");
+        return;
+      }
+    }
+    await route.continue();
+  });
   await page.getByRole("button", { name: "Run query", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Retry exact submission", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Activity", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Atlas", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: `Select resource ${process.env.BOARD_QUERY_RESOURCE}`,
+      exact: true,
+    })
+    .click();
+  await page.getByRole("button", { name: "Enter resource", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Retry exact submission", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Retry exact submission", exact: true }).click();
+  expect(frozen[0]).toEqual(frozen[1]);
   await expect(page.getByLabel("Verified query result")).toBeVisible({ timeout: 120000 });
   await expect(
     page.getByLabel("Verified query result").getByText("9007199254740994", { exact: true }),
@@ -56,7 +89,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await expect(
     page.getByText("Draft changed. The result still belongs to the last submitted SQL."),
   ).toBeVisible();
-  expect(submissions).toBe(1);
+  expect(submissions).toBe(2);
   await page.screenshot({ path: process.env.BOARD_QUERY_SCREENSHOT, fullPage: true });
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,
@@ -68,7 +101,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   ).toBeVisible({ timeout: 15000 });
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
   await expect(draft).toHaveCount(0);
-  expect(submissions).toBe(1);
+  expect(submissions).toBe(2);
   expect(await context.cookies()).toEqual([]);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
@@ -79,7 +112,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await page.getByRole("button", { name: "Refresh query access" }).click();
   await expect(draft).toHaveValue("SELECT * FROM items");
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
-  expect(submissions).toBe(1);
+  expect(submissions).toBe(2);
   expect(errors).toEqual([]);
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,

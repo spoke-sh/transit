@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { atlas, BoardError, type AtlasResponse } from "@rey/transit-board-client";
-import { message, useScope } from "./state";
+import { useScope } from "./state";
+import { useAtlasObservation, type AtlasCursor } from "./atlas-observation";
 import { QueryWorkspace } from "./query-workspace";
 import { UnifiedWorkspace } from "./unified-workspace";
 import { LiveTable } from "./live-table";
@@ -9,15 +9,12 @@ import { Records } from "./records";
 import "./atlas.css";
 
 type Selection = { kind: "process" | "resource"; id: number };
-type Cursor = { position: number; process_after?: number; resource_after?: number };
 export function Atlas({
   initialEmphasis = "processes",
 }: {
   initialEmphasis?: "processes" | "resources";
 }) {
-  const { scope, denied } = useScope();
-  const [data, setData] = useState<AtlasResponse | null>(null);
-  const [error, setError] = useState("");
+  const { scope } = useScope();
   const [mode, setMode] = useState<"canvas" | "browse">("canvas");
   const [emphasis, setEmphasis] = useState(initialEmphasis);
   const [selection, setSelection] = useState<Selection | null>(null);
@@ -30,48 +27,9 @@ export function Atlas({
   const [recordResource, setRecordResource] = useState<number | null>(null);
   const [flat, setFlat] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [cursor, setCursor] = useState<Cursor>();
+  const [cursor, setCursor] = useState<AtlasCursor>();
   const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    const abort = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
-    let disposed = false;
-    let inFlight = false;
-    async function refresh() {
-      if (disposed || document.hidden || inFlight) return;
-      inFlight = true;
-      try {
-        const next = await atlas(cursor, abort.signal);
-        if (!disposed) {
-          setData(next);
-          setError("");
-        }
-      } catch (cause) {
-        if (!disposed) {
-          // A stale cut or denial cannot continue to authorize the old plot.
-          setData(null);
-          setError(message(cause));
-          if (cause instanceof BoardError && cause.status === 403) denied();
-        }
-      } finally {
-        inFlight = false;
-        if (!disposed && !cursor) timer = setTimeout(() => void refresh(), 5000);
-      }
-    }
-    const visibility = () => {
-      clearTimeout(timer);
-      if (document.hidden) setData(null);
-      else void refresh();
-    };
-    void refresh();
-    document.addEventListener("visibilitychange", visibility);
-    return () => {
-      disposed = true;
-      clearTimeout(timer);
-      abort.abort();
-      document.removeEventListener("visibilitychange", visibility);
-    };
-  }, [cursor, revision, denied]);
+  const { data, error } = useAtlasObservation(cursor, revision);
   const processes = data?.processes.entries.filter((value) => value !== null) ?? [];
   const resources = data?.resources.entries.filter((value) => value !== null) ?? [];
   const selectedResource = resources.find(

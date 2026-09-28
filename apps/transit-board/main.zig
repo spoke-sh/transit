@@ -112,18 +112,23 @@ const Server = struct {
         defer result.deinit();
         return self.json(req, .ok, result.value);
     }
-    fn builtinInterface(self: *Server, req: *std.http.Server.Request) !void {
+    fn builtinInterface(self: *Server) !application.Host.Owned {
         var original = try application.Host.compile(self.allocator, @embedFile("board.sql"));
         defer original.deinit();
         var definition = original.value.compiled.definition;
         definition.realm = self.config.realm;
         var buffer: [application.Model.max_program_bytes]u8 = undefined;
         var compiled = try application.Host.compile(self.allocator, try application.Api.canonical(definition, &buffer));
-        defer compiled.deinit();
-        return self.json(req, .ok, application.Host.Response{ .builtin = compiled.value.compiled });
+        const value = compiled.value.compiled;
+        compiled.value = .{ .builtin = value };
+        return compiled;
     }
     fn interfaceRequest(self: *Server, req: *std.http.Server.Request) !void {
-        const scope = self.config.interface orelse return self.builtinInterface(req);
+        const scope = self.config.interface orelse {
+            var result = try self.builtinInterface();
+            defer result.deinit();
+            return self.json(req, .ok, result.value);
+        };
         if (!self.admitRead()) return self.failure(req, .too_many_requests, .RateLimited);
         var upstream = client.Client.init(self.allocator, self.io, self.config.upstream);
         defer upstream.deinit();
@@ -134,7 +139,11 @@ const Server = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
         _ = growing.identity(&upstream, self.config.realm, self.config.principal, key) catch |err| return self.queryFailure(req, &upstream, err);
         var result = application.Host.published(self.allocator, .{ .wire = &upstream, .realm = self.config.realm, .principal = self.config.principal, .key = key }, scope) catch |err| {
-            if (err == error.ApplicationNotPublished) return self.builtinInterface(req);
+            if (err == error.ApplicationNotPublished) {
+                var builtin = try self.builtinInterface();
+                defer builtin.deinit();
+                return self.json(req, .ok, builtin.value);
+            }
             if (err == error.ApplicationPublicationChanged) return self.failure(req, .conflict, .QueryConflict);
             return self.queryFailure(req, &upstream, err);
         };
@@ -268,6 +277,10 @@ const Server = struct {
             if (assets.get(target)) |asset| return self.respond(&req, .ok, asset.bytes, asset.mime);
             const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
             if (browserRoute(path)) return self.respond(&req, .ok, assets.index, "text/html; charset=utf-8");
+            // This is only the public static artifact. The client resolves a
+            // custom path from a current authorized definition, including absence.
+            // Native-read throttling must not strand a browser document navigation.
+            if (self.config.profile == .growing_v3 and !reservedBrowserPath(path)) return self.respond(&req, .ok, assets.index, "text/html; charset=utf-8");
             return self.failure(&req, .not_found, .NotFound);
         }
         // The deployment boundary admits viewers. Transit still authenticates
@@ -333,7 +346,7 @@ fn logRoute(target: []const u8) []const u8 {
     if (std.mem.eql(u8, target, "/api/v1/query")) return "/api/v1/query";
     if (std.mem.startsWith(u8, target, "/api/v1/atlas")) return "/api/v1/atlas";
     const path = target[0 .. std.mem.indexOfScalar(u8, target, '?') orelse target.len];
-    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes" }) |known| if (std.mem.eql(u8, path, known)) return known;
+    inline for (.{ "/", "/health", "/openapi/v1.json", "/api/v1/capabilities", "/api/v1/processes", "/atlas", "/activity", "/definition", "/operations", "/recovery/definition" }) |known| if (std.mem.eql(u8, path, known)) return known;
     if (assets.get(path) != null) return "/assets/{asset}";
     if ((parseRecords(path) catch null) != null) return "/api/v1/resources/{resource}/records";
     if ((parseMetadata(path, "http") catch null) != null) return "/api/v1/resources/{resource}/http/{exchange}";
@@ -532,7 +545,12 @@ fn parseAtlas(target: []const u8) !growing.Cursor {
     }
     return result;
 }
+fn reservedBrowserPath(path: []const u8) bool {
+    application.Model.path(path) catch return true;
+    return false;
+}
 fn browserRoute(path: []const u8) bool {
+    if (std.mem.eql(u8, path, "/recovery/definition")) return true;
     if (std.mem.eql(u8, path, "/definition") or std.mem.eql(u8, path, "/operations") or std.mem.eql(u8, path, "/activity") or std.mem.eql(u8, path, "/atlas") or std.mem.eql(u8, path, "/") or std.mem.eql(u8, path, "/resources")) return true;
     if (!std.mem.startsWith(u8, path, "/processes/")) return false;
     var parts = std.mem.splitScalar(u8, path[11..], '/');

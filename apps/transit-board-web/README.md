@@ -56,7 +56,7 @@ the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
 source, draft and result. In v2 it also stops automatic reads, including after
 follow-lease expiry; **Refresh query access** explicitly rechecks authorization.
-The v2 workspace retains frozen pending requests across
+Both workspaces retain frozen pending requests across
 in-app route remounts for exact recovery; known denial does not invent their
 rejection. Temporary connection failures retain permitted v2 rows with their
 original source basis. A full page reload loses in-memory recovery bytes; no
@@ -125,3 +125,13 @@ errors clear the view and require an explicit refresh after a changed cut.
 Application fields/text remain opaque. Current grants are rechecked on refresh;
 hidden views and failed reads clear observations. `just transit-board::document-browser`
 exercises the real worker and embedded UI, including live read revocation.
+
+M23's growing shell, renderer routes, initial query SQL and navigation actions use
+one shared compiled interface. See the [application guide](../transit-board/docs/application.md)
+for reserved recovery routes, exact source-contract fencing and operator scope.
+Renderer artifacts build together: route splitting caused a burst of static
+requests to exceed the host's bounded handler pool. The consolidated build uses
+one JavaScript and one CSS asset (about 3.70 MB / 14.6 kB before transport
+compression in the initial measurement, including generated runtime validators).
+This reduces startup request concurrency without increasing host capacity. Source
+contract mismatch hides incompatible results while exact pending work survives.

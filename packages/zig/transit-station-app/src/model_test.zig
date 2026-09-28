@@ -81,3 +81,9 @@ fn allocations(allocator: std.mem.Allocator) !void {
 test "allocation failure never returns a partial application definition" {
     try t.checkAllAllocationFailures(t.allocator, allocations, .{});
 }
+
+test "system and recovery routes cannot be replaced by declarations" {
+    for ([_][]const u8{ "/api", "/api/v1/x", "/assets/x", "/health", "/openapi/x", "/recovery/definition", "/processes/3" }) |value| try std.testing.expectError(error.ReservedInterfacePath, m.path(value));
+    try m.path("/neighborhood");
+    try m.path("/healthcare");
+}

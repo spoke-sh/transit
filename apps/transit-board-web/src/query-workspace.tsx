@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BoardError, query, type QueryResponse } from "@rey/transit-board-client";
+import { acquireCaller } from "@rey/transit-reactive-client";
+import {
+  tableContract,
+  tablePage,
+  mismatch,
+  type QueryBinding,
+  type TableContract,
+} from "./binding";
 
 type Source = Extract<QueryResponse, { source: unknown }>["source"];
 type Compiled = Extract<QueryResponse, { prepared: unknown }>["prepared"];
@@ -7,6 +15,16 @@ type Status = Extract<QueryResponse, { status: unknown }>["status"];
 type Page = Extract<QueryResponse, { page: unknown }>["page"];
 type Cell = NonNullable<NonNullable<Page["rows"][number]>[number]>;
 type Pending = { kind: "start" | "cancel"; frozen: { token: string } };
+// Frozen admissions and sequence ownership survive disposable routes/generations.
+const retained = {
+  draft: "",
+  draftBinding: "",
+  runDraft: "",
+  pending: null as Pending | null,
+  correlation: null as number | null,
+  lock: { current: false },
+  release: null as (() => void) | null,
+};
 export function cellText(cell: Cell): string {
   if ("null" in cell) return "NULL";
   if ("int64" in cell) return cell.int64;
@@ -21,6 +39,8 @@ function queryError(cause: unknown): string {
   if (!(cause instanceof BoardError))
     return "Connection unavailable. No durable outcome was confirmed.";
   switch (cause.code) {
+    case "BindingChanged":
+      return "Declared source contract changed. Prior accepted work remains recoverable; its results are not shown in this binding.";
     case "Forbidden":
       return "Query access denied. Protected workspace data has been cleared.";
     case "StateResourceExpired":
@@ -46,36 +66,63 @@ export function QueryWorkspace({
   mode,
   visible,
   onBack,
+  binding,
 }: {
   resource: number;
+  binding?: QueryBinding;
   mode: "canvas" | "browse";
   visible: boolean;
   onBack: () => void;
 }) {
   const [source, setSource] = useState<Source | null>(null);
-  const [draft, setDraft] = useState("");
-  const [runDraft, setRunDraft] = useState("");
+  const draftBinding = binding ? JSON.stringify(binding) : `resource/${resource}`;
+  const [draft, updateDraft] = useState(() => {
+    if (retained.draftBinding !== draftBinding) {
+      retained.draft = binding?.sql ?? "";
+      retained.draftBinding = draftBinding;
+    }
+    return retained.draft;
+  });
+  const setDraft = (value: string | ((previous: string) => string)) => {
+    const next = typeof value === "function" ? value(retained.draft) : value;
+    retained.draft = next;
+    updateDraft(next);
+  };
+  const [runDraft, updateRunDraft] = useState(retained.runDraft);
+  const setRunDraft = (value: string) => {
+    retained.runDraft = value;
+    updateRunDraft(value);
+  };
   const [compiled, setCompiled] = useState<Compiled | null>(null);
-  const [pending, setPending] = useState<Pending | null>(null);
-  const [correlation, setCorrelation] = useState<number | null>(null);
+  const [pending, updatePending] = useState(retained.pending);
+  const setPending = (value: Pending | null) => {
+    retained.pending = value;
+    updatePending(value);
+  };
+  const [correlation, updateCorrelation] = useState(retained.correlation);
+  const setCorrelation = (value: number | null) => {
+    retained.correlation = value;
+    updateCorrelation(value);
+  };
   const [status, setStatus] = useState<Status | null>(null);
   const [page, setPage] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const lock = useRef(false);
+  const lock = retained.lock;
+  const bound = useRef<TableContract | null>(null);
   const alive = useRef(true);
   const controller = useRef(new AbortController());
-  const selection = useRef<number | null>(null);
+  const selection = useRef<number | null>(retained.correlation);
   const selectedPage = useRef<number | null>(null);
   const protectedClear = useCallback(() => {
     setSource(null);
     setDraft("");
     setRunDraft("");
     setCompiled(null);
-    setPending(null);
-    setCorrelation(null);
+    // Current denial clears presentation, never the frozen admission.
+    bound.current = null;
     selection.current = null;
     setStatus(null);
     setPage(null);
@@ -101,6 +148,10 @@ export function QueryWorkspace({
       } catch (cause) {
         if (alive.current && !controller.current.signal.aborted) fail(cause);
       } finally {
+        if (!retained.pending) {
+          retained.release?.();
+          retained.release = null;
+        }
         lock.current = false;
         if (alive.current) setWorking(false);
       }
@@ -125,6 +176,13 @@ export function QueryWorkspace({
         if (!("source" in response) || response.source.connection.resource !== resource)
           throw new BoardError(0, "InvalidResponse");
         if (disposed || signal.aborted) return;
+        if (binding) {
+          const contract = await query({ contract: {} }, signal);
+          if (!("contract" in contract)) throw new BoardError(0, "InvalidResponse");
+          tableContract(binding, contract.contract);
+          bound.current = contract.contract;
+        }
+        if (disposed || signal.aborted || document.hidden) return;
         setSource(response.source);
         setDraft((value) => value || `SELECT * FROM ${response.source.connection.name}`);
         const current = selection.current;
@@ -142,6 +200,10 @@ export function QueryWorkspace({
             const result = await query({ page: { correlation: current, ordinal: 0 } }, signal);
             if (!("page" in result)) throw new BoardError(0, "InvalidResponse");
             if (disposed || signal.aborted) return;
+            if (binding) {
+              if (!bound.current) mismatch();
+              tablePage(bound.current, result.page);
+            }
             setPage(result.page);
             selectedPage.current = 0;
           }
@@ -166,8 +228,15 @@ export function QueryWorkspace({
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [resource, refresh, runTask, protectedClear]);
+  }, [resource, refresh, runTask, protectedClear, binding]);
+  const caller = async (signal: AbortSignal) => {
+    if (retained.release) return;
+    const response = await query({ describe: {} }, signal);
+    if (!("source" in response)) throw new BoardError(0, "InvalidResponse");
+    retained.release = await acquireCaller(response.source.connection, signal);
+  };
   const dispatch = async (value: Pending, signal: AbortSignal) => {
+    await caller(signal);
     const response = await query(
       value.kind === "start" ? { submit: value.frozen } : { cancel: value.frozen },
       signal,
@@ -196,8 +265,22 @@ export function QueryWorkspace({
   const execute = () =>
     void runTask(async (signal) => {
       if (pending) throw new BoardError(409, "QueryConflict");
+      await caller(signal);
       const response = await query({ prepare: { sql: draft } }, signal);
       if (!("prepared" in response)) throw new BoardError(0, "InvalidResponse");
+      if (signal.aborted || !alive.current) return;
+      if (binding) {
+        const contract = await query({ contract: {} }, signal);
+        if (!("contract" in contract)) throw new BoardError(0, "InvalidResponse");
+        tableContract(binding, contract.contract);
+        if (
+          response.prepared.source.connection.table !== contract.contract.source.connection.table ||
+          JSON.stringify(response.prepared.source.schema) !==
+            JSON.stringify(contract.contract.source.schema)
+        )
+          mismatch();
+        bound.current = contract.contract;
+      }
       if (signal.aborted || !alive.current) return;
       setCompiled(response.prepared);
       setRunDraft(draft);
@@ -208,6 +291,7 @@ export function QueryWorkspace({
   const cancel = () =>
     void runTask(async (signal) => {
       if (correlation === null || pending) return;
+      await caller(signal);
       const response = await query({ prepare_cancel: { correlation } }, signal);
       if (!("cancellation" in response)) throw new BoardError(0, "InvalidResponse");
       if (signal.aborted || !alive.current) return;
@@ -221,6 +305,10 @@ export function QueryWorkspace({
       const response = await query({ page: { correlation, ordinal: page.next } }, signal);
       if (!("page" in response)) throw new BoardError(0, "InvalidResponse");
       if (signal.aborted || !alive.current) return;
+      if (binding) {
+        if (!bound.current) mismatch();
+        tablePage(bound.current, response.page);
+      }
       setPage(response.page);
       selectedPage.current = response.page.ordinal;
       setAuthorized(true);
@@ -250,15 +338,12 @@ export function QueryWorkspace({
       {pending && (
         <div className="uncertain">
           <strong>Submission not yet confirmed.</strong>
-          <p>
-            Keep this workspace open to reconcile the exact request. Rerunning SQL would create
-            different work.
-          </p>
+          <p>The identical signed request is retained across Board navigation in this tab.</p>
           <button
             disabled={working}
             onClick={() => void runTask((signal) => dispatch(pending, signal))}
           >
-            Retry same submission
+            Retry exact submission
           </button>
         </div>
       )}

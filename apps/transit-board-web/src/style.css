@@ -11,11 +11,11 @@ body {
     sans-serif;
 }
 a {
-  color: #155760;
+  color: #4a4a4a;
   text-underline-offset: 0.2em;
 }
 a:hover {
-  color: #a54c14;
+  color: #5b5b5b;
 }
 header {
   background: var(--night);
@@ -40,10 +40,10 @@ header {
   font:
     11px ui-monospace,
     monospace;
-  color: #b7c4ce;
+  color: #c2c2c2;
   letter-spacing: 0.12em;
   padding-left: 0.6rem;
-  border-left: 1px solid #566471;
+  border-left: 1px solid #626262;
 }
 .profile {
   margin-left: auto;
@@ -51,12 +51,12 @@ header {
     11px ui-monospace,
     monospace;
   letter-spacing: 0.16em;
-  color: #eed3aa;
+  color: #d6d6d6;
 }
 .scope {
   padding: 0.5rem 4vw;
-  background: #e4e8e4;
-  color: #354e4c;
+  background: #e7e7e7;
+  color: #494949;
   font:
     12px/1.8 ui-monospace,
     monospace;
@@ -111,7 +111,7 @@ p {
 .evidence {
   padding: 0.9rem 1.2rem;
   border: 1px solid var(--line);
-  background: #fffef9;
+  background: #fefefe;
   font-size: 0.85rem;
   margin: 1.3rem 0;
 }
@@ -136,15 +136,15 @@ input {
 button,
 select {
   padding: 0.45rem 0.75rem;
-  border: 1px solid #889990;
+  border: 1px solid #959595;
   border-radius: 3px;
-  background: #fffefa;
+  background: #fefefe;
   color: var(--ink);
   cursor: pointer;
 }
 button:hover {
-  border-color: #174a4a;
-  background: #ebf0e9;
+  border-color: #3f3f3f;
+  background: #eeeeee;
 }
 button[aria-current="page"] {
   background: var(--night);
@@ -152,7 +152,7 @@ button[aria-current="page"] {
   border-color: var(--night);
 }
 :focus-visible {
-  outline: 3px solid #b86110;
+  outline: 3px solid #6e6e6e;
   outline-offset: 3px;
 }
 .filters {
@@ -178,7 +178,7 @@ button[aria-current="page"] {
 table {
   width: 100%;
   border-collapse: collapse;
-  background: #fffefa;
+  background: #fefefe;
   text-align: left;
   font-variant-numeric: tabular-nums;
 }
@@ -194,7 +194,7 @@ caption {
 }
 thead {
   background: var(--night);
-  color: #d5ddd9;
+  color: #dbdbdb;
   font:
     11px ui-monospace,
     monospace;
@@ -208,7 +208,7 @@ td {
   white-space: nowrap;
 }
 tbody tr:hover {
-  background: #eff1e9;
+  background: #f0f0f0;
 }
 td:first-child a {
   font-family: ui-monospace, monospace;
@@ -216,22 +216,22 @@ td:first-child a {
 }
 .badge {
   display: inline-block;
-  border: 1px solid #b7cbbf;
-  background: #edf5ef;
-  color: #235a3b;
+  border: 1px solid #c6c6c6;
+  background: #f3f3f3;
+  color: #4c4c4c;
   padding: 0.1rem 0.5rem;
   border-radius: 3px;
   font-size: 0.8rem;
 }
 .badge.expired,
 .badge.terminated {
-  background: #eeebe3;
-  color: #625643;
-  border-color: #d0c6b2;
+  background: #ebebeb;
+  color: #575757;
+  border-color: #c7c7c7;
 }
 .warning {
-  color: #83350b;
-  border-left: 3px solid #bf6617;
+  color: #434343;
+  border-left: 3px solid #737373;
   padding-left: 0.8rem;
 }
 .tabs {
@@ -255,7 +255,7 @@ td:first-child a {
 }
 .facts div {
   padding: 1.1rem;
-  background: #fffefa;
+  background: #fefefe;
 }
 .facts span {
   display: block;
@@ -282,7 +282,7 @@ details {
   border: 1px solid var(--line);
   padding: 0.7rem 1rem;
   margin: 0.7rem 0;
-  background: #fffefa;
+  background: #fefefe;
 }
 summary {
   cursor: pointer;
@@ -299,7 +299,7 @@ code {
 article {
   padding: 0.7rem 1.2rem;
   border: 1px solid var(--line);
-  background: #fffefa;
+  background: #fefefe;
   margin: 0.8rem 0;
 }
 .lanes {
@@ -313,7 +313,7 @@ article {
   align-items: center;
   padding: 1rem;
   border: 1px solid var(--line);
-  background: #fffefa;
+  background: #fefefe;
   margin: 0.5rem 0;
 }
 .lanes small {
@@ -325,11 +325,11 @@ article {
 }
 .connection {
   text-align: center;
-  color: #58746c;
+  color: #6d6d6d;
 }
 .connection > span {
   display: block;
-  border-bottom: 1px solid #bec9be;
+  border-bottom: 1px solid #c6c6c6;
   font-size: 1.5rem;
 }
 .access {
@@ -343,9 +343,9 @@ article {
 }
 .access input {
   min-width: 0;
-  border: 1px solid #889990;
+  border: 1px solid #959595;
   padding: 0.65rem;
-  background: #fffefa;
+  background: #fefefe;
 }
 .access button {
   justify-self: start;

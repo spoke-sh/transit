@@ -2900,3 +2900,26 @@ The shared native signing helper also agrees with independent Python Station/v3
 fixtures. Browser tests preserve one outstanding signature through export/import
 and refuse altered scopes before signing. Host compiler replies use the existing
 Station publication commitment; they do not invent a second digest format.
+
+
+M23's declared shell now passes the real native application browser proof with
+published custom routes and deep-link reload, old-client navigation replacement,
+SQL/Form/Canvas recovery, fixed independent recovery route, keyboard flat/Browse
+navigation, Activity/Operations, two monochrome densities, WCAG A/AA axe checks,
+320 px layout and 200% content zoom. The executed browser case took 41.5 seconds
+(42.2 seconds including the Playwright runner), excluding compilation and fixture
+startup. Worker/node/disk restart and current read denial remain part of the same
+focused harness. The Table browser case additionally drops a successful native
+admission reply, unmounts the route and proves an identical retry after remount;
+it passed in 22.5 seconds (23.2 including runner), then checked current revocation
+and permanent source retirement without another SQL admission.
+
+Startup failures found during this work are part of the evidence: route-split
+module requests exhausted the existing handler pool, custom document navigation
+was exposed to the native-read throttle, and synchronized five-second definition
+and Atlas timers could starve Atlas. The consolidated static artifact, independent
+static navigation and bounded Atlas read retries fixed these observed failures.
+Browser proofs use the same Playwright output directory and run sequentially;
+concurrent invocations corrupt trace artifacts. Source-contract guard tests reject
+foreign/mixed contracts and a different Table with identical columns. These do
+not yet qualify the generated application's data migration or physical placement.

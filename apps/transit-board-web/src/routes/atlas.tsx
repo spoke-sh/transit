@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Atlas } from "../atlas";
+import { DeclaredView } from "../declared";
 import { useScope } from "../state";
 export const Route = createFileRoute("/atlas")({ component: AtlasPage });
 function AtlasPage() {
   return useScope().scope?.profile === "growing_v3" ? (
-    <Atlas />
+    <DeclaredView />
   ) : (
     <main>
       <h1>Relief atlas</h1>

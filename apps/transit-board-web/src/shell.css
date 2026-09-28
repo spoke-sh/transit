@@ -1,0 +1,196 @@
+.transit-shell {
+  position: relative;
+  min-height: 100vh;
+  --content-space: 32px;
+  --control-space: 8px 12px;
+  min-width: 0;
+  font-size: 14px;
+}
+.transit-shell[data-density="compact"] {
+  --control-space: 5px 8px;
+  font-size: 13px;
+}
+.shell-header {
+  height: 56px;
+  min-width: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--ink);
+  gap: 24px;
+}
+.shell-header .brand {
+  color: var(--ink);
+  font-size: 19px;
+  gap: 8px;
+}
+.shell-header .brand small {
+  color: var(--muted);
+  border-color: var(--line);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+.shell-areas {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 100%;
+}
+.shell-areas button {
+  height: 100%;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+  padding: 0 16px;
+}
+.shell-areas button[aria-pressed="true"] {
+  border-bottom-color: var(--ink);
+  color: var(--ink);
+}
+.shell-realm {
+  margin-left: auto;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.shell-menu {
+  display: none;
+}
+.shell-navigation {
+  position: absolute;
+  top: 56px;
+  bottom: 0;
+  width: 208px;
+  min-height: calc(100vh - 56px);
+  padding: 24px 16px;
+  border-right: 1px solid var(--line);
+  background: #fafafa;
+}
+.shell-navigation .eyebrow {
+  margin: 0 8px 16px;
+}
+.shell-navigation nav {
+  display: grid;
+  gap: 4px;
+}
+.shell-navigation nav a {
+  padding: var(--control-space);
+  color: var(--muted);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  border-left: 2px solid transparent;
+}
+.shell-navigation nav a[aria-current="page"] {
+  border-left-color: var(--ink);
+  background: #e8e8e8;
+  color: var(--ink);
+  font-weight: 650;
+}
+.shell-recovery {
+  margin-top: 32px;
+  padding: 16px 8px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.shell-recovery label,
+.shell-recovery select {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0;
+}
+.shell-content {
+  margin-left: 208px;
+  min-width: 0;
+}
+.shell-content .scope {
+  background: #fafafa;
+  color: var(--muted);
+  padding: 8px var(--content-space);
+}
+.shell-content main {
+  width: 100%;
+  max-width: none;
+  padding: var(--content-space);
+}
+.shell-content h1 {
+  font-size: 28px;
+  letter-spacing: -0.03em;
+}
+.shell-content .page-heading {
+  margin-bottom: 24px;
+}
+.shell-content button {
+  padding: var(--control-space);
+}
+.shell-content .atlas-main {
+  max-width: none;
+}
+.shell-content .atlas-toolbar,
+.shell-content .atlas-layout {
+  min-width: 0;
+}
+.definition-editor .publication-review pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .shell-header {
+    height: auto;
+    min-height: 56px;
+    padding: 8px 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .shell-areas {
+    order: 4;
+    width: 100%;
+    height: 36px;
+  }
+  .shell-areas button {
+    flex: 1;
+  }
+  .shell-realm,
+  .shell-header .brand small {
+    display: none;
+  }
+  .shell-menu {
+    display: block;
+    margin-left: auto;
+  }
+  .shell-navigation {
+    display: none;
+    position: static;
+    width: 100%;
+    min-height: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .shell-navigation.open {
+    display: block;
+  }
+  .shell-content {
+    margin-left: 0;
+    --content-space: 16px;
+  }
+  .shell-content .page-heading {
+    display: block;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .transit-shell *,
+  .transit-shell *::before,
+  .transit-shell *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.declared-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}

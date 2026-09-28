@@ -114,7 +114,18 @@ pub const Definition = struct {
             const bound = self.binding(screen.binding) orelse return error.MissingInterfaceReference;
             switch (screen.renderer) {
                 .worksheet, .work_items => if (bound.source != .query) return error.IncompatibleRenderer,
-                else => if (bound.source != .inspection) return error.IncompatibleRenderer,
+                else => {
+                    if (bound.source != .inspection) return error.IncompatibleRenderer;
+                    const projection = bound.source.inspection.projection;
+                    const compatible = projection == .atlas or switch (screen.renderer) {
+                        .atlas => projection == .processes or projection == .resources,
+                        .records => projection == .resources or projection == .records,
+                        .activity => projection == .activity,
+                        .operations, .definition => projection == .capabilities,
+                        else => unreachable,
+                    };
+                    if (!compatible) return error.IncompatibleRenderer;
+                },
             }
         }
         for (self.actions) |action| {
@@ -145,6 +156,9 @@ pub fn path(value: []const u8) !void {
     try text(value, 128);
     if (value[0] != '/' or std.mem.indexOf(u8, value, "//") != null or std.mem.indexOf(u8, value, "..") != null) return error.InvalidInterfacePath;
     for (value) |byte| if (!std.ascii.isAlphanumeric(byte) and byte != '/' and byte != '-' and byte != '_') return error.InvalidInterfacePath;
+    inline for (.{ "/api", "/assets", "/health", "/openapi", "/recovery", "/processes" }) |reserved| {
+        if (std.mem.eql(u8, value, reserved) or (std.mem.startsWith(u8, value, reserved) and value.len > reserved.len and value[reserved.len] == '/')) return error.ReservedInterfacePath;
+    }
 }
 fn unique(items: anytype) !void {
     for (items, 0..) |item, index| {

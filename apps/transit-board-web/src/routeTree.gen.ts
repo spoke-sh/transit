@@ -10,15 +10,29 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SplatRouteImport } from './routes/$'
+import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as AtlasRouteImport } from './routes/atlas'
 import { Route as DefinitionRouteImport } from './routes/definition'
+import { Route as OperationsRouteImport } from './routes/operations'
 import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as ProcessesPidRouteImport } from './routes/processes.$pid'
+import { Route as RecoveryDefinitionRouteImport } from './routes/recovery.definition'
 import { Route as ProcessesPidJourneyRouteImport } from './routes/processes.$pid.journey'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SplatRoute = SplatRouteImport.update({
+  id: '/$',
+  path: '/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActivityRoute = ActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AtlasRoute = AtlasRouteImport.update({
@@ -31,6 +45,11 @@ const DefinitionRoute = DefinitionRouteImport.update({
   path: '/definition',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperationsRoute = OperationsRouteImport.update({
+  id: '/operations',
+  path: '/operations',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResourcesRoute = ResourcesRouteImport.update({
   id: '/resources',
   path: '/resources',
@@ -41,6 +60,11 @@ const ProcessesPidRoute = ProcessesPidRouteImport.update({
   path: '/processes/$pid',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RecoveryDefinitionRoute = RecoveryDefinitionRouteImport.update({
+  id: '/recovery/definition',
+  path: '/recovery/definition',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProcessesPidJourneyRoute = ProcessesPidJourneyRouteImport.update({
   id: '/journey',
   path: '/journey',
@@ -49,62 +73,90 @@ const ProcessesPidJourneyRoute = ProcessesPidJourneyRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/activity': typeof ActivityRoute
   '/atlas': typeof AtlasRoute
   '/definition': typeof DefinitionRoute
+  '/operations': typeof OperationsRoute
   '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
+  '/recovery/definition': typeof RecoveryDefinitionRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/activity': typeof ActivityRoute
   '/atlas': typeof AtlasRoute
   '/definition': typeof DefinitionRoute
+  '/operations': typeof OperationsRoute
   '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
+  '/recovery/definition': typeof RecoveryDefinitionRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/$': typeof SplatRoute
+  '/activity': typeof ActivityRoute
   '/atlas': typeof AtlasRoute
   '/definition': typeof DefinitionRoute
+  '/operations': typeof OperationsRoute
   '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
+  '/recovery/definition': typeof RecoveryDefinitionRoute
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/$'
+    | '/activity'
     | '/atlas'
     | '/definition'
+    | '/operations'
     | '/resources'
     | '/processes/$pid'
+    | '/recovery/definition'
     | '/processes/$pid/journey'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/$'
+    | '/activity'
     | '/atlas'
     | '/definition'
+    | '/operations'
     | '/resources'
     | '/processes/$pid'
+    | '/recovery/definition'
     | '/processes/$pid/journey'
   id:
     | '__root__'
     | '/'
+    | '/$'
+    | '/activity'
     | '/atlas'
     | '/definition'
+    | '/operations'
     | '/resources'
     | '/processes/$pid'
+    | '/recovery/definition'
     | '/processes/$pid/journey'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SplatRoute: typeof SplatRoute
+  ActivityRoute: typeof ActivityRoute
   AtlasRoute: typeof AtlasRoute
   DefinitionRoute: typeof DefinitionRoute
+  OperationsRoute: typeof OperationsRoute
   ResourcesRoute: typeof ResourcesRoute
   ProcessesPidRoute: typeof ProcessesPidRouteWithChildren
+  RecoveryDefinitionRoute: typeof RecoveryDefinitionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -114,6 +166,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$': {
+      id: '/$'
+      path: '/$'
+      fullPath: '/$'
+      preLoaderRoute: typeof SplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/activity': {
+      id: '/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof ActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/atlas': {
@@ -130,6 +196,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DefinitionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operations': {
+      id: '/operations'
+      path: '/operations'
+      fullPath: '/operations'
+      preLoaderRoute: typeof OperationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/resources': {
       id: '/resources'
       path: '/resources'
@@ -142,6 +215,13 @@ declare module '@tanstack/react-router' {
       path: '/processes/$pid'
       fullPath: '/processes/$pid'
       preLoaderRoute: typeof ProcessesPidRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recovery/definition': {
+      id: '/recovery/definition'
+      path: '/recovery/definition'
+      fullPath: '/recovery/definition'
+      preLoaderRoute: typeof RecoveryDefinitionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/processes/$pid/journey': {
@@ -168,10 +248,14 @@ const ProcessesPidRouteWithChildren = ProcessesPidRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SplatRoute: SplatRoute,
+  ActivityRoute: ActivityRoute,
   AtlasRoute: AtlasRoute,
   DefinitionRoute: DefinitionRoute,
+  OperationsRoute: OperationsRoute,
   ResourcesRoute: ResourcesRoute,
   ProcessesPidRoute: ProcessesPidRouteWithChildren,
+  RecoveryDefinitionRoute: RecoveryDefinitionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

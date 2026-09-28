@@ -1,3 +1,4 @@
+import { InterfaceShell } from "./interface";
 import { Link } from "@tanstack/react-router";
 import {
   createContext,
@@ -68,15 +69,17 @@ export function Access({ children }: { children: ReactNode }) {
   }, [check, retry]);
   return (
     <Context.Provider value={{ scope, denied }}>
-      <header>
-        <a href="/" className="brand">
-          <span aria-hidden="true">▥</span> Board <small>REY / TRANSIT</small>
-        </a>
-        <Link to="/definition">Definition</Link>
-        <span className="profile">
-          {scope?.query_enabled ? "INSPECTION · SQL QUERIES" : "INSPECTION ONLY"}
-        </span>
-      </header>
+      {scope?.profile !== "growing_v3" && (
+        <header>
+          <a href="/" className="brand">
+            <span aria-hidden="true">▥</span> Transit <small>BOARD</small>
+          </a>
+          <Link to="/definition">Definition</Link>
+          <span className="profile">
+            {scope?.query_enabled ? "INSPECTION · SQL QUERIES" : "INSPECTION ONLY"}
+          </span>
+        </header>
+      )}
       {!scope ? (
         <main className="access">
           <p className="eyebrow">SYSTEM INSPECTION</p>
@@ -91,6 +94,8 @@ export function Access({ children }: { children: ReactNode }) {
             a separately enabled endpoint and signing identity.
           </p>
         </main>
+      ) : scope.profile === "growing_v3" ? (
+        <InterfaceShell scope={scope}>{children}</InterfaceShell>
       ) : (
         <>
           <aside className="scope">

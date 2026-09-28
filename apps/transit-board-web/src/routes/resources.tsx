@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Atlas } from "../atlas";
+import { DeclaredView } from "../declared";
 import { useScope } from "../state";
 import { Resources } from "../resources";
 
@@ -11,11 +11,7 @@ export const Route = createFileRoute("/resources")({
         : undefined,
   }),
   component: () =>
-    useScope().scope?.profile === "growing_v3" ? (
-      <Atlas initialEmphasis="resources" />
-    ) : (
-      <ResourcePage />
-    ),
+    useScope().scope?.profile === "growing_v3" ? <DeclaredView /> : <ResourcePage />,
 });
 function ResourcePage() {
   const { resource } = Route.useSearch();
