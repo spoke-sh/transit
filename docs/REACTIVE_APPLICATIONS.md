@@ -210,8 +210,9 @@ Canvas editing does not admit work; explicit review freezes base, revision and
 publication digest. One uncertain signature survives route replacement and can
 be exported independently of the signing key. The actual native browser proof
 covers editing, a lost admission reply, disk/worker recovery and current read
-denial. Interface-driven shell generation, generic migration/data evolution and
-generated application placements remain unqualified until their own proofs run.
+denial. Declaration-driven shell generation and the selected work-item Table
+evolution now have their own browser proofs. Generic schema evolution remains
+outside that evidence; physical placements have separate qualification records.
 See the [implementation guide](../apps/transit-board/docs/application.md) and
 [test evidence](../tests/README.md#m23-application-declaration-boundary).
 
@@ -238,5 +239,7 @@ proof reads three complete verified pages, crosses a data/interface schema
 transition, restarts the browser/gateway and settles the original uncertain
 upload before explicitly admitting a new query. Query recovery is independent
 of the current interface binding; compilation and visible pages still require
-the current data contract. Compose/reference qualification remains separate.
-See the [composition guide](../examples/work-items/docs/browser.md).
+the current data contract. Separate Compose/reference proofs pass the same browser
+schedule with fresh ownership after replacing workers, gateway, authority and
+storage. See the [composition guide](../examples/work-items/docs/browser.md) and
+[placement limits](../examples/work-items/docs/placement.md).

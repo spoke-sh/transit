@@ -537,7 +537,10 @@ must not replace that reviewed plan or an uncertain native signature. A receipt
 means native admission until the application owner records its disposition.
 
 Native browser qualification covers route-remount recovery, real conditional
-publication, worker/node/disk restart and current reader denial. The monochrome
-shell, declaration-driven route replacement and migration/generated-application
-proofs remain M23 work. No broader operator privilege or deployment qualification
-is implied by the editor's presence.
+publication, worker/node/disk restart, current reader denial, the monochrome shell
+and declaration-driven route replacement. Bounded Atlas participation, finite
+Table Live drafts and verified visible-page profiles have separate executed
+proofs. The generated work-item application composes these shared packages while
+keeping its business decoder outside Board. The [test ledger](../tests/README.md#m23-application-declaration-boundary)
+records each source, placement and recovery boundary; the editor does not expand
+operator privileges or confer cross-resource transaction semantics.

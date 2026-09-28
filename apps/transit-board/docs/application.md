@@ -1,9 +1,12 @@
 # Declarative definitions and operator publication
 
-M23 implementation is in progress. The shared compiler, signed upload owner and
-native restart proof are implemented. The optional embedded SQL/Form/Canvas editor passes its native browser, signed
-publication and restart proof. The shell and declared routes are implemented; migration and
-generated application qualification remain separate work.
+The shared compiler, signed upload owner, embedded SQL/Form/Canvas editor,
+declared shell and native restart proofs are implemented. The
+[work-item application](../../../examples/work-items/README.md) demonstrates
+bounded data evolution and generated browser composition using the same packages.
+Its physical placement evidence is separate from Board's native editor proof;
+the [test ledger](../../../tests/README.md#m23-application-declaration-boundary)
+records the supported profiles and remaining qualification.
 
 Board embeds `board.sql` as its explicit built-in definition. `GET
 /api/v1/interface` returns a compiler-validated built-in artifact or a complete
