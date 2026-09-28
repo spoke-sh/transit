@@ -38,3 +38,8 @@ Seven scheduler tests cover pause, explicit cancellation, known rejection and
 control recovery. KV/Document Live draft execution is not enabled. Timings are
 browser-observed compilation, upload through observed completion, and verification;
 server execution time and source age remain unavailable.
+
+`pageProfile` derives exact cell-state counts from the supplied verified visible
+page, preserving value, null, missing, type error and conflict. It neither reads
+more data nor changes the result basis. Board's monochrome chart uses a fixed
+eight-row page scale and labels the query, source revision and limited coverage.

@@ -21,6 +21,32 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "suggest"
+          ],
+          "properties": {
+            "suggest": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "search"
+              ],
+              "properties": {
+                "search": {
+                  "type": "string",
+                  "maxLength": 131072
+                }
+              },
+              "required": [
+                "search"
+              ],
+              "x-transit-defaults": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
             "compile"
           ],
           "properties": {
@@ -1164,6 +1190,78 @@
                   "continuous": false
                 }
               }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "suggestions"
+          ],
+          "properties": {
+            "suggestions": {
+              "type": "object",
+              "additionalProperties": false,
+              "x-transit-field-order": [
+                "resource",
+                "contract",
+                "items"
+              ],
+              "properties": {
+                "resource": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                },
+                "contract": {
+                  "type": "array",
+                  "minItems": 32,
+                  "maxItems": 32,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  }
+                },
+                "items": {
+                  "type": "array",
+                  "maxItems": 8,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "label",
+                      "sql"
+                    ],
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "sql": {
+                        "type": "string",
+                        "maxLength": 131072
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "sql"
+                    ],
+                    "x-transit-defaults": {}
+                  }
+                }
+              },
+              "required": [
+                "resource",
+                "contract",
+                "items"
+              ],
+              "x-transit-defaults": {}
             }
           }
         },

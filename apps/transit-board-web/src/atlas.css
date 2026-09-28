@@ -203,6 +203,21 @@
 .draft-controls input {
   max-width: 100%;
 }
+.query-candidates {
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+.query-candidates button,
+.query-candidates input {
+  max-width: 100%;
+  white-space: normal;
+}
+.profile-bar {
+  display: block;
+  height: 4px;
+  background: #595959;
+  margin-bottom: 4px;
+}
 .worksheet {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);

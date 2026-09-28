@@ -290,9 +290,13 @@ geometry, line styles and evidence remain meaningful without color.
 definitions, qualified public bindings, the full selected Board experience and
 a downstream application workflow with explicit migrations.
 [Reactive applications](REACTIVE_APPLICATIONS.md) owns the proposed composition,
-publication and migration model. These proposals add no executable UI grammar
-or administrative right to the current Board. In particular, typed definition
-preview never applies a change, and application migration never implies
+publication and migration model. M23 now implements the bounded declaration
+compiler, conditional signed publication and declared shell; publication remains
+an explicit attributed operator action. The v2 worksheet offers native
+source-scoped complete SQL candidates, finite opt-in Live drafts with saved exact
+recovery, and profiles/charts over its verified visible result page. These are
+separate from the M2 inspection identity. Typed definition preview never applies
+a change, and application migration never implies
 cross-resource atomicity or cluster authority recovery.
 
 ## Boundary and packaging

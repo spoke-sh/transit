@@ -99,6 +99,14 @@ try {
   const draft = page.getByLabel("SQL draft", { exact: true });
   await expect(draft).toBeVisible();
   await expect(page.getByRole("heading", { name: `items · ${kind}` })).toBeVisible();
+  await page.getByText("Complete a draft from the authorized source", { exact: true }).click();
+  await page.getByLabel("SQL candidate search").fill("COUNT");
+  await page.getByRole("button", { name: "Find SQL candidates", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Count: SELECT COUNT(*) FROM items", exact: true })
+    .click();
+  await expect(draft).toHaveValue("SELECT COUNT(*) FROM items");
+  assert.equal(submissions, 0, "completion must only edit SQL");
   await draft.fill("SELECT * FROM items LIMIT 2");
   await page.getByRole("button", { name: "Browse", exact: true }).click();
   await page.getByRole("button", { name: "Canvas", exact: true }).click();
@@ -114,6 +122,9 @@ try {
   ).toBeVisible();
   if (kind === "document")
     await expect(page.getByRole("cell", { name: "MISSING", exact: true })).toHaveCount(2);
+  await page.getByText("Visible page profile and chart", { exact: true }).click();
+  await expect(page.getByRole("table", { name: "Visible page cell-state profile" })).toBeVisible();
+  await expect(page.getByText(/Exact counts for 2 visible rows/)).toBeVisible();
   let completed = submissions;
   await draft.fill("SELECT * FROM items LIMIT 1");
   await page.getByRole("button", { name: "Browse", exact: true }).click();

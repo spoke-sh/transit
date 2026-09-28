@@ -40,6 +40,7 @@ pub const Draft = struct {
 pub const Compiled = struct { bundle: []const u8, source: v.Source, plan: v.Plan, limits: v.Limits, contract: [32]u8, schema: [32]u8 };
 pub const Request = union(enum) {
     describe,
+    suggest: struct { search: []const u8 },
     compile: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8 },
     next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },
@@ -55,6 +56,7 @@ pub const Request = union(enum) {
 pub const Page = struct { evidence: b.Page, cells: []const []const v.Cell };
 pub const Response = union(enum) {
     description: Description,
+    suggestions: struct { resource: u64, contract: [32]u8, items: []const q.Editor.Item },
     compiled: Compiled,
     prepared: ?Frozen,
     receipt: q.protocol.Receipt,
@@ -69,6 +71,11 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
     const limits = try config.limits.native();
     const name = try m.Name.init(config.name);
     switch (request) {
+        .suggest => |input| {
+            _ = try client.describe(definition);
+            var columns: [m.max_columns]m.Column = undefined;
+            return .{ .suggestions = .{ .resource = definition.resource, .contract = try definition.fingerprint(), .items = try q.Editor.candidates(allocator, name, try definition.schema(&columns), input.search) } };
+        },
         .describe => {
             const description = (try b.apply(allocator, client, .{ .describe = config.source })).description;
             var columns: [m.max_columns]m.Column = undefined;

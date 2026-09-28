@@ -131,8 +131,8 @@ call. `UnifiedClient.draft` and `prepareNextWithDraft` preserve point-addressed
 history and exact admission recovery; `Workspace` exposes `draft_open`,
 `draft_close`, `draft_status` and `next_draft`. The selected
 [draft contract](../../../contracts/QUERY_DRAFT_V1.md) documents wire formats,
-eight-intent groups, current authority and closure. Native Table host tests pass;
-the coalescing browser scheduler remains in progress. Existing Run, SDK and
+eight-intent groups, current authority and closure. Native Table host and coalescing browser tests pass, including saved recovery
+after browser reload and two-intent exhaustion. Existing Run, SDK and
 Follow profiles retain their separate contracts and qualification matrices.
 
 `transit-query-api` exports the standalone workspace JSON Schema from the owning
@@ -140,3 +140,10 @@ public types. Board consumes the same schema options; `just transit-board::contr
 checks both reflections agree. The neutral `transit-query-client` browser package
 owns the corresponding transport, value validation and bounded complete-result
 reader so generated applications need not depend on Board.
+
+`Workspace.suggest` acquires current source authority and returns up to eight
+complete SQL drafts from `Editor`. Search is capped at 128 UTF-8 bytes and filters
+before the result bound; names and types come only from the configured source.
+Every candidate lowers through the real Fuze compiler. Checked sums are offered
+only for int64 columns; editing a candidate does not admit a query. This is a
+bounded complete-draft catalog, not a speculative parser or cross-source search.

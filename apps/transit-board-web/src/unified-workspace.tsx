@@ -10,6 +10,8 @@ import { acquireCaller } from "@rey/transit-reactive-client";
 import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";
 import { verifiedPage } from "./unified-result";
 import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-live";
+import { QueryCandidates } from "./query-candidates";
+import { QueryProfile } from "./query-profile";
 import { DraftControls } from "./draft-controls";
 import { useScope } from "./state";
 import { unifiedContract, unifiedPage, mismatch, type QueryBinding } from "./binding";
@@ -658,6 +660,7 @@ export function UnifiedWorkspace({
             </ol>
           )}
           <div className="query-composer">
+            <QueryCandidates resource={resource} select={setDraft} denied={clear} />
             <label htmlFor="unified-sql">SQL draft</label>
             <textarea
               id="unified-sql"
@@ -696,6 +699,7 @@ export function UnifiedWorkspace({
           )}
           {page && (
             <div className="query-result" aria-label="Verified query result">
+              <QueryProfile page={page} />
               <h3>Verified complete result · page {BigInt(page.evidence.ordinal) + 1n}</h3>
               <p>
                 Source {page.evidence.manifest.basis.kind} · resource{" "}

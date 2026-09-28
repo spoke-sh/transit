@@ -3006,3 +3006,11 @@ The combined worker/store recovery, API and browser run measured 327.26 seconds
 locally; this does not enlarge hosted PR lanes or establish interactive latency.
 The scheduler's separate seven tests cover known rejection, pause and explicit
 cancellation; KV/Document Live draft and distributed caller fairness are unqualified.
+
+The M23 Table workspace suite also qualifies native authorized SQL suggestions:
+case-insensitive filtering, bounded/invalid search, real compilation, current
+source denial and no admission when selecting a draft. The actual browser opens
+a same-result visible-page profile/chart. Its combined run measured 329.00 seconds
+and two concurrent Board instances measured 35,663,872 bytes RSS. Native catalog
+tests cover all eight column positions, type-aware sums and allocation failure.
+These measurements cover the Table placement, not a distributed latency target.

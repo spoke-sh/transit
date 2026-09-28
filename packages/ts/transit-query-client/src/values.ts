@@ -60,6 +60,12 @@ function columns(values: Column[]): boolean {
 export function validateUnifiedQuery(input: unknown): input is UnifiedQueryResponse {
   if (!schema(input)) return false;
   const value = input as UnifiedQueryResponse;
+  if ("suggestions" in value)
+    return (
+      value.suggestions.resource > 0 &&
+      value.suggestions.items.length <= 8 &&
+      value.suggestions.items.every((item) => text(item.label, 128) && text(item.sql, 4096))
+    );
   if ("draft" in value) {
     const draft = value.draft;
     return (

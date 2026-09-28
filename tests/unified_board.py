@@ -57,7 +57,13 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 2
     assert atlas['query_resource'] == caller['connection']['resource']
     description = api({'describe': {}})['description']
+    suggestions = api({'suggest': {'search': 'count'}})['suggestions']
+    assert suggestions['resource'] == caller['connection']['resource']
+    assert suggestions['items'] == [{'label': 'Count', 'sql': 'SELECT COUNT(*) FROM items'}]
+    api({'compile': {'sql': suggestions['items'][0]['sql']}})
+    assert api({'suggest': {'search': 'hidden_source'}})['suggestions']['items'] == []
     assert kind in description['source']['source']['source'] and not description['sql']['writes']
+    api({'suggest': {'search': 'x'*129}}, status=400)
     api({'describe': {}}, headers={'Origin': 'https://untrusted.example'}, status=403)
     api({'compile': {'sql': 'DELETE FROM items'}}, status=400)
     api({'submit': {'token': '{}'}}, status=400)
@@ -66,6 +72,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     first = api({'page': {'namespace': '1'}})['page']
     assert first['evidence']['next'] and first['cells']
     invoke('revoke', direct=True)
+    api({'suggest': {'search': ''}}, status=403)
     api({'compile': {'sql': 'SELECT * FROM items'}}, status=403)
     api({'page': {'namespace': '1', 'cursor': first['evidence']['next']}}, status=403)
     assert request('/api/v1/atlas')['identity']['permissions'] == 16
