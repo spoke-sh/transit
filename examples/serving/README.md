@@ -68,6 +68,14 @@ bootstrap affinity, clock bounds, recovery and unsupported profiles.
 The [counter browser application](web/README.md) is embedded in the gateway binary
 and enabled by `counter_view: true` with an explicitly permitted snapshot viewer.
 It shares the reactive client with Board while owning its application rendering.
+Run `just test::reactive-views` for the native embedded consumers and
+`just test::reactive-views-lifecycle` for actual shared-principal tabs, connection
+loss, reset/resnapshot and retirement. `just test::reactive-views-placement compose`
+and `just test::reactive-views-placement reference` run those consumers against
+owned physical services and recover an already displayed finite result.
+The [consumer placement guide](docs/views.md) describes identities and limits;
+the [proof ledger](../../tests/README.md#m21-consumer-foundation-in-progress)
+distinguishes executed gates from work still being qualified.
 
 The separate `clock_observer` role takes `ingress`, its state `resource`, and `interval_ms` (1000–5000,
 default 5000). Provision a dedicated inspect/send principal scoped to that ingress

@@ -56,7 +56,7 @@ services:
     networks: [client]
   gateway-0:
     <<: *runtime
-    image: '${EXCHANGE_CALLER_IMAGE:?}'
+    image: '${SERVING_GATEWAY_IMAGE:-${EXCHANGE_CALLER_IMAGE:?}}'
     command: [/gateway-0/config.json]
     environment: {LOG_LEVEL: warn}
     volumes:

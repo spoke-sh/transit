@@ -469,9 +469,11 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
     if (b.option(bool, "serving-growth", "Qualify retained service operations beyond resident pages") orelse false) serving_test.addArg("--growth");
     if (b.option(bool, "serving-reactive-client", "Qualify shared private reactive host client") orelse false) serving_test.addArg("--reactive-client");
-    if (b.option(bool, "serving-reactive-views", "Qualify real Board and counter live views") orelse false) {
+    const views_lifecycle = b.option(bool, "serving-reactive-views-lifecycle", "Qualify browser reconnect, generation and shared viewer lifecycle") orelse false;
+    if ((b.option(bool, "serving-reactive-views", "Qualify real Board and counter live views") orelse false) or views_lifecycle) {
         serving_test.addArgs(&.{ "--reactive-views", "--board" });
         serving_test.addArtifactArg(board);
+        if (views_lifecycle) serving_test.addArg("--reactive-views-lifecycle");
     }
     if (b.option(bool, "serving-reactive-refresh", "Qualify durable refresh requester and counter source") orelse false) serving_test.addArg("--reactive-refresh");
     if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");

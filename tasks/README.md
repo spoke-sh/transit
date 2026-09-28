@@ -155,6 +155,14 @@ OpenAPI file as an optional third argument; the counter application uses the sam
 asset builder without importing Board. Real binaries embed the resulting closed
 asset set and need no JavaScript server at runtime.
 
+M21 adds `just test::reactive-client` for the shared private host contract,
+`just test::reactive-refresh` for the durable finite requester, and
+`just test::reactive-views` / `just test::reactive-views-lifecycle` for actual
+Board/counter browser consumers. `just test::reactive-views-placement compose`
+and `just test::reactive-views-placement reference` add owned physical recovery.
+The complete browser CI lane includes the M20 browser peer and M21 consumers;
+physical placements remain explicit external proofs.
+
 `just test::grpc-server` qualifies the bounded inbound transport independently of
 M16 outbound calls. `just test::flight-metadata` checks pinned protobuf drift and
 standard metadata IPC with PyArrow. Both run in the ordinary growth CI lane;

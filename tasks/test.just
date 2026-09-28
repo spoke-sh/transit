@@ -333,6 +333,14 @@ reactive-refresh:
 reactive-views:
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-views=true
 
+# Actual browser consumers and durable result recovery in owned placements.
+reactive-views-placement profile:
+    zig build serving-example transit-query-host -Doptimize=ReleaseSafe
+    nix develop .#serving --command python3 -B examples/serving/run.py --profile {{quote(profile)}} --views
+
+reactive-views-lifecycle:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-views-lifecycle=true
+
 # Pinned standard protobuf declarations and independent Arrow metadata consumer.
 flight-metadata:
     nix develop .#flight --command python3 -B packages/zig/transit-flight/generate.py --check

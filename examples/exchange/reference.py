@@ -68,7 +68,7 @@ class Reference(Compose):
         self.env["EXCHANGE_PROBE_IMAGE"] = self.image(probe)
         # Only publish the images built for this example, never update services
         # or provider infrastructure in an existing application namespace.
-        for role in ("NODE", "CALLER", "CONNECTOR", "PEER", "PROBE"):
+        for role in (*(self.binary_names or dict(NODE=None, CALLER=None, CONNECTOR=None)), "PEER", "PROBE"):
             image = self.env["EXCHANGE_" + role + "_IMAGE"]
             repository = f"localhost:{self.state['port']}/transit-{self.protocol}-example-{role.lower()}"
             tag = repository + ":" + image.split(":")[1][:16]
@@ -161,14 +161,15 @@ class Reference(Compose):
                         "spec": {"selector": {"app": "exchange-peer"}, "ports": [{"port": 8443, "targetPort": 8443}]}})
         return self.wait_pod(service)
 
-    def url(self, service):
+    def url(self, service, port=None):
         previous = self.forwards.get(service)
         if previous:
             previous[0].terminate(); previous[0].wait(timeout=10)
             previous[2].close()
-        with socket.socket() as listener:
-            listener.bind(("127.0.0.1", 0))
-            port = listener.getsockname()[1]
+        if port is None:
+            with socket.socket() as listener:
+                listener.bind(("127.0.0.1", 0))
+                port = listener.getsockname()[1]
         log = (self.work / (service + "-forward.log")).open("w+")
         forward = subprocess.Popen(["kubectl", *self.context, "-n", self.namespace, "port-forward", "service/" + service, f"{port}:8080"], stdout=log, stderr=subprocess.STDOUT)
         self.forwards[service] = (forward, port, log)

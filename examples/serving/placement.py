@@ -15,7 +15,8 @@ BINARIES = dict(NODE='transit-node', CALLER='transit-serving-example', CONNECTOR
 class Compose(BaseCompose):
     binary_names = BINARIES
 
-    def __init__(self, work):
+    def __init__(self, work, views=False):
+        if views: self.binary_names = BINARIES | dict(BOARD='transit-board')
         super().__init__(work, 'serving')
         self.command[-1] = str(Path(__file__).with_name('docker-compose.yaml'))
 
@@ -27,10 +28,26 @@ class Compose(BaseCompose):
 class Reference(query.Reference):
     binary_names = BINARIES
 
-    def __init__(self, work):
+    def __init__(self, work, views=False):
+        if views: self.binary_names = BINARIES | dict(BOARD='transit-board')
         super().__init__(work, 'serving')
 
-    def start_gateway(self, name):
+    def url(self, service):
+        # Keep owned public endpoints stable while their physical pod/forward
+        # changes. Observers and browsers retain their original request identity.
+        previous = self.forwards.get(service)
+        return super().url(service, previous[1] if previous else None)
+
+    def call(self, *args, timeout=120):
+        result = super().call(*args, timeout=timeout)
+        if args[0] == 'logs':
+            # These private gateways are separate from the Helm-owned node;
+            # include their bounded diagnostics before owned namespace cleanup.
+            for name in ('gateway-0', 'gateway-1'):
+                result += self.kube('logs', 'deployment/' + name, '-c', name, '--tail=300', missing=True) or ''
+        return result
+
+    def start_gateway(self, name, board=False):
         self.secret(name, self.work / name)
         dns = json.loads(self.kube('get', 'service', 'kube-dns', '-n', 'kube-system', '-o', 'json'))['spec']['clusterIP']
         node = self.address('node')
@@ -55,7 +72,7 @@ ip6tables -w -A OUTPUT -j REJECT
             securityContext=dict(runAsUser=0, runAsNonRoot=False, allowPrivilegeEscalation=False, capabilities=dict(drop=['ALL'], add=['NET_ADMIN']))),
             dict(name='probe', image=self.env['EXCHANGE_PEER_IMAGE'], args=['probe', self.authority, *targets],
                 securityContext=dict(allowPrivilegeEscalation=False, readOnlyRootFilesystem=True, capabilities=dict(drop=['ALL'])))]
-        self.pod_deployment(name, dict(name=name, image=self.env['EXCHANGE_CALLER_IMAGE'],
+        self.pod_deployment(name, dict(name=name, image=self.env['EXCHANGE_BOARD_IMAGE' if board else 'EXCHANGE_CALLER_IMAGE'],
             args=['/gateway/config.json'], env=[dict(name='LOG_LEVEL', value='warn')],
             volumeMounts=[dict(name='files', mountPath='/gateway', readOnly=True)],
             readinessProbe=dict(tcpSocket=dict(port=8080), periodSeconds=1)),

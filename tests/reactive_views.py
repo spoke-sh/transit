@@ -61,7 +61,7 @@ def run(env, tls):
         until = time.monotonic() + 30
         while time.monotonic() < until:
             status, current = post(env['gateway_ports'][1], '/serving/v1/read', signed_read(keys[33], 33, ingress, 'status', operation), counter_host, None)
-            assert status in (200, 404, 409, 429, 503), (status, current)
+            assert status in (200, 404, 409, 429, 503, 504), (status, current)
             if status == 200 and current['stage'] == 'completed':
                 return
             time.sleep(.25)
@@ -70,7 +70,9 @@ def run(env, tls):
     mutate()
     # Board uses the existing read-only gateway principal; query/control sends
     # remain under the separately configured caller identity.
-    env['gateways'][0].terminate(); env['gateways'][0].wait(timeout=10)
+    if 'stop_gateway' in env: env['stop_gateway'](0)
+    else:
+        env['gateways'][0].terminate(); env['gateways'][0].wait(timeout=10)
     gateway = dict(service=1, ingress=ingress, resource=requests, port=env['gateway_ports'][0], host=env['public_host'], public_origin='https://' + env['public_host'],
         callers=[dict(principal=65536, public_key=keys[65536].public)], reactive=True, options=dict(requests=4, request_timeout_ms=30000), per_caller_requests=4,
         viewer=dict(principal=65536, seed_file=str(keys[65536].seed), refresh=True))
@@ -90,24 +92,43 @@ def run(env, tls):
     ca_bundle = root / 'view-ca.pem'
     ca_bundle.write_bytes(b'\n'.join(certificates))
     configuration = root / 'view-browser.json'
-    configuration.write_text(json.dumps(dict(board=gateway['public_origin'], counter='https://' + counter_host, resource=resource, marker=str(root / 'view-stage'), spki=','.join(pins))))
+    configuration.write_text(json.dumps(dict(board=gateway['public_origin'], counter='https://' + counter_host, resource=resource, marker=str(root / 'view-stage'), spki=','.join(pins), recovery='recover' in env, screenshots=str(Path('.cache/verification').resolve()), profile=env.get('profile', 'native'))))
     log = (root / 'view-browser.log').open('w+')
-    browser = subprocess.Popen(['vp', 'exec', '--filter', '@rey/transit-board-web', 'node', 'browser/live-views.mjs', str(configuration)], stdout=log, stderr=subprocess.STDOUT, env=env['store'].env | {'NODE_EXTRA_CA_CERTS': str(ca_bundle)})
+    script = 'live-view-lifecycle.mjs' if env.get('reactive_views_lifecycle') else 'live-views.mjs'
+    browser = subprocess.Popen(['vp', 'exec', '--filter', '@rey/transit-board-web', 'node', 'browser/' + script, str(configuration)], stdout=log, stderr=subprocess.STDOUT, env=env['store'].env | {'NODE_EXTRA_CA_CERTS': str(ca_bundle)})
     previous = None
+    sessions_before = None
+
+    def active_sessions():
+        entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
+        return bytes.fromhex(entry['value'])
     try:
-        until = time.monotonic() + 600
+        until = time.monotonic() + 900
         while browser.poll() is None:
-            assert observer.poll() is None and board.poll() is None, 'view host exited'
+            assert observer.poll() is None and (env['hosts_alive']() if 'hosts_alive' in env else board.poll() is None), 'view host exited'
             assert time.monotonic() < until, 'browser live view deadline'
             marker = root / 'view-stage'
             stage = marker.read_text() if marker.exists() else None
             if stage and stage != previous:
                 previous = stage
                 print(f"Reactive browser stage: {stage}", flush=True)
-                if stage == 'mutate': mutate()
+                if stage in ('mutate', 'mutate-again'): mutate()
                 elif stage == 'deny': env['resource_grant'](resource, 65536, 1)
                 elif stage == 'rows':
                     for row in range(2, 21): mutate(row)
+                elif stage == 'restart': env['recover']()
+                elif stage == 'sessions-before': sessions_before = active_sessions()
+                elif stage == 'sessions-after': assert active_sessions() == sessions_before, 'reconnect replaced logical sessions'
+                elif stage == 'peer-closed':
+                    until_closed = time.monotonic() + 40
+                    while sum(active_sessions()[4 + i * 16:20 + i * 16] != bytes(16) for i in range(4)) != 2:
+                        assert time.monotonic() < until_closed, 'closed tab retained a live session'
+                        time.sleep(.25)
+                elif stage == 'reset':
+                    cast(ingress, reactive(0, struct.pack('<QQQQIB', 1, 2, application, resource, 1, 13) + b'data-progress' + schema + b'\1'))
+                elif stage == 'retire':
+                    env['send']({'terminate': application})
+                    env['send']({'retire_resource': resource})
                 elif stage != 'ready': raise AssertionError(('unknown browser stage', stage))
                 state = env['query'](0, {'process': ingress})['body']['process']
                 print('Ingress at stage completion:', {k: state['process'][k] for k in ('admitted', 'consumed', 'revision')} | {'head': state['input']['position'] if state['input'] else None}, flush=True)
@@ -117,7 +138,7 @@ def run(env, tls):
         text = log.read()
         print(text, flush=True)
         assert browser.returncode == 0, 'browser live-view proof failed'
-        print(f'Reactive view native proof passed in {time.monotonic() - started:.2f}s', flush=True)
+        print(f'Reactive view {env.get("profile", "native")} proof passed in {time.monotonic() - started:.2f}s', flush=True)
     finally:
         if browser.poll() is None: browser.kill(); browser.wait(timeout=10)
         if browser.returncode:

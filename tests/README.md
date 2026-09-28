@@ -2770,6 +2770,43 @@ remained. The browser stored no keys, cookies or local/session storage. The
 327.65 seconds is whole-fixture cost, not a freshness target. Further browser
 race schedules and Compose/reference consumer recovery remain open.
 
+The first Compose consumer schedule passed in 263.99 seconds (363.44 seconds
+including local packaging). It recovered the same displayed query identity after
+workers, both gateways, authority and disk store restarted. The counter mutation
+trigger-to-visible observation was 7,213 ms; the finite 20-row query refresh was
+102,268 ms; physical recovery through the next authorized result read was 6,233 ms.
+These are single local observations, not percentiles. The cold backend retained
+355 objects / 37,231,755 bytes at completion. The script subsequently gained a
+more precise denial-between-verification-and-reread schedule; that extension
+requires its own executed result.
+
+`just test::reactive-views-lifecycle` passed in 84.47 seconds. Two actual tabs
+shared the counter principal while Board watched metadata. Chromium network
+emulation broke one real SSE connection; its resumed view covered a committed
+change with the original logical sessions. Navigation/pagehide released the
+peer's slot, watch-generation replacement displayed reset-required, explicit
+resnapshot restored the counter, and permanent source retirement cleared it.
+The first attempt incorrectly tried to retire an in-use source; the corrected
+schedule terminates its required owner first. A second attempt raced the reset
+with an older session's expiry; the reset check now explicitly reopens that
+session first, keeping expiry and generation evidence separate. Neither failed
+attempt is qualification evidence.
+
+
+The extended final-placement consumer schedule passes in Compose (389.04 s;
+402.90 s with packaging) and reference (518.32 s; 663.06 s with packaging).
+Both revoke only entry reads between the candidate's complete verification and
+its visible-page reread. Compose measured counter visibility 7,563 ms, physical
+same-result recovery 6,289 ms and verified finite refresh 126,895 ms; reference
+measured 6,223 / 18,338 / 155,111 ms respectively. Observed Board/counter heaps
+were 9,433,188 / 4,794,296 bytes in Compose and 10,397,376 / 4,637,604 bytes in
+reference, below the fixture's 128 MiB per-page ceiling. These samples are not
+peak memory or latency percentiles. Retained cold objects/bytes were 493 /
+49,035,893 and 504 / 57,849,285. The final multi-tab lifecycle regression remains
+under investigation after an uncertain startup control; its failed rerun is not
+passed evidence. Attachment waits now allow ten seconds within the thirty-second
+HTTP budget, and renewal takes priority before attachment; the lease remains
+thirty seconds.
 
 ## M22 qualification in progress
 

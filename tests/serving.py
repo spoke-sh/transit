@@ -92,7 +92,8 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, board=None):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False, reactive_refresh=False, reactive_views=False, reactive_views_lifecycle=False, board=None):
+    reactive_views = reactive_views or reactive_views_lifecycle
     if (reactive_browser or reactive_limits or reactive_client or reactive_refresh or reactive_views) and not (reactive and tls):
         raise ValueError("reactive browser/limits proofs require --reactive --tls")
     live_profile = reactive_refresh or reactive_views
@@ -264,7 +265,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             tls_proxies = []
             if tls:
                 from serving_tls import TLSProxy
-                tls_proxies = [TLSProxy(store.root / f'tls-{index}', gateway_port) for index, gateway_port in enumerate(gateway_ports)]
+                tls_proxies = [TLSProxy(store.root / f'tls-{index}', gateway_port, read_timeout=35 if reactive or reactive_views else 6) for index, gateway_port in enumerate(gateway_ports)]
                 if reactive_browser or reactive_views: public_host = f'127.0.0.1:{tls_proxies[0].port}'
             gateway_config = dict(url=f'http://127.0.0.1:{proxy.server_port}', realm=REALM, principal=79, seed_file=str(keys[79].seed), role={'gateway': dict(service=1, ingress=ingress, resource=ingress_resource, port=gateway_ports[0], host=public_host, public_origin='https://' + public_host, callers=[dict(principal=p, public_key=keys[p].public) for p in (65536, 65537)])})
             if reactive:
@@ -586,5 +587,6 @@ if __name__ == '__main__':
     parser.add_argument('--reactive-client', action='store_true')
     parser.add_argument('--reactive-refresh', action='store_true')
     parser.add_argument('--reactive-views', action='store_true')
+    parser.add_argument('--reactive-views-lifecycle', action='store_true')
     parser.add_argument('--board')
     run(**vars(parser.parse_args()))

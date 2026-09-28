@@ -22,7 +22,8 @@ from serving_tls import TLSProxy
 from placement import Compose, Reference
 
 
-def run(profile, reactive=False):
+def run(profile, reactive=False, views=False):
+    reactive = reactive or views
     started = time.monotonic()
     env = {k: v for k, v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL': 'warn'}
     with tempfile.TemporaryDirectory(prefix='transit-serving-') as directory, ExitStack() as owned:
@@ -32,7 +33,7 @@ def run(profile, reactive=False):
             (work / role).mkdir(mode=0o700)
             (work / (role + '-data')).mkdir(mode=0o700)
         (work / 'wal').mkdir()
-        keys = {p: Key(work, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (77, 12), (78, 13), (79, 14), (80, 15))}
+        keys = {p: Key(work, f'key-{p}', seed) for p, seed in ((0, 7), (33, 8), (34, 9), (65536, 10), (65537, 11), (77, 12), (78, 13), (79, 14), (80, 15))}
         sequences = dict.fromkeys(keys, 0)
         placement, cold, cold_network = None, None, None
         local, logs, proxies = [], [], []
@@ -79,8 +80,8 @@ def run(profile, reactive=False):
         def resource_grant(resource, principal, permissions):
             send({'grant_resource': dict(resource=resource, subject=principal, permissions=permissions)})
 
-        def cast(pid, payload):
-            return send({'send': dict(pid=pid, value=frame(payload))}, 33)
+        def cast(pid, payload, principal=33):
+            return send({'send': dict(pid=pid, value=frame(payload))}, principal)
 
         def provision(principal):
             pid = send({'spawn': dict(code=1, work_before_ms=None, settle_before_ms=None)})
@@ -110,6 +111,8 @@ def run(profile, reactive=False):
                 assert public != keys[principal].public, 'bootstrap must use a fresh key'
                 grant(principal, 88, pid, public)
                 resource_grant(resource, principal, 7)
+                if views:
+                    resource_grant(application_resource if principal == 77 else ingress_resource, principal, 3)
                 send({'own': dict(pid=pid, expected_generation=generation - 1, worker=principal)})
                 return handle
             config['seed_file'] = '/' + name + '/seed.key'
@@ -153,7 +156,7 @@ def run(profile, reactive=False):
                 handle = placement.start_gateway(name) if profile == 'reference' else placement.start(name)
                 endpoint = placement.url(name)
                 target = urlsplit(endpoint)
-                proxy = owned.enter_context(TLSProxy(work / (name + '-tls-' + str(time.monotonic_ns())), target.port, target.hostname))
+                proxy = owned.enter_context(TLSProxy(work / (name + '-tls-' + str(time.monotonic_ns())), target.port, target.hostname, read_timeout=35 if reactive else 6))
                 proxies.append(proxy)
                 handles.append(handle)
                 until = time.monotonic() + 30
@@ -175,7 +178,7 @@ def run(profile, reactive=False):
             return api('read', signed_read(keys[65536], 65536, ingress, kind, operation), expected)
 
         try:
-            placement = Reference(work) if profile == 'reference' else Compose(work)
+            placement = Reference(work, views) if profile == 'reference' else Compose(work, views)
             cold = ColdStore().__enter__()
             if profile == 'reference':
                 cold_network = 'kind'
@@ -202,16 +205,50 @@ def run(profile, reactive=False):
             assert placement.invoke('caller-probe', 'probe', placement.authority, *denied) == dict(authority='reachable', denied=3)
             ingress, ingress_resource = provision(77)
             application, application_resource = provision(78)
+            if views:
+                for pid, foreign in ((ingress, application_resource), (application, ingress_resource)):
+                    send({'associate': dict(pid=pid, name=b'query-peer'.hex(), expected_revision=0, resource=foreign, required=False)})
+                resource_grant(application_resource, 77, 3)
+                resource_grant(ingress_resource, 78, 3)
             grant(33, 20); grant(34, 20); grant(80, 148)
             grant(79, 16, None if reactive else ingress); resource_grant(ingress_resource, 79, 3)
             if reactive: resource_grant(application_resource, 79, 3)
-            workers = [activate('ingress', 77, ingress, ingress_resource, {'ingress': dict(service=1, administrator=33, observer=34)}),
-                       activate('application', 78, application, application_resource, {'application': dict(ingress=ingress, initializer=33)})]
+            ingress_role = {'live_ingress': dict(service=dict(service=1, administrator=33, observer=34), query_principal=65536, source=application)} if views else {'ingress': dict(service=1, administrator=33, observer=34)}
+            application_role = {'application': dict(ingress=ingress, initializer=33, queries=views)}
+            workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
+                       activate('application', 78, application, application_resource, application_role)]
             cast(ingress, b'SV1c\x00'); cast(application, b'')
             drained(ingress); drained(application)
             deadline = int(time.time() * 1000) + 900000
             cast(ingress, publication(1, application, deadline)); cast(ingress, policy(65536)); drained(ingress)
             grant(65536, 20, ingress)
+            if views:
+                for resource in (ingress_resource, application_resource): resource_grant(resource, 65536, 3)
+                cast(ingress, policy(65537)); drained(ingress)
+                grant(65537, 20, ingress)
+                delivery = courier()
+
+                def recover_views():
+                    nonlocal workers, storage, authority, url, delivery
+                    if profile == 'reference':
+                        for handle in workers: placement.stop_host(handle)
+                        delivery.kill(); delivery.wait(timeout=10)
+                    else:
+                        for child in workers: placement.stop_for_recovery('', child)
+                        placement.stop_for_recovery('courier', delivery)
+                    placement.stop_for_recovery('node', authority)
+                    placement.stop_for_recovery('ursula', storage)
+                    storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
+                    authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
+                    workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
+                               activate('application', 78, application, application_resource, application_role)]
+                    delivery = courier()
+
+                from views_placement import run as run_views
+                run_views(locals())
+                if profile == 'reference': placement.check_hosts(workers)
+                print(f'Live views {profile}: owned workers/gateways/node/store recovered; {cold.data_objects()} cold objects / {cold.file_bytes()} bytes; total {time.monotonic()-started:.2f}s.', flush=True)
+                return
             gateway_workers = gateways()
             assert read('discovery')['binding']['target'] == application
             reactive_state = None
@@ -240,8 +277,8 @@ def run(profile, reactive=False):
             placement.stop_for_recovery('ursula', storage)
             storage = placement.start('ursula'); ready(storage, placement.url('ursula'))
             authority = placement.start('node'); url = placement.url('node'); ready(authority, url)
-            workers = [activate('ingress', 77, ingress, ingress_resource, {'ingress': dict(service=1, administrator=33, observer=34)}),
-                       activate('application', 78, application, application_resource, {'application': dict(ingress=ingress, initializer=33)})]
+            workers = [activate('ingress', 77, ingress, ingress_resource, ingress_role),
+                       activate('application', 78, application, application_resource, application_role)]
             gateway_workers = gateways()
             assert api('command', frozen, 202, 1) == results[0]
             delivery = courier()
@@ -287,4 +324,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--profile', choices=('compose', 'reference'), required=True)
     parser.add_argument('--reactive', action='store_true')
+    parser.add_argument('--views', action='store_true')
     run(**vars(parser.parse_args()))

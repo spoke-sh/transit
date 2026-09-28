@@ -61,6 +61,11 @@ async function settledPause(page, button, status) {
 let lost = null,
   exact = false;
 let atlasUnavailable = false;
+let displayedNamespace = null;
+let denyCandidate = false;
+let protectedNamespace = null;
+let deniedBetweenReads = false;
+const timings = {};
 await board.route("**/api/v1/atlas", async (route) => {
   if (atlasUnavailable)
     return route.fulfill({
@@ -72,6 +77,22 @@ await board.route("**/api/v1/atlas", async (route) => {
 });
 await board.route("**/api/v1/query-v2", async (route) => {
   const request = route.request().postDataJSON();
+  if ("page" in request) displayedNamespace = request.page.namespace;
+  if (denyCandidate && request.page && request.page.namespace !== protectedNamespace) {
+    const response = await route.fetch();
+    if (response.status() === 200) {
+      const value = await response.json();
+      if (value.page.evidence.next === null) {
+        // The candidate's ordered verification has reached its last real page.
+        // Revoke only entry-read permission before allowing the visible reread.
+        await stage("deny");
+        deniedBetweenReads = true;
+        denyCandidate = false;
+      }
+    }
+    await route.fulfill({ response });
+    return;
+  }
   if ("submit" in request) {
     const body = route.request().postData();
     if (lost === null) {
@@ -107,9 +128,11 @@ try {
     "current",
   );
   const oldBasis = await counter.locator("#basis").textContent();
+  const counterStart = performance.now();
   await stage("mutate");
   await expect(counter.locator("#rows tr").first()).toHaveText("12");
   await expect(counter.locator("#basis")).not.toHaveText(oldBasis);
+  timings.counterMutationToVisibleMs = Math.round(performance.now() - counterStart);
   await Promise.all([
     settledPause(
       board,
@@ -154,12 +177,32 @@ try {
   assert(exact);
   await expect(board.getByLabel("Verified query result")).toContainText("20 total rows");
   const original = await board.getByLabel("Verified query result").textContent();
+  if (config.recovery) {
+    const namespace = displayedNamespace;
+    assert(namespace);
+    const recoveryStart = performance.now();
+    await stage("restart");
+    // A fresh actual page read must retrieve the old identity after all physical
+    // services restart. Cached rendering alone is not recovery evidence.
+    await board.waitForResponse(
+      async (response) => {
+        if (!response.url().endsWith("/api/v1/query-v2") || response.status() !== 200) return false;
+        const request = response.request().postDataJSON();
+        return request?.page?.namespace === namespace;
+      },
+      { timeout: 60000 },
+    );
+    await expect(board.getByLabel("Verified query result")).toHaveText(original);
+    assert.equal(displayedNamespace, namespace);
+    timings.physicalRecoveryMs = Math.round(performance.now() - recoveryStart);
+  }
   await board.getByRole("button", { name: "Follow changes", exact: true }).click();
   await expect(board.getByLabel("Query follow controls").getByRole("status")).toContainText(
     "current",
     { timeout: 40000 },
   );
   await stage("ready");
+  const queryStart = performance.now();
   // Another committed mutation while following admits a distinct finite query.
   writeFileSync(config.marker, "mutate");
   await expect(board.getByLabel("Verified query result")).not.toHaveText(original, {
@@ -169,10 +212,29 @@ try {
     "current",
     { timeout: 40000 },
   );
-  await stage("deny");
+  timings.queryMutationToVerifiedVisibleMs = Math.round(performance.now() - queryStart);
+  for (const [name, page] of [
+    ["board", board],
+    ["counter", counter],
+  ]) {
+    const metrics = await context.newCDPSession(page);
+    const heap = await metrics.send("Runtime.getHeapUsage");
+    assert(heap.usedSize < 128 * 1024 * 1024, `${name} browser heap budget`);
+    timings[`${name}ObservedHeapBytes`] = heap.usedSize;
+    await metrics.detach();
+  }
+  if (config.screenshots)
+    await board.screenshot({
+      path: `${config.screenshots}/m21-${config.profile}-board.png`,
+      fullPage: true,
+    });
+  protectedNamespace = displayedNamespace;
+  denyCandidate = true;
+  await stage("mutate-again");
   await expect(
     board.getByText("Query access denied. Protected workspace data cleared.", { exact: true }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 180000 });
+  assert(deniedBetweenReads, "denial must occur between complete coverage and the visible reread");
   await expect(board.getByLabel("Verified query result")).toHaveCount(0);
   assert.deepEqual(errors, []);
   assert.deepEqual(await context.cookies(), []);
@@ -183,10 +245,12 @@ try {
   console.log(
     "Live views: actual shared-client counter and Board metadata, exact query retry, bounded full-result verification, new finite refresh, pause and current read-only revocation passed.",
   );
+  console.log("Observed live-view wall times:", JSON.stringify(timings));
 } catch (error) {
   console.error("Counter status:", await counter.locator("#status").allTextContents());
   console.error("Board status:", await board.getByRole("status").allTextContents());
   console.error("Recent API outcomes:", operations);
+  console.error("Observed live-view wall times before failure:", JSON.stringify(timings));
   console.error("Browser errors:", errors);
   throw error;
 } finally {
