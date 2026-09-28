@@ -166,6 +166,15 @@ def run(node, host, cli, proof):
                 rows.extend(row for row in page["rows"] if row is not None)
             expected = [[{"int64": str(i)}, {"null": {}} if i % 5 == 0 else {"int64": str(9007199254740993 + i)}] for i in range(41)]
             assert rows == expected, (rows[:3], expected[:3])
+            # A fresh adapter reconstructs the original canonical send after
+            # worker recovery, even after a newer sequence was already admitted.
+            assert json.loads(provision(f'retry-sequence:{before["sequence"] + 1}').stdout)['submitted'] == submitted
+            captured = json.loads(provision(f'capture:{submitted}').stdout)
+            assert captured == {name: status['manifest'][name] for name in ('rows', 'bytes', 'segments')}
+            provision('revoke-read')
+            refused = subprocess.run([proof, url, f'capture:{submitted}', str(fixture.root / 'cli.json')], capture_output=True, timeout=15)
+            assert refused.returncode and b'AccessDenied' in refused.stderr, refused.stderr
+            provision('restore')
             provision("revoke")
             denied = send(f"/resume {submitted}")
             assert denied == "error: AccessDenied", denied

@@ -102,6 +102,35 @@ pub fn main(init: std.process.Init) !void {
     const parsed = try std.json.parseFromSlice(struct { connection: q.Model.Connection }, init.gpa, config, .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     const c = parsed.value.connection;
+    if (std.mem.startsWith(u8, args[2], "retry-sequence:")) {
+        var caller: q.Client = .{ .wire = &wire, .connection = c, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+        const schema: q.fuze.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
+        const signed = try caller.prepareSequence("SELECT id, value FROM items", schema, try std.fmt.parseInt(u64, args[2][15..], 10));
+        const receipt = try caller.submitSequence(signed);
+        try std.json.Stringify.value(.{ .submitted = receipt.position }, .{}, &output.interface);
+        return output.interface.flush();
+    }
+    if (std.mem.startsWith(u8, args[2], "capture:")) {
+        var caller: q.Client = .{ .wire = &wire, .connection = c, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+        const correlation = try std.fmt.parseInt(u64, args[2][8..], 10);
+        const manifest = (try caller.status(correlation)).manifest orelse return error.IncompleteResult;
+        const workspace = try init.gpa.alloc(u8, q.fuze.execution.working_bytes);
+        defer init.gpa.free(workspace);
+        var bytes: [s.GrowingQuery.records.segment_bytes]u8 = undefined;
+        var chain: [32]u8 = @splat(0);
+        var rows: u64 = 0;
+        var length: u64 = 0;
+        for (0..manifest.segments) |ordinal| {
+            const segment = try caller.segment(correlation, ordinal, &bytes, workspace);
+            if (!std.meta.eql(segment.result, manifest)) return error.InvalidResultManifest;
+            chain = try segment.segment.extend(chain);
+            rows += segment.segment.rows;
+            length += segment.bytes.len;
+        }
+        if (!std.mem.eql(u8, &manifest.chain, &chain) or manifest.rows != rows or manifest.bytes != length) return error.IncompleteResult;
+        try std.json.Stringify.value(.{ .rows = rows, .bytes = length, .segments = manifest.segments }, .{}, &output.interface);
+        return output.interface.flush();
+    }
     if (std.mem.eql(u8, args[2], "submit-busy") or std.mem.eql(u8, args[2], "bad-schema")) {
         const caller_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
         const sequence = (try wire.queryGrowing(.{ .realm = 45, .principal = 1234, .kind = .{ .capabilities = {} } }, caller_key)).principal_sequence;
@@ -114,8 +143,8 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, args[2], "fence")) {
         const process = (try admin.query(.{ .process = c.source })).body.process.process;
         _ = try admin.submit(.{ .own = .{ .pid = c.source, .expected_generation = process.generation, .worker = 65536 } });
-    } else if (std.mem.eql(u8, args[2], "revoke")) {
-        _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 1234, .permissions = 0 } });
+    } else if (std.mem.eql(u8, args[2], "revoke") or std.mem.eql(u8, args[2], "revoke-read")) {
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 1234, .permissions = if (std.mem.eql(u8, args[2], "revoke-read")) p.State.permission(.inspect) else 0 } });
     } else if (std.mem.eql(u8, args[2], "restore")) {
         _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
     } else if (std.mem.eql(u8, args[2], "retire-source")) {

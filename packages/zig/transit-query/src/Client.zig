@@ -78,6 +78,56 @@ pub fn prepare(self: *Self, sql: []const u8) !m.Prepared {
 fn freeze(self: *Self, sequence: u64, payload: p.Value) !g.SignedRequest {
     return g.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.connection.requester, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } } }, self.key);
 }
+/// Compile against an explicitly published schema using an explicit native
+/// sequence. This pure preparation can reconstruct identical bytes after host
+/// loss. It neither reserves the sequence nor infers that a prior send failed.
+pub fn prepareSequence(self: *Self, sql: []const u8, schema: f.model.Schema, sequence: u64) !g.SignedRequest {
+    if (sequence == 0 or sequence > p.max_counter) return error.InvalidQueryIdentity;
+    const plan = f.Sql.plan(sql, .{ .name = try .init(self.connection.name), .schema = schema }) catch return error.UnsupportedQuery;
+    return self.freeze(sequence, try (r.Start{ .schema = try schema.fingerprint(), .plan = plan }).encode());
+}
+/// Admission still checks current published source/requester authorization.
+/// An exact retry may refer to an already completed query, so an active newer
+/// query is not permission to replace or reject the original native identity.
+pub fn submitSequence(self: *Self, signed: g.SignedRequest) !p.Receipt {
+    const request = signed.request;
+    if (request.realm != self.connection.realm or request.principal != self.connection.principal or request.command != .send or request.command.send.pid != self.connection.requester) return error.InvalidQueryRequest;
+    try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.digest(request), self.key.public_key);
+    const frame = try s.Frame.decode(request.command.send.value);
+    if (frame.kind != .cast) return error.InvalidQueryRequest;
+    _ = try r.Start.decode(frame.payload);
+    _ = try self.describe();
+    return self.wire.submitGrowing(signed);
+}
+
+pub const Captured = struct {
+    result: s.GrowingQuery.Manifest,
+    segment: s.GrowingQuery.Segment,
+    /// Borrows the caller's fixed output buffer; never a complete result cache.
+    bytes: []const u8,
+};
+/// A bounded raw IPC segment for protocol adapters. Uses the same durable
+/// transfer/manifest checks as page(), validates IPC, and rechecks current
+/// source/requester rights after copying. A prefix does not prove full coverage.
+pub fn segment(self: *Self, correlation: u64, ordinal: u64, output: []u8, workspace: []u8) !Captured {
+    for (0..3) |_| return self.segmentOnce(correlation, ordinal, output, workspace) catch |err| {
+        if (self.changed(err)) continue;
+        return err;
+    };
+    return error.QueryChanged;
+}
+fn segmentOnce(self: *Self, correlation: u64, ordinal: u64, output: []u8, workspace: []u8) !Captured {
+    var source = try self.reader(self.connection.resource, self.connection.source);
+    var request = try self.requests();
+    const manifest = try s.GrowingQuery.completed(&request, correlation);
+    try self.checkManifest(&source, manifest);
+    const captured = try s.GrowingQuery.completedSegment(&request, correlation, ordinal, output);
+    if (!std.mem.eql(u8, &(try f.Inspect.segment(captured.bytes, captured.manifest.rows, workspace)), &manifest.schema)) return error.InvalidResultSchema;
+    var current = try self.reader(self.connection.resource, self.connection.source);
+    try self.checkManifest(&current, manifest);
+    _ = try request.read(r.principalKey());
+    return .{ .result = manifest, .segment = captured.manifest, .bytes = captured.bytes };
+}
 /// A submission receipt identifies the requester input/correlation. It does not
 /// mean the behavior admitted the query. On uncertainty retain these exact bytes.
 pub fn submit(self: *Self, prepared: m.Prepared) !p.Receipt {
@@ -182,18 +232,18 @@ fn pageOnce(self: *Self, correlation: u64, ordinal: u64, allocator: std.mem.Allo
     const manifest = try s.GrowingQuery.completed(&request, correlation);
     try self.checkManifest(&source, manifest);
     var output: [s.GrowingQuery.records.segment_bytes]u8 = undefined;
-    const segment = try s.GrowingQuery.completedSegment(&request, correlation, ordinal, &output);
+    const captured = try s.GrowingQuery.completedSegment(&request, correlation, ordinal, &output);
     const workspace = try allocator.alloc(u8, f.execution.working_bytes);
     defer allocator.free(workspace);
-    if (!std.mem.eql(u8, &(try f.Inspect.segment(segment.bytes, segment.manifest.rows, workspace)), &manifest.schema)) return error.InvalidResultSchema;
+    if (!std.mem.eql(u8, &(try f.Inspect.segment(captured.bytes, captured.manifest.rows, workspace)), &manifest.schema)) return error.InvalidResultSchema;
     var arena = std.heap.FixedBufferAllocator.init(workspace);
-    var input: std.Io.Reader = .fixed(segment.bytes);
+    var input: std.Io.Reader = .fixed(captured.bytes);
     var ipc = f.arrow.IpcStreamReader(*std.Io.Reader).init(arena.allocator(), &input);
     defer ipc.deinit();
     const schema = try ipc.readSchema();
     var batch = (try ipc.nextRecordBatch()) orelse return error.InvalidArrowResult;
     defer batch.deinit();
-    var page_value: m.Page = .{ .manifest = manifest, .ordinal = ordinal, .count = segment.manifest.rows, .next = if (ordinal + 1 < manifest.segments) ordinal + 1 else null };
+    var page_value: m.Page = .{ .manifest = manifest, .ordinal = ordinal, .count = captured.manifest.rows, .next = if (ordinal + 1 < manifest.segments) ordinal + 1 else null };
     for (schema.fields, 0..) |field, column| {
         const kind: f.model.Type = switch (field.data_type.*) {
             .int64 => .int64,
@@ -228,4 +278,26 @@ fn pageOnce(self: *Self, correlation: u64, ordinal: u64, allocator: std.mem.Allo
     try self.checkManifest(&current, manifest);
     _ = try request.read(r.principalKey());
     return page_value;
+}
+
+test "explicit query sequence reconstructs exact canonical admission without I/O" {
+    const t = std.testing;
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(63));
+    var client: Self = .{ .wire = undefined, .key = key, .connection = .{ .realm = 49, .principal = 65536, .source = 3, .resource = 9, .table = 1, .name = "counter", .requester = 7, .requests = 11 } };
+    const schema: f.model.Schema = .{ .names = .{ try .init("id"), try .init("count") }, .value_type = .int64 };
+    const sql = "SELECT * FROM counter WHERE id >= -9223372036854775808";
+    const first = try client.prepareSequence(sql, schema, 9007199254740991);
+    const retry = try client.prepareSequence(sql, schema, 9007199254740991);
+    try t.expectEqualDeep(first, retry);
+    const another = try client.prepareSequence(sql, schema, 2);
+    try t.expect(!std.mem.eql(u8, &first.signature, &another.signature));
+    const different = try client.prepareSequence("SELECT count(*) FROM counter", schema, 9007199254740991);
+    try t.expect(!std.mem.eql(u8, &first.signature, &different.signature));
+    try t.expectError(error.InvalidQueryIdentity, client.prepareSequence(sql, schema, 0));
+    var foreign = first;
+    foreign.request.command.send.pid += 1;
+    try t.expectError(error.InvalidQueryRequest, client.submitSequence(foreign));
+    var tampered = first;
+    tampered.request.sequence = 1;
+    try t.expectError(error.SignatureVerificationFailed, client.submitSequence(tampered));
 }

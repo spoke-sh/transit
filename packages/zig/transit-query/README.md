@@ -11,6 +11,15 @@ owns authorization, wire encodings, admission, cancellation and limits.
   and commands. Retain `Prepared` on uncertain submission; its receipt identifies
   the requester correlation. A page's strings borrow the supplied request arena.
 - `Client.prepareCancel/submitCancel` preserve explicit cancellation identity.
+- `Client.prepareSequence/submitSequence` support adapters with an explicit
+  native sequence and published schema. Pure preparation reconstructs canonical
+  signed bytes after host loss; submission still checks current authorization.
+  Neither a sequence observation nor matching SQL reserves a query identity.
+- `Client.segment` exposes one verified raw IPC segment in caller-owned buffers.
+  It uses the same retained manifest/transfer checks as typed pages and rechecks
+  current source/requester rights after copying. Consumers must verify ordered
+  complete coverage before claiming a complete result; a returned prefix is not
+  success. The Flight adapter uses this seam without an alternate result store.
 - `Behavior.Requester` binds one query principal/source and admits one active
   query. Initialize it with a separate `PQI1` cast from that principal.
 - `Behavior.Source` serves one declared Table to one configured peer under
