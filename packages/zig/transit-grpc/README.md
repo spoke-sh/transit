@@ -7,6 +7,10 @@ credentials, durable capture and terminal settlement before exposing results.
 The [Station adapter](../transit-station-grpc/README.md) and
 [worker](../../../apps/transit-station-grpc-worker/README.md) own those integrations.
 
+[M22](../../../docs/roadmap/M22.md) also adds the separate inbound `Server`:
+see [server ownership and limits](docs/server.md). Its transport proof does not
+qualify Flight, authentication or serving/query authority.
+
 `Request` fixes method, shape, ordered metadata and original serialized protobuf
 bytes. `execute` validates the whole batch before dialing the pinned IPv4 address;
 request slices and capture context must remain alive and immutable until it
@@ -43,8 +47,9 @@ The selected [zig-libs snapshot](../../../third_party/zig-libs/README.md) pins
 HTTP/2, HPACK, protobuf and the gRPC client at revision
 `04799d8ec9280111046ebab943f446b3af39a95d`, with original and patched hashes in
 its manifest. The [TLS adapter](../transit-tls/README.md) pins its own upstream
-sources. No foreign runtime, high-level HTTP client, RPC server or automatic
-retry surface is included. The protobuf codec uses explicit scalar/field
+sources. No foreign runtime, upstream high-level HTTP client/server, or automatic
+retry surface is included. The inbound adapter owns its bounded tasks over that
+same HTTP/2 codec. The protobuf codec uses explicit scalar/field
 specifications. `Descriptor.parse` reads only an explicitly supplied local
 `FileDescriptorSet`, computes SHA-256 over its complete original bytes and
 resolves exact method path, request/response type names and streaming shape.

@@ -131,6 +131,14 @@ pub fn build(b: *std.Build) void {
     grpc_transport_test.has_side_effects = true;
     grpc_transport_test.stdio = .inherit;
     b.step("test-grpc-transport", "Qualify finite RPC shapes against independent peers").dependOn(&grpc_transport_test.step);
+    const grpc_server_proof = b.addExecutable(.{ .name = "transit-grpc-server-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_server.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_grpc", .module = grpc.module("transit_grpc") }} }) });
+    build_test_step.dependOn(&grpc_server_proof.step);
+    const grpc_server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    grpc_server_test.addFileArg(b.path("tests/grpc_server.py"));
+    grpc_server_test.addArtifactArg(grpc_server_proof);
+    grpc_server_test.has_side_effects = true;
+    grpc_server_test.stdio = .inherit;
+    b.step("test-grpc-server", "Qualify bounded inbound RPCs against independent clients").dependOn(&grpc_server_test.step);
     const http_transport_proof = b.addExecutable(.{ .name = "transit-http-transport-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_transport.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }} }) });
     build_test_step.dependOn(&http_transport_proof.step);
     const http_transport_test = b.addSystemCommand(&.{ "python3", "-B" });

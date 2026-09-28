@@ -8,6 +8,7 @@ pub fn build(b: *std.Build) void {
         .{ .name = "grpc", .module = libraries.module("grpc") },
         .{ .name = "protobuf", .module = libraries.module("protobuf") },
         .{ .name = "transit_tls", .module = b.dependency("transit_tls", .{ .target = target, .optimize = optimize }).module("transit_tls") },
+        .{ .name = "transit_http_server", .module = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize }).module("transit_http_server") },
     } });
     const tests = b.addTest(.{ .root_module = module });
     b.step("test", "Check bounded RPC transport").dependOn(&b.addRunArtifact(tests).step);

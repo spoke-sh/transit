@@ -4,6 +4,7 @@ const http = @import("http");
 const wire = @import("grpc");
 const tls = @import("transit_tls");
 pub const Descriptor = @import("Descriptor.zig");
+pub const Server = @import("Server.zig");
 pub const protobuf = @import("protobuf");
 pub const Entry = wire.Entry;
 pub const Shape = enum(u8) { unary = 1, server_streaming = 2, client_streaming = 3, bidi = 4 };
@@ -242,4 +243,5 @@ test "finite requests reject shape, framing and metadata errors before transport
 
 test {
     _ = Descriptor;
+    _ = Server;
 }

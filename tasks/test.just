@@ -20,6 +20,9 @@ grpc-libraries:
 grpc-transport:
     zig build test-grpc-transport
 
+grpc-server:
+    nix develop .#flight --command zig build test-grpc-server
+
 grpc-worker:
     zig build test-grpc-worker
 
