@@ -15,6 +15,26 @@ pub const View = protocol.View;
 pub const Receipt = protocol.Receipt;
 
 pub const Client = struct {
+    /// Temporary transport availability is not an authority decision. This
+    /// classifies only; callers still retain exact uncertain mutation bytes.
+    pub fn unavailable(err: anyerror) bool {
+        return switch (err) {
+            error.AuthorityTimeout,
+            error.AuthorityUnavailable,
+            error.NameServerFailure,
+            error.ConnectionRefused,
+            error.ConnectionTimedOut,
+            error.NetworkUnreachable,
+            error.HostUnreachable,
+            error.ConnectionResetByPeer,
+            error.HttpConnectionClosing,
+            error.EndOfStream,
+            error.ReadFailed,
+            error.WriteFailed,
+            => true,
+            else => false,
+        };
+    }
     http: std.http.Client,
     url: []const u8,
     timeout_ms: u32 = 5000,

@@ -116,7 +116,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         live.upper_ms = try std.math.add(u64, now, 1000);
         const step = host.step(handler, now + 30000) catch |err| {
             diagnostics.event(.{ .name = "serving.worker.step", .operation = @tagName(config.role), .level = .warn, .outcome = if (host.pending != null) .uncertain else .failed, .error_type = @errorName(err) });
-            if (err == error.AuthorityTimeout or err == error.AuthorityUnavailable) {
+            if (s.client.Client.unavailable(err)) {
                 if (host.pending == null and host.ready != null) try host.discard();
             } else if (host.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
                 if (wire.last_rejection == .StateViewExpired) host.view_id = null;

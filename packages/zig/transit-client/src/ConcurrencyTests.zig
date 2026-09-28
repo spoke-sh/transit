@@ -3,6 +3,14 @@ const std = @import("std");
 const client = @import("root.zig");
 const Io = std.Io;
 
+test "availability classification cannot turn authority or content failures into retries" {
+    const t = std.testing;
+    try t.expect(client.Client.unavailable(error.NameServerFailure));
+    try t.expect(client.Client.unavailable(error.ReadFailed));
+    for ([_]anyerror{ error.AccessDenied, error.StaleActivation, error.Rejected, error.Conflict, error.InvalidAuthorityResponse, error.OutOfMemory, error.Canceled }) |err|
+        try t.expect(!client.Client.unavailable(err));
+}
+
 const Admission = struct {
     threaded: Io.Threaded,
     vtable: Io.VTable = undefined,
@@ -68,6 +76,7 @@ test "transient admission failure in either slot never retries the transport" {
         defer caller.deinit();
         caller.timeout_ms = 1000;
         try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v2/command", .{}));
+        try std.testing.expect(client.Client.unavailable(error.ConnectionRefused));
         try std.testing.expect(admission.attempts >= 4);
         try std.testing.expectEqual(@as(usize, 1), admission.connections.load(.monotonic));
     }

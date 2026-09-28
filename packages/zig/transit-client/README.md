@@ -5,6 +5,11 @@ from `StaleActivation`. Only the latter may be resolved by obtaining a valid new
 activation for the same PID. A failed read or uncertain deadline is never proof
 that a PID has expired.
 
+`Client.unavailable` classifies temporary transport failures, including DNS,
+connection and incomplete I/O failures. It performs no retry. Worker loops can
+retry observations and exactly frozen proposals through these failures; access,
+fencing, malformed responses and rejected commands remain separate decisions.
+
 Zig caller library, exported as `transit_client`. Applications receive ordered
 input and committed state, compute their own logic, and submit signed proposals.
 The authority validates the protocol without executing application code.
