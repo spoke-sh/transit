@@ -39,3 +39,5 @@ See [the selected migration](docs/migration.md). Work is tied to
 The [physical placement guide](docs/placement.md) describes the owned Compose
 and reference tasks, role-specific files, TLS edge and fresh-key recovery. Those
 profiles remain unqualified until their complete fault schedules pass.
+
+The package also has its own build manifest and domain CLI. Follow [separate build and local iteration](docs/local.md) to install it through the public M25 application contract.

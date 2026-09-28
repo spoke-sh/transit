@@ -27,11 +27,19 @@ pub fn main(init: std.process.Init) !void {
 }
 fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    const bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json");
+    const application_bootstrap = args.len == 3 and std.mem.eql(u8, args[1], "--transit-bootstrap-v1");
+    const bootstrap = application_bootstrap or (args.len == 3 and std.mem.eql(u8, args[1], "--bootstrap-json"));
     if (args.len != 2 and !bootstrap) return error.ExpectedConfiguration;
-    const bytes = if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.arena.allocator(), .limited(16384));
-    if (bytes.len > 16384) return error.ConfigurationTooLarge;
-    const config = (try p.Json.parseFromSlice(Configuration, init.arena.allocator(), bytes)).value;
+    const bytes = if (application_bootstrap) try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.arena.allocator(), .limited(65536)) else if (bootstrap) args[2] else try std.Io.Dir.cwd().readFileAlloc(init.io, args[1], init.arena.allocator(), .limited(16384));
+    if (bytes.len > (if (application_bootstrap) @as(usize, 65536) else 16384)) return error.ConfigurationTooLarge;
+    const config = if (application_bootstrap) value: {
+        const A = s.client.Application;
+        const supplied = (try p.Json.parseFromSlice(A.Bootstrap, init.arena.allocator(), bytes)).value;
+        try supplied.validate();
+        if (!std.mem.eql(u8, supplied.role, "data") or !std.mem.eql(u8, supplied.contract, "work-items-v1")) return error.UnsupportedApplicationContract;
+        const domain = (try p.Json.parseFromSlice(struct { application: u64 }, init.arena.allocator(), supplied.configuration)).value;
+        break :value Configuration{ .url = supplied.url, .principal = supplied.principal, .pid = supplied.pid, .generation = supplied.generation, .activation_directory = supplied.activation_directory, .application = .{ .application = domain.application, .realm = supplied.realm, .administrator = try A.binding(supplied.callers, "operator"), .writer = try A.binding(supplied.callers, "writer"), .resource = try A.binding(supplied.resources, "data") } };
+    } else (try p.Json.parseFromSlice(Configuration, init.arena.allocator(), bytes)).value;
     if (config.query_peer != null and config.publication != null) return error.ConflictingWorkerRoles;
     if (config.publication) |publication| if (publication.realm != config.application.realm or publication.application != config.application.application) return error.InvalidConfiguration;
     if (config.pid == 0 or config.generation == 0 or config.principal == 0 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
