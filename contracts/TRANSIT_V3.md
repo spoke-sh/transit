@@ -99,6 +99,18 @@ and target inspection rights, returning null for either absence or a hidden
 target. It uses the same final authority-tail fence as paged discovery. The
 client validates the returned PID, name, resource and association revision.
 
+With `resource_read_access`, the additive `read_access: resource_id` query
+returns current active resource metadata only after checking both `inspect` and
+`read` resource rights, the caller's current native identity/PID association
+scope, and resource/dependency lifetime. It uses the normal signed-query domain
+and final authority-tail fence. It neither reads entries nor retains a version.
+The signature may be retained and resubmitted as evidence of the caller's
+current read authority; every submission rechecks current keys and grants.
+Revoking `read` denies this query even when `resource` metadata remains readable.
+It grants no authority to a later read or mutation. Clients must require the
+capability; older nodes may reject the new variant. Existing query and signature
+encodings remain unchanged.
+
 Process lists expose recorded metadata. An individual process read checks current
 execution eligibility before releasing its next mailbox input. Required dependency
 expiry may fence execution before background work materializes terminal metadata;

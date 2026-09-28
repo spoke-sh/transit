@@ -96,6 +96,14 @@ PID inspection alone reveals neither associated resources nor their values.
 Resource revocation fences reads, commits and receipt reconciliation even after
 a read view has been released; see the [state contract](../contracts/STATE_V1.md).
 
+Metadata inspection does not establish entry-read authority. The growing
+profile's capability-gated [`read_access` observation](../contracts/TRANSIT_V3.md)
+checks current inspect/read grants, PID association scope and lifetime without
+disclosing entries. A host may retain the caller's signature for repeated checks,
+but must submit it to current authority each time; the response is not a bearer
+grant. A stronger worker credential cannot substitute for the caller's read
+permission when starting a refresh or disclosing a result.
+
 ## Authorization over time
 
 | Operation | Required decision |

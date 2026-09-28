@@ -38,7 +38,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);
@@ -53,6 +53,13 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             try resourceScope(engine, principal, id);
             try state.allowed(engine, id, query.principal, p.State.permission(.inspect));
             break :blk .{ .resource = try state.resource(engine, id) };
+        },
+        .read_access => |id| blk: {
+            try resourceScope(engine, principal, id);
+            try state.allowed(engine, id, query.principal, p.State.permission(.inspect) | p.State.permission(.read));
+            const resource = try state.resource(engine, id);
+            try state.usable(engine, resource, try sample(engine));
+            break :blk .{ .read_access = resource };
         },
         .view => |id| blk: {
             const value = try state.view(engine, id);

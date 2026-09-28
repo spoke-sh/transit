@@ -18,6 +18,13 @@ exact-retry receipt, process metadata and accepted mailbox entry become visible
 through one conditional journal append of a new root. A prepared candidate can
 leave unreachable pages; it cannot advance a live process or disclose acceptance.
 
+The `resource_read_access` capability adds a signed `read_access` observation.
+Unlike metadata-only `resource`, it requires current inspect and read rights,
+PID association scope and an active usable resource; it returns only metadata.
+Its successful authority-tail check is the authorization point, not a reusable
+grant. Core tests cover separate PID scope, read-only revocation with metadata
+still readable, signature tampering, raced authority and resource retirement.
+
 Principals use full-width value keys. Grants have an epoch for later resource-
 grant invalidation without scanning all resources. Receipts are independently
 addressed by principal and sequence; retry does not scan the history or evict an

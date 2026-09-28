@@ -166,6 +166,7 @@ pub const Query = struct {
         version_entries: struct { id: ReadVersionId, generation: u64, key: ?p.Value = null, after: ?p.Value = null },
         read_versions: struct { pid: Id, after: ?ReadVersionId = null, position: ?Id = null },
         identity: void,
+        read_access: Id,
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
@@ -187,6 +188,7 @@ pub const Capabilities = struct {
     association_lookup: bool = false,
     scoped_retry: bool = false,
     retained_read_versions: bool = false,
+    resource_read_access: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
     runtime_bindings: bool = false,
@@ -220,6 +222,7 @@ pub const Response = struct {
         version_entries: struct { version: ReadVersion, generation: u64, resource: Resource, page: Batch(Entry, p.Value) },
         read_versions: Batch(ReadVersion, ReadVersionId),
         identity: Identity,
+        read_access: Resource,
     },
 };
 
@@ -344,6 +347,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
             } else if (value.process.lifecycle == .running and value.process.failure == null and value.process.consumed < value.process.admitted) return error.InvalidRead;
         },
         .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
+        .read_access => |id| if (response.body.read_access.id != id or response.body.read_access.phase != .active) return error.InvalidRead,
         .view => |id| if (response.body.view.id != id) return error.InvalidRead,
         .read_version => |id| {
             try validateVersion(response.body.read_version, response.position);

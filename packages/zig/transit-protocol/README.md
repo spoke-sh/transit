@@ -10,6 +10,11 @@ operations. Schema presence alone does
 not advertise a running capability or migrate signing/checkpoint formats.
 The additive growing `identity` query reports current coarse rights and scope
 at an authority position; it is not a bearer grant for subsequent reads.
+The capability-gated growing `read_access` query checks current resource
+inspection and entry-read authority without disclosing entries or retaining a
+view. Ordinary `resource` metadata only requires inspection and cannot substitute
+for this check. Both observations remain subject to current keys, scope, grants,
+and the authority-tail fence.
 
 Public, language-neutral Transit contract types, exported as `transit_protocol`.
 This library depends only on Zig's standard library. It contains no authority,

@@ -691,6 +691,40 @@ test "growing filtered discovery advances bounded pages without exposing hidden 
     try t.expectError(error.Forbidden, fixture.query(65536, point));
 }
 
+test "resource read-access proof checks current read grant scope and lifetime without disclosing entries" {
+    var fixture: Fixture = .{};
+    defer fixture.deinit();
+    try fixture.init();
+    const pid = try fixture.root(.{ .spawn = .{} });
+    const resource = try fixture.root(.{ .create_resource = .{ .writer = pid } });
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 3 } });
+    const signed = try g.signQuery(.{ .realm = 42, .principal = 65536, .kind = .{ .read_access = resource } }, fixture.worker_key);
+    // Resource grants cannot broaden a PID's associated-resource scope.
+    try t.expectError(error.Forbidden, fixture.engine.query(signed));
+    _ = try fixture.root(.{ .associate = .{ .pid = pid, .name = try core.Value.init("data"), .resource = resource, .required = false } });
+    const response = try fixture.engine.query(signed);
+    try g.validateResponse(response, signed.query);
+    try t.expectEqual(resource, response.body.read_access.id);
+    try t.expect((try fixture.query(65536, .capabilities)).body.capabilities.resource_read_access);
+    var foreign = signed;
+    foreign.query.kind.read_access += 1;
+    try t.expectError(error.Unauthorized, fixture.engine.query(foreign));
+    // Metadata remains readable after revoking only entry-read permission.
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 1 } });
+    _ = try fixture.query(65536, .{ .resource = resource });
+    try t.expectError(error.Forbidden, fixture.engine.query(signed));
+    _ = try fixture.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 3 } });
+    _ = try fixture.engine.query(signed);
+    // Final authority-tail validation still prevents caching a raced grant.
+    fixture.journal.race_at = fixture.journal.tail_calls + 2;
+    try t.expectError(error.Conflict, fixture.engine.query(signed));
+    fixture.journal.race_at = null;
+    _ = try fixture.root(.{ .terminate = pid });
+    try t.expectError(error.StateResourceExpired, fixture.engine.query(signed));
+}
+
 test "growing outboxes preserve routes, permission ordering and lost delivery receipts" {
     const work = @import("growing_work.zig");
     var fixture: Fixture = .{};

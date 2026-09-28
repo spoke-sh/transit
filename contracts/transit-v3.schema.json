@@ -4029,6 +4029,22 @@
                   "maxProperties": 0
                 }
               }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "read_access"
+              ],
+              "properties": {
+                "read_access": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "x-transit-bits": 64,
+                  "x-transit-signed": false
+                }
+              }
             }
           ]
         }
@@ -4811,6 +4827,22 @@
                       "maxProperties": 0
                     }
                   }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "read_access"
+                  ],
+                  "properties": {
+                    "read_access": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    }
+                  }
                 }
               ]
             }
@@ -4908,6 +4940,7 @@
                     "association_lookup",
                     "scoped_retry",
                     "retained_read_versions",
+                    "resource_read_access",
                     "version_change_budget",
                     "runtime_bindings",
                     "history_reclamation",
@@ -4994,6 +5027,9 @@
                     "retained_read_versions": {
                       "type": "boolean"
                     },
+                    "resource_read_access": {
+                      "type": "boolean"
+                    },
                     "version_change_budget": {
                       "type": "integer",
                       "minimum": 0,
@@ -5055,6 +5091,7 @@
                     "association_lookup": false,
                     "scoped_retry": false,
                     "retained_read_versions": false,
+                    "resource_read_access": false,
                     "version_change_budget": 4,
                     "runtime_bindings": false,
                     "history_reclamation": false,
@@ -7671,6 +7708,120 @@
                     "policy_revision"
                   ],
                   "x-transit-defaults": {}
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "read_access"
+              ],
+              "properties": {
+                "read_access": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "x-transit-field-order": [
+                    "id",
+                    "writer",
+                    "owner",
+                    "revision",
+                    "entries",
+                    "deadline_ms",
+                    "phase",
+                    "retired_at"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "writer": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "owner": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991,
+                      "x-transit-bits": 64,
+                      "x-transit-signed": false
+                    },
+                    "deadline_ms": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "phase": {
+                      "type": "string",
+                      "enum": [
+                        "active",
+                        "retired"
+                      ]
+                    },
+                    "retired_at": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991,
+                          "x-transit-bits": 64,
+                          "x-transit-signed": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "writer",
+                    "owner",
+                    "revision",
+                    "deadline_ms"
+                  ],
+                  "x-transit-defaults": {
+                    "entries": 0,
+                    "phase": "active",
+                    "retired_at": null
+                  }
                 }
               }
             }
