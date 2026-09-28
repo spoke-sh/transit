@@ -169,3 +169,19 @@ test("a new query template cannot publish the previous paused candidate", async 
   await stopped;
   expect(view.getSnapshot().snapshot).toBeNull();
 });
+
+test("pause retries transient control capacity after joining local tasks", async () => {
+  const session = attachedSession();
+  session.scope = scope;
+  let calls = 0;
+  session.close = async () => {
+    calls++;
+    if (calls === 1) throw new ReactiveError(429, "unavailable");
+    session.scope = null;
+  };
+  const view = new LiveView(session, async () => snapshot);
+  await view.pause();
+  expect(calls).toBe(2);
+  expect(view.getSnapshot().phase).toBe("paused");
+  expect(session.scope).toBeNull();
+});

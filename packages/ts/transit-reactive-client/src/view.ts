@@ -327,18 +327,36 @@ export class LiveView<T> {
     this.closing = (async () => {
       await task;
       const signal = AbortSignal.timeout(10000);
-      try {
-        if (this.session.pending) await this.session.recover(signal);
-        if (this.session.selection && this.session.scope)
-          await this.session.refresh({ pause: this.session.selection }, signal);
-        await this.session.close(signal);
-        this.session.selection = null;
-        this.publish({
-          phase: "paused",
-          detail: "Follow paused. Accepted queries continue independently.",
-        });
-      } catch (error) {
-        this.fail(error);
+      while (true) {
+        try {
+          if (this.session.pending) await this.session.recover(signal);
+          if (this.session.selection && this.session.scope) {
+            await this.session.refresh({ pause: this.session.selection }, signal);
+            this.session.selection = null;
+          }
+          await this.session.close(signal);
+          this.session.selection = null;
+          this.publish({
+            phase: "paused",
+            detail: "Follow paused. Accepted queries continue independently.",
+          });
+          return;
+        } catch (error) {
+          // Joining a canceled read can briefly retain the server's control
+          // slot. Retry preparation only after known capacity/unavailability;
+          // an uncertain mutation always goes through exact recovery first.
+          const retryable =
+            error instanceof ReactiveError &&
+            (error.status === 429 ||
+              error.status === 503 ||
+              error.status === 504 ||
+              error.reason === "control_uncertain");
+          if (signal.aborted || !retryable) {
+            this.fail(error);
+            return;
+          }
+          await sleep(250, signal);
+        }
       }
     })().finally(() => {
       this.closing = null;

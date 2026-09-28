@@ -108,7 +108,9 @@ export class Transport {
     });
   }
   private async json(path: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
-    const timeout = AbortSignal.timeout(5000);
+    // The qualified host permits 30 seconds of joined work. Leave room for its
+    // terminal response; an early abort can retain the server control slot.
+    const timeout = AbortSignal.timeout(35000);
     const result = await this.post(
       path,
       body,
@@ -205,16 +207,16 @@ export class Transport {
     signal: AbortSignal,
   ) {
     const idle = new AbortController();
-    let timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 5000);
+    let timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 35000);
     try {
       await this.stream(
         bootstrap,
         (value, id) => {
           clearTimeout(timer);
-          timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 5000);
+          timer = setTimeout(() => idle.abort(new ReactiveError(0, "disconnected")), 35000);
           consume(value, id);
         },
-        AbortSignal.any([signal, idle.signal, AbortSignal.timeout(31000)]),
+        AbortSignal.any([signal, idle.signal, AbortSignal.timeout(35000)]),
       );
     } finally {
       clearTimeout(timer);

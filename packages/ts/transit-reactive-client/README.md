@@ -54,3 +54,10 @@ Private descriptions carry the committed observer clock. Open/renew deadlines
 use that recorded value, leaving margin within the 30-second bound; browser wall
 time only prompts renewal. A stale/unavailable observer cannot authorize a longer
 lease. Clock observation and all accepted controls have durable retention cost.
+
+The qualified HTTP host has a 30-second joined request budget. Browser JSON and
+stream idle deadlines allow 35 seconds, so a valid slow observation is not
+aborted into repeated attachments. This does not extend a session lease or
+change the independent renewal loop. Pause joins local tasks, then retries
+transient control-slot pressure within its existing ten-second closure budget;
+any frozen mutation is recovered exactly before preparing another control.

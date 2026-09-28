@@ -93,10 +93,15 @@ fn handle(raw: ?*anyopaque, turn: *Turn, frame: s.Frame) anyerror!void {
         return;
     }
     const is_query = if (frame.kind == .cast) std.mem.startsWith(u8, frame.payload.slice(), "UQ") else (frame.kind == .reply or frame.kind == .timeout) and try turn.read(q.UnifiedRecords.key('i', frame.correlation, 0)) != null;
-    var wake = is_query;
+    var wake = false;
     if (is_query) {
         const handler = query.interface();
         try handler.handle(handler.context, turn, frame);
+        // Upload fragments and in-flight query replies cannot release scheduler
+        // work. Waking for every fragment doubles owner traffic and can delay
+        // lease/clock controls behind an otherwise bounded capture. Completion,
+        // cancellation or rejection clears the active query and needs one wake.
+        wake = try q.UnifiedUpload.active(turn) == null and try turn.read(root.RefreshModel.scheduler_key) != null;
     } else if (frame.kind == .cast) {
         const command = try root.Model.Command.decode(frame.payload);
         if (command == .refresh) {

@@ -7,6 +7,15 @@ const http = @import("transit_http_server");
 const r = serving.ReactiveModel;
 pub const Configuration = struct { principal: u64, seed_file: []const u8, snapshot_values: bool = false, refresh: bool = false };
 pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+    var observation = context.diagnostics.begin(.service, null);
+    var operation_name: ?[]const u8 = null;
+    handleObserved(context, io, allocator, request, &operation_name) catch |err| {
+        observation.finish(.{ .name = "serving.reactive.client", .operation = operation_name, .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
+        return err;
+    };
+    observation.finish(.{ .name = "serving.reactive.client", .operation = operation_name, .level = .debug, .outcome = .ok });
+}
+fn handleObserved(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request, operation_name: *?[]const u8) !void {
     const config = context.config.gateway;
     const viewer = config.viewer orelse return http.respond(request, .not_found, "{}");
     if (request.head.method != .POST or !std.mem.eql(u8, (try http.header(request, "origin")) orelse "", config.public_origin)) return error.ServingDenied;
@@ -21,6 +30,7 @@ pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, 
     const body = try request.readerExpectNone(&.{}).allocRemaining(alloc, .limited(r.max_message_bytes));
     const parsed = try serving.protocol.Json.parseFromSlice(serving.ReactiveClient.Request, alloc, body);
     const operation = parsed.value;
+    operation_name.* = @tagName(operation);
     if (control and !try isControl(operation)) return error.InvalidServingCommand;
     if (!context.callers[index].acquire(control, if (control) 1 else config.per_caller_requests)) return error.ServingCallerCapacity;
     defer context.callers[index].release(control);
