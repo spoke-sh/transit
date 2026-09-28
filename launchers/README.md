@@ -16,6 +16,13 @@ realm or migrating storage is not implemented. Reference `up` installs a usable
 Transit application, including Board and an in-cluster runtime controller.
 Its recovery/isolation tests use separate installations.
 
+Protocol-specific finite demonstrations reuse these placement components with
+their own isolated installations. [Reactive views](../examples/serving/docs/views.md)
+exercise the embedded Board/counter consumers; [Flight](../examples/flight/README.md)
+packages the finite gateway, explicit TLS edge and pinned Arrow/ADBC clients in
+native, Compose and reference placements. Their guides own proof commands and
+limits; they are separate from the persistent counter/Station example selection.
+
 The default example is the small counter. Select `--example station` on the
 first `up` of a named installation to run the three-process
 [Station ledger](../examples/station-ledger/docs/running.md): behaviors with

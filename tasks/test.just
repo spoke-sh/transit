@@ -357,5 +357,8 @@ flight:
 flight-faults:
     nix develop .#flight --command zig build test-flight -Doptimize=ReleaseSafe -Dflight-faults=true
 
+flight-placement profile:
+    nix develop .#flight --command zig build test-flight -Doptimize=ReleaseSafe -Dflight-placement={{quote(profile)}}
+
 flight-outbound:
     nix develop .#flight --command zig build test-flight-outbound -Doptimize=ReleaseSafe

@@ -494,7 +494,10 @@ pub fn build(b: *std.Build) void {
     b.step("transit-flight-gateway", "Install the finite Flight gateway").dependOn(&b.addInstallArtifact(flight_gateway, .{}).step);
     build_test_step.dependOn(&flight_gateway.step);
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
-    flight_test.addFileArg(b.path("tests/flight.py"));
+    if (b.option([]const u8, "flight-placement", "Run Flight in compose or reference placement")) |profile| {
+        flight_test.addFileArg(b.path("examples/flight/run.py"));
+        flight_test.addArg(profile);
+    } else flight_test.addFileArg(b.path("tests/flight.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, flight_gateway, public_query }) |artifact| flight_test.addArtifactArg(artifact);
     if (b.option(bool, "flight-faults", "Qualify Flight authority, retry and physical recovery boundaries") orelse false) {
         flight_test.addArg("faults");

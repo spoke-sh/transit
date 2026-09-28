@@ -30,7 +30,7 @@ class Compose:
     def __init__(self, work, protocol="http"):
         self.work = work
         self.protocol = protocol
-        assert protocol in ("http", "grpc", "document", "query", "serving")
+        assert protocol in ("http", "grpc", "document", "query", "serving", "flight")
         self.project = "transit-" + protocol + "-" + uuid.uuid4().hex[:10]
         self.env = os.environ | {"EXCHANGE_UID": str(os.getuid()), "EXCHANGE_GID": str(os.getgid()),
             "EXCHANGE_WORK": str(work),
