@@ -59,7 +59,8 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     description = api({'describe': {}})['description']
     suggestions = api({'suggest': {'search': 'count'}})['suggestions']
     assert suggestions['resource'] == caller['connection']['resource']
-    assert suggestions['items'] == [{'label': 'Count', 'sql': 'SELECT COUNT(*) FROM items'}]
+    assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM items'}
+    assert len(suggestions['items']) <= 8  # Document column names can also contain 'count'.
     api({'compile': {'sql': suggestions['items'][0]['sql']}})
     assert api({'suggest': {'search': 'hidden_source'}})['suggestions']['items'] == []
     assert kind in description['source']['source']['source'] and not description['sql']['writes']
