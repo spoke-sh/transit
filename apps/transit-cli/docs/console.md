@@ -4,15 +4,18 @@
 explicit-submit interface over the shared v2 KV/Table/Document query session.
 It needs a provisioned native authority, scoped caller and query workers. The
 separate `query` and `query-v2` entry points retain their single-line contracts.
-`transit server` remains under implementation; this command does not initialize
-or adopt a launcher installation.
+The [local server](server.md) generates a console configuration; this command
+does not initialize or adopt a launcher installation.
 
 ## Configuration and trust
 
 Configuration is strict JSON, limited to 64 KiB. Unknown/duplicate fields,
 unsupported versions and invalid endpoints reject before native operations.
-Paths resolve relative to the configuration file. No environment, current
-directory or home-directory credential discovery is performed. Explicit
+Paths resolve relative to the configuration file. A shell may explicitly export
+`TRANSIT_CONSOLE_CONFIG=/absolute/path/to/console.json`, allowing `transit console`
+without flags. `--config` overrides that default; an unset/empty variable still
+requires the flag. No current-directory or home-directory credential discovery
+is performed, and no other environment configuration overlay is applied. Explicit
 `--format` overrides the file; other duplicate/unknown options reject.
 `--help`, `--version` and `console --help` work offline.
 

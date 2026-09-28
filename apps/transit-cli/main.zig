@@ -32,7 +32,7 @@ fn dispatch(init: std.process.Init) !void {
     if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
     if (args.len == 3 and std.mem.eql(u8, args[1], "query-v2")) return @import("Unified.zig").run(init, args[2]);
     if (args.len != 3 or !std.mem.eql(u8, args[1], "query")) {
-        const options = try @import("Options.zig").parse(args[1..]);
+        const options = try @import("Options.zig").parseWithConsoleConfig(args[1..], init.environ_map.get("TRANSIT_CONSOLE_CONFIG"));
         if (options.command == .help or options.help) return std.Io.File.stdout().writeStreamingAll(init.io, @import("Options.zig").help);
         return switch (options.command) {
             .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit development; CLI contract 1\n"),
