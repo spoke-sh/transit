@@ -9052,9 +9052,9 @@
                                 "policy_revision",
                                 "phase",
                                 "bytes",
-                                "chain",
                                 "send_segment",
-                                "send_offset"
+                                "send_offset",
+                                "chain"
                               ],
                               "properties": {
                                 "result": {
@@ -9072,11 +9072,8 @@
                                   "x-transit-signed": false
                                 },
                                 "correlation": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "table": {
                                   "type": "integer",
@@ -9124,11 +9121,8 @@
                                   "x-transit-defaults": {}
                                 },
                                 "policy_revision": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "phase": {
                                   "type": "string",
@@ -9142,10 +9136,18 @@
                                   ]
                                 },
                                 "bytes": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "send_segment": {
+                                  "type": "string",
+                                  "maxLength": 256
+                                },
+                                "send_offset": {
                                   "type": "integer",
                                   "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
+                                  "maximum": 65535,
+                                  "x-transit-bits": 16,
                                   "x-transit-signed": false
                                 },
                                 "chain": {
@@ -9159,20 +9161,6 @@
                                     "x-transit-bits": 8,
                                     "x-transit-signed": false
                                   }
-                                },
-                                "send_segment": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
-                                },
-                                "send_offset": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 65535,
-                                  "x-transit-bits": 16,
-                                  "x-transit-signed": false
                                 }
                               },
                               "required": [
@@ -9184,17 +9172,11 @@
                                 "policy_revision",
                                 "phase",
                                 "bytes",
-                                "chain",
                                 "send_segment",
-                                "send_offset"
+                                "send_offset",
+                                "chain"
                               ],
-                              "x-transit-defaults": {
-                                "phase": "capturing",
-                                "bytes": 0,
-                                "chain": "\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
-                                "send_segment": 0,
-                                "send_offset": 0
-                              }
+                              "x-transit-defaults": {}
                             }
                           }
                         },
@@ -9238,11 +9220,8 @@
                                   "x-transit-signed": false
                                 },
                                 "correlation": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "table": {
                                   "type": "integer",
@@ -9252,11 +9231,8 @@
                                   "x-transit-signed": false
                                 },
                                 "policy_revision": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "basis": {
                                   "type": "object",
@@ -9314,25 +9290,16 @@
                                   }
                                 },
                                 "segments": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "bytes": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "rows": {
-                                  "type": "integer",
-                                  "minimum": 0,
-                                  "maximum": 9007199254740991,
-                                  "x-transit-bits": 64,
-                                  "x-transit-signed": false
+                                  "type": "string",
+                                  "maxLength": 256
                                 },
                                 "chain": {
                                   "type": "array",

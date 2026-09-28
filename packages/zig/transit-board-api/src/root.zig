@@ -56,7 +56,7 @@ pub fn projectRecords(allocator: std.mem.Allocator, realm: u64, position: u64, r
     var result: RecordsResponse = .{ .realm = realm, .position = position, .resource = resource, .page = .{ .next = page.next } };
     for (page.entries, 0..) |slot, index| if (slot) |entry| {
         result.page.entries[index] = .{ .key = entry.key, .revision = entry.revision };
-        if (Query.decode(resource.writer, resource.id, entry.key, entry.value)) |detail| result.queries[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
+        if (try Query.decode(allocator, resource.writer, resource.id, entry.key, entry.value)) |detail| result.queries[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
         if (try Document.decode(allocator, entry.key, entry.value)) |detail| result.documents[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
         if (try Exchange.decode(allocator, resource.writer, entry.key, entry.value)) |detail| result.exchanges[index] = .{ .source = .{ .realm = realm, .pid = resource.writer, .resource = resource.id, .key = entry.key, .entry_revision = entry.revision, .resource_revision = resource.revision, .position = position }, .declaration = detail };
     };

@@ -54,7 +54,9 @@ unknown-version fallback without broadening authorization.
 
 The `queries` lenses recognize canonical public v1 query capture and manifest
 keys through Station's owning codecs, checking the recorded writer/destination
-or source resource. They retain exact record provenance. Recorded phase, row
+or source resource. Full-width correlations, policy revisions and counters use
+canonical decimal strings; native resource/PID revisions retain safe integers.
+They retain exact record provenance. Recorded phase, row
 count and segment count are evidence about the capture, not proof of current
 result access or complete retained coverage. The result reader checks those
 separately; unknown versions and malformed records remain opaque. Reading these
