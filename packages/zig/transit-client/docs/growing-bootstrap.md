@@ -28,8 +28,10 @@ The helper only reads the current authorized process. A lower generation waits;
 exact expected ownership succeeds; a later generation or different owner fails.
 Permanent retirement and a blocked process fail explicitly. No activation is
 adopted after success: the ordinary growing session remains pinned to that
-generation. Authentication denials/timeouts can be polled within the explicit
-finite bootstrap timeout (maximum 300 seconds); other errors stop the host.
+generation. Authentication denials, authority timeouts/unavailability and an HTTP
+connection closing during this read can be polled within the explicit finite
+bootstrap timeout (maximum 300 seconds); other errors stop the host. Every retry
+reads the same pinned identity and generation and never submits a mutation.
 Expected denied polls emit no repeated diagnostics. Neither key material nor an
 authoritative activation is written to the filesystem or provider snapshot.
 

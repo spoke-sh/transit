@@ -47,7 +47,7 @@ pub fn awaitGrowingOwnership(client: *wire.Client, registration: GrowingRegistra
         if (elapsed >= timeout_ms) return error.BootstrapTimeout;
         client.timeout_ms = @min(request_timeout, timeout_ms - @as(u32, @intCast(@max(0, elapsed))));
         const response = client.queryGrowing(.{ .realm = registration.realm, .principal = registration.principal, .kind = .{ .process = registration.pid } }, key) catch |err| switch (err) {
-            error.AccessDenied, error.AuthorityTimeout => {
+            error.AccessDenied, error.AuthorityTimeout, error.AuthorityUnavailable, error.HttpConnectionClosing => {
                 try io.sleep(.fromMilliseconds(100), .awake);
                 continue;
             },
