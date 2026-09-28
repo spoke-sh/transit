@@ -669,6 +669,20 @@ pub fn build(b: *std.Build) void {
     document_test.has_side_effects = true;
     document_test.stdio = .inherit;
     b.step("test-document", "Prove Document publication, checkpoint and disk recovery").dependOn(&document_test.step);
+    const application_proof = b.addExecutable(.{ .name = "transit-application-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/application.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_station_app", .module = application.module("transit_station_app") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    build_test_step.dependOn(&application_proof.step);
+    const application_test = b.addSystemCommand(&.{ "python3", "-B" });
+    application_test.addFileArg(b.path("tests/application.py"));
+    application_test.addArtifactArg(node_artifact);
+    application_test.addArtifactArg(application_proof);
+    application_test.has_side_effects = true;
+    application_test.stdio = .inherit;
+    b.step("test-application", "Qualify conditional application publication over signed native ingress and disk recovery").dependOn(&application_test.step);
     const publication_proof = b.addExecutable(.{ .name = "transit-publication-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/publication.zig"),
         .target = target,

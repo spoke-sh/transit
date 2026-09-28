@@ -1029,6 +1029,33 @@
       ],
       "limits": "One configured int64 Table per caller, one active finite query per requester, two data RPCs per caller, 16 KiB messages, 256 KiB framed response, 64 response messages. Metadata union/list/map coverage does not expand application types. Only executed placements in tests/README.md are qualified; no continuous Flight, writes, prepared parameters or hosted cost claim.",
       "model": null
+    },
+    {
+      "id": "APPLICATION-01",
+      "claim": "Complete application definitions share SQL/model semantics and conditional publication preserves exact attributed identity and current operator policy",
+      "owner": "contracts/APPLICATION_V1.md",
+      "implementation": [
+        "packages/zig/transit-station-app/src/Model.zig",
+        "packages/zig/transit-station-app/src/Sql.zig",
+        "packages/zig/transit-station-app/src/Publication.zig",
+        "tests/application_grammar.py",
+        "tests/application.zig",
+        "tests/application.py"
+      ],
+      "profile": "M23 bounded declarations and signed native publication owner",
+      "tasks": [
+        "test::unit",
+        "test::application-grammar",
+        "test::application"
+      ],
+      "scenarios": [
+        "Independent ANTLR/model agreement and semantic visual-edit round-trip; whole-program rejection and allocation failures",
+        "Competing bases, attributed receipts, non-owned record abandonment refusal and explicit staging cleanup",
+        "Current operator denial between chunks and after completed admission; resource-read revocation",
+        "Three actual worker kills with node and disk Ursula restart, one-page recovery, stale generation refusal and exact lost append/activation replies"
+      ],
+      "limits": "64 KiB per body, two staged bodies and one 256-byte chunk per step, four mutations for atomic visibility. The native proof uses a 1002-byte interface and 15 turns. No browser generation switching, administrative HTTP ingress, application data migration or Compose/reference application claim yet. No new hosted CI budget.",
+      "model": null
     }
   ]
 }

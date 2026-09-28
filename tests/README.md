@@ -2848,3 +2848,16 @@ explicit cleanup, non-owned-record abandonment rejection and seventeen retained
 revisions beyond the two-body staging budget. `tests/application_contract.py`
 checks independently encoded AP1 layouts in the ordinary root unit task.
 These deterministic tests do not substitute for physical restart/ingress proofs.
+
+`just test::application` now exercises the real signed native boundary with a
+separately granted operator and Station worker over owned disk Ursula. It kills
+three workers at chunk/activation boundaries, restarts node and disk store,
+rejects saved stale-generation proposals, retries lost append/activation replies
+byte-for-byte, and verifies persistent operator denial plus current resource-read
+denial. Recovery uses one resident authority page. The 1002-byte interface took
+15 turns, 128 point reads, at most four mutations and 256-byte values; measured
+phase times were 0.607/0.756/0.355/0.867 seconds (stage/seal/publish/finish, excluding
+compilation). This proves native publication recovery; application browser,
+HTTP operator ingress, data migration and Compose/reference placements remain open.
+The proof and independent grammar are explicit focused tasks, without expanding
+ordinary PR lanes or claiming a new hosted budget.

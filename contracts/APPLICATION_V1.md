@@ -84,9 +84,10 @@ abandoned=4), native input position and the record-ownership boolean. `Head` nam
 revision, record, spec, operator, operation and activation input. The owning public
 types generate the structural schema; independent Python fixtures pin the layouts.
 
-These owner tests qualify deterministic composition, not signed HTTP ingress or
-physical restart. Browser generation switching and transport recovery remain
-separate gates below.
+Owner tests qualify deterministic composition. The focused native proof also
+qualifies signed operator admission, exact lost replies, stale-worker fencing and
+node/disk-store restart. Signed HTTP operator ingress, browser generation switching,
+application migrations and deployment placements remain separate gates below.
 
 The selected data evolution is a versioned work-item encoding on the application's
 existing int64 Table. The application records a write pause, converts one bounded

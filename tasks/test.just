@@ -210,6 +210,10 @@ document:
 document-remote:
     just examples::document
 
+# Conditional application publication with signed operators, lost replies and disk recovery.
+application:
+    zig build test-application -Doptimize=ReleaseSafe
+
 # Qualify larger immutable records, current access and bounded cleanup over disk Ursula.
 publication:
     zig build test-publication

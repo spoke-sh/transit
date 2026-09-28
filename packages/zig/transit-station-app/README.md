@@ -40,5 +40,7 @@ four-mutation budget. Use current public readers for `head`/`receipt`; these
 helpers are not network endpoints. Explicit `abandon`/`collect` close unused
 staging without expiring published history. See the contract for exact layout,
 limits and quota recovery. Tests cover races, denial, lost-result reconstruction,
-partial-decision rollback and retained revision growth. Physical host recovery
-and browser publication are not yet qualified.
+partial-decision rollback and retained revision growth. `just test::application` additionally qualifies signed native operator admission,
+exact lost replies, worker fencing and node/disk-store restart. Browser generation
+switching, administrative HTTP ingress and physical application placements remain
+open; the native proof is not those broader qualifications.
