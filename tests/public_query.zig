@@ -55,21 +55,28 @@ pub fn main(init: std.process.Init) !void {
     wire.timeout_ms = 10000;
     var admin: Admin = .{ .wire = &wire, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
-    const flight = std.mem.eql(u8, args[2], "provision-flight");
+    const second_flight = std.mem.eql(u8, args[2], "provision-flight-second");
+    const flight = std.mem.eql(u8, args[2], "provision-flight") or second_flight;
     if (std.mem.eql(u8, args[2], "provision") or flight) {
-        const writer_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
-        const requester_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
-        const caller_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
-        const courier_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11));
-        const writer = try admin.provision(65536, writer_key);
-        const requester = try admin.provisionReader(65537, requester_key, if (flight) writer.resource else null);
-        _ = try admin.submit(.{ .grant = .{ .subject = 1234, .pid = if (flight) requester.pid else null, .public_key = caller_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
-        _ = try admin.submit(.{ .grant = .{ .subject = 65538, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
-        _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(12))).public_key.toBytes(), .permissions = p.permission(.inspect) } });
-        for ([_]u64{ writer.resource, requester.resource }) |resource| for ([_]u64{ 1234, 55 }) |principal| {
+        const writer_principal: u64 = if (second_flight) 65539 else 65536;
+        const requester_principal: u64 = if (second_flight) 65540 else 65537;
+        const courier_principal: u64 = if (second_flight) 65541 else 65538;
+        const query_principal: u64 = if (second_flight) 1235 else 1234;
+        const administrator_principal: u64 = if (second_flight) 34 else 33;
+        const seed_offset: u8 = if (second_flight) 6 else 0;
+        const writer_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8 + seed_offset));
+        const requester_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9 + seed_offset));
+        const caller_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10 + seed_offset));
+        const courier_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(11 + seed_offset));
+        const writer = try admin.provision(writer_principal, writer_key);
+        const requester = try admin.provisionReader(requester_principal, requester_key, if (flight) writer.resource else null);
+        _ = try admin.submit(.{ .grant = .{ .subject = query_principal, .pid = if (flight) requester.pid else null, .public_key = caller_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+        _ = try admin.submit(.{ .grant = .{ .subject = courier_principal, .public_key = courier_key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) | p.permission(.delivery) } });
+        if (!second_flight) _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(12))).public_key.toBytes(), .permissions = p.permission(.inspect) } });
+        for ([_]u64{ writer.resource, requester.resource }) |resource| for ([_]u64{ query_principal, 55 }) |principal| {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         };
-        var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = 45, .principal = 65536, .pid = writer.pid, .generation = 2, .key = writer_key }, "state");
+        var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = 2, .key = writer_key }, "state");
         var seed: Seed = .{ .peer = requester.pid };
         const handler: s.GrowingGenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
         try admin.send(writer.pid, -1);
@@ -78,40 +85,40 @@ pub fn main(init: std.process.Init) !void {
             try admin.send(writer.pid, @intCast(i * 4));
             try drive(init, &server, handler);
         }
-        var requests = try s.GrowingGenServer.init(.{ .client = &wire, .realm = 45, .principal = 65537, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
-        var behavior: q.Behavior.Requester = .{ .principal = 1234, .source = writer.pid };
-        _ = try wire.submitGrowing(try p.Growth.sign(.{ .realm = 45, .principal = 1234, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try .init("PQI1") }).encode() } } }, caller_key));
-        var finite: serving.FiniteService = .{ .configuration = .{ .service = .{ .service = 1, .administrator = 33, .observer = 33 }, .query_principal = 1234, .source = writer.pid } };
+        var requests = try s.GrowingGenServer.init(.{ .client = &wire, .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
+        var behavior: q.Behavior.Requester = .{ .principal = query_principal, .source = writer.pid };
+        _ = try wire.submitGrowing(try p.Growth.sign(.{ .realm = 45, .principal = query_principal, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try .init("PQI1") }).encode() } } }, caller_key));
+        var finite: serving.FiniteService = .{ .configuration = .{ .service = .{ .service = 1, .administrator = administrator_principal, .observer = administrator_principal }, .query_principal = query_principal, .source = writer.pid } };
         if (flight) requests.input_guard = finite.guard();
         const requester_handler = if (flight) finite.interface() else behavior.interface();
         try drive(init, &requests, requester_handler);
         if (flight) {
-            const administrator = try p.Ed25519.KeyPair.generateDeterministic(@splat(13));
-            _ = try admin.submit(.{ .grant = .{ .subject = 33, .pid = requester.pid, .public_key = administrator.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
+            const administrator = try p.Ed25519.KeyPair.generateDeterministic(@splat(13 + seed_offset));
+            _ = try admin.submit(.{ .grant = .{ .subject = administrator_principal, .pid = requester.pid, .public_key = administrator.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
             const commands = [_]serving.Model.Command{
                 .{ .publish = .{ .expected = 0, .binding = .{ .revision = 1, .target = writer.pid, .codec = 1, .active_limit = 1, .wait_before_ms = 180000 } } },
-                .{ .policy = .{ .principal = 1234, .expected = 0, .policy = .{ .revision = 1, .reads = true, .commands = true, .active_limit = 1 } } },
+                .{ .policy = .{ .principal = query_principal, .expected = 0, .policy = .{ .revision = 1, .reads = true, .commands = true, .active_limit = 1 } } },
             };
             for (commands, 0..) |command, index| {
-                _ = try wire.submitGrowing(try p.Growth.sign(.{ .realm = 45, .principal = 33, .sequence = index + 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, administrator));
+                _ = try wire.submitGrowing(try p.Growth.sign(.{ .realm = 45, .principal = administrator_principal, .sequence = index + 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, administrator));
                 try drive(init, &requests, requester_handler);
             }
         }
-        _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = 2, .worker = 65536 } });
-        _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
-        const source_seed = try seedFile(init, args[3], "source", 8);
-        const request_seed = try seedFile(init, args[3], "requester", 9);
-        const caller_seed = try seedFile(init, args[3], "caller", 10);
-        const courier_seed = try seedFile(init, args[3], "courier", 11);
+        _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = 2, .worker = writer_principal } });
+        _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = requester_principal } });
+        const source_seed = try seedFile(init, args[3], "source", 8 + seed_offset);
+        const request_seed = try seedFile(init, args[3], "requester", 9 + seed_offset);
+        const caller_seed = try seedFile(init, args[3], "caller", 10 + seed_offset);
+        const courier_seed = try seedFile(init, args[3], "courier", 11 + seed_offset);
         const inspector_seed = try seedFile(init, args[3], "inspector", 12);
-        const connection: q.Model.Connection = .{ .realm = 45, .principal = 1234, .source = writer.pid, .resource = writer.resource, .table = 1, .name = "items", .requester = requester.pid, .requests = requester.resource };
+        const connection: q.Model.Connection = .{ .realm = 45, .principal = query_principal, .source = writer.pid, .resource = writer.resource, .table = 1, .name = "items", .requester = requester.pid, .requests = requester.resource };
         try save(init, args[3], "cli.json", .{ .url = args[1], .seed_file = caller_seed, .connection = connection, .request_timeout_ms = 10000 });
         var inspector = connection;
         inspector.principal = 55;
         try save(init, args[3], "inspector.json", .{ .url = args[1], .seed_file = inspector_seed, .connection = inspector });
-        try save(init, args[3], "source.json", .{ .url = args[1], .realm = 45, .principal = 65536, .pid = writer.pid, .generation = 3, .seed_file = source_seed, .activation_directory = args[3], .role = .{ .source = .{ .table = 1, .peer = requester.pid } } });
-        if (flight) try save(init, args[3], "requester.json", .{ .url = args[1], .realm = 45, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = request_seed, .activation_directory = args[3], .role = .{ .finite_service = finite.configuration } }) else try save(init, args[3], "requester.json", .{ .url = args[1], .realm = 45, .principal = 65537, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = request_seed, .activation_directory = args[3], .role = .{ .requester = behavior } });
-        try save(init, args[3], "courier.json", .{ .url = args[1], .realm = 45, .principal = 65538, .seed_file = courier_seed, .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
+        try save(init, args[3], "source.json", .{ .url = args[1], .realm = 45, .principal = writer_principal, .pid = writer.pid, .generation = 3, .seed_file = source_seed, .activation_directory = args[3], .role = .{ .source = .{ .table = 1, .peer = requester.pid } } });
+        if (flight) try save(init, args[3], "requester.json", .{ .url = args[1], .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = request_seed, .activation_directory = args[3], .role = .{ .finite_service = finite.configuration } }) else try save(init, args[3], "requester.json", .{ .url = args[1], .realm = 45, .principal = requester_principal, .pid = requester.pid, .generation = requester.generation + 1, .seed_file = request_seed, .activation_directory = args[3], .role = .{ .requester = behavior } });
+        try save(init, args[3], "courier.json", .{ .url = args[1], .realm = 45, .principal = courier_principal, .seed_file = courier_seed, .role = .{ .courier = .{ .destinations = .{ writer.pid, requester.pid } } } });
         return;
     }
     const config = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(8192));
@@ -119,6 +126,35 @@ pub fn main(init: std.process.Init) !void {
     const parsed = try std.json.parseFromSlice(struct { connection: q.Model.Connection }, init.gpa, config, .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
     const c = parsed.value.connection;
+    if (std.mem.eql(u8, args[2], "released-pins")) {
+        var after: ?p.Growth.ReadVersionId = null;
+        var count: usize = 0;
+        while (true) {
+            const page = (try admin.query(.{ .read_versions = .{ .pid = c.source, .after = after } })).body.read_versions;
+            for (page.entries) |entry| if (entry) |version| {
+                if (version.released_at == null) return error.SourcePinStillHeld;
+                count += 1;
+            };
+            after = page.next;
+            if (after == null) break;
+        }
+        if (count == 0) return error.NoCapturedSource;
+        return;
+    }
+    if (std.mem.startsWith(u8, args[2], "activate-source:") or std.mem.startsWith(u8, args[2], "activate-requester:")) {
+        const requester = std.mem.startsWith(u8, args[2], "activate-requester:");
+        const pid = if (requester) c.requester else c.source;
+        const principal: u64 = if (requester) 65537 else 65536;
+        var public: [32]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&public, args[2][if (requester) @as(usize, 19) else 16..]);
+        const generation = (try admin.query(.{ .process = pid })).body.process.process.generation;
+        _ = try admin.submit(.{ .grant = .{ .subject = principal, .pid = pid, .public_key = public, .permissions = p.permission(.inspect) | p.permission(.execute) | p.permission(.publish) } });
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = if (requester) c.requests else c.resource, .subject = principal, .permissions = p.State.all_permissions } });
+        if (requester) _ = try admin.submit(.{ .grant_resource = .{ .resource = c.resource, .subject = principal, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        _ = try admin.submit(.{ .own = .{ .pid = pid, .expected_generation = generation, .worker = principal } });
+        try std.json.Stringify.value(.{ .generation = generation + 1 }, .{}, &output.interface);
+        return output.interface.flush();
+    }
     if (std.mem.startsWith(u8, args[2], "retry-sequence:")) {
         var caller: q.Client = .{ .wire = &wire, .connection = c, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
         const schema: q.fuze.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
@@ -169,6 +205,9 @@ pub fn main(init: std.process.Init) !void {
     } else if (std.mem.eql(u8, args[2], "retire-source")) {
         _ = try admin.submit(.{ .terminate = c.source });
         _ = try admin.submit(.{ .retire_resource = c.resource });
+    } else if (std.mem.eql(u8, args[2], "retire-requester")) {
+        _ = try admin.submit(.{ .terminate = c.requester });
+        _ = try admin.submit(.{ .retire_resource = c.requests });
     } else if (std.mem.eql(u8, args[2], "expand-inspector") or std.mem.eql(u8, args[2], "restore-inspector")) {
         _ = try admin.submit(.{ .grant = .{ .subject = 55, .public_key = (try p.Ed25519.KeyPair.generateDeterministic(@splat(12))).public_key.toBytes(), .permissions = if (std.mem.eql(u8, args[2], "expand-inspector")) p.all_permissions else p.permission(.inspect) } });
         // Resource grants bind to the principal incarnation. Replacing its

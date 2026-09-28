@@ -496,6 +496,10 @@ pub fn build(b: *std.Build) void {
     const flight_test = b.addSystemCommand(&.{ "python3", "-B" });
     flight_test.addFileArg(b.path("tests/flight.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, query_host, flight_gateway, public_query }) |artifact| flight_test.addArtifactArg(artifact);
+    if (b.option(bool, "flight-faults", "Qualify Flight authority, retry and physical recovery boundaries") orelse false) {
+        flight_test.addArg("faults");
+        flight_test.addArtifactArg(board);
+    }
     flight_test.has_side_effects = true;
     flight_test.stdio = .inherit;
     b.step("test-flight", "Qualify real finite queries with independent Flight and ADBC clients").dependOn(&flight_test.step);

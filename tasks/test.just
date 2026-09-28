@@ -82,6 +82,8 @@ station:
 
 # Check each library using its own declared dependencies.
 packages:
+    cd packages/zig/transit-flight && zig build test
+    cd packages/zig/transit-station-flight && zig build test
     cd packages/zig/transit-serving-http && zig build test
     cd packages/zig/transit-http-server && zig build test
     cd packages/zig/transit-serving && zig build test
@@ -106,6 +108,8 @@ packages:
 
 # Compile each library independently; root unit checks own shared test execution.
 packages-build:
+    cd packages/zig/transit-flight && zig build check
+    cd packages/zig/transit-station-flight && zig build check
     cd packages/zig/transit-serving-http && zig build check
     cd packages/zig/transit-http-server && zig build check
     cd packages/zig/transit-serving && zig build check
@@ -349,6 +353,9 @@ flight-metadata:
 # Real finite native queries over verified TLS with pinned Python and C consumers.
 flight:
     nix develop .#flight --command zig build test-flight -Doptimize=ReleaseSafe
+
+flight-faults:
+    nix develop .#flight --command zig build test-flight -Doptimize=ReleaseSafe -Dflight-faults=true
 
 flight-outbound:
     nix develop .#flight --command zig build test-flight-outbound -Doptimize=ReleaseSafe

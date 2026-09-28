@@ -96,3 +96,32 @@ fn decode(self: *Self, workspace: []u8) !Event {
     self.batches += 1;
     return .{ .batch = .{ .ipc = output.buffered(), .rows = ipc.rows } };
 }
+
+test "typed replay rejects malformed envelopes and truncated Arrow bodies" {
+    const t = std.testing;
+    const workspace = try t.allocator.alloc(u8, 8 * 1024 * 1024);
+    defer t.allocator.free(workspace);
+    var builder = try a.Int64Builder.init(t.allocator, 2);
+    defer builder.deinit();
+    try builder.append(std.math.maxInt(i64));
+    try builder.appendNull();
+    var array = try builder.finish();
+    defer array.release();
+    const kind: a.DataType = .{ .int64 = {} };
+    var batch = try a.RecordBatch.initBorrowed(t.allocator, .{ .fields = &.{.{ .name = "value", .data_type = &kind, .nullable = true }} }, &.{array});
+    defer batch.deinit();
+    var bytes: [8192]u8 = undefined;
+    const ipc = try f.query.fuze.encode(t.allocator, batch, &bytes);
+    const parts = try f.Ipc.parts(ipc, workspace);
+    var replay: Self = .{ .transcript = undefined };
+    replay.message_length = try f.grpc.protobuf.encodeInto(&replay.message, f.Wire.FlightData{ .data_header = parts.schema_header, .data_body = "invalid schema body" }, .{});
+    try t.expectError(error.InvalidFlightIpc, replay.decode(workspace));
+    replay.message_length = try f.grpc.protobuf.encodeInto(&replay.message, f.Wire.FlightData{ .data_header = parts.schema_header }, .{});
+    try t.expect((try replay.decode(workspace)) == .schema);
+    replay.message_length = try f.grpc.protobuf.encodeInto(&replay.message, f.Wire.FlightData{ .data_header = parts.batch_header, .data_body = parts.batch_body[0 .. parts.batch_body.len - 1] }, .{});
+    if (replay.decode(workspace)) |_| return error.TestUnexpectedResult else |_| {}
+    replay.message_length = try f.grpc.protobuf.encodeInto(&replay.message, f.Wire.FlightData{ .data_header = parts.batch_header, .data_body = parts.batch_body }, .{});
+    try t.expectEqual(@as(u64, 2), (try replay.decode(workspace)).batch.rows);
+    replay.message[0] = 0;
+    try t.expectError(error.FieldNumberZero, replay.decode(workspace));
+}

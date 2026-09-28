@@ -2773,6 +2773,26 @@ and its credential removed. After node/disk-store restart, the Zig Flight replay
 adapter checks all 41 exact int64/null rows and complete capture without dispatch.
 The adapter keeps M16's finite message/byte budgets and explicit outcome policy.
 
-These runs do not yet qualify Flight-specific adversarial authorization/recovery,
-aggregate load or Compose/reference placements. Those gates
-remain open; they must not be inferred from successful native interoperability.
+`just test::flight-faults` passes the real gateway through TLS with two separately
+scoped caller mappings. It drops an accepted native reply, replaces the gateway
+and verifies byte-identical signed retry and the same receipt. Pooled RPCs check
+credentials independently. Malformed/unsupported requests, sequence conflicts,
+foreign/tampered/expired tickets, read-only revocation after an actual batch,
+interrupted duplicate fetch and released capture pins all pass. Request and
+source retirement fail closed after real prefixes; gateway/worker/node/disk
+replacement retrieves the same retained result. Board reads capture/manifest
+provenance with query execution disabled and returns 410 after source retirement.
+
+The load extension holds two native fetch reads for six seconds with an explicit
+15-second native budget, rejects a third caller data RPC, and keeps current-schema
+control responsive within five seconds. Gateway RSS sampled 57,794,560 bytes
+under the declared 192 MiB fixture ceiling; this is not a measured peak or general
+capacity guarantee. A private HTTP/2 peer grants only one byte of response credit:
+the adapter sends a real prefix, admits control and closes the stalled write
+within twelve seconds (five-second write budget). Subsequent fetch returns the
+same complete result. Actual compressed, oversized and truncated request frames
+fail before dispatch; outbound replay units reject malformed protobuf/Arrow.
+TLS edge buffering is separate from this private adapter credit measurement.
+
+Compose/reference placement evidence is recorded separately; native fault and
+load success cannot establish a new placement or client/type combination.
