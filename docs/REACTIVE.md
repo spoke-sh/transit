@@ -170,6 +170,15 @@ control capacity; it must not depend on a fresh catalog/schema discovery round.
 The M21 browser integration exposed that dependency under simultaneous views.
 Shorter-lived transport tasks do not justify extending the logical lease.
 
+Current status means that the displayed basis covers observed progress; it is
+not a latency guarantee. The first actual M21 Compose consumer run needed about
+7.2 seconds for the counter and 102 seconds for a fully verified 20-row query
+refresh. A bounded page keeps memory finite but does not make full coverage cheap.
+Keep earlier permitted data visibly tied to its own basis while work completes,
+and measure each acquisition/delivery/verification phase before adding draft
+execution or a freshness target. The [proof ledger](../tests/README.md) distinguishes
+these observations from hosted CI cost and broader capacity claims.
+
 ## Declarative composition after M21
 
 [M23](roadmap/M23.md) composes these primitives into the
@@ -194,3 +203,12 @@ fairness and actual browser/server recovery in all three placements. Server API
 conformance remains M20's proof. Continuous SQL, incremental operators, cross-source
 joins, event-time windows, external-source polling and D4's predictive editing
 remain separately scoped future milestones.
+
+Consumer timeouts must allow the host's declared joined request budget to finish.
+The qualified thirty-second host profile uses thirty-five-second browser request
+and stream idle deadlines. This bounds a physical wait; it grants no additional
+lease time. Renewal remains independent of page verification. A local Pause first
+joins its tasks, then uses a finite closure budget for transient capacity and
+exact pending-control recovery. A failed closure remains visible. Scheduler
+wakeups belong to state transitions that can make progress, not every received
+query fragment; redundant wakes add durable work ahead of clock/lease controls.

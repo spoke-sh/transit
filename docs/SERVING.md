@@ -267,3 +267,18 @@ finite pages and prevent complete-result verification. Keep each budget finite,
 measure complete reads under live control traffic, and preserve the result
 identity across an interrupted read. Increasing a transport deadline never
 extends a resource, ticket, session or accepted-work lifetime.
+
+Classify transport loss separately from authoritative rejection. In M21's
+reference consumer proof a temporary DNS failure occurred while accepted inputs
+remained queued. Workers must retain frozen proposals and recover observations
+through DNS/connection interruptions without inventing a new command or activation.
+Fresh-key activation separately requires reissuing every intended resource grant,
+including foreign query resources; previous-incarnation grants do not revive.
+
+The M22 finite Table composition reuses current service configuration/policy and
+native caller identity, while the original public requester owns query admission,
+waiting and captured results. Its initialization fits three application mutations
+plus the framework descriptor in the existing four-write turn. The selected
+Flight adapter adds bounded wire/ticket/metadata semantics; it creates neither a
+second query engine nor a retry database. See [the profile](../contracts/FLIGHT_V1.md)
+for implementation status and independent qualification boundaries.
