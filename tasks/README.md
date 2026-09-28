@@ -138,3 +138,8 @@ These profiles select Zig optimization. Board's frontend still uses its Vite+
 build pipeline in every mode. Launcher, example and Board workflows retain
 their own build defaults; choosing a profile here does not change a subsequent
 launcher's build mode or its configured binary paths.
+
+M20 adds `just test::reactive` for independent signed TLS SSE/WebSocket native
+recovery peers, and `just test::reactive-descriptions` for generated OpenAPI 3.2.1
+and AsyncAPI 3.0 drift plus pinned offline validation. These are focused proofs;
+they do not expand the measured M10 hosted PR lane budget.

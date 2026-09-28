@@ -111,17 +111,35 @@ pub const Read = struct {
         return hash.finalResult();
     }
 };
+/// The serving read envelope permits only a native identity observation.
+pub const Identity = struct {
+    query: struct {
+        pub const json_schema_fields = .{ .version = .{ .@"const" = p.Growth.version } };
+        version: u32 = p.Growth.version,
+        realm: u64,
+        principal: u64,
+        kind: union(enum) { identity },
+    },
+    signature: [64]u8,
+    pub fn native(self: Identity) p.Growth.SignedQuery {
+        return .{ .query = .{ .version = self.query.version, .realm = self.query.realm, .principal = self.query.principal, .kind = .identity }, .signature = self.signature };
+    }
+    pub fn sign(realm: u64, principal: u64, pair: p.Ed25519.KeyPair) !Identity {
+        const signed = try p.Growth.signQuery(.{ .realm = realm, .principal = principal, .kind = .identity }, pair);
+        return .{ .query = .{ .realm = realm, .principal = principal, .kind = .identity }, .signature = signed.signature };
+    }
+};
 pub const SignedRead = struct {
     read: Read,
     signature: [64]u8,
-    identity: p.Growth.SignedQuery,
+    identity: Identity,
     pub fn sign(read: Read, pair: p.Ed25519.KeyPair) !SignedRead {
-        return .{ .read = read, .signature = (try pair.sign(&try read.digest(), null)).toBytes(), .identity = try p.Growth.signQuery(.{ .realm = read.realm, .principal = read.principal, .kind = .identity }, pair) };
+        return .{ .read = read, .signature = (try pair.sign(&try read.digest(), null)).toBytes(), .identity = try Identity.sign(read.realm, read.principal, pair) };
     }
     pub fn verify(self: SignedRead, public_key: [32]u8) !void {
         if (self.identity.query.realm != self.read.realm or self.identity.query.principal != self.read.principal or self.identity.query.kind != .identity) return error.ServingDenied;
         const pk = try p.Ed25519.PublicKey.fromBytes(public_key);
         try p.Ed25519.Signature.fromBytes(self.signature).verify(&try self.read.digest(), pk);
-        try p.Ed25519.Signature.fromBytes(self.identity.signature).verify(&try p.Growth.queryDigest(self.identity.query), pk);
+        try p.Ed25519.Signature.fromBytes(self.identity.signature).verify(&try p.Growth.queryDigest(self.identity.native().query), pk);
     }
 };

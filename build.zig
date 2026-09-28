@@ -5,6 +5,13 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const http_server = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize });
     const serving = b.dependency("transit_serving", .{ .target = target, .optimize = optimize });
+    const serving_api = b.addExecutable(.{ .name = "transit-serving-api", .root_module = b.createModule(.{
+        .root_source_file = b.path("packages/zig/transit-serving/src/export.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_serving", .module = serving.module("transit_serving") }},
+    }) });
+    b.step("serving-api", "Export reflected OpenAPI and AsyncAPI descriptions").dependOn(&b.addInstallArtifact(serving_api, .{}).step);
     const serving_example = b.addExecutable(.{ .name = "transit-serving-example", .root_module = b.createModule(.{
         .root_source_file = b.path("examples/serving/main.zig"),
         .target = target,
@@ -422,6 +429,7 @@ pub fn build(b: *std.Build) void {
     if (b.option(bool, "serving-capacity", "Measure gateway RSS and control reserve with delayed authorized reads") orelse false) serving_test.addArg("--capacity");
     if (b.option(bool, "serving-lifetimes", "Qualify service cancellation, timer races and hard expiry") orelse false) serving_test.addArg("--lifetimes");
     if (b.option(bool, "serving-growth", "Qualify retained service operations beyond resident pages") orelse false) serving_test.addArg("--growth");
+    if (b.option(bool, "serving-reactive", "Qualify reactive SSE and WebSocket peers") orelse false) serving_test.addArg("--reactive");
     serving_test.has_side_effects = true;
     serving_test.stdio = .inherit;
     b.step("test-serving", "Qualify durable HTTP service admission and recovery").dependOn(&serving_test.step);

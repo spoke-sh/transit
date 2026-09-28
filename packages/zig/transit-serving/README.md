@@ -67,3 +67,12 @@ The host supplies a qualified conservative wall-clock upper bound and performs
 a final `check` before each protected transport release. A cursor is signed
 integrity evidence, never a grant. Snapshot races restart the whole acquisition
 up to three times; loss of coverage is explicit reset or interruption.
+
+`Api` reflects the owning types into [OpenAPI 3.2.1](api/openapi.json) and
+[AsyncAPI 3.0](api/asyncapi.json), sharing operation metadata with discovery.
+`just test::reactive-descriptions` checks pinned official schemas and drift.
+Regenerate with `zig build serving-api -Doptimize=ReleaseSafe` then
+`python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api --write`.
+The independent peer trace can additionally be checked with `--trace PATH`.
+Native identity proofs are narrowed to the only supported identity query; fixed
+byte arrays and version constants are validated before decoding host envelopes.

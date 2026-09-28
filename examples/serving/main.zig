@@ -17,8 +17,10 @@ const Gateway = struct {
     listen: []const u8 = "127.0.0.1",
     options: http.Options = .{ .requests = 4 },
     per_caller_requests: u8 = 2,
+    reactive: bool = false,
+    clock_error_ms: u32 = 1000,
 };
-const Config = struct {
+pub const Config = struct {
     url: []const u8,
     realm: u64,
     principal: u64,
@@ -59,6 +61,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (config.role == .gateway) {
         const gateway = config.role.gateway;
         try gateway.options.validate();
+        if (gateway.reactive and (gateway.options.request_timeout_ms < 5000 or gateway.clock_error_ms > 10000)) return error.InvalidGatewayConfiguration;
         if (gateway.per_caller_requests == 0 or gateway.per_caller_requests > gateway.options.requests) return error.InvalidGatewayConfiguration;
         if (gateway.callers.len == 0 or gateway.callers.len > 32 or !std.mem.startsWith(u8, gateway.public_origin, "https://")) return error.InvalidGatewayConfiguration;
         if (!std.mem.eql(u8, gateway.host, gateway.public_origin[8..])) return error.InvalidGatewayOrigin;
@@ -114,11 +117,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (step == .idle) try init.io.sleep(.fromMilliseconds(20), .awake);
     }
 }
-const Context = struct {
+pub const Context = struct {
     config: Config,
     key: p.Ed25519.KeyPair,
     diagnostics: *telemetry.Runtime,
     callers: [32]http.Admission = @splat(.{}),
+    challenges: @import("ReactiveTransport.zig").Challenges = .{},
+    pub fn isControl(_: *@This(), request: *std.http.Server.Request) bool {
+        return request.head.method == .POST and std.mem.eql(u8, request.head.target, "/reactive/v1/control");
+    }
     pub fn connectionError(self: *@This(), err: anyerror, _: bool) void {
         self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
     }
@@ -127,13 +134,13 @@ const Context = struct {
             self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
             const status: std.http.Status = switch (err) {
                 error.ServingDenied, error.AccessDenied, error.SignatureVerificationFailed => .forbidden,
-                error.ServingOperationNotFound => .not_found,
-                error.ServiceReadConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
-                error.ResourceUnavailable => .gone,
+                error.ServingOperationNotFound, error.ReactiveSessionNotFound => .not_found,
+                error.ReactiveResetRequired, error.ReactiveAttachmentConflict, error.ReactiveGenerationConflict, error.ReactiveSubscriptionConflict, error.ServiceReadConflict, error.ServingResultPending, error.ServingSequenceConflict, error.Conflict => .conflict,
+                error.ResourceUnavailable, error.ReactiveSessionExpired => .gone,
                 error.AuthorityTimeout => .gateway_timeout,
                 error.StreamTooLong => .payload_too_large,
                 error.ServingCallerCapacity => .too_many_requests,
-                error.InvalidServingCommand, error.InvalidServingRead, error.InvalidServingIdentity, error.InvalidServingRecord, error.ServingPayloadTooLarge, error.InvalidFrame, error.UnsupportedFrame, error.InvalidCorrelation, error.MessageTooLarge, error.ValueTooLarge, error.InvalidValue, error.InvalidSequence, error.WrongProtocolRealm, error.InvalidCharacter, error.Overflow, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .bad_request,
+                error.WebSocketHandshake, error.InvalidJsonShape, error.InvalidJsonConstant, error.InvalidReactiveScope, error.InvalidReactiveCursor, error.InvalidServingCommand, error.InvalidServingRead, error.InvalidServingIdentity, error.InvalidServingRecord, error.ServingPayloadTooLarge, error.InvalidFrame, error.UnsupportedFrame, error.InvalidCorrelation, error.MessageTooLarge, error.ValueTooLarge, error.InvalidValue, error.InvalidSequence, error.WrongProtocolRealm, error.InvalidCharacter, error.Overflow, error.DuplicateField, error.SyntaxError, error.UnexpectedToken, error.UnknownField, error.MissingField, error.InvalidEnumTag => .bad_request,
                 else => .service_unavailable,
             };
             return http.respond(request, status, "{\"err\":\"ServingRequestFailed\"}");
@@ -145,6 +152,7 @@ const Context = struct {
         if (try http.header(request, "origin")) |origin| if (!std.mem.eql(u8, origin, config.public_origin)) return error.ServingDenied;
         for ([_][]const u8{ "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for", "x-transit-principal" }) |name| if (try http.header(request, name) != null) return error.ServingDenied;
         if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"ready\":true}");
+        if (config.reactive and std.mem.startsWith(u8, request.head.target, "/reactive/v1/")) return @import("ReactiveTransport.zig").handle(self, io, allocator, request);
         if (request.head.method != .POST) return http.respond(request, .not_found, "{}");
         const submit = std.mem.eql(u8, request.head.target, "/serving/v1/command");
         const read = std.mem.eql(u8, request.head.target, "/serving/v1/read");
@@ -162,25 +170,25 @@ const Context = struct {
         wire.timeout_ms = self.config.request_timeout_ms;
         const adapter: serving.Adapter = .{ .resources = .{ .wire = &wire, .realm = self.config.realm, .principal = self.config.principal, .key = self.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource };
         if (submit) {
-            const parsed = try std.json.parseFromSlice(p.Growth.SignedRequest, alloc, body, .{});
+            const parsed = try p.Json.parseFromSlice(p.Growth.SignedRequest, alloc, body);
             const index = try self.callerIndex(parsed.value.request.principal);
             const public_key = config.callers[index].public_key;
             try p.Ed25519.Signature.fromBytes(parsed.value.signature).verify(&try p.Growth.digest(parsed.value.request), try p.Ed25519.PublicKey.fromBytes(public_key));
             if (!self.callers[index].acquire(false, config.per_caller_requests)) return error.ServingCallerCapacity;
             defer self.callers[index].release(false);
             const result = try adapter.submit(parsed.value, public_key);
-            return http.respond(request, .accepted, try std.json.Stringify.valueAlloc(alloc, result, .{}));
+            return http.respond(request, .accepted, try p.Json.valueAlloc(alloc, result));
         }
-        const parsed = try std.json.parseFromSlice(serving.Model.SignedRead, alloc, body, .{});
+        const parsed = try p.Json.parseFromSlice(serving.Model.SignedRead, alloc, body);
         const index = try self.callerIndex(parsed.value.read.principal);
         const public_key = config.callers[index].public_key;
         try parsed.value.verify(public_key);
         if (!self.callers[index].acquire(false, config.per_caller_requests)) return error.ServingCallerCapacity;
         defer self.callers[index].release(false);
         const result = try adapter.read(parsed.value, public_key);
-        return http.respond(request, .ok, try std.json.Stringify.valueAlloc(alloc, result, .{}));
+        return http.respond(request, .ok, try p.Json.valueAlloc(alloc, result));
     }
-    fn callerIndex(self: *@This(), principal: u64) !usize {
+    pub fn callerIndex(self: *@This(), principal: u64) !usize {
         for (self.config.role.gateway.callers, 0..) |caller, index| if (caller.principal == principal) return index;
         return error.ServingDenied;
     }

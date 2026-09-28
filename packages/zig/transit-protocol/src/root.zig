@@ -3,6 +3,7 @@ const std = @import("std");
 pub const version = 2;
 pub const Value = @import("Value.zig");
 pub const Ed25519 = std.crypto.sign.Ed25519;
+pub const Json = @import("Json.zig");
 pub const Schema = @import("Schema.zig");
 pub const Inspection = @import("Inspection.zig");
 pub const Runtime = @import("Runtime.zig");
@@ -197,6 +198,8 @@ pub const fixtures = struct {
     pub const sequences = @embedFile("fixtures/sequences-v2.json");
 };
 test {
+    _ = Json;
+    _ = Schema;
     _ = Growth;
     _ = Inspection;
     _ = State;

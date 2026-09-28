@@ -79,7 +79,9 @@ pub fn write(comptime T: type, out: *std.json.Stringify, comptime options: Optio
             try out.beginObject();
             inline for (info.field_names, info.field_types) |name, F| {
                 try out.objectField(name);
-                try write(F, out, options);
+                if (comptime @hasDecl(T, "json_schema_fields") and @hasField(@TypeOf(T.json_schema_fields), name)) {
+                    try out.write(@field(T.json_schema_fields, name));
+                } else try write(F, out, options);
             }
             try out.endObject();
             try out.objectField("required");

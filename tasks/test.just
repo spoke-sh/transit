@@ -294,3 +294,12 @@ grpc-faults:
 # Generate and compile durable request helpers without sockets or reflection.
 grpc-codegen:
     zig build test-grpc-codegen
+
+# M20: independent TLS SSE/WebSocket, lifecycle and full native recovery peers.
+reactive:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true
+
+# Rebuild descriptions and check the pinned offline specifications and drift.
+reactive-descriptions:
+    zig build serving-api -Doptimize=ReleaseSafe
+    python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api

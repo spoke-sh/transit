@@ -1,8 +1,10 @@
 # Reactive API v1
 
 Status: M20 implementation contract in development. No SSE/WebSocket capability is
-advertised until its runtime and independent peers pass. The owning public Zig
-types and generated descriptions will be linked here as they land. This extends
+advertised by default. The opt-in native TLS example has executed independent
+SSE/WebSocket recovery peers; browser/physical placement qualification remains
+pending. [Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
+[generated descriptions](../packages/zig/transit-serving/api/) own the encodings. This extends
 [serving v1](SERVING_V1.md), not native authority or Board's OpenAPI 3.1 contract.
 
 ## Authority and identities
@@ -28,7 +30,8 @@ array. Reconnecting or switching transports does not multiply the durable quota.
 
 A published watch binding declares the exact target PID, resource, Table,
 application progress key and schema. Publication is conditional and revisions
-are immutable. It grants no read rights. The gateway's explicit resource grant,
+are immutable. It grants no read rights. The gateway's inspect scope covers both ingress and source, with separate explicit
+resource grants. Its
 current source metadata, caller policy and accepted watch declaration must all
 permit a read. Draft configuration and observed listener capability are separate
 from accepted publication.
@@ -100,6 +103,11 @@ cursor/source pin is not a watch cursor. Finite query capture releases its pin
 under M18; watching requires its own current reads. Empty pages and bookkeeping-only
 commits do not invent a data invalidation. Schema, policy, binding and lifetime
 changes still produce their own control/availability outcomes.
+
+The first transport snapshot profile is an int64 Table. Row keys and values
+encode as lossless decimal strings, with at most eight rows and a `more` flag;
+use the existing finite query reader for larger snapshots. Protocol identities
+remain safe JSON integers.
 
 The first delivery classes are coalesced source invalidations and notifications
 of recoverable operation outcomes. An invalidation covers every relevant mutation

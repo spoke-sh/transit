@@ -94,3 +94,8 @@ finite uploads with the source capture and original-call reply. The
 cancellation, cleanup and logical admission. Component tests and signed worker/node/store recovery pass across all source
 kinds. The proof guide records all-source lifecycle/expiry and Table physical
 placement, including failed attempts and qualification limits.
+
+Test builds expose `testing.Store`, the existing private-turn reference model,
+for dependent-package composition tests. It tracks entry revisions and retained
+cuts so serving can exercise actual finite capture alongside watch acquisition.
+This is test-only simulated storage, not a durability or authorization proof.

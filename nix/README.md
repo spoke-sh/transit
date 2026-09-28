@@ -313,3 +313,10 @@ explicit. The bindings CI shell roots these tools; the ordinary shell and Fuze
 runtime do not include them. The checked corpus and limits live in
 [contracts/sql](../contracts/sql/README.md). This expands the bindings closure;
 M10's old hosted timing samples do not qualify its current cost.
+
+The optional `nix develop .#serving` shell adds pinned nginx for the HTTP/reactive
+TLS proof. The default locked Python environment includes `jsonschema` for M20's
+offline OpenAPI 3.2.1 / AsyncAPI 3.0 structure, example and trace checks. Official
+schema artifacts and hashes live in `tests/fixtures/reactive`; generator output
+comes from the public serving types. This uses the existing Nixpkgs lock, without
+a separate network package installation or an implicit input revision update.

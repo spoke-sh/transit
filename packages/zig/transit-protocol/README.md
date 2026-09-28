@@ -85,3 +85,10 @@ The shared `Schema` reflection writer keeps kernel wire arrays fixed. A consumin
 host ABI may explicitly opt into `sequence_max_length` for bounded JSON sequences;
 domain validation still enforces narrower per-field limits. This generation option
 does not widen protocol frames, mutation budgets or running-service capabilities.
+
+`Schema` and `Json` support schema-aligned host descriptions and values. Fixed
+byte arrays always encode as arrays, even when they happen to contain UTF-8;
+text slices remain strings and owning `jsonStringify` codecs remain authoritative.
+Public scalar types can supply `jsonSchema`; versioned structs can override a
+field with `json_schema_fields` beside their runtime declarations. These helpers
+do not replace the native protocol's canonical digest/signing functions.

@@ -4,7 +4,8 @@ An actual signed HTTP gateway, Station ingress and separate
 non-trading Table counter application. The [serving contract](../../contracts/SERVING_V1.md)
 owns admission, provenance and recovery. The gateway exposes command admission,
 current bounded discovery/status/result reads and a health route through the
-shared HTTP listener. SSE/WebSocket are not enabled yet.
+shared HTTP listener. The opt-in M20 reactive profile adds SSE/WebSocket;
+[reactive usage](docs/reactive.md) records its current qualification.
 
 The executable takes a bounded JSON configuration with authority `url`, `realm`,
 non-root `principal`, a private `seed_file` and a `role`. Ingress/application
@@ -43,4 +44,4 @@ process/resource expiry. Clock uncertainty returns temporary unavailability unti
 the authority can establish expiry; it is not a fabricated terminal outcome.
 `just test::serving-growth` retains 128 additional operations beyond the resident
 page budget. The [compatibility matrix](../../packages/zig/transit-serving/docs/compatibility.md)
-records qualification per consumer and placement. Reactive APIs remain unavailable.
+records qualification per consumer and placement. M20 qualification is still in progress.

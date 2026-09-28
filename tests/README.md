@@ -2629,3 +2629,33 @@ older checkpoint after new text edits, and reclaim rejected checkpoints or
 accepted intervals after permanent retirement. Live accepted intervals remain
 physically retained; no reachability collector is claimed. The root check passed;
 disk recovery qualification is running separately.
+
+## M20 qualification in progress
+
+`just test::reactive` runs independent Python/OpenSSL native HTTP/SSE/RFC 6455
+peers through the actual pinned nginx TLS template, two gateways, Station ingress,
+int64 Table owner, courier and disk Ursula. The latest executed expanded trace
+passed in 18.60 seconds: empty snapshot, source/outcome events, lost WebSocket
+response with exact HTTP recovery, signed SSE resume, challenge reuse rejection,
+attachment fences, fragmented bootstrap with ping, declined compression, bounded
+unauthenticated bootstrap, idle native/service revocation and full
+worker/gateway/node/store recovery. It writes fixture-only public message traces
+to `.cache/verification/m20-reactive-trace.json`.
+
+`just test::reactive-descriptions` checks generated-description drift against
+pinned official OpenAPI 3.2.1/schema-base and AsyncAPI 3.0 schemas. Its independent
+Python validator also checked 22 actual peer messages with `--trace` and the
+Python/OpenSSL full-width cursor fixture. A failed trace check exposed UTF-8 byte
+arrays being serialized as strings; the shared schema-aligned host encoder fixes
+that mismatch. These tools perform no network schema resolution.
+
+Serving component tests compose actual `UnifiedCapture` transitions with Table
+watch acquisition. A mutation during retained capture is not covered by the older
+query basis and remains visible to a watch; all later query/manifest writes leave
+the marker unchanged. The query releases its source pin. This is a deterministic
+transaction model, separate from the executed native disk recovery evidence.
+
+`just check` and `just doctor` passed after the initial implementation. Browser,
+reactive Compose/Substrate placement and remaining capacity/lifetime/adversarial
+schedules are pending. This section does not declare M20 complete. The M10 hosted
+PR feedback/cost budget is unchanged; these remain focused integration proofs.

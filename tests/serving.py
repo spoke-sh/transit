@@ -92,7 +92,7 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False):
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
     with Fixture() as store, ExitStack() as owned:
@@ -221,8 +221,9 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             ingress, ingress_resource = provision(77)
             application, application_resource = provision(78)
             for principal in (33, 34): grant(principal, 20)
-            grant(79, 16, ingress)
+            grant(79, 16, None if reactive else ingress)
             resource_grant(ingress_resource, 79, 3)
+            if reactive: resource_grant(application_resource, 79, 3)
             grant(80, 148)
             worker_url = f'http://127.0.0.1:{proxy.server_port}'
             ingress_config = dict(url=worker_url, realm=REALM, principal=77, seed_file=str(keys[77].seed), pid=ingress, generation=2, activation_directory=str(store.root), role={'ingress': dict(service=1, administrator=33, observer=34)})
@@ -244,6 +245,8 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             gateway_ports = [free_port(), free_port()]
             public_host = 'serving.example.test'
             gateway_config = dict(url=f'http://127.0.0.1:{proxy.server_port}', realm=REALM, principal=79, seed_file=str(keys[79].seed), role={'gateway': dict(service=1, ingress=ingress, resource=ingress_resource, port=gateway_ports[0], host=public_host, public_origin='https://' + public_host, callers=[dict(principal=p, public_key=keys[p].public) for p in (65536, 65537)])})
+            if reactive:
+                gateway_config['role']['gateway'].update(reactive=True, options=dict(requests=4, request_timeout_ms=30000))
             gateways = []
             for index, gateway_port in enumerate(gateway_ports):
                 gateway_config['role']['gateway']['port'] = gateway_port
@@ -256,6 +259,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             def read(kind, operation=0, principal=65536, expected=200):
                 return post(gateway_ports[0], '/serving/v1/read', signed_read(keys[principal], principal, ingress, kind, operation), public_host, expected)
 
+            if reactive:
+                from reactive import run_trace
+                run_trace(locals(), TLS)
+                return
             discovery = read('discovery')
             assert discovery['binding']['revision'] == 1 and not discovery['capabilities']['websocket'], discovery
             post(gateway_ports[0], '/serving/v1/read', signed_read(keys[65536], 65536, ingress, 'status', 0), public_host, 400)
@@ -529,4 +536,5 @@ if __name__ == '__main__':
     parser.add_argument('--capacity', action='store_true')
     parser.add_argument('--lifetimes', action='store_true')
     parser.add_argument('--growth', action='store_true')
+    parser.add_argument('--reactive', action='store_true')
     run(**vars(parser.parse_args()))

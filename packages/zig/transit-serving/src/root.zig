@@ -1,4 +1,5 @@
 //! Public serving semantics above Station; no sockets or raw storage authority.
+pub const Api = @import("Api.zig");
 pub const query = @import("transit_query");
 pub const TableWatch = @import("TableWatch.zig");
 pub const ReactiveWire = @import("ReactiveWire.zig");
@@ -14,6 +15,7 @@ pub const ReactiveModel = @import("ReactiveModel.zig");
 test {
     _ = @import("service_test.zig");
     _ = @import("watch_test.zig");
+    _ = @import("capture_watch_test.zig");
     _ = ReactiveModel;
     @import("std").testing.refAllDecls(@This());
 }

@@ -1,6 +1,9 @@
 # Reactive APIs — SSE, WebSocket and described contracts
 
-Status: proposed [M20](roadmap/M20.md) contract over [M19 serving](SERVING.md).
+Status: [M20](roadmap/M20.md) implementation in progress over [M19 serving](SERVING.md).
+The [v1 contract](../contracts/REACTIVE_V1.md) and [example guide](../examples/serving/docs/reactive.md)
+record the implemented int64 Table/SSE/WebSocket profile, native TLS evidence and
+remaining qualification. Broader design below remains intent where not qualified.
 This layer hosts reactive application APIs before [M21 interfaces](REACTIVE.md)
 consume them. It is not an implemented protocol, generated specification or
 claim that opening a socket creates a durable session.

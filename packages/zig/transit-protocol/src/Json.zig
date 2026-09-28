@@ -1,0 +1,108 @@
+//! Match the generated schema: fixed arrays remain arrays even when their
+//! bytes happen to form UTF-8. Text slices remain strings.
+const std = @import("std");
+pub fn write(value: anytype, out: *std.json.Stringify) std.Io.Writer.Error!void {
+    const T = @TypeOf(value);
+    switch (@typeInfo(T)) {
+        .void => {
+            try out.beginObject();
+            try out.endObject();
+        },
+        .array => {
+            try out.beginArray();
+            for (value) |item| try write(item, out);
+            try out.endArray();
+        },
+        .optional => if (value) |item| try write(item, out) else try out.write(null),
+        .@"struct" => |info| {
+            if (@hasDecl(T, "jsonStringify")) return out.write(value);
+            try out.beginObject();
+            inline for (info.field_names) |name| {
+                try out.objectField(name);
+                try write(@field(value, name), out);
+            }
+            try out.endObject();
+        },
+        .@"union" => {
+            try out.beginObject();
+            switch (value) {
+                inline else => |item, tag| {
+                    try out.objectField(@tagName(tag));
+                    try write(item, out);
+                },
+            }
+            try out.endObject();
+        },
+        else => try out.write(value),
+    }
+}
+test "UTF-8 byte arrays and empty arrays preserve their declared wire shape" {
+    var buffer: [256]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&buffer);
+    var out: std.json.Stringify = .{ .writer = &writer };
+    try write(.{ .bytes = [_]u8{ 'i', 'd', 0 }, .text = @as([]const u8, "id"), .empty = [0]u8{}, .value = try @import("root.zig").Value.init("id") }, &out);
+    try std.testing.expectEqualStrings("{\"bytes\":[105,100,0],\"text\":\"id\",\"empty\":[],\"value\":\"6964\"}", writer.buffered());
+}
+
+pub fn valueAlloc(allocator: std.mem.Allocator, value: anytype) ![]u8 {
+    var output: std.Io.Writer.Allocating = .init(allocator);
+    defer output.deinit();
+    var encoder: std.json.Stringify = .{ .writer = &output.writer };
+    try write(value, &encoder);
+    return output.toOwnedSlice();
+}
+
+/// Validate reflected host wire shapes before typed decoding. Zig's generic
+/// parser also accepts strings for byte arrays; public host schemas do not.
+pub fn parseFromSlice(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !std.json.Parsed(T) {
+    const tree = try std.json.parseFromSlice(std.json.Value, allocator, bytes, .{});
+    defer tree.deinit();
+    try shape(T, tree.value);
+    return std.json.parseFromSlice(T, allocator, bytes, .{});
+}
+fn shape(comptime T: type, value: std.json.Value) anyerror!void {
+    switch (@typeInfo(T)) {
+        .array => |info| {
+            if (value != .array or value.array.items.len != info.len) return error.InvalidJsonShape;
+            for (value.array.items) |item| try shape(info.child, item);
+        },
+        .optional => |info| if (value != .null) try shape(info.child, value),
+        .@"struct" => |info| {
+            if (comptime @hasDecl(T, "jsonParse") or @hasDecl(T, "jsonParseFromValue")) return;
+            if (value != .object) return error.InvalidJsonShape;
+            inline for (info.field_names, info.field_types) |name, F| if (value.object.get(name)) |item| {
+                if (comptime @hasDecl(T, "json_schema_fields") and @hasField(@TypeOf(T.json_schema_fields), name)) {
+                    const constraint = @field(T.json_schema_fields, name);
+                    if (comptime @hasField(@TypeOf(constraint), "const")) {
+                        if (value.object.get(name).? != .integer or value.object.get(name).?.integer != constraint.@"const") return error.InvalidJsonConstant;
+                    }
+                }
+                try shape(F, item);
+            };
+        },
+        .@"union" => |info| {
+            if (value != .object or value.object.count() != 1) return error.InvalidJsonShape;
+            inline for (info.field_names, info.field_types) |name, F| if (value.object.get(name)) |item| try shape(F, item);
+        },
+        .pointer => |info| {
+            if (comptime info.size == .slice and info.child != u8) {
+                if (value != .array) return error.InvalidJsonShape;
+                for (value.array.items) |item| try shape(info.child, item);
+            }
+        },
+        else => {},
+    }
+}
+test "reflected array and version shape cannot silently diverge from public schema" {
+    const Message = struct {
+        pub const json_schema_fields = .{ .version = .{ .@"const" = 1 } };
+        version: u8 = 1,
+        nonce: [2]u8,
+    };
+    const allocator = std.testing.allocator;
+    const valid = try parseFromSlice(Message, allocator, "{\"nonce\":[105,100]}");
+    defer valid.deinit();
+    try std.testing.expectEqual(@as([2]u8, .{ 105, 100 }), valid.value.nonce);
+    try std.testing.expectError(error.InvalidJsonShape, parseFromSlice(Message, allocator, "{\"nonce\":\"id\"}"));
+    try std.testing.expectError(error.InvalidJsonConstant, parseFromSlice(Message, allocator, "{\"version\":2,\"nonce\":[105,100]}"));
+}

@@ -44,7 +44,7 @@ pub fn submit(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt 
 fn identity(self: Self, signed: m.SignedRead, public_key: [32]u8) !void {
     if (signed.read.realm != self.resources.realm or signed.read.service != self.service or signed.read.ingress != self.ingress) return error.ServingDenied;
     try signed.verify(public_key);
-    try self.authorize(signed.identity, public_key);
+    try self.authorize(signed.identity.native(), public_key);
 }
 pub fn authorize(self: Self, signed: g.SignedQuery, public_key: [32]u8) !void {
     if (signed.query.realm != self.resources.realm or signed.query.kind != .identity) return error.ServingDenied;

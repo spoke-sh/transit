@@ -74,6 +74,7 @@ pub const Scope = struct {
     }
 };
 pub const Position = struct {
+    pub const json_schema_fields = .{ .version = .{ .@"const" = version } };
     version: u8 = version,
     scope: Scope,
     watch_revision: u64,
@@ -145,15 +146,15 @@ pub const Read = struct {
 pub const SignedRead = struct {
     read: Read,
     signature: [64]u8,
-    identity: p.Growth.SignedQuery,
+    identity: m.Identity,
     pub fn sign(read: Read, pair: p.Ed25519.KeyPair) !SignedRead {
-        return .{ .read = read, .signature = (try pair.sign(&try read.digest(), null)).toBytes(), .identity = try p.Growth.signQuery(.{ .realm = read.scope.realm, .principal = read.scope.principal, .kind = .identity }, pair) };
+        return .{ .read = read, .signature = (try pair.sign(&try read.digest(), null)).toBytes(), .identity = try m.Identity.sign(read.scope.realm, read.scope.principal, pair) };
     }
     pub fn verify(self: SignedRead, public_key: [32]u8) !void {
         if (self.identity.query.realm != self.read.scope.realm or self.identity.query.principal != self.read.scope.principal or self.identity.query.kind != .identity) return error.InvalidReactiveScope;
         const pk = try p.Ed25519.PublicKey.fromBytes(public_key);
         try p.Ed25519.Signature.fromBytes(self.signature).verify(&try self.read.digest(), pk);
-        try p.Ed25519.Signature.fromBytes(self.identity.signature).verify(&try p.Growth.queryDigest(self.identity.query), pk);
+        try p.Ed25519.Signature.fromBytes(self.identity.signature).verify(&try p.Growth.queryDigest(self.identity.native().query), pk);
     }
 };
 
@@ -161,6 +162,7 @@ pub const SignedRead = struct {
 // gateway forwards. Schema generation must not advertise arbitrary kernel calls.
 pub const SignedSend = struct {
     request: struct {
+        pub const json_schema_fields = .{ .version = .{ .@"const" = p.Growth.version } };
         version: u32 = p.Growth.version,
         realm: u64,
         principal: u64,
