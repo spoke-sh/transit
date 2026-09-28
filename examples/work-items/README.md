@@ -34,7 +34,7 @@ two densities, 320 px layout and axe accessibility. See the [browser composition
 guide](docs/browser.md) for roles, finite limits and recovery.
 
 See [the selected migration](docs/migration.md). Work is tied to
-[M23](../../docs/roadmap/M23.md), with authority movement reserved for [M27](../../docs/roadmap/M27.md).
+[M23](../../docs/roadmap/M23.md), with authority movement reserved for [M28](../../docs/roadmap/M28.md).
 
 The [physical placement guide](docs/placement.md) describes the owned Compose
 and reference tasks, role-specific files, TLS edge and fresh-key recovery. Those

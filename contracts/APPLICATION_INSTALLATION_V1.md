@@ -114,4 +114,4 @@ Applications compose the existing migration ledger through authenticated domain
 commands. They own the transform, write pause and complete target verification.
 A compatible worker can resume retained migration receipts; no automatic schema
 conversion or cross-resource transaction is implied by deployment replacement.
-Distributed runtime bindings, authority movement and disaster recovery remain M27.
+Distributed runtime bindings, authority movement and disaster recovery remain M28.
