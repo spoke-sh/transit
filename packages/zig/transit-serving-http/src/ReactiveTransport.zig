@@ -1,4 +1,4 @@
-//! Example host composition. Durable semantics stay in transit-serving; RFC
+//! Shared host composition. Durable semantics stay in transit-serving; RFC
 //! framing stays in transit-http-server. Every task owns bounded upstream I/O.
 const std = @import("std");
 const serving = @import("transit_serving");
@@ -7,7 +7,7 @@ const r = serving.ReactiveModel;
 const wire = serving.ReactiveWire;
 const p = serving.protocol;
 const Io = std.Io;
-const Context = @import("main.zig").Context;
+const Context = @import("root.zig").Context;
 const memory_bytes = 2 * 1024 * 1024;
 const challenge_ms = 2000;
 pub const Challenges = struct {
@@ -57,7 +57,7 @@ const Task = struct {
         const self: *Task = @ptrCast(@alignCast(raw.?));
         const now = Io.Clock.real.now(self.io).toMilliseconds();
         if (now < 0) return error.ClockUnavailable;
-        return std.math.add(u64, @intCast(now), self.host.config.role.gateway.clock_error_ms);
+        return std.math.add(u64, @intCast(now), self.host.config.gateway.clock_error_ms);
     }
     fn newClient(self: *Task) serving.station.client.Client {
         var result = serving.station.client.Client.init(self.allocator, self.io, self.host.config.url);
@@ -67,7 +67,7 @@ const Task = struct {
     }
     fn adapter(self: *Task, client: *serving.station.client.Client) serving.ReactiveAdapter {
         const host = self.host;
-        const config = host.config.role.gateway;
+        const config = host.config.gateway;
         return .{ .base = .{ .resources = .{ .wire = client, .realm = host.config.realm, .principal = host.config.principal, .key = host.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource }, .clock = .{ .context = self, .upper = upper } };
     }
     fn read(self: *Task, signed: r.SignedRead, key: [32]u8) !serving.ReactiveAdapter.Response {
@@ -120,7 +120,7 @@ fn parse(comptime T: type, allocator: std.mem.Allocator, bytes: []const u8) !T {
     return decoded.value; // All public reactive envelopes own fixed-size fields.
 }
 fn publicKey(host: *Context, principal: u64) ![32]u8 {
-    return host.config.role.gateway.callers[try host.callerIndex(principal)].public_key;
+    return host.config.gateway.callers[try host.callerIndex(principal)].public_key;
 }
 pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
     const description = if (std.mem.eql(u8, request.head.target, "/reactive/v1/openapi.json")) serving.Api.Format.openapi else if (std.mem.eql(u8, request.head.target, "/reactive/v1/asyncapi.json")) serving.Api.Format.asyncapi else null;
@@ -165,7 +165,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
             if (!std.mem.eql(u8, id, hex)) return error.InvalidReactiveCursor;
         }
         const index = try host.callerIndex(bootstrap.read.read.scope.principal);
-        if (!host.callers[index].acquire(false, host.config.role.gateway.per_caller_requests)) return error.ServingCallerCapacity;
+        if (!host.callers[index].acquire(false, host.config.gateway.per_caller_requests)) return error.ServingCallerCapacity;
         defer host.callers[index].release(false);
         try host.challenges.consume(io, bootstrap.read.read);
         try task.attach(bootstrap, key, &fixed);
@@ -178,7 +178,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
         const key = try publicKey(host, signed.read.principal);
         try signed.verify(key);
         const index = try host.callerIndex(signed.read.principal);
-        if (!host.callers[index].acquire(false, host.config.role.gateway.per_caller_requests)) return error.ServingCallerCapacity;
+        if (!host.callers[index].acquire(false, host.config.gateway.per_caller_requests)) return error.ServingCallerCapacity;
         defer host.callers[index].release(false);
         var client = task.newClient();
         defer client.deinit();
@@ -187,7 +187,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
     if (control) {
         const signed = try parse(r.SignedSend, alloc, body);
         const index = try host.callerIndex(signed.request.principal);
-        const key = host.config.role.gateway.callers[index].public_key;
+        const key = host.config.gateway.callers[index].public_key;
         try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try p.Growth.digest(signed.native().request), try p.Ed25519.PublicKey.fromBytes(key));
         if (!host.callers[index].acquire(true, 1)) return error.ServingCallerCapacity;
         defer host.callers[index].release(true);
@@ -195,9 +195,9 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
     }
     const signed = try parse(r.SignedRead, alloc, body);
     const index = try host.callerIndex(signed.read.scope.principal);
-    const key = host.config.role.gateway.callers[index].public_key;
+    const key = host.config.gateway.callers[index].public_key;
     try signed.verify(key);
-    if (!host.callers[index].acquire(false, host.config.role.gateway.per_caller_requests)) return error.ServingCallerCapacity;
+    if (!host.callers[index].acquire(false, host.config.gateway.per_caller_requests)) return error.ServingCallerCapacity;
     defer host.callers[index].release(false);
     const observed = try task.read(signed, key);
     if (challenge) {
@@ -368,7 +368,7 @@ fn first(ws: *std.http.Server.WebSocket, allocator: std.mem.Allocator, output: *
     return error.InvalidReactiveScope;
 }
 fn websocket(host: *Context, io: Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
-    if (!std.mem.eql(u8, (try http.header(request, "origin")) orelse "", host.config.role.gateway.public_origin)) return error.ServingDenied;
+    if (!std.mem.eql(u8, (try http.header(request, "origin")) orelse "", host.config.gateway.public_origin)) return error.ServingDenied;
     const key = try http.WebSocket.handshake(request, r.subprotocol);
     var ws = request.respondWebSocket(.{ .key = key, .extra_headers = &.{.{ .name = "sec-websocket-protocol", .value = r.subprotocol }} }) catch |err| {
         host.connectionError(err, true);
@@ -399,9 +399,9 @@ fn websocketRun(host: *Context, io: Io, allocator: std.mem.Allocator, ws: *std.h
     try http.deadline(io, challenge_ms, first, .{ ws, fixed.allocator(), &bootstrap });
     if (!std.mem.eql(u8, &bootstrap.read.read.nonce, &nonce)) return error.ServingDenied;
     const index = try host.callerIndex(bootstrap.read.read.scope.principal);
-    const public_key = host.config.role.gateway.callers[index].public_key;
+    const public_key = host.config.gateway.callers[index].public_key;
     try bootstrap.read.verify(public_key);
-    if (!host.callers[index].acquire(false, host.config.role.gateway.per_caller_requests)) return error.ServingCallerCapacity;
+    if (!host.callers[index].acquire(false, host.config.gateway.per_caller_requests)) return error.ServingCallerCapacity;
     defer host.callers[index].release(false);
     fixed.reset();
     try task.attach(bootstrap, public_key, &fixed);

@@ -193,6 +193,7 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | --- | --- | --- |
 | [transit-http-server](../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 and WebSocket framing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board and serving | None |
 | [transit-serving](../packages/zig/transit-serving/README.md) / `transit_serving` | M19 admission/current reads; M20 session controls, Table watch coverage and generated reactive contracts; native/Compose/Substrate qualification | transit-station, transit-query |
+| [transit-serving-http](../packages/zig/transit-serving-http/README.md) / `transit_serving_http` | Reusable signed HTTP/SSE/WebSocket dispatch, local challenges and joined streaming tasks extracted for M21 | transit-serving, transit-http-server |
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
 | [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and qualified paged accepted-state publication | transit-station |
 | [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 qualified finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |

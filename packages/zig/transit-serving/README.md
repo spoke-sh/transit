@@ -1,5 +1,9 @@
 # transit-serving
 
+The reusable [HTTP host](../transit-serving-http/README.md) composes this package
+with the neutral listener. Socket/challenge ownership stays outside these durable
+service and reactive semantics.
+
 Qualified M19 implementation of the [serving profile](../../../contracts/SERVING_V1.md).
 This library composes public growing Station turns. It has no HTTP, raw storage,
 private key storage, clock or gateway retry database. Admission and disposition

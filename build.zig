@@ -4,6 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const http_server = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize });
+    const serving_http = b.dependency("transit_serving_http", .{ .target = target, .optimize = optimize });
     const serving = b.dependency("transit_serving", .{ .target = target, .optimize = optimize });
     const serving_api = b.addExecutable(.{ .name = "transit-serving-api", .root_module = b.createModule(.{
         .root_source_file = b.path("packages/zig/transit-serving/src/export.zig"),
@@ -16,7 +17,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("examples/serving/main.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{ .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") } },
+        .imports = &.{ .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") }, .{ .name = "transit_serving", .module = serving.module("transit_serving") }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") } },
     }) });
     const install_serving = b.addInstallArtifact(serving_example, .{});
     b.step("serving-example", "Install the signed HTTP service example").dependOn(&install_serving.step);
@@ -68,6 +69,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving_http.module("transit_serving_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = document.module("transit_station_document") })).step);
