@@ -4,7 +4,7 @@ const std = @import("std");
 const q = @import("root.zig");
 const p = q.protocol;
 const Ref = q.station.PublicationReference;
-pub const part_bytes = 128;
+pub const part_bytes = q.station.PublicationParts.part_bytes;
 pub const Command = union(enum) {
     initialize,
     begin: Ref,

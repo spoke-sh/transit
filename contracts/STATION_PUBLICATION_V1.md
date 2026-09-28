@@ -139,3 +139,15 @@ nonempty record are `length + 23*ceil(length/256) + 127`; namespace overhead is
 55 bytes. Provider indexes, history, retained versions and journal overhead are
 additional. M14 qualifies 64 KiB content and growing record counts; it does not
 claim production throughput or arbitrary u32-sized records.
+
+## Envelope-sized parts
+
+The additive `PublicationParts` helper assembles a canonical chunk from one or
+two 128-byte parts, preserving the existing 256-byte publication format. The
+composing owner assigns a scratch key unique to the active record and enforces
+caller authority/lifecycle. A first half is one durable mutation; completion
+atomically writes the chunk, advances its descriptor and deletes scratch (three
+mutations). Repeating any previously committed part checks exact retained bytes.
+Wrong specs, changed parts, unavailable chunks and gaps reject. This helper adds
+no wire format or implicit publication; query v2 retains its existing command
+encoding and lifecycle, and native frame/value bounds remain unchanged.

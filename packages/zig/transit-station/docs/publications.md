@@ -131,3 +131,16 @@ public plan limit are unchanged. The 64 KiB qualification is a useful operation
 size, not a whole-resource limit; total published records grow on disk under
 normal deployment quotas. Larger configured records require workload-specific
 qualification. Format IDs label application bytes; they do not validate them.
+
+## Public-envelope chunk assembly
+
+`PublicationParts.append` reuses the v2 query upload's two-part assembly for any
+publication owner. Each ordinary envelope carries at most 128 bytes. The owner
+supplies the exact immutable reference and a scratch key unique to that record;
+it must check current caller policy and active upload state first. One first half
+is retained durably; the second half appends the canonical chunk and removes the
+scratch value in at most three mutations. Exact repeated halves are checked
+against retained bytes, including already completed chunks; changed halves,
+wrong references and gaps fail. The helper restores private writes on error.
+It does not admit a request or make staged bytes visible. Application composition
+must not bypass a pending first half with a different full-chunk upload path.

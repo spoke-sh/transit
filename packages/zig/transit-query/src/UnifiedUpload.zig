@@ -52,34 +52,11 @@ pub fn part(turn: *Turn, value: @FieldType(wire.Command, "part")) !void {
     const current = try required(turn, value.namespace);
     if (current.phase != .uploading) return error.QueryUploadClosed;
     try checkActive(turn, value.namespace);
-    const reference = current.reference;
-    const publication = reference.publication();
-    const descriptor = try publication.inspect(turn, reference.record);
-    const length = try reference.spec.size(value.ordinal);
-    const offset: usize = if (value.second) wire.part_bytes else 0;
-    if (offset >= length or value.bytes.len != @min(wire.part_bytes, length - offset)) return error.InvalidQueryUpload;
-    if (value.ordinal < descriptor.written) {
-        const existing = (try turn.read(Pub.key(value.namespace, 'c', reference.record, value.ordinal))) orelse return error.MissingPublicationChunk;
-        if (existing.len != length or !std.mem.eql(u8, existing.slice()[offset..][0..value.bytes.len], value.bytes)) return error.QueryUploadIdentityConflict;
-        return;
-    }
-    if (value.ordinal != descriptor.written) return error.PublicationGap;
-    const address = r.key('h', value.namespace, 0);
-    if (length <= wire.part_bytes) {
-        _ = try publication.append(turn, reference.record, value.ordinal, value.bytes);
-    } else if (!value.second) {
-        if (try turn.read(address)) |existing| {
-            if (existing.len != value.bytes.len or !std.mem.eql(u8, existing.slice(), value.bytes)) return error.QueryUploadIdentityConflict;
-        } else try turn.write(address, try q.protocol.Value.init(value.bytes));
-    } else {
-        const first = (try turn.read(address)) orelse return error.PublicationGap;
-        if (first.len != wire.part_bytes) return error.InvalidQueryUpload;
-        var bytes: [Pub.chunk_bytes]u8 = undefined;
-        @memcpy(bytes[0..first.len], first.slice());
-        @memcpy(bytes[first.len..][0..value.bytes.len], value.bytes);
-        _ = try publication.append(turn, reference.record, value.ordinal, bytes[0..length]);
-        try turn.write(address, null);
-    }
+    s.PublicationParts.append(turn, current.reference, r.key('h', value.namespace, 0), .{ .ordinal = value.ordinal, .second = value.second, .bytes = value.bytes }) catch |err| return switch (err) {
+        error.InvalidPublicationPart => error.InvalidQueryUpload,
+        error.PublicationPartConflict => error.QueryUploadIdentityConflict,
+        else => err,
+    };
 }
 pub fn seal(turn: *Turn, namespace: u64) !void {
     const before = turn.decision;
