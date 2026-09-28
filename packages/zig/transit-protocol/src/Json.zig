@@ -62,6 +62,14 @@ pub fn parseFromSlice(comptime T: type, allocator: std.mem.Allocator, bytes: []c
 }
 fn shape(comptime T: type, value: std.json.Value) anyerror!void {
     switch (@typeInfo(T)) {
+        .int => switch (value) {
+            .integer => {},
+            .number_string => |text| _ = std.fmt.parseInt(T, text, 10) catch return error.InvalidJsonShape,
+            else => return error.InvalidJsonShape,
+        },
+        .bool => if (value != .bool) return error.InvalidJsonShape,
+        .@"enum" => if (value != .string) return error.InvalidJsonShape,
+        .void => if (value != .object or value.object.count() != 0) return error.InvalidJsonShape,
         .array => |info| {
             if (value != .array or value.array.items.len != info.len) return error.InvalidJsonShape;
             for (value.array.items) |item| try shape(info.child, item);
@@ -85,7 +93,9 @@ fn shape(comptime T: type, value: std.json.Value) anyerror!void {
             inline for (info.field_names, info.field_types) |name, F| if (value.object.get(name)) |item| try shape(F, item);
         },
         .pointer => |info| {
-            if (comptime info.size == .slice and info.child != u8) {
+            if (comptime info.size == .slice and info.child == u8) {
+                if (value != .string) return error.InvalidJsonShape;
+            } else if (comptime info.size == .slice) {
                 if (value != .array) return error.InvalidJsonShape;
                 for (value.array.items) |item| try shape(info.child, item);
             }
@@ -105,4 +115,16 @@ test "reflected array and version shape cannot silently diverge from public sche
     try std.testing.expectEqual(@as([2]u8, .{ 105, 100 }), valid.value.nonce);
     try std.testing.expectError(error.InvalidJsonShape, parseFromSlice(Message, allocator, "{\"nonce\":\"id\"}"));
     try std.testing.expectError(error.InvalidJsonConstant, parseFromSlice(Message, allocator, "{\"version\":2,\"nonce\":[105,100]}"));
+}
+
+test "host JSON rejects quoted integers and preserves escaped UTF-8 at wide values" {
+    const Message = struct { position: u64, text: []const u8 };
+    const a = std.testing.allocator;
+    const bytes = try valueAlloc(a, Message{ .position = @import("root.zig").max_counter, .text = "\x00\n\"é" });
+    defer a.free(bytes);
+    const decoded = try parseFromSlice(Message, a, bytes);
+    defer decoded.deinit();
+    try std.testing.expectEqual(@import("root.zig").max_counter, decoded.value.position);
+    try std.testing.expectEqualStrings("\x00\n\"é", decoded.value.text);
+    try std.testing.expectError(error.InvalidJsonShape, parseFromSlice(Message, a, "{\"position\":\"1\",\"text\":\"ok\"}"));
 }

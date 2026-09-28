@@ -92,3 +92,8 @@ text slices remain strings and owning `jsonStringify` codecs remain authoritativ
 Public scalar types can supply `jsonSchema`; versioned structs can override a
 field with `json_schema_fields` beside their runtime declarations. These helpers
 do not replace the native protocol's canonical digest/signing functions.
+
+Host decoding checks scalar JSON kinds too: integer fields reject quoted numbers,
+booleans and enum strings keep their declared shapes, and empty payloads require
+an empty object. Escaped UTF-8 and full-width protocol counters round-trip through
+the shared encoder/parser; these host checks do not change native signing bytes.
