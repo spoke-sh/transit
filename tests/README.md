@@ -3095,3 +3095,13 @@ automatic growing supervision, every partial root-bootstrap failure, distributed
 authority transfer and provider snapshot recovery remain outside this proof.
 `just check` passed with the placement wiring; the post-contention regression and
 clean committed-HEAD gate are recorded separately when complete.
+
+The post-M23 `just test::reactive-views` regression passes against the declared
+Board shell and shared query transport. It covers actual counter/Board consumers,
+abandoned-session cleanup, exact uncertain query retry, complete result refresh,
+pause and current read denial. The native proof took **461.24 seconds** excluding
+compilation; mutation-to-visible measurements were 5.031 seconds for the counter
+and 134.615 seconds for the fully verified query. Observed browser heaps were
+11,474,368 bytes (Board) and 4,616,116 bytes (counter). These single-run costs do
+not claim an interactive freshness target. `just check` also passed after the
+read-conflict correction and parser instrumentation.
