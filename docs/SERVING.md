@@ -209,6 +209,13 @@ resident memory. Listener shutdown drains or closes transport work within a
 finite budget without deleting accepted operations. Keep socket state disposable;
 workers recover from accepted request/outbox/result evidence.
 
+Reserve the prerequisites of control operations as well as their final sends.
+M21's private reactive host reads the authorized committed clock through the
+control reserve so lease renewal does not repeat source/schema discovery under
+data load. Complete-result verification runs separately from renewal, with joined
+cleanup. Measure these dependency paths with simultaneous consumers; a reserved
+endpoint alone does not establish control progress.
+
 Retention defaults to unlimited. Explicit request/result lifetimes, retry horizons,
 listener deadlines and later subscription leases are different contracts. Quota
 pressure can refuse new work, not erase receipts or make a late retry execute

@@ -130,6 +130,14 @@ declared bounded batch/byte interval, including cached results and metadata.
 Revocation prevents further authorization; already released bytes cannot be
 recalled. Do not expose hidden tables through names, counts or error distinctions.
 
+Metadata permission alone is insufficient for result reads. Use the caller's
+current resource-read check, separately from the gateway's own credential.
+M21's browser verifier traverses complete ordered coverage with one candidate
+page, discards prefixes, then rereads the visible page under current authority.
+Flight can deliver authorized batch prefixes, but only a successful terminal
+stream establishes complete delivery. Preserve that distinction when a later
+batch is denied or the connection drops; never buffer the entire result to hide it.
+
 Durable result retention follows the application's opted-in policy and defaults
 to unlimited. A finite connection timeout or expiring access ticket does not
 silently authorize result deletion. A new handle cannot extend a hard result or

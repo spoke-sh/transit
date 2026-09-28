@@ -130,6 +130,12 @@ cached cursor or old response cannot override denial. Independent queries still
 need their service/resource grants. No hidden names or counts enter event-driven
 search suggestions or view summaries.
 
+M21's implementation review found that metadata inspection alone cannot stand
+in for entry-read authorization. The native `resource_read_access` capability
+supplies a narrow current check, revalidated against the caller's key, grants,
+PID association scope and resource lifetime. Stored signatures and a stronger
+worker credential must not keep selecting queries after read-only revocation.
+
 Pause, hide and close stop new refresh scheduling and subscription renewal;
 follow the API's explicit close/cancel rules. Disconnect alone does not cancel
 an accepted query. Forgotten browsers cannot renew themselves forever, and a
@@ -147,6 +153,22 @@ Leases bound live work, not durable retention: unlimited remains the default,
 with explicit opt-in lifetimes for automatic query results if selected. A new
 refresh never implicitly deletes accepted evidence. If durable capture cost makes
 the desired refresh rate impractical, qualify a new contract before increasing it.
+
+Account for control history as well as query results: observer clock samples,
+renewals, attachments and their committed owner turns are retained work. Lease
+expiry bounds future scheduling, not those records. Choose deadlines from the
+committed observer clock and revalidate wall-clock expiry at the host; stale
+observer progress cannot silently enlarge the logical lease. The initial M21
+owner limits each explicit Follow generation to eight selected intents, shared
+through one requester admission slot. This is a finite budget, not continuous SQL.
+
+Keep lease maintenance independent of bounded result verification. Traversing
+several pages can exceed the remaining lease even when each individual read
+finishes within its deadline. Both tasks must join on pause and fence late
+publication. Renewal uses a current authorized clock sample through reserved
+control capacity; it must not depend on a fresh catalog/schema discovery round.
+The M21 browser integration exposed that dependency under simultaneous views.
+Shorter-lived transport tasks do not justify extending the logical lease.
 
 ## Declarative composition after M21
 

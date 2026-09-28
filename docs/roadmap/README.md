@@ -111,7 +111,7 @@ ten SDKs and SQL/Board ingress; its physical query-host recovery covers Table.
 M15/M16 qualify finite outbound effects, not inbound serving. M17's accepted-state
 reads do not create a watch, and manual growing-host placement does not create a
 cluster controller. M19 and M20 are qualified within their initial HTTP and
-int64 Table reactive profiles; M21–M26 remain planned.
+int64 Table reactive profiles. M21 is in progress; M22–M26 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
