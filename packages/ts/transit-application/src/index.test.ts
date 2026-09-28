@@ -5,6 +5,7 @@ import {
   diagram,
   generation,
   presentation,
+  requireArtifacts,
   withTheme,
   type Definition,
   type Head,
@@ -47,6 +48,19 @@ const head: Head = {
     digest: Array.from({ length: 32 }, (_, index) => index),
   },
 };
+
+test("generated artifacts allow compatible publication without acting as fallback or authority", () => {
+  const next = { ...definition, revision: "2", theme: "dense" };
+  expect(() => requireArtifacts(definition, next)).not.toThrow();
+  for (const changed of [
+    { ...next, name: "another_application" },
+    { ...next, realm: 50 },
+    { ...next, components: 2 },
+    { ...next, screens: [{ ...definition.screens[0]!, renderer: "work_items" as const }] },
+  ])
+    expect(() => requireArtifacts(definition, changed)).toThrow();
+  expect(next.revision).toBe("2");
+});
 
 test("reflected validators reject coercion, unknown fields, unsupported versions and wide overflow", () => {
   expect(decodeDefinition(structuredClone(definition))).toEqual(definition);

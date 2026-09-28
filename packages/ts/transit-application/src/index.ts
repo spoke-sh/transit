@@ -46,6 +46,21 @@ export function presentation(definition: Definition) {
   return { density: theme.density, theme: theme.name };
 }
 
+/** Generated proposals select a build's renderer artifacts. Accepted definitions
+ * may evolve within that set; an artifact never supplies a publication fallback. */
+export function requireArtifacts(proposal: Definition, current: Definition): void {
+  const renderers = new Set(proposal.screens.map((screen) => screen.renderer));
+  if (
+    current.realm !== proposal.realm ||
+    current.name !== proposal.name ||
+    current.components !== proposal.components ||
+    current.screens.some((screen) => !renderers.has(screen.renderer))
+  )
+    throw new ApplicationContractError(
+      "Published interface requires different application artifacts",
+    );
+}
+
 /** A pure visual edit. Publication requires the owning compiler and exact review. */
 export function withTheme(definition: Definition, name: string): Definition {
   if (!definition.themes.some((theme) => theme.name === name))

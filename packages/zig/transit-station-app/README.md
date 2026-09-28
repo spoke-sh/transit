@@ -108,3 +108,10 @@ The host's `next_cleanup` continuation composes explicit abandonment with bounde
 publication collection. Signed state reads expose `collected` and `reserved` so
 clients distinguish closure from released staging capacity. Permanent descriptors
 and receipts remain; applied interface revisions are never rolled back by cleanup.
+
+`transit-app module FILE.sql` emits a strict TypeScript proposal module using the
+same whole-program validation as `parse`. It imports the shared runtime validator;
+it does not generate authority, credentials or a publication fallback. A generated
+application can use `requireArtifacts` to accept subsequent published definitions
+only within its realm, application/component version and compiled renderer set.
+The application still provides its own business renderers and handler artifacts.
