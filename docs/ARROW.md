@@ -4,8 +4,8 @@ Status: M9 implements finite IPC results, checked by an independent Arrow
 consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../packages/zig/transit-fuze/docs/integration.md).
 M16 qualifies outbound gRPC and [M19](roadmap/M19.md) establishes HTTP serving.
 [M22](roadmap/M22.md) now implements finite Table Flight SQL and recorded outbound
-Flight over those components. Native and Compose TLS queries pass pinned PyArrow
-and ADBC C/Python checks; the [proof ledger](../tests/README.md#m22-qualification-in-progress)
+Flight over those components. Native, Compose and reference TLS queries pass pinned PyArrow
+and ADBC C/Python checks; the [proof ledger](../tests/README.md#m22-qualification)
 separately records lifecycle, load and reference placement qualification.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
 and durable result delivery. This document owns the interchange and gateway seams.
@@ -116,7 +116,7 @@ prove compatibility with every Arrow client or driver version.
 
 ## Identity, lifetime and failure
 
-M22 must adapt and prove M19's ingress identity contract for Flight. Start with
+M22 adapts M19's ingress identity contract for Flight using
 explicitly configured gateway credentials mapped to dedicated, least-privilege Transit
 principals and allowed Table service PIDs. Do not trust principal/PID claims in
 request metadata or invent general delegation, which is not implemented. TLS
@@ -161,8 +161,8 @@ recoverable. Flight must likewise distinguish an expired access ticket from a
 missing result and from an uncertain admission. Replacing a ticket requires
 current authorization; it cannot resubmit the query or revive retired evidence.
 
-M22 must budget SQL/protobuf requests, standard metadata schemas, result bytes,
-ticket records and pending queries against the profile it actually deploys.
+M22 budgets SQL/protobuf requests, standard metadata schemas, result bytes,
+ticket records and pending queries against its explicit selected profile.
 Network streaming cannot conceal a missing durable payload/lifetime contract or
 raise M7's limits implicitly. A larger storage/result profile requires an explicit
 prerequisite milestone if the selected interoperability fixtures cannot fit.
@@ -183,7 +183,13 @@ The selected [finite Flight profile](../contracts/FLIGHT_V1.md) reuses the publi
 v1 Table query identity and captures, with bounded signed access tickets. Its
 pinned protobuf declarations and standard metadata IPC now have executable
 checks (`just test::flight-metadata`). Native TLS PyArrow and ADBC C/Python
-queries pass; adversarial lifecycle and placement qualification remain open.
+queries pass in native, Compose and reference placements, including physical
+recovery. Native fault/load proofs cover per-RPC scope, lost admission, current
+read revocation after returned batches, released pins, request/source retirement,
+bounded concurrent reads and blocked-credit cleanup. The
+[compatibility matrix](../packages/zig/transit-flight/docs/compatibility.md)
+records exact bounds and measured scope; passing metadata or one placement does
+not qualify another application type or client version.
 Metadata uses the standard union/list/map schema independently of the
 int64 application Table profile. Empty primitive IPC batches can have a zero-byte
 body; tests must validate this case through both native and independent readers.

@@ -2746,7 +2746,7 @@ fresh final authorization. The unchanged `just test::publication` passed in
 consumer placement qualification. M20's independent SSE/WebSocket proofs remain
 protocol evidence; M21 selects SSE without copying its protocol into the UI.
 
-## M22 qualification in progress
+## M22 qualification
 
 `just test::grpc-server` passes independent grpcio/h2 unary and streaming calls,
 pooled sequential requests, reserved control progress under full data admission,
@@ -2782,6 +2782,9 @@ interrupted duplicate fetch and released capture pins all pass. Request and
 source retirement fail closed after real prefixes; gateway/worker/node/disk
 replacement retrieves the same retained result. Board reads capture/manifest
 provenance with query execution disabled and returns 410 after source retirement.
+Projection units cover canonical keys, mismatched ownership and maximum u64
+correlations/counters; Board emits decimal strings for these framework fields
+and regenerates its runtime validators from the public types.
 
 The load extension holds two native fetch reads for six seconds with an explicit
 15-second native budget, rejects a third caller data RPC, and keeps current-schema
@@ -2794,5 +2797,36 @@ same complete result. Actual compressed, oversized and truncated request frames
 fail before dispatch; outbound replay units reject malformed protobuf/Arrow.
 TLS edge buffering is separate from this private adapter credit measurement.
 
-Compose/reference placement evidence is recorded separately; native fault and
-load success cannot establish a new placement or client/type combination.
+The same workload passes `just test::flight-placement compose` and
+`just test::flight-placement reference`, including original-ticket retrieval and
+exact admission retry after workers, gateway, authority and disk store stop.
+Compose measured 271.18 seconds including packaging, 413 retained cold objects /
+42,821,771 bytes. Reference measured 367.00 seconds, 365 cold objects /
+37,968,589 bytes, with fresh Substrate source/requester activations and restored
+public grants. Both use the explicit operator-host TLS edge; reference's courier
+is also operator-hosted. The reference proof checks gateway egress denial to
+storage, external endpoints and provider/control APIs. Placement owns only its
+isolated namespace/project and leaves the default installation unchanged.
+
+Recovery found transient DNS loss could incorrectly stop an idle query host;
+it now uses the shared unavailable classifier while preserving pending signed
+bytes. A ready gateway pod also precedes port-forward/TLS reachability. Bounded
+schema discovery waits for that read path without admitting another query.
+Pinned PyArrow GetSchema exposes UNAVAILABLE through OSError with status detail,
+which the readiness loop classifies separately from denial. Failed precursor
+runs are not counted as qualification.
+
+The unchanged public query, M16 RPC worker and fault, M19 serving and M20
+reactive suites pass after this composition. The final common regression measured
+378.36 / 184.30 / 12.09 / 15.45 seconds respectively for RPC worker, RPC faults,
+HTTP serving and reactive recovery (excluding build time). `just check` and
+`just doctor` pass. The manual Flight CI workflow registers metadata, native
+clients, fault/load, outbound and Compose checks with timing artifacts; it has
+not been run on a hosted runner in this work. Local costs do not replace the
+M10 feedback/runner-minute budgets. Reference remains an explicit external proof.
+
+Qualification stays finite: Table v1, declared int64 columns, read-only SQL,
+pinned Linux x86_64 C/Python consumers and the documented RPC limits. Metadata
+union/list/map validity does not qualify wider application types. No Flight
+writes, prepared parameters, continuous streams, automatic new-query retry,
+dedicated ADBC driver or production-scale throughput is claimed.
