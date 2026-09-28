@@ -2791,6 +2791,13 @@ count, checked sum and unprepared fallback. The independent C vtable consumer
 checks the same schema/rows through Arrow C Stream and releases every handle.
 The unchanged public-query recovery/authorization regression also passes.
 
+`just test::flight-outbound` passes an independent PyArrow TLS Flight service
+through the actual recorded RPC worker: request preparation sends nothing,
+authorized dispatch records schema/six batches/outcome, then the peer is stopped
+and its credential removed. After node/disk-store restart, the Zig Flight replay
+adapter checks all 41 exact int64/null rows and complete capture without dispatch.
+The adapter keeps M16's finite message/byte budgets and explicit outcome policy.
+
 These runs do not yet qualify Flight-specific adversarial authorization/recovery,
-outbound effects, aggregate load or Compose/reference placements. Those gates
+aggregate load or Compose/reference placements. Those gates
 remain open; they must not be inferred from successful native interoperability.

@@ -30,6 +30,7 @@ pub fn build(b: *std.Build) void {
     b.step("transit-serving-example", "Install the signed HTTP service artifact").dependOn(&install_serving.step);
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
+    const station_flight = b.dependency("transit_station_flight", .{ .target = target, .optimize = optimize });
     const flight = b.dependency("transit_flight", .{ .target = target, .optimize = optimize });
     const grpc = b.dependency("transit_grpc", .{ .target = target, .optimize = optimize });
     const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
@@ -420,6 +421,15 @@ pub fn build(b: *std.Build) void {
     grpc_worker_test.has_side_effects = true;
     grpc_worker_test.stdio = .inherit;
     b.step("test-grpc-worker", "Prove durable finite RPC capture and recovery").dependOn(&grpc_worker_test.step);
+    const flight_outbound = b.addExecutable(.{ .name = "transit-flight-outbound-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/flight_outbound.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_station_flight", .module = station_flight.module("transit_station_flight") }} }) });
+    build_test_step.dependOn(&flight_outbound.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_flight.module("transit_station_flight") })).step);
+    const flight_outbound_test = b.addSystemCommand(&.{ "python3", "-B" });
+    flight_outbound_test.addFileArg(b.path("tests/flight_outbound.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, grpc_provision, grpc_worker, flight_outbound }) |artifact| flight_outbound_test.addArtifactArg(artifact);
+    flight_outbound_test.has_side_effects = true;
+    flight_outbound_test.stdio = .inherit;
+    b.step("test-flight-outbound", "Qualify Flight recorded effects and network-free replay").dependOn(&flight_outbound_test.step);
     const http_provision = b.addExecutable(.{ .name = "transit-http-worker-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/http_worker.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station_http", .module = station_http.module("transit_station_http") }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&http_provision.step);
     const http_worker_test = b.addSystemCommand(&.{ "python3", "-B" });

@@ -341,3 +341,6 @@ flight-metadata:
 # Real finite native queries over verified TLS with pinned Python and C consumers.
 flight:
     nix develop .#flight --command zig build test-flight -Doptimize=ReleaseSafe
+
+flight-outbound:
+    nix develop .#flight --command zig build test-flight-outbound -Doptimize=ReleaseSafe
