@@ -2769,3 +2769,19 @@ Four abandoned sessions were expired by the explicit observer; their history
 remained. The browser stored no keys, cookies or local/session storage. The
 327.65 seconds is whole-fixture cost, not a freshness target. Further browser
 race schedules and Compose/reference consumer recovery remain open.
+
+
+## M22 qualification in progress
+
+`just test::grpc-server` passes independent grpcio/h2 unary and streaming calls,
+pooled sequential requests, reserved control progress under full data admission,
+joined deadline/cancellation, blocked credit cleanup and malformed framing.
+`just test::flight-metadata` passes pinned protobuf drift and PyArrow 23.0.0
+catalog/schema/Table/type/SqlInfo metadata, optional filter presence, empty
+batches, all six union children and the published int64 Table schema. Package
+units cover IPC boundaries and signed ticket tampering/scope/expiry. Fuze's
+zero-body primitive IPC regression and compatible compute tests pass (119 tests).
+
+These are codec and inbound transport results. Actual gateway/ADBC C/Python,
+authorization/recovery, outbound Flight effects and all three placements remain
+open; they must not be inferred from M16 transport or these metadata fixtures.

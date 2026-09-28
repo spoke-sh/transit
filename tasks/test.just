@@ -332,3 +332,8 @@ reactive-refresh:
 # Real Board/counter browser consumers against the durable refresh owner.
 reactive-views:
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-views=true
+
+# Pinned standard protobuf declarations and independent Arrow metadata consumer.
+flight-metadata:
+    nix develop .#flight --command python3 -B packages/zig/transit-flight/generate.py --check
+    nix develop .#flight --command zig build test-flight-metadata -Doptimize=ReleaseSafe

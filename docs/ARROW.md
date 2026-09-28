@@ -176,3 +176,11 @@ schemas, backpressure, cancellation and recovery together. Keep dependency pins,
 supported protocol versions and proof commands with the implementing packages.
 Flight SQL writes, a native ADBC driver, continuous query maintenance and
 cross-resource/distributed transactions need their own future milestones.
+
+The selected [finite Flight profile](../contracts/FLIGHT_V1.md) reuses the public
+v1 Table query identity and captures, with bounded signed access tickets. Its
+pinned protobuf declarations and standard metadata IPC now have executable
+checks (`just test::flight-metadata`); full gateway/ADBC qualification remains
+open. Metadata uses the standard union/list/map schema independently of the
+int64 application Table profile. Empty primitive IPC batches can have a zero-byte
+body; tests must validate this case through both native and independent readers.

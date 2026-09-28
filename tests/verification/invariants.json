@@ -939,6 +939,32 @@
       ],
       "limits": "Qualified finite native/Compose/Substrate profiles; no reactive APIs or automatic growing runtime controller. RSS observations have declared process/workload scopes. Native receipts remain retained without finite reclamation.",
       "model": null
+    },
+    {
+      "id": "FLIGHT-01",
+      "claim": "Pinned Flight codecs preserve standard bounded metadata schemas and scoped ticket references",
+      "owner": "contracts/FLIGHT_V1.md",
+      "implementation": [
+        "packages/zig/transit-flight/src/Ipc.zig",
+        "packages/zig/transit-flight/src/Metadata.zig",
+        "packages/zig/transit-flight/src/Ticket.zig",
+        "packages/zig/transit-grpc/src/Server.zig",
+        "tests/flight_metadata.py",
+        "tests/grpc_server.py"
+      ],
+      "profile": "M22 codec and inbound transport foundation; full gateway interoperability open",
+      "tasks": [
+        "test::unit",
+        "test::flight-metadata",
+        "test::grpc-server"
+      ],
+      "scenarios": [
+        "Independent PyArrow checks standard metadata schemas, optional filters, empty results and dense union/list/map children",
+        "Signed tickets reject tampering, foreign scope and expiry without granting authority",
+        "Inbound unary/server-streaming RPCs join cancellation and deadlines and bound blocked credit/write work"
+      ],
+      "limits": "No gateway authorization, ADBC, TLS placement, retained-result recovery or outbound Flight claim from these codec/transport checks.",
+      "model": null
     }
   ]
 }

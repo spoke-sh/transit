@@ -1,0 +1,25 @@
+{
+  "version": "apache-arrow-23.0.0",
+  "sources": [
+    {
+      "file": "Flight.proto",
+      "url": "https://raw.githubusercontent.com/apache/arrow/apache-arrow-23.0.0/format/Flight.proto",
+      "sha256": "ccd439108e960d83a285f759a3c2b7cd6432320b8491734d13f589edccf1d5b0"
+    },
+    {
+      "file": "FlightSql.proto",
+      "url": "https://raw.githubusercontent.com/apache/arrow/apache-arrow-23.0.0/format/FlightSql.proto",
+      "sha256": "6b82079af70b8c4e47ee82055224863ed53f088fe28f36746f4b69f19ec68c9b"
+    },
+    {
+      "file": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/apache/arrow/apache-arrow-23.0.0/LICENSE.txt",
+      "sha256": "23fc45dce1769d9ddf4aac4d6cdaf3f7f0d14fcc4d930dd0d4afbefa2ea3322a"
+    },
+    {
+      "file": "NOTICE.txt",
+      "url": "https://raw.githubusercontent.com/apache/arrow/apache-arrow-23.0.0/NOTICE.txt",
+      "sha256": "c946470d6b024c77feebdfb686bf92a828402c0ffc27c769bca7d8bef08e1db7"
+    }
+  ]
+}

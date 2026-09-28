@@ -30,6 +30,7 @@ pub fn build(b: *std.Build) void {
     b.step("transit-serving-example", "Install the signed HTTP service artifact").dependOn(&install_serving.step);
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const station_grpc = b.dependency("transit_station_grpc", .{ .target = target, .optimize = optimize });
+    const flight = b.dependency("transit_flight", .{ .target = target, .optimize = optimize });
     const grpc = b.dependency("transit_grpc", .{ .target = target, .optimize = optimize });
     const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
@@ -131,6 +132,15 @@ pub fn build(b: *std.Build) void {
     grpc_transport_test.has_side_effects = true;
     grpc_transport_test.stdio = .inherit;
     b.step("test-grpc-transport", "Qualify finite RPC shapes against independent peers").dependOn(&grpc_transport_test.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = flight.module("transit_flight") })).step);
+    const flight_metadata_proof = b.addExecutable(.{ .name = "transit-flight-metadata-proof", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-flight/src/metadata_fixture.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_flight", .module = flight.module("transit_flight") }} }) });
+    build_test_step.dependOn(&flight_metadata_proof.step);
+    const flight_metadata_test = b.addSystemCommand(&.{ "python3", "-B" });
+    flight_metadata_test.addFileArg(b.path("tests/flight_metadata.py"));
+    flight_metadata_test.addArtifactArg(flight_metadata_proof);
+    flight_metadata_test.has_side_effects = true;
+    flight_metadata_test.stdio = .inherit;
+    b.step("test-flight-metadata", "Qualify standard Flight SQL metadata with independent Arrow").dependOn(&flight_metadata_test.step);
     const grpc_server_proof = b.addExecutable(.{ .name = "transit-grpc-server-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/grpc_server.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_grpc", .module = grpc.module("transit_grpc") }} }) });
     build_test_step.dependOn(&grpc_server_proof.step);
     const grpc_server_test = b.addSystemCommand(&.{ "python3", "-B" });
