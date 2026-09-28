@@ -518,6 +518,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
         }) });
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
+        if (comptime std.mem.eql(u8, entry[0], "transit")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
         const install = b.addInstallArtifact(app, .{});
         b.getInstallStep().dependOn(&install.step);
@@ -525,6 +526,12 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
+    const server_test = b.addSystemCommand(&.{ "python3", "-B" });
+    server_test.addFileArg(b.path("tests/server.py"));
+    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host }) |artifact| server_test.addArtifactArg(artifact);
+    server_test.has_side_effects = true;
+    server_test.stdio = .inherit;
+    b.step("test-server", "Qualify local server bootstrap, gateway and owned process recovery").dependOn(&server_test.step);
     const serving_test = b.addSystemCommand(&.{ "python3", "-B" });
     serving_test.addFileArg(b.path("tests/serving.py"));
     for ([_]*std.Build.Step.Compile{ node_artifact, serving_example, query_host }) |artifact| serving_test.addArtifactArg(artifact);

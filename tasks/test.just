@@ -303,6 +303,10 @@ unified-ingress source="table":
 console source="table":
     nix develop .#serving --command zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-console=true -Dunified-console-tls=true
 
+# Actual native server with independent console and owned process failures.
+server:
+    zig build test-server -Doptimize=ReleaseSafe
+
 # Current grant changes/cancellation after a durable segment staging decision.
 unified-lifecycle source="kv":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-lifecycle=true

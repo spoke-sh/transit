@@ -1,0 +1,199 @@
+//! Foreground, explicitly configured local placement. OS liveness grants no authority.
+const std = @import("std");
+const q = @import("transit_query");
+const Config = @import("Config.zig");
+const Installation = @import("Installation.zig");
+const Files = @import("Files.zig");
+const Process = @import("Process.zig");
+const Provider = @import("Provider.zig");
+const Signals = @import("../Signals.zig");
+const Self = @This();
+const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway };
+init: std.process.Init,
+installation: *Installation,
+executable: []const u8,
+processes: [8]Process = @splat(.{}),
+active_role: Role = .cold,
+pub fn run(init: std.process.Init, options: @import("../Options.zig").Options) !void {
+    const config = Config.load(init, options.path.?) catch |err| {
+        std.debug.print("server configuration: {s}\n", .{@errorName(err)});
+        return error.InvalidConfiguration;
+    };
+    const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
+    const identity = try config.identities(init, executable);
+    // The sibling lock also serializes first initialization before the directory exists.
+    const lock_path = try std.fmt.allocPrint(init.arena.allocator(), "{s}.lock", .{config.installation});
+    const lock = try std.Io.Dir.cwd().createFile(init.io, lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
+    defer lock.close(init.io);
+    if (!try lock.tryLock(init.io, .exclusive)) return error.InstallationInUse;
+    try config.preflight(init.io);
+    if (options.initialize) try Installation.create(init, config, identity);
+    const record_path = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "installation.json" });
+    const record = try Files.read(Installation.Record, init.io, init.arena.allocator(), record_path);
+    if (record.version != 1 or !std.meta.eql(record.identity, identity)) return error.InstallationIdentityMismatch;
+    const signals = try Signals.install();
+    defer signals.close();
+    var wire = q.wire.Client.init(init.gpa, init.io, try Provider.url(init.arena.allocator(), config.ports.node));
+    defer wire.deinit();
+    wire.timeout_ms = 2000;
+    var installation: Installation = .{ .init = init, .config = config, .record = record, .record_path = record_path, .wire = &wire, .root = try q.wire.readKey(init.gpa, init.io, try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "root.seed" })), .caller_key = try q.wire.readKey(init.gpa, init.io, try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "caller.seed" })) };
+    defer {
+        std.crypto.secureZero(u8, std.mem.asBytes(&installation.root));
+        std.crypto.secureZero(u8, std.mem.asBytes(&installation.caller_key));
+    }
+    if (!std.mem.eql(u8, &record.root_public, &installation.root.public_key.toBytes())) return error.InstallationIdentityMismatch;
+    try installation.checkStorage();
+    const self = try init.gpa.create(Self);
+    defer init.gpa.destroy(self);
+    self.* = .{ .init = init, .installation = &installation, .executable = executable };
+    defer self.stop();
+    var restarts: u8 = 0;
+    while (!Signals.interrupted()) {
+        self.cycle() catch |err| {
+            self.stop();
+            self.transportDiagnostic();
+            if (Signals.interrupted() or err == error.ServerStopped) return;
+            std.debug.print("server role {s}: {s}\n", .{ @tagName(self.active_role), @errorName(err) });
+            // Storage identity/rollback, local durability failure and explicit
+            // native denials are never repaired by rewriting installation state.
+            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.AccessDenied or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
+            if (restarts == 3) return error.RestartBudgetExhausted;
+            restarts += 1;
+            try init.io.sleep(.fromMilliseconds(@as(u32, restarts) * 250), .awake);
+            continue;
+        };
+        return;
+    }
+}
+fn stop(self: *Self) void {
+    var i: usize = self.processes.len;
+    while (i > 0) {
+        i -= 1;
+        self.processes[i].stop(self.init.io);
+    }
+}
+fn allAlive(self: *Self) bool {
+    for (&self.processes, 0..) |*process, i| if (process.child != null and !process.alive()) {
+        self.active_role = @fromBackingInt(@intCast(i));
+        return false;
+    };
+    return true;
+}
+fn start(self: *Self, allocator: std.mem.Allocator, role: Role, args: []const []const u8, environment: []const Process.Variable, registration: bool) !void {
+    if (Signals.interrupted()) return error.ServerStopped;
+    self.active_role = role;
+    try self.processes[@backingInt(role)].start(self.init, self.executable, try std.fmt.allocPrint(allocator, "{s}/{s}.launch.json", .{ self.installation.config.installation, @tagName(role) }), .{ .argv = args, .environment = environment }, registration);
+}
+fn ready(self: *Self, address: []const u8) !void {
+    const start_time = std.Io.Clock.awake.now(self.init.io);
+    while (start_time.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() < 30000) {
+        if (Signals.interrupted()) return error.ServerStopped;
+        if (!self.allAlive()) return error.ChildExited;
+        if (Provider.health(self.init, address)) return;
+        try self.init.io.sleep(.fromMilliseconds(100), .awake);
+    }
+    return error.RoleReadinessTimeout;
+}
+fn cycle(self: *Self) !void {
+    var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const installation = self.installation;
+    const config = installation.config;
+    try installation.checkStorage();
+    try config.preflight(self.init.io);
+    const secret = try std.Io.Dir.cwd().readFileAlloc(self.init.io, try installation.path("cold.seed"), allocator, .limited(65));
+    defer std.crypto.secureZero(u8, secret);
+    if (secret.len != 64) return error.InvalidCredentialFile;
+    try self.start(allocator, .cold, &.{ config.executables.minio, "server", try installation.path("cold"), "--certs-dir", try installation.path("certs"), "--address", try std.fmt.allocPrint(allocator, "127.0.0.1:{d}", .{config.ports.cold}), "--console-address", try std.fmt.allocPrint(allocator, "127.0.0.1:{d}", .{config.ports.cold_console}) }, &.{ .{ .name = "MINIO_ROOT_USER", .value = "transit" }, .{ .name = "MINIO_ROOT_PASSWORD", .value = secret }, .{ .name = "MINIO_BROWSER", .value = "off" }, .{ .name = "GOMAXPROCS", .value = "2" }, .{ .name = "GOMEMLIMIT", .value = "256MiB" }, .{ .name = "HOME", .value = try installation.path("provider-home") } }, false);
+    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/minio/health/ready", .{config.ports.cold}));
+    // PutBucket is idempotent only during recorded first bootstrap. A recovered
+    // installation never creates replacement cold storage or authority streams.
+    if (!installation.record.genesis_observed) try Provider.bucket(self.init, config.ports.cold, secret);
+    const store_config = try installation.path("ursula.toml");
+    try Files.write(self.init.io, store_config, try Provider.configuration(allocator, config, secret));
+    try self.start(allocator, .store, &.{ config.executables.ursula, "server", "--config", store_config }, &.{ .{ .name = "RUST_LOG", .value = "error" }, .{ .name = "TOKIO_WORKER_THREADS", .value = "2" } }, false);
+    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/__ursula/ready", .{config.ports.store}));
+    const node_config = try installation.path("node.json");
+    try Files.json(self.init.io, allocator, node_config, .{ .profile = "growing_v3", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 8, .request_timeout_ms = 2000, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
+    try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
+    const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});
+    try self.ready(node_health);
+    _ = try installation.query(.{ .capabilities = {} });
+    try installation.provision();
+    try self.start(allocator, .maintenance, &.{ config.executables.node, node_config, "--maintain" }, &.{}, false);
+    try self.worker(allocator, .source);
+    try self.worker(allocator, .requester);
+    const connection = installation.connection();
+    const courier_config = try installation.path("courier.json");
+    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = .{ connection.source, connection.requester } } }, .interval_ms = 100, .request_timeout_ms = 2000 });
+    try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
+    try installation.initializeBehaviors();
+    var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
+    const definition = try installation.table().definition(connection.resource);
+    const started = std.Io.Clock.awake.now(self.init.io);
+    while (true) {
+        if (Signals.interrupted()) return error.ServerStopped;
+        if (!self.allAlive()) return error.ChildExited;
+        _ = query.describe(definition) catch |err| {
+            if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 60000) return err;
+            try self.init.io.sleep(.fromMilliseconds(100), .awake);
+            continue;
+        };
+        break;
+    }
+    installation.record.complete = true;
+    try installation.save();
+    const gateway_config = try installation.path("gateway.json");
+    try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url });
+    try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
+    try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
+    const console_path = try installation.path("console.json");
+    try Files.json(self.init.io, allocator, console_path, @import("../Console.zig").Config{ .version = 1, .profile = .unified_v2, .url = try Provider.url(allocator, config.ports.gateway), .transport = .loopback, .seed_file = "caller.seed", .connection = connection, .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) }, .recovery_file = "console-recovery.json" });
+    const report = try std.json.Stringify.valueAlloc(allocator, .{ .ready = true, .profile = "local_table_v1", .console_config = console_path }, .{});
+    var output_buffer: [1024]u8 = undefined;
+    var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
+    try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));
+    var last = std.Io.Clock.awake.now(self.init.io);
+    while (!Signals.interrupted()) {
+        if (!self.allAlive()) return error.ChildExited;
+        const now = std.Io.Clock.awake.now(self.init.io);
+        if (last.durationTo(now).toMilliseconds() >= 1000) {
+            self.active_role = .node;
+            _ = try installation.query(.{ .capabilities = {} });
+            last = now;
+        }
+        try self.init.io.sleep(.fromMilliseconds(100), .awake);
+    }
+}
+fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
+    const installation = self.installation;
+    const connection = installation.connection();
+    const pid = if (role == .source) connection.source else connection.requester;
+    const principal: u64 = if (role == .source) Installation.source else Installation.requester;
+    const process = (try installation.query(.{ .process = pid })).body.process.process;
+    if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
+    const generation = try std.math.add(u64, process.generation, 1);
+    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, request_timeout_ms: u32 = 2000, role: union(enum) { table_source: q.TableSource.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
+    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .table_source = installation.table() } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
+    const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
+    try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);
+    var bytes: [1024]u8 = undefined;
+    const registration = try self.processes[@backingInt(role)].registration(self.init.io, &bytes);
+    const parsed = try std.json.parseFromSlice(struct { growing_bootstrap: q.wire.bootstrap.GrowingRegistration }, allocator, registration, .{});
+    const observed = parsed.value.growing_bootstrap;
+    if (observed.version != 1 or observed.realm != connection.realm or observed.pid != pid or observed.principal != principal or observed.generation != generation) return error.InvalidRegistration;
+    try installation.activate(observed);
+}
+
+fn transportDiagnostic(self: *Self) void {
+    const log = &self.processes[@backingInt(Role.gateway)].stderr;
+    const prefix = "gateway transport: ";
+    const offset = std.mem.lastIndexOf(u8, log.bytes[0..log.length], prefix) orelse return;
+    const tail = log.bytes[offset + prefix.len .. log.length];
+    const end = std.mem.indexOfScalar(u8, tail, '\n') orelse return;
+    if (end == 0 or end > 64) return;
+    for (tail[0..end]) |byte| if (!std.ascii.isAlphanumeric(byte)) return;
+    std.debug.print("server gateway transport: {s}\n", .{tail[0..end]});
+}

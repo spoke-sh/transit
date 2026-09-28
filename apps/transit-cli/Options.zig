@@ -40,6 +40,6 @@ pub const help =
     \\  transit query CONFIG | query-v2 CONFIG (existing single-line shells)
     \\Configuration is explicit versioned JSON; paths are relative to its file.
     \\Console SQL submits on a semicolon; /help lists local commands.
-    \\Server lifecycle is not yet implemented in this development build.
+    \\Server runs the explicit local Table profile in the foreground (Linux).
     \\
 ;

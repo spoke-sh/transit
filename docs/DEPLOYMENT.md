@@ -28,16 +28,19 @@ across these profiles, with executable-owned configuration and bounded sinks.
 Service, launcher and provider diagnostics identify their own instances; telemetry
 availability never determines Transit ownership or changes retention authority.
 
-## Planned Transit CLI and publication
+## Transit CLI and planned publication
 
 [Transit CLI M24](roadmap/M24.md) formalizes `transit server` as a foreground
 supervisor/gateway for a functioning locally placed Transit service neighborhood.
-It will compose existing authority, storage, maintenance, delivery, serving and
-selected worker roles with explicit configuration, bootstrap, readiness, bounded
-restart and data-preserving shutdown. Native OS process management remains
+The implemented [local Table profile](../apps/transit-cli/docs/server.md) composes
+disk Ursula with S3 cold storage, authority, maintenance, delivery, separate query
+workers and a credential-free native gateway. Its core proof exercises explicit
+initialization, independent console queries, fresh ownership after process loss,
+restart exhaustion and joined shutdown; additional fault qualification remains
+in progress. Native OS process management remains
 separate from Station supervision and durable PID ownership; any missing local
 runtime reconciliation contract must be qualified before automatic recovery is
-claimed. The existing launchers remain the implemented development entry points.
+claimed. Existing launchers retain their independent development entry points.
 The implemented [console](../apps/transit-cli/docs/console.md) connects through
 signed, currently authorized operations, with explicit endpoint/trust selection
 and opt-in exact recovery files. Its qualification is recorded separately from

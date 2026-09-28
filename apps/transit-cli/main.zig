@@ -28,6 +28,8 @@ pub fn main(init: std.process.Init) !void {
 }
 fn dispatch(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len > 1 and std.mem.eql(u8, args[1], "__transit_child_v1")) return @import("server/Process.zig").trampoline(init, args);
+    if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
     if (args.len == 3 and std.mem.eql(u8, args[1], "query-v2")) return @import("Unified.zig").run(init, args[2]);
     if (args.len != 3 or !std.mem.eql(u8, args[1], "query")) {
         const options = try @import("Options.zig").parse(args[1..]);
@@ -35,7 +37,7 @@ fn dispatch(init: std.process.Init) !void {
         return switch (options.command) {
             .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit development; CLI contract 1\n"),
             .console => @import("Console.zig").run(init, options),
-            .server => error.ServerNotImplemented,
+            .server => @import("server/Server.zig").run(init, options),
             .help => unreachable,
         };
     }

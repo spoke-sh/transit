@@ -7,8 +7,10 @@ signed query shells. Existing `rey-cli` administration commands remain separate.
 [server/console contract](../../contracts/TRANSIT_CLI_V1.md). Shared parser and
 cursor assistance lives in Fuze/query packages. The [console guide](docs/console.md)
 covers versioned configuration, terminal editing, trust and exact recovery.
-The local `server` command remains implementation work; existing query entry
-points below keep their qualified contracts during that transition.
+The [local server guide](docs/server.md) describes the implemented supervisor,
+private native gateway and selected dependency/credential profile. Its lifecycle
+qualification is in progress; existing query entry points below keep their
+qualified contracts during that transition.
 
 `transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
 [unified shell guide](docs/unified-query.md) covers source declarations, finite

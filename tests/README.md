@@ -3182,3 +3182,29 @@ retains twelve rows across two segments, 64 resident authority pages and
 resident pages and 26,816,531 cold bytes. Both cap Ursula hot storage at 8 MiB.
 These focused costs do not change M10's hosted CI budget. The M24 server/lifecycle
 proof remains separate qualification work.
+
+## M24 local server qualification
+
+`just test::server` passes the Linux `local_table_v1` core lifecycle proof in
+**28.42 seconds**, excluding compilation. The actual supervisor launches native
+MinIO and disk Ursula, authority, maintenance, source, requester, courier and a
+separate gateway with an empty `PATH`. A separately launched console discovers
+the empty declared Table and reads a verified `COUNT(*) = 0` result through that
+gateway. No example data, shell, Python launcher or source checkout participates
+in the running service neighborhood; Python and Docker extract/setup the owned
+test fixture only.
+
+The proof rejects an ordinary start without installation state, concurrent
+managers, repeated initialization, missing WAL/cold directories and a conflicting
+listener. It preserves the same accepted provisioning identities through normal
+shutdown, manager SIGKILL and automatic source/node/store replacement. A fourth
+role failure exhausts the invocation's three-restart budget. A Linux test
+subreaper verifies joined children after manager loss; the implementation itself
+uses kernel parent-death handling, fresh worker keys and exact native ownership.
+
+Early attempts exposed a directory `fsync` descriptor issue and HTTP target use
+after request-body parsing invalidated its memory. Both were fixed before the
+passing run. The fixture now selects an explicit query namespace, waits for
+verified completion and sets socket reuse when testing an occupied listener.
+Interrupted bootstrap, provider rollback, gateway capacity, full storage and the
+M24 committed-HEAD clean gate remain separate qualification work.

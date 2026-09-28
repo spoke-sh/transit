@@ -50,6 +50,13 @@ happens before provisioning. M25 owns distributing these artifacts; a shell,
 Python, `just`, Process Compose and a source checkout are not runtime dependencies
 of the server. Ursula remains the pinned upstream binary.
 
+The selected local profile also runs an explicitly supplied native MinIO binary:
+pinned Ursula provides S3 cold storage, with no filesystem cold backend. Keeping
+the provider separate preserves its bounded hot/cache profile without introducing
+a new storage engine into the CLI. M25 must distribute this dependency and its
+license alongside the selected Transit artifacts. Role limits and exact artifact
+versions belong in the [server guide](../apps/transit-cli/docs/server.md).
+
 `--initialize` deliberately creates a new installation, refusing an existing
 initialized directory. Ordinary startup requires the recorded installation and
 storage. There is no automatic initialization, destructive reset, storage
@@ -76,6 +83,12 @@ Reissue foreign resource grants separately from associations. After manager loss
 identify and reap surviving owned children before activation; never attach to
 an unrelated PID based only on its number. A child starting or returning a health
 response grants no native authority. Provider snapshot reuse is outside v1.
+
+The Linux implementation prevents surviving service activations with kernel
+parent-death SIGKILL and a post-arming parent check before exec. Each child has
+its own process group. After manager loss, a new manager still requires the
+installation lock and free listeners; it never attaches to an old OS process.
+This selected local-placement mechanism does not imply a portable runtime adapter.
 
 Normal stop preserves history and joins all children. Log backpressure cannot
 stall ownership or shutdown. Publish each role's maximum request size, resident
