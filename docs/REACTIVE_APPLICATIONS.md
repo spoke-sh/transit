@@ -1,6 +1,6 @@
 # Declarative reactive applications
 
-Status: proposed [M23](roadmap/M23.md) architecture, reviewed through
+Status: [M23](roadmap/M23.md) implementation in progress, reviewed through
 [board-grammar D1](design/board-grammar/D1.md). No new SQL syntax, public operation,
 generator, migration runner or interface runtime is implemented by this document.
 [Serving](SERVING.md), [reactive APIs](REACTIVE_API.md), [reactive interfaces](REACTIVE.md)
@@ -190,3 +190,10 @@ generated application with compatible publication plus one explicitly supported
 data evolution. This document supplies design intent, not a new wire contract.
 Before wiring languages, define versioned neutral contracts and independent
 fixtures under `contracts/`, generated from their actual owning public types.
+
+The first implemented boundary is [application v1](../contracts/APPLICATION_V1.md):
+one bounded SQL/JSON model and a conditional Station publication owner. Operator
+policy is outside editable presentation; each immutable body and exact proposal
+has retained evidence. Publication and active-head visibility share an ordinary
+four-mutation turn. The offline compiler and owner tests do not yet qualify
+administrative ingress, generated browser clients or physical migration recovery.

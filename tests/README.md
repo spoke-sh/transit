@@ -2840,3 +2840,11 @@ canonical decimal strings. Package tests (also in `just test::unit`) exercise
 allocator failures, source-buffer ownership, incompatible references and budgets.
 These prove the offline boundary only; publication, operator admission, real
 browser composition and migration/placement recovery remain outstanding.
+
+Application publication owner tests add two competing operators, exact accepted
+proposal recovery after owner reconstruction, atomic four-mutation activation,
+revocation between chunks, process-origin rejection, invalid body/read failures,
+explicit cleanup, non-owned-record abandonment rejection and seventeen retained
+revisions beyond the two-body staging budget. `tests/application_contract.py`
+checks independently encoded AP1 layouts in the ordinary root unit task.
+These deterministic tests do not substitute for physical restart/ingress proofs.

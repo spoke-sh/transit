@@ -1,0 +1,224 @@
+const std = @import("std");
+const t = std.testing;
+const root = @import("root.zig");
+const p = root.protocol;
+const s = root.station;
+const Pub = root.Publication;
+const Turn = s.GrowingTurn;
+const Store = struct {
+    entries: std.AutoHashMap(p.Value, p.Value) = .init(t.allocator),
+    position: u64 = 0,
+    reads: usize = 0,
+    fail_at: ?usize = null,
+    fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) anyerror!?p.Value {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        self.reads += 1;
+        if (self.fail_at == self.reads) return error.Unavailable;
+        return self.entries.get(key);
+    }
+    fn turn(self: *Store, principal: u64) !Turn {
+        self.position += 1;
+        return Turn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("proposal"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = 6, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = 0, .deadline_ms = 100000 }, .{ .context = self, .read = read });
+    }
+    fn commit(self: *Store, turn_value: *Turn) !void {
+        try turn_value.validate();
+        for (turn_value.decision.mutations) |slot| if (slot) |mutation| {
+            if (mutation.value) |value| try self.entries.put(mutation.key, value) else _ = self.entries.remove(mutation.key);
+        };
+    }
+    fn setup(self: *Store) !void {
+        const owner = configured();
+        var boot = try self.turn(33);
+        try owner.initialize(&boot);
+        try self.commit(&boot);
+        for ([_]u64{ 44, 45 }) |who| {
+            var grant = try self.turn(33);
+            try owner.setPolicy(&grant, who, .{}, .{ .revision = .{ .value = 1 }, .publish = true });
+            try self.commit(&grant);
+        }
+    }
+    fn step(self: *Store, who: u64, proposal: Pub.Proposal, body: []const u8) !Pub.Phase {
+        var input = try self.turn(who);
+        const phase = try configured().step(t.allocator, &input, proposal, body);
+        try self.commit(&input);
+        return phase;
+    }
+    fn finish(self: *Store, who: u64, proposal: Pub.Proposal, body: []const u8) !void {
+        var steps: usize = 0;
+        while (try self.step(who, proposal, body) == .staging) {
+            steps += 1;
+            try t.expect(steps <= proposal.spec.chunks() + 2);
+        }
+    }
+};
+fn configured() Pub {
+    return .{ .configuration = .{ .application = 9, .namespace = .{ .value = 19 }, .realm = 49, .administrator = 33, .name_digest = Pub.nameDigest("board") } };
+}
+fn canonicalBody(revision: u64, dense: bool) ![]u8 {
+    var parsed = try root.Sql.parse(t.allocator, @embedFile("fixtures/board.sql"));
+    defer parsed.deinit();
+    parsed.definition.revision.value = revision;
+    if (dense) parsed.definition.theme = "dense";
+    var bytes: [root.Model.max_program_bytes]u8 = undefined;
+    return t.allocator.dupe(u8, try root.Api.canonical(parsed.definition, &bytes));
+}
+fn makeProposal(operation: u64, record: u64, previous: ?Pub.Head, bytes: []const u8) !Pub.Proposal {
+    const revision = if (previous) |head| head.revision.value else 0;
+    return .{ .operation = .{ .value = operation }, .record = .{ .value = record }, .expected = .{ .value = revision }, .expected_digest = if (previous) |head| head.spec.digest else @splat(0), .revision = .{ .value = revision + 1 }, .spec = try s.Publication.Digest.of(Pub.format, bytes) };
+}
+fn mutationCount(turn: *const Turn) usize {
+    var count: usize = 0;
+    for (turn.decision.mutations) |slot| if (slot != null) {
+        count += 1;
+    };
+    return count;
+}
+test "independent AP1 layouts preserve full-width identities and reject unknown record data" {
+    const Fixture = struct { version: u8, proposal: Pub.Proposal, proposal_hex: p.Value, receipt: Pub.Receipt, receipt_hex: p.Value, head: Pub.Head, head_hex: p.Value, key_hex: p.Value };
+    const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/publication-v1.json"));
+    defer fixture.deinit();
+    const value = fixture.value;
+    try t.expectEqual(@as(u8, 1), value.version);
+    inline for (.{ .{ "proposal", "proposal_hex", 'r', Pub.Proposal }, .{ "receipt", "receipt_hex", 'o', Pub.Receipt }, .{ "head", "head_hex", 'h', Pub.Head } }) |item| {
+        const expected = @field(value, item[1]);
+        try t.expect(expected.eql(try root.Records.encode(item[2], @field(value, item[0]))));
+        try t.expectEqualDeep(@field(value, item[0]), try root.Records.decode(item[3], item[2], expected));
+        var extra = expected;
+        extra.data[extra.len] = 0;
+        extra.len += 1;
+        try t.expectError(error.InvalidApplicationRecord, root.Records.decode(item[3], item[2], extra));
+        extra = expected;
+        extra.data[2] = '2';
+        try t.expectError(error.InvalidApplicationRecord, root.Records.decode(item[3], item[2], extra));
+    }
+    try t.expect(value.key_hex.eql(root.Records.key(9, 'o', 44, std.math.maxInt(u64))));
+}
+test "publication stages bounded chunks then atomically activates body head and attributed receipt" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const bytes = try canonicalBody(1, false);
+    defer t.allocator.free(bytes);
+    const request = try makeProposal(1, 100, null, bytes);
+    try t.expectEqual(Pub.Phase.staging, try store.step(44, request, bytes));
+    for (0..request.spec.chunks()) |_| {
+        var input = try store.turn(44);
+        try t.expectEqual(Pub.Phase.staging, try configured().step(t.allocator, &input, request, bytes));
+        try t.expectEqual(@as(usize, 2), mutationCount(&input));
+        try store.commit(&input);
+        try t.expect(try configured().head(&input) == null);
+    }
+    var final = try store.turn(44);
+    try t.expectEqual(Pub.Phase.applied, try configured().step(t.allocator, &final, request, bytes));
+    try t.expectEqual(@as(usize, 4), mutationCount(&final));
+    // An uncommitted activation is invisible to a fresh read/owner.
+    var earlier = try store.turn(44);
+    try t.expect(try configured().head(&earlier) == null);
+    try store.commit(&final); // discard the reply; reconstruct owner and input
+    var retry = try store.turn(44);
+    try t.expectEqual(Pub.Phase.applied, try configured().step(t.allocator, &retry, request, bytes));
+    try t.expectEqual(@as(usize, 0), mutationCount(&retry));
+    const head = (try configured().head(&retry)).?;
+    try t.expectEqual(@as(u64, 44), head.principal);
+    try t.expectEqual(final.delivery.input.position, head.input);
+    const reference = configured().reference(7, head);
+    const descriptor = try reference.publication().inspect(&retry, reference.record);
+    try t.expectEqual(s.Publication.State.published, descriptor.state);
+    try t.expectEqual(final.delivery.input.position, descriptor.input);
+    const receipt = (try configured().receipt(&retry, 44, request.operation)).?;
+    try t.expectEqual(Pub.Phase.applied, receipt.phase);
+    try t.expectEqual(head.input, receipt.input);
+    var altered = request;
+    altered.record.value += 1;
+    try t.expectError(error.ApplicationIdentityConflict, configured().step(t.allocator, &retry, altered, bytes));
+    try t.expectError(error.ApplicationAlreadyApplied, configured().abandon(&retry, request.operation));
+}
+test "competing proposals retain conflicts and cannot abandon another operator's body" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const bytes = try canonicalBody(1, false);
+    defer t.allocator.free(bytes);
+    const other = try canonicalBody(1, true);
+    defer t.allocator.free(other);
+    const first = try makeProposal(1, 100, null, bytes);
+    const second = try makeProposal(1, 101, null, other);
+    _ = try store.step(44, first, bytes);
+    _ = try store.step(45, second, other);
+    try store.finish(44, first, bytes);
+    try t.expectEqual(Pub.Phase.conflict, try store.step(45, second, other));
+    var close = try store.turn(45);
+    try configured().abandon(&close, second.operation);
+    try store.commit(&close);
+    var collect = try store.turn(45);
+    try t.expect(try configured().collect(&collect, second.operation));
+    try store.commit(&collect);
+    // A rejected stale proposal naming the winner never acquires its record.
+    const spoof = try makeProposal(2, first.record.value, null, bytes);
+    try t.expectEqual(Pub.Phase.conflict, try store.step(45, spoof, bytes));
+    var denied_close = try store.turn(45);
+    try configured().abandon(&denied_close, spoof.operation);
+    try store.commit(&denied_close);
+    const winner = try (s.Publication{ .resource = 7, .namespace = 19 }).inspect(&denied_close, first.record.value);
+    try t.expectEqual(s.Publication.State.published, winner.state);
+    try t.expectEqual(@as(u64, 1), (try configured().head(&denied_close)).?.revision.value);
+}
+test "current operator policy revokes staged and duplicate operations without changing history" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const bytes = try canonicalBody(1, false);
+    defer t.allocator.free(bytes);
+    const request = try makeProposal(1, 100, null, bytes);
+    _ = try store.step(44, request, bytes);
+    var revoke = try store.turn(33);
+    try configured().setPolicy(&revoke, 44, .{ .value = 1 }, .{ .revision = .{ .value = 2 }, .publish = false });
+    try store.commit(&revoke);
+    var denied = try store.turn(44);
+    try t.expectError(error.ApplicationDenied, configured().step(t.allocator, &denied, request, bytes));
+    try t.expectEqual(@as(usize, 0), mutationCount(&denied));
+    try t.expectError(error.ApplicationDenied, configured().setPolicy(&denied, 44, .{ .value = 2 }, .{ .revision = .{ .value = 3 }, .publish = true }));
+    denied.delivery.input.origin = .{ .process = .{ .pid = 33, .turn = 1, .output = 1 } };
+    try t.expectError(error.ApplicationDenied, configured().step(t.allocator, &denied, request, bytes));
+    var restore = try store.turn(33);
+    try configured().setPolicy(&restore, 44, .{ .value = 2 }, .{ .revision = .{ .value = 3 }, .publish = true });
+    try store.commit(&restore);
+    try store.finish(44, request, bytes);
+}
+test "invalid body and failed reads cannot leak a partial application decision" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    const bytes = try canonicalBody(1, false);
+    defer t.allocator.free(bytes);
+    const request = try makeProposal(1, 100, null, bytes);
+    const malformed = "CREATE INTERFACE anything;";
+    const invalid = try makeProposal(1, 100, null, malformed);
+    var input = try store.turn(44);
+    if (configured().step(t.allocator, &input, invalid, malformed)) |_| return error.AcceptedInvalidProgram else |_| {}
+    try t.expectEqual(@as(usize, 0), mutationCount(&input));
+    try t.expectError(error.ApplicationDigestMismatch, configured().step(t.allocator, &input, request, malformed));
+    store.fail_at = store.reads + 3;
+    try t.expectError(error.Unavailable, configured().step(t.allocator, &input, request, bytes));
+    try t.expectEqual(@as(usize, 0), mutationCount(&input));
+    try t.expectError(error.Unavailable, store.commit(&input));
+}
+test "retained interface revisions grow beyond active staging quota" {
+    var store: Store = .{};
+    defer store.entries.deinit();
+    try store.setup();
+    var previous: ?Pub.Head = null;
+    for (1..18) |revision| {
+        const bytes = try canonicalBody(revision, revision % 2 == 0);
+        defer t.allocator.free(bytes);
+        const request = try makeProposal(revision, 100 + revision, previous, bytes);
+        try store.finish(44, request, bytes);
+        var read = try store.turn(44);
+        previous = (try configured().head(&read)).?;
+        try t.expectEqual(revision, previous.?.revision.value);
+        const quota = try (s.Publication{ .resource = 7, .namespace = 19 }).budget(&read);
+        try t.expectEqual(@as(u32, 0), quota.records);
+    }
+    var read = try store.turn(44);
+    try t.expectEqual(Pub.Phase.applied, (try configured().receipt(&read, 44, .{ .value = 1 })).?.phase);
+}

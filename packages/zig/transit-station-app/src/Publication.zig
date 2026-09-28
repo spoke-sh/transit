@@ -1,0 +1,164 @@
+//! Conditional interface visibility on ordinary single-resource Station turns.
+//! The host supplies an authorized immutable body; it is validated again here.
+const std = @import("std");
+const root = @import("root.zig");
+const p = root.protocol;
+const s = root.station;
+const m = root.Model;
+const c = root.Records;
+const Pub = s.Publication;
+const Turn = s.GrowingTurn;
+const Self = @This();
+pub const format: u32 = 0x41505031;
+pub const limits: Pub.Limits = .{ .record_bytes = m.max_program_bytes, .staging_bytes = 2 * m.max_program_bytes, .staging_records = 2 };
+pub const Configuration = struct { application: u64, namespace: m.Wide, realm: u64, administrator: u64, name_digest: [32]u8 };
+pub const Policy = struct { revision: m.Wide, publish: bool };
+pub const Proposal = struct {
+    operation: m.Wide,
+    record: m.Wide,
+    expected: m.Wide,
+    expected_digest: [32]u8,
+    revision: m.Wide,
+    spec: Pub.Spec,
+};
+pub const Phase = enum(u8) { staging = 1, applied = 2, conflict = 3, abandoned = 4 };
+pub const Receipt = struct { proposal: Proposal, phase: Phase, input: u64, owns_record: bool };
+pub const Head = struct { revision: m.Wide, record: m.Wide, spec: Pub.Spec, principal: u64, operation: m.Wide, input: u64 };
+configuration: Configuration,
+
+pub fn nameDigest(name: []const u8) [32]u8 {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(name, &digest, .{});
+    return digest;
+}
+fn key(self: Self, tag: u8, who: u64, operation: u64) p.Value {
+    return c.key(self.configuration.application, tag, who, operation);
+}
+fn principal(turn: *const Turn) !u64 {
+    if (turn.delivery.input.origin != .external) return error.ApplicationDenied;
+    return turn.delivery.input.origin.external.principal;
+}
+pub fn initialize(self: Self, turn: *Turn) !void {
+    const config = self.configuration;
+    if (config.application == 0 or config.application > p.max_counter or config.realm == 0 or config.realm != turn.delivery.realm or config.namespace.value == 0 or config.administrator == 0 or config.administrator > p.max_counter) return error.InvalidApplicationConfiguration;
+    if (try principal(turn) != config.administrator) return error.ApplicationDenied;
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const encoded = try c.encode('c', config);
+    if (try turn.read(self.key('c', 0, 0))) |previous| {
+        if (!previous.eql(encoded)) return error.ApplicationConfigurationChanged;
+    } else {
+        // Never adopt a namespace whose contents were created by another owner.
+        if (try turn.read(Pub.key(config.namespace.value, 'b', 0, 0)) != null) return error.PublicationUploadNamespaceInUse;
+        _ = try Pub.create(turn, config.namespace.value, limits);
+        try turn.write(self.key('c', 0, 0), encoded);
+    }
+}
+fn check(self: Self, turn: *Turn) !void {
+    if (turn.delivery.realm != self.configuration.realm) return error.ApplicationConfigurationChanged;
+    const stored = (try turn.read(self.key('c', 0, 0))) orelse return error.ApplicationNotInitialized;
+    if (!stored.eql(try c.encode('c', self.configuration))) return error.ApplicationConfigurationChanged;
+}
+pub fn policy(self: Self, reader: anytype, who: u64) !?Policy {
+    return if (try reader.read(self.key('p', who, 0))) |value| try c.decode(Policy, 'p', value) else null;
+}
+pub fn setPolicy(self: Self, turn: *Turn, who: u64, expected: m.Wide, next: Policy) !void {
+    try self.check(turn);
+    if (try principal(turn) != self.configuration.administrator) return error.ApplicationDenied;
+    if (who == 0 or who > p.max_counter or next.revision.value != try std.math.add(u64, expected.value, 1)) return error.InvalidApplicationPolicy;
+    const previous = try self.policy(turn, who);
+    if ((if (previous) |value| value.revision.value else 0) != expected.value) return error.ApplicationPolicyConflict;
+    try turn.write(self.key('p', who, 0), try c.encode('p', next));
+}
+fn authorize(self: Self, turn: *Turn) !u64 {
+    try self.check(turn);
+    const who = try principal(turn);
+    const rights = (try self.policy(turn, who)) orelse return error.ApplicationDenied;
+    if (!rights.publish) return error.ApplicationDenied;
+    return who;
+}
+pub fn head(self: Self, reader: anytype) !?Head {
+    return if (try reader.read(self.key('h', 0, 0))) |value| try c.decode(Head, 'h', value) else null;
+}
+pub fn receipt(self: Self, reader: anytype, who: u64, operation: m.Wide) !?Receipt {
+    return if (try reader.read(self.key('o', who, operation.value))) |value| try c.decode(Receipt, 'o', value) else null;
+}
+pub fn reference(self: Self, resource: u64, value: Head) s.PublicationReference {
+    return .{ .resource = resource, .namespace = self.configuration.namespace.value, .record = value.record.value, .spec = value.spec };
+}
+fn publication(self: Self, turn: *Turn) Pub {
+    return .{ .resource = turn.view.resource, .namespace = self.configuration.namespace.value };
+}
+fn baseMatches(previous: ?Head, proposal: Proposal) bool {
+    const revision = if (previous) |value| value.revision.value else 0;
+    const digest = if (previous) |value| value.spec.digest else @as([32]u8, @splat(0));
+    return revision == proposal.expected.value and std.mem.eql(u8, &digest, &proposal.expected_digest);
+}
+/// One bounded staging operation, or atomic publish/head/receipt (four mutations).
+/// A transport retry recovers this exact proposal; it cannot change the body/base.
+pub fn step(self: Self, allocator: std.mem.Allocator, turn: *Turn, proposal: Proposal, body: []const u8) !Phase {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const who = try self.authorize(turn);
+    if (proposal.operation.value == 0 or proposal.record.value == 0 or proposal.revision.value != try std.math.add(u64, proposal.expected.value, 1) or proposal.spec.format != format or body.len > m.max_program_bytes) return error.InvalidApplicationProposal;
+    if (!std.meta.eql(proposal.spec, try Pub.Digest.of(format, body))) return error.ApplicationDigestMismatch;
+    const old = try self.receipt(turn, who, proposal.operation);
+    if (old) |receipt_value| {
+        if (!std.meta.eql(proposal, receipt_value.proposal)) return error.ApplicationIdentityConflict;
+        if (receipt_value.phase != .staging) return receipt_value.phase;
+    }
+    // Reject complete invalid programs before even reserving staging quota.
+    var program = try root.Sql.parse(allocator, body);
+    defer program.deinit();
+    var canonical: [m.max_program_bytes]u8 = undefined;
+    if (!std.mem.eql(u8, body, try root.Api.canonical(program.definition, &canonical))) return error.NoncanonicalApplicationProgram;
+    if (program.definition.realm != self.configuration.realm or program.definition.revision.value != proposal.revision.value or !std.mem.eql(u8, &nameDigest(program.definition.name), &self.configuration.name_digest)) return error.ApplicationDefinitionMismatch;
+    const pub_record = self.publication(turn);
+    if (!baseMatches(try self.head(turn), proposal)) {
+        // A conflict is durable evidence, not implicit expiry/cleanup of its body.
+        try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .conflict, .input = turn.delivery.input.position, .owns_record = if (old) |value| value.owns_record else false }));
+        return .conflict;
+    }
+    if (old == null) {
+        // Each body identity has exactly one attributable owner/proposal.
+        if (try turn.read(Pub.key(self.configuration.namespace.value, 'r', proposal.record.value, 0)) != null) return error.ApplicationRecordOccupied;
+        _ = try pub_record.begin(turn, proposal.record.value, proposal.spec);
+        try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .staging, .input = turn.delivery.input.position, .owns_record = true }));
+        return .staging;
+    }
+    const descriptor = try pub_record.inspect(turn, proposal.record.value);
+    if (!std.meta.eql(descriptor.spec, proposal.spec) or descriptor.state != .staging) return error.ApplicationPublicationChanged;
+    if (descriptor.written < descriptor.spec.chunks()) {
+        const index = descriptor.written;
+        const size = try descriptor.spec.size(index);
+        _ = try pub_record.append(turn, proposal.record.value, index, body[@as(usize, index) * Pub.chunk_bytes ..][0..size]);
+        return .staging;
+    }
+    _ = try pub_record.publish(turn, proposal.record.value);
+    try turn.write(self.key('h', 0, 0), try c.encode('h', Head{ .revision = proposal.revision, .record = proposal.record, .spec = proposal.spec, .principal = who, .operation = proposal.operation, .input = turn.delivery.input.position }));
+    try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .applied, .input = turn.delivery.input.position, .owns_record = true }));
+    return .applied;
+}
+
+/// Explicitly close a staging/conflicted upload; accepted active revisions cannot
+/// be abandoned. Cleanup remains a separate, bounded and authorized operation.
+pub fn abandon(self: Self, turn: *Turn, operation: m.Wide) !void {
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const who = try self.authorize(turn);
+    var value = (try self.receipt(turn, who, operation)) orelse return error.ApplicationOperationNotFound;
+    if (value.phase == .applied) return error.ApplicationAlreadyApplied;
+    if (value.phase == .abandoned) return;
+    const pub_record = self.publication(turn);
+    if (value.owns_record) _ = try pub_record.abandon(turn, value.proposal.record.value);
+    value.phase = .abandoned;
+    try turn.write(self.key('o', who, operation.value), try c.encode('o', value));
+}
+
+pub fn collect(self: Self, turn: *Turn, operation: m.Wide) !bool {
+    const who = try self.authorize(turn);
+    const value = (try self.receipt(turn, who, operation)) orelse return error.ApplicationOperationNotFound;
+    if (value.phase != .abandoned) return error.ApplicationNotAbandoned;
+    if (!value.owns_record) return true;
+    return self.publication(turn).collect(turn, value.proposal.record.value);
+}

@@ -80,6 +80,11 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    const application_contract = b.addSystemCommand(&.{ "python3", "-B" });
+    application_contract.addFileArg(b.path("tests/application_contract.py"));
+    application_contract.has_side_effects = true;
+    application_contract.stdio = .inherit;
+    test_step.dependOn(&application_contract.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = application.module("transit_station_app") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving_http.module("transit_serving_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);

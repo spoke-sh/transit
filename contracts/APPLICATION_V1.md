@@ -1,6 +1,6 @@
 # Declarative application v1
 
-M23 implementation contract. The model, parser and fixtures are being implemented;
+M23 implementation contract. The model, parser and conditional publication owner are implemented;
 publication, browser and placement qualification remain open until recorded in
 the [milestone](../docs/roadmap/M23.md). This contract grants no execution rights.
 
@@ -41,6 +41,52 @@ body is a different proposal. There is no multi-resource atomic publication.
 Each source read and operation rechecks current authority independently of the
 interface revision. An old compatible browser may keep its pinned generation;
 new binding/schema generations fence late results and preserve pending recovery.
+
+The implemented owner uses canonical SQL bytes, application format `0x41505031`,
+and separately provisioned immutable configuration `(application, namespace,
+realm, administrator, SHA-256(interface name))`. Each operator needs a current
+application publication policy as well as native admission/read grants.
+Configuration and policy changes do not come from interface SQL. Every staging,
+activation, duplicate and abandonment checks current policy and authenticated
+external origin. Metadata accessors require an already authorized public reader;
+they are not an independent public ingress.
+
+One proposal freezes `(operation, record, expected revision, expected body digest,
+next revision, publication spec)` under its application/operator identity. The
+next revision is exactly base + 1 without overflow. Record identity is independent
+of revision so competing drafts can stage distinct immutable bodies. A receipt
+remembers whether it owns that record; a rejected proposal cannot abandon a
+different operator's upload by naming its record. Duplicate terminal proposals
+recover their original disposition under current rights.
+
+Staging reserves at most two bodies and 128 KiB per configured namespace. One step
+appends one 256-byte chunk. Final activation uses exactly four existing mutations:
+publication descriptor, released staging budget, active head and attributed receipt.
+Uncommitted partial decisions are discarded. A changed base produces a durable
+conflict; it does not delete a staged body or release its quota implicitly.
+Explicit abandonment and bounded collection close unused uploads, retaining
+terminal identities. A revoked operator needs explicitly restored rights to
+finish that cleanup. Published revisions and receipts have no total-count array
+and no implicit expiry.
+
+### Fixed publication records
+
+Keys are `00 41`, application:u64be, tag:u8, principal:u64be, operation:u64be.
+Configuration (`c`), active head (`h`) and policy (`p`) use zero operation;
+configuration/head also use zero principal. Receipts (`o`) use the exact operator
+and operation. Values start `AP1` plus their record tag. Fields follow public type
+declaration order; integers are little-endian, booleans are one byte 0/1, enums
+one byte, arrays their exact elements and structs their fields without padding.
+Full-width IDs/revisions are eight-byte integers here and decimal strings in JSON.
+Unknown headers, enum tags, noncanonical booleans and trailing bytes reject.
+`Proposal` uses tag `r`; `Receipt` adds phase (staging=1, applied=2, conflict=3,
+abandoned=4), native input position and the record-ownership boolean. `Head` names
+revision, record, spec, operator, operation and activation input. The owning public
+types generate the structural schema; independent Python fixtures pin the layouts.
+
+These owner tests qualify deterministic composition, not signed HTTP ingress or
+physical restart. Browser generation switching and transport recovery remain
+separate gates below.
 
 The selected data evolution is a versioned work-item encoding on the application's
 existing int64 Table. The application records a write pause, converts one bounded
