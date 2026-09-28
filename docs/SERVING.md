@@ -250,3 +250,20 @@ identity, budget and result seams for Flight while qualifying its own inbound
 gRPC/TLS, standard metadata and client compatibility. ADBC remains a client API,
 not a wire protocol. None of these steps moves Fuze or application handlers
 into the authority node.
+
+## Finite observation and request budgets
+
+A restarted observer captures the accepted prefix it must reconcile once. Waiting
+for an entire mailbox to become empty is unsuitable for a live service: renewals
+and other callers can keep it nonempty indefinitely. Keep at most one frozen
+observer command outstanding, separate receipt polling from the clock sampling
+interval, and prioritize clock progress over bounded maintenance. Expired session
+slots require explicit conditional closure; a lease alone does not reclaim the
+active table or delete retained history.
+
+Qualify caller, gateway and upstream deadlines together. A browser deadline
+shorter than a valid server request budget can repeatedly discard successful
+finite pages and prevent complete-result verification. Keep each budget finite,
+measure complete reads under live control traffic, and preserve the result
+identity across an interrupted read. Increasing a transport deadline never
+extends a resource, ticket, session or accepted-work lifetime.
