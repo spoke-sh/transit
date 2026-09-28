@@ -35,6 +35,7 @@
           pkgs = pkgsFor system;
           zig = zig-overlay.packages.${system}.master;
           kubectl-transit = pkgs.callPackage ./nix/kubectl-transit.nix { inherit zig; };
+          transit = pkgs.callPackage ./nix/transit.nix { inherit zig; };
           reference = pkgs.callPackage ./nix/reference-tools.nix {
             pins = builtins.fromJSON (builtins.readFile ./deploy/reference/versions.json);
           };
@@ -45,19 +46,31 @@
           inherit (reference) kind kubectl-ate;
           inherit (ursula-overlay.packages.${system}) ursula ursulactl;
           inherit zig kubectl-transit;
+          inherit transit;
+          transit-local = pkgs.callPackage ./nix/transit-local.nix {
+            inherit transit;
+            inherit (ursula-overlay.packages.${system}) ursula;
+          };
           vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
         }
       );
     in
     {
-      packages = forAllSystems (system: {
-        inherit (toolchains.${system})
-          kind
-          kubectl-ate
-          kubectl-transit
-          sql-tools
-          ;
-      });
+      packages = forAllSystems (
+        system:
+        {
+          inherit (toolchains.${system})
+            kind
+            kubectl-ate
+            kubectl-transit
+            sql-tools
+            transit
+            ;
+        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          inherit (toolchains.${system}) transit-local;
+        }
+      );
 
       devShells = forAllSystems (
         system:

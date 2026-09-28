@@ -19,6 +19,36 @@ ordinary hosted lanes. The qualified local proxy currently reports nginx 1.30.5.
 
 ## Current setup
 
+Use the [development shell](#entering-the-development-shell) for source work or
+the following packages for downstream applications.
+
+## Transit CLI packages
+
+`nix build .#transit` builds the native `transit`, `transit-node` and
+`transit-query-host` executables together. Compilation uses fixed-output source
+downloads for the three external Zig dependencies, verifies their Zig package
+identities and builds with an offline system package directory. No ambient Zig
+package cache or source checkout artifact is required.
+
+On Linux x86_64, `nix build .#transit-local` adds the pinned Ursula and MinIO
+providers to the closure. It exposes the CLI in `bin/` and a JSON executable map
+in `share/transit/local-executables.json`; downstream flakes can also use the
+`transit`, `ursula` and `minio` passthru packages to construct explicit server
+configuration. It does not initialize storage or start processes during a build
+or shell entry. Run `transit serve --config PATH --initialize` once, then omit
+`--initialize` to resume; see the [server guide](../apps/transit-cli/docs/server.md).
+
+MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
+existing fixture's release because the historical binary/image distribution is
+unavailable. This package selects the trusted local development profile, not a
+production object-storage release. No Docker daemon is required. Full release
+distribution and compatible runtime upgrades remain separate work.
+
+The CLI is exported for the four declared Unix systems; the complete local
+bundle selects Linux x86_64. Evaluation does not qualify the other platforms.
+
+## Entering the development shell
+
 Use Nix with `nix-command` and `flakes` enabled. Run commands from the repository
 root:
 

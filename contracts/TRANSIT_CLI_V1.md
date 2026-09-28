@@ -7,7 +7,7 @@ which commands actually exist. Native placement initially targets Linux x86_64.
 ## Command and compatibility boundary
 
 `transit server --config PATH [--initialize]` runs one local installation in the
-foreground. `transit console --config PATH [--format table|json]` opens an
+foreground; `serve` is an equivalent alias. `transit console --config PATH [--format table|json]` opens an
 explicit-submit terminal session. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
@@ -15,8 +15,11 @@ Version output identifies the executable and command-contract version; it is
 not a promise about remote capabilities or a release tag.
 
 Configuration is a strict versioned JSON file, at most 64 KiB. Explicit command
-options override corresponding file options; there is no implicit environment,
-current-directory, home-directory, launcher-state or credential discovery.
+options override corresponding file options. When console `--config` is omitted,
+the explicitly exported `TRANSIT_CONSOLE_CONFIG` supplies its path; an unset or
+empty value still requires `--config`. This variable never selects server
+configuration. There is no current-directory, home-directory, launcher-state or
+credential discovery, and no other environment configuration overlay.
 Paths resolve relative to the configuration file. Private keys are referenced by
 files and never accepted as command arguments. Diagnostics name the failing
 field or role without printing configuration, request bodies or credentials.
