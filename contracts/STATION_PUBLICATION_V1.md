@@ -107,9 +107,12 @@ record and format are nonzero. Unknown magic, trailing bytes and truncation reje
 This encoding introduces no grant, lifetime extension or application acceptance.
 
 `PublicationReference.read` copies a finite record into explicitly bounded caller
-storage. It reopens current signed resource authority for every 256-byte chunk,
+storage. It reopens current signed resource authority for every bounded group,
 requires the same published spec and carries only the verified ordinal/hash chain
-between cuts. It rechecks current availability after the final chunk, including
+between cuts. Readers with `resource_read_batch` may acquire the descriptor and
+at most seven 256-byte chunks in one authorized current read (the existing
+eight-key bound). Other readers acquire one chunk at a time. The batch is
+acquisition storage, never an authorization cache or a retained source version. It rechecks current availability after the final chunk, including
 empty records. A failure invalidates the entire copied output. Applications still
 own format validation, smaller size limits, original-call identity and any extra
 policy/lifecycle checks. Historical `Publication` cursors retain their original

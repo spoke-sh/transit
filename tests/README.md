@@ -2745,3 +2745,14 @@ with tests for missing-key slots, stale revisions, signatures, scope, read-only
 revocation, deadlines, retirement and the final authority-tail race. Serving's
 configuration/policy/session checks use fresh batches, including their final
 checks. This unit evidence does not close browser or deployment qualification.
+
+Publication reference materialization now uses capability-gated groups of one
+current descriptor and at most seven chunks, with the original ordered digest
+and a final fresh authorization check. Root Zig tests passed for multi-group and
+empty bodies, denial at every acquisition/final check, missing/corrupt content,
+retirement, changed reference and older-host fallback. `just test::publication`
+also passed unchanged: stage 36.126 s, seal 4.776 s, publish 18.869 s, cleanup
+21.146 s, finish 91.861 s; four killed workers, 64 KiB, 42 retained records,
+four mutations maximum and 256-byte values. That regression uses the original
+publication cursor and establishes preservation; actual public batched-reader
+browser/placement evidence remains a separate gate.

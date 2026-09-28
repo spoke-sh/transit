@@ -1,5 +1,6 @@
 //! Immutable identity, never an access capability. The supplied public resource
-//! reader reopens current authority and publication disposition for each chunk.
+//! reader reopens current authority and publication disposition for each bounded
+//! chunk group, with a final current check before successful materialization.
 const std = @import("std");
 const p = @import("transit_client").protocol;
 const Pub = @import("Publication.zig");
@@ -52,12 +53,56 @@ pub fn check(self: Reference, source: anytype) !void {
     var reader = try source.open(self.resource);
     _ = try self.open(&reader);
 }
-/// Finite materialization into caller-owned storage. Every chunk and the final
-/// completion recheck current access. An error invalidates the entire output.
+/// Finite materialization into caller-owned storage. Each bounded chunk group
+/// and final completion recheck current access. An error invalidates the entire output.
 /// A caller must enforce its own smaller format-specific size/authority policy.
 pub fn read(self: Reference, source: anytype, output: []u8) ![]const u8 {
     try self.validate();
     if (self.spec.length > output.len) return error.PublicationBufferTooSmall;
+    const Source = switch (@typeInfo(@TypeOf(source))) {
+        .pointer => |info| info.child,
+        else => @TypeOf(source),
+    };
+    if (@hasDecl(Source, "readBatch")) return self.readBatched(source, output) catch |err| {
+        // Older public hosts retain the original authorized point-read path.
+        if (err == error.ResourceReadBatchUnavailable) return self.readSingle(source, output);
+        return err;
+    };
+    return self.readSingle(source, output);
+}
+fn readBatched(self: Reference, source: anytype, output: []u8) ![]const u8 {
+    var previous: ?Pub.Cursor = null;
+    var used: usize = 0;
+    while (true) {
+        const index = if (previous) |cursor| cursor.index else 0;
+        const remaining: u32 = try std.math.sub(u32, self.spec.chunks(), index);
+        const count: usize = @min(@as(u32, p.Growth.page_size - 1), remaining);
+        var keys: [p.Growth.page_size]p.Value = undefined;
+        keys[0] = Pub.key(self.namespace, 'r', self.record, 0);
+        for (0..count) |i| keys[i + 1] = Pub.key(self.namespace, 'c', self.record, index + @as(u32, @intCast(i)));
+        var reader = try source.readBatch(self.resource, null, keys[0 .. count + 1]);
+        var cursor = try self.open(&reader);
+        if (previous) |old| {
+            cursor.index = old.index;
+            cursor.chain = old.chain;
+        }
+        // The descriptor and at most seven chunks share one authorized native
+        // read cut. No retained version, result-sized cache or new write bound.
+        for (0..@max(1, count)) |_| {
+            const part = try self.publication().read(&reader, cursor);
+            if (part.bytes.len > self.spec.length - used) return error.InvalidPublicationChunk;
+            @memcpy(output[used..][0..part.bytes.len], part.bytes.slice());
+            used += part.bytes.len;
+            previous = part.next;
+            if (previous) |next| cursor = next else break;
+        }
+        if (previous == null) break;
+    }
+    if (used != self.spec.length) return error.InvalidPublicationChunk;
+    try self.check(source);
+    return output[0..used];
+}
+fn readSingle(self: Reference, source: anytype, output: []u8) ![]const u8 {
     var previous: ?Pub.Cursor = null;
     var used: usize = 0;
     while (true) {

@@ -68,7 +68,11 @@ no helper opens a fresh source automatically.
 `PublicationReference` supplies a canonical 68-byte `SPF1` identity for one
 published record. Its `read(resource_reader, output)` helper materializes a finite
 record into a caller-sized buffer, reopening current access and the exact published
-spec for every chunk and after completion. An error invalidates all copied bytes.
+spec for every bounded chunk group and after completion. Public readers with
+`resource_read_batch` acquire one descriptor and at most seven 256-byte chunks
+in one current authorized cut, retaining only that bounded group. Other readers
+keep the original point-read path. Both verify the identical ordered commitment
+and require a final fresh read; batching never turns a reference into a grant. An error invalidates all copied bytes.
 Use it only with a declared application size/format limit; references do not grant
 access or establish application acceptance. Use `Publication.open/read` when the
 application needs bounded streaming at an explicitly captured or retained cut.

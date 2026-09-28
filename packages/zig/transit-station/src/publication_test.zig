@@ -423,3 +423,79 @@ test "publication references verify finite bodies across current cuts and deny b
     source = .{ .store = &store, .deny_at = 2 };
     try t.expectError(error.AccessDenied, empty.read(&source, &.{}));
 }
+
+const BatchedReferenceSource = struct {
+    base: ReferenceSource,
+    unavailable: bool = false,
+    largest: usize = 0,
+    const Batch = struct {
+        view: struct { id: u64 = 0, resource: u64, revision: u64 },
+        keys: [p.Growth.page_size]?p.Value = @splat(null),
+        values: [p.Growth.page_size]?p.Value = @splat(null),
+        pub fn read(self: *@This(), address: p.Value) !?p.Value {
+            for (self.keys, self.values) |key, value| if (key) |present| {
+                if (present.eql(address)) return value;
+            };
+            return error.UnrequestedResourceKey;
+        }
+    };
+    pub fn open(self: *@This(), resource: u64) !Turn {
+        return self.base.open(resource);
+    }
+    pub fn readBatch(self: *@This(), resource: u64, revision: ?u64, keys: []const p.Value) !Batch {
+        if (self.unavailable) return error.ResourceReadBatchUnavailable;
+        try t.expect(revision == null);
+        try t.expect(keys.len <= p.Growth.page_size);
+        self.largest = @max(self.largest, keys.len);
+        var reader = try self.open(resource);
+        var result: Batch = .{ .view = .{ .resource = resource, .revision = reader.view.revision } };
+        for (keys, 0..) |key, i| {
+            result.keys[i] = key;
+            result.values[i] = try reader.read(key);
+        }
+        return result;
+    }
+};
+test "batched immutable reads preserve point-read commitments, current denial and final authorization" {
+    const Ref = @import("PublicationReference.zig");
+    var store: Store = .{};
+    defer store.deinit();
+    const pubn = try store.create(limits);
+    var body: [4097]u8 = undefined;
+    for (&body, 0..) |*byte, i| byte.* = @truncate(i * 19);
+    const reference: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 17, .spec = try store.stage(pubn, 17, &body) };
+    try publish(&store, pubn, 17);
+    var source: BatchedReferenceSource = .{ .base = .{ .store = &store } };
+    var output: [body.len]u8 = undefined;
+    try t.expectEqualSlices(u8, &body, try reference.read(&source, &output));
+    try t.expectEqual(@as(usize, 4), source.base.opens); // three groups and final access
+    try t.expectEqual(@as(usize, 8), source.largest);
+    for (1..5) |denied| {
+        source = .{ .base = .{ .store = &store, .deny_at = denied } };
+        try t.expectError(error.AccessDenied, reference.read(&source, &output));
+    }
+    source = .{ .base = .{ .store = &store }, .unavailable = true };
+    try t.expectEqualSlices(u8, &body, try reference.read(&source, &output));
+    try t.expectEqual(@as(usize, 18), source.base.opens); // unchanged older-host path
+    source = .{ .base = .{ .store = &store } };
+    const chunk = Pub.key(pubn.namespace, 'c', 17, 8);
+    const original = store.state.get(chunk).?;
+    _ = store.state.remove(chunk);
+    try t.expectError(error.MissingPublicationChunk, reference.read(&source, &output));
+    var corrupt = original;
+    corrupt.data[0] ^= 1;
+    try store.state.put(t.allocator, chunk, corrupt);
+    try t.expectError(error.InvalidPublicationDigest, reference.read(&source, &output));
+    try store.state.put(t.allocator, chunk, original);
+    var wrong = reference;
+    wrong.spec.digest[0] ^= 1;
+    try t.expectError(error.PublicationReferenceChanged, wrong.read(&source, &output));
+    var turn = try store.capture();
+    _ = try pubn.retire(&turn, 17);
+    try store.commit(turn);
+    try t.expectError(error.PublicationNotPublished, reference.read(&source, &output));
+    const empty: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 18, .spec = try store.stage(pubn, 18, "") };
+    try publish(&store, pubn, 18);
+    source = .{ .base = .{ .store = &store, .deny_at = 2 } };
+    try t.expectError(error.AccessDenied, empty.read(&source, &.{}));
+}

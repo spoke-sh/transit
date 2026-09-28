@@ -76,7 +76,7 @@ pub fn open(self: Self, resource: u64) !Reader {
 /// before disclosure and never reuse it across independent acquisitions.
 pub const Batch = struct {
     resource: g.Resource,
-    view: struct { resource: u64, revision: u64 },
+    view: struct { id: u64 = 0, resource: u64, revision: u64 },
     keys: [g.page_size]?p.Value,
     entries: [g.page_size]?g.Entry,
     pub fn read(self: *const Batch, key: p.Value) !?p.Value {
