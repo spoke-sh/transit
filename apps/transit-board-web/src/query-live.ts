@@ -1,6 +1,9 @@
 import { BoardError, unifiedQuery as query } from "@rey/transit-board-client";
 import { LiveView, ReactiveError, Session } from "@rey/transit-reactive-client";
 import { verifiedPage, type ResultPage } from "./unified-result";
+import { DraftSession } from "@rey/transit-query-client";
+
+export const liveDraft = new DraftSession(query);
 
 export const querySession = new Session();
 let identity: { resource: number; contract: string; plan: string } | null = null;

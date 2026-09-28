@@ -9,7 +9,8 @@ import {
 import { acquireCaller } from "@rey/transit-reactive-client";
 import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";
 import { verifiedPage } from "./unified-result";
-import { liveQuery, querySession, selectLiveTemplate } from "./query-live";
+import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-live";
+import { DraftControls } from "./draft-controls";
 import { useScope } from "./state";
 import { unifiedContract, unifiedPage, mismatch, type QueryBinding } from "./binding";
 
@@ -108,6 +109,7 @@ export function UnifiedWorkspace({
   const [, render] = useState(0);
   const { scope } = useScope();
   const live = useSyncExternalStore(liveQuery.subscribe, liveQuery.getSnapshot);
+  const draftLive = useSyncExternalStore(liveDraft.subscribe, liveDraft.getSnapshot);
   const work = retained.work;
   const bindingId = binding ? JSON.stringify(binding) : null;
   if (retained.resource === 0) retained.resource = resource;
@@ -115,9 +117,9 @@ export function UnifiedWorkspace({
   const alive = useRef(true);
   const abort = useRef(new AbortController());
   const clear = useCallback(() => {
-    // Frozen signed bytes survive known denial for exact recovery if authority
-    // returns. Clear unsubmitted plan/presentation rather than inventing rejection.
-    work.current.bundle = null;
+    // Frozen signatures and the original upload plan survive current denial.
+    // Clearing the rendered data cannot discard an accepted partial upload.
+    liveDraft.invalidate();
     retained.follow = false;
     retained.blocked = true;
     abort.current.abort();
@@ -175,6 +177,7 @@ export function UnifiedWorkspace({
       alive.current = false;
       abort.current.abort();
       void liveQuery.pause();
+      liveDraft.pause();
     };
   }, []);
   const dispatch = async (signal: AbortSignal) => {
@@ -240,7 +243,7 @@ export function UnifiedWorkspace({
       // explicitly checks access again. A previously running read is aborted
       // by clear(), including when the denial came from the independent stream.
       if (disposed || document.hidden || retained.blocked) return;
-      if (liveQuery.following) {
+      if (liveQuery.following || liveDraft.getSnapshot().acceptedWork) {
         // Keep one local wakeup so automatic budget exhaustion resumes current
         // reads without a user click. No request is sent while follow owns work.
         timer = setTimeout(() => void poll(), 1000);
@@ -314,6 +317,7 @@ export function UnifiedWorkspace({
       clearTimeout(timer);
       if (document.hidden) {
         void liveQuery.pause();
+        liveDraft.pause();
         setAuthorized(false);
         setPage(null);
       } else void poll();
@@ -327,8 +331,58 @@ export function UnifiedWorkspace({
     };
   }, [resource, revision, task, advance, clear, binding, bindingId]);
   useEffect(() => {
-    if (!visible) void liveQuery.pause();
+    if (!visible) {
+      void liveQuery.pause();
+      liveDraft.pause();
+    }
   }, [visible]);
+  useEffect(() => {
+    liveDraft.edit(draft);
+  }, [draft]);
+  useEffect(() => {
+    if (draftLive.phase === "denied") {
+      clear();
+      setError("Query access denied. Protected workspace data cleared.");
+      return;
+    }
+    if (["DraftSourceChanged", "DraftScopeChanged"].includes(draftLive.detail)) {
+      setPage(null);
+      setAuthorized(false);
+      setError(draftLive.detail);
+      return;
+    }
+    const result = draftLive.result;
+    if (!result || !visible || document.hidden) return;
+    try {
+      if (result.page.evidence.manifest.basis.resource !== resource) mismatch();
+      if (binding) unifiedPage(binding, result.page);
+    } catch (cause) {
+      setPage(null);
+      setAuthorized(false);
+      setError(errorText(cause));
+      liveDraft.pause();
+      return;
+    }
+    retained.follow = false;
+    retained.binding = bindingId;
+    work.current = { ...empty(), namespace: result.namespace };
+    verified.current = result.namespace;
+    setRunDraft(result.sql || "Recovered query; saved SQL is unavailable");
+    setPage(result.page);
+    setAuthorized(true);
+    setError("");
+    refresh((value) => value + 1);
+  }, [
+    draftLive.result,
+    draftLive.phase,
+    draftLive.detail,
+    visible,
+    resource,
+    binding,
+    bindingId,
+    clear,
+    work,
+  ]);
   useEffect(() => {
     if (live.phase === "denied") {
       clear();
@@ -401,11 +455,18 @@ export function UnifiedWorkspace({
   const busy =
     working ||
     liveQuery.following ||
+    draftLive.acceptedWork ||
+    ["opening", "running", "active"].includes(draftLive.phase) ||
     !!work.current.pending ||
     work.current.input !== null ||
     work.current.bundle !== null;
   const controlBusy =
-    working || liveQuery.following || !!work.current.pending || work.current.input !== null;
+    working ||
+    liveQuery.following ||
+    draftLive.acceptedWork ||
+    ["opening", "running", "active"].includes(draftLive.phase) ||
+    !!work.current.pending ||
+    work.current.input !== null;
   return (
     <section className="query-workspace" hidden={!visible} aria-label="Unified query workspace">
       <div className="atlas-toolbar">
@@ -429,6 +490,17 @@ export function UnifiedWorkspace({
               ? `Query ${work.current.namespace}: ${status.phase}`
               : "Run is explicit; switching views does not execute.")}
       </p>
+      <DraftControls
+        session={liveDraft}
+        available={authorized && source !== null && "table" in source.source.source.source}
+        busy={
+          working ||
+          liveQuery.following ||
+          !!work.current.pending ||
+          work.current.input !== null ||
+          work.current.bundle !== null
+        }
+      />
       {work.current.namespace && (
         <QueryRecovery
           id={work.current.namespace}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, expect } from "@playwright/test";
 
 const [origin, marker, resource, kind] = process.argv.slice(2);
@@ -13,6 +13,11 @@ let lost = null;
 let retried = false;
 let submissions = 0;
 let atlasInterrupted = false;
+let liveFault = false;
+let liveStep = false;
+let liveLost = null;
+let liveRetried = false;
+const liveNamespaces = new Set();
 await page.route("**/api/v1/atlas*", async (route) => {
   if (lost !== null && !atlasInterrupted) {
     atlasInterrupted = true;
@@ -37,6 +42,10 @@ page.on("response", async (response) => {
 });
 await page.route("**/api/v1/query-v2", async (route) => {
   const operation = route.request().postDataJSON();
+  if ("next_draft" in operation) {
+    liveStep = true;
+    liveNamespaces.add(operation.next_draft.namespace);
+  }
   if ("submit" in operation) {
     submissions++;
     const body = route.request().postData();
@@ -60,6 +69,25 @@ await page.route("**/api/v1/query-v2", async (route) => {
     if (!retried) {
       assert.equal(body, lost);
       retried = true;
+    }
+    if (liveFault && liveStep && liveLost === null) {
+      const response = await route.fetch();
+      if (response.status() === 429) {
+        await route.fulfill({ response });
+        return;
+      }
+      assert.equal(response.status(), 200);
+      liveLost = body;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: '{"err":"Unavailable"}',
+      });
+      return;
+    }
+    if (liveLost !== null && !liveRetried) {
+      assert.equal(body, liveLost, "restored draft must retry the original signed bytes");
+      liveRetried = true;
     }
   }
   await route.continue();
@@ -86,13 +114,60 @@ try {
   ).toBeVisible();
   if (kind === "document")
     await expect(page.getByRole("cell", { name: "MISSING", exact: true })).toHaveCount(2);
-  const completed = submissions;
+  let completed = submissions;
   await draft.fill("SELECT * FROM items LIMIT 1");
   await page.getByRole("button", { name: "Browse", exact: true }).click();
   await expect(
     page.getByText("Draft changed. The displayed result belongs to the earlier submitted SQL."),
   ).toBeVisible();
   assert.equal(submissions, completed);
+  if (kind === "table") {
+    liveFault = true;
+    await page.getByRole("button", { name: "Enable Live draft", exact: true }).click();
+    const controls = page.getByRole("group", { name: "Live draft controls" });
+    await expect(controls).toContainText("uncertain", { timeout: 60000 });
+    const download = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Save draft recovery", exact: true }).click();
+    const saved = readFileSync(await (await download).path());
+    assert.equal(liveNamespaces.size, 1);
+    const original = [...liveNamespaces][0];
+    await page.reload();
+    // Route restoration is explicit. Neither loading the shell nor selecting
+    // the resource can recover or replace a signed operation automatically.
+    await page.getByRole("button", { name: `Select resource ${resource}`, exact: true }).click();
+    await page.getByRole("button", { name: "Enter resource", exact: true }).click();
+    await page.getByLabel("Restore draft recovery", { exact: true }).setInputFiles({
+      name: "recovery.json",
+      mimeType: "application/json",
+      buffer: saved,
+    });
+    await expect(controls).toContainText("Original native identity and bundle restored");
+    assert.equal(liveRetried, false);
+    await page.getByRole("button", { name: "Recover original draft work", exact: true }).click();
+    await expect(page.getByLabel("Verified query result")).toBeVisible({ timeout: 180000 });
+    assert(liveRetried);
+    assert.deepEqual([...liveNamespaces], [original]);
+    await expect(controls).toContainText("1 / 2 native intents used");
+    await expect(controls).toContainText("unavailable after recovery");
+    await draft.fill("SELECT * FROM items LIMIT 3");
+    await page.getByRole("button", { name: "Enable Live draft", exact: true }).click();
+    await draft.fill("SELECT * FROM items LIMIT 2");
+    await expect(controls).toContainText("exhausted", { timeout: 180000 });
+    await expect(controls).toContainText("2 / 2 native intents used");
+    assert.equal(
+      liveNamespaces.size,
+      2,
+      "recovery and rapid edits must not replace or multiply intents",
+    );
+    await draft.fill("SELECT * FROM items LIMIT 1");
+    completed = submissions;
+    // Observe beyond the debounce; exhausted generations cannot silently reopen.
+    await page.waitForTimeout(2000);
+    assert.equal(submissions, completed);
+    await expect(
+      page.getByText("Draft changed. The displayed result belongs to the earlier submitted SQL."),
+    ).toBeVisible();
+  }
   writeFileSync(marker, "verified\n");
   await expect(
     page.getByText("Query access denied. Protected workspace data cleared."),
@@ -104,7 +179,7 @@ try {
   assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0]);
   assert.deepEqual(errors, []);
   console.log(
-    `Unified ${kind} browser: explicit SQL, identical uncertain retry, truthful provenance, view/draft separation and current denial passed.`,
+    `Unified ${kind} browser: explicit SQL, identical uncertain retry, truthful provenance, view/draft separation${kind === "table" ? ", finite Live drafts and saved exact recovery" : ""} and current denial passed.`,
   );
 } catch (error) {
   console.error("Recent query operations:", observations);

@@ -2996,3 +2996,13 @@ Board's actual Table native/API/browser regression now uses the shared transport
 value validator and result reader. It passed in 265.51 seconds excluding compilation;
 the draft-budget host slice took 26.58 seconds and two Board readers peaked at
 34,537,472 bytes RSS. This does not yet qualify automatic draft scheduling.
+
+M23 Table Live draft browser qualification is part of `just test::unified-ingress
+table`: a lost accepted upload reply is saved, the browser reloads, and the exact
+signed command and frozen namespace/bundle recover without replacement. Rapid
+edits coalesce; two consumed native intents exhaust the explicitly opened
+generation, and editing cannot reopen it. Current denial clears protected data.
+The combined worker/store recovery, API and browser run measured 327.26 seconds
+locally; this does not enlarge hosted PR lanes or establish interactive latency.
+The scheduler's separate seven tests cover known rejection, pause and explicit
+cancellation; KV/Document Live draft and distributed caller fairness are unqualified.

@@ -22,5 +22,19 @@ not an access grant.
 
 Board now consumes the package for v2 transport, semantic values and full-result
 verification. Focused types/transport/coverage checks and the actual native Table
-API/browser regression pass. Finite draft scheduling will compose these owners; it is not yet
-implemented by this package.
+API/browser regression pass. `DraftSession` now owns one coalesced edit, one accepted finite query and one
+frozen native input above route lifetimes. Explicit enable/resume uses the recorded
+one-to-eight intent budget; debounce, retries, navigation and browser recovery
+cannot reset it. Pause closes scheduling without cancelling accepted work; explicit
+cancel remains separate. Save recovery before reloading while work is pending,
+then restore and explicitly recover the original namespace/bundle/signature. Files
+contain no keys or result pages and confer no authority. Query result publication
+requires full coverage and a current visible reread; embedding applications must
+continue current-authority checks while displaying held results.
+
+The actual Table host/browser proof passes lost upload replies, browser reload,
+exact recovery, rapid edit coalescing, two-intent exhaustion and current denial.
+Seven scheduler tests cover pause, explicit cancellation, known rejection and
+control recovery. KV/Document Live draft execution is not enabled. Timings are
+browser-observed compilation, upload through observed completion, and verification;
+server execution time and source age remain unavailable.
