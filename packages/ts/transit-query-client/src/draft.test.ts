@@ -277,6 +277,7 @@ test("pause closes native scheduling, and a known rejection cannot turn into rep
   await f.session.open(2);
   await advance();
   f.session.pause();
+  await expect(f.session.open(2)).rejects.toThrow("RecoverAcceptedDraftFirst");
   f.session.edit("SELECT id FROM items");
   await advance();
   expect(f.budget()?.enabled).toBe(false);

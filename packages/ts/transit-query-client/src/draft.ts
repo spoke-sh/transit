@@ -319,7 +319,14 @@ export class DraftSession {
   }
   /** Only a user action may open or explicitly resume a generation. */
   async open(limit = 2) {
-    if (this.busy || this.intent || this.job)
+    if (
+      this.busy ||
+      this.intent ||
+      this.job ||
+      this.cancelWanted ||
+      this.cancelling ||
+      (this.closeWanted && this.view.budget?.enabled)
+    )
       throw new QueryError(409, "RecoverAcceptedDraftFirst");
     if (!Number.isInteger(limit) || limit < 1 || limit > 8)
       throw new QueryError(0, "InvalidDraftLimit");
