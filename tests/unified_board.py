@@ -57,6 +57,13 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 2
     assert atlas['query_resource'] == caller['connection']['resource']
     description = api({'describe': {}})['description']
+    assisted = api({'assist': {'sql':'SELECT * FROM it','cursor':16,'generation':7}})['assistance']
+    assert assisted['version'] == 1 and assisted['generation'] == 7 and assisted['profile'] == 'unified_v2'
+    assert assisted['resource'] == caller['connection']['resource']
+    assert assisted['range'] == dict(start=14,end=16,quoted=False)
+    assert [item['text'] for item in assisted['items']] == ['"items"']
+    assert api({'assist': {'sql':'SELECT hidden','cursor':13,'generation':8}})['assistance']['items'] == []
+    api({'assist': {'sql':'SELECT','cursor':7,'generation':8}}, status=400)
     suggestions = api({'suggest': {'search': 'count'}})['suggestions']
     assert suggestions['resource'] == caller['connection']['resource']
     assert suggestions['items'][0] == {'label': 'Count', 'sql': 'SELECT COUNT(*) FROM items'}
@@ -73,6 +80,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     first = api({'page': {'namespace': '1'}})['page']
     assert first['evidence']['next'] and first['cells']
     invoke('revoke', direct=True)
+    api({'assist': {'sql':'SE','cursor':2,'generation':9}}, status=403)
     api({'suggest': {'search': ''}}, status=403)
     api({'compile': {'sql': 'SELECT * FROM items'}}, status=403)
     api({'page': {'namespace': '1', 'cursor': first['evidence']['next']}}, status=403)
@@ -190,6 +198,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
                 time.sleep(0.2)
             invoke('revoke', direct=True)
             assert process.wait(timeout=30) == 0
+            print((root/'board-v2-browser.log').read_text(), end='', flush=True)
             invoke('restore', direct=True)
         finally:
             if process.poll() is None: process.kill(); process.wait(timeout=10)

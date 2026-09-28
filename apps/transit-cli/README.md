@@ -3,6 +3,12 @@
 The additive `transit` executable starts a signed Table query shell. Existing
 `rey-cli` administration commands remain separate.
 
+[M24](../../docs/roadmap/M24.md) is implementing the selected
+[server/console contract](../../contracts/TRANSIT_CLI_V1.md). Shared parser and
+cursor-assistance foundations now live in Fuze/query packages. The new commands
+remain separate implementation work; existing query entry points below keep
+their qualified contracts during that transition.
+
 `transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
 [unified shell guide](docs/unified-query.md) covers source declarations, finite
 upload, namespaces, exact retries and owned nested results. `transit query`

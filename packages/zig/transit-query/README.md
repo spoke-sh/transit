@@ -147,3 +147,14 @@ before the result bound; names and types come only from the configured source.
 Every candidate lowers through the real Fuze compiler. Checked sums are offered
 only for int64 columns; editing a candidate does not admit a query. This is a
 bounded complete-draft catalog, not a speculative parser or cross-source search.
+
+M24 adds the [v1 cursor-assistance request](../../../contracts/QUERY_ASSISTANCE_V1.md)
+to `Workspace`. `Assistance` obtains grammar expectations from Fuze's production
+parser and filters them against the caller's declared schema and the existing
+v2 executable type profile. The host checks current source/requester rights both
+before and after computation; completion prepares no native input. One bounded
+response retains at most eight items and a byte replacement range. Independent
+fixtures cover quoted/qualified names, suffix replacement, hidden/foreign names,
+unsupported comparisons, checked sums, slash arguments and allocation failures.
+The console vocabulary is shared data; introducing it does not implement a CLI
+command or administrative SQL operation.

@@ -99,6 +99,38 @@ try {
   const draft = page.getByLabel("SQL draft", { exact: true });
   await expect(draft).toBeVisible();
   await expect(page.getByRole("heading", { name: `items · ${kind}` })).toBeVisible();
+  const completion = page.getByRole("group", { name: "SQL completions", exact: true });
+  await draft.fill("SE");
+  const coldCompletion = performance.now();
+  await draft.press("Control+Space");
+  await expect(
+    completion.getByRole("button", { name: "SELECT · SQL grammar", exact: true }),
+  ).toBeVisible();
+  const coldCompletionMs = performance.now() - coldCompletion;
+  await draft.press("Tab");
+  await expect(draft).toHaveValue("SELECT");
+  await draft.press("Control+z");
+  await expect(draft).toHaveValue("SE");
+  await draft.fill("SELECT * FROM itxx");
+  await draft.evaluate((input) => input.setSelectionRange(16, 16));
+  const warmCompletion = performance.now();
+  await draft.press("Control+Space");
+  await expect(
+    completion.getByRole("button", { name: '"items" · Authorized source', exact: true }),
+  ).toBeVisible();
+  const warmCompletionMs = performance.now() - warmCompletion;
+  await draft.press("Tab");
+  await expect(draft).toHaveValue('SELECT * FROM "items"');
+  await draft.fill("SELECT hidden_column");
+  await draft.press("Control+Space");
+  await expect(completion).toContainText("No supported completion");
+  await draft.press("Escape");
+  await expect(completion).toHaveCount(0);
+  assert.equal(submissions, 0, "cursor assistance and acceptance must not submit");
+  console.log("Cursor assistance latency (ms, including debounce and authorization):", {
+    cold: coldCompletionMs,
+    warm: warmCompletionMs,
+  });
   await page.getByText("Complete a draft from the authorized source", { exact: true }).click();
   await page.getByLabel("SQL candidate search").fill("COUNT");
   await page.getByRole("button", { name: "Find SQL candidates", exact: true }).click();
@@ -179,12 +211,16 @@ try {
       page.getByText("Draft changed. The displayed result belongs to the earlier submitted SQL."),
     ).toBeVisible();
   }
+  await draft.fill("SELECT * FROM it");
+  await draft.press("Control+Space");
+  await expect(completion).toContainText('"items"');
   writeFileSync(marker, "verified\n");
   await expect(
     page.getByText("Query access denied. Protected workspace data cleared."),
   ).toBeVisible({ timeout: 20000 });
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
   await expect(draft).toHaveCount(0);
+  await expect(completion).toHaveCount(0);
   assert.equal(submissions, completed);
   assert.deepEqual(await context.cookies(), []);
   assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0]);

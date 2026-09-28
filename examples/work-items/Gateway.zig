@@ -63,7 +63,7 @@ pub fn handle(self: *Self, io: std.Io, allocator: std.mem.Allocator, request: *s
             error.QuerySourceUnavailable, error.ResourceUnavailable, error.StateResourceExpired => .gone,
             error.RateLimited => .too_many_requests,
             error.QueryIdentityMismatch, error.ApplicationScopeChanged, error.ApplicationPublicationChanged, error.QueryDraftConflict, error.QueryDraftActive, error.QueryDraftClosed, error.QueryDraftExhausted, error.QueryReadConflict, error.Conflict => .conflict,
-            error.InvalidRequest, error.InvalidQuerySearch, error.InvalidQueryDraft, error.QueryDraftNotFound, error.InvalidQueryRequest, error.InvalidQueryIdentity, error.QueryBudgetExceeded, error.InvalidQueryCursor, error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.InvalidSqlSyntax, error.UnknownSource, error.UnknownColumn, error.InvalidApplicationProgram => .bad_request,
+            error.InvalidRequest, error.InvalidSqlCursor, error.InvalidQuerySearch, error.InvalidQueryDraft, error.QueryDraftNotFound, error.InvalidQueryRequest, error.InvalidQueryIdentity, error.QueryBudgetExceeded, error.InvalidQueryCursor, error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.InvalidSqlSyntax, error.UnknownSource, error.UnknownColumn, error.InvalidApplicationProgram => .bad_request,
             error.NotFound => .not_found,
             else => .service_unavailable,
         };
@@ -168,7 +168,7 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
     if (signing and !self.lock.tryLock()) return error.RateLimited;
     defer if (signing) self.lock.unlock(io);
     const current = switch (input.value) {
-        .describe, .compile, .suggest, .next, .next_draft, .draft_open, .page => true,
+        .describe, .compile, .suggest, .assist, .next, .next_draft, .draft_open, .page => true,
         else => false,
     };
     const config = try self.workspace(alloc, wire, current);

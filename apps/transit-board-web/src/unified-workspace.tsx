@@ -11,6 +11,7 @@ import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recove
 import { verifiedPage } from "./unified-result";
 import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-live";
 import { QueryCandidates } from "./query-candidates";
+import { SqlEditor } from "./sql-editor";
 import { QueryProfile } from "./query-profile";
 import { DraftControls } from "./draft-controls";
 import { useScope } from "./state";
@@ -662,11 +663,18 @@ export function UnifiedWorkspace({
           <div className="query-composer">
             <QueryCandidates resource={resource} select={setDraft} denied={clear} />
             <label htmlFor="unified-sql">SQL draft</label>
-            <textarea
-              id="unified-sql"
+            <SqlEditor
               value={draft}
-              maxLength={4096}
-              onChange={(e) => setDraft(e.target.value)}
+              change={setDraft}
+              resource={resource}
+              scope={JSON.stringify([
+                source.connection,
+                source.source.source,
+                source.source.policy_revision,
+              ])}
+              contract={binding?.schema ?? null}
+              visible={visible}
+              denied={clear}
             />
             <button disabled={busy || !draft.trim()} onClick={execute}>
               Run query

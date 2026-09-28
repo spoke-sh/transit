@@ -41,6 +41,7 @@ pub const Compiled = struct { bundle: []const u8, source: v.Source, plan: v.Plan
 pub const Request = union(enum) {
     describe,
     suggest: struct { search: []const u8 },
+    assist: q.Assistance.Request,
     compile: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8 },
     next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },
@@ -57,6 +58,7 @@ pub const Page = struct { evidence: b.Page, cells: []const []const v.Cell };
 pub const Response = union(enum) {
     description: Description,
     suggestions: struct { resource: u64, contract: [32]u8, items: []const q.Editor.Item },
+    assistance: q.Assistance.Response,
     compiled: Compiled,
     prepared: ?Frozen,
     receipt: q.protocol.Receipt,
@@ -71,6 +73,14 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
     const limits = try config.limits.native();
     const name = try m.Name.init(config.name);
     switch (request) {
+        .assist => |value| {
+            _ = try client.describe(definition);
+            var columns: [m.max_columns]m.Column = undefined;
+            const result = try q.Assistance.complete(allocator, name, try definition.schema(&columns), value);
+            errdefer result.deinit(allocator);
+            const current = try client.describe(definition);
+            return .{ .assistance = .{ .generation = value.generation, .resource = definition.resource, .contract = try definition.fingerprint(), .resource_revision = current.resource_revision, .policy_revision = try a.decimal(allocator, current.policy_revision), .range = result.range, .items = result.items } };
+        },
         .suggest => |input| {
             _ = try client.describe(definition);
             var columns: [m.max_columns]m.Column = undefined;

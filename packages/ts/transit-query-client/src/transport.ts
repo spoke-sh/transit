@@ -29,6 +29,7 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
     const readOnly = [
       "describe",
       "suggest",
+      "assist",
       "compile",
       "next",
       "next_draft",

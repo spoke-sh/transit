@@ -60,6 +60,22 @@ function columns(values: Column[]): boolean {
 export function validateUnifiedQuery(input: unknown): input is UnifiedQueryResponse {
   if (!schema(input)) return false;
   const value = input as UnifiedQueryResponse;
+  if ("assistance" in value) {
+    const assistance = value.assistance;
+    return (
+      assistance.version === 1 &&
+      assistance.profile === "unified_v2" &&
+      assistance.resource > 0 &&
+      unsigned(assistance.policy_revision, false) &&
+      assistance.items.length <= 8 &&
+      (assistance.range === null
+        ? assistance.items.length === 0
+        : assistance.range.start <= assistance.range.end && assistance.range.end <= 4096) &&
+      assistance.items.every(
+        (item) => text(item.text, 64) && item.text.length > 0 && text(item.detail, 64),
+      )
+    );
+  }
   if ("suggestions" in value)
     return (
       value.suggestions.resource > 0 &&

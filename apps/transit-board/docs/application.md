@@ -143,3 +143,21 @@ current authority and the configured source contract. These references belong to
 the configured requester at that origin; they do not migrate a query between
 requesters or grant access. Unknown signed submissions and incomplete uploads
 must be reconciled before changing selection.
+
+## Cursor assistance (M24)
+
+The v2 SQL editor uses the shared native grammar/capability/catalog assistance
+endpoint. Ctrl-Space or **Complete SQL** opens at the current cursor; arrows
+select, Tab/Enter accept, Escape dismisses, and Ctrl-Z undoes the last acceptance.
+Whole-token replacement preserves the suffix outside that token, and quoted
+names retain case. Selection edits only the draft; a separately enabled Live
+generation still owns its explicit execution budget. Comments and literals do
+not disclose unrelated catalog candidates.
+
+At most one assistance request and one latest edit exist in the browser. Open
+suggestions refresh every five seconds; changes of input, source, caller context,
+visibility or current access clear them. There is no persistent completion/history
+cache. The original complete-statement candidate search remains a separate tool.
+[Assistance v1](../../../contracts/QUERY_ASSISTANCE_V1.md) owns the wire and bounds;
+its browser/native qualification is recorded separately from M23's completion
+candidate proof.

@@ -46,3 +46,13 @@ server execution time and source age remain unavailable.
 page, preserving value, null, missing, type error and conflict. It neither reads
 more data nor changes the result basis. Board's monochrome chart uses a fixed
 eight-row page scale and labels the query, source revision and limited coverage.
+
+M24's `AssistanceReader` consumes the native [cursor-assistance contract](../../../contracts/QUERY_ASSISTANCE_V1.md).
+It owns one outstanding request and one coalesced edit, discards stale generations,
+and refreshes an open list every five seconds under current authority. Closing,
+hiding or disposing a view aborts its read and clears metadata. Source-contract
+changes fail visibly; denial also invokes the embedding owner's clearing path.
+`byteCursor` validates UTF-16/UTF-8 boundaries; `applySuggestion` replaces the
+complete token suffix without submitting. The UI owns one-step undo and rendering;
+this package contains no SQL keywords, parser or catalog replica. Its fixtures
+cover late replies, edit coalescing, denial, changed contracts and Unicode ranges.

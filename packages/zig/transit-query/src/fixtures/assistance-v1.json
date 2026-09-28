@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "source": "items",
+  "columns": [
+    {"name":"id","type":"int64"},
+    {"name":"wide","type":"uint64"},
+    {"name":"label","type":"utf8"},
+    {"name":"Value","type":"int64"},
+    {"name":"flag","type":"boolean"},
+    {"name":"blob","type":"binary"},
+    {"name":"decimal","type":"float64"},
+    {"name":"select","type":"int64"}
+  ],
+  "cases": [
+    {"sql":"SE","cursor":2,"start":0,"end":2,"items":["SELECT"]},
+    {"sql":"SELECT i","cursor":8,"start":7,"end":8,"items":["\"id\"","\"items\""]},
+    {"sql":"SELECT items.i","cursor":14,"start":13,"end":14,"items":["\"id\""]},
+    {"sql":"SELECT \"V","cursor":9,"start":7,"end":9,"items":["\"Value\""]},
+    {"sql":"SELECT sel FROM items","cursor":10,"start":7,"end":10,"items":["\"select\""]},
+    {"sql":"SELECT * FROM it","cursor":16,"start":14,"end":16,"items":["\"items\""]},
+    {"sql":"SELECT * FROM other WHERE ","cursor":26,"start":26,"end":26,"items":[]},
+    {"sql":"SELECT * FROM items WHERE wide ","cursor":31,"start":31,"end":31,"items":["IS"]},
+    {"sql":"SELECT * FROM items WHERE wide = ","cursor":33,"start":33,"end":33,"items":[]},
+    {"sql":"SELECT * FROM items WHERE label = ","cursor":34,"start":34,"end":34,"items":["''"]},
+    {"sql":"SELECT SUM(","cursor":11,"start":11,"end":11,"items":["\"id\"","\"Value\"","\"select\"","\"items\""]},
+    {"sql":"SELECT COUNT(*) FROM items L","cursor":28,"start":27,"end":28,"items":[]},
+    {"sql":"SELECT * FROM items WHERE nope ","cursor":31,"start":31,"end":31,"items":[]},
+    {"sql":"/for","cursor":4,"start":0,"end":4,"mode":"console","items":["/format"]},
+    {"sql":"/format jsoSuffix","cursor":11,"start":8,"end":17,"mode":"console","items":["json"]},
+    {"sql":"/for","cursor":4,"start":1,"end":4,"items":[]}
+  ]
+}

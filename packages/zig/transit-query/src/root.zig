@@ -32,6 +32,7 @@ pub const Values = @import("Values.zig");
 pub const Bridge = @import("Bridge.zig");
 pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
+pub const Assistance = @import("Assistance.zig");
 
 /// Test-only reference transactions; never a production authority or backend.
 pub const testing = if (@import("builtin").is_test) struct {

@@ -46,10 +46,12 @@ fn statement(parser: *Parser) !Ast {
     if (!parser.word("SELECT")) return error.UnsupportedStatement;
     try parser.advance();
     const selection = try parser.selection();
+    if (parser.assistance) |h| h.aggregate = selection != .rows;
     try parser.requireWord("FROM");
     const derived = if (selection == .rows and parser.token.tag == .cursor) false else try parser.take(.left);
     if (derived) {
         if (selection == .rows) return error.UnsupportedConstruct;
+        if (parser.assistance) |h| h.aggregate = false;
         try parser.requireWord("SELECT");
         const projected = try parser.projection();
         try parser.requireWord("FROM");
@@ -61,6 +63,7 @@ fn statement(parser: *Parser) !Ast {
         try parser.requireWord("AS");
         parser.name_role = .alias;
         ast.input = .{ .projection = projected, .limit = limit, .alias = try parser.name() };
+        if (parser.assistance) |h| h.aggregate = true;
         ast.limit = try parser.limit();
         try parser.end();
         return ast;
@@ -320,9 +323,11 @@ const Parser = struct {
         if (!self.word("WHERE")) return .all;
         try self.advance();
         const col = try self.column();
+        if (self.assistance) |h| h.predicate_column = col;
         if (self.word("IS")) {
             try self.advance();
             try self.requireWord("NULL");
+            if (self.assistance) |h| h.predicate_column = null;
             return .{ .is_null = col };
         }
         if (self.token.tag == .cursor) if (self.assistance) |h| {
@@ -340,7 +345,10 @@ const Parser = struct {
         try self.advance();
         if (self.assistance) |h| h.literal_column = col;
         const value = try self.literal();
-        if (self.assistance) |h| h.literal_column = null;
+        if (self.assistance) |h| {
+            h.literal_column = null;
+            h.predicate_column = null;
+        }
         return .{ .compare = .{ .column = col, .op = op, .literal = value } };
     }
     fn literal(self: *Parser) !Literal {
@@ -402,7 +410,9 @@ pub const Hints = struct {
     source: ?m.Name = null,
     qualifier: ?m.Name = null,
     literal_column: ?Column = null,
+    predicate_column: ?Column = null,
     sum_only: bool = false,
+    aggregate: bool = false,
     fn word(self: *Hints, value: []const u8) void {
         for (&self.words) |*slot| {
             if (slot.*) |existing| {

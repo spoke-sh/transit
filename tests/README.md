@@ -3105,3 +3105,22 @@ and 134.615 seconds for the fully verified query. Observed browser heaps were
 11,474,368 bytes (Board) and 4,616,116 bytes (counter). These single-run costs do
 not claim an interactive freshness target. `just check` also passed after the
 read-conflict correction and parser instrumentation.
+
+## M24 shared cursor assistance
+
+`just test::unified-ingress table` passes the native assistance endpoint and real
+Board editor against a disk-backed authorized Table, alongside the existing
+finite upload, worker/node/store recovery, full coverage, Live budget and exact
+retry proofs. The combined run took **332.91 seconds** excluding compilation.
+It checks source scoping, unsupported column/cursor rejection, Ctrl-Space,
+whole-token replacement at an interior cursor, Tab acceptance, completion undo,
+dismissal and current denial clearing. Neither editing nor acceptance submits.
+The native fixture covers quoted/qualified names, typed predicates, SUM limits,
+UTF-8 boundaries, comments, literals, eight-result bounds and allocation failure.
+The shared browser owner tests delayed generations, one outstanding request,
+contract changes, revocation and safe replacement (15 query-client tests).
+
+This is native/Board evidence. Terminal parity and its latency measurements
+remain open until the actual console proof runs. Browser timing is collected
+inside the fixture and subsequent runs expose it in the parent proof log; no
+completion latency target is inferred from the combined query runtime.
