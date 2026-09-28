@@ -328,3 +328,16 @@ deployment and hosted-cost qualification. The current finite worker admits one
 root call per provisioned connector PID; its
 [admission guide](../apps/transit-station-http-worker/docs/admission.md) owns the
 provisioning and lifetime limits.
+
+
+## Declarative application host adapter
+
+M23's `transit-station-app` owns complete program validation, native digest
+preparation and bounded upload continuation. The TypeScript application adapter
+owns browser signing, presentation and task scheduling. It does not reimplement
+Station framing, native digest encoding, publication policy or the SQL parser.
+One frozen submission and one separately retained reviewed plan survive route
+changes; explicit exports support reload recovery without persisting a private
+key. A new draft, definition generation or HTTP endpoint cannot settle an older
+unknown outcome. Native admission remains distinct from application completion.
+See the [operator guide](../packages/ts/transit-application/docs/operator.md).

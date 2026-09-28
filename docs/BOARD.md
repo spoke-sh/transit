@@ -4,7 +4,9 @@ Status: bounded [M2](roadmap/M2.md) inspection profile implemented and qualified
 on the reference deployment, before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
 system. M2 remains inspection-only. M13 adds a growing atlas and an optional,
-separately credentialed Table query workspace; operational controls remain later scope. The [Board application](../apps/transit-board/README.md) owns configuration,
+separately credentialed Table query workspace. M23 adds an opt-in application
+definition editor with a separate signed operator boundary; it does not turn the
+inspection or query principal into an operator. The [Board application](../apps/transit-board/README.md) owns configuration,
 commands and access limits; [tests](../tests/README.md#board-qualification) own evidence.
 
 ## Purpose and visual language
@@ -517,3 +519,19 @@ segments or current access are unavailable; only the public result reader can
 establish complete coverage under current authority. Retired resources fail
 closed rather than appearing as empty results. These read-only lenses require
 no query identity and do not enable query admission.
+
+
+## M23 definition editor boundary
+
+The [application guide](../apps/transit-board/docs/application.md) describes the
+built-in declaration artifact, optional current published definition and signed
+operator endpoint. Complete SQL/Form/Canvas edits use the shared Zig compiler;
+review freezes an exact base, body and publication digest. Editing a later draft
+must not replace that reviewed plan or an uncertain native signature. A receipt
+means native admission until the application owner records its disposition.
+
+Native browser qualification covers route-remount recovery, real conditional
+publication, worker/node/disk restart and current reader denial. The monochrome
+shell, declaration-driven route replacement and migration/generated-application
+proofs remain M23 work. No broader operator privilege or deployment qualification
+is implied by the editor's presence.

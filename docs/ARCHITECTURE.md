@@ -192,9 +192,9 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
 | [transit-http-server](../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 and WebSocket framing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board and serving | None |
-| [transit-station-app](../packages/zig/transit-station-app/README.md) / `transit_station_app` | M23 bounded neutral application definitions, SQL/JSON validation and reflected schema; publication qualification in progress | transit-serving |
+| [transit-station-app](../packages/zig/transit-station-app/README.md) / `transit_station_app` | M23 neutral definitions, shared compiler, signed conditional publication, bounded host contract and upload continuation | transit-serving |
 | [transit-serving](../packages/zig/transit-serving/README.md) / `transit_serving` | M19 admission/current reads; M20 session controls, Table watch coverage and generated reactive contracts; native/Compose/Substrate qualification | transit-station, transit-query |
-| [transit-application](../packages/ts/transit-application/README.md) | M23 generated browser declarations/validators, pure presentation edits and publication generation keys | transit-station-app reflected contract, AJV |
+| [transit-application](../packages/ts/transit-application/README.md) | M23 generated validators, pure visual edits, scoped signing and exact pending/reviewed-plan recovery | transit-station-app reflected contract, AJV |
 | [transit-serving-http](../packages/zig/transit-serving-http/README.md) / `transit_serving_http` | Reusable signed HTTP/SSE/WebSocket dispatch, local challenges and joined streaming tasks extracted for M21 | transit-serving, transit-http-server |
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
 | [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and qualified paged accepted-state publication | transit-station |

@@ -197,3 +197,18 @@ policy is outside editable presentation; each immutable body and exact proposal
 has retained evidence. Publication and active-head visibility share an ordinary
 four-mutation turn. The offline compiler and owner tests do not yet qualify
 administrative ingress, generated browser clients or physical migration recovery.
+
+
+## Current M23 implementation boundary
+
+The shared application package now compiles complete definitions and owns
+conditional immutable publication through signed Station uploads. Board's opt-in
+editor and native operator endpoint reuse those types and validators. SQL/Form/
+Canvas editing does not admit work; explicit review freezes base, revision and
+publication digest. One uncertain signature survives route replacement and can
+be exported independently of the signing key. The actual native browser proof
+covers editing, a lost admission reply, disk/worker recovery and current read
+denial. Interface-driven shell generation, generic migration/data evolution and
+generated application placements remain unqualified until their own proofs run.
+See the [implementation guide](../apps/transit-board/docs/application.md) and
+[test evidence](../tests/README.md#m23-application-declaration-boundary).

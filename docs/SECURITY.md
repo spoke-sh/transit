@@ -350,3 +350,17 @@ and a fixed trusted workload image. Identity federation, arbitrary user-supplied
 native plugins, an identity-provider product, and broad policy languages are
 outside the first slice. The adversarial evidence belongs in
 [CONFORMANCE.md](CONFORMANCE.md), with implementation gates in [M1](roadmap/M1.md#design-gates-before-expanding-the-slice).
+
+
+## M23 application operator boundary
+
+The optional Board application endpoint has a bounded deployment allowlist plus
+caller-signed native requests and current durable publication policy. Neither
+that allowlist nor an interface definition grants rights. Inspection, query and
+operator identities remain separate. The selected browser profile trusts its
+origin and the shared Zig digest preparer; locally imported Ed25519 private keys
+never enter HTTP, SQL or diagnostics. It does not claim human federation or
+protection from a compromised origin. The immutable application configuration
+names an independent bootstrap administrator, so an editable definition cannot
+create its own repair authority. Current public reads recheck every publication
+chunk group and final head; denial cannot become a cached or built-in fallback.
