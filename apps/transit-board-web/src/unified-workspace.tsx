@@ -7,6 +7,7 @@ import {
 } from "@rey/transit-board-client";
 
 import { acquireCaller } from "@rey/transit-reactive-client";
+import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";
 import { verifiedPage } from "./unified-result";
 import { liveQuery, querySession, selectLiveTemplate } from "./query-live";
 import { useScope } from "./state";
@@ -428,6 +429,39 @@ export function UnifiedWorkspace({
               ? `Query ${work.current.namespace}: ${status.phase}`
               : "Run is explicit; switching views does not execute.")}
       </p>
+      {work.current.namespace && (
+        <QueryRecovery
+          id={work.current.namespace}
+          phase={status?.phase}
+          busy={controlBusy}
+          canSelect={!busy}
+          inspect={() =>
+            void task(async (signal) => {
+              const namespace = work.current.namespace;
+              const response = await query({ status: namespace }, signal);
+              if (!("status" in response)) throw new BoardError(0, "InvalidResponse");
+              if (signal.aborted || namespace !== work.current.namespace) return;
+              setStatus(response.status);
+              setError(
+                `Retained query ${namespace}: ${response.status?.phase ?? "unobserved"}. No result was read.`,
+              );
+            })
+          }
+          cancel={() => control("cancel")}
+          select={() => {
+            saveQueryReference("unified_v2", retained.resource, work.current.namespace);
+            retained.follow = false;
+            retained.binding = bindingId;
+            work.current = empty();
+            verified.current = "";
+            setPage(null);
+            setStatus(null);
+            setCompiled(null);
+            setRunDraft("");
+            refresh((value) => value + 1);
+          }}
+        />
+      )}
       {retained.binding !== bindingId &&
         (work.current.bundle || work.current.input !== null) &&
         !work.current.pending && (
@@ -493,6 +527,30 @@ export function UnifiedWorkspace({
             )}
           </div>
         )}
+      <label htmlFor="unified-resume">Existing query namespace</label>
+      <input id="unified-resume" value={resume} onChange={(e) => setResume(e.target.value)} />
+      <button
+        disabled={
+          busy ||
+          (!!work.current.namespace && !terminalQuery(status?.phase)) ||
+          !/^[1-9][0-9]{0,19}$/.test(resume) ||
+          BigInt(resume || "0") > 18446744073709551615n
+        }
+        onClick={() => {
+          if (work.current.namespace)
+            saveQueryReference("unified_v2", retained.resource, work.current.namespace);
+          retained.follow = false;
+          work.current = { ...empty(), namespace: resume };
+          setPage(null);
+          setStatus(null);
+          verified.current = "";
+          setCompiled(null);
+          setRunDraft("");
+          refresh((n) => n + 1);
+        }}
+      >
+        Resume without rerunning
+      </button>
       {authorized && source && (
         <>
           <div className="query-source">
@@ -561,25 +619,6 @@ export function UnifiedWorkspace({
               Collect request
             </button>
           </div>
-          <label htmlFor="unified-resume">Existing query namespace</label>
-          <input id="unified-resume" value={resume} onChange={(e) => setResume(e.target.value)} />
-          <button
-            disabled={
-              busy ||
-              !/^[1-9][0-9]{0,19}$/.test(resume) ||
-              BigInt(resume || "0") > 18446744073709551615n
-            }
-            onClick={() => {
-              retained.follow = false;
-              work.current = { ...empty(), namespace: resume };
-              setPage(null);
-              setCompiled(null);
-              setRunDraft("");
-              refresh((n) => n + 1);
-            }}
-          >
-            Resume without rerunning
-          </button>
           {runDraft && runDraft !== draft && (
             <p>Draft changed. The displayed result belongs to the earlier submitted SQL.</p>
           )}

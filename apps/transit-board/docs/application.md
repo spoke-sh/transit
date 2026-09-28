@@ -129,3 +129,14 @@ same recovery controls and reviewed plan. The editor permits replacing that plan
 only after cleanup releases its reservation. This does not retire an active
 interface or erase retained history; attempting to abandon an applied revision
 returns a conflict.
+
+Query recovery stays outside the current definition's result renderer. A changed
+source contract can hide a prior result without preventing an explicit status
+read or cancellation of its retained identity. After an observed terminal state,
+**Save reference and use current binding** downloads the origin/profile/resource
+and query identity before clearing selection. The existing correlation/namespace
+control resumes a result without another execution; every read still checks
+current authority and the configured source contract. These references belong to
+the configured requester at that origin; they do not migrate a query between
+requesters or grant access. Unknown signed submissions and incomplete uploads
+must be reconciled before changing selection.

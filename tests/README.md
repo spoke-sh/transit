@@ -2964,3 +2964,10 @@ staging capacity and refusal to abandon an applied revision. The expanded run
 passed in 52.3 seconds (53.0 seconds including the browser runner), excluding
 compilation and native setup. Package owner tests cover multiple collection turns,
 interrupted half chunks, exact proposal mismatch and the four-mutation bound.
+
+The Table v1 browser additionally exports a terminal query reference, clears its
+selection and resumes the original correlation under current reads without any
+additional submission. It then revokes access and retires the source as before.
+The expanded run passed in 33.0 seconds (33.7 seconds with the runner), excluding
+compilation/setup. Shared recovery controls also type-check for v2; this test does
+not establish a schema migration, different requester or different origin proof.

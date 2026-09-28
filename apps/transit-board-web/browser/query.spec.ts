@@ -124,6 +124,19 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
     page.getByText("Draft changed. The result still belongs to the last submitted SQL."),
   ).toBeVisible();
   expect(submissions).toBe(2);
+  const recovery = page.getByLabel("Retained query recovery", { exact: true });
+  const reference = await recovery.innerText();
+  const correlation = /Retained query (\d+)\./.exec(reference)?.[1];
+  expect(correlation).toBeTruthy();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Save reference and use current binding" }).click();
+  expect((await download).suggestedFilename()).toBe("transit-query-reference.json");
+  await expect(page.getByLabel("Verified query result")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run query", exact: true })).toBeEnabled();
+  await page.getByLabel("Existing query correlation", { exact: true }).fill(correlation!);
+  await page.getByRole("button", { name: "Resume without rerunning", exact: true }).click();
+  await expect(page.getByLabel("Verified query result")).toBeVisible();
+  expect(submissions).toBe(2);
   await page.screenshot({ path: process.env.BOARD_QUERY_SCREENSHOT, fullPage: true });
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,

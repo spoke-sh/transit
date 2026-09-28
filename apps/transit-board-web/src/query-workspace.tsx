@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BoardError, query, type QueryResponse } from "@rey/transit-board-client";
 import { acquireCaller } from "@rey/transit-reactive-client";
+import { QueryRecovery, saveQueryReference, terminalQuery } from "./query-recovery";
 import {
   tableContract,
   tablePage,
@@ -105,6 +106,7 @@ export function QueryWorkspace({
     updateCorrelation(value);
   };
   const [status, setStatus] = useState<Status | null>(null);
+  const [resume, setResume] = useState("");
   const [page, setPage] = useState<Page | null>(null);
   const [error, setError] = useState("");
   const [working, setWorking] = useState(false);
@@ -347,6 +349,60 @@ export function QueryWorkspace({
           </button>
         </div>
       )}
+      {correlation !== null && (
+        <QueryRecovery
+          id={String(correlation)}
+          phase={status?.phase}
+          busy={working || pending !== null}
+          inspect={() =>
+            void runTask(async (signal) => {
+              const response = await query({ status: { correlation } }, signal);
+              if (!("status" in response)) throw new BoardError(0, "InvalidResponse");
+              if (signal.aborted) return;
+              setStatus(response.status);
+              setError(
+                `Retained query ${correlation}: ${response.status.phase}. No result was read.`,
+              );
+            })
+          }
+          cancel={cancel}
+          select={() => {
+            saveQueryReference("table_v1", resource, String(correlation));
+            selection.current = null;
+            setCorrelation(null);
+            setStatus(null);
+            setPage(null);
+            selectedPage.current = null;
+            setCompiled(null);
+            setRunDraft("");
+            setRefresh((value) => value + 1);
+          }}
+        />
+      )}
+      <label htmlFor="table-resume">Existing query correlation</label>
+      <input id="table-resume" value={resume} onChange={(event) => setResume(event.target.value)} />
+      <button
+        disabled={
+          working ||
+          pending !== null ||
+          (correlation !== null && !terminalQuery(status?.phase)) ||
+          !/^[1-9][0-9]{0,15}$/.test(resume) ||
+          !Number.isSafeInteger(Number(resume))
+        }
+        onClick={() => {
+          if (correlation !== null) saveQueryReference("table_v1", resource, String(correlation));
+          selection.current = Number(resume);
+          setCorrelation(Number(resume));
+          setStatus(null);
+          setPage(null);
+          selectedPage.current = null;
+          setRunDraft("");
+          setCompiled(null);
+          setRefresh((value) => value + 1);
+        }}
+      >
+        Resume without rerunning
+      </button>
       {source && (
         <div className={`worksheet ${mode}`}>
           <aside className="source-card">
