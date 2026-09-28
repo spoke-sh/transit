@@ -137,22 +137,41 @@ export class LiveView<T> {
     }
   }
   private async run(epoch: number, signal: AbortSignal, limit: number) {
-    await this.session.open(signal);
-    if (signal.aborted) return;
-    if (this.template) {
-      const scope = this.session.scope!;
-      await this.session.refresh(
-        {
-          follow: {
-            session: { session: scope.session, generation: scope.generation },
-            expected: this.session.selection?.generation ?? 0,
-            template: this.template,
-            limit,
-          },
-        },
-        signal,
-      );
+    // Opening/subscribing/following can accept before a delayed receipt. Start
+    // the same exact-control recovery used after attachment before acquisition.
+    // Session.open skips committed steps; a recovered follow retains selection.
+    while (!signal.aborted) {
+      try {
+        if (this.session.pending) await this.session.recover(signal);
+        await this.session.open(signal);
+        if (signal.aborted) return;
+        if (this.template && !this.session.selection) {
+          const scope = this.session.scope!;
+          await this.session.refresh(
+            {
+              follow: {
+                session: { session: scope.session, generation: scope.generation },
+                expected: 0,
+                template: this.template,
+                limit,
+              },
+            },
+            signal,
+          );
+        }
+        break;
+      } catch (error) {
+        if (signal.aborted) return;
+        if (
+          !(error instanceof ReactiveError) ||
+          !(error.reason === "control_uncertain" || [429, 503, 504].includes(error.status))
+        )
+          throw error;
+        this.fail(error);
+        await sleep(500, signal);
+      }
     }
+    if (signal.aborted) return;
     let acquired = false;
     this.attached = false;
     const streamAbort = new AbortController();

@@ -61,3 +61,9 @@ aborted into repeated attachments. This does not extend a session lease or
 change the independent renewal loop. Pause joins local tasks, then retries
 transient control-slot pressure within its existing ten-second closure budget;
 any frozen mutation is recovered exactly before preparing another control.
+
+Initial open/subscribe/follow receipt recovery also runs before the first stream
+attachment. A delayed receipt keeps the exact prepared control and input position;
+startup resumes only after that control is observed, without replacing its session
+or query selection. Known denial/expiry stops this recovery and clears protected
+state. Every attempt remains bounded and pause joins the startup task.

@@ -185,3 +185,41 @@ test("pause retries transient control capacity after joining local tasks", async
   expect(view.getSnapshot().phase).toBe("paused");
   expect(session.scope).toBeNull();
 });
+
+test("startup reconciles accepted control before subscribing or acquiring", async () => {
+  const session = attachedSession();
+  const acquired = deferred<void>();
+  const signed = { retained: "exact" } as never;
+  let opens = 0,
+    recoveries = 0;
+  session.open = async () => {
+    ++opens;
+    if (opens === 1) {
+      session.pending = { signed, command: { close: { session: 5, generation: 6 } }, input: 9 };
+      throw new ReactiveError(0, "control_uncertain");
+    }
+    expect(recoveries).toBe(1);
+    expect(session.pending).toBeNull();
+    session.scope = scope;
+  };
+  session.recover = async () => {
+    expect(session.pending?.signed).toBe(signed);
+    expect(session.pending?.input).toBe(9);
+    ++recoveries;
+    session.pending = null;
+    return 9;
+  };
+  session.close = async () => {
+    session.scope = null;
+  };
+  const view = new LiveView(session, async () => {
+    expect(recoveries).toBe(1);
+    acquired.resolve();
+    return snapshot;
+  });
+  await view.start();
+  await acquired.promise;
+  await view.pause();
+  expect(opens).toBe(2);
+  expect(view.getSnapshot().phase).toBe("paused");
+});
