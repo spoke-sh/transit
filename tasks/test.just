@@ -385,3 +385,8 @@ application-browser:
 # Generated standalone application, migration and native query recovery.
 work-items-browser:
     zig build test-work-items-browser -Doptimize=ReleaseSafe
+
+# Generated work-item application with real physical owners and browser recovery.
+work-items-placement profile="compose":
+    zig build work-items-browser-proof transit-query-host -Doptimize=ReleaseSafe
+    nix develop .#serving --command python3 -B examples/work-items/placed.py {{quote(profile)}}

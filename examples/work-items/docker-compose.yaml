@@ -1,0 +1,80 @@
+x-runtime: &runtime
+  user: '${EXCHANGE_UID:?}:${EXCHANGE_GID:?}'
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  restart: "no"
+  pids_limit: 256
+  mem_limit: 512m
+  cpus: 2
+  logging:
+    driver: json-file
+    options: {max-size: 5m, max-file: "2"}
+services:
+  ursula:
+    <<: *runtime
+    image: '${EXCHANGE_URSULA_IMAGE:?}'
+    command: [server, --config, /ursula.toml]
+    environment: {RUST_LOG: warn, TOKIO_WORKER_THREADS: "2"}
+    volumes:
+      - '${EXCHANGE_WORK:?}/ursula.toml:/ursula.toml:ro'
+      - '${EXCHANGE_WORK:?}/wal:/wal'
+    networks: [storage]
+  node:
+    <<: *runtime
+    image: '${EXCHANGE_NODE_IMAGE:?}'
+    command: [/node.json]
+    environment: {LOG_LEVEL: warn}
+    volumes: ['${EXCHANGE_WORK:?}/operator/node.json:/node.json:ro']
+    networks: [storage, client]
+  data:
+    <<: *runtime
+    image: '${EXCHANGE_CONNECTOR_IMAGE:?}'
+    command: [/data/config.json]
+    environment: {LOG_LEVEL: warn}
+    volumes:
+      - '${EXCHANGE_WORK:?}/data:/data:ro'
+      - '${EXCHANGE_WORK:?}/data-data:/runtime-data'
+    networks: [client]
+  requester:
+    <<: *runtime
+    image: '${EXCHANGE_CALLER_IMAGE:?}'
+    command: [/requester/config.json]
+    environment: {LOG_LEVEL: warn}
+    volumes:
+      - '${EXCHANGE_WORK:?}/requester:/requester:ro'
+      - '${EXCHANGE_WORK:?}/requester-data:/runtime-data'
+    networks: [client]
+  courier:
+    <<: *runtime
+    image: '${EXCHANGE_CALLER_IMAGE:?}'
+    command: [/courier/config.json]
+    environment: {LOG_LEVEL: warn}
+    volumes:
+      - '${EXCHANGE_WORK:?}/courier:/courier:ro'
+      - '${EXCHANGE_WORK:?}/courier-data:/runtime-data'
+    networks: [client]
+  publication:
+    <<: *runtime
+    image: '${EXCHANGE_CONNECTOR_IMAGE:?}'
+    command: [/publication/config.json]
+    environment: {LOG_LEVEL: warn}
+    volumes:
+      - '${EXCHANGE_WORK:?}/publication:/publication:ro'
+      - '${EXCHANGE_WORK:?}/publication-data:/runtime-data'
+    networks: [client]
+  gateway-0:
+    <<: *runtime
+    image: '${EXCHANGE_BOARD_IMAGE:?}'
+    command: [/gateway/config.json]
+    environment: {LOG_LEVEL: warn}
+    volumes:
+      - '${EXCHANGE_WORK:?}/gateway-0:/gateway:ro'
+    networks: [client]
+  caller-probe:
+    <<: *runtime
+    image: '${EXCHANGE_PEER_IMAGE:?}'
+    networks: [client]
+networks:
+  storage: {internal: true}
+  client: {internal: true}

@@ -3,8 +3,12 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, expect as baseExpect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 const expect = baseExpect.configure({ timeout: 60000 });
-const [origin, marker] = process.argv.slice(2);
-const browser = await chromium.launch({ headless: true });
+const [origin, marker, spki] = process.argv.slice(2);
+if (origin.startsWith("https:")) assert(spki && /^[A-Za-z0-9+/]{43}=$/.test(spki));
+const browser = await chromium.launch({
+  headless: true,
+  args: spki ? [`--ignore-certificate-errors-spki-list=${spki}`] : [],
+});
 const context = await browser.newContext({ reducedMotion: "reduce" });
 const page = await context.newPage();
 page.setDefaultTimeout(60000);

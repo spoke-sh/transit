@@ -3059,5 +3059,39 @@ without stopping the data owner. Per-process peak RSS was 23,080,960 bytes for t
 8,278,016 for publication, 13,434,880 for the requester and 8,515,584 for delivery.
 These are one local run's observed peaks, not configured ceilings or distributed
 throughput. `just check` passed with the new workspace. Generated-application
-Compose/reference placement and M23 clean committed-HEAD qualification remain
-open; this focused task does not change the hosted PR matrix or M10 budget.
+M23 clean committed-HEAD qualification remains open; this focused task does not
+change the hosted PR matrix or M10 budget.
+
+`just test::work-items-placement compose` and `reference` qualify that same
+generated browser through actual isolated physical services. Compose passed in
+**164.23 seconds**, including 4.54 seconds of image work, retaining 19,557,165 cold
+bytes. Reference passed in **383.26 seconds**, including 77.00 seconds of image
+work, retaining 18,045,191 cold bytes. These are single local measurements with
+nineteen rows and three independently owned PIDs, not sustained throughput or
+hosted CI budgets. Reference used the existing kind v1.37.0 cluster and pinned
+Substrate revision `d277088bc1d081ef716d81dd7986d05d0a36ad3a`, in a fresh namespace.
+
+Both fixtures stop and replace all owners, gateway, node and disk Ursula before
+migrating and publishing the new interface. Compose replaces worker keys and
+records fresh ownership; reference places each owner in a separate gVisor actor,
+validates its ephemeral registration and grants its exact generation. Regranting
+the data owner's requester-resource read rights is separate from association.
+Gateway and workers have their own credentials. The private TLS edge passes
+independent trust/hostname checks; storage, cold-store and Internet egress probes
+reject. The reference gateway also rejects Kubernetes/Substrate control egress.
+The default launcher installation is neither adopted nor updated.
+
+The first reference attempt exposed an expired read during upload preparation.
+The neutral transport now retries up to three explicitly identified read conflicts
+with the same preparation request. Unit tests prove the finite limit and refusal
+to apply that policy to signed submissions, changed contracts or denial. The
+second complete reference run passed. No accepted identity, authority lifetime
+or generation was changed to recover this read contention.
+
+The fixture's TLS edge retains its existing 8 KiB body cap; application publication
+uses the native operator, so it does not qualify 512 KiB browser operator uploads
+through that edge. Provisioning and migration are trusted operator processes;
+automatic growing supervision, every partial root-bootstrap failure, distributed
+authority transfer and provider snapshot recovery remain outside this proof.
+`just check` passed with the placement wiring; the post-contention regression and
+clean committed-HEAD gate are recorded separately when complete.

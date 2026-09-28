@@ -86,6 +86,7 @@ pub fn build(b: *std.Build) void {
     const work_items = b.addExecutable(.{ .name = "transit-work-items", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "work_items", .module = work_items_module }} }) });
     const install_work_items = b.addInstallArtifact(work_items, .{});
     b.step("example-work-items", "Install the work-item application worker").dependOn(&install_work_items.step);
+    b.step("transit-work-items", "Install the work-item application worker image entry point").dependOn(&install_work_items.step);
     const work_items_generated = b.addSystemCommand(&.{ "python3", "-B" });
     work_items_generated.addFileArg(b.path("examples/work-items/generate.py"));
     work_items_generated.addArtifactArg(application.artifact("transit-app"));
@@ -100,6 +101,7 @@ pub fn build(b: *std.Build) void {
     const work_items_gateway = b.addExecutable(.{ .name = "transit-work-items-gateway", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/Gateway.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "work_items", .module = work_items_module }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") }, .{ .name = "assets", .module = b.createModule(.{ .root_source_file = work_items_assets, .target = target, .optimize = optimize }) } } }) });
     const install_work_items_gateway = b.addInstallArtifact(work_items_gateway, .{});
     b.step("work-items-gateway", "Install the generated work-item application gateway").dependOn(&install_work_items_gateway.step);
+    b.step("transit-work-items-gateway", "Install the generated work-item gateway image entry point").dependOn(&install_work_items_gateway.step);
     b.step("test-work-items-unit", "Check the application-owned Table migration").dependOn(&work_items_test.step);
     test_step.dependOn(&work_items_test.step);
     const work_items_contract = b.addSystemCommand(&.{ "python3", "-B" });
