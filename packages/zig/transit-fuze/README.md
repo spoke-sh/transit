@@ -12,6 +12,15 @@ to the same `Stream.Plan`/`PlanCodec`. It owns its AST, performs no I/O, and
 requires an explicit source name/schema. See the [SQL guide](docs/sql.md) for
 syntax, aggregate limits, errors and qualification.
 
+M24 adds pure editor foundations: `Sql.hints` runs the same production parser up
+to a token-boundary cursor and returns bounded grammar expectations; `SqlInput`
+frames explicit semicolon termination and whole-token replacement ranges while
+respecting quotes, nested comments and UTF-8 boundaries. Neither reads a catalog
+nor executes a statement. A caller must filter grammar expectations against its
+authorized schema and executable capability profile; these foundations alone
+do not qualify Board or terminal typeahead. Existing parser/compiler differential
+fixtures remain unchanged and pass with this instrumentation.
+
 `Unified` starts the separate [M18 v2 contract](../../../contracts/UNIFIED_QUERY_V2.md):
 up to eight typed columns, full-width signed/unsigned values, finite float64,
 UTF-8/binary, five cell states and preserved conflict alternatives. Its canonical

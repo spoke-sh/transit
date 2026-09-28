@@ -8,8 +8,10 @@ pub const execution = @import("execute.zig");
 pub const Stream = @import("Stream.zig");
 pub const Unified = @import("Unified.zig");
 pub const Sql = @import("Sql.zig");
+pub const SqlInput = @import("SqlInput.zig");
 pub const Inspect = @import("Inspect.zig");
 test {
+    _ = SqlInput;
     _ = Unified;
     _ = @import("tests.zig");
     _ = @import("sql_test.zig");

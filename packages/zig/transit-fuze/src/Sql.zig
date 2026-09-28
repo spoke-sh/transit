@@ -39,28 +39,34 @@ pub fn parse(text: []const u8) !Ast {
     if (text.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
     var parser: Parser = .{ .lexer = .{ .text = text } };
+    return statement(&parser);
+}
+fn statement(parser: *Parser) !Ast {
     try parser.advance();
     if (!parser.word("SELECT")) return error.UnsupportedStatement;
     try parser.advance();
     const selection = try parser.selection();
     try parser.requireWord("FROM");
-    const derived = try parser.take(.left);
+    const derived = if (selection == .rows and parser.token.tag == .cursor) false else try parser.take(.left);
     if (derived) {
         if (selection == .rows) return error.UnsupportedConstruct;
         try parser.requireWord("SELECT");
         const projected = try parser.projection();
         try parser.requireWord("FROM");
         var ast: Ast = .{ .source = try parser.name(), .selection = selection };
+        if (parser.assistance) |h| h.source = ast.source;
         ast.predicate = try parser.predicate();
         const limit = try parser.limit();
         try parser.require(.right);
         try parser.requireWord("AS");
+        parser.name_role = .alias;
         ast.input = .{ .projection = projected, .limit = limit, .alias = try parser.name() };
         ast.limit = try parser.limit();
         try parser.end();
         return ast;
     }
     var ast: Ast = .{ .source = try parser.name(), .selection = selection };
+    if (parser.assistance) |h| h.source = ast.source;
     ast.predicate = try parser.predicate();
     ast.limit = try parser.limit();
     try parser.end();
@@ -145,11 +151,12 @@ pub fn literalCell(literal: Literal) !m.Cell {
     };
 }
 
-const Tag = enum { eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };
+pub const Tag = enum { cursor, eof, word, quoted, string, integer, left, right, comma, dot, star, cast, plus, minus, eq, ne, lt, le, gt, ge, semi };
 const Token = struct { tag: Tag, text: []const u8 };
 const Lexer = struct {
     text: []const u8,
     position: usize = 0,
+    cursor_enabled: bool = false,
     fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
             const rest = self.text[self.position..];
@@ -198,6 +205,7 @@ const Lexer = struct {
                 }
                 break :blk if (byte == '\'') .string else .quoted;
             },
+            1 => if (self.cursor_enabled) .cursor else return error.UnsupportedConstruct,
             '(' => .left,
             ')' => .right,
             ',' => .comma,
@@ -224,10 +232,13 @@ const Lexer = struct {
 const Parser = struct {
     lexer: Lexer,
     token: Token = undefined,
+    assistance: ?*Hints = null,
+    name_role: NameRole = .source,
     fn advance(self: *Parser) !void {
         self.token = try self.lexer.next();
     }
     fn word(self: *const Parser, expected: []const u8) bool {
+        if (self.token.tag == .cursor) if (self.assistance) |h| h.word(expected);
         return self.token.tag == .word and std.ascii.eqlIgnoreCase(self.token.text, expected);
     }
     fn requireWord(self: *Parser, expected: []const u8) !void {
@@ -235,6 +246,7 @@ const Parser = struct {
         try self.advance();
     }
     fn take(self: *Parser, tag: Tag) !bool {
+        if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(tag);
         if (self.token.tag != tag) return false;
         try self.advance();
         return true;
@@ -249,6 +261,10 @@ const Parser = struct {
     fn name(self: *Parser) !m.Name {
         var bytes: [16]u8 = undefined;
         const token = self.token;
+        if (token.tag == .cursor) if (self.assistance) |h| {
+            h.name_role = self.name_role;
+            return error.IncompleteSql;
+        };
         if (token.tag != .word and token.tag != .quoted) return error.InvalidSqlSyntax;
         // Match the reference grammar's reserved keyword set exactly.
         if (token.tag == .word) {
@@ -264,8 +280,17 @@ const Parser = struct {
         return result;
     }
     fn column(self: *Parser) !Column {
+        const previous = self.name_role;
+        self.name_role = .column;
+        defer self.name_role = previous;
         const first = try self.name();
-        return if (try self.take(.dot)) .{ .qualifier = first, .name = try self.name() } else .{ .name = first };
+        if (try self.take(.dot)) {
+            if (self.assistance) |h| h.qualifier = first;
+            const column_name = try self.name();
+            if (self.assistance) |h| h.qualifier = null;
+            return .{ .qualifier = first, .name = column_name };
+        }
+        return .{ .name = first };
     }
     fn projection(self: *Parser) !Projection {
         if (try self.take(.star)) return .{ null, null };
@@ -280,7 +305,12 @@ const Parser = struct {
             const result: Selection = if (count) blk: {
                 try self.require(.star);
                 break :blk .count;
-            } else .{ .sum = try self.column() };
+            } else value: {
+                if (self.assistance) |h| h.sum_only = true;
+                const column_value = try self.column();
+                if (self.assistance) |h| h.sum_only = false;
+                break :value .{ .sum = column_value };
+            };
             try self.require(.right);
             return result;
         }
@@ -295,6 +325,9 @@ const Parser = struct {
             try self.requireWord("NULL");
             return .{ .is_null = col };
         }
+        if (self.token.tag == .cursor) if (self.assistance) |h| {
+            for ([_]Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| h.symbol(tag);
+        };
         const op: f.Plan.Comparison = switch (self.token.tag) {
             .eq => .eq,
             .ne => .ne,
@@ -305,7 +338,10 @@ const Parser = struct {
             else => return error.UnsupportedConstruct,
         };
         try self.advance();
-        return .{ .compare = .{ .column = col, .op = op, .literal = try self.literal() } };
+        if (self.assistance) |h| h.literal_column = col;
+        const value = try self.literal();
+        if (self.assistance) |h| h.literal_column = null;
+        return .{ .compare = .{ .column = col, .op = op, .literal = value } };
     }
     fn literal(self: *Parser) !Literal {
         if (self.word("NULL")) {
@@ -336,6 +372,7 @@ const Parser = struct {
         }
         const negative = try self.take(.minus);
         if (!negative) _ = try self.take(.plus);
+        if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(.integer);
         if (self.token.tag != .integer) return error.InvalidSqlSyntax;
         const unsigned = std.fmt.parseInt(u64, self.token.text, 10) catch return error.LiteralOutOfRange;
         const value: i128 = if (negative) -@as(i128, unsigned) else unsigned;
@@ -346,9 +383,60 @@ const Parser = struct {
     fn limit(self: *Parser) !?u64 {
         if (!self.word("LIMIT")) return null;
         try self.advance();
+        if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(.integer);
         if (self.token.tag != .integer) return error.InvalidSqlSyntax;
         const result = std.fmt.parseInt(u64, self.token.text, 10) catch return error.LiteralOutOfRange;
         try self.advance();
         return result;
     }
 };
+
+pub const NameRole = enum { source, column, alias };
+/// Expectations from the production parser at a token boundary. Static keyword
+/// slices and owned names only; no catalog, I/O, authority or source-text borrow.
+/// Consumers must apply their executable capability and authorized type profile.
+pub const Hints = struct {
+    words: [16]?[]const u8 = @splat(null),
+    symbols: [16]?Tag = @splat(null),
+    name_role: ?NameRole = null,
+    source: ?m.Name = null,
+    qualifier: ?m.Name = null,
+    literal_column: ?Column = null,
+    sum_only: bool = false,
+    fn word(self: *Hints, value: []const u8) void {
+        for (&self.words) |*slot| {
+            if (slot.*) |existing| {
+                if (std.mem.eql(u8, existing, value)) return;
+            } else {
+                slot.* = value;
+                return;
+            }
+        }
+        unreachable; // finite alternatives in the parser, not catalog cardinality
+    }
+    fn symbol(self: *Hints, value: Tag) void {
+        for (&self.symbols) |*slot| {
+            if (slot.*) |existing| {
+                if (existing == value) return;
+            } else {
+                slot.* = value;
+                return;
+            }
+        }
+        unreachable;
+    }
+};
+/// `prefix` ends before the token being replaced. Incomplete quotes/comments
+/// naturally suppress expectations because the parser cannot reach the cursor.
+/// A malformed prefix produces no candidates; complete compilation is separate.
+pub fn hints(prefix: []const u8) !Hints {
+    if (prefix.len > max_statement_bytes) return error.StatementTooLarge;
+    if (!std.unicode.utf8ValidateSlice(prefix) or std.mem.indexOfAny(u8, prefix, &.{ 0, 1 }) != null) return error.InvalidSqlEncoding;
+    var bytes: [max_statement_bytes + 1]u8 = undefined;
+    @memcpy(bytes[0..prefix.len], prefix);
+    bytes[prefix.len] = 1;
+    var result: Hints = .{};
+    var parser: Parser = .{ .lexer = .{ .text = bytes[0 .. prefix.len + 1], .cursor_enabled = true }, .assistance = &result };
+    _ = statement(&parser) catch {};
+    return result;
+}

@@ -118,3 +118,55 @@ fn literalText(buffer: []u8, pattern: []const u8, count: usize, binary: bool) ![
     try writer.writeAll(if (binary) "'::bytea" else "'");
     return writer.buffered();
 }
+
+test "incomplete grammar expectations come from the production parser" {
+    const Cases = struct { prefix: []const u8, keyword: ?[]const u8 = null, role: ?sql.NameRole = null, symbol: ?sql.Tag = null };
+    for ([_]Cases{
+        .{ .prefix = "", .keyword = "SELECT" },
+        .{ .prefix = "SELECT ", .keyword = "COUNT", .role = .column, .symbol = .star },
+        .{ .prefix = "SELECT id ", .keyword = "FROM", .symbol = .comma },
+        .{ .prefix = "SELECT id, value ", .keyword = "FROM" },
+        .{ .prefix = "SELECT * FROM ", .role = .source },
+        .{ .prefix = "SELECT * FROM items ", .keyword = "WHERE", .symbol = .semi },
+        .{ .prefix = "SELECT * FROM items WHERE ", .role = .column },
+        .{ .prefix = "SELECT * FROM items WHERE id ", .keyword = "IS", .symbol = .eq },
+        .{ .prefix = "SELECT * FROM items WHERE id IS ", .keyword = "NULL" },
+        .{ .prefix = "SELECT * FROM items WHERE id > ", .symbol = .integer },
+        .{ .prefix = "SELECT * FROM items LIMIT ", .symbol = .integer },
+        .{ .prefix = "SELECT COUNT(", .symbol = .star },
+        .{ .prefix = "SELECT COUNT(*) ", .keyword = "FROM" },
+        .{ .prefix = "SELECT SUM(", .role = .column },
+        .{ .prefix = "/* one /* two */ */ SELECT ", .role = .column },
+        .{ .prefix = "-- ; ignored\nSELECT ", .role = .column },
+    }) |case| {
+        const hints = try sql.hints(case.prefix);
+        if (case.keyword) |expected| {
+            var found = false;
+            for (hints.words) |word| if (word) |value| {
+                if (std.mem.eql(u8, value, expected)) {
+                    found = true;
+                    break;
+                }
+            };
+            try t.expect(found);
+        }
+        if (case.role) |expected| try t.expectEqual(expected, hints.name_role.?);
+        if (case.symbol) |expected| try t.expect(std.mem.indexOfScalar(?sql.Tag, &hints.symbols, expected) != null);
+    }
+    const qualified = try sql.hints("SELECT \"items\".");
+    try t.expectEqual(sql.NameRole.column, qualified.name_role.?);
+    try t.expectEqualStrings("items", qualified.qualifier.?.slice());
+    try t.expect((try sql.hints("SELECT SUM(")).sum_only);
+    const literal = try sql.hints("SELECT * FROM items WHERE id = ");
+    try t.expectEqualStrings("id", literal.literal_column.?.name.slice());
+    try t.expectEqualStrings("items", literal.source.?.slice());
+    for ([_][]const u8{ "DELETE ", "SELECT * JOIN ", "SELECT 'open;", "SELECT \"open", "/* open", "-- ignored" }) |prefix| {
+        const hints = try sql.hints(prefix);
+        try t.expect(hints.name_role == null);
+        for (hints.words) |word| try t.expect(word == null);
+        for (hints.symbols) |symbol| try t.expect(symbol == null);
+    }
+    try t.expectError(error.InvalidSqlEncoding, sql.hints("SELECT \x01"));
+    try t.expectError(error.UnsupportedConstruct, sql.parse("SELECT \x01"));
+    try t.expectError(error.StatementTooLarge, sql.hints(&(@as([4097]u8, @splat(' ')))));
+}
