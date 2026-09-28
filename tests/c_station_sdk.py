@@ -93,9 +93,9 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                 assert cfg['profile'] == 'growing_v3'
                 if mode.startswith('document-'):
                     data = json.loads(Path(cfg['document_fixtures']).read_bytes())
-                    fixtures = target / 'document-codecs.txt'
-                    fixtures.write_text('\n'.join([data['reference_hex'], *[v['wire_hex'] for v in data['changes']]]) + '\n')
-                    return [document_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), str(cfg['resource']), fixtures, *cfg['changes']]
+                    document_fixtures = target / 'document-codecs.txt'
+                    document_fixtures.write_text('\n'.join([data['reference_hex'], *[v['wire_hex'] for v in data['changes']]]) + '\n')
+                    return [document_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']), str(cfg['resource']), document_fixtures, *cfg['changes']]
                 if mode.startswith('http-'):
                     return [http_binary, mode, cfg['url'], str(cfg['principal']), str(cfg['pid']), str(cfg['generation']), cfg['seed_file'], str(cfg['peer']),
                             str(cfg['resource']), cfg['body'], str(cfg['deadline']), cfg.get('outcome', ''), cfg.get('ready', ''), cfg.get('continue', ''), cfg.get('accepted', ''), http_fixtures, cfg.get('followup_reason', 'retry')]
