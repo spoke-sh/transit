@@ -1,0 +1,13 @@
+CREATE INTERFACE board WITH (realm = 1, revision = 1, components = 1, entry = 'atlas', theme = 'mono');
+CREATE THEME board.mono WITH (density = 'comfortable');
+CREATE THEME board.dense WITH (density = 'compact');
+CREATE BINDING board.catalog WITH (kind = 'inspection', projection = 'atlas', page_budget = 1);
+CREATE BINDING board.resources WITH (kind = 'inspection', projection = 'resources', page_budget = 1);
+CREATE BINDING board.activity WITH (kind = 'inspection', projection = 'activity', page_budget = 1);
+CREATE BINDING board.capabilities WITH (kind = 'inspection', projection = 'capabilities', page_budget = 1);
+CREATE SCREEN board.atlas WITH (path = '/atlas', label = 'Atlas', area = 'workspace', renderer = 'atlas', binding = 'catalog');
+CREATE SCREEN board.records WITH (path = '/resources', label = 'Resources', area = 'workspace', renderer = 'records', binding = 'resources');
+CREATE SCREEN board.activity WITH (path = '/activity', label = 'Activity', area = 'workspace', renderer = 'activity', binding = 'activity');
+CREATE SCREEN board.definition WITH (path = '/definition', label = 'Definition', area = 'operations', renderer = 'definition', binding = 'capabilities');
+CREATE SCREEN board.operations WITH (path = '/operations', label = 'Operations', area = 'operations', renderer = 'operations', binding = 'capabilities');
+CREATE ACTION board.open WITH (label = 'Open resources', kind = 'navigate', target = 'records');

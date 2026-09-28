@@ -15,3 +15,6 @@ export function Signed(value: unknown): boolean;
 export function PreparedRead(value: unknown): boolean;
 export function SignedRead(value: unknown): boolean;
 export function Observation(value: unknown): boolean;
+export function HostRequest(value: unknown): boolean;
+export function HostResponse(value: unknown): boolean;
+export function Compiled(value: unknown): boolean;

@@ -130,15 +130,24 @@ pub fn main(init: std.process.Init) !void {
     const operator_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
     const phase = args[2];
     var saved: Saved = undefined;
-    if (std.mem.eql(u8, phase, "stage")) {
+    if (std.mem.eql(u8, phase, "stage") or std.mem.eql(u8, phase, "serve")) {
         const created = try admin.provision(Worker, worker_key);
         saved = .{ .phase = phase, .pid = created.pid, .resource = created.resource, .generation = created.generation };
         _ = try admin.submit(.{ .grant = .{ .subject = Operator, .public_key = operator_key.public_key.toBytes(), .permissions = p.permission(.send) | p.permission(.inspect), .pid = saved.pid } });
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        if (std.mem.eql(u8, phase, "serve")) {
+            const inspector = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
+            _ = try admin.submit(.{ .grant = .{ .subject = 65538, .public_key = inspector.public_key.toBytes(), .permissions = p.permission(.inspect), .pid = null } });
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65538, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
+        }
     } else {
         const data = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.arena.allocator(), .limited(client.max_body));
         saved = (try std.json.parseFromSlice(Saved, init.arena.allocator(), data, .{})).value;
         saved.phase = phase;
+        if (std.mem.eql(u8, phase, "deny-reader") or std.mem.eql(u8, phase, "restore-reader")) {
+            _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65538, .permissions = if (std.mem.eql(u8, phase, "deny-reader")) 0 else p.State.permission(.inspect) | p.State.permission(.read) } });
+            return;
+        }
         _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = Worker } });
         saved.generation += 1;
         if (saved.stale) |request| {
@@ -156,7 +165,17 @@ pub fn main(init: std.process.Init) !void {
     const proposal: Owner.Proposal = .{ .operation = .{ .value = 1 }, .record = .{ .value = 100 }, .expected = .{}, .expected_digest = @splat(0), .revision = .{ .value = 1 }, .spec = try s.Publication.Digest.of(Owner.format, body) };
     var handler: Handler = .{ .behavior = .{ .allocator = init.gpa, .owner = owner() } };
     server.input_guard = handler.behavior.guard();
-    if (std.mem.eql(u8, phase, "stage")) {
+    if (std.mem.eql(u8, phase, "serve") or std.mem.eql(u8, phase, "resume")) {
+        if (std.mem.eql(u8, phase, "serve")) try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .publish = true } } }, false);
+        const encoded = try p.Json.valueAlloc(init.gpa, saved);
+        defer init.gpa.free(encoded);
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = args[3], .data = encoded });
+        while (true) switch (try server.step(handler.interface(), now(init.io) + 30000)) {
+            .idle => try init.io.sleep(.fromMilliseconds(25), .awake),
+            .blocked => return server.handler_error orelse error.BehaviorBlocked,
+            .committed, .progress => {},
+        };
+    } else if (std.mem.eql(u8, phase, "stage")) {
         try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .publish = true } } }, false);
         try caller.send(init.io, &server, &handler, .{ .begin = proposal }, false);
         for (0..3) |i| {
@@ -209,8 +228,13 @@ pub fn main(init: std.process.Init) !void {
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         const reference = owner().reference(saved.resource, head);
         try t.expectEqualStrings(body, try reference.read(source, &bytes));
+        var published = try app.Host.published(init.gpa, source, native_scope);
+        defer published.deinit();
+        try t.expectEqualDeep(head, published.value.published.head);
+        try t.expectEqualStrings(body, published.value.published.compiled.canonical);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = 0 } });
         try t.expectError(error.AccessDenied, reference.read(source, &bytes));
+        try t.expectError(error.AccessDenied, app.Host.published(init.gpa, source, native_scope));
         try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{} }));
         try output.interface.print("Application: {d} body bytes, signed operator={d}, four mutations, exact retries, policy and resource denial passed\n", .{ body.len, Operator });
     } else return error.UnknownPhase;

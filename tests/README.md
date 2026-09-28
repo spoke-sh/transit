@@ -2838,8 +2838,9 @@ pinned ANTLR toolchain to compare independent parse-tree models, SQL/model/visua
 edit round-trips and complete-program rejection. Full-width revisions remain
 canonical decimal strings. Package tests (also in `just test::unit`) exercise
 allocator failures, source-buffer ownership, incompatible references and budgets.
-These prove the offline boundary only; publication, operator admission, real
-browser composition and migration/placement recovery remain outstanding.
+These prove the offline boundary only; the separate native publication and
+editor proofs below cover ingress and restart. Migration/placement recovery
+remains outstanding.
 
 Application publication owner tests add two competing operators, exact accepted
 proposal recovery after owner reconstruction, atomic four-mutation activation,
@@ -2857,8 +2858,9 @@ byte-for-byte, and verifies persistent operator denial plus current resource-rea
 denial. Recovery uses one resident authority page. The 1002-byte interface took
 20 turns, 197 point reads, at most four mutations and 256-byte values; measured
 phase times were 0.907/1.660/0.405/0.917 seconds (stage/seal/publish/finish, excluding
-compilation). This proves native publication recovery; application browser,
-HTTP operator ingress, data migration and Compose/reference placements remain open.
+compilation). This proves native publication recovery; the separate browser proof below
+covers native HTTP operator ingress. Data migration and Compose/reference
+application placements remain open.
 The proof and independent grammar are explicit focused tasks, without expanding
 ordinary PR lanes or claiming a new hosted budget.
 
@@ -2877,3 +2879,24 @@ denial dispositions and explicit administrator restoration. Additional owner tes
 reject mixing full-body and half-chunk upload paths and prove that unsupported
 program bytes cannot become an active interface. Allocation/read failures do not
 become terminal caller rejections. Independent fixtures cover every command tag.
+
+
+`just test::application-browser` starts owned disk Ursula, an actual application
+worker and the embedded Board binary. It checks the disabled operator endpoint,
+exact Origin, invalid signatures, disallowed principals and complete-program
+rejection. Chromium edits SQL/Form/Canvas, reviews an exact base/digest, loses a
+real admitted reply, edits the separate draft, remounts the route and retries
+the identical signature. It also restores the reviewed plan after a full reload
+and fresh key import without changing its original base or body. The
+extended native browser sequence passed in **31.9 seconds** (excluding compilation
+and fixture setup). The harness then kills worker/node, restarts disk storage,
+checks the same complete published definition and denies disclosure after reader
+revocation. Built-in and published definitions are distinct response variants.
+This is native editor/publication evidence, not interface-generation fencing,
+application data migration or Compose/reference qualification. The task remains
+focused, outside the measured hosted PR budget.
+
+The shared native signing helper also agrees with independent Python Station/v3
+fixtures. Browser tests preserve one outstanding signature through export/import
+and refuse altered scopes before signing. Host compiler replies use the existing
+Station publication commitment; they do not invent a second digest format.

@@ -1,0 +1,70 @@
+.definition-editor {
+  min-width: 0;
+}
+.definition-editor .editor-toolbar,
+.definition-editor .editor-toolbar nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.definition-editor label {
+  display: block;
+  margin: 12px 0;
+}
+.definition-editor textarea {
+  display: block;
+  width: 100%;
+  min-height: 360px;
+  max-height: 80vh;
+  resize: vertical;
+  margin-top: 8px;
+  padding: 16px;
+  border: 1px solid var(--muted);
+  border-radius: 0;
+  background: #fff;
+  color: var(--ink);
+  font:
+    14px/1.65 ui-monospace,
+    monospace;
+}
+.definition-editor input,
+.definition-editor select {
+  max-width: 100%;
+  margin: 4px 8px;
+}
+.definition-editor button[aria-pressed="true"] {
+  background: var(--ink);
+  color: #fff;
+}
+.definition-editor .definition-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+}
+.definition-editor fieldset {
+  min-width: 0;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+}
+.definition-editor .definition-canvas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 24px;
+  list-style: none;
+  border: 1px solid var(--line);
+}
+.definition-editor .publication-review {
+  padding: 16px;
+  border: 1px solid var(--muted);
+}
+.definition-editor .publication-review code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 12px 0;
+}
+.definition-editor section {
+  margin-top: 32px;
+  border-top: 1px solid var(--line);
+}

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import {
   createContext,
   useCallback,
@@ -71,6 +72,7 @@ export function Access({ children }: { children: ReactNode }) {
         <a href="/" className="brand">
           <span aria-hidden="true">▥</span> Board <small>REY / TRANSIT</small>
         </a>
+        <Link to="/definition">Definition</Link>
         <span className="profile">
           {scope?.query_enabled ? "INSPECTION · SQL QUERIES" : "INSPECTION ONLY"}
         </span>
@@ -85,8 +87,8 @@ export function Access({ children }: { children: ReactNode }) {
             <button onClick={() => setRetry((value) => value + 1)}>Retry connection</button>
           )}
           <p className="muted">
-            Viewers share this installation’s configured inspection scope. No operational controls
-            are available.
+            Viewers share this installation’s configured inspection scope. Operator actions require
+            a separately enabled endpoint and signing identity.
           </p>
         </main>
       ) : (

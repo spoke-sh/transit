@@ -176,3 +176,10 @@ RPC capture and network-free replay. `just test::flight-placement compose` and
 The manual [Flight workflow](../.github/workflows/flight.yml) runs native and
 Compose qualification and retains timing logs. It is outside the measured PR
 budget; no hosted timing is claimed until that workflow executes.
+
+
+M23 adds `just test::application-grammar`, `just test::application` and
+`just test::application-browser` for the independent declarative compiler,
+signed native publication restart boundary, and actual embedded editor with
+operator admission and recovery. These are focused tasks outside ordinary PR
+lanes; the browser task requires the existing installed Chromium.

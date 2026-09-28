@@ -421,6 +421,27 @@
       "expression": "65536",
       "classification": "working-set",
       "meaning": "Finite caller request profile and worker body buffer; independent of durable exchange count and response capture size."
+    },
+    {
+      "source": "packages/zig/transit-station-app/src/Model.zig",
+      "symbol": "max_program_bytes",
+      "expression": "64 * 1024",
+      "classification": "operation",
+      "meaning": "One complete UTF-8 application definition; not a retained revision or application count."
+    },
+    {
+      "source": "packages/zig/transit-station-app/src/Model.zig",
+      "symbol": "max_members",
+      "expression": "16",
+      "classification": "operation",
+      "meaning": "Members in each binding/screen/action collection of one definition; histories use growing durable keys."
+    },
+    {
+      "source": "packages/zig/transit-station-app/src/Host.zig",
+      "symbol": "max_body_bytes",
+      "expression": "512 * 1024",
+      "classification": "operation",
+      "meaning": "Escaped JSON administrative request; compiler still enforces the smaller complete-program and command bounds."
     }
   ],
   "identities": [

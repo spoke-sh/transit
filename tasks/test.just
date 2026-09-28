@@ -373,3 +373,7 @@ flight-placement profile:
 
 flight-outbound:
     nix develop .#flight --command zig build test-flight-outbound -Doptimize=ReleaseSafe
+
+# Embedded application editor, real operator signatures and recovery.
+application-browser:
+    zig build test-application-browser -Doptimize=ReleaseSafe

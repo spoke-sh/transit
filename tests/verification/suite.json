@@ -170,7 +170,8 @@
       "test::flight-faults",
       "test::flight-outbound",
       "test::application-grammar",
-      "test::application"
+      "test::application",
+      "test::application-browser"
     ]
   },
   "nested_tasks": {

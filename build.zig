@@ -276,6 +276,7 @@ pub fn build(b: *std.Build) void {
     embed.has_side_effects = true;
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
     const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
+        .{ .name = "transit_station_app", .module = application.module("transit_station_app") },
         .{ .name = "transit_serving_http", .module = serving_http.module("transit_serving_http") },
         .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") },
         .{ .name = "transit_query", .module = query.module("transit_query") },
@@ -688,6 +689,14 @@ pub fn build(b: *std.Build) void {
     application_test.has_side_effects = true;
     application_test.stdio = .inherit;
     b.step("test-application", "Qualify conditional application publication over signed native ingress and disk recovery").dependOn(&application_test.step);
+    const application_browser = b.addSystemCommand(&.{ "python3", "-B" });
+    application_browser.addFileArg(b.path("tests/application_board.py"));
+    application_browser.addArtifactArg(node_artifact);
+    application_browser.addArtifactArg(application_proof);
+    application_browser.addArtifactArg(board);
+    application_browser.has_side_effects = true;
+    application_browser.stdio = .inherit;
+    b.step("test-application-browser", "Qualify the embedded declarative editor and signed publication with actual disk recovery").dependOn(&application_browser.step);
     const publication_proof = b.addExecutable(.{ .name = "transit-publication-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/publication.zig"),
         .target = target,

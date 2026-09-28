@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@rey/transit-application": "workspace:*",
     "@rey/transit-board-client": "workspace:*",
     "@rey/transit-reactive-client": "workspace:*",
     "@tanstack/react-router": "1.170.39",

@@ -3,7 +3,8 @@
 M23's shared declarative application owner, above Station and serving. The
 [application contract](../../../contracts/APPLICATION_V1.md) owns neutral values,
 publication and migration boundaries. Implementation is in progress; package
-checks do not qualify browser publication or deployment recovery.
+checks do not by themselves qualify browser publication or deployment recovery.
+The separate native browser task records its actual coverage in the test guide.
 
 `Model` validates one bounded definition and its complete reference graph without
 I/O. Bindings keep inspection, finite queries and explicit commands distinct.
@@ -42,8 +43,7 @@ staging without expiring published history. See the contract for exact layout,
 limits and quota recovery. Tests cover races, denial, lost-result reconstruction,
 partial-decision rollback and retained revision growth. `just test::application` additionally qualifies signed native operator admission,
 exact lost replies, worker fencing and node/disk-store restart. Browser generation
-switching, administrative HTTP ingress and physical application placements remain
-open; the native proof is not those broader qualifications.
+switching and physical application placements remain open; the native proof is not those broader qualifications.
 
 The committed `api/application.schema.json` is reflected by `transit-app schema`.
 `just transit-board::generate` regenerates it and the shared browser package;
@@ -73,3 +73,13 @@ identity. Freeze the whole signed submission across unknown replies; a fresh
 sequence does not resolve an earlier attempt. Independent Python signing fixtures
 and the real restart proof cover request bytes, optional status selectors,
 lost replies and current read denial. This adapter does not itself admit web users.
+
+`Host` owns bounded administrative transport values and complete compiler replies.
+`Upload.next` selects one recoverable signed-upload continuation from a reviewed
+proposal and observed progress; it cannot admit work. `Host.published` acquires
+one current immutable definition through the public resource reader, validates
+its complete body and rechecks the active head before returning. A changed head,
+missing chunk or denied read invalidates the whole acquisition. Hosts can compose
+these helpers without protocol encoding or publication policy in TypeScript.
+The optional [Board endpoint](../../../apps/transit-board/docs/application.md)
+uses these shared types and retains the default inspection boundary.

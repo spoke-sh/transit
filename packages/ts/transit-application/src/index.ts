@@ -103,3 +103,5 @@ export function diagram(definition: Definition): { nodes: DiagramNode[]; edges: 
   }
   return { nodes, edges };
 }
+
+export * from "./client";

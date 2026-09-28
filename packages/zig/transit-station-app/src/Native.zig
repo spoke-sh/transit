@@ -115,8 +115,8 @@ pub fn read(wire: *client.Client, scope: Scope, signed: SignedRead) !Observation
             const owner: Pub = .{ .configuration = config };
             const receipt = if (selected.operation.value != 0) try owner.receipt(&batch, signed.prepared.principal, selected.operation) else null;
             var result: State = .{ .revision = .{ .value = body.resource.revision }, .configuration = config, .policy = try owner.policy(&batch, signed.prepared.principal), .head = try owner.head(&batch), .receipt = receipt, .upload = null, .disposition = if (selected.input != 0) try batch.read(root.Records.key(scope.application, 'e', signed.prepared.principal, selected.input)) else null };
-            if (selected.record.value != 0) {
-                const operation = receipt orelse return error.ApplicationOperationNotFound;
+            if (selected.record.value != 0 and receipt != null) {
+                const operation = receipt.?;
                 if (operation.proposal.record.value != selected.record.value) return error.InvalidApplicationSelection;
                 if (operation.owns_record) {
                     const descriptor = try root.station.Publication.Descriptor.decode((try batch.read(root.station.Publication.key(scope.namespace.value, 'r', selected.record.value, 0))) orelse return error.MissingPublicationChunk);

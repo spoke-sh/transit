@@ -1042,22 +1042,31 @@
         "tests/application.zig",
         "tests/application.py",
         "packages/zig/transit-station-app/src/Request.zig",
-        "packages/zig/transit-station-app/src/Behavior.zig"
+        "packages/zig/transit-station-app/src/Behavior.zig",
+        "packages/zig/transit-station-app/src/Native.zig",
+        "packages/zig/transit-station-app/src/Host.zig",
+        "packages/zig/transit-station-app/src/Upload.zig",
+        "tests/application_signing.py",
+        "tests/application_board.py",
+        "apps/transit-board-web/browser/application.spec.ts"
       ],
       "profile": "M23 bounded declarations and signed native publication owner",
       "tasks": [
         "test::unit",
         "test::application-grammar",
-        "test::application"
+        "test::application",
+        "test::application-browser"
       ],
       "scenarios": [
         "Independent ANTLR/model agreement and semantic visual-edit round-trip; whole-program rejection and allocation failures",
         "Competing bases, attributed receipts, non-owned record abandonment refusal and explicit staging cleanup",
         "Current operator denial between chunks and after completed admission; resource-read revocation",
         "Three actual worker kills with node and disk Ursula restart, one-page recovery, stale generation refusal and exact lost append/activation replies",
-        "Native two-part uploads resume a first half across worker loss; complete unsupported programs remain staging and never activate"
+        "Native two-part uploads resume a first half across worker loss; complete unsupported programs remain staging and never activate",
+        "Independent native signing digests; scoped host admission, current signed reads and exact browser retry after a real route remount",
+        "Actual embedded SQL/Form/Canvas editing and conditional publication, then worker/node/disk restart and current reader revocation"
       ],
-      "limits": "64 KiB per body, two staged bodies and one 256-byte chunk per step, four mutations for atomic visibility. The native proof uses a 1002-byte interface and 20 turns. No browser generation switching, administrative HTTP ingress, application data migration or Compose/reference application claim yet. No new hosted CI budget.",
+      "limits": "64 KiB per body, two staged bodies, 128-byte transport parts, 512 KiB escaped host envelope and at most sixteen explicitly admitted host operators; four mutations for atomic visibility. Native proof uses a 1002-byte interface and 20 turns. Actual Board browser qualification covers one native installation. Interface-generation replacement, application data migration and Compose/reference application qualifications remain open. No new hosted CI budget.",
       "model": null
     }
   ]

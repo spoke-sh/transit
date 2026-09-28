@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AtlasRouteImport } from './routes/atlas'
+import { Route as DefinitionRouteImport } from './routes/definition'
 import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as ProcessesPidRouteImport } from './routes/processes.$pid'
 import { Route as ProcessesPidJourneyRouteImport } from './routes/processes.$pid.journey'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const AtlasRoute = AtlasRouteImport.update({
   id: '/atlas',
   path: '/atlas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DefinitionRoute = DefinitionRouteImport.update({
+  id: '/definition',
+  path: '/definition',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResourcesRoute = ResourcesRouteImport.update({
@@ -44,6 +50,7 @@ const ProcessesPidJourneyRoute = ProcessesPidJourneyRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/atlas': typeof AtlasRoute
+  '/definition': typeof DefinitionRoute
   '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/atlas': typeof AtlasRoute
+  '/definition': typeof DefinitionRoute
   '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/atlas': typeof AtlasRoute
+  '/definition': typeof DefinitionRoute
   '/resources': typeof ResourcesRoute
   '/processes/$pid': typeof ProcessesPidRouteWithChildren
   '/processes/$pid/journey': typeof ProcessesPidJourneyRoute
@@ -68,6 +77,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/atlas'
+    | '/definition'
     | '/resources'
     | '/processes/$pid'
     | '/processes/$pid/journey'
@@ -75,6 +85,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/atlas'
+    | '/definition'
     | '/resources'
     | '/processes/$pid'
     | '/processes/$pid/journey'
@@ -82,6 +93,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/atlas'
+    | '/definition'
     | '/resources'
     | '/processes/$pid'
     | '/processes/$pid/journey'
@@ -90,6 +102,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AtlasRoute: typeof AtlasRoute
+  DefinitionRoute: typeof DefinitionRoute
   ResourcesRoute: typeof ResourcesRoute
   ProcessesPidRoute: typeof ProcessesPidRouteWithChildren
 }
@@ -108,6 +121,13 @@ declare module '@tanstack/react-router' {
       path: '/atlas'
       fullPath: '/atlas'
       preLoaderRoute: typeof AtlasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/definition': {
+      id: '/definition'
+      path: '/definition'
+      fullPath: '/definition'
+      preLoaderRoute: typeof DefinitionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/resources': {
@@ -149,6 +169,7 @@ const ProcessesPidRouteWithChildren = ProcessesPidRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AtlasRoute: AtlasRoute,
+  DefinitionRoute: DefinitionRoute,
   ResourcesRoute: ResourcesRoute,
   ProcessesPidRoute: ProcessesPidRouteWithChildren,
 }

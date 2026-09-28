@@ -154,3 +154,32 @@ successful publication or terminal caller rejection. Bootstrap config must be
 initialized through the separately provisioned administrator before opening
 ordinary operator admission. There are no browser keys, query identities or
 administrative privileges implicit in a definition.
+
+## Optional host transport
+
+The reflected `HostRequest`/`HostResponse` values compose the same compiler,
+publication owner and native authentication. The host allowlists at most sixteen
+operators for this deployment; native authority independently verifies each
+signature and current grant. `Native` prepares ordinary v3 digests and rechecks
+scope and payload before forwarding. There is no host-held operator key or
+substitution of the inspection/query principal. A trusted browser origin imports
+a local PKCS#8 Ed25519 key; this profile does not imply human account federation.
+
+Compilation and formatting return the same complete model, canonical SQL and
+Station publication digest (its domain-separated chunk commitment, not an
+unqualified hash of the SQL bytes). Upload continuation is pure and selects at
+most one command from a frozen proposal plus observed progress. Observations
+cannot grant rights; the durable owner checks every admitted step again.
+
+The HTTP envelope is at most 512 KiB, accommodating JSON escaping of the smaller
+64 KiB program. A signed mutation stays frozen through an unknown reply. Native
+admission and application completion are distinct. Explicit pending and reviewed
+plan exports contain no signing key and support recovery across browser reload.
+Conflicts keep the original base; an explicit new review is required to change it.
+
+Published reads use current public resource access for every bounded chunk group
+and recheck the active head before exposing a complete body/model. The built-in
+artifact is explicitly identified before first publication or when no publication
+scope is configured. A denied or failed published read cannot expose cached data
+or silently switch to that artifact. Interface-generation fencing in renderers is
+an additional obligation; a successful materialization does not prove it.

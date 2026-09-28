@@ -2,7 +2,7 @@
 
 Zig inspection service with optional separately credentialed query workspaces, containing the static [Board frontend](../transit-board-web/README.md)
 and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime libraries are `transit-client`, `transit-board-api`, `transit-query`, and the neutral
-`telemetry` package, plus the neutral
+`telemetry` package, the shared `transit-station-app` compiler/publication adapter, plus the neutral
 [HTTP server](../../packages/zig/transit-http-server/README.md). It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/BOARD.md) owns the architecture.
 
 ## Configuration guide
@@ -207,3 +207,9 @@ head metadata with no register page. The inspection identity gains no write powe
 The opt-in [live Table guide](docs/reactive.md) describes the composed reactive
 host, metadata-only inspection panel, finite query Follow/Pause lifecycle and
 separate control credential. M21 browser/placement qualification is in progress.
+
+## Application definitions (M23 in progress)
+
+The optional [definition and operator guide](docs/application.md) describes the
+shared compiler, built-in artifact, signed operator endpoint and publication
+recovery. Inspection and query credentials cannot become operator credentials.

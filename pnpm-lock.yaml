@@ -17,6 +17,9 @@ importers:
 
   apps/transit-board-web:
     dependencies:
+      '@rey/transit-application':
+        specifier: workspace:*
+        version: link:../../packages/ts/transit-application
       '@rey/transit-board-client':
         specifier: workspace:*
         version: link:../../packages/ts/transit-board-client

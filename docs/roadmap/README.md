@@ -30,7 +30,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Qualified initial int64 Table profile; TLS SSE/WebSocket, Chromium, physical recovery, bounded lifetimes and generated contracts |
 | [M21](M21.md) | Reactive interfaces over reactive APIs | Complete for selected Table views; bounded snapshot refresh, shared-principal fairness and three-placement browser recovery |
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Complete for finite Table v1/int64; TLS Flight/ADBC, scoped recovery, bounded load, outbound replay and three placements |
-| [M23](M23.md) | Board grammar and declarative reactive applications | In progress; shared neutral definitions and compiler; publication, UI and migrations remain open |
+| [M23](M23.md) | Board grammar and declarative reactive applications | In progress; shared compiler, signed publication and real native editor recovery; shell, migrations and application placements remain open |
 | [M24](M24.md) | Transit CLI | Planned; local supervisor/gateway through `transit server` and grammar-aware SQL/meta-command shell through `transit console` |
 | [M25](M25.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M26](M26.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |

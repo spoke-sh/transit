@@ -24,6 +24,10 @@ pub fn schema(writer: *std.Io.Writer) !void {
         try out.objectField(name);
         try root.protocol.Schema.write(@field(root.Native, name), &out, .{ .safe_integers = true });
     }
+    inline for (.{ "Request", "Response", "Compiled" }) |name| {
+        try out.objectField(if (std.mem.eql(u8, name, "Compiled")) name else "Host" ++ name);
+        try root.protocol.Schema.write(@field(root.Host, name), &out, .{ .safe_integers = true, .sequence_max_length = m.max_members });
+    }
     try out.endObject();
     try out.endObject();
     try writer.writeByte('\n');
