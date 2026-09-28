@@ -1,7 +1,9 @@
 //! Public serving semantics above Station; no sockets or raw storage authority.
+pub const ClientApi = @import("ClientApi.zig");
 pub const Api = @import("Api.zig");
 pub const query = @import("transit_query");
 pub const TableWatch = @import("TableWatch.zig");
+pub const ReactiveClient = @import("ReactiveClient.zig");
 pub const ReactiveWire = @import("ReactiveWire.zig");
 pub const ReactiveAdapter = @import("ReactiveAdapter.zig");
 pub const station = @import("transit_station");

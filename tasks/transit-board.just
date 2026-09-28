@@ -14,16 +14,25 @@ generate:
     zig build transit-board-contract > contracts/transit-board-v1.openapi.json
     python3 -B packages/ts/transit-board-client/generate.py
     vp exec node packages/ts/transit-board-client/validators.mjs
+    zig build serving-api
+    zig-out/bin/transit-serving-api client > packages/zig/transit-serving/api/client.json
+    python3 -B packages/ts/transit-reactive-client/generate.py
+    vp exec node packages/ts/transit-reactive-client/validators.mjs
 
 # Check typed contract and generated browser-resource drift.
 contract:
     zig build transit-board-contract | python3 -B tests/board_contract.py
     python3 -B packages/ts/transit-board-client/generate.py --check
     vp exec node packages/ts/transit-board-client/validators.mjs --check
+    zig build serving-api
+    python3 -B tests/reactive_client_contract.py zig-out/bin/transit-serving-api
+    python3 -B packages/ts/transit-reactive-client/generate.py --check
+    vp exec node packages/ts/transit-reactive-client/validators.mjs --check
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
     cd packages/ts/transit-board-client && vp check
+    cd packages/ts/transit-reactive-client && vp check
     cd apps/transit-board-web && vp check
     vp exec --filter @rey/transit-board-web tsc --noEmit
     cd apps/transit-board-web && vp test run

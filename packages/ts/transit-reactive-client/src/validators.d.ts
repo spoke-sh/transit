@@ -1,0 +1,14 @@
+export function SignedCommand(value: unknown): boolean;
+export function ServingRead(value: unknown): boolean;
+export function ServingResponse(value: unknown): boolean;
+export function Receipt(value: unknown): boolean;
+export function ReactiveRead(value: unknown): boolean;
+export function ReactiveResponse(value: unknown): boolean;
+export function Bootstrap(value: unknown): boolean;
+export function ClientMessage(value: unknown): boolean;
+export function ServerMessage(value: unknown): boolean;
+export function Discovery(value: unknown): boolean;
+export function Error(value: unknown): boolean;
+export function SseItem(value: unknown): boolean;
+export function HostRequest(value: unknown): boolean;
+export function HostResponse(value: unknown): boolean;

@@ -317,3 +317,7 @@ reactive-placement profile="compose":
 reactive-descriptions:
     zig build serving-api -Doptimize=ReleaseSafe
     python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api
+
+# Qualify the shared Zig caller and private host adapter over real TLS and disk.
+reactive-client:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-client=true

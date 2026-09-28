@@ -162,3 +162,22 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     if (!std.meta.eql(source, (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished)) return error.ServiceReadConflict;
     return result;
 }
+
+/// Metadata-only projection of the qualified Table adapter for Board and live
+/// query consumers. The earlier cursor may repeat a change captured by the
+/// later metadata observation; it cannot skip a concurrent change.
+pub fn inspect(self: Self, signed: r.SignedRead, public_key: [32]u8) !root.ReactiveClient.Response {
+    if (signed.read.kind != .events) return error.InvalidReactiveScope;
+    for (0..3) |_| return self.inspectOnce(signed, public_key) catch |err| {
+        if ((err == error.Rejected or err == error.Conflict) and (self.base.resources.wire.last_rejection == .StaleStateResource or self.base.resources.wire.last_rejection == .QueryExpired)) continue;
+        return err;
+    };
+    return error.ServiceReadConflict;
+}
+fn inspectOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !root.ReactiveClient.Response {
+    const response = try self.read(signed, public_key);
+    var reader = try self.sourceReader(response.source.?);
+    const observation = try root.TableWatch.observe(&reader, response.source.?);
+    try self.check(signed, public_key);
+    return .{ .inspection = .{ .response = response, .observation = observation } };
+}

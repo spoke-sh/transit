@@ -18,6 +18,7 @@ pub const Gateway = struct {
     options: http.Options = .{ .requests = 4 },
     per_caller_requests: u8 = 2,
     reactive: bool = false,
+    viewer: ?@import("PrivateClient.zig").Configuration = null,
     clock_error_ms: u32 = 1000,
     pub fn validate(gateway: Gateway) !void {
         try gateway.options.validate();
@@ -44,8 +45,20 @@ pub const Context = struct {
     diagnostics: *telemetry.Runtime,
     callers: [32]http.Admission = @splat(.{}),
     challenges: @import("ReactiveTransport.zig").Challenges = .{},
+    viewer_key: ?p.Ed25519.KeyPair = null,
+    pub fn loadViewer(self: *@This(), allocator: std.mem.Allocator, io: std.Io) !void {
+        const viewer = self.config.gateway.viewer orelse return;
+        if (!self.config.gateway.reactive) return error.InvalidGatewayConfiguration;
+        const index = try self.callerIndex(viewer.principal);
+        const key = try s.client.readKey(allocator, io, viewer.seed_file);
+        if (!std.mem.eql(u8, &key.public_key.toBytes(), &self.config.gateway.callers[index].public_key)) return error.ServingDenied;
+        self.viewer_key = key;
+    }
+    pub fn deinit(self: *@This()) void {
+        if (self.viewer_key) |*key| std.crypto.secureZero(u8, std.mem.asBytes(key));
+    }
     pub fn isControl(_: *@This(), request: *std.http.Server.Request) bool {
-        return request.head.method == .POST and std.mem.eql(u8, request.head.target, "/reactive/v1/control");
+        return request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/reactive/v1/control") or std.mem.eql(u8, request.head.target, "/reactive/v1/client/control"));
     }
     pub fn connectionError(self: *@This(), err: anyerror, _: bool) void {
         self.diagnostics.event(.{ .name = "serving.http.request", .level = .warn, .outcome = .failed, .error_type = @errorName(err) });
@@ -73,6 +86,7 @@ pub const Context = struct {
         if (try http.header(request, "origin")) |origin| if (!std.mem.eql(u8, origin, config.public_origin)) return error.ServingDenied;
         for ([_][]const u8{ "forwarded", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-for", "x-transit-principal" }) |name| if (try http.header(request, name) != null) return error.ServingDenied;
         if (request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"ready\":true}");
+        if (config.reactive and (std.mem.eql(u8, request.head.target, "/reactive/v1/client") or std.mem.eql(u8, request.head.target, "/reactive/v1/client/control"))) return @import("PrivateClient.zig").handle(self, io, allocator, request);
         if (config.reactive and std.mem.startsWith(u8, request.head.target, "/reactive/v1/")) return @import("ReactiveTransport.zig").handle(self, io, allocator, request);
         if (request.head.method != .POST) return http.respond(request, .not_found, "{}");
         const submit = std.mem.eql(u8, request.head.target, "/serving/v1/command");

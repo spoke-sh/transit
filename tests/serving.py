@@ -92,8 +92,8 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False):
-    if (reactive_browser or reactive_limits) and not (reactive and tls):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False, reactive_client=False):
+    if (reactive_browser or reactive_limits or reactive_client) and not (reactive and tls):
         raise ValueError("reactive browser/limits proofs require --reactive --tls")
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
@@ -254,6 +254,8 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             gateway_config = dict(url=f'http://127.0.0.1:{proxy.server_port}', realm=REALM, principal=79, seed_file=str(keys[79].seed), role={'gateway': dict(service=1, ingress=ingress, resource=ingress_resource, port=gateway_ports[0], host=public_host, public_origin='https://' + public_host, callers=[dict(principal=p, public_key=keys[p].public) for p in (65536, 65537)])})
             if reactive:
                 gateway_config['role']['gateway'].update(reactive=True, options=dict(requests=4, request_timeout_ms=30000))
+            if reactive_client:
+                gateway_config['role']['gateway']['viewer'] = dict(principal=65536, seed_file=str(keys[65536].seed))
             gateways = []
             for index, gateway_port in enumerate(gateway_ports):
                 gateway_config['role']['gateway']['port'] = gateway_port
@@ -265,6 +267,10 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             def read(kind, operation=0, principal=65536, expected=200):
                 return post(gateway_ports[0], '/serving/v1/read', signed_read(keys[principal], principal, ingress, kind, operation), public_host, expected)
 
+            if reactive_client:
+                from reactive_client import run as run_client
+                run_client(locals(), TLS)
+                return
             if reactive:
                 from reactive import run_trace
                 run_trace(locals(), TLS)
@@ -545,4 +551,5 @@ if __name__ == '__main__':
     parser.add_argument('--reactive', action='store_true')
     parser.add_argument('--reactive-browser', action='store_true')
     parser.add_argument('--reactive-limits', action='store_true')
+    parser.add_argument('--reactive-client', action='store_true')
     run(**vars(parser.parse_args()))

@@ -48,6 +48,8 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const gateway = config.role.gateway;
         try gateway.validate();
         var context: hosting.Context = .{ .config = .{ .url = config.url, .realm = config.realm, .principal = config.principal, .request_timeout_ms = config.request_timeout_ms, .gateway = gateway }, .key = key, .diagnostics = diagnostics };
+        try context.loadViewer(init.gpa, init.io);
+        defer context.deinit();
         var listener = try (try std.Io.net.IpAddress.parseIp4(gateway.listen, gateway.port)).listen(init.io, .{ .reuse_address = true });
         defer listener.deinit(init.io);
         diagnostics.event(.{ .name = "service.ready", .operation = "http" });

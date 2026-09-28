@@ -29,3 +29,11 @@ remain separate; accepted application work is never cancelled by disconnect.
 From this directory, `zig build test` checks the standalone manifest. The actual
 host is exercised by `just test::serving-tls`, `just test::reactive`, and the
 reactive browser/limits/placement proofs documented in [tests](../../../tests/README.md).
+
+The optional `Gateway.viewer` enables the [private caller adapter](../../../contracts/REACTIVE_CLIENT_V1.md).
+Call `Context.loadViewer` once before serving and `deinit` after tasks join. The
+explicit caller key must match an allowed public key. No route is enabled by
+merely providing an inspection credential. The default `snapshot_values = false`
+profile exposes Table metadata/progress and denies signing application snapshots;
+applications must opt in to the bounded snapshot profile. Dedicated control
+routing preserves renew/close capacity while streams occupy data slots.

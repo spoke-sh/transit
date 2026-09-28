@@ -20,6 +20,9 @@ importers:
       '@rey/transit-board-client':
         specifier: workspace:*
         version: link:../../packages/ts/transit-board-client
+      '@rey/transit-reactive-client':
+        specifier: workspace:*
+        version: link:../../packages/ts/transit-reactive-client
       '@tanstack/react-router':
         specifier: 1.170.39
         version: 1.170.39(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -93,6 +96,12 @@ importers:
   packages/ts/transit-native-client: {}
 
   packages/ts/transit-native-station: {}
+
+  packages/ts/transit-reactive-client:
+    dependencies:
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
 
   packages/ts/transit-station:
     dependencies:

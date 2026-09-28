@@ -88,3 +88,10 @@ its bounded workspace between attachment polls and never appends an HTTP error
 after streaming/upgrade headers may have started. `ReactiveWire.SseItem` describes
 the SSE field object; its `data` string contains the shared `ServerMessage`.
 Independent description validation explicitly checks that encoded JSON content.
+
+`ReactiveClient` supplies shared frozen caller preparation, committed-control
+observation and scoped read signing for M21 hosts. `ReactiveAdapter.inspect`
+projects only the existing Table watch metadata; it never reads application rows.
+The [private client contract](../../../contracts/REACTIVE_CLIENT_V1.md) describes
+credential scope, source evidence and generated browser validation. This consumer
+foundation alone does not qualify complete live query replacement or UI fairness.

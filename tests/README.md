@@ -2686,3 +2686,28 @@ cancellation mechanism with an actual blocked writer.
 passed. The M19 lifetime regression also passed in 30.74 s after the host changes:
 ordered cancellation, duplicate/late timeout, finite process/wait/resource bounds
 and hard expiry remain distinct. No push or `ci-clean` run is claimed here.
+
+## M21 consumer foundation (in progress)
+
+The extracted `transit-serving-http` host passed the existing real
+`just test::reactive` TLS/disk regression in 19.40 seconds, including exact retry,
+attachment fencing, revocation and gateway/worker/node/store recovery. Extraction
+is reuse evidence; it does not establish the new view lifecycle.
+
+`just test::reactive-client` exercises the shared Zig caller and its opt-in private
+host adapter against actual disk-backed workers and TLS. The initial run passed
+in 7.04 seconds: prepared native bytes survive a deliberately lost acceptance
+reply, exact retry recovers the same receipt, and committed-control observations
+supply session/subscription generations. It checks exact private Origin, rejection
+of administrative controls, separate reserved close routing, metadata-only Table
+inspection, shared source coverage, foreign scope/snapshot denial, terminal close
+and current read revocation. An initial failure found route classification after
+body reading; the fix preserves the route decision before borrowed request-head
+bytes can be reused. The failed run is not qualification evidence.
+
+`tests/reactive_client_contract.py` validates reflected schema drift and can check
+an actual `--trace`; the recorded run validates 38 request/response envelopes.
+Frontend consumer tests exercise partial SSE framing, wrapper/content agreement,
+malformed UTF-8 and fields, bounded buffers and uncertain-command identity. These
+are client foundation checks, not browser live-view, fairness, complete-result
+replacement or placement proofs. Those M21 exit gates remain open.

@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@rey/transit-board-client": "workspace:*",
+    "@rey/transit-reactive-client": "workspace:*",
     "@tanstack/react-router": "1.170.39",
     "react": "19.3.0",
     "react-dom": "19.3.0"
