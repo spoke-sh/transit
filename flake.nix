@@ -74,6 +74,10 @@
             ;
         in
         rec {
+          flight = pkgs.mkShell {
+            inputsFrom = [ serving ];
+            packages = [ (pkgs.callPackage ./nix/flight-tools.nix { }) ];
+          };
           serving = pkgs.mkShell {
             inputsFrom = [ default ];
             packages = [ pkgs.nginx ];

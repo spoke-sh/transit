@@ -64,6 +64,14 @@ nixpkgs revision; `flake.lock`, Zig and Ursula remain deliberately unchanged.
 `just doctor`, imports and descriptor generation pass locally. These foreign
 libraries are test peers and generators; the Transit RPC runtime remains Zig.
 
+M22's `nix develop .#flight` adds the upstream ADBC Flight SQL driver and manager
+1.12.0 (Apache ADBC release 24) beside the already pinned PyArrow 23.0.0.
+[flight-tools.nix](flight-tools.nix) pins exact wheel URLs/hashes and patches
+their native libraries for Linux x86_64/Python 3.13. Other platforms are not
+selected for this independent client profile. The existing nixpkgs lock, Zig and
+Ursula revisions remain unchanged. Importing these tools is preparation evidence;
+it does not qualify a Flight gateway or its C ABI interoperability.
+
 ## Vite+
 
 The shell includes a checksummed upstream `vp` binary and its matching JavaScript
