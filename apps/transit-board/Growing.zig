@@ -93,6 +93,10 @@ pub fn query(wire: *client.Client, io: std.Io, config: QueryConfig, request: api
     defer std.crypto.secureZero(u8, std.mem.asBytes(&caller.key));
     return switch (request) {
         .describe => .{ .source = try caller.describe() },
+        .contract => blk: {
+            const source = try caller.describe();
+            break :blk .{ .contract = .{ .source = source, .fingerprint = try source.contract(), .schema = try source.schema.fingerprint() } };
+        },
         .prepare => |value| blk: {
             const prepared = try caller.prepare(value.sql);
             const bound = try prepared.plan.bind(.{ .resource = prepared.source.connection.resource, .revision = prepared.source.resource_revision, .schema = try prepared.source.schema.fingerprint() }, prepared.source.schema);

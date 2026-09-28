@@ -118,3 +118,9 @@ otherwise it reports the recorded query phase and source/resource availability.
 A missing process diagnostic is not proof that the worker is healthy. Finite
 protocol adapters retain their own waiting deadline without cancelling accepted
 work or inventing a query failure.
+
+`Model.Source.contract()` computes the full Table `UQS2` commitment for application
+bindings. Board's additive `contract` request returns it alongside the current
+source and column-schema hash; existing `describe` and result shapes are unchanged.
+Clients compare Table identity and schema in retained v1 manifests before binding
+an old result to a newly published interface.

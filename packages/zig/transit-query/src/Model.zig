@@ -22,6 +22,9 @@ pub const Source = struct {
     policy_revision: u64,
     sequence: u64,
     active: ?u64,
+    pub fn contract(self: Source) ![32]u8 {
+        return (q.SourceDefinition{ .resource = self.connection.resource, .source = .{ .table = .{ .id = self.connection.table, .schema = self.schema } } }).fingerprint();
+    }
 };
 pub const Prepared = struct {
     version: u8 = 1,
@@ -61,6 +64,7 @@ pub const Compiled = struct { source: Source, explanation: f.Stream.Explanation,
 /// Board reflects these Zig-owned operations; no browser-supplied upstream URL.
 pub const Request = union(enum) {
     describe: void,
+    contract: void,
     prepare: struct { sql: []const u8 },
     submit: Frozen,
     status: struct { correlation: u64 },
@@ -70,6 +74,7 @@ pub const Request = union(enum) {
 };
 pub const Response = union(enum) {
     source: Source,
+    contract: struct { source: Source, fingerprint: [32]u8, schema: [32]u8 },
     prepared: Compiled,
     receipt: p.Receipt,
     status: Status,

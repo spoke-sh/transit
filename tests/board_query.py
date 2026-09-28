@@ -1,5 +1,7 @@
 """Board's real growing inspection and separately credentialed query boundary."""
 import json
+import hashlib
+import struct
 import os
 import signal
 from pathlib import Path
@@ -83,6 +85,13 @@ def run(node, host, proof, board, browser=False):
             api({"status": {"correlation": 0}}, status=400)
             source = api({"describe": {}})["source"]
             assert source["schema"]["value_type"] == "int64"
+            contract = api({"contract": {}})["contract"]
+            assert contract["source"] == source
+            names = [bytes(name["bytes"][:name["len"]]) for name in source["schema"]["names"]]
+            schema_wire = b'TBL1\x01' + b''.join(bytes([len(name)]) + name for name in names)
+            source_wire = b'UQS2' + struct.pack('<QBI', source["connection"]["resource"], 2, source["connection"]["table"]) + bytes([len(schema_wire)]) + schema_wire
+            assert bytes(contract["fingerprint"]) == hashlib.sha256(b'transit.query.source.v2\0' + source_wire).digest()
+            assert api({"describe": {}})["source"]["sequence"] == source["sequence"]
             api({"prepare": {"sql": "DELETE FROM items"}}, status=400)
             assert api({"describe": {}})["source"]["sequence"] == source["sequence"]
             api({"describe": {}}, headers={"Origin": "https://untrusted.example"}, status=403)
