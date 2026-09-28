@@ -109,6 +109,17 @@ Health/readiness is distinct from query completion. Unknown routes and forwarded
 identity headers do not supply alternate authority. Separate control capacity
 must remain available when data requests stall.
 
+The local gateway accepts the exact `127.0.0.1:<port>` and `localhost:<port>`
+authorities by default. Server configuration may add up to eight explicit
+`gateway_allowed_hosts` authorities, each bounded to 200 bytes with a required
+port. Hostnames compare case insensitively; ports compare exactly. Unknown names,
+wildcards and malformed or duplicate Host headers reject. Matching never resolves
+DNS and never treats arbitrary loopback-resolving names as trusted. This policy
+does not change the listener's bind address, Origin/identity-header checks or
+native authorization. It is covered by the installation's configuration identity.
+The ready JSON record includes `gateway_url` and the effective `allowed_hosts`
+alongside `console_config`, after the complete neighborhood reaches readiness.
+
 The console signs under its configured identity and uses the gateway as its
 native authority endpoint. A remote endpoint requires an explicitly selected
 TLS/trust profile; unsupported transport configurations fail before credentials

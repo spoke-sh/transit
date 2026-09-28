@@ -9,6 +9,7 @@ control_reserve: u64 = 4096,
 ports: Ports,
 executables: Executables,
 applications: ?Applications = null,
+gateway_allowed_hosts: []const []const u8 = &.{},
 pub const Applications = struct { port: u16, max_applications: u16 = 8, max_roles: u16 = 32 };
 pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };
 pub const Executables = struct { minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8 };
@@ -23,6 +24,7 @@ pub fn load(init: std.process.Init, path: []const u8) !Self {
         inline for (@typeInfo(Ports).@"struct".field_names) |name| if (apps.port == @field(self.ports, name)) return error.InvalidConfiguration;
     }
     if (self.admission_ceiling < 128 or self.admission_ceiling > 65536 or self.control_reserve > 65536) return error.InvalidConfiguration;
+    try @import("Hosts.zig").validate(self.gateway_allowed_hosts);
     const base = std.fs.path.dirname(absolute).?;
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
     if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return error.InvalidConfiguration;

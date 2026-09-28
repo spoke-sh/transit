@@ -117,6 +117,9 @@ class Fixture:
                     raise AssertionError(Path(self.logs[-1].name).read_text())
                 report = json.loads(line)
                 assert report["ready"] and report["profile"] == "local_table_v1", report
+                port = self.config["ports"]["gateway"]
+                assert report["gateway_url"] == self.url, report
+                assert report["allowed_hosts"] == [f"127.0.0.1:{port}", f"localhost:{port}"] + self.config.get("gateway_allowed_hosts", []), report
                 activation = self.record()["registration"]
                 markers = {path.name for path in (self.installation / "activations").glob("*.activation")}
                 if self.activation is not None:
@@ -181,6 +184,8 @@ def run(cli, node, host):
         fixture.refusal("FileNotFound")
         fixture.start(initialize=True)
         fixture.ready()
+        from server_faults import gateway_hosts
+        gateway_hosts(fixture)
         original = fixture.record()
         fixture.refusal("InstallationInUse")
         from console import Console

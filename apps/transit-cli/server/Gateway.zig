@@ -2,17 +2,18 @@
 const std = @import("std");
 const http = @import("transit_http_server");
 const wire = @import("transit_query").wire;
-pub const Config = struct { port: u16, upstream: []const u8 };
+const Hosts = @import("Hosts.zig");
+pub const Config = struct { port: u16, upstream: []const u8, allowed_hosts: []const []const u8 = &.{} };
 pub fn run(init: std.process.Init, path: []const u8) !void {
     const config = try @import("Files.zig").read(Config, init.io, init.arena.allocator(), path);
-    var context: Context = .{ .config = config, .host = try std.fmt.allocPrint(init.arena.allocator(), "127.0.0.1:{d}", .{config.port}) };
+    var context: Context = .{ .config = config, .hosts = try Hosts.list(init.arena.allocator(), config.port, config.allowed_hosts) };
     var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", config.port)).listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
     try http.serve(init.io, init.gpa, &listener, .{ .connections = 8, .requests = 4, .control_requests = 2, .request_timeout_ms = 4000, .header_timeout_ms = 500 }, &context);
 }
 const Context = struct {
     config: Config,
-    host: []const u8,
+    hosts: []const []const u8,
     pub fn connectionError(_: *Context, err: anyerror, _: bool) void {
         std.debug.print("gateway transport: {s}\n", .{@errorName(err)});
     }
@@ -20,7 +21,7 @@ const Context = struct {
         return std.mem.eql(u8, request.head.target, "/v3/command");
     }
     pub fn handle(self: *Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
-        if (!std.mem.eql(u8, (try http.header(request, "host")).?, self.host)) return http.respond(request, .forbidden, "{\"err\":\"InvalidHost\"}");
+        if (!Hosts.allows(self.hosts, (try http.header(request, "host")).?)) return http.respond(request, .forbidden, "{\"err\":\"InvalidHost\"}");
         var headers = request.iterateHeaders();
         while (headers.next()) |header| {
             if (std.ascii.eqlIgnoreCase(header.name, "origin") or std.ascii.eqlIgnoreCase(header.name, "authorization") or

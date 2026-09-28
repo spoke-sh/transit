@@ -19,6 +19,7 @@ with Kubernetes/Substrate remaining the reference isolation profile.
   "version": 1,
   "installation": "./local-transit",
   "realm": 73,
+  "gateway_allowed_hosts": [],
   "admission_ceiling": 65536,
   "control_reserve": 4096,
   "ports": {
@@ -67,7 +68,11 @@ certificate directory, without inheriting the operator's home or credentials.
 Its browser is disabled; the separate cold-console port remains reserved.
 
 When the complete neighborhood is ready, stdout emits one JSON record naming
-`console_config`. Open an independent terminal with:
+`console_config`, `gateway_url` and the effective `allowed_hosts`. For example,
+port 19105 reports `gateway_url: "http://127.0.0.1:19105"` and
+`allowed_hosts: ["127.0.0.1:19105", "localhost:19105"]`. The URL is the native
+protocol gateway; use `/health` for a readiness check. Open an independent
+terminal with:
 
 ```sh
 transit console --config local-transit/console.json
@@ -78,6 +83,54 @@ rows. `/schema` describes it; `/new 1` selects a fresh query namespace, and
 `SELECT COUNT(*) FROM items;` submits a finite
 query. `/advance`, `/status` and `/next` retain the console's admission/result
 distinctions. Creating application data is outside this initial server profile.
+
+## Local names and SSH tunnels
+
+The gateway accepts `127.0.0.1:<gateway-port>` and `localhost:<gateway-port>` as
+HTTP Host authorities by default. Hostname comparison is case insensitive; the
+port must match exactly. Both of these requests work with the example above:
+
+```sh
+curl http://127.0.0.1:19105/health
+curl http://localhost:19105/health
+```
+
+An SSH tunnel forwarding the same local port preserves these authorities:
+
+```sh
+ssh -N -L 19105:127.0.0.1:19105 user@server
+```
+
+For a different local port or a developer hostname, add the exact authority to
+the public server configuration **before initializing the installation**:
+
+```json
+"gateway_allowed_hosts": ["localhost:29105", "127.0.0.1:29105", "transit.local.test:19105"]
+```
+
+Then `ssh -N -L 29105:127.0.0.1:19105 user@server` supports
+`curl http://localhost:29105/health`. For an existing installation whose policy
+does not include the forwarded port, send its original accepted Host explicitly:
+`curl -H 'Host: 127.0.0.1:19105' http://localhost:29105/health`.
+
+The optional list adds at most eight authorities of at most 200 ASCII bytes each.
+Each entry requires a DNS-style hostname, IPv4 literal or bracketed IPv6 literal,
+followed by a decimal port from 1–65535 without leading zeroes. Wildcards, URLs,
+userinfo, empty DNS labels, trailing dots and IPv6 zone identifiers reject.
+Entries authorize exact names and ports, without suffix matching or DNS lookups.
+Choose names whose resolution you control. Adding an authority does not create
+a DNS entry, bind another port/interface, enable IPv6 listening or change the
+console's transport policy. The gateway continues to bind IPv4 loopback only.
+
+Unknown authorities and malformed/duplicate Host headers reject. Origin,
+Authorization and forwarded-identity headers remain forbidden in this native
+gateway profile; accepting a local name does not enable browser access or confer
+native permissions. Application-serving Origin policies remain separate.
+
+The list is part of the normalized installation configuration. Changing it after
+initialization is refused, as are changed runtime binaries. This enhancement
+applies to installations initialized with the new runtime; it does not upgrade
+older installations or permit editing their private identity records.
 
 ## Ownership and recovery
 
@@ -150,7 +203,7 @@ Provider heap targets are not hard RSS limits or an isolation guarantee.
 The gateway forwards only native `/v3/query`, `/v3/command` and `/health` routes,
 preserving the signed body and upstream response status. Commands and health use
 the control reserve; native authorization still decides every operation. Exact
-loopback Host is required, and browser Origin, Authorization and forwarded
+configured Host is required, and browser Origin, Authorization and forwarded
 identity headers reject. Transport failure remains uncertainty. The gateway is
 a separate process without root/caller credentials in its configuration. All
 roles share one OS user; this separation does not sandbox them from that user's

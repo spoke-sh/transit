@@ -23,6 +23,76 @@ def response(fixture, path, body=None, headers=None, direct=False):
         return result.status, result.read()
 
 
+def gateway_hosts(fixture):
+    port = fixture.config["ports"]["gateway"]
+    with fixture.http.open(f"http://localhost:{port}/health", timeout=5) as reply:
+        assert reply.status == 200
+    for host in [f"127.0.0.1:{port}", f"localhost:{port}", f"LOCALHOST:{port}", *fixture.config.get("gateway_allowed_hosts", [])]:
+        assert response(fixture, "/health", headers={"Host": host})[0] == 200, host
+        assert response(fixture, "/health", headers={"Host": host.upper()})[0] == 200, host
+    for host in (f"localhost.attacker.test:{port}", f"127.0.0.1.attacker.test:{port}",
+                 f"unknown.test:{port}", f"localhost.:{port}", "localhost", "localhost:1"):
+        status, body = response(fixture, "/health", headers={"Host": host})
+        assert status == 403 and json.loads(body) == {"err": "InvalidHost"}, (host, status, body)
+    # A permitted alias must not relax browser or forwarded-identity checks.
+    for header in ("Origin", "Authorization", "Forwarded", "X-Forwarded-Host", "X-Forwarded-For", "X-Real-IP"):
+        assert response(fixture, "/health", headers={"Host": f"localhost:{port}", header: "untrusted"})[0] == 403
+    for headers in ("", "Host: \r\n", f"Host: localhost:{port}\r\nHost: localhost:{port}\r\n",
+                    f"Host: localhost:{port}\r\nhOsT: attacker.test:{port}\r\n",
+                    f"Host: user@localhost:{port}\r\n", f"Host: localhost:{port},attacker.test:{port}\r\n"):
+        with socket.create_connection(("127.0.0.1", port), timeout=3) as peer:
+            peer.sendall(("GET /health HTTP/1.1\r\n" + headers + "\r\n").encode())
+            data = b""
+            try:
+                while block := peer.recv(4096):
+                    data += block
+                    assert len(data) <= 8192
+            except ConnectionResetError:
+                pass
+            assert not data or data.startswith((b"HTTP/1.1 400", b"HTTP/1.1 403")), data
+    print("Transit gateway hosts: default/configured aliases, exact ports, unknown/malformed/duplicate hosts and identity-header refusal passed", flush=True)
+
+
+def configured_hosts(cli, node, host):
+    fixture = Fixture(cli, node, host)
+    success = False
+    try:
+        # Invalid policy fails before initialization creates any runtime state.
+        for invalid, error in ((["*:19905"], "InvalidGatewayHost"), (["localhost:19905"] * 9, "TooManyGatewayHosts")):
+            fixture.path.write_text(json.dumps(dict(fixture.config, gateway_allowed_hosts=invalid)))
+            fixture.refusal(error, initialize=True)
+            assert not fixture.installation.exists()
+        port = fixture.config["ports"]["gateway"]
+        tunnel_port = 29905 if port != 29905 else 29906
+        fixture.config["gateway_allowed_hosts"] = [f"bank.local.test:{port}", f"localhost:{tunnel_port}"]
+        fixture.path.write_text(json.dumps(fixture.config))
+        fixture.start(initialize=True)
+        fixture.ready()
+        gateway_hosts(fixture)
+        # Only the explicitly selected host/port pair is added by tunnel config.
+        assert response(fixture, "/health", headers={"Host": f"127.0.0.1:{tunnel_port}"})[0] == 403
+        assert response(fixture, "/health", headers={"Host": f"bank.local.test:{tunnel_port}"})[0] == 403
+        fixture.stop()
+        before = fixture.record()
+        changed = dict(fixture.config, gateway_allowed_hosts=[f"other.test:{port}"])
+        fixture.path.write_text(json.dumps(changed))
+        fixture.refusal("InstallationIdentityMismatch")
+        fixture.path.write_text(json.dumps(fixture.config))
+        fixture.start()
+        fixture.ready()
+        assert fixture.record()["installation"] == before["installation"]
+        gateway_hosts(fixture)
+        fixture.console("/schema\n/quit\n")
+        success = True
+        print("Transit gateway configured hosts: validation before effects, explicit tunnel authority, same-installation restart and policy-drift refusal passed", flush=True)
+    finally:
+        fixture.cleanup()
+        if success:
+            shutil.rmtree(fixture.root)
+        else:
+            print(f"Failed configured-host evidence retained at {fixture.root}", flush=True)
+
+
 def gateway(fixture):
     # A wrong private key reaches native authentication. The gateway must not
     # replace it with its manager's root or the generated console's caller key.
@@ -158,6 +228,7 @@ def rollback(cli, node, host):
 
 def run(cli, node, host):
     started = time.monotonic()
+    configured_hosts(cli, node, host)
     partial_bootstrap(cli, node, host)
     rollback(cli, node, host)
     print(f"Transit server bootstrap/gateway/rollback faults: passed in {time.monotonic() - started:.2f}s", flush=True)
