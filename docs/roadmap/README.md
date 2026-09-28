@@ -32,8 +32,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Complete for finite Table v1/int64; TLS Flight/ADBC, scoped recovery, bounded load, outbound replay and three placements |
 | [M23](M23.md) | Board grammar and declarative reactive applications | Complete: selected UI, publication, migration and three-placement application proofs; clean qualification passed |
 | [M24](M24.md) | Transit CLI | Complete: Linux local server recovery/capacity, Table/KV/Document console and shared assistance; clean qualification passed |
-| [M25](M25.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
-| [M26](M26.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
+| [M25](M25.md) | Local application installation and replacement | In progress; separately compiled Zig application, language-neutral installation/bootstrap, scoped replacement and migration recovery |
+| [M26](M26.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
+| [M27](M27.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -81,8 +82,10 @@ explorations into a monochrome reactive UI and a shared declarative application
 model with explicit publication and migrations. [M24](M24.md) formalizes
 `transit server` for a locally placed service neighborhood and `transit console`
 for SQL and slash commands with Board's shared grammar/catalog assistance.
-[M25](M25.md) publishes versioned Transit artifacts through tag-triggered GitHub
-release workflows and qualified installation channels. [M26](M26.md) then
+[M25](M25.md) makes separately compiled applications installable in the local
+neighborhood, with scoped worker replacement and application-owned migration.
+[M26](M26.md) publishes versioned Transit artifacts through tag-triggered GitHub
+release workflows and qualified installation channels. [M27](M27.md) then
 qualifies these boundaries across broader authority/runtime topologies. Fuze
 remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
@@ -91,7 +94,7 @@ their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
 M15–M18 now have executed qualification within their declared profiles. The
-M19–M26 plans carry those findings forward; a planned server, watch or cluster
+M19–M27 plans carry those findings forward; a planned server, watch or cluster
 contract is still not an implemented dependency. Provider-specific integrations
 compose the existing components without a new durability model or application
 policy in the kernel.
@@ -102,7 +105,7 @@ as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../tests/README.md); implementation and operating details
 stay with their [owning components](../ARCHITECTURE.md#planned-monorepo-decomposition).
 
-## M15–M18 handoff to M19–M26
+## M15–M18 handoff to M19–M27
 
 The [query compatibility matrix](../../packages/zig/transit-query/docs/compatibility.md)
 and [proof ledger](../../tests/README.md#m18-qualification) are the baseline for
@@ -114,7 +117,7 @@ cluster controller. M19 and M20 are qualified within their initial HTTP and
 int64 Table reactive profiles. M21/M22 are complete for their selected Table
 consumer and finite Flight profiles. M23/M24 are complete for their selected
 application, local server and terminal profiles, with focused and clean
-qualification recorded. M25–M26 remain planned.
+qualification recorded. M26–M27 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
@@ -124,8 +127,8 @@ qualification recorded. M25–M26 remain planned.
 | [M22](M22.md#evidence-carried-from-m15m18) | Finite gRPC pieces, query/Arrow codecs and M19 serving seams | Inbound gRPC, explicit v1/v2 Table schemas, Flight message budgets, metadata and independent ADBC ownership |
 | [M23](M23.md#entry-gates) | M19–M22 public operations, reactive consumers and the Atlas/Console/Grammar designs | Shared SQL/visual definitions, monochrome UI, attributable controls, publication and application migration recovery |
 | [M24](M24.md#baseline-and-owners) | Existing query shells, launcher recovery, serving and M23 language assistance | Local supervisor/gateway lifecycle, two-command CLI contract and bounded authorized terminal completion |
-| [M25](M25.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
-| [M26](M26.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
+| [M26](M26.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
+| [M27](M27.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
 
 At each entry, run the relevant existing proof unchanged, then extend it at the
 new boundary. Preserve accepted-but-lost receipts, changed-intent rejection,
