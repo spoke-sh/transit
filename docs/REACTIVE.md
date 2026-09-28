@@ -7,7 +7,7 @@ refresh, used by Board and an application interface. M20 owns the server/API
 contract; this document owns its use in interfaces. M20's int64 Table API is
 implemented and qualified. The shared TypeScript view owner, Board metadata/query
 views and counter application now run against it in native, Compose and reference
-placements. The [proof ledger](../tests/README.md#m21-consumer-foundation-in-progress)
+placements. The [proof ledger](../tests/README.md#m21-qualification)
 records executed schedules and remaining regression work separately from M20's
 protocol harness.
 
@@ -216,3 +216,10 @@ joins its tasks, then uses a finite closure budget for transient capacity and
 exact pending-control recovery. A failed closure remains visible. Scheduler
 wakeups belong to state transitions that can make progress, not every received
 query fragment; redundant wakes add durable work ahead of clock/lease controls.
+
+Classify known control rejection separately from a lost reply. M21's final
+multi-tab schedule found a rejected renewal being retried as disconnection after
+a watch change. The shared client now clears pending uncertainty after the
+committed rejection and observes current scope to present reset, expiry or denial.
+Generated consumers must preserve this distinction; terminal failure cannot
+silently reopen a session or renew forever.

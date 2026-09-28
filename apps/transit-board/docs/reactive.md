@@ -2,7 +2,7 @@
 
 M21 integration is in progress. `reactive` explicitly composes the shared
 `transit-serving-http` host with Board. Browser/placement evidence is tracked in
-[the proof guide](../../../tests/README.md#m21-consumer-foundation-in-progress);
+[the proof guide](../../../tests/README.md#m21-qualification);
 compilation does not close those gates.
 
 The optional configuration has `principal`, `seed_file` and `gateway`, using the

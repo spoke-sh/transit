@@ -74,7 +74,7 @@ loss, reset/resnapshot and retirement. `just test::reactive-views-placement comp
 and `just test::reactive-views-placement reference` run those consumers against
 owned physical services and recover an already displayed finite result.
 The [consumer placement guide](docs/views.md) describes identities and limits;
-the [proof ledger](../../tests/README.md#m21-consumer-foundation-in-progress)
+the [proof ledger](../../tests/README.md#m21-qualification)
 distinguishes executed gates from work still being qualified.
 
 The separate `clock_observer` role takes `ingress`, its state `resource`, and `interval_ms` (1000–5000,
