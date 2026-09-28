@@ -74,3 +74,7 @@ Console outcomes above remain unchanged.
 
 Follow the shared [review workflow](../README.md#maintaining-the-sequence) and
 [template](../TEMPLATE.md); subsequent reviews continue with D7 in this directory.
+
+[Grammar D2](../board-grammar/D2.md) records the bounded M23 implementation
+selection across these explorations. It does not change the historical reviewer
+outcomes above or qualify the selected browser behavior by itself.

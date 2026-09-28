@@ -9,11 +9,12 @@ a monochrome visual vocabulary makes their structure, changes and evidence
 legible. Board is the first application of that language, with a downstream
 reactive application workflow as the reuse test.
 
-**Current review:** [D1 — A reactive interface grammar](D1.md).
+**Current review:** [D2 — A bounded monochrome implementation profile](D2.md).
 
 | Review | Focus | Status | Outcome or next decision |
 | --- | --- | --- | --- |
-| [D1](D1.md) | SQL-to-visual mapping, theme dimensions, reactive composition and migration experience | In review | Monochrome direction and vector Atlas redraws requested; declaration vocabulary, workflow and implementation selections await review |
+| [D1](D1.md) | SQL-to-visual mapping, theme dimensions, reactive composition and migration experience | In review | Monochrome direction and vector Atlas redraws requested; historical review acceptance remains open |
+| [D2](D2.md) | Explicit M23 shell, grammar, evidence and operator interaction profile | Implementation selection | Engineering choices recorded for implementation; real visual review and browser qualification remain open |
 
 The user selected monochrome as the intended reactive UI aesthetic and asked
 for all Atlas D1–D8 figures to be redrawn as vector wireframes. The new studies
@@ -35,4 +36,4 @@ interface review, not a second architecture or wire specification.
 - [Atlas D10](../board-atlas/D10.md): all 34 figures redrawn, with original mappings.
 
 Follow the shared [template](../TEMPLATE.md) and linear review workflow; the next
-review in this item is D2.
+review in this item is D3.

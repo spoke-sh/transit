@@ -63,3 +63,7 @@ D1–D8 PNGs are design references, generated with the built-in image tool and
 stored without raster post-processing. D9 screenshots come directly from the
 real browser qualification, also without raster post-processing. They are not embedded application assets.
 Review decisions and discussion live in the numbered documents.
+
+[Grammar D2](../board-grammar/D2.md) records the bounded M23 implementation
+selection across these explorations. It does not change the historical reviewer
+outcomes above or qualify the selected browser behavior by itself.
