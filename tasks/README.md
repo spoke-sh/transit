@@ -98,6 +98,12 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
+Clean checkouts default to `/var/tmp`, outside Nix's temporary shell directory
+and the often memory-backed `/tmp`. They can consume over 10 GiB before cleanup.
+`just ci-clean --work-root /short/path` selects a persistent parent; keep it short
+for the native launchers' Unix sockets. Failed-run timing/log evidence is retained;
+a failed or space-exhausted run does not satisfy the clean gate.
+
 Keep root recipes for common entry points and put specific workflows in the
 corresponding module. Add runnable work, not placeholder success.
 

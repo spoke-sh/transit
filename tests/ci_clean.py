@@ -17,6 +17,8 @@ def run(*args, cwd=ROOT, **kwargs):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--complete", action="store_true", help="include the installed Chromium proof")
+    parser.add_argument("--work-root", type=Path, default=Path('/var/tmp'),
+                        help="persistent short-path checkout parent (default: /var/tmp)")
     args = parser.parse_args()
     if run("git", "status", "--porcelain", capture_output=True, text=True).stdout:
         raise SystemExit("ci-clean checks committed HEAD; commit or stash source changes first.")
@@ -25,7 +27,9 @@ def main():
     # launchers and build outputs alone. Keep paths short for Unix sockets.
     # nix develop's TMPDIR disappears with the shell, even after a failure.
     # Use a stable, short path so retained evidence survives that shell exit.
-    directory = tempfile.mkdtemp(prefix="transit-ci-", dir="/tmp")
+    # /tmp is often a shared tmpfs; a clean build can exceed 10 GiB and starve
+    # simultaneous disk-store proofs. Keep this separate from their temp space.
+    directory = tempfile.mkdtemp(prefix="transit-ci-", dir=args.work_root)
     evidence = ROOT / ".cache/ci/clean" / f"{revision[:12]}-{Path(directory).name}"
     checkout = Path(directory) / "src"
     try:

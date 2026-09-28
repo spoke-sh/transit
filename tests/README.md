@@ -3132,3 +3132,10 @@ strip-only TypeScript loader. The SDK now uses explicit fields and enforces
 `erasableSyntaxOnly`; all ten source scope/runner tests and TypeScript checking
 pass. This correction does not turn the incomplete clean run into a pass; the
 full committed-HEAD gate remains outstanding until repeated successfully.
+
+The retry at `a3f1733c6423` and a simultaneous console proof encountered a full
+61 GiB `/tmp` tmpfs. Compilation and the console's private recovery write failed
+with `NoSpaceLeft`; Ursula cold storage also refused writes. No run is counted
+as passed. Clean checkouts now default to `/var/tmp` (configurable with
+`--work-root`) to separate build outputs from short-lived storage fixtures.
+The two owned failed checkouts were removed after preserving their CI evidence.
