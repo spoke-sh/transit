@@ -496,3 +496,15 @@ or DDL execution into M13's public query scope or qualify Document queries befor
 M18. The connector/transport namespace remains unassigned. Later builder and
 catalog proposals should preserve the same boundary: surfaces compile to Fuze's
 plan, and system inspection is a different source kind from versioned data.
+
+### Bounded application declaration compiler (M23)
+
+The implemented [application v1 contract](../contracts/APPLICATION_V1.md) and
+[package](../packages/zig/transit-station-app/README.md) now provide an offline
+`CREATE INTERFACE/THEME/SCREEN/BINDING/ACTION` program parser, neutral JSON model
+and canonical SQL writer. Complete validation rejects unknown options, dangling
+references, unsupported renderer/binding combinations and oversized output.
+Its [independent grammar](../contracts/application/README.md) is narrower than
+this document's proposed general declaration language. Parsing does not admit a
+publication or command. Current-authority runtime lowering, source compilation,
+migrations and browser qualification remain M23 gates.

@@ -5,6 +5,9 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
     const http_server = b.dependency("transit_http_server", .{ .target = target, .optimize = optimize });
     const serving_http = b.dependency("transit_serving_http", .{ .target = target, .optimize = optimize });
+    const application = b.dependency("transit_station_app", .{ .target = target, .optimize = optimize });
+    const install_app = b.addInstallArtifact(application.artifact("transit-app"), .{});
+    b.step("transit-app", "Install the bounded application declaration compiler").dependOn(&install_app.step);
     const serving = b.dependency("transit_serving", .{ .target = target, .optimize = optimize });
     const serving_api = b.addExecutable(.{ .name = "transit-serving-api", .root_module = b.createModule(.{
         .root_source_file = b.path("packages/zig/transit-serving/src/export.zig"),
@@ -77,6 +80,7 @@ pub fn build(b: *std.Build) void {
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
     const tests = b.addTest(.{ .root_module = adapter.module("transit_backend_ursula") });
     const test_step = b.step("test", "Run Zig unit and protocol tests");
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = application.module("transit_station_app") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving_http.module("transit_serving_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = http_server.module("transit_http_server") })).step);
@@ -103,6 +107,7 @@ pub fn build(b: *std.Build) void {
     grpc_contract_test.stdio = .inherit;
     test_step.dependOn(&grpc_contract_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
+    build_test_step.dependOn(&application.artifact("transit-app").step);
     build_test_step.dependOn(&serving_example.step);
     const serving_http_proof = b.addExecutable(.{ .name = "transit-serving-http-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/serving_http.zig"),

@@ -2830,3 +2830,13 @@ pinned Linux x86_64 C/Python consumers and the documented RPC limits. Metadata
 union/list/map validity does not qualify wider application types. No Flight
 writes, prepared parameters, continuous streams, automatic new-query retry,
 dedicated ADBC driver or production-scale throughput is claimed.
+
+## M23 application declaration boundary
+
+`just test::application-grammar` builds the actual `transit-app` CLI and uses the
+pinned ANTLR toolchain to compare independent parse-tree models, SQL/model/visual
+edit round-trips and complete-program rejection. Full-width revisions remain
+canonical decimal strings. Package tests (also in `just test::unit`) exercise
+allocator failures, source-buffer ownership, incompatible references and budgets.
+These prove the offline boundary only; publication, operator admission, real
+browser composition and migration/placement recovery remain outstanding.

@@ -1,0 +1,33 @@
+//! Offline compiler: no admission, publication, transport or effects on edit.
+const std = @import("std");
+const app = @import("transit_station_app");
+pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    var output: [8192]u8 = undefined;
+    var stdout = std.Io.File.stdout().writerStreaming(init.io, &output);
+    if (args.len == 2 and std.mem.eql(u8, args[1], "schema")) {
+        try app.Api.schema(&stdout.interface);
+    } else {
+        if (args.len != 3) return error.UsageExpectedParseOrFormatAndFile;
+        const parse = std.mem.eql(u8, args[1], "parse");
+        const format = std.mem.eql(u8, args[1], "format");
+        if (!parse and !format) return error.UnknownApplicationCommand;
+        const input = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.gpa, .limited(app.Model.max_program_bytes));
+        defer init.gpa.free(input);
+        var canonical: [app.Model.max_program_bytes]u8 = undefined;
+        if (parse) {
+            var program = try app.Sql.parse(init.gpa, input);
+            defer program.deinit();
+            _ = try app.Api.canonical(program.definition, &canonical);
+            var encoder: std.json.Stringify = .{ .writer = &stdout.interface, .options = .{ .whitespace = .indent_2 } };
+            try app.protocol.Json.write(program.definition, &encoder);
+            try stdout.interface.writeByte('\n');
+        } else {
+            const program = try app.protocol.Json.parseFromSlice(app.Model.Definition, init.gpa, input);
+            defer program.deinit();
+            const bytes = try app.Api.canonical(program.value, &canonical);
+            try stdout.interface.writeAll(bytes);
+        }
+    }
+    try stdout.interface.flush();
+}

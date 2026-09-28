@@ -86,6 +86,7 @@ packages:
     cd packages/zig/transit-station-flight && zig build test
     cd packages/zig/transit-serving-http && zig build test
     cd packages/zig/transit-http-server && zig build test
+    cd packages/zig/transit-station-app && zig build test
     cd packages/zig/transit-serving && zig build test
     cd packages/zig/transit-station-document && zig build test
     cd packages/zig/transit-station-grpc && zig build test
@@ -112,6 +113,7 @@ packages-build:
     cd packages/zig/transit-station-flight && zig build check
     cd packages/zig/transit-serving-http && zig build check
     cd packages/zig/transit-http-server && zig build check
+    cd packages/zig/transit-station-app && zig build check
     cd packages/zig/transit-serving && zig build check
     cd packages/zig/transit-station-document && zig build check
     cd packages/zig/transit-station-grpc && zig build check
@@ -239,6 +241,11 @@ runtime-upgrade:
 # Generate/check the reference grammar and compare its covered AST with Postgres.
 sql-grammar:
     nix shell .#sql-tools --command python3 -B tests/sql/grammar.py
+
+# Independent application grammar/model and actual compiler round-trip.
+application-grammar:
+    zig build transit-app
+    nix shell .#sql-tools --command python3 -B tests/application_grammar.py
 
 # Type-check the named rewrite theorems and reject incomplete proofs.
 sql-rewrites:

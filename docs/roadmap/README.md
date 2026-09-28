@@ -30,7 +30,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M20](M20.md) | Reactive APIs: SSE, WebSocket and API contracts | Qualified initial int64 Table profile; TLS SSE/WebSocket, Chromium, physical recovery, bounded lifetimes and generated contracts |
 | [M21](M21.md) | Reactive interfaces over reactive APIs | Complete for selected Table views; bounded snapshot refresh, shared-principal fairness and three-placement browser recovery |
 | [M22](M22.md) | Arrow Flight, Flight SQL and ADBC interoperability | Complete for finite Table v1/int64; TLS Flight/ADBC, scoped recovery, bounded load, outbound replay and three placements |
-| [M23](M23.md) | Board grammar and declarative reactive applications | Planned; implement design explorations, monochrome UI, shared SQL/visual definitions and recoverable application migrations |
+| [M23](M23.md) | Board grammar and declarative reactive applications | In progress; shared neutral definitions and compiler; publication, UI and migrations remain open |
 | [M24](M24.md) | Transit CLI | Planned; local supervisor/gateway through `transit server` and grammar-aware SQL/meta-command shell through `transit console` |
 | [M25](M25.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M26](M26.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
@@ -112,7 +112,7 @@ M15/M16 qualify finite outbound effects, not inbound serving. M17's accepted-sta
 reads do not create a watch, and manual growing-host placement does not create a
 cluster controller. M19 and M20 are qualified within their initial HTTP and
 int64 Table reactive profiles. M21/M22 are complete for their selected Table
-consumer and finite Flight profiles. M23–M26 remain planned.
+consumer and finite Flight profiles. M23 is in progress; M24–M26 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
