@@ -140,6 +140,9 @@ their own build defaults; choosing a profile here does not change a subsequent
 launcher's build mode or its configured binary paths.
 
 M20 adds `just test::reactive` for independent signed TLS SSE/WebSocket native
-recovery peers, and `just test::reactive-descriptions` for generated OpenAPI 3.2.1
+recovery peers, `just test::reactive-browser` for actual Chromium/WebCrypto,
+`just test::reactive-limits` for capacity/cursor/expiry schedules,
+`just test::reactive-placement compose` and `just test::reactive-placement reference`
+for owned physical recovery, and `just test::reactive-descriptions` for generated OpenAPI 3.2.1
 and AsyncAPI 3.0 drift plus pinned offline validation. These are focused proofs;
 they do not expand the measured M10 hosted PR lane budget.

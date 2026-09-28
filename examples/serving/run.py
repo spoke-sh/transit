@@ -22,7 +22,7 @@ from serving_tls import TLSProxy
 from placement import Compose, Reference
 
 
-def run(profile):
+def run(profile, reactive=False):
     started = time.monotonic()
     env = {k: v for k, v in os.environ.items() if not k.startswith(('URSULA_', 'OTEL_'))} | {'LOG_LEVEL': 'warn'}
     with tempfile.TemporaryDirectory(prefix='transit-serving-') as directory, ExitStack() as owned:
@@ -145,6 +145,8 @@ def run(profile):
                     request_timeout_ms=3000, role={'gateway': dict(service=1, ingress=ingress, resource=ingress_resource,
                         listen='0.0.0.0', port=8080, host='serving.example.test', public_origin='https://serving.example.test',
                         callers=[dict(principal=65536, public_key=keys[65536].public)])})
+                if reactive:
+                    config['role']['gateway'].update(reactive=True, options=dict(requests=4, request_timeout_ms=30000))
                 (work / name / 'seed.key').write_bytes(keys[79].seed.read_bytes())
                 (work / name / 'seed.key').chmod(0o600)
                 write(name + '/config.json', config)
@@ -201,7 +203,8 @@ def run(profile):
             ingress, ingress_resource = provision(77)
             application, application_resource = provision(78)
             grant(33, 20); grant(34, 20); grant(80, 148)
-            grant(79, 16, ingress); resource_grant(ingress_resource, 79, 3)
+            grant(79, 16, None if reactive else ingress); resource_grant(ingress_resource, 79, 3)
+            if reactive: resource_grant(application_resource, 79, 3)
             workers = [activate('ingress', 77, ingress, ingress_resource, {'ingress': dict(service=1, administrator=33, observer=34)}),
                        activate('application', 78, application, application_resource, {'application': dict(ingress=ingress, initializer=33)})]
             cast(ingress, b'SV1c\x00'); cast(application, b'')
@@ -211,12 +214,20 @@ def run(profile):
             grant(65536, 20, ingress)
             gateway_workers = gateways()
             assert read('discovery')['binding']['target'] == application
-            frozen = native_command(keys[65536], 65536, 1, {'send': dict(pid=ingress, value=frame(submit(1, deadline)))})
+            reactive_state = None
+            if reactive:
+                from reactive_placement import PhysicalReactive
+                reactive_state = PhysicalReactive(locals())
+                reactive_state.begin()
+            frozen = native_command(keys[65536], 65536, sequences[65536] + 1, {'send': dict(pid=ingress, value=frame(submit(1, deadline)))})
+            sequences[65536] += 1
+            if reactive_state: reactive_state.submit(frozen)
             with ThreadPoolExecutor(max_workers=2) as pool:
                 results = list(pool.map(lambda index: api('command', frozen, 202, index), range(2)))
             assert results[0] == results[1]
             drained(ingress)
             assert read('status', 1)['stage'] == 'service_admitted'
+            if reactive_state: reactive_state.before_loss()
             # No courier has delivered the admitted outbox. Replace the physical
             # workers/gateways and recover the same disk state before delivery.
             if profile == 'reference':
@@ -240,10 +251,12 @@ def run(profile):
                 time.sleep(.1)
             result = read('result', 1)
             assert struct.unpack('<q', bytes.fromhex(result['operation']['result']))[0] == 1
-            duplicate = native_command(keys[65536], 65536, 2, frozen['request']['command'])
-            api('command', duplicate, 202); drained(ingress)
+            if reactive_state: reactive_state.restore()
+            duplicate = native_command(keys[65536], 65536, sequences[65536] + 1, frozen['request']['command'])
+            api('command', duplicate, 202); sequences[65536] += 1; drained(ingress)
             assert read('result', 1)['operation'] == result['operation']
             cast(ingress, publication(2, application, deadline, published=False)); drained(ingress)
+            if reactive_state: reactive_state.retired()
             assert read('result', 1)['operation'] == result['operation']
             cast(ingress, policy(65536, revision=2, reads=False)); drained(ingress)
             read('result', 1, 403)
@@ -273,4 +286,5 @@ def run(profile):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--profile', choices=('compose', 'reference'), required=True)
-    run(parser.parse_args().profile)
+    parser.add_argument('--reactive', action='store_true')
+    run(**vars(parser.parse_args()))

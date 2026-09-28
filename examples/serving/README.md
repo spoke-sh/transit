@@ -44,4 +44,12 @@ process/resource expiry. Clock uncertainty returns temporary unavailability unti
 the authority can establish expiry; it is not a fabricated terminal outcome.
 `just test::serving-growth` retains 128 additional operations beyond the resident
 page budget. The [compatibility matrix](../../packages/zig/transit-serving/docs/compatibility.md)
-records qualification per consumer and placement. M20 qualification is still in progress.
+records qualification per consumer and placement. M20 adds independent TLS/Chromium and physical reactive recovery rows.
+
+Run `just test::reactive-browser` for the minimal Chromium protocol harness,
+`just test::reactive-limits` for bounded controls and expiry, or
+`just test::reactive-placement compose` / `just test::reactive-placement reference`
+for physical SSE/WebSocket recovery. The placement runner also accepts
+`--reactive` directly. Each proof owns its temporary services and preserves the
+existing reference installation. See the [reactive guide](docs/reactive.md) for
+bootstrap affinity, clock bounds, recovery and unsupported profiles.

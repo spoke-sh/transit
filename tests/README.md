@@ -64,8 +64,8 @@ sequences. This profile does not advertise finite receipt reclamation. Finite
 process/resource expiry is separate: clock uncertainty yields temporary
 unavailability until expiry is definite, and socket deadlines do not renew waits.
 The observer is explicitly provisioned; no automatic timer daemon or growing
-runtime reconciliation controller is qualified. Reactive transports, watch
-coverage and reactive SDKs remain M20 work; inbound gRPC/Flight have separate gates.
+runtime reconciliation controller is qualified. M20 separately qualifies reactive transports and Table watch coverage below;
+reactive SDK wrappers and inbound gRPC/Flight retain separate qualification gates.
 
 ## M18 qualification
 
@@ -2630,32 +2630,59 @@ accepted intervals after permanent retirement. Live accepted intervals remain
 physically retained; no reachability collector is claimed. The root check passed;
 disk recovery qualification is running separately.
 
-## M20 qualification in progress
+## M20 qualification
 
-`just test::reactive` runs independent Python/OpenSSL native HTTP/SSE/RFC 6455
-peers through the actual pinned nginx TLS template, two gateways, Station ingress,
-int64 Table owner, courier and disk Ursula. The latest executed expanded trace
-passed in 18.60 seconds: empty snapshot, source/outcome events, lost WebSocket
-response with exact HTTP recovery, signed SSE resume, challenge reuse rejection,
-attachment fences, fragmented bootstrap with ping, declined compression, bounded
-unauthenticated bootstrap, idle native/service revocation and full
-worker/gateway/node/store recovery. It writes fixture-only public message traces
-to `.cache/verification/m20-reactive-trace.json`.
+All rows use the declared Linux x86_64 int64 Table profile, pinned Zig/Nix,
+actual Station workers and disk-backed Ursula. These are focused integration
+proofs, not additions to M10's hosted PR lanes or evidence of a new hosted cost
+budget. The [compatibility matrix](../packages/zig/transit-serving/docs/compatibility.md)
+separates source, transport, client and placement; unavailable rows stay unavailable.
 
-`just test::reactive-descriptions` checks generated-description drift against
-pinned official OpenAPI 3.2.1/schema-base and AsyncAPI 3.0 schemas. Its independent
-Python validator also checked 22 actual peer messages with `--trace` and the
-Python/OpenSSL full-width cursor fixture. A failed trace check exposed UTF-8 byte
-arrays being serialized as strings; the shared schema-aligned host encoder fixes
-that mismatch. These tools perform no network schema resolution.
+| Proof | Executed evidence | Observed local cost |
+| --- | --- | --- |
+| `just test::reactive` | Independent Python/OpenSSL HTTP/SSE/RFC 6455 peers through real nginx TLS and two gateways; empty snapshot, Table progress/outcome, lost WebSocket reply with exact HTTP retry, signed resume, fences, challenge reuse, fragmented bootstrap/ping, declined compression, idle native/service revocation and full worker/gateway/node/store recovery | Expanded native trace 18.60 s |
+| `just test::reactive-browser` | Actual Chromium WebCrypto, same-origin WSS bootstrap without custom auth headers, exact HTTP fallback, incremental fetch SSE/event IDs, authenticated description digests and lossless minimum-i64 keys/maximum-i64 values | Browser plus native trace 28.47 s |
+| `just test::reactive-limits` | Four durable sessions and four held SSE responses, fifth data request refused, reserved health/renewal, idle grant revocation, validly signed future/foreign/incompatible cursors, malformed frames and close, escaped JSON member names, twelve reconnects, lease expiry without observer, and hard source expiry while the logical session lease remains valid | 106.75 s including native recovery; limits portion 87.54 s; health 0.003 s; two-gateway RSS 34,902,016 bytes against 256 MiB ceiling |
+| `just test::reactive-placement compose` | Two TLS gateways, WS command with lost acknowledgement and exact HTTP recovery, SSE replacement fence/cursor resume, physical workers/gateways/node/store recovery and publication retirement | 95.81 s; 21 cold objects / 1,438,542 bytes |
+| `just test::reactive-placement reference` | Same owned private placement with fresh worker keys/exact ownership, source/session history recovery and explicit new session after the lease elapsed during downtime | 168.88 s; 22 cold objects / 1,994,383 bytes |
+| `just test::reactive-descriptions` | Generated OpenAPI 3.2.1/schema-base and AsyncAPI 3.0, pinned official offline validators, shared schema parity, independent full-width fixtures and drift | No network schema resolution |
+
+The placement rows use eight resident authority pages and an 8 MiB hot store;
+their times include their local image/preparation path. They create and remove
+owned temporary resources and leave the existing reference installation intact.
+The reference proof is explicit operator placement, not a growing runtime controller.
+Chromium trusts only the fixture certificate SPKI and grants local-network access
+only to its owned loopback origin; it is a protocol harness, not a Board view or SDK.
+
+The peer runner writes fixture-only public wire messages to
+`.cache/verification/m20-reactive-trace.json`. Validate them with
+`python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api --trace PATH`.
+The independent validator checks WebSocket messages, reactive reads and the SSE
+media-level `event`/`data`/`id` fields. It explicitly parses and validates the JSON
+inside `data`: JSON Schema's `contentSchema` is an annotation, not an automatic
+assertion. Negative controls reject unknown fields, unsupported versions and
+invalid encoded content. Host JSON tests also reject quoted integers and string
+substitutes for byte arrays; escaped UTF-8 and full-width identities round-trip.
 
 Serving component tests compose actual `UnifiedCapture` transitions with Table
 watch acquisition. A mutation during retained capture is not covered by the older
-query basis and remains visible to a watch; all later query/manifest writes leave
-the marker unchanged. The query releases its source pin. This is a deterministic
-transaction model, separate from the executed native disk recovery evidence.
+query basis and remains visible to a watch; later query/manifest writes leave the
+marker unchanged and capture releases its source pin. Separate schedules inject a
+commit at each acquisition step, empty pages, schema change and denied reads.
+Lifecycle tests cover conditional attachment/subscription generations, competing
+renew/expiry observations, authenticated clocks, quota, reconstruction and 128
+retained session histories. These are deterministic transaction models, separate
+from the native disk and physical recovery rows above.
 
-`just check` and `just doctor` passed after the initial implementation. Browser,
-reactive Compose/Substrate placement and remaining capacity/lifetime/adversarial
-schedules are pending. This section does not declare M20 complete. The M10 hosted
-PR feedback/cost budget is unchanged; these remain focused integration proofs.
+RFC framing tests bound masks, canonical lengths, UTF-8 fragments, control
+interleaving, 32-fragment/8 KiB limits and close codes. The deployed peers exercise
+these mechanics through nginx. A rejected oversized frame need not have its body
+read: the proof sends only its declared length and observes the close. Four held
+streams and non-reading reconnect peers cannot grow an event-history queue;
+M19's independent slow-write proof additionally exercises the shared finite-deadline
+cancellation mechanism with an actual blocked writer.
+
+`just check`, pinned-tool `just doctor`, component checks and description validation
+passed. The M19 lifetime regression also passed in 30.74 s after the host changes:
+ordered cancellation, duplicate/late timeout, finite process/wait/resource bounds
+and hard expiry remain distinct. No push or `ci-clean` run is claimed here.

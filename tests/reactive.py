@@ -123,6 +123,7 @@ class SSE:
                 assert len(line) <= 9000
             if line == b'\n' and fields:
                 message = json.loads(fields['data'])
+                TRACE.append(dict(type='SseItem', value=fields))
                 TRACE.append(dict(type='ServerMessage', value=message))
                 assert fields['event'] in message
                 if fields['event'] == 'event': assert fields['id'] == cursor_bytes(message['event']['cursor']).hex()
@@ -218,6 +219,10 @@ def run_trace(env, tls):
     finally:
         stream.close()
     adversarial(env, tls, scope, bootstrap, 2, changed['cursor'], command, receipt)
+    if env['reactive_browser']: scope = browser(env, tls, scope)
+    if env['reactive_limits']:
+        from reactive_limits import run
+        run(env, tls, scope)
     target = Path(__file__).resolve().parents[1] / '.cache/verification/m20-reactive-trace.json'
     target.write_text(json.dumps(TRACE))
     print(f'Reactive initial trace: empty snapshot, Table progress/outcome, WebSocket-to-HTTP exact retry, SSE cursor resume and attachment fencing passed in {time.monotonic() - start:.2f}s', flush=True)
@@ -322,3 +327,31 @@ def adversarial(env, tls, scope, bootstrap, attachment, cursor, command, origina
     forged = json.loads(json.dumps(cursor)); forged['position']['data_revision'] += 1
     post(alternate, '/reactive/v1/read', signed_read(key, scope, 'events', attachment, challenge['nonce'], forged), host, 403)
     print('Reactive adversarial trace: upgrade rejection, bounded unauthenticated bootstrap, fragmented authentication with ping, declined compression, idle native/service revocation and gateway/worker/node/store recovery passed', flush=True)
+
+
+def browser(env, tls, old_scope):
+    import subprocess
+    key = env['keys'][65536]
+    cast, drained = env['cast'], env['drained']
+    ingress = env['ingress']
+    cast(ingress, reactive(7, struct.pack('<QQ', old_scope['session'], old_scope['generation'])), 65536)
+    now = int(time.time() * 1000)
+    cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
+    generation = cast(ingress, reactive(2, struct.pack('<QQQ', 8, 1, now + 28000)), 65536)
+    subscription = cast(ingress, reactive(4, struct.pack('<QQQQQ', 8, generation, 0, 4, 10)), 65536)
+    drained(ingress)
+    scope = dict(realm=49, principal=65536, service=1, ingress=ingress, session=8, generation=generation, subscription=4, subscription_generation=subscription)
+    certificate = tls[env['gateway_ports'][0]].root / 'certificate.pem'
+    public_pem = subprocess.check_output(['openssl', 'x509', '-in', str(certificate), '-pubkey', '-noout'])
+    public_der = subprocess.check_output(['openssl', 'pkey', '-pubin', '-outform', 'DER'], input=public_pem)
+    spki = base64.b64encode(hashlib.sha256(public_der).digest()).decode()
+    config = env['store'].root / 'browser.json'
+    config.write_text(json.dumps(dict(origin='https://' + env['public_host'], scope=scope, sequence=env['sequences'][65536], private_key=str(key.path), deadline=env['deadline_ms'], spki=spki)))
+    config.chmod(0o600)
+    completed = subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'node', 'browser/reactive.mjs', str(config)], capture_output=True, text=True, timeout=45)
+    assert completed.returncode == 0, (completed.stdout, completed.stderr)
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    env['sequences'][65536] = result['sequence']
+    assert result['websocket'] and result['sse'] and result['fallback'] and result['discovery']
+    print('Reactive browser: actual Chromium WebCrypto, same-origin TLS WebSocket bootstrap, exact HTTP fallback, fetch SSE resume, description digests and decimal snapshot values passed (fixture certificate SPKI pinned)', flush=True)
+    return scope

@@ -92,7 +92,9 @@ def post(port, path, value, host=None, status=200, headers=None):
         connection.close()
 
 
-def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False):
+def run(node, example, courier, tls=False, capacity=False, lifetimes=False, growth=False, reactive=False, reactive_browser=False, reactive_limits=False):
+    if (reactive_browser or reactive_limits) and not (reactive and tls):
+        raise ValueError("reactive browser/limits proofs require --reactive --tls")
     node, example, courier = [str(Path(path).resolve()) for path in (node, example, courier)]
     started = time.monotonic()
     with Fixture() as store, ExitStack() as owned:
@@ -244,6 +246,11 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             courier_worker = start('courier', courier, courier_config)
             gateway_ports = [free_port(), free_port()]
             public_host = 'serving.example.test'
+            tls_proxies = []
+            if tls:
+                from serving_tls import TLSProxy
+                tls_proxies = [TLSProxy(store.root / f'tls-{index}', gateway_port) for index, gateway_port in enumerate(gateway_ports)]
+                if reactive_browser: public_host = f'127.0.0.1:{tls_proxies[0].port}'
             gateway_config = dict(url=f'http://127.0.0.1:{proxy.server_port}', realm=REALM, principal=79, seed_file=str(keys[79].seed), role={'gateway': dict(service=1, ingress=ingress, resource=ingress_resource, port=gateway_ports[0], host=public_host, public_origin='https://' + public_host, callers=[dict(principal=p, public_key=keys[p].public) for p in (65536, 65537)])})
             if reactive:
                 gateway_config['role']['gateway'].update(reactive=True, options=dict(requests=4, request_timeout_ms=30000))
@@ -252,8 +259,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                 gateway_config['role']['gateway']['port'] = gateway_port
                 gateways.append(start(f'gateway-{index}', example, gateway_config))
                 if tls:
-                    from serving_tls import TLSProxy
-                    TLS[gateway_port] = owned.enter_context(TLSProxy(store.root / f'tls-{index}', gateway_port))
+                    TLS[gateway_port] = owned.enter_context(tls_proxies[index])
             time.sleep(.4)
 
             def read(kind, operation=0, principal=65536, expected=200):
@@ -537,4 +543,6 @@ if __name__ == '__main__':
     parser.add_argument('--lifetimes', action='store_true')
     parser.add_argument('--growth', action='store_true')
     parser.add_argument('--reactive', action='store_true')
+    parser.add_argument('--reactive-browser', action='store_true')
+    parser.add_argument('--reactive-limits', action='store_true')
     run(**vars(parser.parse_args()))

@@ -1,4 +1,4 @@
-# Reactive serving v1 (M20 in progress)
+# Reactive serving v1 (M20)
 
 Set `role.gateway.reactive` to `true` and set
 `role.gateway.options.request_timeout_ms` to `30000` for the finite streaming
@@ -24,9 +24,16 @@ coalesced through its named data watermark; it is not a continuous query answer.
 For fetch SSE, obtain a single-use challenge with a signed session read at
 `POST /reactive/v1/challenge`. Sign an attachment control binding that nonce and
 the expected attachment revision. `POST /reactive/v1/events` takes the `Bootstrap`
-containing that native command and signed event read. Resume carries the same
+containing that native command and signed event read. Obtain and consume the
+challenge on the same gateway: the two-second, single-use nonce is connection
+admission state local to that listener. A load balancer must preserve this short
+exchange's affinity. After interruption, obtain a new challenge and recover the
+current attachment revision; cursors and committed session state work across
+gateways. Resume carries the same
 cursor in the read and, when present, the lowercase-hex `Last-Event-ID` header.
 Event data is one JSON `ServerMessage`; decode UTF-8 and lines incrementally.
+OpenAPI describes the complete SSE field object as `SseItem`, with the JSON
+`ServerMessage` inside its `data` string; it is not a JSON-sequence response.
 
 For WebSocket, connect to `/reactive/v1/websocket` with subprotocol
 `transit.reactive.v1` and exact configured HTTPS Origin. The server sends a random
@@ -60,11 +67,20 @@ after current source/service checks. Generic type descriptions are available at
 `GET /reactive/v1/openapi.json` and `/reactive/v1/asyncapi.json`; they contain no
 accepted resource identities. Board's separate OpenAPI 3.1 publication is unchanged.
 
-Run `just test::reactive` for independent non-UI TLS peers, and
-`just test::reactive-descriptions` for pinned offline validator/drift checks.
-Executed native tests include cross-transport exact retry, empty snapshot, Table
-progress/outcome notification, cursor resume, attachment fencing, fragmented
-bootstrap with ping, declined compression, idle native/service revocation and
-worker/gateway/node/store recovery. Browser, Compose/Substrate reactive paths,
-capacity and remaining adversarial/lifetime schedules are still pending; M19's
-physical serving results alone do not qualify reactive transports.
+Run `just test::reactive` for independent non-UI TLS peers,
+`just test::reactive-browser` for Chromium/WebCrypto and fetch SSE,
+`just test::reactive-limits` for held-stream capacity/cursor/expiry schedules,
+and `just test::reactive-descriptions` for pinned offline validators and drift.
+`just test::reactive-placement compose` and `just test::reactive-placement reference`
+exercise physical recovery with the same independent peers. The
+[proof ledger](../../../tests/README.md#m20-qualification) records observed costs.
+
+Native proofs include exact cross-transport recovery, snapshot progress, signed
+resume, attachment fencing, malformed framing, full-width application integers,
+reserved renewal under four held streams and hard resource expiry while the
+session lease remains valid. The reference recovery can outlast a lease; it
+explicitly rejects the old attachment and opens a new session. Accepted commands
+and retained session history survive independently. Browser qualification is
+Chromium only, with a fixture certificate SPKI and loopback-origin permission.
+Board inspection, KV/Document watches and reactive language SDK wrappers remain
+unavailable; this example does not add live-view UI or an automatic timer daemon.

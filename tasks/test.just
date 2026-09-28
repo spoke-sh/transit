@@ -299,6 +299,18 @@ grpc-codegen:
 reactive:
     nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true
 
+# Actual Chromium/WebCrypto plus independent peer recovery; loopback fixture permission only.
+reactive-browser:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-browser=true
+
+# Full data pool, reserved controls, malformed frames, resume rejection and hard expiry.
+reactive-limits:
+    nix develop .#serving --command zig build test-serving -Doptimize=ReleaseSafe -Dserving-reactive=true -Dserving-tls=true -Dserving-reactive-limits=true
+
+# Owned private placement, TLS peers and physical stack recovery.
+reactive-placement profile="compose":
+    nix develop .#serving --command python3 -B examples/serving/run.py --profile {{profile}} --reactive
+
 # Rebuild descriptions and check the pinned offline specifications and drift.
 reactive-descriptions:
     zig build serving-api -Doptimize=ReleaseSafe
