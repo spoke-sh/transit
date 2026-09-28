@@ -13,6 +13,13 @@ pub fn write(value: anytype, out: *std.json.Stringify) std.Io.Writer.Error!void 
             for (value) |item| try write(item, out);
             try out.endArray();
         },
+        .pointer => |info| {
+            if (comptime info.size == .slice and info.child != u8) {
+                try out.beginArray();
+                for (value) |item| try write(item, out);
+                try out.endArray();
+            } else try out.write(value);
+        },
         .optional => if (value) |item| try write(item, out) else try out.write(null),
         .@"struct" => |info| {
             if (@hasDecl(T, "jsonStringify")) return out.write(value);
@@ -42,6 +49,18 @@ test "UTF-8 byte arrays and empty arrays preserve their declared wire shape" {
     var out: std.json.Stringify = .{ .writer = &writer };
     try write(.{ .bytes = [_]u8{ 'i', 'd', 0 }, .text = @as([]const u8, "id"), .empty = [0]u8{}, .value = try @import("root.zig").Value.init("id") }, &out);
     try std.testing.expectEqualStrings("{\"bytes\":[105,100,0],\"text\":\"id\",\"empty\":[],\"value\":\"6964\"}", writer.buffered());
+}
+
+test "bounded host sequences recursively preserve fixed byte-array schema" {
+    const Item = struct { digest: [2]u8, label: []const u8 };
+    const items = [_]Item{.{ .digest = .{ 0, 0 }, .label = "text" }};
+    const encoded = try valueAlloc(std.testing.allocator, @as([]const Item, &items));
+    defer std.testing.allocator.free(encoded);
+    try std.testing.expectEqualStrings("[{\"digest\":[0,0],\"label\":\"text\"}]", encoded);
+    const parsed = try parseFromSlice([]const Item, std.testing.allocator, encoded);
+    defer parsed.deinit();
+    try std.testing.expectEqualDeep(items[0], parsed.value[0]);
+    try std.testing.expectError(error.InvalidJsonShape, parseFromSlice([]const Item, std.testing.allocator, "[{\"digest\":\"aa\",\"label\":\"text\"}]"));
 }
 
 pub fn valueAlloc(allocator: std.mem.Allocator, value: anytype) ![]u8 {

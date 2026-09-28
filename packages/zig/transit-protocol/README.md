@@ -96,7 +96,8 @@ domain validation still enforces narrower per-field limits. This generation opti
 does not widen protocol frames, mutation budgets or running-service capabilities.
 
 `Schema` and `Json` support schema-aligned host descriptions and values. Fixed
-byte arrays always encode as arrays, even when they happen to contain UTF-8;
+byte arrays always encode as arrays, including inside bounded host sequences,
+even when they happen to contain UTF-8;
 text slices remain strings and owning `jsonStringify` codecs remain authoritative.
 Public scalar types can supply `jsonSchema`; versioned structs can override a
 field with `json_schema_fields` beside their runtime declarations. These helpers
