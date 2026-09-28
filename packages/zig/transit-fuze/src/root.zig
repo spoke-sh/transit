@@ -83,3 +83,19 @@ test "Arrow IPC and compute share the same arrays and release their ownership" {
     var too_small: [1]u8 = undefined;
     try std.testing.expectError(error.WriteFailed, encode(allocator, batch, &too_small));
 }
+
+test "empty primitive IPC batch is a valid result with no body buffers" {
+    const t = std.testing;
+    const schema: model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
+    const source: model.Source = .{ .basis = .{ .resource = 1, .revision = 0, .schema = try schema.fingerprint() }, .schema = schema, .rows = &.{} };
+    const plan: Plan = .{};
+    const workspace = try t.allocator.alloc(u8, execution.working_bytes);
+    defer t.allocator.free(workspace);
+    var output: [8192]u8 = undefined;
+    const cancellation: execution.Cancellation = .init(false);
+    const result = try execution.run(try plan.bind(source), source, workspace, &output, &cancellation);
+    try t.expectEqual(@as(u8, 0), result.rows);
+    _ = try Inspect.segment(result.bytes, 0, workspace);
+    try t.expectError(error.InvalidArrowResult, Inspect.segment(result.bytes, 1, workspace));
+    try t.expectError(error.InvalidArrowResult, Inspect.segment(result.bytes[0 .. result.bytes.len - 1], 0, workspace));
+}

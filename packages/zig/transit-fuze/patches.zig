@@ -17,8 +17,17 @@ pub fn apply(b: *std.Build, dependency: *std.Build.Dependency, module: *std.Buil
     const guarded = try std.mem.replaceOwned(u8, b.allocator, original, guard, "var schema_transferred = false;\n            errdefer if (!schema_transferred) self.allocator.destroy(schema_ptr);");
     const patched = try std.mem.replaceOwned(u8, b.allocator, guarded, transfer, "            schema_transferred = true;\n" ++ transfer);
     const files = b.addWriteFiles();
-    const source = files.addCopyDirectory(dependency.path("src"), "src", .{ .exclude_extensions = &.{ "ipc/stream_writer.zig", "fbs_runtime/Builder.zig" } });
+    const source = files.addCopyDirectory(dependency.path("src"), "src", .{ .exclude_extensions = &.{ "ipc/stream_writer.zig", "ipc/stream_reader.zig", "fbs_runtime/Builder.zig" } });
     _ = files.add("src/ipc/stream_writer.zig", patched);
+    // Empty primitive RecordBatches legitimately have a zero-byte body. The
+    // upstream reader requires a SharedBuffer even for that valid empty body;
+    // keep schema messages body-less and let array validation reject bad batches.
+    const reader_path = "src/ipc/stream_reader.zig";
+    b.dependOnFileContents(dependency.path(reader_path));
+    const reader = try dir.readFileAlloc(b.graph.io, reader_path, b.allocator, .limited(512 * 1024));
+    const body_guard = "    if (body_len > 0) {\n        var body_buf = try OwnedBuffer.init(self.allocator, body_len);";
+    if (std.mem.count(u8, reader, body_guard) != 1) return error.UpstreamPatchMismatch;
+    _ = files.add(reader_path, try std.mem.replaceOwned(u8, b.allocator, reader, body_guard, "    if (body_len > 0 or msg_t.header == .RecordBatch or msg_t.header == .DictionaryBatch) {\n        var body_buf = try OwnedBuffer.init(self.allocator, body_len);"));
     module.root_source_file = source.path(b, "root.zig");
     // FlatBuffer byte/string tracing discloses schemas and executes log I/O
     // inside encoding. Instrumentation belongs to the caller's domain boundary.

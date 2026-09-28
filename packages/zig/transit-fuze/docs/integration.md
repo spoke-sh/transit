@@ -50,3 +50,9 @@ Its independent Arrow proof spans 70 rows and 16,008 text-result bytes in seven
 segments. Whole-query limits and aggregate carry cross pages; allocation/output
 capacity remains per-step. This removes the pure engine's whole-source ceiling,
 but does not by itself qualify Station's larger durable result protocol.
+
+M22 metadata/schema work exposed a valid zero-body IPC batch rejected by the
+pinned reader. The guarded build-cache patch now supplies an owned empty body
+for RecordBatch/DictionaryBatch messages while retaining normal array validation.
+An empty primitive result, row-count mismatch and truncated stream are regression
+tests; this changes neither the upstream pin nor the Arrow wire format.
