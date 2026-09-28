@@ -87,6 +87,25 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  examples/work-items/web:
+    dependencies:
+      '@rey/transit-application':
+        specifier: workspace:*
+        version: link:../../../packages/ts/transit-application
+      '@rey/transit-query-client':
+        specifier: workspace:*
+        version: link:../../../packages/ts/transit-query-client
+    devDependencies:
+      '@axe-core/playwright':
+        specifier: 4.13.0
+        version: 4.13.0(playwright-core@1.63.0)
+      '@playwright/test':
+        specifier: 1.63.0
+        version: 1.63.0
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/ts/transit-application:
     dependencies:
       '@rey/transit-reactive-client':

@@ -1,0 +1,100 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #252525;
+  background: #f4f4f4;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  background: #e6e6e6;
+  border-bottom: 1px solid #999;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+main {
+  max-width: 1000px;
+  padding: 24px;
+  margin: auto;
+}
+section {
+  margin-bottom: 24px;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  max-width: 100%;
+  padding: 8px;
+  color: inherit;
+}
+button {
+  background: #eee;
+  border: 1px solid #777;
+  border-radius: 3px;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+  color: #666;
+}
+button[aria-current="page"] {
+  background: #333;
+  color: white;
+}
+:focus-visible {
+  outline: 3px solid #333;
+  outline-offset: 3px;
+}
+textarea {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  margin: 12px 0;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+p,
+pre {
+  overflow-wrap: anywhere;
+}
+pre {
+  white-space: pre-wrap;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  margin: 16px 0;
+}
+th,
+td {
+  padding: 12px;
+  border-bottom: 1px solid #bbb;
+  overflow-wrap: anywhere;
+}
+body[data-density="compact"] th,
+body[data-density="compact"] td {
+  padding: 6px;
+}
+@media (max-width: 400px) {
+  main,
+  header {
+    padding: 12px;
+  }
+}

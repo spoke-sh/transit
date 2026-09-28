@@ -9,11 +9,11 @@ const Realm = 51;
 const Operator = 65537;
 const Worker = 65536;
 const Admin = @import("growing_support.zig").Admin(Realm);
-const Saved = struct { pid: u64, resource: u64, generation: u64, activation: u8 = 8 };
-fn owner(saved: Saved) W {
+pub const Saved = struct { pid: u64, resource: u64, generation: u64, activation: u8 = 8 };
+pub fn owner(saved: Saved) W {
     return .{ .configuration = .{ .application = 9, .realm = Realm, .administrator = Operator, .writer = Operator, .resource = saved.resource } };
 }
-fn write(init: std.process.Init, path: []const u8, value: anytype) !void {
+pub fn write(init: std.process.Init, path: []const u8, value: anytype) !void {
     var atomic = try std.Io.Dir.cwd().createFileAtomic(init.io, path, .{ .replace = true, .permissions = .fromMode(0o600) });
     defer atomic.deinit(init.io);
     var buffer: [4096]u8 = undefined;
@@ -24,19 +24,22 @@ fn write(init: std.process.Init, path: []const u8, value: anytype) !void {
     try atomic.file.sync(init.io);
     try atomic.replace(init.io);
 }
-const Caller = struct {
+pub const Caller = struct {
     wire: *s.client.Client,
     key: p.Ed25519.KeyPair,
     saved: Saved,
     sequence: u64,
-    fn resources(self: *@This()) s.client.ResourceReader {
+    pub fn resources(self: *@This()) s.client.ResourceReader {
         return .{ .wire = self.wire, .realm = Realm, .principal = Operator, .key = self.key };
     }
-    fn read(self: *@This()) !s.client.ResourceReader.Reader {
+    pub fn read(self: *@This()) !s.client.ResourceReader.Reader {
         return self.resources().open(self.saved.resource);
     }
-    fn send(self: *@This(), io: std.Io, command: W.Command, reason: ?[]const u8) !u64 {
-        const frozen = try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = self.saved.pid, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.key);
+    pub fn send(self: *@This(), io: std.Io, command: W.Command, reason: ?[]const u8) !u64 {
+        return self.sendPayload(io, try command.encode(), reason);
+    }
+    pub fn sendPayload(self: *@This(), io: std.Io, payload: p.Value, reason: ?[]const u8) !u64 {
+        const frozen = try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = self.saved.pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } } }, self.key);
         const receipt = self.wire.submitGrowing(frozen) catch |err| value: {
             if (err != error.InvalidAuthorityResponse and !s.client.Client.unavailable(err)) return err;
             break :value try self.wire.submitGrowing(frozen);

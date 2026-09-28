@@ -183,3 +183,9 @@ M23 adds `just test::application-grammar`, `just test::application` and
 signed native publication restart boundary, and actual embedded editor with
 operator admission and recovery. These are focused tasks outside ordinary PR
 lanes; the browser task requires the existing installed Chromium.
+
+`just test::work-items` exercises bounded application-owned Table migration and
+fresh-key disk recovery. `just test::work-items-browser` composes the standalone
+generated frontend, separate publication/data/requester owners, schema switch,
+saved exact query recovery and browser access revocation. Both are focused M23
+qualifications; they do not expand the measured hosted PR lanes.

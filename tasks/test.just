@@ -381,3 +381,7 @@ flight-outbound:
 # Embedded application editor, real operator signatures and recovery.
 application-browser:
     zig build test-application-browser -Doptimize=ReleaseSafe
+
+# Generated standalone application, migration and native query recovery.
+work-items-browser:
+    zig build test-work-items-browser -Doptimize=ReleaseSafe

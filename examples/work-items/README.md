@@ -3,7 +3,8 @@
 M23's non-trading application uses a two-column Table and the shared application
 migration ledger. `WorkItems.zig` is application code, outside Board and the
 kernel. The data owner and independently scheduled native worker now pass disk recovery.
-The generated browser and Compose/reference placement qualifications remain open.
+The generated browser now qualifies against those native owners; Compose/reference
+placement qualifications remain open.
 
 From the pinned Nix environment, run `just test::work-items`. It provisions an
 isolated synthetic realm, runs the actual worker, replaces it twice with fresh
@@ -24,6 +25,13 @@ fresh native ownership generation; local activation markers never supply rights.
 entry point is not yet a qualified reference placement or automatic controller.
 Worker diagnostics exclude data and keys. Current read failures leave the input
 unresolved; malformed/denied commands have retained dispositions.
+
+Run `just test::work-items-browser` for the generated standalone frontend,
+conditional interface publication, migration, exact saved query recovery after
+gateway replacement, cancellation, new schema queries and current denial. The
+browser checks all three result pages, business labels, keyboard navigation,
+two densities, 320 px layout and axe accessibility. See the [browser composition
+guide](docs/browser.md) for roles, finite limits and recovery.
 
 See [the selected migration](docs/migration.md). Work is tied to
 [M23](../../docs/roadmap/M23.md), with authority movement reserved for [M26](../../docs/roadmap/M26.md).

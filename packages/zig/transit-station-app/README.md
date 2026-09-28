@@ -43,7 +43,9 @@ staging without expiring published history. See the contract for exact layout,
 limits and quota recovery. Tests cover races, denial, lost-result reconstruction,
 partial-decision rollback and retained revision growth. `just test::application` additionally qualifies signed native operator admission,
 exact lost replies, worker fencing and node/disk-store restart. The separate browser proof covers declared navigation and exact operation recovery.
-Cross-schema application migration and physical application placements remain open.
+The [work-item example](../../../examples/work-items/README.md) now qualifies
+its selected data/schema migration and generated browser on native placement.
+Physical application placements remain open.
 
 The committed `api/application.schema.json` is reflected by `transit-app schema`.
 `just transit-board::generate` regenerates it and the shared browser package;

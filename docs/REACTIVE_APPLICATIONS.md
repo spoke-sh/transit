@@ -231,3 +231,12 @@ applications must supply their own write coordination or versioned source;
 copying this cursor alone cannot stabilize mutable contents. Abandonment leaves
 target Table identities and receipts retained, so another attempt needs a fresh
 plan/target identity. M26 must preserve these roots and pauses during movement.
+
+The generated work-item browser now composes the same application/query packages
+as Board, with its business decoder outside both Board and the kernel. Its native
+proof reads three complete verified pages, crosses a data/interface schema
+transition, restarts the browser/gateway and settles the original uncertain
+upload before explicitly admitting a new query. Query recovery is independent
+of the current interface binding; compilation and visible pages still require
+the current data contract. Compose/reference qualification remains separate.
+See the [composition guide](../examples/work-items/docs/browser.md).

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transit work items</title>
+  </head>
+  <body>
+    <header>
+      <strong>Transit · Work items</strong>
+      <nav id="navigation" aria-label="Application screens"></nav>
+    </header>
+    <main>
+      <p id="interface-status" role="status">Reading the published interface…</p>
+      <section id="workspace" hidden>
+        <h1 id="title">Work items</h1>
+        <label
+          >Density
+          <select id="density">
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+          </select></label
+        >
+        <div id="items">
+          <label for="sql">SQL draft</label><textarea id="sql" maxlength="4096"></textarea>
+          <div class="controls">
+            <button id="run">Run snapshot</button><button id="live">Enable two Live drafts</button
+            ><button id="pause">Pause Live drafts</button>
+          </div>
+          <p id="query-status" role="status"></p>
+          <p id="basis"></p>
+          <div id="result" hidden>
+            <table>
+              <caption>
+                Verified work items
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">ID</th>
+                  <th scope="col">State</th>
+                </tr>
+              </thead>
+              <tbody id="rows"></tbody>
+            </table>
+            <button id="next" hidden>Next result page</button>
+            <p id="coverage"></p>
+          </div>
+        </div>
+        <pre id="definition" hidden></pre>
+      </section>
+      <section aria-label="Accepted query recovery">
+        <h2>Query recovery</h2>
+        <p>
+          Accepted work keeps its original identity across interface changes. Pause stops
+          scheduling; cancellation is separate.
+        </p>
+        <button id="recover">Recover original query work</button
+        ><button id="cancel">Cancel accepted query</button
+        ><button id="save">Save query recovery</button>
+        <label
+          >Restore query recovery <input id="restore" type="file" accept="application/json,.json"
+        /></label>
+        <p id="recovery-status" role="status"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

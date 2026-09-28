@@ -86,6 +86,20 @@ pub fn build(b: *std.Build) void {
     const work_items = b.addExecutable(.{ .name = "transit-work-items", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/main.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "work_items", .module = work_items_module }} }) });
     const install_work_items = b.addInstallArtifact(work_items, .{});
     b.step("example-work-items", "Install the work-item application worker").dependOn(&install_work_items.step);
+    const work_items_generated = b.addSystemCommand(&.{ "python3", "-B" });
+    work_items_generated.addFileArg(b.path("examples/work-items/generate.py"));
+    work_items_generated.addArtifactArg(application.artifact("transit-app"));
+    work_items_generated.addArg("--check");
+    work_items_generated.has_side_effects = true;
+    const work_items_embed = b.addSystemCommand(&.{ "python3", "-B" });
+    work_items_embed.addFileArg(b.path("tasks/embed_web.py"));
+    const work_items_assets = work_items_embed.addOutputFileArg("assets.zig");
+    work_items_embed.addArg("examples/work-items/web");
+    work_items_embed.has_side_effects = true;
+    work_items_embed.step.dependOn(&work_items_generated.step);
+    const work_items_gateway = b.addExecutable(.{ .name = "transit-work-items-gateway", .root_module = b.createModule(.{ .root_source_file = b.path("examples/work-items/Gateway.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "work_items", .module = work_items_module }, .{ .name = "transit_http_server", .module = http_server.module("transit_http_server") }, .{ .name = "assets", .module = b.createModule(.{ .root_source_file = work_items_assets, .target = target, .optimize = optimize }) } } }) });
+    const install_work_items_gateway = b.addInstallArtifact(work_items_gateway, .{});
+    b.step("work-items-gateway", "Install the generated work-item application gateway").dependOn(&install_work_items_gateway.step);
     b.step("test-work-items-unit", "Check the application-owned Table migration").dependOn(&work_items_test.step);
     test_step.dependOn(&work_items_test.step);
     const work_items_contract = b.addSystemCommand(&.{ "python3", "-B" });
@@ -141,9 +155,13 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&grpc_contract_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
     build_test_step.dependOn(&work_items.step);
+    build_test_step.dependOn(&work_items_gateway.step);
     const work_items_proof = b.addExecutable(.{ .name = "transit-work-items-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/work_items.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "work_items", .module = work_items_module }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
     build_test_step.dependOn(&work_items_proof.step);
     b.step("work-items-proof", "Build the native work-item qualification caller").dependOn(&b.addInstallArtifact(work_items_proof, .{}).step);
+    const work_items_browser_proof = b.addExecutable(.{ .name = "transit-work-items-browser-proof", .root_module = b.createModule(.{ .root_source_file = b.path("tests/work_items_browser.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "work_items", .module = work_items_module }, .{ .name = "transit_station", .module = station.module("transit_station") } } }) });
+    build_test_step.dependOn(&work_items_browser_proof.step);
+    b.step("work-items-browser-proof", "Build the generated application qualification caller").dependOn(&b.addInstallArtifact(work_items_browser_proof, .{}).step);
     build_test_step.dependOn(&application.artifact("transit-app").step);
     build_test_step.dependOn(&query.artifact("transit-query-api").step);
     build_test_step.dependOn(&serving_example.step);
@@ -711,6 +729,12 @@ pub fn build(b: *std.Build) void {
     work_items_native.has_side_effects = true;
     work_items_native.stdio = .inherit;
     b.step("test-work-items", "Qualify the actual Table migration worker through disk recovery").dependOn(&work_items_native.step);
+    const work_items_browser = b.addSystemCommand(&.{ "python3", "-B" });
+    work_items_browser.addFileArg(b.path("tests/work_items_browser.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, work_items, query_host, work_items_gateway, work_items_browser_proof }) |artifact| work_items_browser.addArtifactArg(artifact);
+    work_items_browser.has_side_effects = true;
+    work_items_browser.stdio = .inherit;
+    b.step("test-work-items-browser", "Qualify generated application queries through publication and data migration").dependOn(&work_items_browser.step);
     const application_proof = b.addExecutable(.{ .name = "transit-application-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/application.zig"),
         .target = target,
@@ -804,6 +828,7 @@ pub fn build(b: *std.Build) void {
     build_test_step.dependOn(&readiness_caller.step);
     const examples_step = b.step("examples", "Install runnable example applications");
     examples_step.dependOn(&install_work_items.step);
+    examples_step.dependOn(&install_work_items_gateway.step);
     examples_step.dependOn(&install_query_example.step);
     examples_step.dependOn(&install_document_caller.step);
     examples_step.dependOn(&install_http_caller.step);

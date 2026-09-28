@@ -26,6 +26,7 @@ generate:
     zig-out/bin/transit-app schema > packages/zig/transit-station-app/api/application.schema.json
     python3 -B packages/ts/transit-application/generate.py
     vp exec node packages/ts/transit-application/validators.mjs
+    python3 -B examples/work-items/generate.py zig-out/bin/transit-app
 
 # Check typed contract and generated browser-resource drift.
 contract:
@@ -44,6 +45,7 @@ contract:
     python3 -B tests/application_schema.py zig-out/bin/transit-app
     python3 -B packages/ts/transit-application/generate.py --check
     vp exec node packages/ts/transit-application/validators.mjs --check
+    python3 -B examples/work-items/generate.py zig-out/bin/transit-app --check
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
@@ -60,6 +62,8 @@ check: contract
     cd apps/transit-board-web && vp test run
     cd examples/serving/web && vp check
     cd examples/serving/web && vp exec tsc --noEmit
+    cd examples/work-items/web && vp check
+    cd examples/work-items/web && vp exec tsc --noEmit
 
 # Format frontend source and Markdown; generated contracts have their own recipe.
 fmt:

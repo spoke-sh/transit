@@ -3037,3 +3037,27 @@ in two result segments, 37,576,704 bytes RSS across two Board instances and
 148,158,801 retained cold bytes. Searching `count` can match Document column
 names as well as COUNT; the catalog filters before its eight-result bound.
 This does not enable Document Live draft or change the hosted M10 budget.
+
+`just test::work-items-browser` now qualifies the standalone generated work-item
+frontend with the actual native worker, separate publication/requester workers,
+query courier, private gateway and disk-backed Ursula. The current run measured
+164.79 seconds, including 15.83 seconds provisioning. Nineteen rows span three
+verified result pages. The browser preserves the selected page during current
+rereads, reads the canonical declaration, saves a lost accepted upload, crosses
+bounded copy/verification/activation and conditional interface publication, then
+reloads through gateway replacement. It retries the identical native proposal,
+refuses continuation against the new contract, cancels the original upload and
+explicitly admits a query over the new schema. Normal writes remain paused until
+publication and explicit administrator release; old epoch commands are rejected.
+
+The same browser checks work-item decoding, two densities, 320 px layout,
+keyboard focus, axe accessibility, current read denial and empty browser storage.
+HTTP origin checks and startup refusal of overlapping operator/query identities
+also pass. Arbitrary external query-control frames receive a retained denial
+without stopping the data owner. Per-process peak RSS was 23,080,960 bytes for the first gateway,
+24,604,672 for its replacement, 10,801,152 for the node, 14,450,688 for data,
+8,278,016 for publication, 13,434,880 for the requester and 8,515,584 for delivery.
+These are one local run's observed peaks, not configured ceilings or distributed
+throughput. `just check` passed with the new workspace. Generated-application
+Compose/reference placement and M23 clean committed-HEAD qualification remain
+open; this focused task does not change the hosted PR matrix or M10 budget.

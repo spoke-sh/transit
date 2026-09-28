@@ -64,7 +64,7 @@ pub fn initialize(self: Self, turn: *s.GrowingTurn) !void {
     const definition = try self.source(1);
     if (try turn.read(s.Table.descriptorKey(1)) == null) _ = try s.Table.create(turn, 1, definition.source.table.schema);
 }
-pub fn selected(self: Self, turn: *s.GrowingTurn) !u32 {
+pub fn selected(self: Self, turn: anytype) !u32 {
     const head = try (try self.ledger()).head(turn);
     if (head.epoch.value == 1) return 1;
     const state = try app.Records.decode(Active, 'a', (try turn.read(active_table)) orelse return error.WorkItemStateMissing);
@@ -163,6 +163,7 @@ pub fn dispositionKey(application: u64, principal: u64, input: u64) p.Value {
 }
 pub const Behavior = struct {
     owner: Self,
+    capture: ?query.UnifiedBehavior.Source = null,
     pub fn interface(self: *@This()) s.GrowingGenServer.Handler {
         return .{ .context = self, .initialize = init, .handle = handle };
     }
@@ -185,6 +186,22 @@ pub const Behavior = struct {
             try self.disposition(turn, "InvalidWorkItemFrame");
             return true;
         };
+        if (self.capture != null and !std.mem.startsWith(u8, frame.payload.slice(), "WI1i")) {
+            // Public send permission does not authorize arbitrary query control
+            // on this data owner. Internal calls still use the shared peer and
+            // correlation checks; external ingress admits only scoped policy.
+            if (turn.delivery.input.origin == .external and
+                (frame.kind != .cast or turn.delivery.input.origin.external.principal != self.owner.configuration.administrator or !std.mem.startsWith(u8, frame.payload.slice(), "UQA2")))
+            {
+                try self.disposition(turn, "WorkItemDenied");
+                return true;
+            }
+            if (try turn.read(app.Migration.key(self.owner.configuration.application, 'C', 0, 0)) == null) {
+                try self.disposition(turn, "WorkItemInitializationRequired");
+                return true;
+            }
+            return false;
+        }
         if (frame.kind != .cast or turn.delivery.input.origin != .external) {
             try self.disposition(turn, "WorkItemDenied");
             return true;
@@ -197,6 +214,29 @@ pub const Behavior = struct {
     }
     fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) anyerror!void {
         const self = get(raw);
+        if (self.capture) |*capture| {
+            if (!std.mem.startsWith(u8, frame.payload.slice(), "WI1i")) {
+                const handler = capture.interface();
+                if (frame.kind == .cast and std.mem.startsWith(u8, frame.payload.slice(), "UQA2")) {
+                    if (turn.delivery.input.origin != .external or turn.delivery.input.origin.external.principal != self.owner.configuration.administrator) return self.disposition(turn, "WorkItemDenied");
+                    const policy = query.UnifiedRecords.Policy.decode(frame.payload) catch return self.disposition(turn, "InvalidWorkItemQueryPolicy");
+                    if (policy.peer != capture.peer) return self.disposition(turn, "InvalidWorkItemQueryPolicy");
+                    const definition = try self.owner.source(try self.owner.selected(turn));
+                    if (!std.mem.eql(u8, &policy.declaration, &try query.Bundle.declaration(definition))) return self.disposition(turn, "WorkItemEpochChanged");
+                    if (try turn.read(query.UnifiedRecords.key('v', 0, 0)) == null) {
+                        try handler.initialize.?(handler.context, turn);
+                    } else {
+                        try handler.handle(handler.context, turn, .{ .kind = .cast, .payload = try query.UnifiedRequest.Command.encode(.initialize) });
+                    }
+                    query.UnifiedCapture.setPolicy(turn, policy) catch |err| {
+                        if (err == error.StaleQueryPolicy) return self.disposition(turn, "StaleQueryPolicy");
+                        return err;
+                    };
+                    return;
+                }
+                return handler.handle(handler.context, turn, frame);
+            }
+        }
         const before = turn.decision;
         self.owner.execute(turn, try Command.decode(frame.payload)) catch |err| {
             turn.decision = before;
