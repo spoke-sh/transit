@@ -147,6 +147,13 @@ fn load(self: *Self, allocator: std.mem.Allocator, application: []const u8) !Rec
     try record.declaration.validate();
     return record;
 }
+// Management admission reserves space for the next frozen native request and
+// receipt coordinates. Reject before changing the record or poisoning recovery.
+fn admitCheckpoint(allocator: std.mem.Allocator, record: Record) !void {
+    const encoded = try p.Json.valueAlloc(allocator, record);
+    defer allocator.free(encoded);
+    if (encoded.len > record_bytes - 8192) return error.ApplicationCheckpointCapacity;
+}
 fn save(self: *Self, allocator: std.mem.Allocator, record: Record) !void {
     Files.jsonBounded(self.init.io, allocator, try self.path(allocator, record.declaration.application, "record.json"), record, record_bytes) catch |err| {
         self.failed.store(true, .release);
@@ -247,6 +254,7 @@ fn control(self: *Self, allocator: std.mem.Allocator, signed: A.Signed, admin: b
             if (!std.mem.eql(u8, record.declaration.roles[i].contract, replacement.contract) or !std.mem.eql(u8, &selected.revision, &replacement.expected_revision)) return error.IncompatibleApplicationReplacement;
             if (!std.mem.eql(u8, &try Config.digest(self.init, replacement.artifact.path), &replacement.artifact.sha256)) return error.ApplicationArtifactChanged;
             record.replacement = .{ .signed = signed };
+            try admitCheckpoint(allocator, record);
             try self.save(allocator, record);
             try self.remember(allocator, signed);
         }
@@ -296,6 +304,7 @@ fn install(self: *Self, allocator: std.mem.Allocator, signed: A.Signed) !void {
         try Files.write(self.init.io, try self.path(allocator, staging, try std.fmt.allocPrint(allocator, "caller-{d}.seed", .{i})), &std.fmt.bytesToHex(seed, .lower));
     }
     // Check the bounded checkpoint fits before any native operation is possible.
+    try admitCheckpoint(allocator, record);
     try Files.jsonBounded(self.init.io, allocator, try self.path(allocator, staging, "record.json"), record, record_bytes);
     try Files.json(self.init.io, allocator, try self.path(allocator, staging, try std.fmt.allocPrint(allocator, "requests/{d}-{s}.json", .{ signed.request.principal, signed.request.operation })), signed);
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
@@ -592,4 +601,15 @@ fn pollRegistration(self: *Self, worker: *Worker) !?q.wire.bootstrap.GrowingRegi
         worker.length += 1;
     }
     return error.InvalidRegistration;
+}
+
+test "replacement checkpoint admission reserves recovery space for escaped configuration" {
+    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
+    var record: Record = .{ .installation = @splat(1), .declaration = .{ .application = "items", .roles = &.{}, .resources = &.{}, .callers = &.{} }, .digest = @splat(2), .installer = try g.signQuery(.{ .realm = 1, .principal = 24, .kind = .identity }, key) };
+    const configuration: [8192]u8 = @splat(0);
+    const selected: Candidate = .{ .artifact = .{ .path = "/worker", .sha256 = @splat(3) }, .configuration = &configuration, .revision = @splat(4) };
+    record.selected[0] = selected;
+    try admitCheckpoint(std.testing.allocator, record);
+    for (&record.selected) |*slot| slot.* = selected;
+    try std.testing.expectError(error.ApplicationCheckpointCapacity, admitCheckpoint(std.testing.allocator, record));
 }

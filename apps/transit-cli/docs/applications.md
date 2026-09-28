@@ -47,6 +47,9 @@ initial domain frames. Relative artifact paths resolve against the declaration
 file. An omitted hash is computed before the CLI freezes the signed request.
 Install again with the same complete declaration to attach to the retained IDs.
 A changed declaration fails; it cannot silently change topology or broaden grants.
+Admission also reserves checkpoint space for the next native request. A replacement
+that exceeds the remaining encoded checkpoint budget fails before acceptance,
+without disturbing installed workers.
 
 ## Export connections and use domain commands
 

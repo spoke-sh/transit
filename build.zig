@@ -530,7 +530,7 @@ pub fn build(b: *std.Build) void {
         build_test_step.dependOn(&app.step);
         b.step(entry[0], "Install " ++ entry[0]).dependOn(&install.step);
     }
-    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true }) }));
+    const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} }) }));
     test_step.dependOn(&lifecycle_test.step);
     b.step("test-cli-lifecycle", "Prove bounded local process log draining").dependOn(&lifecycle_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
