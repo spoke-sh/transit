@@ -43,7 +43,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
                 data = json.loads(response.read())
                 if response.status == 429 and status != 429: continue
                 if status is None: return response.status, data
-                read = operation is None or next(iter(operation)) in ('describe', 'status', 'page', 'observe')
+                read = operation is None or next(iter(operation)) in ('describe', 'status', 'page', 'observe', 'draft_status')
                 if read and status == 200 and response.status == 409 and data.get('err') == 'QueryExpired': continue
                 assert response.status == status, (path, operation and next(iter(operation)), response.status, data)
                 assert response.headers['Cache-Control'] == 'no-store'
@@ -126,6 +126,51 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert concurrent_pages[0] == concurrent_pages[1] == pages[0]
     assert rss <= 256*1024*1024, ('two Board result readers exceeded declared 256 MiB RSS ceiling', rss)
     print(f'Board concurrent {kind}: competing prepared sequences and durable active quota, identical cross-instance retry, bounded Arrow/escaped JSON readers; two-instance RSS {rss} bytes.', flush=True)
+    if kind == 'table':
+        draft_started = time.monotonic()
+        assert api({'draft_status': None})['draft'] is None
+
+        def settle(prepared):
+            receipt = api({'submit': prepared})['receipt']
+            # Losing the response does not move the generation or native sequence.
+            assert api({'submit': prepared}, instance=1)['receipt'] == receipt
+            until = time.monotonic()+120
+            while 'pending' in (observed := api({'observe': receipt['position']})['observation']):
+                assert time.monotonic() < until
+            assert 'committed' in observed, observed
+
+        open_draft = {'draft_open': {'expected': '0', 'limit': 1}}
+        settle(api(open_draft)['prepared'])
+        draft = api({'draft_status': None})['draft']
+        assert draft['generation'] == '1' and draft['starts'] == 0 and draft['enabled']
+        draft_bundle = api({'compile': {'sql': 'SELECT value FROM items LIMIT 1'}})['compiled']
+        while True:
+            prepared = api({'next_draft': {'namespace': '20', 'generation': '1', 'bundle': draft_bundle['bundle']}})['prepared']
+            if prepared is None: break
+            settle(prepared)
+        until = time.monotonic()+120
+        while api({'status': '20'})['status']['phase'] != 'complete':
+            assert time.monotonic() < until
+        result = api({'page': {'namespace': '20'}})['page']
+        assert result['evidence']['manifest']['rows'] == '1'
+        assert result['evidence']['manifest']['basis']['contract'] == draft['contract']
+        consumed = api({'draft_status': '1'})['draft']
+        assert consumed['starts'] == 1 and consumed['namespaces'] == ['20'] + ['0']*7
+        settle(api(open_draft)['prepared'])
+        assert api({'draft_status': '1'})['draft'] == consumed
+        api({'next_draft': {'namespace': '21', 'generation': '1', 'bundle': draft_bundle['bundle']}}, status=409)
+        assert api({'next_draft': {'namespace': '20', 'generation': '1', 'bundle': draft_bundle['bundle']}})['prepared'] is None
+        settle(api({'draft_close': '1'})['prepared'])
+        settle(api(open_draft)['prepared'])
+        assert not api({'draft_status': '1'})['draft']['enabled']
+        settle(api({'draft_open': {'expected': '1', 'limit': 2}})['prepared'])
+        assert api({'draft_status': None})['draft']['generation'] == '2'
+        invoke('revoke', direct=True)
+        api({'next_draft': {'namespace': '21', 'generation': '2', 'bundle': draft_bundle['bundle']}}, status=403)
+        invoke('restore', direct=True)
+        assert api({'draft_status': '2'})['draft']['starts'] == 0
+        settle(api({'draft_close': '2'})['prepared'])
+        print(f'Board Table draft budget: atomic finite query, cross-instance exact retries, exhaustion, closed-generation replay and current source denial passed in {time.monotonic()-draft_started:.2f}s.', flush=True)
     if browser:
         marker = root/'board-browser-ready'
         process = start('board-v2-browser', ['vp', 'exec', '--filter', '@rey/transit-board-web',

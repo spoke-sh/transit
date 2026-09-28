@@ -60,6 +60,23 @@ function columns(values: Column[]): boolean {
 export function validateUnifiedQuery(input: unknown): input is UnifiedQueryResponse {
   if (!schema(input)) return false;
   const value = input as UnifiedQueryResponse;
+  if ("draft" in value) {
+    const draft = value.draft;
+    return (
+      draft === null ||
+      (unsigned(draft.generation, false) &&
+        draft.limit >= 1 &&
+        draft.limit <= 8 &&
+        draft.starts <= draft.limit &&
+        draft.namespaces.length === 8 &&
+        Object.values(draft.budgets).every((value) => unsigned(value, false)) &&
+        draft.namespaces.every((namespace, index) =>
+          index < draft.starts
+            ? unsigned(namespace, false) && !draft.namespaces.slice(0, index).includes(namespace)
+            : namespace === "0",
+        ))
+    );
+  }
   if ("prepared" in value)
     return (
       value.prepared === null ||

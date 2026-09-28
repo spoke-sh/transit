@@ -22,11 +22,29 @@ pub const SqlCapabilities = struct {
 };
 pub const Description = struct { connection: q.UnifiedClient.Connection, name: []const u8, source: b.Description, sql: SqlCapabilities = .{}, budgets: v.Limits, columns: []const v.Column };
 pub const Frozen = struct { token: []const u8 };
+pub const Draft = struct {
+    generation: []const u8,
+    limit: u8,
+    starts: u8,
+    enabled: bool,
+    contract: [32]u8,
+    budgets: v.Limits,
+    namespaces: [q.Draft.max_starts][]const u8,
+    pub fn fromNative(allocator: std.mem.Allocator, value: q.Draft.Record) !Draft {
+        var result: Draft = .{ .generation = try a.decimal(allocator, value.generation), .limit = value.open.limit, .starts = value.starts, .enabled = value.enabled, .contract = value.open.contract, .budgets = try v.Limits.fromNative(allocator, value.open.limits), .namespaces = undefined };
+        for (&result.namespaces, value.namespaces) |*to, from| to.* = try a.decimal(allocator, from);
+        return result;
+    }
+};
 pub const Compiled = struct { bundle: []const u8, source: v.Source, plan: v.Plan, limits: v.Limits, contract: [32]u8, schema: [32]u8 };
 pub const Request = union(enum) {
     describe,
     compile: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8 },
+    next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },
+    draft_open: struct { expected: []const u8, limit: u8 },
+    draft_close: []const u8,
+    draft_status: ?[]const u8,
     submit: Frozen,
     observe: u64,
     status: []const u8,
@@ -42,6 +60,7 @@ pub const Response = union(enum) {
     observation: q.UnifiedClient.Observation,
     status: ?b.Status,
     page: Page,
+    draft: ?Draft,
 };
 pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Config, request: Request) !Response {
     const definition = try config.source.native(allocator);
@@ -60,13 +79,21 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
             var columns: [m.max_columns]m.Column = undefined;
             return .{ .compiled = .{ .bundle = try a.hex(allocator, try bundle.encode(&buffer)), .source = config.source, .plan = try v.Plan.fromNative(allocator, bundle.plan), .limits = config.limits, .contract = try definition.fingerprint(), .schema = try (try definition.schema(&columns)).fingerprint() } };
         },
-        .next => |input| {
+        inline .next, .next_draft => |input, tag| {
             const bundle = try q.Bundle.decode(allocator, try v.unhex(allocator, input.bundle, q.Bundle.max_bytes));
             if (!std.mem.eql(u8, &try bundle.source.fingerprint(), &try definition.fingerprint())) return error.QueryIdentityMismatch;
             if (!limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
-            const result = (try b.apply(allocator, client, .{ .next = .{ .namespace = input.namespace, .bundle = input.bundle } })).prepared;
-            return .{ .prepared = if (result) |token| .{ .token = token } else null };
+            const result = try client.prepareNextWithDraft(try v.unsigned(input.namespace), bundle, if (tag == .next_draft) try v.unsigned(input.generation) else null);
+            return .{ .prepared = if (result) |prepared| .{ .token = try std.json.Stringify.valueAlloc(allocator, prepared, .{}) } else null };
         },
+        .draft_status => |input| return .{ .draft = if (try client.draft(if (input) |generation| try v.unsigned(generation) else null)) |record| try Draft.fromNative(allocator, record) else null },
+        .draft_open => |input| {
+            const current = try client.describe(definition);
+            if (!current.limits.permits(limits)) return error.QueryBudgetExceeded;
+            const prepared = try client.prepare(.{ .draft_open = .{ .expected = try v.unsigned(input.expected), .limit = input.limit, .contract = try definition.fingerprint(), .limits = limits } });
+            return .{ .prepared = .{ .token = try std.json.Stringify.valueAlloc(allocator, prepared, .{}) } };
+        },
+        .draft_close => |input| return .{ .prepared = .{ .token = try std.json.Stringify.valueAlloc(allocator, try client.prepare(.{ .draft_close = try v.unsigned(input) }), .{}) } },
         .submit => |input| return .{ .receipt = (try b.apply(allocator, client, .{ .submit = input.token })).receipt },
         .observe => |input| return .{ .observation = (try b.apply(allocator, client, .{ .observe = input })).observation },
         .status => |input| return .{ .status = (try b.apply(allocator, client, .{ .status = input })).status },

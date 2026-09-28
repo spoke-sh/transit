@@ -12130,6 +12130,112 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
+              "next_draft"
+            ],
+            "properties": {
+              "next_draft": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "namespace",
+                  "bundle",
+                  "generation"
+                ],
+                "properties": {
+                  "namespace": {
+                    "type": "string",
+                    "maxLength": 131072
+                  },
+                  "bundle": {
+                    "type": "string",
+                    "maxLength": 131072
+                  },
+                  "generation": {
+                    "type": "string",
+                    "maxLength": 131072
+                  }
+                },
+                "required": [
+                  "namespace",
+                  "bundle",
+                  "generation"
+                ],
+                "x-transit-defaults": {}
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "draft_open"
+            ],
+            "properties": {
+              "draft_open": {
+                "type": "object",
+                "additionalProperties": false,
+                "x-transit-field-order": [
+                  "expected",
+                  "limit"
+                ],
+                "properties": {
+                  "expected": {
+                    "type": "string",
+                    "maxLength": 131072
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 255,
+                    "x-transit-bits": 8,
+                    "x-transit-signed": false
+                  }
+                },
+                "required": [
+                  "expected",
+                  "limit"
+                ],
+                "x-transit-defaults": {}
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "draft_close"
+            ],
+            "properties": {
+              "draft_close": {
+                "type": "string",
+                "maxLength": 131072
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "draft_status"
+            ],
+            "properties": {
+              "draft_status": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 131072
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
               "submit"
             ],
             "properties": {
@@ -14705,6 +14811,118 @@
                   "cells"
                 ],
                 "x-transit-defaults": {}
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "draft"
+            ],
+            "properties": {
+              "draft": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "x-transit-field-order": [
+                      "generation",
+                      "limit",
+                      "starts",
+                      "enabled",
+                      "contract",
+                      "budgets",
+                      "namespaces"
+                    ],
+                    "properties": {
+                      "generation": {
+                        "type": "string",
+                        "maxLength": 131072
+                      },
+                      "limit": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      },
+                      "starts": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255,
+                        "x-transit-bits": 8,
+                        "x-transit-signed": false
+                      },
+                      "enabled": {
+                        "type": "boolean"
+                      },
+                      "contract": {
+                        "type": "array",
+                        "minItems": 32,
+                        "maxItems": 32,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 255,
+                          "x-transit-bits": 8,
+                          "x-transit-signed": false
+                        }
+                      },
+                      "budgets": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "pages",
+                          "segments",
+                          "result_bytes"
+                        ],
+                        "properties": {
+                          "pages": {
+                            "type": "string",
+                            "maxLength": 131072
+                          },
+                          "segments": {
+                            "type": "string",
+                            "maxLength": 131072
+                          },
+                          "result_bytes": {
+                            "type": "string",
+                            "maxLength": 131072
+                          }
+                        },
+                        "required": [
+                          "pages",
+                          "segments",
+                          "result_bytes"
+                        ],
+                        "x-transit-defaults": {}
+                      },
+                      "namespaces": {
+                        "type": "array",
+                        "minItems": 8,
+                        "maxItems": 8,
+                        "items": {
+                          "type": "string",
+                          "maxLength": 131072
+                        }
+                      }
+                    },
+                    "required": [
+                      "generation",
+                      "limit",
+                      "starts",
+                      "enabled",
+                      "contract",
+                      "budgets",
+                      "namespaces"
+                    ],
+                    "x-transit-defaults": {}
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }

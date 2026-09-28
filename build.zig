@@ -90,6 +90,11 @@ pub fn build(b: *std.Build) void {
     application_migration.has_side_effects = true;
     application_migration.stdio = .inherit;
     test_step.dependOn(&application_migration.step);
+    const query_draft = b.addSystemCommand(&.{ "python3", "-B" });
+    query_draft.addFileArg(b.path("tests/query_draft_contract.py"));
+    query_draft.has_side_effects = true;
+    query_draft.stdio = .inherit;
+    test_step.dependOn(&query_draft.step);
     const application_signing = b.addSystemCommand(&.{ "python3", "-B" });
     application_signing.addFileArg(b.path("tests/application_signing.py"));
     application_signing.has_side_effects = true;

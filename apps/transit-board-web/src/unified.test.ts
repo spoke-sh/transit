@@ -47,6 +47,34 @@ function page(cell: UnifiedCell): UnifiedQueryResponse {
   };
 }
 describe("unified query boundary", () => {
+  it("rejects impossible draft budgets and preserves full-width generation identities", () => {
+    const draft = {
+      generation: "18446744073709551615",
+      limit: 2,
+      starts: 1,
+      enabled: false,
+      contract: Array(32).fill(1),
+      budgets: { pages: "16", segments: "4", result_bytes: "65536" },
+      namespaces: ["18446744073709551615", ...Array(7).fill("0")],
+    };
+    expect(validateUnifiedQuery({ draft })).toBe(true);
+    expect(validateUnifiedQuery({ draft: { ...draft, generation: "18446744073709551616" } })).toBe(
+      false,
+    );
+    expect(validateUnifiedQuery({ draft: { ...draft, starts: 3 } })).toBe(false);
+    expect(validateUnifiedQuery({ draft: { ...draft, limit: 9 } })).toBe(false);
+    expect(
+      validateUnifiedQuery({
+        draft: { ...draft, starts: 2, namespaces: ["1", "1", ...Array(6).fill("0")] },
+      }),
+    ).toBe(false);
+    expect(
+      validateUnifiedQuery({ draft: { ...draft, namespaces: ["1", "2", ...Array(6).fill("0")] } }),
+    ).toBe(false);
+    expect(
+      validateUnifiedQuery({ draft: { ...draft, budgets: { ...draft.budgets, pages: "0" } } }),
+    ).toBe(false);
+  });
   it("admits escaped owned pages beyond the inspection response budget and bounds v2 separately", async () => {
     const value = page({ value: { utf8: "\u0000".repeat(2048) } });
     if (!("page" in value)) throw new Error("fixture");

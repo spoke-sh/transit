@@ -2971,3 +2971,20 @@ additional submission. It then revokes access and retires the source as before.
 The expanded run passed in 33.0 seconds (33.7 seconds with the runner), excluding
 compilation/setup. Shared recovery controls also type-check for v2; this test does
 not establish a schema migration, different requester or different origin proof.
+
+The M23 finite draft owner passes independent little-endian command/record and
+big-endian key fixtures, full uint64 identities, malformed/trailing data,
+conflicting opens, exact replay, exhaustion, closed-generation replay, twenty
+retained generations, source/budget mismatch, read poison and preservation of
+prior decisions. New query admission uses exactly four mutations; publication
+reads correctly reject a turn that already mutated state. Foreign external and
+process origins reject; corrupted stored records propagate without recording a
+caller rejection.
+
+`just test::unified-ingress table` additionally qualifies the draft host against
+the actual requester/source and disk Ursula: a one-row finite query, cross-instance
+identical signed retries, no reset on repeated open, exhausted-budget refusal,
+closed-generation replay and revoked source access. This slice took 27.21 seconds;
+the expanded full Table run took 266.30 seconds excluding compilation. It includes
+the existing worker/node/store recovery and browser regression; it does not yet
+qualify an automatic Live draft browser scheduler or draft-specific process loss.

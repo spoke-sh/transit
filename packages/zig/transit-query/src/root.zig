@@ -9,6 +9,7 @@ pub const UnifiedClient = @import("UnifiedClient.zig");
 pub const UnifiedBehavior = @import("UnifiedBehavior.zig");
 pub const UnifiedRequest = @import("UnifiedRequest.zig");
 pub const UnifiedUpload = @import("UnifiedUpload.zig");
+pub const Draft = @import("Draft.zig");
 pub const UnifiedResult = @import("UnifiedResult.zig");
 pub const UnifiedCapture = @import("UnifiedCapture.zig");
 pub const UnifiedRecords = @import("UnifiedRecords.zig");

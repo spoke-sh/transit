@@ -127,6 +127,14 @@ fn observeOnce(self: *Self, input: u64) !Observation {
 pub fn status(self: *Self, namespace: u64) !?q.UnifiedRequest.Status {
     return self.read(statusOnce, .{namespace});
 }
+pub fn draft(self: *Self, generation: ?u64) !?q.Draft.Record {
+    return self.read(draftOnce, .{generation});
+}
+fn draftOnce(self: *Self, generation: ?u64) !?q.Draft.Record {
+    var reader = try self.requester();
+    const selected = generation orelse try q.Draft.head(&reader);
+    return if (selected == 0) null else q.Draft.status(&reader, selected);
+}
 fn statusOnce(self: *Self, namespace: u64) !?q.UnifiedRequest.Status {
     var reader = try self.requester();
     return q.UnifiedUpload.status(&reader, namespace);
@@ -135,12 +143,31 @@ fn statusOnce(self: *Self, namespace: u64) !?q.UnifiedRequest.Status {
 /// This selects one bounded next step from committed state. Invoke only after
 /// observe confirms the preceding exact signed command has committed.
 pub fn prepareNext(self: *Self, namespace: u64, bundle: q.Bundle) !?Prepared {
+    return self.prepareNextWithDraft(namespace, bundle, null);
+}
+pub fn prepareNextWithDraft(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
     try bundle.validate();
     const description = try self.describe(bundle.source);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
     const reference = try bundle.reference(self.connection.requests, namespace);
     var reader = try self.requester();
-    const current = (try q.UnifiedUpload.status(&reader, namespace)) orelse return try self.prepare(.{ .begin = reference });
+    const existing = try q.UnifiedUpload.status(&reader, namespace);
+    if (generation) |selected| {
+        const record = (try q.Draft.status(&reader, selected)) orelse return error.QueryDraftNotFound;
+        if (!std.mem.eql(u8, &record.open.contract, &try bundle.source.fingerprint())) return error.QueryDraftConflict;
+        if (!record.open.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
+        if (existing == null or existing.?.correlation == 0) {
+            if (try q.Draft.head(&reader) != selected or !record.enabled) return error.QueryDraftClosed;
+            if (record.starts == record.open.limit) return error.QueryDraftExhausted;
+        } else {
+            var found = false;
+            for (record.namespaces[0..record.starts]) |id| if (id == namespace) {
+                found = true;
+            };
+            if (!found) return error.QueryDraftConflict;
+        }
+    }
+    const current = existing orelse return try self.prepare(.{ .begin = reference });
     if (!std.meta.eql(current.reference, reference)) return error.QueryUploadIdentityConflict;
     switch (current.phase) {
         .uploading => {
@@ -157,7 +184,7 @@ pub fn prepareNext(self: *Self, namespace: u64, bundle: q.Bundle) !?Prepared {
             const offset: usize = if (first != null) q.UnifiedRequest.part_bytes else 0;
             return try self.prepare(.{ .part = .{ .namespace = namespace, .ordinal = descriptor.written, .second = first != null, .bytes = chunk[offset..@min(offset + q.UnifiedRequest.part_bytes, chunk.len)] } });
         },
-        .sealed => return try self.prepare(.{ .submit = namespace }),
+        .sealed => return try self.prepare(if (generation) |selected| .{ .draft_submit = .{ .generation = selected, .namespace = namespace } } else .{ .submit = namespace }),
         else => return null,
     }
 }

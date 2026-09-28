@@ -124,3 +124,13 @@ bindings. Board's additive `contract` request returns it alongside the current
 source and column-schema hash; existing `describe` and result shapes are unchanged.
 Clients compare Table identity and schema in retained v1 manifests before binding
 an old result to a newly published interface.
+
+`Draft` adds an explicit finite generation above the existing v2 requester. Its
+four-write submission atomically debits an intent and creates the ordinary query
+call. `UnifiedClient.draft` and `prepareNextWithDraft` preserve point-addressed
+history and exact admission recovery; `Workspace` exposes `draft_open`,
+`draft_close`, `draft_status` and `next_draft`. The selected
+[draft contract](../../../contracts/QUERY_DRAFT_V1.md) documents wire formats,
+eight-intent groups, current authority and closure. Native Table host tests pass;
+the coalescing browser scheduler remains in progress. Existing Run, SDK and
+Follow profiles retain their separate contracts and qualification matrices.

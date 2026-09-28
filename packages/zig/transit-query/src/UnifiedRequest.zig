@@ -14,6 +14,9 @@ pub const Command = union(enum) {
     cancel: u64,
     collect: u64,
     retire: u64,
+    draft_open: q.Draft.Open,
+    draft_close: u64,
+    draft_submit: q.Draft.Selection,
     pub fn encode(self: Command) !p.Value {
         var bytes: [q.station.Frame.max_payload]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
@@ -26,6 +29,9 @@ pub const Command = union(enum) {
             .cancel => "UQK2",
             .collect => "UQG2",
             .retire => "UQR2",
+            .draft_open => "UQD1",
+            .draft_close => "UQH1",
+            .draft_submit => "UQE1",
         });
         switch (self) {
             .initialize => {},
@@ -40,7 +46,13 @@ pub const Command = union(enum) {
                 try writer.writeByte(@intFromBool(part.second));
                 try writer.writeAll(part.bytes);
             },
-            .seal, .submit, .cancel, .collect, .retire => |namespace| {
+            .draft_open => |value| try value.write(&writer),
+            .draft_submit => |value| {
+                if (value.generation == 0 or value.namespace == 0) return error.InvalidQueryDraft;
+                try writer.writeInt(u64, value.generation, .little);
+                try writer.writeInt(u64, value.namespace, .little);
+            },
+            .seal, .submit, .cancel, .collect, .retire, .draft_close => |namespace| {
                 if (namespace == 0) return error.InvalidQueryUpload;
                 try writer.writeInt(u64, namespace, .little);
             },
@@ -59,7 +71,7 @@ pub const Command = union(enum) {
             const second = try reader.takeByte();
             if (second > 1) return error.InvalidQueryUpload;
             break :blk .{ .part = .{ .namespace = namespace, .ordinal = ordinal, .second = second == 1, .bytes = try reader.take(reader.bufferedLen()) } };
-        } else if (std.mem.eql(u8, tag, "UQS2")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQX2")) .{ .submit = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQK2")) .{ .cancel = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQG2")) .{ .collect = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQR2")) .{ .retire = try reader.takeInt(u64, .little) } else return error.InvalidQueryUpload;
+        } else if (std.mem.eql(u8, tag, "UQS2")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQX2")) .{ .submit = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQK2")) .{ .cancel = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQG2")) .{ .collect = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQR2")) .{ .retire = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQD1")) .{ .draft_open = try q.Draft.Open.read(&reader) } else if (std.mem.eql(u8, tag, "UQH1")) .{ .draft_close = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQE1")) .{ .draft_submit = .{ .generation = try reader.takeInt(u64, .little), .namespace = try reader.takeInt(u64, .little) } } else return error.InvalidQueryUpload;
         if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value.*)) return error.InvalidQueryUpload;
         return result;
     }

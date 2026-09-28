@@ -69,6 +69,11 @@ pub const Requester = struct {
     fn apply(self: *Requester, turn: *Turn, command: wire.Command) !void {
         switch (command) {
             .initialize => {},
+            .draft_open => |value| try q.Draft.open(turn, value),
+            .draft_close => |value| try q.Draft.close(turn, value),
+            .draft_submit => |value| {
+                _ = try q.Draft.submit(turn, value, self.source, self.principal);
+            },
             .begin => |ref| try upload.begin(turn, ref),
             .part => |part| try upload.part(turn, part),
             .seal => |namespace| try upload.seal(turn, namespace),
@@ -90,6 +95,7 @@ pub const Requester = struct {
 };
 fn requestError(err: anyerror) bool {
     return switch (err) {
+        error.InvalidQueryDraft, error.QueryDraftConflict, error.QueryDraftActive, error.QueryDraftNotFound, error.QueryDraftClosed, error.QueryDraftExhausted, error.QueryBudgetExceeded => true,
         error.InvalidQueryUpload, error.InvalidQueryBundle, error.QueryUploadIdentityConflict, error.QueryBusy, error.QueryNamespaceInUse, error.QueryUploadClosed, error.QueryUploadNotFound, error.QueryUploadNotActive, error.QueryUploadActive, error.PublicationGap, error.InvalidPublicationOrdinal, error.InvalidPublicationChunk, error.IncompletePublication, error.InvalidPublicationDigest, error.MutationBudgetExceeded => true,
         else => false,
     };

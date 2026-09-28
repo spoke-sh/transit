@@ -192,7 +192,8 @@ const Server = struct {
                 error.StatementTooLarge, error.InvalidSqlEncoding, error.UnsupportedStatement, error.InvalidSqlSyntax, error.UnsupportedConstruct, error.CommentTooDeep, error.LiteralTooLarge, error.LiteralOutOfRange, error.InvalidColumnName, error.UnknownSource, error.UnknownColumn, error.UnknownQualifier, error.DuplicateProjection, error.InvalidProjection, error.UnsupportedAggregate, error.UnsupportedAggregateLimit, error.UnsupportedNullComparison, error.TypeMismatch, error.CellTooLarge, error.InvalidBinaryLiteral => return self.failure(req, .bad_request, .UnsupportedQuery),
                 else => {},
             }
-            if (err == error.InvalidQueryRequest or err == error.InvalidQueryIdentity or err == error.QueryIdentityMismatch or err == error.QueryBudgetExceeded or err == error.InvalidQueryCursor or err == error.InvalidDocumentInteger or err == error.DocumentEncodingCapacity) return self.failure(req, .bad_request, .InvalidQuery);
+            if (err == error.QueryDraftConflict or err == error.QueryDraftActive or err == error.QueryDraftClosed or err == error.QueryDraftExhausted) return self.failure(req, .conflict, .QueryConflict);
+            if (err == error.InvalidQueryDraft or err == error.QueryDraftNotFound or err == error.InvalidQueryRequest or err == error.InvalidQueryIdentity or err == error.QueryIdentityMismatch or err == error.QueryBudgetExceeded or err == error.InvalidQueryCursor or err == error.InvalidDocumentInteger or err == error.DocumentEncodingCapacity) return self.failure(req, .bad_request, .InvalidQuery);
             return self.queryFailure(req, &upstream, err);
         };
         return self.json(req, .ok, result);

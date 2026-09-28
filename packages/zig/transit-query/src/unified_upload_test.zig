@@ -396,3 +396,180 @@ test "refresh copy rejects mixed half-upload and corrupt template bytes before a
     try t.expectEqual(@as(usize, 0), writes(turn));
     try t.expectEqual(@as(u64, 0), (try upload.status(&turn, 3)).?.correlation);
 }
+
+test "draft budget independent full-width records and command frames" {
+    const Fixture = struct { version: u8, record_hex: p.Value, key_hex: p.Value, open_hex: p.Value, close_hex: p.Value, submit_hex: p.Value };
+    const parsed = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/draft-v1.json"));
+    defer parsed.deinit();
+    const value = parsed.value;
+    try t.expectEqual(@as(u8, 1), value.version);
+    const record = try q.Draft.Record.decode(value.record_hex);
+    try t.expectEqual(std.math.maxInt(u64), record.generation);
+    try t.expectEqual(@as(u8, 2), record.starts);
+    try t.expect(!record.enabled);
+    try t.expectEqual(std.math.maxInt(u64), record.namespaces[0]);
+    try t.expect((try record.encode()).eql(value.record_hex));
+    try t.expect(q.Draft.key(record.generation).eql(value.key_hex));
+    inline for (.{ "open_hex", "close_hex", "submit_hex" }) |field| {
+        const encoded = @field(value, field);
+        const decoded = try request.Command.decode(&encoded);
+        try t.expect((try decoded.encode()).eql(encoded));
+        _ = try (s.Frame{ .kind = .cast, .payload = encoded }).encode();
+        var trailing = encoded;
+        trailing.data[trailing.len] = 0;
+        trailing.len += 1;
+        try t.expectError(error.InvalidQueryUpload, request.Command.decode(&trailing));
+    }
+    var bad = record;
+    bad.namespaces[1] = bad.namespaces[0];
+    try t.expectError(error.InvalidQueryDraft, bad.encode());
+    bad = record;
+    bad.namespaces[2] = 3;
+    try t.expectError(error.InvalidQueryDraft, bad.encode());
+    var overflow = record.open;
+    overflow.expected = std.math.maxInt(u64);
+    try t.expectError(error.InvalidQueryDraft, overflow.validate());
+}
+
+fn draftStage(store: *Store, namespace: u64) !void {
+    const bundle = fixture();
+    var bytes: [q.Bundle.max_bytes]u8 = undefined;
+    const ref = try bundle.reference(store.resource, namespace);
+    var turn = try store.capture();
+    try upload.begin(&turn, ref);
+    try store.commit(turn);
+    try stage(store, ref, try bundle.encode(&bytes));
+    turn = try store.capture();
+    try upload.seal(&turn, namespace);
+    try store.commit(turn);
+}
+fn draftCancel(store: *Store, namespace: u64) !void {
+    var turn = try store.capture();
+    try upload.cancel(&turn, namespace);
+    const ref = (try upload.status(&turn, namespace)).?.reference;
+    try store.commit(turn);
+    try cleanup(store, ref);
+}
+test "draft budget counts atomic intents once and cannot reopen across closure or exhaustion" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    var open: q.Draft.Open = .{ .expected = 0, .limit = 2, .contract = try fixture().source.fingerprint(), .limits = fixture().limits };
+    var turn = try store.capture();
+    try q.Draft.open(&turn, open);
+    try t.expectEqual(@as(usize, 2), writes(turn));
+    try store.commit(turn);
+    turn = try store.capture();
+    var competing = open;
+    competing.limit = 3;
+    try t.expectError(error.QueryDraftConflict, q.Draft.open(&turn, competing));
+    competing.expected = 1;
+    try t.expectError(error.QueryDraftActive, q.Draft.open(&turn, competing));
+    var correlations: [2]u64 = undefined;
+    for (0..2) |index| {
+        const namespace: u64 = index + 100;
+        try draftStage(&store, namespace);
+        turn = try store.capture();
+        // The publication basis forbids reading after a prior mutation; failure
+        // must preserve that decision without a partial debit or call.
+        try turn.write(try p.Value.init("prior"), try p.Value.init("kept"));
+        const before = turn.decision;
+        try t.expectError(error.PublicationReadAfterMutation, q.Draft.submit(&turn, .{ .generation = 1, .namespace = namespace }, 3, null));
+        try t.expectEqualDeep(before, turn.decision);
+        turn = try store.capture();
+        correlations[index] = try q.Draft.submit(&turn, .{ .generation = 1, .namespace = namespace }, 3, null);
+        try t.expectEqual(@as(usize, 4), writes(turn));
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectEqual(correlations[index], try q.Draft.submit(&turn, .{ .generation = 1, .namespace = namespace }, 3, null));
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        try draftCancel(&store, namespace);
+    }
+    try draftStage(&store, 102);
+    turn = try store.capture();
+    try t.expectError(error.QueryDraftExhausted, q.Draft.submit(&turn, .{ .generation = 1, .namespace = 102 }, 3, null));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try q.Draft.open(&turn, open);
+    try t.expectEqual(@as(u8, 2), (try q.Draft.status(&turn, 1)).?.starts);
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try draftCancel(&store, 102);
+    // Retained generation count grows beyond the per-generation start limit.
+    for (1..20) |expected| {
+        open.expected = expected;
+        turn = try store.capture();
+        try q.Draft.open(&turn, open);
+        try store.commit(turn);
+        turn = try store.capture();
+        try q.Draft.close(&turn, expected + 1);
+        try store.commit(turn);
+        turn = try store.capture();
+        try q.Draft.open(&turn, open);
+        try t.expectEqual(@as(usize, 0), writes(turn));
+        try t.expect(!(try q.Draft.status(&turn, expected + 1)).?.enabled);
+    }
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 20), try q.Draft.head(&turn));
+    try t.expectEqual(correlations[0], try q.Draft.submit(&turn, .{ .generation = 1, .namespace = 100 }, 3, null));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+}
+
+test "draft admission checks source and budgets without losing the sealed request" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    try draftStage(&store, 10);
+    var open: q.Draft.Open = .{ .expected = 0, .limit = 1, .contract = @splat(0), .limits = fixture().limits };
+    var turn = try store.capture();
+    try q.Draft.open(&turn, open);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryDraftConflict, q.Draft.submit(&turn, .{ .generation = 1, .namespace = 10 }, 3, null));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try q.Draft.close(&turn, 1);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryDraftClosed, q.Draft.submit(&turn, .{ .generation = 1, .namespace = 10 }, 3, null));
+    open.expected = 1;
+    open.contract = try fixture().source.fingerprint();
+    open.limits.pages = 1;
+    try q.Draft.open(&turn, open);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expectError(error.QueryBudgetExceeded, q.Draft.submit(&turn, .{ .generation = 2, .namespace = 10 }, 3, null));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+    try t.expectEqual(.sealed, (try upload.status(&turn, 10)).?.phase);
+    store.denied = true;
+    try t.expectError(error.AccessDenied, q.Draft.submit(&turn, .{ .generation = 2, .namespace = 10 }, 3, null));
+    try t.expect(turn.read_error != null);
+    try t.expectEqual(@as(usize, 0), writes(turn));
+}
+
+test "draft commands require the configured external caller and corrupted records never become caller rejections" {
+    var store: Store = .{ .resource = 8, .pid = 9 };
+    defer store.deinit();
+    var requester: q.UnifiedBehavior.Requester = .{ .principal = 42, .source = 3 };
+    const handler = requester.interface();
+    var turn = try store.capture();
+    try handler.initialize.?(handler.context, &turn);
+    try store.commit(turn);
+    const command: request.Command = .{ .draft_open = .{ .expected = 0, .limit = 2, .contract = try fixture().source.fingerprint(), .limits = fixture().limits } };
+    const frame: s.Frame = .{ .kind = .cast, .payload = try command.encode() };
+    for ([_]p.Growth.Origin{ .{ .external = .{ .principal = 41, .policy_revision = 1 } }, .{ .process = .{ .pid = 42, .turn = 1, .output = 0 } } }) |origin| {
+        turn = try store.capture();
+        turn.delivery.input.value = try frame.encode();
+        turn.delivery.input.origin = origin;
+        try handler.handle(handler.context, &turn, frame);
+        try t.expectEqualStrings("QueryPrincipalMismatch", (try turn.read(r.key('e', turn.delivery.input.position, 0))).?.slice());
+        try t.expectEqual(@as(u64, 0), try q.Draft.head(&turn));
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    turn.delivery.input.value = try frame.encode();
+    turn.delivery.input.origin = .{ .external = .{ .principal = 42, .policy_revision = 1 } };
+    try handler.handle(handler.context, &turn, frame);
+    try store.commit(turn);
+    try store.state.put(t.allocator, q.Draft.key(1), try p.Value.init("corrupted"));
+    turn = try store.capture();
+    turn.delivery.input.value = try frame.encode();
+    turn.delivery.input.origin = .{ .external = .{ .principal = 42, .policy_revision = 1 } };
+    try t.expectError(error.InvalidQueryDraftRecord, handler.handle(handler.context, &turn, frame));
+    try t.expectEqual(@as(usize, 0), writes(turn));
+}
