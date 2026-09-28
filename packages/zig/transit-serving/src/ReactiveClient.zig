@@ -139,7 +139,7 @@ fn refreshStatusOnce(self: Self, adapter: root.Adapter, selection: root.RefreshM
 pub fn observedClock(self: Self, adapter: root.Adapter) !u64 {
     const before = try self.query(.identity);
     if (before.body.identity.pid != self.connection.ingress) return error.ServingDenied;
-    var scoped = try adapter.reader(self.connection.principal);
+    var scoped = try adapter.readerFor(self.connection.principal, &.{m.key('T', 0, 0)});
     const observed = try root.ReactiveService.clock(&scoped.data);
     const after = try self.query(.identity);
     if (after.body.identity.pid != self.connection.ingress) return error.ServingDenied;

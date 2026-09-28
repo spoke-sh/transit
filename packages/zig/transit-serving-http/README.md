@@ -1,5 +1,10 @@
 # transit-serving-http
 
+The current host requires native `resource_read_batch` support. Bounded service
+and session reads acquire their keys at one current cut; responses still check
+current caller/service authority before disclosure. This removes repeated
+point-read races with live clock and renewal commits without retaining versions.
+
 Reusable Zig HTTP, fetch-SSE and WebSocket host for
 [transit-serving](../transit-serving/README.md). The M21 extraction keeps the
 [M20 protocol](../../../contracts/REACTIVE_V1.md) and existing serving example

@@ -2737,3 +2737,11 @@ read outages/denial and expiry without observer progress. The full `just check`
 passed after adding capability-gated native resource read-access observations.
 This native proof does not measure browser freshness, physical node/store recovery
 of the new owner, or Compose/reference presentation. Those gates remain open.
+
+The two-view browser integration exposed point-read races with clock/control
+commits. The additive native `resource_read_batch` capability now acquires at
+most eight named keys at one current cut. Root Zig tests and `just check` passed
+with tests for missing-key slots, stale revisions, signatures, scope, read-only
+revocation, deadlines, retirement and the final authority-tail race. Serving's
+configuration/policy/session checks use fresh batches, including their final
+checks. This unit evidence does not close browser or deployment qualification.

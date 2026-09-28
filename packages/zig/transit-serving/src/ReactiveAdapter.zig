@@ -30,7 +30,9 @@ fn context(self: Self, signed: r.SignedRead, public_key: [32]u8) !Context {
     if (scope.realm != self.base.resources.realm or scope.service != self.base.service or scope.ingress != self.base.ingress) return error.ServingDenied;
     try signed.verify(public_key);
     try self.base.authorize(signed.identity.native(), public_key);
-    var scoped = try self.base.reader(scope.principal);
+    var scoped = try self.base.readerFor(scope.principal, &.{
+        root.Model.key('S', scope.principal, scope.session), root.Model.key('W', 0, 0), root.Model.key('b', 0, 0),
+    });
     const value = (try root.ReactiveService.session(&scoped.data, scope.principal, scope.session)) orelse return error.ReactiveSessionNotFound;
     if (value.principal != scope.principal or value.session != scope.session or value.generation != scope.generation) return error.ReactiveGenerationConflict;
     const source = try root.ReactiveService.source(&scoped.data);
@@ -126,7 +128,7 @@ pub fn attach(self: Self, bootstrap: root.ReactiveWire.Bootstrap, public_key: [3
         request.attachment == 0 or attachment.expected != request.attachment - 1 or !std.mem.eql(u8, &attachment.nonce, &request.nonce)) return error.InvalidReactiveScope;
     if (request.scope.realm != self.base.resources.realm or request.scope.service != self.base.service or request.scope.ingress != self.base.ingress) return error.ServingDenied;
     try self.base.authorize(bootstrap.read.identity.native(), public_key);
-    var scoped = try self.base.reader(request.scope.principal);
+    var scoped = try self.base.readerFor(request.scope.principal, &.{root.Model.key('S', request.scope.principal, request.scope.session)});
     const value = (try root.ReactiveService.session(&scoped.data, request.scope.principal, request.scope.session)) orelse return error.ReactiveSessionNotFound;
     if (value.generation != request.scope.generation) return error.ReactiveGenerationConflict;
     if (value.phase != .open or value.lease_before_ms <= try self.clock.upper(self.clock.context)) return error.ReactiveSessionExpired;
@@ -156,7 +158,7 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     if (signed.read.kind != .discovery) return error.InvalidServingRead;
     const base = try self.base.read(signed, public_key);
     const binding = base.binding orelse return error.ServiceUnpublished;
-    var scoped = try self.base.reader(signed.read.principal);
+    var scoped = try self.base.readerFor(signed.read.principal, &.{root.Model.key('W', 0, 0)});
     const source = (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished;
     if (!source.published or !binding.published or source.target != binding.target) return error.ServiceUnpublished;
     var data = try self.sourceReader(source);
@@ -164,7 +166,7 @@ pub fn discovery(self: Self, signed: root.Model.SignedRead, public_key: [32]u8, 
     const result: root.Api.Discovery = .{ .service = self.base.service, .ingress = self.base.ingress, .resource = self.base.resource, .binding_revision = binding.revision, .watch_revision = source.revision, .openapi_sha256 = try root.Api.digest(.openapi, allocator), .asyncapi_sha256 = try root.Api.digest(.asyncapi, allocator) };
     const latest = try self.base.read(signed, public_key);
     if (latest.policy_revision != base.policy_revision or !std.meta.eql(latest.binding, base.binding)) return error.ServiceReadConflict;
-    scoped = try self.base.reader(signed.read.principal);
+    scoped = try self.base.readerFor(signed.read.principal, &.{root.Model.key('W', 0, 0)});
     if (!std.meta.eql(source, (try root.ReactiveService.source(&scoped.data)) orelse return error.ServiceUnpublished)) return error.ServiceReadConflict;
     return result;
 }

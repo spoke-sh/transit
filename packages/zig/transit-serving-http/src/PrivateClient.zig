@@ -37,7 +37,7 @@ pub fn handle(context: *host.Context, io: std.Io, allocator: std.mem.Allocator, 
         .describe => blk: {
             const signed = try serving.Model.SignedRead.sign(.{ .realm = client.connection.realm, .principal = viewer.principal, .service = config.service, .ingress = config.ingress, .kind = .discovery }, key);
             const discovery = try reactive.discovery(signed, key.public_key.toBytes(), alloc);
-            var scoped = try base.reader(viewer.principal);
+            var scoped = try base.readerFor(viewer.principal, &.{serving.Model.key('T', 0, 0)});
             const observed = try serving.ReactiveService.clock(&scoped.data);
             const upper = try Clock.upper(&clock);
             if (observed == 0 or observed > upper or upper - observed > 10000) return error.ClockUnavailable;
