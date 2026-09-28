@@ -75,12 +75,14 @@ fn drive(io: std.Io, server: *Server, handler: *Handler, freeze: bool) !void {
     return error.StepBudgetExceeded;
 }
 const Caller = struct {
+    scope: app.Native.Scope,
     wire: *client.Client,
     key: p.Ed25519.KeyPair,
     sequence: u64,
     last_input: u64 = 0,
     fn send(self: *Caller, io: std.Io, server: *Server, handler: *Handler, command: app.Request.Command, freeze: bool) !void {
-        self.last_input = (try self.wire.submitGrowing(try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = server.session.pid, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.key))).position;
+        const prepared = try app.Native.prepare(self.scope, Operator, .{ .value = self.sequence + 1 }, command);
+        self.last_input = (try app.Native.submit(self.wire, self.scope, .{ .prepared = prepared, .signature = (try self.key.sign(&prepared.digest, null)).toBytes() })).position;
         self.sequence += 1;
         try drive(io, server, handler, freeze);
     }
@@ -99,6 +101,10 @@ fn expectDenied(source: client.ResourceReader, resource: u64, input: u64) !void 
     var reader = try source.open(resource);
     const value = (try reader.read(app.Records.key(9, 'e', Operator, input))) orelse return error.MissingDisposition;
     try t.expectEqualStrings("ApplicationDenied", value.slice());
+}
+fn observe(source: client.ResourceReader, scope: app.Native.Scope, selection: app.Native.Selection) !app.Native.Observation {
+    const prepared = try app.Native.prepareRead(scope, source.principal, selection);
+    return app.Native.read(source.wire, scope, .{ .prepared = prepared, .signature = (try source.key.sign(&prepared.digest, null)).toBytes() });
 }
 fn descriptor(source: client.ResourceReader, resource: u64) !s.Publication.Descriptor {
     var reader = try source.open(resource);
@@ -142,7 +148,8 @@ pub fn main(init: std.process.Init) !void {
         }
     }
     const source: client.ResourceReader = .{ .wire = &wire, .realm = Realm, .principal = Operator, .key = operator_key };
-    var caller: Caller = .{ .wire = &wire, .key = operator_key, .sequence = (try source.query(.{ .capabilities = {} })).principal_sequence };
+    const native_scope: app.Native.Scope = .{ .realm = Realm, .application = 9, .pid = saved.pid, .resource = saved.resource, .namespace = .{ .value = 19 } };
+    var caller: Caller = .{ .scope = native_scope, .wire = &wire, .key = operator_key, .sequence = (try observe(source, native_scope, .identity)).identity.sequence.value };
     var server = try Server.init(.{ .client = &wire, .realm = Realm, .principal = Worker, .pid = saved.pid, .generation = saved.generation, .key = worker_key }, "state");
     const body = try definition(init.gpa);
     defer init.gpa.free(body);
@@ -177,9 +184,10 @@ pub fn main(init: std.process.Init) !void {
         try drive(init.io, &server, &handler, false);
         try t.expectEqual(@as(usize, 1), handler.lost);
         try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false); // exact application duplicate
-        var reader = try source.open(saved.resource);
-        const head = (try owner().head(&reader)).?;
-        const receipt = (try owner().receipt(&reader, Operator, proposal.operation)).?;
+        const observed = (try observe(source, native_scope, .{ .state = .{ .operation = proposal.operation, .record = proposal.record, .input = caller.last_input } })).state;
+        const head = observed.head.?;
+        const receipt = observed.receipt.?;
+        try t.expectEqual(s.Publication.State.published, observed.upload.?.state);
         try t.expectEqual(Owner.Phase.applied, receipt.phase);
         try t.expectEqual(Operator, head.principal);
         try t.expectEqual(head.input, receipt.input);
@@ -194,14 +202,16 @@ pub fn main(init: std.process.Init) !void {
         try expectDenied(source, saved.resource, caller.last_input); // denial persists across disk restart
         try caller.send(init.io, &server, &handler, .{ .policy = .{ .principal = Operator, .expected = .{ .value = 2 }, .next = .{ .revision = .{ .value = 3 }, .publish = true } } }, false); // independent bootstrap recovery
         try caller.send(init.io, &server, &handler, .{ .publish = proposal.operation }, false);
-        var reader = try source.open(saved.resource);
-        const head = (try owner().head(&reader)).?;
+        const observed = (try observe(source, native_scope, .{ .state = .{ .operation = proposal.operation, .record = proposal.record } })).state;
+        const head = observed.head.?;
+        try t.expect(observed.policy.?.publish);
         try t.expectEqual(@as(u64, 1), head.revision.value);
         var bytes: [app.Model.max_program_bytes]u8 = undefined;
         const reference = owner().reference(saved.resource, head);
         try t.expectEqualStrings(body, try reference.read(source, &bytes));
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Operator, .permissions = 0 } });
         try t.expectError(error.AccessDenied, reference.read(source, &bytes));
+        try t.expectError(error.AccessDenied, observe(source, native_scope, .{ .state = .{} }));
         try output.interface.print("Application: {d} body bytes, signed operator={d}, four mutations, exact retries, policy and resource denial passed\n", .{ body.len, Operator });
     } else return error.UnknownPhase;
     const encoded = try p.Json.valueAlloc(init.gpa, saved);

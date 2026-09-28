@@ -63,3 +63,13 @@ admission. Application policy revocation is separate from resource-read grants.
 The native fault proof uses these real commands and handler, including a committed
 first half resumed after a worker kill; it no longer supplies a preloaded body to
 the publication handler.
+
+`Native` prepares ordinary native request/query digests for an operator to sign
+outside the web host. Forwarding rechecks the configured scope and exact payload;
+the Transit authority verifies the signature and current grant. Status reads use
+that same operator's signature and one bounded resource read, including its own
+policy, operation and upload progress. The host never substitutes its inspection
+identity. Freeze the whole signed submission across unknown replies; a fresh
+sequence does not resolve an earlier attempt. Independent Python signing fixtures
+and the real restart proof cover request bytes, optional status selectors,
+lost replies and current read denial. This adapter does not itself admit web users.

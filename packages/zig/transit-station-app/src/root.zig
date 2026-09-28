@@ -9,8 +9,10 @@ pub const Records = @import("Records.zig");
 pub const Publication = @import("Publication.zig");
 pub const Request = @import("Request.zig");
 pub const Behavior = @import("Behavior.zig");
+pub const Native = @import("Native.zig");
 test {
     _ = @import("model_test.zig");
     _ = @import("publication_test.zig");
+    _ = @import("native_test.zig");
     @import("std").testing.refAllDecls(@This());
 }

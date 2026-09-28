@@ -85,6 +85,11 @@ pub fn build(b: *std.Build) void {
     application_contract.has_side_effects = true;
     application_contract.stdio = .inherit;
     test_step.dependOn(&application_contract.step);
+    const application_signing = b.addSystemCommand(&.{ "python3", "-B" });
+    application_signing.addFileArg(b.path("tests/application_signing.py"));
+    application_signing.has_side_effects = true;
+    application_signing.stdio = .inherit;
+    test_step.dependOn(&application_signing.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = application.module("transit_station_app") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving_http.module("transit_serving_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = serving.module("transit_serving") })).step);
