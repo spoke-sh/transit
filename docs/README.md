@@ -23,8 +23,8 @@ are experimental; their bounded implementation does not imply support for every 
 | [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
 | [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
-| [Serving](SERVING.md) | Proposed inbound service/route, identity, admission and response contracts; HTTP for applications and Board |
-| [Reactive APIs](REACTIVE_API.md) | Proposed SSE/WebSocket hosting, shared sessions/subscriptions, resumable events and generated OpenAPI/AsyncAPI contracts |
+| [Serving](SERVING.md) | Inbound service/route, identity, admission and response contracts; qualified M19 HTTP profile for applications and Board |
+| [Reactive APIs](REACTIVE_API.md) | M20 Table SSE/WebSocket profile, shared sessions/subscriptions, resumable invalidations and generated OpenAPI/AsyncAPI contracts |
 | [Reactive interfaces](REACTIVE.md) | Proposed live views, exact snapshot refresh and visible freshness over reactive APIs |
 | [Reactive applications](REACTIVE_APPLICATIONS.md) | Proposed M23 declarative interface model, downstream workflow, publication and migrations |
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |

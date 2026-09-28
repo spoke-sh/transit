@@ -1,9 +1,8 @@
 # Reactive API v1
 
-Status: M20 implementation contract in development. No SSE/WebSocket capability is
-advertised by default. The opt-in native TLS example has executed independent
-SSE/WebSocket recovery peers; browser/physical placement qualification remains
-pending. [Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
+Status: implemented M20 opt-in int64 Table profile. No SSE/WebSocket capability
+is advertised by default. Independent TLS peers, Chromium, Compose and reference
+recovery are recorded in the [proof ledger](../tests/README.md#m20-qualification). [Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
 [generated descriptions](../packages/zig/transit-serving/api/) own the encodings. This extends
 [serving v1](SERVING_V1.md), not native authority or Board's OpenAPI 3.1 contract.
 
@@ -67,7 +66,9 @@ checks; Origin alone is not authentication.
 
 Each new attachment uses a random server challenge with a short local validity
 window and bounded pending capacity. For SSE, an authenticated HTTP challenge
-exchange precedes the streaming POST. WebSocket sends a challenge after its
+exchange precedes the streaming POST on the same gateway; a proxy must preserve
+that short exchange's affinity. Committed session/cursor recovery is shared across
+gateways using the configured reader signing identity. WebSocket sends a challenge after its
 strict upgrade, before accepting application messages. The client signs the same
 native attachment control used by HTTP, binding the challenge and expected prior
 attachment revision. The gateway consumes its local challenge once and observes
@@ -163,6 +164,11 @@ Generate OpenAPI 3.2.1 HTTP/SSE and AsyncAPI 3.0 WebSocket descriptions from pub
 runtime types and operation metadata. Runtime decoding rejects unknown versions,
 fields, enum values, malformed identities and exceeded byte bounds. Pinned
 independent validators check descriptions, examples and actual peer traces.
+OpenAPI's `itemSchema` describes the SSE media-level `event`, `data` and optional
+`id` fields. The `data` string has `contentMediaType: application/json` and a
+`contentSchema` referencing the same `ServerMessage` as WebSocket. Because JSON
+Schema treats content keywords as annotations, the independent validator explicitly
+decodes and validates that content and checks its tag against the event name.
 Authenticated discovery identifies the accepted binding and description digests.
 Existing Board OpenAPI stays versioned separately.
 

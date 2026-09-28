@@ -47,8 +47,8 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Durable transport | Persistent history, continuation positions, mailbox storage and delivery | [STREAMS.md](STREAMS.md), [URSULA.md](URSULA.md) |
 | Station — framework | GenServer behaviors, Table/association helpers, scoped name registries, request/reply, supervision, timers, worker-pool patterns | [STATION.md](STATION.md) |
 | Fuze — query and compute | Shared source/plan/operator model; versioned KV/Table/Document adapters and bounded nested Arrow results | [FUZE.md](FUZE.md) |
-| Serving — inbound interfaces (planned M19) | Published service bindings, authenticated request context, admission, bounded responses and recovery; HTTP first for application APIs and Board | [SERVING.md](SERVING.md) |
-| Reactive APIs (planned M20) | SSE/WebSocket hosting, shared session/watch and resume contracts, generated OpenAPI/AsyncAPI descriptions | [REACTIVE_API.md](REACTIVE_API.md) |
+| Serving — inbound interfaces (M19 profile) | Published service bindings, authenticated request context, admission, bounded responses and recovery; HTTP first for application APIs and Board | [SERVING.md](SERVING.md) |
+| Reactive APIs (M20 Table profile) | SSE/WebSocket hosting, shared session/watch and resume contracts, generated OpenAPI/AsyncAPI descriptions | [REACTIVE_API.md](REACTIVE_API.md) |
 | Reactive interfaces (planned M21) | Live views, exact snapshot refresh and visible freshness over the reactive API | [REACTIVE.md](REACTIVE.md) |
 | Query interchange and protocol adapters | IPC/C interfaces; Flight/Flight SQL adds the planned Arrow serving profile in M22, with ADBC clients | [ARROW.md](ARROW.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
@@ -191,8 +191,8 @@ and checks. See [development](DEVELOPMENT.md#package-workflow).
 
 | Package / module | Owns | Direct package dependencies |
 | --- | --- | --- |
-| [transit-http-server](../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 parsing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board | None |
-| [transit-serving](../packages/zig/transit-serving/README.md) / `transit_serving` | M19 service bindings, scoped caller policy, durable operation admission and bounded current result reads; native/Compose/Substrate HTTP qualification | transit-station |
+| [transit-http-server](../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 and WebSocket framing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board and serving | None |
+| [transit-serving](../packages/zig/transit-serving/README.md) / `transit_serving` | M19 admission/current reads; M20 session controls, Table watch coverage and generated reactive contracts; native/Compose/Substrate qualification | transit-station, transit-query |
 | [transit-exchange](../packages/zig/transit-exchange/README.md) / `transit_exchange` | M15 qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
 | [transit-station-document](../packages/zig/transit-station-document/README.md) / `transit_station_document` | M17 structured merge, collaborative text and qualified paged accepted-state publication | transit-station |
 | [transit-station-http](../packages/zig/transit-station-http/README.md) / `transit_station_http` | M15 qualified finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
@@ -261,12 +261,12 @@ and protocol assertions belong under [tests/](../tests/README.md).
 
 - [M19](roadmap/M19.md) formalizes serving with HTTP application APIs and Board
   as its first consumers. The implemented neutral `transit-http-server` owns HTTP
-  mechanics; proposed `transit-serving` composes public Transit/Station admission and
+  mechanics; implemented `transit-serving` composes public Transit/Station admission and
   response contracts. Board keeps its projections and private access profile.
   Create packages only with real implementations, manifests and consumers;
   core must not depend on these higher layers. [M20](roadmap/M20.md) adds
-  SSE/WebSocket bindings, public source/watch adapters and generated API
-  descriptions over a shared session contract. [M21](roadmap/M21.md) consumes
+  qualified SSE/WebSocket bindings, an int64 Table snapshot/watch adapter and
+  generated API descriptions over shared durable session controls. [M21](roadmap/M21.md) consumes
   that API for bounded refresh and live views. Neither creates another event store.
 - Add typed public APIs, handler runners and installable artifacts to the existing
   language packages in [M11](roadmap/M11.md). Python, TypeScript, Rust, Ruby, C/C++,

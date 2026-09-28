@@ -1,12 +1,13 @@
 # Reactive APIs — SSE, WebSocket and described contracts
 
-Status: [M20](roadmap/M20.md) implementation in progress over [M19 serving](SERVING.md).
+Status: [M20](roadmap/M20.md) implements the opt-in int64 Table profile over [M19 serving](SERVING.md).
 The [v1 contract](../contracts/REACTIVE_V1.md) and [example guide](../examples/serving/docs/reactive.md)
-record the implemented int64 Table/SSE/WebSocket profile, native TLS evidence and
-remaining qualification. Broader design below remains intent where not qualified.
+record the implemented int64 Table/SSE/WebSocket profile and its
+[executed qualification matrix](../packages/zig/transit-serving/docs/compatibility.md).
+Broader design below remains intent where not qualified.
 This layer hosts reactive application APIs before [M21 interfaces](REACTIVE.md)
-consume them. It is not an implemented protocol, generated specification or
-claim that opening a socket creates a durable session.
+consume them. The owning contract and generated descriptions define the implemented
+wire profile; opening a socket alone never creates a durable session.
 
 ## What it means to host a reactive API
 
@@ -174,7 +175,7 @@ close-and-recover path, not an invented new HTTP status inside the stream.
 
 ## WebSocket hosting
 
-The first binding proposes RFC 6455 over M19's qualified TLS/HTTP/1.1 boundary,
+The first binding uses RFC 6455 over M19's qualified TLS/HTTP/1.1 boundary,
 with an explicitly versioned application subprotocol and bounded UTF-8 JSON
 messages. Compression, binary codecs and HTTP/2 extended CONNECT are later
 profiles unless independently added and qualified. WebSocket defines a handshake,
@@ -202,14 +203,14 @@ profile, with no implicit human session or administrative grant.
 ## OpenAPI and AsyncAPI are generated views of one contract
 
 OpenAPI 3.2 supports sequential media types and `itemSchema`, including SSE.
-Use the proposed 3.2.1 baseline for new streaming descriptions, subject to pinned
-validator/generator compatibility proof. Model the event envelope and its typed
+The first profile uses the pinned 3.2.1 baseline with offline structural/schema
+validation and independent actual-message validation. Model the event envelope and its typed
 data, HTTP security/errors, subscription controls, status/results and resume/gap
 behavior. [OpenAPI 3.2.1](https://spec.openapis.org/oas/v3.2.1.html#complete-vs-streaming-content),
 [SSE media type guidance](https://spec.openapis.org/registry/media-type/sse).
 
 OpenAPI describes HTTP exchanges, not the complete bidirectional WebSocket
-message state machine. Propose AsyncAPI 3.0 plus its WebSocket binding for
+message state machine. The first profile uses AsyncAPI 3.0 plus its WebSocket binding for
 channels, message directions and operations. Both outputs reference the same
 versioned definitions and correlation/error types.
 [AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0),
