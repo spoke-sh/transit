@@ -3140,6 +3140,16 @@ as passed. Clean checkouts now default to `/var/tmp` (configurable with
 `--work-root`) to separate build outputs from short-lived storage fixtures.
 The two owned failed checkouts were removed after preserving their CI evidence.
 
+The subsequent disk-backed clean run at `0d671aa` passed core, growth, experience,
+launcher and foreign-binding lanes before failing the Python public-runner
+expiry setup. Its two-second work window could expire during the seven native
+provisioning operations. The fixture now declares a thirty-second window before
+spawn and still waits beyond that exact accepted cutoff plus the admitted clock
+uncertainty before asserting retirement. No accepted lifetime is extended.
+`just bindings::python-test` passes with this correction. The incomplete clean
+run and its evidence remain at `/var/tmp/transit-ci-ftq9vsk2`; it does not satisfy
+the final clean gate.
+
 ## M24 console qualification
 
 `just test::console table` passes the actual versioned command against forty-one

@@ -220,7 +220,12 @@ def run(node, cli, raw_library, install, label):
             command({'revoke': source['principal']})
             invoke('denied', source)
             # Bounded Table pages, retained point reads and multi-segment IPC.
-            expired = provision(finite=True, lifetime_ms=2000)
+            # This case proves the installed runner reports permanent expiry,
+            # not a two-second provisioning SLA. Establish the entire finite
+            # activation before its work cutoff, including this fixture's 10s
+            # admitted clock uncertainty. The later check waits past the exact
+            # recorded cutoff; no accepted deadline is renewed or rewritten.
+            expired = provision(finite=True, lifetime_ms=30000)
             table, query_cfg = provision('table'), provision('query')
             table['peer'], query_cfg['peer'] = query_cfg['pid'], table['pid']
             service, caller = worker(table), worker(query_cfg)
