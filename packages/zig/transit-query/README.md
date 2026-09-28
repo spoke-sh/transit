@@ -134,3 +134,9 @@ history and exact admission recovery; `Workspace` exposes `draft_open`,
 eight-intent groups, current authority and closure. Native Table host tests pass;
 the coalescing browser scheduler remains in progress. Existing Run, SDK and
 Follow profiles retain their separate contracts and qualification matrices.
+
+`transit-query-api` exports the standalone workspace JSON Schema from the owning
+public types. Board consumes the same schema options; `just transit-board::contract`
+checks both reflections agree. The neutral `transit-query-client` browser package
+owns the corresponding transport, value validation and bounded complete-result
+reader so generated applications need not depend on Board.

@@ -1,0 +1,14 @@
+{
+  "name": "@rey/transit-query-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "@rey/transit-reactive-client": "workspace:*",
+    "ajv": "8.20.0"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

@@ -113,3 +113,9 @@ member's `association_position` with `pid`/`association_after`. The response is
 one page, not an accumulated membership set; `QueryExpired` requires a fresh scan
 and denial invalidates previous contributions. This metadata endpoint never
 submits queries or grants value access.
+
+V2 transport, semantic values and complete-result verification are shared through
+[`transit-query-client`](../transit-query-client/README.md), whose declarations
+reflect the Zig query owner independently of Board. `BoardError` remains the
+public error export (an alias of the shared `QueryError`). Inspection and Table v1
+retain their existing separate contracts and response bounds.

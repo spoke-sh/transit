@@ -40,6 +40,7 @@ pub fn build(b: *std.Build) void {
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
     b.step("station-contract", "Export reflected Station ABI and host schemas").dependOn(&b.addRunArtifact(station_bindings.artifact("transit-station-contract")).step);
@@ -128,6 +129,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&grpc_contract_test.step);
     const build_test_step = b.step("test-build", "Compile applications and integration probes");
     build_test_step.dependOn(&application.artifact("transit-app").step);
+    build_test_step.dependOn(&query.artifact("transit-query-api").step);
     build_test_step.dependOn(&serving_example.step);
     const serving_http_proof = b.addExecutable(.{ .name = "transit-serving-http-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/serving_http.zig"),

@@ -14,14 +14,8 @@ import {
   Error as errorValidator,
 } from "./validators.js";
 
-export class BoardError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string,
-  ) {
-    super(code);
-  }
-}
+import { QueryError as BoardError, httpTransport } from "@rey/transit-query-client";
+export { QueryError as BoardError } from "@rey/transit-query-client";
 export const validateResponse = (value: unknown): value is Response => responseValidator(value);
 export const validateCapabilities = (value: unknown): value is Capabilities =>
   capabilitiesValidator(value);
@@ -158,7 +152,6 @@ import {
   GrpcResponse as grpcValidator,
   DocumentResponse as documentValidator,
 } from "./validators.js";
-import { validateUnifiedQuery } from "./unified";
 export { validateUnifiedQuery, unifiedCellText } from "./unified";
 export type { UnifiedCell } from "./unified";
 const wide = (text: string, zero = false) =>
@@ -535,17 +528,8 @@ export async function query(operation: QueryRequest, signal?: AbortSignal): Prom
     }
   }
 }
-export async function unifiedQuery(
+const queryTransport = httpTransport("/api/v1/query-v2");
+export const unifiedQuery = (
   operation: UnifiedQueryRequest,
   signal?: AbortSignal,
-): Promise<UnifiedQueryResponse> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await request("/api/v1/query-v2", validateUnifiedQuery, { signal, body: operation });
-    } catch (cause) {
-      if (!(cause instanceof BoardError) || cause.status !== 429 || attempt >= 3 || signal?.aborted)
-        throw cause;
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-  }
-}
+): Promise<UnifiedQueryResponse> => queryTransport(operation, signal);

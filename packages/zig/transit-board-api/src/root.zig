@@ -104,6 +104,7 @@ pub const QueryRequest = @import("transit_query").Model.Request;
 pub const QueryResponse = @import("transit_query").Model.Response;
 pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
 pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;
+pub const unified_query_schema_options = @import("transit_query").Workspace.schema_options;
 pub const AtlasResponse = struct {
     version: u8 = 1,
     realm: u64,

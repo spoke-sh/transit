@@ -2988,3 +2988,11 @@ closed-generation replay and revoked source access. This slice took 27.21 second
 the expanded full Table run took 266.30 seconds excluding compilation. It includes
 the existing worker/node/store recovery and browser regression; it does not yet
 qualify an automatic Live draft browser scheduler or draft-specific process loss.
+
+The neutral query-browser extraction passed generated schema equality with Board,
+strict types, semantic validators, bounded response/UTF-8 handling, exact throttle
+retries, no retry of uncertain/503 submissions and complete-result coverage tests.
+Board's actual Table native/API/browser regression now uses the shared transport,
+value validator and result reader. It passed in 265.51 seconds excluding compilation;
+the draft-budget host slice took 26.58 seconds and two Board readers peaked at
+34,537,472 bytes RSS. This does not yet qualify automatic draft scheduling.

@@ -11,6 +11,10 @@ install:
 
 # Regenerate Board's OpenAPI, TypeScript types, and CSP-compatible validators.
 generate:
+    zig build query-api
+    zig-out/bin/transit-query-api > packages/zig/transit-query/api/workspace.schema.json
+    python3 -B packages/ts/transit-query-client/generate.py
+    vp exec node packages/ts/transit-query-client/validators.mjs
     zig build transit-board-contract > contracts/transit-board-v1.openapi.json
     python3 -B packages/ts/transit-board-client/generate.py
     vp exec node packages/ts/transit-board-client/validators.mjs
@@ -25,6 +29,10 @@ generate:
 
 # Check typed contract and generated browser-resource drift.
 contract:
+    zig build query-api
+    python3 -B tests/query_workspace_schema.py zig-out/bin/transit-query-api
+    python3 -B packages/ts/transit-query-client/generate.py --check
+    vp exec node packages/ts/transit-query-client/validators.mjs --check
     zig build transit-board-contract | python3 -B tests/board_contract.py
     python3 -B packages/ts/transit-board-client/generate.py --check
     vp exec node packages/ts/transit-board-client/validators.mjs --check
@@ -39,6 +47,9 @@ contract:
 
 # Check frontend formatting, lint, strict types and unit tests.
 check: contract
+    cd packages/ts/transit-query-client && vp check
+    cd packages/ts/transit-query-client && vp exec tsc --noEmit
+    cd packages/ts/transit-query-client && vp test run
     cd packages/ts/transit-board-client && vp check
     cd packages/ts/transit-reactive-client && vp check
     cd packages/ts/transit-application && vp check

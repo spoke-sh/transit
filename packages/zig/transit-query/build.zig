@@ -6,6 +6,15 @@ pub fn build(b: *std.Build) void {
     const document = b.dependency("transit_station_document", .{ .target = target, .optimize = optimize });
     const module = b.addModule("transit_query", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize, .imports = &.{ .{ .name = "transit_station", .module = station.module("transit_station") }, .{ .name = "transit_station_document", .module = document.module("transit_station_document") } } });
     const tests = b.addTest(.{ .root_module = module });
+    const api = b.addExecutable(.{ .name = "transit-query-api", .root_module = b.createModule(.{
+        .root_source_file = b.path("src/export.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_query", .module = module }},
+    }) });
+    b.installArtifact(api);
+    const check = b.step("check", "Compile the public query package");
+    check.dependOn(&api.step);
     b.step("test", "Check public query contracts and bounded codecs").dependOn(&b.addRunArtifact(tests).step);
-    b.step("check", "Compile the public query package").dependOn(&tests.step);
+    check.dependOn(&tests.step);
 }
