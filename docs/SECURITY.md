@@ -266,13 +266,20 @@ authority after verification; result IDs and frozen submissions are not bearer
 grants. Browser denial clears protected state, and neither frontend creates an
 offline result cache. Captured execution can continue after local disconnect.
 
-The planned [Flight gateway](ARROW.md#identity-lifetime-and-failure) is a separate
+The [Flight gateway](ARROW.md#identity-lifetime-and-failure) is a separate
 ingress with an explicitly qualified credential-to-principal and Table-service
 mapping. Its catalog, tickets and result caches require current scoped read
 checks; a query handle cannot act as an implicit bearer grant. The
 [gRPC connector](GRPC.md#security-inspection-and-qualification) separately
 authorizes external destination/method/credential use. Neither inherits Board's
 shared-viewer access model or supplies general delegation.
+
+The initial gateway selects an explicit credential mapping on every RPC, even
+on a reused HTTP/2 connection. Its dedicated caller can read a foreign Table
+through an optional association and current resource grant without receiving
+foreign process-inspection rights. Query status uses durable request/result
+evidence when those diagnostics are unavailable. Neither metadata permission nor
+gateway inspection credentials can substitute for the caller's entry-read grant.
 
 ## Board inspection profile
 

@@ -1,12 +1,15 @@
 # Reactive interfaces — notifications and exact snapshots
 
-Status: proposed [M21](roadmap/M21.md) consumer of
+Status: implemented bounded [M21](roadmap/M21.md) consumer of
 [M20 reactive APIs](REACTIVE_API.md) over [M19 serving](SERVING.md).
 The selected scope is live views with resumable change notifications and snapshot
 refresh, used by Board and an application interface. M20 owns the server/API
 contract; this document owns its use in interfaces. M20's int64 Table API is
-implemented and qualified; M21's reusable consumer and view lifecycle remain
-planned. The M20 Chromium harness proves the protocol, not a public UI client.
+implemented and qualified. The shared TypeScript view owner, Board metadata/query
+views and counter application now run against it in native, Compose and reference
+placements. The [proof ledger](../tests/README.md#m21-consumer-foundation-in-progress)
+records executed schedules and remaining regression work separately from M20's
+protocol harness.
 
 ## What changes for the user
 

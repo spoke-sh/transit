@@ -2,9 +2,11 @@
 
 Status: M9 implements finite IPC results, checked by an independent Arrow
 consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../packages/zig/transit-fuze/docs/integration.md).
-Remote interoperability remains planned: M16 qualifies outbound gRPC,
-[M19](roadmap/M19.md) establishes HTTP serving, and [M22](roadmap/M22.md)
-qualifies Flight, Flight SQL and ADBC over the shared serving foundation.
+M16 qualifies outbound gRPC and [M19](roadmap/M19.md) establishes HTTP serving.
+[M22](roadmap/M22.md) now implements finite Table Flight SQL and recorded outbound
+Flight over those components. Native and Compose TLS queries pass pinned PyArrow
+and ADBC C/Python checks; the [proof ledger](../tests/README.md#m22-qualification-in-progress)
+separately records lifecycle, load and reference placement qualification.
 [TABLES.md](TABLES.md) owns Table mutations, snapshots, materialization, transactions
 and durable result delivery. This document owns the interchange and gateway seams.
 

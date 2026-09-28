@@ -49,8 +49,8 @@ Use the [glossary](GLOSSARY.md) for official names and shared terminology.
 | Fuze — query and compute | Shared source/plan/operator model; versioned KV/Table/Document adapters and bounded nested Arrow results | [FUZE.md](FUZE.md) |
 | Serving — inbound interfaces (M19 profile) | Published service bindings, authenticated request context, admission, bounded responses and recovery; HTTP first for application APIs and Board | [SERVING.md](SERVING.md) |
 | Reactive APIs (M20 Table profile) | SSE/WebSocket hosting, shared session/watch and resume contracts, generated OpenAPI/AsyncAPI descriptions | [REACTIVE_API.md](REACTIVE_API.md) |
-| Reactive interfaces (planned M21) | Live views, exact snapshot refresh and visible freshness over the reactive API | [REACTIVE.md](REACTIVE.md) |
-| Query interchange and protocol adapters | IPC/C interfaces; Flight/Flight SQL adds the planned Arrow serving profile in M22, with ADBC clients | [ARROW.md](ARROW.md) |
+| Reactive interfaces (M21) | Shared live-view owner, exact finite refresh and visible freshness over the reactive API | [REACTIVE.md](REACTIVE.md) |
+| Query interchange and protocol adapters | IPC/C interfaces; finite Flight/Flight SQL over the same query/serving components, with pinned ADBC clients | [ARROW.md](ARROW.md) |
 | Connectors | Authorized external attempts, request/response capture, bounded reconciliation, outcome and retry/cancellation policy | [CONNECTORS.md](CONNECTORS.md) |
 | Runtime adapter | Durable PID-to-provider bindings and reconciliation of lifecycle intents with provider resources/observations | [DEPLOYMENT.md](DEPLOYMENT.md) |
 | Retention reconciliation | Enforce Transit-authorized policies and retained boundaries; coordinate checkpoints, dependency checks, and adapter reclamation | [RETENTION.md](RETENTION.md) |
@@ -293,9 +293,11 @@ and protocol assertions belong under [tests/](../tests/README.md).
 - `packages/zig/transit-station-grpc`, module `transit_station_grpc`: typed call
   contracts/helpers and capture/reconciliation for authorized external RPCs.
   Keep reusable Zig HTTP/2/protobuf transport separate from dispatch authority.
-- `packages/zig/transit-station-flight` and `apps/transit-station-flight`: Flight/
+- `packages/zig/transit-flight` and `apps/transit-flight-gateway`: Flight/
   Flight SQL as an Arrow serving adapter, reusing M19's identity/admission/
   response seams over Station/public client, with no direct storage access.
+  `packages/zig/transit-station-flight` constructs outbound recorded RPCs and
+  interprets their captured Arrow responses through `transit-station-grpc`.
   Existing ADBC clients connect through Flight SQL; [ARROW.md](ARROW.md) owns
   this M22 profile and its independently qualified inbound gRPC behavior.
 - `apps/transit-station-worker`, `apps/transit-station-http-worker` and
