@@ -406,3 +406,21 @@ work-items-browser:
 work-items-placement profile="compose":
     zig build work-items-browser-proof transit-query-host -Doptimize=ReleaseSafe
     nix develop .#serving --command python3 -B examples/work-items/placed.py {{quote(profile)}}
+
+# Separately compiled consumer, scoped installation and disk-backed replacement.
+server-applications:
+    zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe
+    cd examples/work-items && zig build -Doptimize=ReleaseSafe
+    python3 -B tests/server_applications.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+
+# Lost native and migration replies, current revocation and management admission.
+server-application-faults:
+    zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe
+    cd examples/work-items && zig build -Doptimize=ReleaseSafe
+    python3 -B tests/server_application_faults.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+
+# Accepted application input across real ENOSPC in an owned ext4 image.
+server-application-capacity:
+    zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe
+    cd examples/work-items && zig build -Doptimize=ReleaseSafe
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items

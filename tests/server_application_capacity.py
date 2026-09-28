@@ -1,0 +1,96 @@
+"""Accepted application work across actual ENOSPC in the owned ext4 fixture."""
+import ctypes
+import errno
+import json
+import os
+from pathlib import Path
+import signal
+import subprocess
+import time
+from server import children, command
+from server_applications import Applications
+from server_application_faults import wait_file
+
+
+def inside(mount, cli, node, host, worker, operator):
+    assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
+    fixture = Applications(cli, node, host, parent=mount)
+    reserve, filler = Path(mount) / 'reserve', Path(mount) / 'filler'
+    with reserve.open('xb') as file:
+        os.posix_fallocate(file.fileno(), 0, 512 * 1024**2)
+        os.fsync(file.fileno())
+    caller = None
+    started = time.monotonic()
+    recovery = Path('/proof/put.json')
+    writer, inspector = Path('/proof/writer.json'), Path('/proof/inspector.json')
+    try:
+        fixture.start(initialize=True)
+        fixture.ready()
+        manifest = fixture.root / 'application.json'
+        manifest.write_bytes(subprocess.check_output([operator, 'manifest', worker]))
+        fixture.app('install', '--file', manifest, '--operation', 'install')
+        ready = fixture.active()
+        for name, destination in [('writer', writer), ('inspector', inspector)]:
+            fixture.app('connect', '--application', 'work-items', '--caller', name, '--output', destination)
+        deadline = time.monotonic() + 10
+        while True:
+            initialized = subprocess.run([operator, str(inspector), 'inspect'], capture_output=True, text=True, timeout=5)
+            if initialized.returncode == 0:
+                break
+            assert time.monotonic() < deadline, initialized
+            time.sleep(.05)
+        process = next(pid for pid in children(fixture.process.pid) if '/applications/work-items/data.bootstrap.json' in command(pid))
+        # Leave an accepted input unresolved before exhausting provider space.
+        os.kill(process, signal.SIGSTOP)
+        caller = subprocess.Popen([operator, str(writer), 'put', str(recovery), '1', '0'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        deadline = time.monotonic() + 10
+        while not recovery.exists():
+            assert caller.poll() is None, caller.communicate()
+            assert time.monotonic() < deadline, recovery
+            time.sleep(.05)
+        deadline = time.monotonic() + 10
+        while json.loads(recovery.read_text())['receipt'] is None:
+            assert time.monotonic() < deadline
+            time.sleep(.05)
+        accepted = json.loads(recovery.read_text())['receipt']
+        available = os.statvfs(mount).f_bavail * os.statvfs(mount).f_frsize
+        with filler.open('xb') as file:
+            os.posix_fallocate(file.fileno(), 0, available - 4 * 1024**2)
+            os.fsync(file.fileno())
+        probe = Path(mount) / 'enospc-probe'
+        with probe.open('xb') as file:
+            try:
+                os.posix_fallocate(file.fileno(), 0, 32 * 1024**2)
+            except OSError as error:
+                assert error.errno == errno.ENOSPC
+            else:
+                raise AssertionError('Expected actual ext4 ENOSPC')
+        probe.unlink()
+        os.kill(process, signal.SIGCONT)
+        time.sleep(3)
+        caller.terminate()
+        caller.communicate(timeout=10)
+        caller = None
+        assert json.loads(recovery.read_text())['receipt'] == accepted
+        fixture.stop()
+        filler.unlink()
+        reserve.unlink()
+        fixture.start()
+        fixture.ready()
+        resumed = fixture.active()
+        assert resumed['roles'][0]['pid'] == ready['roles'][0]['pid']
+        assert resumed['resources'] == ready['resources']
+        result = subprocess.run([operator, str(writer), 'put', str(recovery), '1', '0'], capture_output=True, text=True, timeout=40)
+        assert result.returncode == 0, result
+        assert json.loads(result.stdout)['accepted'] == accepted
+        state = json.loads(subprocess.check_output([operator, str(inspector), 'inspect'], timeout=10))
+        assert state['rows'] == 1
+        fixture.stop()
+        print(f'Application physical capacity: accepted input, real ENOSPC, joined shutdown and same receipt/PID/resource recovered in {time.monotonic() - started:.2f}s', flush=True)
+    finally:
+        if caller is not None:
+            caller.kill()
+            caller.communicate(timeout=10)
+        filler.unlink(missing_ok=True)
+        reserve.unlink(missing_ok=True)
+        fixture.cleanup()

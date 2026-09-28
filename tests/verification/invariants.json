@@ -1149,7 +1149,36 @@
         "Independent console verifies empty Table COUNT through a gateway that preserves signed bodies/native denial and reserves control under stalled data",
         "Real ext4 ENOSPC after accepted query; bounded control/shutdown and exact query recovery after space is released; full log prefixes keep draining"
       ],
-      "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M25 owns upgrade transitions.",
+      "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M26 owns neighborhood upgrade transitions.",
+      "model": null
+    },
+    {
+      "id": "CLI-03",
+      "claim": "Local application installation recovers exact native operations and stable IDs while fresh worker rotation preserves current permission epochs and unrelated roles",
+      "owner": "contracts/APPLICATION_INSTALLATION_V1.md",
+      "implementation": [
+        "packages/zig/transit-client/src/Application.zig",
+        "apps/transit-cli/server/Applications.zig",
+        "examples/work-items/operator.zig",
+        "tests/server_applications.py",
+        "tests/server_application_faults.py",
+        "tests/server_application_capacity.py"
+      ],
+      "profile": "M25 trusted local Linux, neutral v1 installation/bootstrap and separately compiled Zig work-item consumer",
+      "tasks": [
+        "contract::check",
+        "test::unit",
+        "test::server-applications",
+        "test::server-application-faults",
+        "test::server-application-capacity"
+      ],
+      "scenarios": [
+        "Lost spawn/rotation replies plus manager loss recover byte-identical requests and native receipts before new root work",
+        "Two applications retain distinct IDs and scoped callers; compatible replacement leaves neighboring workers running and a 19-row migration survives process/store interruptions",
+        "Current worker/installer/resource revocation rejects; old worker signatures fail; malformed, denied and over-quota management is bounded",
+        "Accepted input survives real owned-volume ENOSPC and resumes with its original receipt, PID and resource"
+      ],
+      "limits": "Per-declaration 8 roles/16 resources/8 callers, configurable active-app/role quotas, 64 KiB public values and 256 KiB per-app checkpoints, eight-receipt pages; retained disk history is unlimited. Trusted same-UID Linux placement, not a sandbox or distributed authority protocol. Only Zig hosts are qualified; native configuration/provider upgrades remain M26.",
       "model": null
     }
   ]

@@ -122,7 +122,8 @@
       "test::reactive-views-placement",
       "test::flight-placement",
       "test::work-items-placement",
-      "test::server-capacity"
+      "test::server-capacity",
+      "test::server-application-capacity"
     ],
     "discovery": [
       "test::mutations"
@@ -178,7 +179,9 @@
       "test::work-items-browser",
       "test::console",
       "test::server",
-      "test::server-faults"
+      "test::server-faults",
+      "test::server-applications",
+      "test::server-application-faults"
     ]
   },
   "nested_tasks": {

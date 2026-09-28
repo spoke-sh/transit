@@ -111,7 +111,7 @@ def inside(mount, cli, node, host):
         fixture.cleanup()
 
 
-def run(cli, node, host):
+def run(cli, node, host, *application):
     assert sys.platform == "linux"
     repo = Path(__file__).resolve().parents[1]
     minio_binary()  # Native binary exists before entering the isolated container.
@@ -128,8 +128,8 @@ def run(cli, node, host):
     (root / "mount").mkdir()
     subprocess.run([tools["mkfs.ext4"], "-q", "-F", "-m", "0", str(root / "disk.img")], check=True, timeout=30)
     q = shlex.quote
-    command = [python, "-B", str(repo / "tests/server_capacity.py"), "--inside", "/proof/mount",
-               *[str(Path(path).resolve()) for path in (cli, node, host)]]
+    command = [python, "-B", str(repo / "tests/server_capacity.py"), "--inside-application" if application else "--inside", "/proof/mount",
+               *[str(Path(path).resolve()) for path in (cli, node, host, *application)]]
     script = f'''set -euo pipefail
 {q(tools['mount'])} -o loop /proof/disk.img /proof/mount
 trap '{q(tools['umount'])} /proof/mount' EXIT
@@ -156,7 +156,10 @@ trap '{q(tools['umount'])} /proof/mount' EXIT
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "--inside":
+    if sys.argv[1] == "--inside-application":
+        from server_application_capacity import inside as inside_application
+        inside_application(*sys.argv[2:])
+    elif sys.argv[1] == "--inside":
         inside(*sys.argv[2:])
     else:
         run(*sys.argv[1:])
