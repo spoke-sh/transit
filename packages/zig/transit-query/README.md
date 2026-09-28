@@ -108,3 +108,13 @@ Test builds expose `testing.Store`, the existing private-turn reference model,
 for dependent-package composition tests. It tracks entry revisions and retained
 cuts so serving can exercise actual finite capture alongside watch acquisition.
 This is test-only simulated storage, not a durability or authorization proof.
+
+
+A requester-scoped principal needs an explicit optional association and an
+independent current read grant for the source resource. That resource access
+does not authorize foreign process inspection. V1 status checks foreign process
+failure/lifecycle only when the current native identity permits that observation;
+otherwise it reports the recorded query phase and source/resource availability.
+A missing process diagnostic is not proof that the worker is healthy. Finite
+protocol adapters retain their own waiting deadline without cancelling accepted
+work or inventing a query failure.

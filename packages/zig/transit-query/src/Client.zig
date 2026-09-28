@@ -182,14 +182,20 @@ fn statusOnce(self: *Self, correlation: u64) !m.Status {
         result.received_segments = manifest.segments;
         result.received_rows = manifest.rows;
     } else if (phase == .admitted) {
-        const process = (try self.query(.{ .process = self.connection.source })).body.process.process;
-        if (process.lifecycle != .running) {
-            result.phase = .expired;
-            return result;
-        }
-        if (process.failure != null) {
-            result.phase = .failed;
-            return result;
+        // A requester-scoped caller may read an explicitly associated source
+        // resource without being allowed to inspect that foreign process. Keep
+        // optional process diagnostics separate from required data authority.
+        const caller_identity = (try self.query(.identity)).body.identity;
+        if (caller_identity.pid == null or caller_identity.pid == self.connection.source) {
+            const process = (try self.query(.{ .process = self.connection.source })).body.process.process;
+            if (process.lifecycle != .running) {
+                result.phase = .expired;
+                return result;
+            }
+            if (process.failure != null) {
+                result.phase = .failed;
+                return result;
+            }
         }
         if (try source.read(s.GrowingQuery.records.key('i', self.connection.requester, correlation, 0))) |index| {
             const identity = try r.readIdentity(index);
