@@ -341,3 +341,22 @@ changes; explicit exports support reload recovery without persisting a private
 key. A new draft, definition generation or HTTP endpoint cannot settle an older
 unknown outcome. Native admission remains distinct from application completion.
 See the [operator guide](../packages/ts/transit-application/docs/operator.md).
+
+## Separately compiled application hosts
+
+[M25](roadmap/M25.md) defines a language-neutral
+[installation and bootstrap contract](../contracts/APPLICATION_INSTALLATION_V1.md)
+in `transit_client.Application`. Its first executable consumer is the separately
+built [work-item package](../examples/work-items/docs/local.md). The CLI accepts
+application declarations and exports scoped caller connections; it does not
+import application handlers. A worker receives public bindings, generates a
+fresh ephemeral key, and completes the existing growing ownership handshake.
+File delivery and process readiness do not confer native rights.
+
+The public management client validates bounded results and owns decoded response
+memory. A CLI mutation is frozen before dispatch; retry preserves its complete
+signed identity. Installer, worker, domain operator and inspector are distinct
+callers. Domain submissions and migration steps keep their own durable identity,
+receipt and committed disposition. A returned installation status does not prove
+a domain command completed. The neutral schema and independent signing fixture
+are available now; this does not qualify additional language hosts or ABI wrappers.

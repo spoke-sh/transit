@@ -74,3 +74,7 @@ For the multi-process programming example, follow the
 - [Examples](examples/README.md): complete Zig callers using the public client.
 - [Proof coverage](tests/README.md): checks, failure schedules, and qualification limits.
 - [Agent instructions](AGENTS.md): how to change this repository.
+
+For downstream application development, the [local installation guide](apps/transit-cli/docs/applications.md)
+covers separately built Zig workers, scoped caller connections and compatible
+replacement through a language-neutral bootstrap contract.

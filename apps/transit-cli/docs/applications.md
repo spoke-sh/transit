@@ -39,7 +39,8 @@ The server executes the artifact directly, without a compiler, shell, Python,
 source checkout or downstream supervisor. It starts roles in declared dependency
 order. `installed` means all native provisioning receipts have been checkpointed;
 `ready` is an observed worker activation. Neither proves domain initialization
-or a completed application command.
+or a completed application command. Poll status until `installed` is true and
+all roles are `ready` before continuing with the connection-export steps.
 
 A declaration names roles, executable artifacts, compatibility contracts,
 configuration, resources, named associations, explicit grants, callers and
@@ -58,9 +59,13 @@ transit app connect --config /absolute/local-transit/management.json \
   --application work-items --caller writer --output writer.json
 transit app connect --config /absolute/local-transit/management.json \
   --application work-items --caller inspector --output inspector.json
-./zig-out/bin/work-items writer.json put put-1.json 1 0
 ./zig-out/bin/work-items inspector.json inspect
+./zig-out/bin/work-items writer.json put put-1.json 1 0
 ```
+
+The initial `inspect` must observe the initialized domain head before the first
+write. If initialization is still pending, retry the read; physical readiness
+does not imply that the initialization frame has committed.
 
 Connection files contain endpoint, named bindings and a private seed-file
 reference. They contain no realm-root or worker key. Do not publish these files

@@ -319,6 +319,13 @@ and protocol assertions belong under [tests/](../tests/README.md).
   grammar/catalog assistance. [Deployment](DEPLOYMENT.md#transit-cli-applications-and-planned-publication)
   owns the local-placement boundary; [Query language](QUERY_LANGUAGE.md#terminal-console)
   owns the terminal semantic boundary.
+- [M25](roadmap/M25.md) adds application installation above the native client.
+  The [public declaration/bootstrap contract](../contracts/APPLICATION_INSTALLATION_V1.md)
+  identifies roles and resources without granting authority. The CLI composes
+  exact native provisioning and physical lifecycle; independently built workers
+  import public packages. Compatible worker revision, ownership generation,
+  data epoch and published interface revision remain separate. Native key rotation
+  preserves permission epochs, so restarting a process cannot renew revoked reads.
 - [M26](roadmap/M26.md) publishes the declared Transit artifact matrix from a
   tagged commit through GitHub Releases/Packages, Nix, an install script,
   Homebrew, OCI images and Helm. Existing component build/package owners remain

@@ -36,8 +36,12 @@ compiled Zig application over a language-neutral declaration/bootstrap contract.
 The manager owns physical processes and recoverable provisioning; native grants
 and ownership remain execution authority. Application revisions are separate
 from the pinned neighborhood artifacts, data epochs and interface publication.
-The existing migration ledger remains application-owned. This work is in progress;
-the fixed M24 source/requester is still the qualified default.
+The existing migration ledger remains application-owned. The
+[version-2 local profile](../apps/transit-cli/docs/applications.md) now qualifies
+two installed applications, separate caller keys, compatible replacement and
+exact recovery across lost replies and process/store interruption. Real ENOSPC
+preserves accepted work. The fixed M24 source/requester remains the version-1
+default; neither profile permits an implicit pinned-neighborhood upgrade.
 
 [Transit CLI M24](roadmap/M24.md) formalizes `transit server` as a foreground
 supervisor/gateway for a functioning locally placed Transit service neighborhood.

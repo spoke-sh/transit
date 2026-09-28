@@ -371,3 +371,9 @@ six complete owned IPC segments. Separate checks exercise poisoned reads,
 codec stop/block policy, scoped/thread access, cancellation/join, expiry and
 revocation during result reading. Other public languages must add equivalent
 observations; Python evidence does not qualify those runtimes.
+
+M25 registers `test::server-applications`, `test::server-application-faults` and
+`test::server-application-capacity` with invariant `CLI-03`. Their
+[selected proof evidence](../README.md#m25-local-application-qualification) keeps
+native loss/revocation, consumer lifecycle and physical capacity separate.
+The ordinary hosted lanes and accepted M10 budgets remain unchanged.

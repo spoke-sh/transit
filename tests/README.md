@@ -3299,3 +3299,78 @@ remained from those interrupted checkouts. They do not count as passing evidence
 The corrected full C/C++ SDK task also passed separately, and a pinned Ruff
 `F823` scan of `tests/` found no further unbound-local fixture errors. Earlier
 failed clean runs remain incomplete and are not included in the final report.
+
+## M25 local application qualification
+
+The initial profile is trusted Linux placement and a separately compiled Zig
+consumer over the [neutral installation/bootstrap contract](../contracts/APPLICATION_INSTALLATION_V1.md).
+The example builds through its own manifest, imports public packages and runs
+with an empty `PATH`. Installation and domain operations use public CLI commands
+and exported connections; ordinary workflow steps never edit private manager
+records or use realm-root credentials.
+
+| Executed proof | Result |
+| --- | --- |
+| `test::server-applications` | 98.521 s; two applications, 19 migrated rows, three Table pages, 21 paged native provisioning/activation receipts, final worker generation 9 |
+| `test::server-application-faults` | 29.221 s; exact lost spawn/rotation/send/turn/activation replies, current revocation and denied/malformed management; reserved health 1 ms |
+| `test::server-application-capacity` | 16.40 s after fixture setup; accepted input across actual ext4 ENOSPC, same receipt/PID/resource after restart |
+| Existing `test::server-faults` | Core lifecycle 30.18 s, bootstrap/gateway/rollback faults 13.04 s; reserved health 5.20 ms |
+| Existing `test::server-capacity` | 17.28 s; accepted console query recovered after real ENOSPC |
+
+The application lifecycle proof interrupts provisioning, attaches twice without
+new identities, refuses conflicting intent/declarations, incompatible replacement,
+invalid receipt cursors and active-role quota overflow. Installer, domain operator,
+writer and inspector remain separate. A compatible configuration replacement
+preserves PID/resource/principal and migration progress while the neighboring
+application and pinned neighborhood processes remain running. Worker, manager,
+authority and disk-store interruption preserve accepted work. The 19-row transform
+is verified against its retained source through bounded pages before explicit
+write release. Replaying an old migration step does not copy another page.
+
+The largest sampled manager high-water RSS was **28,180,480 bytes**, below the
+fixture's 128 MiB ceiling; the largest current application checkpoint was
+**2,847 bytes**. These are measurements for two single-role applications, not a
+maximum-quota or throughput qualification. Runtime limits are explicit: at most
+eight roles/sixteen resources/eight callers per declaration, configured active
+application/role quotas, one 256 KiB checkpoint read, eight receipts per status
+page, 64 KiB management values, finite HTTP/registration/activation deadlines,
+three worker-exit restarts and joined child shutdown. Retained request/receipt
+history grows on disk with unlimited retention; it is not read into a resident
+collection.
+
+The fault fixture puts the real disk authority behind an **explicit test-only**
+node peer. It records accepted native bytes/receipts, drops replies, kills the
+manager, and requires byte-identical retry and equal receipts before fresh root
+operations. That test peer uses Python and parent-death handling; the production
+manager does not. A separate schedule loses migration send and committed worker
+turn replies, then verifies activation and old-key fencing. Root keys are used
+only by adversarial fixture steps to revoke native rights, not by the application
+workflow. Inspector resource revocation, worker revocation and installer
+revocation remain effective. Twenty denied requests, malformed/foreign/oversized
+values and forbidden identity headers cannot bypass authentication; health uses
+its reserved request capacity.
+
+The capacity fixture reuses M24's owned 2 GiB ext4 image inside an isolated
+privileged container. It waits for **domain initialization**, pauses the data
+worker, admits an input and saves its receipt outside the provider volume. A
+filler leaves 4 MiB metadata headroom; a 32 MiB allocation confirms actual ENOSPC.
+After releasing the filler and a preallocated 512 MiB reserve, ordinary startup
+and the original command recovery file complete exactly one retained input.
+No existing host block device, user installation or reference cluster is changed.
+
+`just check`, `zig build test -Doptimize=ReleaseSafe`, standalone client tests and
+independent schema/SHA-256/Ed25519 fixture checks pass. These new focused/external
+tasks do not expand the ordinary hosted lanes or claim a new M10 budget sample.
+The selected replacement changes configuration with the same compatible binary;
+M26 must additionally qualify changed executable artifacts through installed
+release packages. Other SDK hosts, maximum active quotas, local multi-role
+dependency graphs and distributed placement are not qualified by this consumer.
+Interface publication retains its separate M23 proof; worker readiness does not
+claim a published interface or verified migration result.
+
+The first runs exposed three corrected defects: borrowed JSON strings outliving
+the response buffer, pending application root operations being recovered after
+built-in activation, and old worker readiness being displayed with a new fence
+generation. A generic JSON tuple needed its original array wire shape preserved.
+The capacity fixture initially paused before domain initialization; it now waits
+for public domain evidence. Failed schedules are not counted as passes.

@@ -1,6 +1,8 @@
 # Local application installation v1
 
-Status: M25 implementation in progress; no end-to-end qualification claimed yet.
+Status: implemented and qualified for M25's trusted local Linux/Zig profile.
+[Executed evidence and limits](../tests/README.md#m25-local-application-qualification)
+include two applications, exact native reply recovery, migration and real ENOSPC.
 Public values live in `transit_client.Application`. The generated structural
 schema and semantic validation must agree; declarations are not authority.
 See the [generated schema](application-installation-v1.schema.json) and

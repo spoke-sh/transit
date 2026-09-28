@@ -174,8 +174,9 @@ adds language-neutral installation/bootstrap and compatible worker replacement,
 qualified first with a separately compiled Zig consumer. [Publication M26](roadmap/M26.md) makes
 tagged Transit artifacts installable through Nix, a shell installer, Homebrew,
 Docker/OCI and Helm, with GitHub release publication and an explicit SDK/library
-inventory. M25 is in progress; publication remains planned. [M27](roadmap/M27.md) extends their authority
-and recovery proofs across cluster topologies. Station,
+inventory. M25 is complete for its trusted local Linux/Zig profile; publication
+remains planned. [M27](roadmap/M27.md) extends their authority and recovery proofs
+across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](roadmap/README.md).
 

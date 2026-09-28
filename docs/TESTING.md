@@ -273,3 +273,11 @@ through the standalone package task. This identifies removable execution work;
 it is not a measured hosted critical-path or aggregate Nix-cache improvement.
 The local evidence is in `.cache/verification/package-core-profile.log` and
 `.cache/verification/package-task-timings.json`.
+
+M25's focused `test::server-applications` and `test::server-application-faults`
+qualify a separately compiled consumer through public commands, exact native
+reply recovery, current revocation and unrelated-worker preservation.
+`test::server-application-capacity` uses the owned ext4 fixture for accepted work
+under physical ENOSPC. They remain explicit tasks outside the ordinary hosted
+lanes; local measurements do not requalify the M10 hosted feedback budget. See
+[the proof guide](../tests/README.md) for executed evidence and limits.

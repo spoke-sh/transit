@@ -364,3 +364,24 @@ protection from a compromised origin. The immutable application configuration
 names an independent bootstrap administrator, so an editable definition cannot
 create its own repair authority. Current public reads recheck every publication
 chunk group and final head; denial cannot become a cached or built-in fallback.
+
+## Local application management
+
+The [M25 installation contract](../contracts/APPLICATION_INSTALLATION_V1.md)
+separates management admission from native worker and domain-caller authority.
+The trusted local manager holds root provisioning authority; the installer has
+a separate admin/inspection identity and signed management requests. Management
+checks that identity against the live realm at admission and before each
+reconciliation operation. A cryptographic signature or retained deployment file
+alone is insufficient. Already accepted native operations retain their exact
+receipts; revocation does not erase those effects. These checks do not make a
+multi-operation installation one atomic native transaction.
+
+Ordinary callers cannot install or replace workers. Conditional principal
+creation refuses an existing identity; activation atomically changes a worker's
+key and generation while preserving its existing permission epoch and resource
+grants. Recovery cannot restore a revoked grant by reissuing a broad grant.
+Replacement is a trusted physical operation, not proof of honest or compatible
+application computation. All local components share one OS user; exported seed
+references and separate keys do not sandbox that user's filesystem. Cluster
+isolation and authority movement remain [M27](roadmap/M27.md).
