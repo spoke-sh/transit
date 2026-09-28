@@ -80,7 +80,7 @@ const Task = struct {
         defer client.deinit();
         try self.adapter(&client).check(signed, key);
     }
-    fn attach(self: *Task, bootstrap: wire.Bootstrap, key: [32]u8) !void {
+    fn attach(self: *Task, bootstrap: wire.Bootstrap, key: [32]u8, fixed: *std.heap.FixedBufferAllocator) !void {
         {
             var client = self.newClient();
             defer client.deinit();
@@ -88,6 +88,7 @@ const Task = struct {
         }
         const start = Io.Clock.awake.now(self.io);
         while (start.durationTo(Io.Clock.awake.now(self.io)).toMilliseconds() < 2000) {
+            fixed.reset();
             _ = self.read(bootstrap.read, key) catch |err| {
                 if (err != error.ReactiveAttachmentConflict and err != error.ServiceReadConflict and err != error.Conflict) return err;
                 try self.io.sleep(.fromMilliseconds(20), .awake);
@@ -167,7 +168,7 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
         if (!host.callers[index].acquire(false, host.config.role.gateway.per_caller_requests)) return error.ServingCallerCapacity;
         defer host.callers[index].release(false);
         try host.challenges.consume(io, bootstrap.read.read);
-        try task.attach(bootstrap, key);
+        try task.attach(bootstrap, key, &fixed);
         fixed.reset();
         return sse(&task, &fixed, request, bootstrap.read, key);
     }
@@ -209,22 +210,29 @@ pub fn handle(host: *Context, io: Io, allocator: std.mem.Allocator, request: *st
 fn sseWrite(body: *std.http.BodyWriter, message: wire.ServerMessage) anyerror!void {
     var encoded: [r.max_message_bytes]u8 = undefined;
     const bytes = try json(message, &encoded);
-    if (message == .event) {
-        const cursor = try message.event.cursor.encode();
-        try body.writer.print("id: {x}\n", .{cursor.slice()});
-    }
-    try body.writer.print("event: {s}\ndata: {s}\n\n", .{ @tagName(message), bytes });
+    var id: [512]u8 = undefined;
+    const item: wire.SseItem = .{
+        .event = std.meta.stringToEnum(wire.SseKind, @tagName(message)) orelse return error.InvalidServingCommand,
+        .data = bytes,
+        .id = if (message == .event) try std.fmt.bufPrint(&id, "{x}", .{(try message.event.cursor.encode()).slice()}) else null,
+    };
+    if (item.id) |value| try body.writer.print("id: {s}\n", .{value});
+    try body.writer.print("event: {s}\ndata: {s}\n\n", .{ @tagName(item.event), item.data });
     try body.writer.flush();
     try body.http_protocol_output.flush();
 }
 fn sse(task: *Task, fixed: *std.heap.FixedBufferAllocator, request: *std.http.Server.Request, signed: r.SignedRead, key: [32]u8) !void {
     var buffer: [4096]u8 = undefined;
-    var body = try request.respondStreaming(&buffer, .{ .respond_options = .{ .keep_alive = false, .extra_headers = &.{
+    var body = request.respondStreaming(&buffer, .{ .respond_options = .{ .keep_alive = false, .extra_headers = &.{
         .{ .name = "content-type", .value = "text/event-stream; charset=utf-8" },
         .{ .name = "cache-control", .value = "no-store" },
         .{ .name = "x-accel-buffering", .value = "no" },
         .{ .name = "x-content-type-options", .value = "nosniff" },
-    } } });
+    } } }) catch |err| {
+        // Header writes may have started; never append a second HTTP response.
+        task.host.connectionError(err, true);
+        return;
+    };
     sseLoop(task, fixed, &body, signed, key) catch |err| {
         // Headers already committed: a typed terminal or interrupted socket,
         // never a second HTTP status. Writes themselves have a finite deadline.
@@ -362,7 +370,10 @@ fn first(ws: *std.http.Server.WebSocket, allocator: std.mem.Allocator, output: *
 fn websocket(host: *Context, io: Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
     if (!std.mem.eql(u8, (try http.header(request, "origin")) orelse "", host.config.role.gateway.public_origin)) return error.ServingDenied;
     const key = try http.WebSocket.handshake(request, r.subprotocol);
-    var ws = try request.respondWebSocket(.{ .key = key, .extra_headers = &.{.{ .name = "sec-websocket-protocol", .value = r.subprotocol }} });
+    var ws = request.respondWebSocket(.{ .key = key, .extra_headers = &.{.{ .name = "sec-websocket-protocol", .value = r.subprotocol }} }) catch |err| {
+        host.connectionError(err, true);
+        return;
+    };
     websocketRun(host, io, allocator, &ws) catch |err| {
         host.connectionError(err, true);
         // Work has been joined before the closing frame. No HTTP response can
@@ -393,7 +404,7 @@ fn websocketRun(host: *Context, io: Io, allocator: std.mem.Allocator, ws: *std.h
     if (!host.callers[index].acquire(false, host.config.role.gateway.per_caller_requests)) return error.ServingCallerCapacity;
     defer host.callers[index].release(false);
     fixed.reset();
-    try task.attach(bootstrap, public_key);
+    try task.attach(bootstrap, public_key, &fixed);
     var socket: Socket = .{ .host = host, .io = io, .allocator = allocator, .ws = ws, .signed = bootstrap.read, .key = public_key };
     fixed.reset();
     try socket.send(.{ .attached = .{ .session = bootstrap.read.read.scope.session, .generation = bootstrap.read.read.scope.generation, .attachment = bootstrap.read.read.attachment } }, &task);

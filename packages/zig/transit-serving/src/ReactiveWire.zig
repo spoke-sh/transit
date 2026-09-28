@@ -33,6 +33,18 @@ pub const ServerMessage = union(enum) {
     heartbeat: Heartbeat,
     terminal: struct { reason: Terminal },
 };
+/// OpenAPI models an SSE item at the media-type level: data is a JSON string,
+/// not the already-decoded ServerMessage used by the application.
+pub const SseKind = enum { attached, event, heartbeat, terminal };
+pub const SseItem = struct {
+    pub const json_schema_fields = .{
+        .data = .{ .type = "string", .maxLength = r.max_message_bytes, .contentMediaType = "application/json", .contentSchema = .{ .@"$ref" = "#/components/schemas/ServerMessage" } },
+        .id = .{ .type = "string", .pattern = "^(?:[0-9a-f]{2})+$", .maxLength = 512 },
+    };
+    event: SseKind,
+    data: []const u8,
+    id: ?[]const u8 = null,
+};
 pub fn terminal(err: anyerror) Terminal {
     return switch (err) {
         error.AccessDenied, error.ServingDenied, error.SignatureVerificationFailed => .denied,

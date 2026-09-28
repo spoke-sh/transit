@@ -5201,6 +5201,46 @@
           "err"
         ],
         "x-transit-defaults": {}
+      },
+      "SseItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "event",
+          "data",
+          "id"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "attached",
+              "event",
+              "heartbeat",
+              "terminal"
+            ]
+          },
+          "data": {
+            "type": "string",
+            "maxLength": 8192,
+            "contentMediaType": "application/json",
+            "contentSchema": {
+              "$ref": "#/components/schemas/ServerMessage"
+            }
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^(?:[0-9a-f]{2})+$",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "x-transit-defaults": {
+          "id": null
+        }
       }
     }
   },

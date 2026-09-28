@@ -38,7 +38,8 @@ The [compatibility matrix](docs/compatibility.md) lists executed consumers,
 placements and limits. Run the [application example](../../../examples/serving/README.md)
 for native, Compose or operator-placed Substrate recovery.
 
-M20's [reactive v1 contract](../../../contracts/REACTIVE_V1.md) is in progress.
+M20's [reactive v1 contract](../../../contracts/REACTIVE_V1.md) is implemented
+in the [qualified Table profile](docs/compatibility.md).
 `ReactiveModel` owns session/subscription/attachment identities and signed cursors;
 `ReactiveService` implements conditional controls inside the same `Service` turn.
 Four live sessions per service, two per caller and one subscription per session
@@ -76,3 +77,10 @@ Regenerate with `zig build serving-api -Doptimize=ReleaseSafe` then
 The independent peer trace can additionally be checked with `--trace PATH`.
 Native identity proofs are narrowed to the only supported identity query; fixed
 byte arrays and version constants are validated before decoding host envelopes.
+
+The final transport `check` retries up to three conflicting resource observations,
+just like snapshot acquisition; exhaustion remains interruption. The example resets
+its bounded workspace between attachment polls and never appends an HTTP error
+after streaming/upgrade headers may have started. `ReactiveWire.SseItem` describes
+the SSE field object; its `data` string contains the shared `ServerMessage`.
+Independent description validation explicitly checks that encoded JSON content.

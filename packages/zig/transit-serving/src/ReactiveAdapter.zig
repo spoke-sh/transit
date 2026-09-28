@@ -129,6 +129,17 @@ pub fn attach(self: Self, bootstrap: root.ReactiveWire.Bootstrap, public_key: [3
 
 /// Revalidate an attachment immediately before a bounded transport release.
 pub fn check(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
+    for (0..3) |_| return self.checkOnce(signed, public_key) catch |err| {
+        if (err == error.Rejected or err == error.Conflict) switch (self.base.resources.wire.last_rejection orelse return err) {
+            .StaleStateResource, .QueryExpired => continue,
+            .StateResourceExpired, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,
+            else => {},
+        };
+        return err;
+    };
+    return error.ServiceReadConflict;
+}
+fn checkOnce(self: Self, signed: r.SignedRead, public_key: [32]u8) !void {
     const current = try self.context(signed, public_key);
     if (signed.read.kind == .session) return error.InvalidReactiveScope;
     var data = try self.sourceReader(current.source.?);

@@ -44,6 +44,19 @@ def run(exporter, write=False, trace=None):
     def validate(name, value):
         schema = {'$ref': '#/components/schemas/' + name, 'components': {'schemas': definitions}}
         jsonschema.Draft202012Validator(schema).validate(value)
+        if name == 'SseItem':
+            # contentSchema is an annotation in JSON Schema: assert its decoded
+            # content independently, rather than silently treating it as checked.
+            message = json.loads(value['data'])
+            validate('ServerMessage', message)
+            assert list(message) == [value['event']]
+            assert ('id' in value) == (value['event'] == 'event')
+    item = documents['openapi']['paths']['/reactive/v1/events']['post']['responses']['200']['content']['text/event-stream']['itemSchema']
+    assert item == {'$ref': '#/components/schemas/SseItem'}
+    validate('SseItem', dict(event='heartbeat', data='{"heartbeat":{"version":1}}'))
+    try: validate('SseItem', dict(event='heartbeat', data='{"heartbeat":{"version":2}}'))
+    except jsonschema.ValidationError: pass
+    else: raise AssertionError('SSE contentSchema was not asserted')
     fixture = json.loads((ROOT / 'packages/zig/transit-serving/src/fixtures/reactive-v1.json').read_text())
     validate('ReactiveRead', fixture['read'])
     invalid = copy.deepcopy(fixture['read']); invalid['read']['cursor']['position']['version'] = 2

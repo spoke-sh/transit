@@ -206,7 +206,7 @@
     "/reactive/v1/events": {
       "post": {
         "operationId": "events",
-        "description": "Fetch-streaming SSE after consuming one authenticated challenge and observing the signed attachment commit. Each data item is a ServerMessage. Event IDs are the lowercase-hex canonical signed cursor. Resume must match Last-Event-ID and the signed read cursor. A terminal event or interruption ends streaming; it does not cancel accepted commands.",
+        "description": "Fetch-streaming SSE after consuming one authenticated challenge and observing the signed attachment commit. Each SSE item has event/data and an optional id; data is a JSON-encoded ServerMessage. The challenge and streaming POST must use the same gateway. Event IDs are the lowercase-hex canonical signed cursor. Resume must match Last-Event-ID and the signed read cursor. A terminal event or interruption ends streaming; it does not cancel accepted commands.",
         "parameters": [
           {
             "name": "Last-Event-ID",
@@ -235,7 +235,7 @@
             "content": {
               "text/event-stream": {
                 "itemSchema": {
-                  "$ref": "#/components/schemas/ServerMessage"
+                  "$ref": "#/components/schemas/SseItem"
                 }
               }
             }
@@ -5395,6 +5395,46 @@
           "err"
         ],
         "x-transit-defaults": {}
+      },
+      "SseItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "x-transit-field-order": [
+          "event",
+          "data",
+          "id"
+        ],
+        "properties": {
+          "event": {
+            "type": "string",
+            "enum": [
+              "attached",
+              "event",
+              "heartbeat",
+              "terminal"
+            ]
+          },
+          "data": {
+            "type": "string",
+            "maxLength": 8192,
+            "contentMediaType": "application/json",
+            "contentSchema": {
+              "$ref": "#/components/schemas/ServerMessage"
+            }
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^(?:[0-9a-f]{2})+$",
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "event",
+          "data"
+        ],
+        "x-transit-defaults": {
+          "id": null
+        }
       }
     }
   },

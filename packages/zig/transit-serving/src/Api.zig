@@ -28,7 +28,7 @@ pub const definitions = .{
     .{ "ReactiveRead", r.SignedRead },               .{ "ReactiveResponse", root.ReactiveAdapter.Response },
     .{ "Bootstrap", w.Bootstrap },                   .{ "ClientMessage", w.ClientMessage },
     .{ "ServerMessage", w.ServerMessage },           .{ "Discovery", Discovery },
-    .{ "Error", Error },
+    .{ "Error", Error },                             .{ "SseItem", w.SseItem },
 };
 pub const operations = .{
     .{ "command", "/serving/v1/command", "SignedCommand", "Receipt", "202" },
@@ -74,7 +74,7 @@ fn openapi(out: *std.json.Stringify) !void {
         try out.objectField("post");
         try out.beginObject();
         try field(out, "operationId", operation[0]);
-        try field(out, "description", if (events) "Fetch-streaming SSE after consuming one authenticated challenge and observing the signed attachment commit. Each data item is a ServerMessage. Event IDs are the lowercase-hex canonical signed cursor. Resume must match Last-Event-ID and the signed read cursor. A terminal event or interruption ends streaming; it does not cancel accepted commands." else if (comptime std.mem.eql(u8, operation[0], "control")) "Reserved capacity for signed renew, unsubscribe, close and trusted observer controls only. Native acceptance does not prove the lifecycle transition committed." else "A signed native scope plus current authorization is required. Retain uncertain command bytes and recover the same durable operation.");
+        try field(out, "description", if (events) "Fetch-streaming SSE after consuming one authenticated challenge and observing the signed attachment commit. Each SSE item has event/data and an optional id; data is a JSON-encoded ServerMessage. The challenge and streaming POST must use the same gateway. Event IDs are the lowercase-hex canonical signed cursor. Resume must match Last-Event-ID and the signed read cursor. A terminal event or interruption ends streaming; it does not cancel accepted commands." else if (comptime std.mem.eql(u8, operation[0], "control")) "Reserved capacity for signed renew, unsubscribe, close and trusted observer controls only. Native acceptance does not prove the lifecycle transition committed." else "A signed native scope plus current authorization is required. Retain uncertain command bytes and recover the same durable operation.");
         if (events) try field(out, "parameters", .{.{ .name = "Last-Event-ID", .in = "header", .required = false, .schema = .{ .type = "string", .pattern = "^(?:[0-9a-f]{2})+$", .maxLength = 512 } }});
         try out.objectField("requestBody");
         try out.beginObject();
@@ -98,7 +98,7 @@ fn openapi(out: *std.json.Stringify) !void {
         try out.objectField(if (events) "text/event-stream" else "application/json");
         try out.beginObject();
         try out.objectField(if (events) "itemSchema" else "schema");
-        try reference(out, operation[3]);
+        try reference(out, if (events) "SseItem" else operation[3]);
         try out.endObject();
         try out.endObject();
         try out.endObject();
