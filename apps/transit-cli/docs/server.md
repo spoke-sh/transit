@@ -127,6 +127,11 @@ Authorization and forwarded-identity headers remain forbidden in this native
 gateway profile; accepting a local name does not enable browser access or confer
 native permissions. Application-serving Origin policies remain separate.
 
+The same gateway policy and ready fields apply to the version 2
+[application installation profile](applications.md). Its separate management
+listener retains its numeric loopback authority; `gateway_allowed_hosts` applies
+only to the native protocol gateway.
+
 The list is part of the normalized installation configuration. Changing it after
 initialization is refused, as are changed runtime binaries. This enhancement
 applies to installations initialized with the new runtime; it does not upgrade

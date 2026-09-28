@@ -3282,6 +3282,9 @@ port, refusal of invalid policy before installation, recovery of the same
 installation with the same policy and configuration-identity refusal after policy
 drift. Its existing native denial, pressure, joined shutdown, interrupted
 bootstrap and provider rollback checks remain required.
+`just test::server-applications` checks the same default gateway authorities and
+ready fields while retaining the version 2 application management profile and
+its installation/replacement/recovery checks.
 
 The forwarded-port proof sends the exact Host an SSH tunnel preserves; it does
 not provision an SSH daemon or change the server's loopback-only listener.
