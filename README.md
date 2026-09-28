@@ -36,6 +36,12 @@ HTTP and RPC connectors over shared capture and explicit outcome policies.
 ten SDKs, explicit SQL ingress and bounded current-authority result readers.
 [M19](docs/roadmap/M19.md) qualifies shared HTTP serving, durable application
 admission, concurrent Board reads and recovery across native, Compose and Substrate placements.
+[M20–M21](docs/REACTIVE.md) add resumable Table invalidations and verified reactive
+views; [M22](docs/roadmap/M22.md) qualifies finite Flight SQL/ADBC access.
+[M23](docs/roadmap/M23.md) implements declarative Board/application publication
+and migration, and [M24](docs/roadmap/M24.md) adds a local server and SQL terminal
+with shared authorized completion. Their focused proofs pass; final clean-checkout
+qualification is tracked in the roadmap.
 The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
 
 ## Get started

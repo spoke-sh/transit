@@ -120,7 +120,7 @@ validation, public-operation lowering, semantic round-trip, publication and
 application migrations. It does not silently add these statements to the
 reference grammar or turn administrative operations into Fuze plans.
 
-## Planned terminal console
+## Terminal console
 
 [Transit CLI M24](roadmap/M24.md) formalizes `transit console` as a psql-like
 terminal shell accepting `/` meta commands and Transit's SQL statements. It
@@ -135,10 +135,13 @@ enable Board's separately scoped Live scheduling. Queries lower to Fuze and
 supported declarations/controls use their owning public operations. Slash
 commands supply connection, discovery, result and recovery controls through the
 same public boundary, with bounded authorized metadata and exact retry identity.
-The milestone specifies multiline editing, grammar-aware termination, terminal
-interaction and completion qualification; neither the new command nor an editor
-service is implemented by this proposal. Unsupported/reference-only constructs
-remain explicitly distinguished from executable SQL.
+The implemented [console](../apps/transit-cli/docs/console.md) provides multiline
+editing, grammar-aware termination, explicit namespaces, exact recovery and
+bounded verified result pages. Real pipe, controlling-terminal and TLS fixtures
+pass for KV, Table and Document. Board and the terminal consume the same native
+cursor-assistance contract; accepting an item never submits it. The selected
+console advertises read-only finite queries. Unsupported declarations, controls
+and reference-only constructs reject before any partial execution.
 
 ## DDL: mostly a spelling problem, with one real prerequisite
 

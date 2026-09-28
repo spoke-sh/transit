@@ -34,10 +34,10 @@ availability never determines Transit ownership or changes retention authority.
 supervisor/gateway for a functioning locally placed Transit service neighborhood.
 The implemented [local Table profile](../apps/transit-cli/docs/server.md) composes
 disk Ursula with S3 cold storage, authority, maintenance, delivery, separate query
-workers and a credential-free native gateway. Its core proof exercises explicit
+workers and a credential-free native gateway. Focused proofs exercise interrupted
 initialization, independent console queries, fresh ownership after process loss,
-restart exhaustion and joined shutdown; additional fault qualification remains
-in progress. Native OS process management remains
+restart exhaustion, joined shutdown, gateway pressure and real disk exhaustion.
+Observed provider rollback refuses recovery. Native OS process management remains
 separate from Station supervision and durable PID ownership; any missing local
 runtime reconciliation contract must be qualified before automatic recovery is
 claimed. Existing launchers retain their independent development entry points.

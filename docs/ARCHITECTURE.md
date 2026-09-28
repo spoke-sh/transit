@@ -316,8 +316,8 @@ and protocol assertions belong under [tests/](../tests/README.md).
   and `console`. The server composes a supervisor/gateway and the locally placed
   service neighborhood; OS lifecycle does not replace durable ownership or
   Station supervision. The console reuses public clients, Fuze and M23's shared
-  grammar/catalog assistance. [Deployment](DEPLOYMENT.md#planned-transit-cli-and-publication)
-  owns the local-placement boundary; [Query language](QUERY_LANGUAGE.md#planned-terminal-console)
+  grammar/catalog assistance. [Deployment](DEPLOYMENT.md#transit-cli-and-planned-publication)
+  owns the local-placement boundary; [Query language](QUERY_LANGUAGE.md#terminal-console)
   owns the terminal semantic boundary.
 - [M25](roadmap/M25.md) publishes the declared Transit artifact matrix from a
   tagged commit through GitHub Releases/Packages, Nix, an install script,
