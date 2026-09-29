@@ -1,7 +1,7 @@
 # transit-cli
 
-[M27](../../docs/roadmap/M27.md) adds default embedded Board to version-3 local
-installations, with `--no-ui` for headless operation. See the
+[M27](../../docs/roadmap/M27.md) starts and supervises a separate `transit-board`
+process by default in version-3 local installations, with `--no-ui` for headless operation. See the
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
 The `transit` executable provides the local `server`, explicit-submit `console`

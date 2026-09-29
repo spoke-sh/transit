@@ -34,7 +34,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M24](M24.md) | Transit CLI | Complete: Linux local server recovery/capacity, Table/KV/Document console and shared assistance; clean qualification passed |
 | [M25](M25.md) | Local application installation and replacement | Complete: separate Zig consumer, neutral installation/bootstrap, scoped replacement, exact recovery and physical-capacity qualification |
 | [M26](M26.md) | User documentation and interface reference | In progress: Docusaurus, task-oriented foundations and generated API references |
-| [M27](M27.md) | Board in the local neighborhood | In progress: default UI, explicit headless operation, durable inspection grants and packaged assets |
+| [M27](M27.md) | Board in the local neighborhood | Implemented: separate supervised Board, explicit headless operation and packaged assets; focused proofs pass, clean qualification running |
 | [M28](M28.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M29](M29.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 

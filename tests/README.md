@@ -3430,13 +3430,25 @@ closure excludes Node, Python, Vite+ and pnpm. Existing M24/M25 recovery tasks n
 request headless operation explicitly. `contract::check` independently verifies
 the v2 inspection declaration digest; a unit fixture preserves v1 signed bytes.
 
-Qualification is in progress. The initial focused runtime pass completed UI,
-replacement and revocation checks; its port-conflict fixture needed socket reuse
-after shutdown. A later application reply-loss assertion needed to compare the
-public tagged-union representation. These failed attempts are not passing proof.
+Focused qualification passed after rebasing the implementation onto the gateway
+host-alias changes. The Board lifecycle/revocation schedule completed in 33.37
+seconds; both lost-reply schedules recovered the exact accepted request/receipt.
+The Nix packaged consumer passed with a 14-path runtime closure excluding Node,
+Python, Vite+ and pnpm. `just check`, `just doctor`, contract drift checks and the
+headless server/application regressions passed. The rebased headless core
+lifecycle took 37.26 seconds; application replacement/recovery took 122.70 seconds,
+and application fault recovery took 28.40 seconds.
+
+`just ci-clean` is running against implementation commit `e077519`. Core, growth,
+experience and launcher lanes have passed; the binding lane remains in progress.
+This is not yet a completed ordinary clean qualification, and it does not include
+the separately selected browser or physical-capacity lanes.
+
+Initial focused attempts exposed a port-conflict fixture needing socket reuse
+after shutdown and a reply-loss assertion needing the public tagged-union shape.
 One concurrent-build M24 attempt observed `AuthorityTimeout` and failed the console
-status assertion; its retry passed the 30.36-second core lifecycle and gateway/
-bootstrap schedules. Final focused and committed clean results remain required.
+status assertion. Those attempts are not counted as passes; subsequent focused
+and rebased regression runs passed without weakening the assertions.
 
 The scope is trusted local Linux x86_64, loopback shared viewers, explicit resource
 grants and unlimited retained history. It does not qualify per-user login,

@@ -6,8 +6,9 @@ supply the CLI and pinned native neighborhood artifacts.
 
 `transit server --config server.json --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
-`--initialize`. Version 3 runs embedded Board by default; add `--no-ui` to
-either command name for a headless invocation. The Linux `local_table_v1` bootstrap, independent console and
+`--initialize`. Version 3 starts and supervises a separate `transit-board` process
+by default. Its frontend assets are bundled inside the Board executable. Add
+`--no-ui` to either command name for a headless invocation. The Linux `local_table_v1` bootstrap, independent console and
 process-recovery, interrupted bootstrap, gateway pressure and physical ENOSPC
 proofs pass. Completed evidence belongs in the
 [test guide](../../../tests/README.md). It is a trusted single-user placement,
