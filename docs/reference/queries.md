@@ -80,6 +80,12 @@ Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
 
 ## Interactive sessions
 
+Selective Table queries use the ordered primary-key index: equality reads one
+key, lower bounds seek, and upper bounds stop the scan. The original Fuze
+predicate still determines matching rows. Comparisons on the value column and
+`!=` retain the general bounded scan. Persistent Arrow storage blocks are
+separate from the native Arrow batches used for execution and presentation.
+
 The [interactive query contract](../../contracts/INTERACTIVE_QUERY_V1.md) defines
 the leased snapshot, cancellation and bounded output boundary.
 

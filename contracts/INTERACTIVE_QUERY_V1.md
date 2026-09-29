@@ -64,7 +64,11 @@ The client compiles before opening a snapshot, validates the declared source
 policy and requester identity, and binds the plan to the captured resource
 revision and source/schema fingerprints. Source policy is rechecked before
 each bounded output batch; immutable byte caches cannot substitute for it.
-Page, segment and byte budgets apply as in the compiled bundle.
+Page, segment and byte budgets apply as in the compiled bundle. The Table
+adapter may seek or stop using an int64 primary-key comparison, including a
+single-key lookup for equality. Fuze still evaluates the bound predicate. This
+access optimization does not change plan fingerprints, result ordering, schema,
+snapshot identity or current authorization. Other predicates use bounded scans.
 
 Execution pulls one bounded source page at a time, computes one bounded Arrow
 batch and waits for the output consumer before requesting more. Intermediate

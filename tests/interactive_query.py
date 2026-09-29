@@ -101,6 +101,15 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 query('SELECT * FROM items LIMIT 3;', min(3, count))
                 query('SELECT * FROM items LIMIT 0;', 0)
                 query('SELECT * FROM items;', count, 'table')
+                if kind == 'table':
+                    point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count))
+                    if count:
+                        assert point[0]['cells'][0][0] == {'value': {'int64': str(count - 1)}}
+                    query(f'SELECT * FROM items WHERE id >= {max(0, count - 3)};', min(3, count))
+                    query('SELECT * FROM items WHERE id < 3;', min(3, count))
+                    total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1)
+                    assert total[-1]['cells'][0][0] == {'value': {'uint64': str(min(1, count))}}
+                    query('SELECT * FROM items WHERE id > 9223372036854775807;', 0)
                 assert not (root / 'console-recovery.json').exists()
 
                 # Stop one in-flight read; no durable cancel command is needed.
@@ -111,7 +120,8 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 console.send_signal(signal.SIGINT)
                 release.set()
                 stdout, stderr = console.communicate(timeout=30)
-                assert console.returncode != 0 and not stdout, (stdout, stderr)
+                assert console.returncode == 130 and not stdout, (stdout, stderr)
+                assert b'query cancelled' in stderr and b'.resume' not in stderr, stderr
                 assert probe.snapshot()['read:close_snapshot'] == previous_closes + 1, 'interrupted query did not release its snapshot'
                 console = None
                 blocked[0] = False

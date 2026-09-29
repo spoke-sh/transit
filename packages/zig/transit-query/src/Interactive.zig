@@ -51,7 +51,7 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     var data: CachedReader = .{ .session = self, .view = self.source.view };
     if (self.bundle.plan.limit == 0) {
         batch = .{ .basis = self.progress.basis, .ordinal = self.cursor.ordinal, .next = .{ .done = true } };
-    } else try q.UnifiedSource.page(self.bundle.source, self.progress.basis, self.cursor, &data, &current, allocator, &batch);
+    } else try q.UnifiedSource.pagePlanned(self.bundle.source, self.bundle.plan, self.progress.basis, self.cursor, &data, &current, allocator, &batch);
     var columns: [m.max_columns]m.Column = undefined;
     const bound = try self.bundle.plan.bind(self.progress.basis, try self.bundle.source.schema(&columns));
     const candidate = try m.Stream.step(bound, self.progress, batch.engine(), workspace, output, cancellation);

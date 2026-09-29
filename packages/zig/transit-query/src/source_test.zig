@@ -270,3 +270,61 @@ test "independent UQS2 fixtures preserve all three source declarations" {
         try t.expectEqualSlices(u8, &expected, &try definition.fingerprint());
     }
 }
+
+test "Table primary-key access matches full predicate evaluation at signed boundaries" {
+    const Memory = @import("source_store_test.zig");
+    const source = q.UnifiedSource;
+    var store: Memory = .{};
+    defer store.deinit();
+    const schema: q.fuze.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
+    var turn = try store.capture();
+    _ = try q.station.Table.create(&turn, 1, schema);
+    try store.commit(turn);
+    var keys: [43]i64 = undefined;
+    keys[0] = std.math.minInt(i64);
+    for (keys[1..42], 0..) |*key, i| key.* = @as(i64, @intCast(i)) - 20;
+    keys[42] = std.math.maxInt(i64);
+    for (keys) |key| {
+        turn = try store.capture();
+        try (try q.station.Table.open(&turn, 1)).upsert(&turn, .{ .key = key, .value = if (key == 0) .null else .{ .int64 = key } });
+        try store.commit(turn);
+    }
+    const definition: Definition = .{ .resource = 7, .source = .{ .table = .{ .id = 1, .schema = schema } } };
+    var snapshot = try store.capture();
+    const cut = try source.basis(definition, snapshot.view.revision);
+    for (0..2) |column| for (std.enums.values(m.Plan.Comparison)) |op| for ([_]i64{ std.math.minInt(i64), -21, -1, 0, 19, 21, std.math.maxInt(i64) }) |bound| {
+        const plan: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = @intCast(column), .op = op, .value = .{ .int64 = bound } } } };
+        var expected: [keys.len]i64 = undefined;
+        var expected_count: usize = 0;
+        for (keys) |key| {
+            const cells: [2]m.Cell = .{ .{ .value = .{ .int64 = key } }, if (key == 0) .null else .{ .value = .{ .int64 = key } } };
+            if (try plan.matches(.{ .cells = &cells })) {
+                expected[expected_count] = key;
+                expected_count += 1;
+            }
+        }
+        var cursor: source.Cursor = .{};
+        var count: usize = 0;
+        var pages: usize = 0;
+        while (!cursor.done) {
+            var arena: std.heap.ArenaAllocator = .init(t.allocator);
+            defer arena.deinit();
+            var batch: source.Batch = .{};
+            try source.pagePlanned(definition, plan, cut, cursor, &snapshot, &snapshot, arena.allocator(), &batch);
+            for (batch.engine().rows) |row| if (try plan.matches(row)) {
+                try t.expect(count < expected_count);
+                try t.expectEqual(expected[count], row.cells[0].value.int64);
+                count += 1;
+            };
+            pages += 1;
+            cursor = batch.next;
+        }
+        try t.expectEqual(expected_count, count);
+        if (column == 0 and op == .eq) try t.expectEqual(@as(usize, 1), pages);
+        if (column == 0 and op == .ge and bound == 19) try t.expectEqual(@as(usize, 1), pages);
+    };
+    var batch: source.Batch = .{};
+    const point: m.Plan = .{ .projection = &.{ 0, 1 }, .predicate = .{ .compare = .{ .column = 0, .op = .eq, .value = .{ .int64 = 1 } } } };
+    store.denied = true;
+    try t.expectError(error.AccessDenied, source.pagePlanned(definition, point, cut, .{}, &snapshot, &snapshot, t.allocator, &batch));
+}

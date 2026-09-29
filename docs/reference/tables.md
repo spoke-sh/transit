@@ -16,10 +16,14 @@ Growing Table rows use the resource's ordered key/value index, with encoded
 primary keys and a separate schema descriptor. Arrow is the query interchange
 and result representation; the Table's persistent rows are not columnar Arrow
 row groups. The finite query path reads bounded row pages before applying its
-supported filters and projections.
+supported filters and projections. Interactive queries use direct primary-key
+lookup for `WHERE id = ...` (using the declared key name), seek to lower bounds
+for `>`/`>=`, and stop after upper bounds for `<`/`<=`. These access paths apply
+only to the non-null int64 primary key. The original Fuze predicate still runs;
+value predicates and `!=` use the ordinary bounded scan.
 
-Columnar blocks and pruning are planned for scan-heavy workloads, alongside
-efficient primary-key access for operational state. They are not supplied by
+Persistent columnar blocks and block-statistics pruning are planned for
+scan-heavy workloads. Current primary-key seeks serve selective operational reads. They are not supplied by
 Arrow output alone. See the [workload priorities](workloads.md) and
 [performance characteristics](performance.md) for the current evidence.
 

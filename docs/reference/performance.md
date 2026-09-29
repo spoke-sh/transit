@@ -37,6 +37,14 @@ interactive latency guarantee. Fixture provisioning is excluded from query
 latency. Document provisioning remains expensive; removing durable work from
 SELECT does not make application writes or durable publication inexpensive.
 
+After the storage changes, a 257-row Table fixture with 128 prior unrelated
+durable operations uses 174 native requests for a full scan. Primary-key equality,
+a three-row tail range and a three-row upper range each use **14 requests**;
+point-query completion is about 43 ms in that run. A full scan still reads bounded
+pages and completes in roughly 0.65 seconds. `LIMIT 0` validates policy and the
+snapshot without traversing source data (12 requests). This proxy-instrumented
+fixture ran during qualification; its request counts are the useful comparison.
+
 ## Historical durable-query measurements
 
 The earlier workload is `SELECT * FROM items;` over an empty Table through the console's
@@ -187,7 +195,7 @@ and read-structure changes below remain planned. No dates or speedups are promis
 | Interactive sessions | Fresh snapshot per SELECT, bounded Arrow streaming, cancel on exit, server-enforced cleanup after disconnect; retain explicit durable jobs separately | First batch/completion and cancellation tails, revocation after a prefix, complete/incomplete framing, bounded pins and memory |
 | Shared read/write amplification | Implemented: bounded native metadata reads, tree mutation/page staging batches, verified LRU pages and snapshot-local point caching | Native/provider requests, staged bytes and pages per operation; unchanged atomicity, permission and retry behavior |
 | Application bulk immutable publication | Persist bounded application blocks before atomic publication of verified references and source progress | Uncertain commits, orphan handling, payload availability, quotas, recovery and actual physical write amplification |
-| Workload-specific read structures | KV point/range access, columnar Table blocks and pruning, Document path/sequence and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
+| Workload-specific read structures | KV point/range access, persistent columnar Table blocks and block-statistics pruning, Document path/sequence and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
 
 The implemented interactive lifecycle is documented in
 [query sessions](queries.md#interactive-sessions) and the

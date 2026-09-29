@@ -4033,3 +4033,17 @@ The earlier interactive change also passes `just test::console table`, including
 durable recovery, controlling-PTY input/editing/interrupt behavior, command/file/
 stdin stopping rules and private-CA/hostname checks. The complete run took about
 290 seconds including provisioning and query worker/node/store restart.
+
+
+### Interactive Table access paths
+
+The unit suite compares every primary-key and value-column comparison against
+independent full predicate evaluation over 43 keys, including int64 minimum,
+maximum, absent keys and a nullable value. Equality and tail-range access use one
+source batch; unsupported access predicates retain full scanning and denial is
+preserved. `just test::interactive-query --source table --rows 257 --age 128`
+passes with the storage batches and Table seeks, including equality, both range
+directions, COUNT with equality, maximum-key exhaustion, empty LIMIT, distinct
+sessions, interrupted reads, closed output and denial after a prefix.
+Full scans make 174 native attempts; each selected key/range query makes 14 and
+no durable updates. The elapsed samples overlap qualification and are not SLOs.

@@ -50,6 +50,54 @@ pub fn checkCurrent(definition: Def, current: anytype) !void {
         },
     }
 }
+/// Seek only on the ordered, non-null int64 Table primary key. The original
+/// predicate still runs in Fuze; unsupported predicates use the ordinary scan.
+/// This changes access work, never the bound plan, schema or snapshot basis.
+pub fn pagePlanned(definition: Def, plan: m.Plan, expected: m.Basis, cursor: Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, output: *Batch) !void {
+    if (definition.source != .table or plan.predicate != .compare or plan.predicate.compare.column != 0 or plan.predicate.compare.value != .int64 or plan.predicate.compare.op == .ne)
+        return page(definition, expected, cursor, data, current, allocator, output);
+    if (cursor.done) return error.QueryComplete;
+    if (data.view.resource != definition.resource or !std.meta.eql(expected, try basis(definition, data.view.revision))) return error.SourceChanged;
+    const comparison = plan.predicate.compare;
+    const key = comparison.value.int64;
+    if (comparison.op == .eq) {
+        const table: q.station.Table = .{ .resource = definition.resource, .id = definition.source.table.id, .schema = definition.source.table.schema };
+        output.* = .{ .basis = expected, .ordinal = cursor.ordinal, .next = .{ .ordinal = try std.math.add(u64, cursor.ordinal, 1), .done = true } };
+        output.column_count = @intCast((try definition.schema(&output.columns)).columns.len);
+        if (try table.get(data, key)) |row| try tableRow(output, row, allocator);
+        return;
+    }
+    var seek = cursor;
+    if (cursor.ordinal == 0) switch (comparison.op) {
+        .gt => seek.table_after = key,
+        .ge => if (key != std.math.minInt(i64)) {
+            seek.table_after = key - 1;
+        },
+        else => {},
+    };
+    try page(definition, expected, seek, data, current, allocator, output);
+    if (comparison.op == .lt or comparison.op == .le) {
+        for (output.cells[0..output.count]) |cells| {
+            if (cells[0].value.int64 >= key) {
+                // This source page already covers the entire qualifying range.
+                // Fuze evaluates the original upper-bound predicate on it.
+                output.next.done = true;
+                break;
+            }
+        }
+    }
+}
+fn tableRow(output: *Batch, row: q.fuze.model.Row, allocator: std.mem.Allocator) !void {
+    output.cells[output.count][0] = .{ .value = .{ .int64 = row.key } };
+    output.cells[output.count][1] = switch (row.value) {
+        .null => .null,
+        .int64 => |value| .{ .value = .{ .int64 = value } },
+        .boolean => |value| .{ .value = .{ .boolean = value } },
+        .utf8 => |value| .{ .value = .{ .utf8 = try allocator.dupe(u8, value.slice()) } },
+        .binary => |value| .{ .value = .{ .binary = try allocator.dupe(u8, value.slice()) } },
+    };
+    output.count += 1;
+}
 /// Every pointer in output borrows the caller's bounded arena or output itself.
 /// An error invalidates the whole page. Never publish a partially filled batch.
 pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, current: anytype, allocator: std.mem.Allocator, output: *Batch) !void {
@@ -89,17 +137,7 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
                 .after = after,
             } else null;
             const rows = try table.page(data, continuation);
-            for (rows.rows[0..rows.len]) |row| {
-                output.cells[output.count][0] = .{ .value = .{ .int64 = row.key } };
-                output.cells[output.count][1] = switch (row.value) {
-                    .null => .null,
-                    .int64 => |value| .{ .value = .{ .int64 = value } },
-                    .boolean => |value| .{ .value = .{ .boolean = value } },
-                    .utf8 => |value| .{ .value = .{ .utf8 = try allocator.dupe(u8, value.slice()) } },
-                    .binary => |value| .{ .value = .{ .binary = try allocator.dupe(u8, value.slice()) } },
-                };
-                output.count += 1;
-            }
+            for (rows.rows[0..rows.len]) |row| try tableRow(output, row, allocator);
             output.next.table_after = if (rows.next) |next| next.after else null;
             output.next.done = rows.next == null;
         },
