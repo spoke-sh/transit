@@ -72,12 +72,14 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 args = [cli, 'console', '--no-rc', '--config', str(connection)]
                 count = 12 if kind == 'document' else rows
 
-                def query(sql, expected_rows, mode='json'):
+                def query(sql, expected_rows, mode='json', request_budget=None):
                     before_counts = probe.snapshot()
                     code, stdout, stderr, measurements = measured_run([*args, '--format', mode, '-c', sql], root, timeout=180, node=process.pid)
                     assert code == 0, stderr
                     counts = probe.snapshot() - before_counts
                     assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
+                    if request_budget is not None:
+                        assert counts['POST'] <= request_budget, (sql, request_budget, dict(counts))
                     if mode == 'table':
                         assert stdout.startswith('┌') and stdout.endswith(f'{expected_rows} rows\n')
                         frames = []
@@ -96,24 +98,28 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                                       'native_operations': {key: value for key, value in counts.items() if key.startswith('read:')}}), flush=True)
                     return frames
 
-                first = query('SELECT * FROM items;', count)
-                second = query('SELECT * FROM items;', count)
+                # Request ceilings catch amplification regressions independently
+                # of host speed. The integer fixtures fit the byte scan budget.
+                scan_budget = 30 if kind == 'document' else 3 + max(1, (count + 7) // 8) + max(0, (count + 63) // 64 - 1)
+                small_budget = 29 if kind == 'document' else 3
+                first = query('SELECT * FROM items;', count, request_budget=scan_budget)
+                second = query('SELECT * FROM items;', count, request_budget=scan_budget)
                 assert first[0]['session'] != second[0]['session'], 'independent statements reused a session'
                 assert first[0]['basis'] == second[0]['basis']
-                aggregate = query('SELECT COUNT(*) FROM items;', 1)
+                aggregate = query('SELECT COUNT(*) FROM items;', 1, request_budget=scan_budget)
                 assert aggregate[-1]['cells'][0][0] == {'value': {'uint64': str(count)}}
-                query('SELECT * FROM items LIMIT 3;', min(3, count))
-                query('SELECT * FROM items LIMIT 0;', 0)
-                query('SELECT * FROM items;', count, 'table')
+                query('SELECT * FROM items LIMIT 3;', min(3, count), request_budget=small_budget)
+                query('SELECT * FROM items LIMIT 0;', 0, request_budget=3)
+                query('SELECT * FROM items;', count, 'table', request_budget=scan_budget)
                 if kind == 'table':
-                    point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count))
+                    point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count), request_budget=3)
                     if count:
                         assert point[0]['cells'][0][0] == {'value': {'int64': str(count - 1)}}
-                    query(f'SELECT * FROM items WHERE id >= {max(0, count - 3)};', min(3, count))
-                    query('SELECT * FROM items WHERE id < 3;', min(3, count))
-                    total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1)
+                    query(f'SELECT * FROM items WHERE id >= {max(0, count - 3)};', min(3, count), request_budget=3)
+                    query('SELECT * FROM items WHERE id < 3;', min(3, count), request_budget=3)
+                    total = query('SELECT COUNT(*) FROM items WHERE id = 0;', 1, request_budget=3)
                     assert total[-1]['cells'][0][0] == {'value': {'uint64': str(min(1, count))}}
-                    query('SELECT * FROM items WHERE id > 9223372036854775807;', 0)
+                    query('SELECT * FROM items WHERE id > 9223372036854775807;', 0, request_budget=3)
                 assert not (root / 'console-recovery.json').exists()
 
                 # A terminal interrupt returns to an empty, reusable prompt.

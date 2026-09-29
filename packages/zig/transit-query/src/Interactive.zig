@@ -164,9 +164,35 @@ const CachedReader = struct {
         for (self.session.cache) |slot| if (slot) |cached| {
             if (cached.key.eql(key)) return cached.entry;
         };
+        if (self.session.batched) {
+            try self.prefetch(&.{key});
+            for (self.session.cache) |slot| if (slot) |cached| {
+                if (cached.key.eql(key)) return cached.entry;
+            };
+            return error.InvalidResourceRead;
+        }
         const result = try self.session.source.entry(key);
         self.session.remember(key, result);
         return result;
+    }
+    /// Publication adapters can acquire known immutable chunks together. The
+    /// normal decoder still verifies every descriptor, chunk and commitment.
+    pub fn prefetch(self: *@This(), keys: []const q.protocol.Value) !void {
+        if (!self.session.batched) return;
+        if (keys.len > g.page_size) return error.InvalidResourceRead;
+        var missing: g.SnapshotRead.Keys = @splat(null);
+        var count: usize = 0;
+        outer: for (keys) |key| {
+            for (self.session.cache) |slot| if (slot) |cached| {
+                if (cached.key.eql(key)) continue :outer;
+            };
+            for (missing[0..count]) |slot| if (slot.?.eql(key)) continue :outer;
+            missing[count] = key;
+            count += 1;
+        }
+        if (count == 0) return;
+        const result = try self.session.source.batch(.{ .snapshot = .{ .existing = self.session.source.snapshot.id }, .points = missing });
+        for (missing[0..count], result.points[0..count]) |key, value| self.session.remember(key.?, value);
     }
     pub fn page(self: *@This(), after: ?q.protocol.Value) !q.protocol.Growth.Batch(q.protocol.Growth.Entry, q.protocol.Value) {
         const session = self.session;

@@ -317,6 +317,19 @@ pub const Cache = struct {
         };
         var offset: usize = 0;
         while (true) {
+            const Source = switch (@typeInfo(@TypeOf(source))) {
+                .pointer => |pointer| pointer.child,
+                else => @TypeOf(source),
+            };
+            if (comptime @hasDecl(Source, "prefetch")) {
+                const p = @import("root.zig").protocol;
+                if (cursor.index % p.Growth.page_size == 0) {
+                    var keys: [p.Growth.page_size]p.Value = undefined;
+                    const count = @min(p.Growth.page_size, cursor.spec.chunks() - cursor.index);
+                    for (keys[0..count], 0..) |*key, i| key.* = Pub.key(publication.namespace, 'c', cursor.id, cursor.index + @as(u32, @intCast(i)));
+                    try source.prefetch(keys[0..count]);
+                }
+            }
             const part = try publication.read(source, cursor);
             if (part.bytes.len > buffer.len - offset) return error.IndexNodeTooLarge;
             @memcpy(buffer[offset..][0..part.bytes.len], part.bytes.slice());

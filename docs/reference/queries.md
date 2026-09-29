@@ -129,6 +129,9 @@ Older authorities retain the separate snapshot-operation path.
 
 Console output keeps bounded Arrow batches, a 64-entry point cache and at most
 64 prefetched range entries with a 32 KiB decoded-entry budget.
+Document index adapters fetch known immutable Publication chunk keys in groups
+of at most eight. Descriptor, chunk length, digest and index commitment checks
+still run; missing or invalid data fails instead of becoming an empty result.
 Cached bytes are checked against the live lease and current source policy before
 disclosure. A failed, interrupted or denied prefix has no successful completion
 footer. Reconnecting starts new statements; `execution: durable` explicitly

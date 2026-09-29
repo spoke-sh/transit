@@ -140,6 +140,75 @@ const Turns = struct {
         self.revision += 1;
     }
 };
+
+test "prefetched index chunks retain digest checks and reject unavailable batches" {
+    var encoded: Store = .{};
+    defer encoded.deinit();
+    var tree: Index = .{};
+    for (0..8) |i| tree = try tree.put(&encoded, try key(i), try Index.Value.init(&@as([256]u8, @splat(@intCast(i)))));
+    const ref = tree.root.?;
+    const bytes = encoded.records.items[@intCast(ref.id - 1)];
+    try t.expect(ref.spec.chunks() > 8);
+    var store: Turns = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const publication = try Pub.create(&turn, 1, .{ .record_bytes = Index.node_bytes, .staging_bytes = Index.node_bytes, .staging_records = 1 });
+    try store.commit(turn);
+    turn = try store.capture();
+    _ = try publication.begin(&turn, ref.id, ref.spec);
+    try store.commit(turn);
+    for (0..ref.spec.chunks()) |i| {
+        turn = try store.capture();
+        _ = try publication.append(&turn, ref.id, @intCast(i), bytes[i * 256 .. @min(bytes.len, (i + 1) * 256)]);
+        try store.commit(turn);
+    }
+    turn = try store.capture();
+    _ = try publication.publish(&turn, ref.id);
+    try store.commit(turn);
+    turn = try store.capture();
+    const Source = struct {
+        view: p.Growth.View,
+        store: *Turns,
+        keys: [8]p.Value = undefined,
+        values: [8]?p.Value = undefined,
+        count: usize = 0,
+        batches: usize = 0,
+        corrupt: bool = false,
+        unavailable: bool = false,
+        pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+            if (self.unavailable) return error.StorageUnavailable;
+            try t.expect(keys.len > 0 and keys.len <= self.keys.len);
+            self.count = keys.len;
+            self.batches += 1;
+            for (keys, 0..) |address, i| {
+                self.keys[i] = address;
+                self.values[i] = self.store.state.get(address);
+                if (self.corrupt) self.values[i].?.data[0] ^= 1;
+            }
+        }
+        pub fn read(self: *@This(), address: p.Value) !?p.Value {
+            if (self.store.denied) return error.AccessDenied;
+            for (self.keys[0..self.count], self.values[0..self.count]) |cached, bytes_value| if (cached.eql(address)) return bytes_value;
+            return self.store.state.get(address);
+        }
+    };
+    var source: Source = .{ .view = turn.view, .store = &store };
+    var reader: Index.Reader(*Source) = .{ .publication = publication, .source = &source };
+    try t.expect(Index.Value.eql(try Index.Value.init(&@as([256]u8, @splat(3))), (try tree.get(&reader, try key(3))).?));
+    try t.expectEqual(@as(usize, 2), source.batches);
+    store.denied = true;
+    try t.expectError(error.AccessDenied, tree.get(&reader, try key(3)));
+    store.denied = false;
+    reader.cache = .{};
+    source.count = 0;
+    source.corrupt = true;
+    try t.expectError(error.InvalidPublicationDigest, tree.get(&reader, try key(3)));
+    source.count = 0;
+    source.corrupt = false;
+    source.unavailable = true;
+    try t.expectError(error.StorageUnavailable, tree.get(&reader, try key(3)));
+}
+
 test "index candidates resume one publication operation per turn without changing accepted roots" {
     var store: Turns = .{};
     defer store.deinit();

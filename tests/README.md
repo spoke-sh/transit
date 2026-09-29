@@ -4132,3 +4132,21 @@ The latter includes a 41-row, 9,984-byte durable result through staging, sealing
 publication, partial consumption and retained acknowledgement. No transport retry
 is introduced. Growing authority work remains serialized; these finite proofs
 do not establish per-principal fairness or offered-load throughput.
+
+### Document chunk prefetch and request ceilings
+
+The Station unit suite now publishes a nine-chunk index node through ordinary
+bounded turns, reads it in two prefetch batches and checks the decoded value.
+Corrupt prefetched bytes fail the Publication digest; unavailable batches and
+current denial also fail, including denial on a verified node-cache hit.
+`just check` passes with these tests and the transport changes.
+
+The Document-only interactive fixture passes with 30 native requests for a full
+12-row scan, 29 for `LIMIT 3`, and three for `LIMIT 0`, with zero durable updates.
+Its full-scan completion samples are 106–171 ms including the counting proxy;
+provisioning and failure cases take 260.74 seconds overall. Other qualification
+ran concurrently, so these are not isolated latency measurements. Fresh sessions,
+bounded complete/incomplete framing, cancellation, output failure and
+revocation after a prefix pass. The runner enforces native request ceilings for
+all source fixtures, independently of elapsed time, to catch amplification
+regressions without selecting a host-dependent latency threshold.

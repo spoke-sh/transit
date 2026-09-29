@@ -28,6 +28,12 @@ not prove application computations honest.
 
 `Reader(Source)` adapts a currently authorized or retained Publication source.
 It reads bounded chunks under that source and never invents a fresh read view.
+Sources may implement `prefetch(keys)` to acquire up to eight known Publication
+chunk keys together. The cache still passes every chunk through Publication
+verification before accepting the node body. This changes neither the immutable
+format nor the root's availability and permission requirements. The interactive
+query adapter uses signed snapshot point batches and rechecks current source
+policy before disclosing results.
 Consumers also check whether the particular root/Document remains available;
 possessing an immutable reference alone grants neither access nor retention.
 
