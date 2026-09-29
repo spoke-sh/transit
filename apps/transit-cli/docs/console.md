@@ -197,8 +197,10 @@ console never accumulates the whole result. Prompts and diagnostics use stderr.
 `.timing on` reports monotonic elapsed milliseconds to stderr after each SQL or
 `.resume` attempt, including failed attempts. The total includes preparation,
 compilation, snapshot acquisition, fetching/executing pages, rendering/output
-and release. Interactive mode has no durable wait phase; the `persist` field
-accounts for snapshot release. In durable mode, submission includes the native
+and release. Interactive timing reports `compile`, `open`, `fetch`, `render`
+and `release`. Compilation uses the configured declaration without I/O; opening
+validates current source policy and schema before acquiring a fresh snapshot.
+Fetch includes Fuze execution and current authorization before disclosure. In durable mode, submission includes the native
 upload protocol and its checkpoints: begin the upload, send plan parts, seal the
 bundle and submit it, waiting for requester processing between steps. The wait
 phase includes source-worker execution, durable result publication and delivery

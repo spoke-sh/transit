@@ -13,10 +13,21 @@ closed: bool = false,
 cancellation: ?*const std.atomic.Value(bool) = null,
 
 pub fn open(client: root.ResourceReader, resource: u64, nonce: [16]u8) !Self {
-    if (!(try client.query(.capabilities)).body.capabilities.leased_snapshots) return error.InteractiveQueriesUnavailable;
-    const snapshot = (try client.query(.{ .open_snapshot = .{ .resource = resource, .nonce = nonce } })).body.open_snapshot;
-    return .{ .client = client, .snapshot = snapshot, .view = .{ .resource = resource, .revision = snapshot.resource.revision } };
+    return (try support(client)).open(resource, nonce);
 }
+/// Only immutable protocol support is reused. Every open authenticates afresh,
+/// and a restarted authority can reject an unsupported operation normally.
+pub fn support(client: root.ResourceReader) !Support {
+    if (!(try client.query(.capabilities)).body.capabilities.leased_snapshots) return error.InteractiveQueriesUnavailable;
+    return .{ .client = client };
+}
+pub const Support = struct {
+    client: root.ResourceReader,
+    pub fn open(self: Support, resource: u64, nonce: [16]u8) !Self {
+        const snapshot = (try self.client.query(.{ .open_snapshot = .{ .resource = resource, .nonce = nonce } })).body.open_snapshot;
+        return .{ .client = self.client, .snapshot = snapshot, .view = .{ .resource = resource, .revision = snapshot.resource.revision } };
+    }
+};
 pub fn close(self: *Self) !void {
     if (self.closed) return;
     _ = try self.client.query(.{ .close_snapshot = self.snapshot.id });

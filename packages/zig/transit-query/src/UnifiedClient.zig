@@ -11,6 +11,7 @@ wire: *q.wire.Client,
 connection: Connection,
 key: p.Ed25519.KeyPair,
 batch_reads: ?q.wire.ResourceReader.Batches = null,
+snapshot_support: ?q.wire.SnapshotReader.Support = null,
 pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, requester: u64, requests: u64 };
 pub const Capabilities = struct {
     version: u8 = 2,

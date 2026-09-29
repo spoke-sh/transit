@@ -8,15 +8,18 @@ const m = q.fuze.Unified;
 
 pub fn sql(console: *Console, statement: []const u8) !void {
     var timing = Timing.start(console.init, console.preferences.timing);
+    timing.interactive = true;
     defer timing.report();
     var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
     defer arena.deinit();
     const allocator = arena.allocator();
     timing.enter(.compile);
     const source = try console.config.source.native(allocator);
-    const bundle = try console.client.compileSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native());
+    // Compilation uses the configured declaration. Opening validates it against
+    // current authority before acquiring data; compilation itself performs no I/O.
+    const bundle = try q.Bundle.fromSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native());
     try interrupted();
-    timing.enter(.submit);
+    timing.enter(.open);
     var nonce: [16]u8 = undefined;
     try console.init.io.randomSecure(&nonce);
     var query = try q.Interactive.open(console.client, bundle, nonce);
@@ -60,7 +63,7 @@ pub fn sql(console: *Console, statement: []const u8) !void {
             try out.writeByte('\n');
         }
         if (query.complete()) {
-            timing.enter(.persist);
+            timing.enter(.release);
             try query.close();
             timing.enter(.render);
             if (console.session.format == .table) try out.print("{d} {s}\n", .{ query.progress.rows, if (query.progress.rows == 1) "row" else "rows" });

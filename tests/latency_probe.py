@@ -8,6 +8,7 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
+import time
 from urllib.parse import urlsplit
 
 
@@ -46,6 +47,7 @@ class Probe:
                     labels.append('principal:' + str(envelope['principal']))
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
                 connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)
+                started = time.monotonic_ns()
                 try:
                     headers = {key: val for key, val in self.headers.items()
                                if key.lower() not in ('host', 'connection', 'content-length')}
@@ -57,6 +59,11 @@ class Probe:
                     with owner.lock:
                         for label in labels:
                             owner.counts[label] += length if label == 'request_bytes' else 1
+                        elapsed = time.monotonic_ns() - started
+                        owner.counts['elapsed_ns'] += elapsed
+                        if native and self.path in ('/v3/query', '/v3/command'):
+                            owner.counts[classified + ':elapsed_ns'] += elapsed
+                            owner.counts['principal:' + str(envelope['principal']) + ':' + classified + ':elapsed_ns'] += elapsed
                         owner.counts['response_bytes'] += len(data)
                         owner.counts['status:' + str(response.status)] += 1
                     self.send_response(response.status)

@@ -60,8 +60,9 @@ owner's slot; an unknown/expired token can be acknowledged without granting acce
 
 ## Query lifecycle, cancellation and output
 
-The client compiles before opening a snapshot, validates the declared source
-policy and requester identity, and binds the plan to the captured resource
+The client compiles the configured declaration locally before opening a snapshot.
+Opening validates the current declared source policy and requester identity, then
+binds the plan to the captured resource
 revision and source/schema fingerprints. Source policy is rechecked before
 each bounded output batch; immutable byte caches cannot substitute for it.
 Page, segment and byte budgets apply as in the compiled bundle. The Table

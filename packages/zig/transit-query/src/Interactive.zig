@@ -7,6 +7,8 @@ const Self = @This();
 bundle: q.Bundle,
 source: q.wire.SnapshotReader,
 progress: m.Stream.Progress,
+columns: [m.max_columns]m.Column,
+column_count: usize,
 cursor: q.UnifiedSource.Cursor = .{},
 bytes: u64 = 0,
 cache: [64]?Cached = @splat(null),
@@ -16,12 +18,13 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8) !Self {
     try bundle.validate();
     const description = try client.describe(bundle.source);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
-    var source = try q.wire.SnapshotReader.open(client.resources(), bundle.source.resource, nonce);
+    if (client.snapshot_support == null) client.snapshot_support = try q.wire.SnapshotReader.support(client.resources());
+    var source = try client.snapshot_support.?.open(bundle.source.resource, nonce);
     errdefer source.close() catch {};
     if (source.snapshot.resource.writer != client.connection.source) return error.QuerySourceUnavailable;
     var columns: [m.max_columns]m.Column = undefined;
     const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, source.view.revision), try bundle.source.schema(&columns));
-    return .{ .bundle = bundle, .source = source, .progress = .start(bound) };
+    return .{ .bundle = bundle, .source = source, .progress = .start(bound), .columns = columns, .column_count = bound.schema.columns.len };
 }
 pub fn close(self: *Self) !void {
     try self.source.close();
@@ -46,14 +49,18 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     if (self.progress.pages >= self.bundle.limits.pages) return error.QueryBudgetExceeded;
     if (cancellation.load(.acquire)) return error.Cancelled;
     self.source.cancellation = cancellation;
-    var current = try client.resources().open(self.bundle.source.resource);
+    // Only Document reads live lifecycle records through this adapter. Keep the
+    // unused reader fail-closed so a future adapter cannot silently use it.
+    var current: q.wire.ResourceReader.Reader = if (self.bundle.source.source == .document)
+        try client.resources().open(self.bundle.source.resource)
+    else
+        .{ .client = client.resources(), .view = .{ .resource = self.bundle.source.resource, .revision = 0 }, .failed = error.InvalidResourceRead };
     var batch: q.UnifiedSource.Batch = undefined;
     var data: CachedReader = .{ .session = self, .view = self.source.view };
     if (self.bundle.plan.limit == 0) {
         batch = .{ .basis = self.progress.basis, .ordinal = self.cursor.ordinal, .next = .{ .done = true } };
     } else try q.UnifiedSource.pagePlanned(self.bundle.source, self.bundle.plan, self.progress.basis, self.cursor, &data, &current, allocator, &batch);
-    var columns: [m.max_columns]m.Column = undefined;
-    const bound = try self.bundle.plan.bind(self.progress.basis, try self.bundle.source.schema(&columns));
+    const bound: m.Plan.Bound = .{ .plan = self.bundle.plan, .basis = self.progress.basis, .schema = .{ .columns = self.columns[0..self.column_count] }, .fingerprint = self.progress.plan };
     const candidate = try m.Stream.step(bound, self.progress, batch.engine(), workspace, output, cancellation);
     const bytes = try std.math.add(u64, self.bytes, if (candidate.segment) |segment| segment.bytes.len else 0);
     if (candidate.progress.segments > self.bundle.limits.segments or bytes > self.bundle.limits.result_bytes) return error.QueryBudgetExceeded;

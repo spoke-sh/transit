@@ -5,6 +5,12 @@ and client-side Fuze. It avoids the durable upload/result-publication workflow
 whose measured costs motivated this change. This page records local measurements
 from 2026-09-29, their limits and the remaining storage improvements.
 
+Interactive `.timing` separates local `compile`, snapshot `open`, `fetch`
+(including execution and current validation), `render` and snapshot `release`.
+The instrumented fixture also records cumulative upstream elapsed nanoseconds
+by native operation and principal. Those durations include provider/queue time
+and proxy overhead; they are not independent CPU measurements.
+
 ## Interactive execution measurements
 
 The default local server returns the empty typed Table in **121–146 ms** across

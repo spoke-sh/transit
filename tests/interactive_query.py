@@ -89,7 +89,8 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                         assert int(frames[-1]['rows']) == expected_rows
                     print(json.dumps({'source': kind, 'sql': sql, 'rows': expected_rows,
                                       **measurements,
-                                      'native_attempts': counts['POST'], 'durable_updates': 0}), flush=True)
+                                      'native_attempts': counts['POST'], 'durable_updates': 0,
+                                      'native_operations': {key: value for key, value in counts.items() if key.startswith('read:')}}), flush=True)
                     return frames
 
                 first = query('SELECT * FROM items;', count)
