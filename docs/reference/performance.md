@@ -13,56 +13,87 @@ and proxy overhead; they are not independent CPU measurements.
 
 ## Interactive execution measurements
 
-The default local server returns the empty typed Table in **121–146 ms** across
-eight sequential queries (SELECT, COUNT and both output formats). The first
-SELECT takes 131 ms; first stdout appears at 128 ms. These ReleaseSafe samples
-use the default eight-page cache and background workers, without transport
-proxies. Sampled console RSS is about 15 MB and node RSS about 10 MB. The earlier
-14.014-second durable control below is historical evidence, not a simultaneous
-comparison of otherwise identical revisions.
+The default local server returns the empty typed Table in **15–18 ms** across
+eight sequential queries (SELECT, COUNT and both output formats), including CLI
+startup. The first SELECT takes 17 ms, with first stdout at 15 ms. Console timing
+reports 11–14 ms: local compilation rounds to zero, opening takes 8–10 ms, fetching
+2–3 ms and rendering 0–1 ms. Final validation and release share the final fetch;
+the separate release phase is zero in these samples.
 
-An isolated native-node fixture also checks populated sources. It uses a
-64-page cache, disk Ursula and MinIO, with a native HTTP counting proxy and no
-query workers. Times include CLI startup and verified output:
+These ReleaseSafe samples use the default eight-page cache, background workers
+and no proxies or concurrent qualification. The same fixture before this round
+of changes returned its first empty query in 91 ms. That is one baseline sample,
+not a percentile or an isolated comparison of any one optimization. The earlier
+user-reported 636 ms trace used a different installation and is not a controlled
+speedup comparison.
 
-| Source | Rows | First stdout | Completion | Native requests | Durable updates |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Table | 41 | 50–60 ms | 147–157 ms | 39 | 0 |
-| KV | 41 | 48–53 ms | 152–159 ms | 38 | 0 |
-| Document list | 12 | 384–415 ms | 439–469 ms | 82 | 0 |
+Sampled console RSS is 13–16 MB and node RSS 23–24 MB, compared with about 10 MB
+node RSS in the earlier sequential-listener fixture. The bounded concurrent
+listener trades additional resident transport/task memory for connection reuse
+and isolation from stalled peers. Sampling every 20 ms can miss short peaks.
 
-Each statement opens a new leased cut and releases it. Query execution uses
-bounded native Arrow batches. A session-local cache holds at most 64 immutable
-point reads; permissions, source policy and leases are checked again before
-output. The same Document fixture previously needed 733 native reads and about
-3.8 seconds without that cache. Batched current metadata reads and descriptor
-reuse reduce the Table fixture from 75 requests to 39.
+An isolated native-node fixture checks populated sources using a 64-page cache,
+disk Ursula and MinIO, a native counting proxy and no query workers:
 
-The final default-server run, after two explicit durable queries had added
-history, returns eight uninstrumented empty-query samples in **159–196 ms**.
-It uses the default eight-page cache and background workers, with no concurrent
-qualification. A separate instrumented fresh fixture attributes 14 native reads
-to the console and 10 to background callers during the query, with zero durable
-updates and 188 provider attempts including background work. Its three-second
-idle window has 108 native and 553 provider attempts. Background polling remains
-a measurable cost even when SELECT itself is read-only.
+| Query | Rows | Earlier native requests | Current native requests | Durable updates |
+| --- | ---: | ---: | ---: | ---: |
+| Table full scan | 41 | 39 | 8 | 0 |
+| KV full scan | 41 | 38 | 8 | 0 |
+| Table full scan after 128 unrelated operations | 257 | 174 | 39 | 0 |
+| Table primary-key equality or three-row range | 1–3 | 14 | 3 | 0 |
+| Document list full scan | 12 | 82 | 30 | 0 |
+| Document `LIMIT 0` | 0 | 26 | 3 | 0 |
 
-After the storage batches, the 12-row Document fixture returns in about
-318–344 ms with the same 82 native reads; `LIMIT 0` uses 26 reads and takes about
-82 ms. Document provisioning remains a separate multi-minute durable workload.
+These counts include one capabilities request per new CLI process. A continuing
+console reuses protocol support, while every statement still acquires its own
+fresh cut. Table/KV scan reads prefetch at most 64 entries and 32 KiB; output
+remains in eight-row Arrow batches with current checks before disclosure.
+Document indexes acquire up to eight known immutable chunks together, preserving
+descriptor, length, digest and commitment validation. Query compilation avoids
+remote description and binding reads that snapshot acquisition already supplies.
 
-These are a few local observations on a shared host, not percentiles or an
-interactive latency guarantee. Fixture provisioning is excluded from query
-latency. Document provisioning remains expensive; removing durable work from
-SELECT does not make application writes or durable publication inexpensive.
+The aged 257-row Table scan completes in 169–190 ms and the 12-row Document scan
+in 106–171 ms in their proxy-instrumented runs. These overlapped qualification;
+request counts are the useful comparison. Document provisioning remains a
+separate multi-minute durable workload, excluded from query latency. Removing
+durable work from SELECT does not make application writes inexpensive.
 
-After the storage changes, a 257-row Table fixture with 128 prior unrelated
-durable operations uses 174 native requests for a full scan. Primary-key equality,
-a three-row tail range and a three-row upper range each use **14 requests**;
-point-query completion is about 43 ms in that run. A full scan still reads bounded
-pages and completes in roughly 0.65 seconds. `LIMIT 0` validates policy and the
-snapshot without traversing source data (12 requests). This proxy-instrumented
-fixture ran during qualification; its request counts are the useful comparison.
+A separate instrumented default-server fixture attributes **three native reads**
+to the console and one to a background caller during the empty query, with zero
+durable updates and **11 provider attempts** including background work. The
+previous interactive implementation used 14 console reads and 188 provider
+attempts including its background work. Proxy overhead is separate from ordinary
+elapsed time; these counts do not isolate the contribution of each change.
+
+During three idle seconds, the new fixture observes **16 native and 60 provider
+attempts**, versus 108 and 553 in the previous fixture. Uninstrumented idle node
+CPU is 0.03 seconds versus 0.18 in this round's baseline. Worker and courier
+polling backs off from 100 ms to one second and resets on activity. Newly queued
+durable work can therefore wait for the next poll; interactive reads do not
+wait for those workers. Event-driven wake-ups remain separate work.
+
+## Why the read path is cheaper
+
+- Generic `snapshot_read` combines acquisition, initial data and current metadata,
+  then combines final validation and release. Captured source data stays fixed;
+  final authorization uses current state. Unrelated writes need not restart data
+  acquisition. Changed grants, lifetimes or source policy still deny disclosure.
+- Sixteen immutable catalog control records have a cache separate from scan pages.
+  It is keyed by the exact catalog root and invalidated on root changes. Cached
+  principal/grant bytes are inputs to authorization, never cached permission.
+- The growing node and local gateway reuse bounded HTTP connections. Idle sockets
+  retain no request admission, and body reads/response writes hold no authority
+  lock. Four data and two control requests share a serialized engine; health and
+  checked snapshot cleanup have reserved admission. This is not authority sharding
+  or a per-principal fairness guarantee.
+- Bounded native ranges and Document chunk batches reduce round trips without
+  expanding Arrow batches, mutation budgets or retained collection limits.
+
+[Request telemetry](observability.md) separates authority waiting, engine work and
+page-cache access. The exact bounds and compatibility behavior belong to
+[interactive sessions](queries.md#interactive-sessions), the
+[growing listener](../../apps/transit-node/docs/growing.md#public-surface-and-limits)
+and [client transport](../../packages/zig/transit-client/README.md#public-surface).
 
 ## Historical durable-query measurements
 
@@ -165,7 +196,7 @@ LRU replacement are now implemented with the separate storage qualification belo
 Faster 20 ms polling measured 15.52 s and 36,604 misses. Slower 200 ms polling
 measured 15.67 s. All are separate single samples with host variance.
 
-Idle work matters too: at the default 100 ms interval, three seconds of idle time
+Idle work mattered in that fixed-polling profile too: at 100 ms, three seconds of idle time
 used 0.24 node CPU seconds and issued 114 native requests with 924 page misses.
 At 20 ms, those became 0.97 CPU seconds, 467 requests and 3,832 misses. Faster
 polling increases load; slower polling can delay completion. Neither is a
@@ -212,7 +243,7 @@ and read-structure changes below remain planned. No dates or speedups are promis
 | Priority | Intended change | Required evidence |
 | --- | --- | --- |
 | Interactive sessions | Fresh snapshot per SELECT, bounded Arrow streaming, cancel on exit, server-enforced cleanup after disconnect; retain explicit durable jobs separately | First batch/completion and cancellation tails, revocation after a prefix, complete/incomplete framing, bounded pins and memory |
-| Shared read/write amplification | Implemented: bounded native metadata reads, tree mutation/page staging batches, verified LRU pages and snapshot-local point caching | Native/provider requests, staged bytes and pages per operation; unchanged atomicity, permission and retry behavior |
+| Shared read/write amplification | Implemented: combined snapshot/metadata reads, bounded ranges and Document chunks, separate immutable control/page caches, tree mutation/page staging batches and bounded transport reuse | Native/provider requests, staged bytes and pages per operation; unchanged atomicity, permission and retry behavior |
 | Application bulk immutable publication | Persist bounded application blocks before atomic publication of verified references and source progress | Uncertain commits, orphan handling, payload availability, quotas, recovery and actual physical write amplification |
 | Workload-specific read structures | KV point/range access, persistent columnar Table blocks and block-statistics pruning, Document path/sequence and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
 
@@ -253,7 +284,9 @@ The runner reports first stdout byte, completion, sampled console RSS (20 ms
 sampling), node CPU, sampled node RSS and executable hashes. Repetitions share an installation;
 `--age-queries` uses explicit durable execution to add completed query history before measurement. A first query
 is post-bootstrap, not a cold OS or provider cache. `--resident-pages 0` disables
-the native immutable-page cache without flushing the operating system.
+the native immutable-page cache without flushing the operating system; the separate
+16-record immutable control cache remains bounded and enabled. An explicit
+`--worker-interval-ms` selects fixed polling for that fixture, disabling idle backoff.
 
 `--instrument` inserts owned loopback proxies and counts native attempts by
 operation and principal, plus provider methods and request/response body bytes.

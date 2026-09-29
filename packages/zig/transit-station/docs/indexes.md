@@ -17,9 +17,11 @@ Keys are 1–128 bytes, values 0–256 bytes, fanout eight and levels 0–31. Se
 nodes never exceed 4096 bytes. Traversal has no heap allocation; bounded recursive frames hold nodes/paths,
 independently of the number of retained nodes and roots. Publication adapters
 cache at most eight verified 4096-byte node bodies for the exact source basis.
-Every cache hit still opens the current publication descriptor, checking grants,
-lifecycle and commitment. Changing resource cut or namespace invalidates cached
-bodies; no permission, Document head or history availability is cached. An index source must provide `load(reference,
+Every cache hit still opens the publication descriptor through its source and
+checks lifecycle and commitment. Callers using snapshot byte caches must check
+current permission and Document availability before disclosure. Changing resource
+cut or namespace invalidates cached bodies; no permission, Document head or
+history availability is cached. An index source must provide `load(reference,
 buffer)` and a writer must also provide `save(spec, bytes) -> unique_id`. Every
 read verifies the node's Publication commitment, level, minimum key and entry
 count. Malformed nodes and missing/unavailable sources are errors, never an empty

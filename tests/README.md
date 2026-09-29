@@ -4150,3 +4150,46 @@ bounded complete/incomplete framing, cancellation, output failure and
 revocation after a prefix pass. The runner enforces native request ceilings for
 all source fixtures, independently of elapsed time, to catch amplification
 regressions without selecting a host-dependent latency threshold.
+
+### Read-path performance qualification
+
+The final `just test::interactive-query` passes Table, KV and Document with the
+request ceilings enabled. The 41-row Table/KV scans each use eight native reads;
+small/LIMIT-zero reads use three. The Document rerun uses 30 full-scan reads and
+takes 261.50 seconds including provisioning and fault cases. A separate
+`--source table --rows 257 --age 128` run passes with 39 full-scan reads and three
+for equality/range reads, compared with the earlier 174 and 14. All SELECTs issue
+zero durable updates; fixture setup is counted separately.
+
+`just test::console-latency --repeat 2` runs without concurrent qualification or
+proxies. Its eight empty SELECT/COUNT table/JSON samples complete in 14.98–18.18 ms
+including CLI startup. The first SELECT completes in 16.75 ms, with first output
+at 15.17 ms; console phases total 11–14 ms. Sampled console RSS is 13–16 MB, node
+RSS 23–24 MB. The same fixture's first query before this round took 91.10 ms;
+one baseline and eight new samples do not establish tail latency or attribute
+the speedup to individual changes. The historical user installation is not a
+controlled comparison.
+
+A separate `--single --instrument` run uses the same executable hashes and no
+concurrent qualification. Three console reads plus one background read cause
+11 provider attempts (10 HEAD, one GET), with zero updates. Three idle seconds
+contain 16 native and 60 provider attempts; uninstrumented idle node CPU is
+0.03 seconds. The historical profile recorded 108 native/553 provider idle
+attempts. Proxy timing is not mixed into the uninstrumented measurements.
+
+The final CLI SHA-256 is
+`e6609d87b8d52e4c2e46bec806889428ed849bdd9149279a0e0ce7bc35057e63`,
+node `09acf58ff4093a1709f0c4c353837da9ceba4a039e66a5b90a837b6b4f17a9af`,
+and query host `c6de4c3320a5179add330cc81689fbc1edc226ae89d8f7458c7cc8815728c699`.
+All use pinned ReleaseSafe builds, disk Ursula and MinIO. The runner freezes its
+executables and uses owned temporary state. No running developer installation
+is restarted or reinitialized.
+
+`just test::console-latency --single --execution durable` also passes with the
+new local idle backoff. It runs alongside Document provisioning, so its elapsed
+time is not used as a controlled durable-performance result. `just check` passes
+the final implementation: unit tests, diagnostics, generated contracts, frontend
+checks and the production documentation build. Later edits only explain measured
+behavior, compatibility and remaining scope; `just transit-docs::check` passes
+again for those edits. No push is performed, so the pre-push `just ci-clean` gate
+is not run.

@@ -176,6 +176,9 @@ to read configuration, policy and session together while clock/control commits
 continue, then acquires a fresh batch for its final check.
 
 `SnapshotReader.Support` caches negotiated protocol support, never permission.
+The current client falls back when an older authority omits `snapshot_read`.
+Older client revisions with strict capability decoders need rebuilding alongside
+an upgraded authority; this is not bidirectional rolling-version compatibility.
 With `snapshot_read`, `acquire` combines a fresh cut with bounded captured data
 and current metadata. `batch` preserves that cut while acquiring fresh current
 metadata, reading bounded ranges/points or validating and releasing the token.

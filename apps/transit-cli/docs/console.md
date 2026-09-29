@@ -199,8 +199,10 @@ console never accumulates the whole result. Prompts and diagnostics use stderr.
 compilation, snapshot acquisition, fetching/executing pages, rendering/output
 and release. Interactive timing reports `compile`, `open`, `fetch`, `render`
 and `release`. Compilation uses the configured declaration without I/O; opening
-validates current source policy and schema before acquiring a fresh snapshot.
-Fetch includes Fuze execution and current authorization before disclosure. In durable mode, submission includes the native
+acquires a fresh snapshot and validates current source policy and schema.
+Fetch includes Fuze execution and current authorization before disclosure. With
+combined native reads, the final fetch also releases the snapshot, so the
+separate `release` phase can be zero. In durable mode, submission includes the native
 upload protocol and its checkpoints: begin the upload, send plan parts, seal the
 bundle and submit it, waiting for requester processing between steps. The wait
 phase includes source-worker execution, durable result publication and delivery

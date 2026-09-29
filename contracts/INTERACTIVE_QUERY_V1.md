@@ -18,6 +18,12 @@ job recovery or durable caller sequences. Explicit durable submissions retain
 their existing contract. Interactive sessions are not resumable after client or
 authority restart. Failure never silently restarts a SELECT at a different cut.
 
+The current client falls back to separate snapshot operations when an older
+authority omits `snapshot_read`. This fallback does not promise that older
+clients accept newly added capability fields: strict decoders from earlier
+revisions require a matching client update when the authority is upgraded.
+Native commands and existing snapshot signing domains remain unchanged.
+
 ## Generic leased snapshots
 
 The additive growing capability `leased_snapshots` enables signed operations on
