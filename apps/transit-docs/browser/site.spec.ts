@@ -94,3 +94,29 @@ test("every published Mermaid diagram renders", async ({ page, baseURL }) => {
   }
   expect(errors).toEqual([]);
 });
+
+test("workload examples link to measured performance and distinguish planned sessions", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto(new URL("guides/introduction", baseURL).href);
+  await page.getByRole("link", { name: "workload recipes across languages", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Workload examples across languages", exact: true }),
+  ).toBeVisible();
+  for (const language of ["python", "typescript", "rust", "zig"])
+    await expect(page.locator(`pre.language-${language}`).first()).toBeVisible();
+  await page.getByRole("link", { name: "performance reference", exact: true }).click();
+  await expect(page.locator("#planned-improvements")).toHaveText(/Planned improvements/);
+  await expect(page.getByRole("cell", { name: "1,120", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "query sessions", exact: true }).click();
+  await expect(page.getByText("This profile is not implemented.", { exact: false })).toBeVisible();
+  await page.goto(new URL("search", baseURL).href);
+  await page.getByLabel("Words or an interface name").fill("telemetry");
+  await expect(
+    page.locator(".search-results").getByRole("link", {
+      name: "Workload examples across languages",
+      exact: true,
+    }),
+  ).toBeVisible();
+});

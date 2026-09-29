@@ -94,7 +94,7 @@ const config: Config = {
     footer: { style: "light", copyright: "Transit · Durable processes and state." },
     colorMode: { respectPrefersColorScheme: true },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
-    prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "toml"] },
+    prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "toml", "zig"] },
   } satisfies ThemeConfig,
 };
 export default config;

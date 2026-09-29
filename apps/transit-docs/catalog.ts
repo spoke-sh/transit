@@ -15,12 +15,14 @@ export const sections: Section[] = [
       guide("quickstart", "Run Transit locally"),
       guide("applications", "Build your first application"),
       guide("choose-interface", "Choose an interface"),
+      guide("workload-examples", "Workload examples across languages"),
     ],
   },
   {
     label: "Core concepts",
     pages: [
       reference("architecture", "Architecture and scope"),
+      reference("workloads", "Workloads and architectural priorities"),
       reference("processes", "Processes and turns"),
       reference("streams", "Streams and delivery"),
       reference("state", "State and associations"),
@@ -118,6 +120,7 @@ export const sections: Section[] = [
       guide("inspect-board", "Inspect with Board"),
       page("apps/transit-board/docs/configuration.md", "guides/board", "Configure Board"),
       reference("observability", "Logs, metrics and probes"),
+      reference("performance", "Performance and improvement plan"),
       page("apps/transit-node/docs/operations.md", "guides/node", "Node operations"),
       reference("storage", "Storage and recovery boundary"),
     ],

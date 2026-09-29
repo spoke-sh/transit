@@ -31,11 +31,14 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
     path.write_text(json.dumps(config))
     recovery = root/'console-recovery.json'
 
-    def run(data=b'', args=(), expected_code=0, selected=path):
+    def run(data=b'', args=(), expected_code=0, selected=path, timed=False):
         result = subprocess.run([binary, 'console', '--no-rc', '--config', str(selected), *args], input=data,
                                 capture_output=True, timeout=420)
         assert result.returncode == expected_code, result
-        if expected_code == 0: assert not result.stderr, result
+        if timed:
+            import re
+            assert re.fullmatch(rb'Time: \d+ ms \(prepare \d+ ms, compile \d+ ms, submit \d+ ms, wait \d+ ms, fetch \d+ ms, render \d+ ms, persist \d+ ms\)\n', result.stderr), result.stderr
+        elif expected_code == 0: assert not result.stderr, result
         return result
 
     for changes in ({'version': 2}, {'unknown': 'private-must-not-appear'}, {'url': 'http://example.com:1234'},
@@ -59,7 +62,8 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
 
         # Unsupported SQL does not allocate an identity or send a mutation.
         before = fault['console_sends']
-        run(args=('-c', 'CREATE KV items (UTF8);'), expected_code=1)
+        invalid = run(b'.timing on\nCREATE KV items (UTF8);', expected_code=1)
+        assert b'Time: ' in invalid.stderr and b'error: ' in invalid.stderr and not invalid.stdout
         assert fault['console_sends'] == before
         fault['lost'], fault['retry'] = None, False
         sql = 'SELECT *' if kind == 'document' else 'SELECT value'
@@ -99,7 +103,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert json.loads(recovery.read_text())['namespace'] == query_id
         invoke('restore', direct=True)
         table = run(b'.resume\n').stdout
-        assert table.startswith(b'+') and b' rows\n' in table and b'\x1b' not in table
+        assert table.startswith('┌'.encode()) and b' rows\n' in table and b'\x1b' not in table
 
         print(f'Transit console {kind}: saved-intent resume, all result pages and current read denial passed.', flush=True)
         count_sql = 'SELECT COUNT(*) FROM items'
@@ -111,9 +115,10 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         script.write_text(count_sql+';\n'+count_sql)
         result = run(args=('-f', str(script), '--format', 'json'))
         assert len(result.stdout.splitlines()) == 2
-        result = run(('.show\n'+count_sql).encode(), args=('--format', 'json'))
+        result = run(('.timing on\n.show\n'+count_sql).encode(), args=('--format', 'json'), timed=True)
         shown, page = result.stdout.rsplit(b'\n', 2)[:2]
-        assert parse_show(shown+b'\n')['format'] == 'json'
+        settings = parse_show(shown+b'\n')
+        assert settings['format'] == 'json' and settings['timing'] == 'on'
         assert json.loads(page)['complete_coverage']
         # Batch stops after the first invalid statement; no later dispatch.
         before = fault['console_sends']

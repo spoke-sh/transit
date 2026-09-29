@@ -12,6 +12,17 @@ Validate column types and operation budgets before proposing a batch. Accepted
 mutations within one turn become visible together with its consumed input and
 outputs. A failed proposal cannot expose half the batch.
 
+Growing Table rows use the resource's ordered key/value index, with encoded
+primary keys and a separate schema descriptor. Arrow is the query interchange
+and result representation; the Table's persistent rows are not columnar Arrow
+row groups. The finite query path reads bounded row pages before applying its
+supported filters and projections.
+
+Columnar blocks and pruning are planned for scan-heavy workloads, alongside
+efficient primary-key access for operational state. They are not supplied by
+Arrow output alone. See the [workload priorities](workloads.md) and
+[performance characteristics](performance.md) for the current evidence.
+
 The underlying one-mutated-resource boundary remains. Multiple Table helpers
 or independently captured sources do not create a multi-resource transaction or
 global snapshot. Larger changes require an explicit publication/workflow contract,

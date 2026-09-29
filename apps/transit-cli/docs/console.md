@@ -25,12 +25,13 @@ The console merges settings in this order; later assignments win:
 3. `./.transitrc`
 
 Missing files are skipped; an unreadable or invalid file stops startup. Each file
-is at most 64 KiB. Blank lines and `#` comment lines are ignored. Only `.mode` and
-`.connect` settings are accepted; SQL and recovery operations cannot run at startup.
+is at most 64 KiB. Blank lines and `#` comment lines are ignored. Only `.mode`,
+`.timing` and `.connect` settings are accepted; SQL and recovery operations cannot run at startup.
 For example, a project `.transitrc` can contain:
 
 ```text
 .mode table
+.timing on
 # Optional remote or separate connection:
 # .connect connection.yaml
 ```
@@ -142,6 +143,7 @@ error and returns to the prompt when recovery permits.
 | `.help` | Available SQL and console commands |
 | `.tables`, `.sources`, `.schema` | Currently authorized source and schema |
 | `.mode table\|json` | Result presentation |
+| `.timing on\|off` | Set query wall-time reporting (off by default) |
 | `.show` | Aligned text showing effective console settings and origins |
 | `.connect PATH` | Switch connection in an interactive session |
 | `.status`, `.info` | Saved query status or result evidence |
@@ -165,21 +167,44 @@ connection_source: local installation
               url: http://127.0.0.1:19105
            format: table
     format_source: connection configuration
+           timing: off
+    timing_source: default
 ```
 
-The source rows identify the effective rc file, environment variable, command-line
-option or interactive command. Paths and other text escape control characters.
+Timing displays as `on` or `off`. The source rows identify the effective rc file,
+environment variable, command-line option or interactive command. Paths and other
+text escape control characters.
 Inspection does not change settings, submit or retry a query, or change query
 result formatting. A script containing `.show` includes these text rows on stdout
 even when its SQL results use JSON envelopes.
 
-Table mode prints escaped cells with column headings and a row total. JSON mode
+Table mode is the default. It renders the verified Arrow batch directly, with
+box borders, column names and native types, right-aligned numbers and a row total.
+Strings are quoted and escaped so literal `"NULL"`, null, missing, type errors and
+conflicts stay distinguishable; binary values use hex. Each bounded page has its
+own headings and widths. JSON mode
 emits one lossless page envelope per line, including its manifest, ordinal,
 columns, typed cells and complete-coverage evidence. Integers remain decimal
 strings, binary stays hex, floats preserve bits and missing/null/type-error/
 conflict states remain distinct. Pages are verified through the shared query
 client and read under current grants. Rows are released after each page; the
 console never accumulates the whole result. Prompts and diagnostics use stderr.
+
+`.timing on` reports monotonic elapsed milliseconds to stderr after each SQL or
+`.resume` attempt, including failed attempts. The total includes preparation,
+compilation, submission/advancement, waiting for completion, fetching/verifying
+pages, rendering/output and recovery persistence. Submission includes the native
+upload protocol and its checkpoints: begin the upload, send plan parts, seal the
+bundle and submit it, waiting for requester processing between steps. The wait
+phase includes source-worker execution, durable result publication and delivery
+of the completion to the requester. These are client-observed phases rather than
+pure network or engine execution time.
+Sub-millisecond work can display as zero. Timing does not change JSON stdout or
+query recovery, and `.timing off` disables it. Missing, invalid or extra arguments
+print `Usage: .timing on|off` to stderr without changing the setting. Interactive
+input returns to the prompt; batch input stops with exit status 1. Use `.show` to
+inspect the current setting. Interactive connection changes
+retain the current mode and timing preference.
 
 The Linux terminal supports Left/Right, Home/End (also Ctrl-A/Ctrl-E), Backspace,
 Delete, Ctrl-U, eight-entry SQL history with Up/Down, and Ctrl-C draft clearing.

@@ -44,6 +44,28 @@ Trading policy, reasoning loops, goals and delegation belong to applications.
 LLM and tool access belong behind connector effect boundaries. Transit does not
 select a venue, strategy, latency target or monetary representation for you.
 
+## Workloads guide the architecture
+
+Interactive inspection, shared Documents, capture/materialization, historical
+research, enrichment, workflow coordination and external execution have different
+latency, freshness and recovery needs. The [workload model](workloads.md) records
+those requirements and their [multilanguage examples](../guides/workload-examples.md).
+Durable accepted data does not require every reader to be a recoverable job.
+
+The selected interactive design gives each SELECT a fresh query session and
+snapshot, cancels active work on console exit, and keeps explicit durable jobs
+separate. This is planned behavior; the console currently uses durable captured
+queries. [Query execution](queries.md#planned-interactive-sessions) defines that
+distinction and the required cancellation/cleanup contract.
+
+The architectural priorities are authorized snapshot sessions, lower shared
+read/write amplification, generic bulk immutable publication, and read structures
+suited to KV, Table and Document access patterns. Bound resident work independently
+of retained data, isolate background workloads from execution/control capacity,
+and preserve current authorization and atomic publication. The
+[performance evidence and improvement plan](performance.md) explain why these
+priorities precede SQL operator tuning and what remains unmeasured.
+
 ## Source of truth
 
 A successful [turn](processes.md) commits state, input progress and outputs

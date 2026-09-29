@@ -7,6 +7,11 @@ policy still decide acceptance; mergeability never grants write permission.
 
 Start with the [Document example](../../examples/station-document/README.md) and
 [service guide](../../packages/zig/transit-station-document/docs/service.md).
+The [shared-notebook recipe](../guides/workload-examples.md#share-an-incident-notebook-with-zig)
+shows revision-bound field reads. Path/sequence access and separately versioned
+search/analytical projections are architectural priorities; arbitrary search is
+not part of the current Document interface. See [workloads](workloads.md) and
+[performance](performance.md) for the planned structures and measurement limits.
 
 ## Identities and merge rules
 

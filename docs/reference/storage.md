@@ -17,6 +17,21 @@ pages independently of retained cardinality. That does not provide horizontal
 authority throughput: the current realm journal remains a serialization point.
 Do not infer cluster scaling from a growing-data test.
 
+The current growing authority reads the latest published catalog root and loads
+its immutable index pages on demand. An ordinary read does not replay the entire
+application history. Root snapshots provide a consistent basis; cache capacity,
+page layout and the number of native reads determine its access cost. A storage
+checkpoint does not cache a SQL answer or remove the durable steps of a captured
+query. These distinctions also apply when Tables or Documents materialize
+application history into current state.
+
+The [performance reference](performance.md) quantifies current small-page read
+and write amplification. Planned bounded read/update batching and bulk immutable
+publication must preserve the final authority commit and payload availability.
+The [workload model](workloads.md#architectural-priorities) distinguishes hot
+keyed state, append-heavy history and analytical read structures; none bypass
+the public authorization boundary.
+
 Applications and Board use public clients, not backend journals or provider
 credentials. The node composes the core and backend; core remains deterministic
 and independent of Ursula/provider types. Pin the consuming backend's upstream

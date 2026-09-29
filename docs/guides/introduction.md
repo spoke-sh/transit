@@ -33,6 +33,9 @@ remains execution authority.
 3. [Choose an interface](choose-interface.md) for your application's clients.
 4. Learn [processes and turns](../reference/processes.md), [state](../reference/state.md) and
    [permissions](../reference/security.md) before adding writes or external effects.
+5. Explore [workload recipes across languages](workload-examples.md), then use the
+   [workload priorities](../reference/workloads.md) and
+   [performance measurements](../reference/performance.md) to plan an application.
 
 ## Three distinctions to keep
 

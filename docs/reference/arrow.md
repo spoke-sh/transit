@@ -33,6 +33,11 @@ cell states at language boundaries. A readable IPC prefix is not a verified
 complete query. Result manifests, ordered segment coverage and digests remain
 necessary; preserve the source basis with the result.
 
+The [Transit console](../../apps/transit-cli/docs/console.md) renders verified
+native Arrow batches directly in its default table mode, with typed headings and
+numeric alignment. It releases each page after presentation. JSON mode emits
+the lossless foreign-value page envelope.
+
 The shared Zig Arrow implementation and pinned dependencies live under
 [Fuze](../../packages/zig/transit-fuze/README.md). Public language wrappers own
 their native values and release rules above the shared boundary. Use the

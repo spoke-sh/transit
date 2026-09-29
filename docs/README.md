@@ -10,6 +10,7 @@ users, contributors and agents. Start with [What is Transit?](guides/introductio
 | Topic | Public documentation |
 | --- | --- |
 | Model and components | [Architecture and scope](reference/architecture.md), [component directory](reference/components.md), [glossary](reference/glossary.md) |
+| Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [examples across languages](guides/workload-examples.md) |
 | Durable execution | [Processes and turns](reference/processes.md), [streams and delivery](reference/streams.md), [caller/SDK semantics](reference/callers.md) |
 | Authority and lifetime | [Security](reference/security.md), [retention and capacity](reference/retention.md), [storage](reference/storage.md) |
 | Application state | [State resources](reference/state.md), [Station](reference/station.md), [Tables](reference/tables.md), [Documents](reference/documents.md) |
@@ -23,7 +24,9 @@ Select a supported profile with the [interface matrix](guides/choose-interface.m
 Unsupported behavior, uncertainty, recovery rules and compatibility limits belong
 beside the feature users rely on. Describe the capabilities in the documented
 source revision, using interface versions and explicit supported/unsupported
-profiles. Keep delivery-plan labels, sequencing and future-work promises in
+profiles. Public architectural priorities and performance improvement plans live
+beside their evidence, explicitly distinguished from implemented interfaces and
+without promised dates or speedups. Keep delivery-plan labels and scheduling in
 internal records, including when a component guide or wire contract is published
 in the handbook. Public documentation does not require an internal specification
 to understand the real contract.
@@ -39,7 +42,7 @@ preserve the actual support boundary.
 | Location | Ownership |
 | --- | --- |
 | `docs/guides/` | Runnable user and contributor workflows |
-| `docs/reference/` | Current concepts, architecture, guarantees, interface semantics, limits and compatibility shared by every audience |
+| `docs/reference/` | Current concepts, architecture, guarantees, interface semantics, limits and compatibility; explicitly labeled workload priorities and performance improvement plans |
 | Package/app READMEs and `docs/` | Exact component APIs, configuration and substantial integration/recovery guides; linked directly from the handbook |
 | [contracts/](../contracts) | Versioned wire/ABI formats, neutral schemas and shared fixtures; generated descriptions keep their implementation owners |
 | [examples/](../examples/README.md) | Complete applications and commands that exercise the public APIs |

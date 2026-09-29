@@ -9,6 +9,10 @@ Build and install the SDKs from this checkout on Linux x86_64. Follow each
 package's installation commands and the [SDK examples](../../examples/station-sdk/README.md).
 Packages are not distributed through public registries.
 
+The [workload example gallery](../guides/workload-examples.md) walks through typed
+observations in Python, durable requests in TypeScript, bounded research results
+in Rust, and Document/effect workflows in Zig, with complete source and run commands.
+
 | Language | Raw client | Framework |
 | --- | --- | --- |
 | Zig | [transit-client](../../packages/zig/transit-client/README.md) | [transit-station](../../packages/zig/transit-station/README.md) |

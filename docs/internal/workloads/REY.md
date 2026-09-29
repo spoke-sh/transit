@@ -6,6 +6,12 @@ measurements of Transit, a venue selection, or production service objectives.
 [Testing](../TESTING.md) owns qualification; the
 [experiment matrix](../../../tests/verification/scale.json) owns experiment sizes.
 
+The shared [workload priorities](../../reference/workloads.md),
+[performance characteristics and improvement plan](../../reference/performance.md)
+and [public examples](../../guides/workload-examples.md) own the cross-application
+architectural direction. This record retains Rey-specific demand assumptions;
+its synthetic rates do not describe achieved runtime capacity.
+
 ## Intended workload
 
 Rey targets a broad universe of instruments, historical and live trades/quotes
@@ -184,11 +190,14 @@ fills only ten events per partition per flush: about 100,000 publications/s.
 Use both a byte/event budget and a maximum delay; benchmark source skew and the
 full protocol operation count. Do not assume perfect large batches everywhere.
 
-The developing page mapping creates a closed Ursula stream for each immutable
-page. It proves publication/recovery mechanics but is not a qualified bulk-data
-layout. Include provider stream count, provider RSS, requests and writes per
-committed mutation, orphan staging and disk amplification in M10 evidence.
-Bounded client cache alone does not establish bounded system memory or cost.
+The earlier mapping created one closed Ursula stream per immutable page. The
+current packed backend appends page records to shared streams; page misses and
+appends still issue individual provider requests. Use the public
+[storage reference](../../reference/storage.md) for the current mapping and
+[performance evidence](../../reference/performance.md) for measured amplification.
+Include provider stream count, provider RSS, requests and writes per committed
+mutation, orphan staging and disk amplification in qualification. Bounded client
+cache alone does not establish bounded system memory or cost.
 
 Run small deterministic correctness cases in ordinary CI. Use separately budgeted
 growth/load runs with retained data larger than memory, 1/10/100 ms bursts, skew,

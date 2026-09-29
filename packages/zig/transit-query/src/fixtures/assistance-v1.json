@@ -27,6 +27,8 @@
     {"sql":"SELECT * FROM items WHERE nope ","cursor":31,"start":31,"end":31,"items":[]},
     {"sql":".mo","cursor":3,"start":0,"end":3,"mode":"console","items":[".mode"]},
     {"sql":".mode jsoSuffix","cursor":9,"start":6,"end":15,"mode":"console","items":["json"]},
+    {"sql":".ti","cursor":3,"start":0,"end":3,"mode":"console","items":[".timing"]},
+    {"sql":".timing o","cursor":9,"start":8,"end":9,"mode":"console","items":["on","off"]},
     {"sql":"/for","cursor":4,"start":1,"end":4,"items":[]}
   ]
 }

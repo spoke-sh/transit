@@ -1,60 +1,134 @@
-//! One verified page at a time. Cell states and exact scalars stay distinct.
+//! Render one verified native Arrow batch or a lossless foreign page envelope.
 const std = @import("std");
 const q = @import("transit_query");
-pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.Workspace.Page, as_json: bool) !void {
+const m = q.fuze.Unified;
+pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedResult.Page, batch: *const m.Inspect.Batch, ordinal: u64, as_json: bool) !void {
     if (as_json) {
-        try std.json.Stringify.value(.{ .manifest = page.evidence.manifest, .ordinal = page.evidence.ordinal, .columns = page.evidence.columns, .cells = page.cells, .complete_coverage = page.evidence.next == null }, .{ .escape_unicode = true }, out);
+        const rows = try allocator.alloc([]q.Values.Cell, batch.count);
+        for (rows, 0..) |*cells, i| {
+            const native = try batch.row(i);
+            cells.* = try allocator.alloc(q.Values.Cell, native.cells.len);
+            for (cells.*, native.cells) |*cell, value| cell.* = try q.Values.Cell.fromNative(allocator, value);
+        }
+        try std.json.Stringify.value(.{ .manifest = try q.Bridge.Manifest.fromNative(allocator, page.manifest), .ordinal = try q.document.JsonValues.decimal(allocator, ordinal), .columns = try q.Values.foreignColumns(allocator, page.schema), .cells = rows, .complete_coverage = page.next == null }, .{ .escape_unicode = true }, out);
         return out.writeByte('\n');
     }
-    var widths: [8]usize = @splat(0);
-    const count = page.evidence.columns.len;
-    var names: [8][]const u8 = undefined;
-    for (page.evidence.columns, 0..) |column, i| {
-        names[i] = try escaped(allocator, column.name);
-        widths[i] = names[i].len;
+    try table(allocator, out, page.schema, batch);
+}
+fn table(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: m.Schema, batch: *const m.Inspect.Batch) !void {
+    try schema.validate();
+    const count = schema.columns.len;
+    if (batch.columns != count or batch.count > m.max_rows) return error.InvalidArrowResult;
+    var widths: [m.max_columns]usize = @splat(0);
+    var names: [m.max_columns][]const u8 = undefined;
+    var types: [m.max_columns][]const u8 = undefined;
+    var alignments: [m.max_columns]Alignment = undefined;
+    const heading: [m.max_columns]Alignment = @splat(.center);
+    for (schema.columns, 0..) |column, i| {
+        names[i] = try escaped(allocator, column.name.slice());
+        types[i] = @tagName(column.type);
+        widths[i] = @max(names[i].len, types[i].len);
+        alignments[i] = switch (column.type) {
+            .int64, .uint64, .float64 => .right,
+            else => .left,
+        };
     }
-    const rows = try allocator.alloc([][]const u8, page.cells.len);
-    for (page.cells, rows) |cells, *rendered| {
+    const rows = try allocator.alloc([][]const u8, batch.count);
+    for (rows, 0..) |*rendered, index| {
         rendered.* = try allocator.alloc([]const u8, count);
-        for (cells, rendered.*, 0..) |cell, *text, i| {
-            text.* = switch (cell) {
-                .value => |v| switch (v) {
-                    .int64, .uint64 => |n| n,
-                    .boolean => |b| if (b) "true" else "false",
-                    .utf8 => |s| try std.json.Stringify.valueAlloc(allocator, s, .{ .escape_unicode = true }),
-                    .binary => |s| try std.fmt.allocPrint(allocator, "0x{s}", .{s}),
-                    .float_bits => |s| try std.fmt.allocPrint(allocator, "float64:0x{s}", .{s}),
-                },
-                else => try std.json.Stringify.valueAlloc(allocator, cell, .{ .escape_unicode = true }),
-            };
+        const native = try batch.row(index);
+        for (native.cells, rendered.*, 0..) |cell, *text, i| {
+            text.* = try cellText(allocator, cell);
             widths[i] = @max(widths[i], text.len);
         }
     }
-    try border(out, widths[0..count]);
-    try row(out, names[0..count], widths[0..count]);
-    try border(out, widths[0..count]);
-    for (rows) |cells| try row(out, cells, widths[0..count]);
-    try border(out, widths[0..count]);
+    try border(out, widths[0..count], "┌", "┬", "┐");
+    try row(out, names[0..count], widths[0..count], heading[0..count]);
+    try row(out, types[0..count], widths[0..count], heading[0..count]);
+    try border(out, widths[0..count], "├", "┼", "┤");
+    for (rows) |cells| try row(out, cells, widths[0..count], alignments[0..count]);
+    try border(out, widths[0..count], "└", "┴", "┘");
+}
+fn cellText(allocator: std.mem.Allocator, cell: m.Cell) ![]const u8 {
+    return switch (cell) {
+        .missing => "MISSING",
+        .null => "NULL",
+        .type_error => |kind| try std.fmt.allocPrint(allocator, "TYPE_ERROR({s})", .{@tagName(kind)}),
+        .conflict => try std.json.Stringify.valueAlloc(allocator, try q.Values.Cell.fromNative(allocator, cell), .{ .escape_unicode = true }),
+        .value => |value| switch (value) {
+            inline .int64, .uint64 => |number| try std.fmt.allocPrint(allocator, "{d}", .{number}),
+            .float64 => |number| try std.fmt.allocPrint(allocator, "{d}", .{number}),
+            .boolean => |boolean| if (boolean) "true" else "false",
+            .utf8 => |bytes| try std.json.Stringify.valueAlloc(allocator, bytes, .{ .escape_unicode = true }),
+            .binary => |bytes| try std.fmt.allocPrint(allocator, "0x{s}", .{try q.document.JsonValues.hex(allocator, bytes)}),
+        },
+    };
 }
 fn escaped(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
     const encoded = try std.json.Stringify.valueAlloc(allocator, value, .{ .escape_unicode = true });
     return encoded[1 .. encoded.len - 1];
 }
-fn border(out: *std.Io.Writer, widths: []const usize) !void {
-    try out.writeByte('+');
-    for (widths) |width| {
-        try out.splatByteAll('-', width + 2);
-        try out.writeByte('+');
+fn border(out: *std.Io.Writer, widths: []const usize, left: []const u8, middle: []const u8, right: []const u8) !void {
+    try out.writeAll(left);
+    for (widths, 0..) |width, i| {
+        for (0..width + 2) |_| try out.writeAll("─");
+        try out.writeAll(if (i + 1 == widths.len) right else middle);
     }
     try out.writeByte('\n');
 }
-fn row(out: *std.Io.Writer, cells: []const []const u8, widths: []const usize) !void {
-    try out.writeByte('|');
-    for (cells, widths) |cell, width| {
-        try out.writeByte(' ');
+const Alignment = enum { left, center, right };
+fn row(out: *std.Io.Writer, cells: []const []const u8, widths: []const usize, alignment: []const Alignment) !void {
+    try out.writeAll("│");
+    for (cells, widths, alignment) |cell, width, selected_alignment| {
+        const spare = width - cell.len;
+        const before = switch (selected_alignment) {
+            .left => 0,
+            .center => spare / 2,
+            .right => spare,
+        };
+        try out.splatByteAll(' ', before + 1);
         try out.writeAll(cell);
-        try out.splatByteAll(' ', width - cell.len + 1);
-        try out.writeByte('|');
+        try out.splatByteAll(' ', spare - before + 1);
+        try out.writeAll("│");
     }
     try out.writeByte('\n');
+}
+
+test "native table renders schema, wide numbers and distinct cell states safely" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+    const columns = [_]m.Column{
+        .{ .name = try .init("signed"), .type = .int64 },
+        .{ .name = try .init("unsigned"), .type = .uint64 },
+        .{ .name = try .init("measure"), .type = .float64 },
+        .{ .name = try .init("text"), .type = .utf8 },
+        .{ .name = try .init("flag"), .type = .boolean },
+        .{ .name = try .init("blob"), .type = .binary },
+    };
+    const batch = try allocator.create(m.Inspect.Batch);
+    batch.* = .{ .count = 2, .columns = 6 };
+    batch.cells[0][0] = .{ .value = .{ .int64 = std.math.minInt(i64) } };
+    batch.cells[0][1] = .{ .value = .{ .uint64 = std.math.maxInt(u64) } };
+    batch.cells[0][2] = .{ .value = .{ .float64 = 1.5 } };
+    batch.cells[0][3] = .{ .value = .{ .utf8 = "\x1b[31m\n" } };
+    batch.cells[0][4] = .{ .value = .{ .boolean = true } };
+    batch.cells[0][5] = .{ .value = .{ .binary = "\x00\xff" } };
+    batch.cells[1][0] = .null;
+    batch.cells[1][1] = .missing;
+    batch.cells[1][2] = .{ .type_error = .utf8 };
+    batch.cells[1][3] = .{ .value = .{ .utf8 = "NULL" } };
+    batch.cells[1][4] = .{ .value = .{ .boolean = false } };
+    const alternatives = [_]m.Alternative{
+        .{ .counter = std.math.maxInt(u64), .replica = 1, .value = .null },
+        .{ .counter = std.math.maxInt(u64), .replica = 2, .value = .{ .value = .{ .binary = "\x1b" } } },
+    };
+    batch.cells[1][5] = .{ .conflict = &alternatives };
+    var storage: [4096]u8 = undefined;
+    var out: std.Io.Writer = .fixed(&storage);
+    try table(allocator, &out, .{ .columns = &columns }, batch);
+    const text = out.buffered();
+    inline for (.{ "┌", "int64", "uint64", "float64", "utf8", "boolean", "binary", "-9223372036854775808", "18446744073709551615", "1.5", "NULL", "MISSING", "TYPE_ERROR(utf8)", "\"NULL\"", "true", "false", "0x00ff", "\"conflict\"", "\"counter\":\"18446744073709551615\"", "\"binary\":\"1b\"" }) |fragment| try std.testing.expect(std.mem.indexOf(u8, text, fragment) != null);
+    try std.testing.expect(std.mem.indexOfScalar(u8, text, 27) == null);
+    try std.testing.expect(std.mem.indexOf(u8, text, "│                 NULL │") != null);
 }

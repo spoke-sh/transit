@@ -27,7 +27,7 @@ pub const Response = struct {
     items: []const Item,
 };
 /// Shared console vocabulary; dispatchers must reject unimplemented operations.
-pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show };
+pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show, timing };
 const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,
@@ -163,6 +163,9 @@ fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     if (std.mem.eql(u8, request.sql[1..end], "mode")) {
         try builder.add("table", .meta, "Human rendering");
         try builder.add("json", .meta, "Machine rendering");
+    } else if (std.mem.eql(u8, request.sql[1..end], "timing")) {
+        try builder.add("on", .meta, "Enable query timing");
+        try builder.add("off", .meta, "Disable query timing");
     }
     var finish = request.cursor;
     while (finish < request.sql.len and std.mem.indexOfScalar(u8, " \t\r\n", request.sql[finish]) == null) finish += 1;

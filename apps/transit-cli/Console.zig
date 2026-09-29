@@ -81,15 +81,9 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
 }
 pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
     var preferences = try Preferences.load(init, options, diagnostic);
-    while (try connection(init, options, preferences, diagnostic)) |next| {
-        preferences.connection = next.path;
-        preferences.connection_source = ".connect";
-        preferences.format = next.format;
-        preferences.format_source = ".mode";
-    }
+    while (try connection(init, options, preferences, diagnostic)) |next| preferences = next;
 }
-const NextConnection = struct { path: []const u8, format: Options.Format };
-fn connection(init: std.process.Init, options: Options.Options, preferences: Preferences, diagnostic: *Diagnostic) !?NextConnection {
+fn connection(init: std.process.Init, options: Options.Options, preferences: Preferences, diagnostic: *Diagnostic) !?Preferences {
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -172,7 +166,13 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         var reader = file.reader(init.io, &buffer);
         try console.pipe(&reader.interface);
     } else if (terminal) try @import("Terminal.zig").run(&console) else try console.pipe(null);
-    if (console.next_connection) |next| return .{ .path = next, .format = if (session.format == .json) .json else .table };
+    if (console.next_connection) |next| {
+        var result = console.preferences;
+        result.connection = next;
+        result.connection_source = ".connect";
+        result.format = if (session.format == .json) .json else .table;
+        return result;
+    }
     return null;
 }
 pub fn isMeta(text: []const u8) bool {
@@ -231,6 +231,7 @@ pub const Console = struct {
     }
     fn queryFailure(self: *Console, err: anyerror) anyerror {
         self.had_error = true;
+        if (err == error.InvalidTimingCommand) return err;
         if (denied(err)) {
             self.access_lost = true;
             self.session.cursor = null;
@@ -244,7 +245,7 @@ pub const Console = struct {
         return self.diagnostic.fail(err, "query could not complete", hint);
     }
     fn dispatch(self: *Console, text: []const u8, allocator: std.mem.Allocator) !void {
-        if (std.mem.eql(u8, text, ".help") and self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .connect PATH .show .info .quit\nRecovery: .status .resume [ID] .cancel\nDisconnecting does not cancel accepted work.\n");
+        if (std.mem.eql(u8, text, ".help") and self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .timing on|off .connect PATH .show .info .quit\nRecovery: .status .resume [ID] .cancel\nDisconnecting does not cancel accepted work.\n");
         if (std.mem.eql(u8, text, ".help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT. SQL prints verified results; .resume recovers the saved query." });
         if (std.mem.startsWith(u8, text, ".connect ")) {
             if (self.batch) return error.ConnectionSwitchRequiresTerminal;
@@ -253,7 +254,13 @@ pub const Console = struct {
             self.next_connection = try self.init.arena.allocator().dupe(u8, file);
             return;
         }
-        if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source });
+        if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source, .timing = self.preferences.timing, .timing_source = self.preferences.timing_source });
+        if (std.mem.eql(u8, text, ".timing")) return error.InvalidTimingCommand;
+        if (std.mem.startsWith(u8, text, ".timing ") or std.mem.startsWith(u8, text, ".timing\t")) {
+            self.preferences.timing = Preferences.onOff(text[8..]) catch return error.InvalidTimingCommand;
+            self.preferences.timing_source = ".timing";
+            return;
+        }
         if (std.mem.eql(u8, text, ".tables")) {
             const description = try q.Workspace.apply(allocator, self.client, self.config, .describe);
             if (self.session.format == .json) return self.json(description);

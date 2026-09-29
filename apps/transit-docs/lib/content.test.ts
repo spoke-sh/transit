@@ -85,6 +85,33 @@ describe("documentation ownership and navigation", () => {
   });
 });
 
+describe("executable workload excerpts", () => {
+  it("keeps published code identical to a complete example, allowing only common indentation", () => {
+    const content = readFileSync(path.join(root, "docs/guides/workload-examples.md"), "utf8");
+    const excerpts = [
+      ...content.matchAll(/<!-- source-excerpt: ([^\s]+) -->\n```\w+\n([\s\S]*?)\n```/g),
+    ];
+    expect(excerpts.length).toBeGreaterThan(0);
+    const dedent = (lines: string[]): string => {
+      const indent = Math.min(
+        ...lines.filter((line) => line.trim()).map((line) => line.length - line.trimStart().length),
+      );
+      return lines.map((line) => line.slice(indent)).join("\n");
+    };
+    for (const [, source, excerpt] of excerpts) {
+      expect(source!.startsWith("examples/")).toBe(true);
+      const owner = readFileSync(path.join(root, source!), "utf8").split("\n");
+      const lines = excerpt!.split("\n");
+      expect(
+        owner.some(
+          (_, start) => dedent(owner.slice(start, start + lines.length)) === dedent(lines),
+        ),
+        `Published excerpt differs from ${source}`,
+      ).toBe(true);
+    }
+  });
+});
+
 describe("generated interface reference", () => {
   it("renders every current operation and named schema from each authoritative description", () => {
     for (const entry of specifications) {

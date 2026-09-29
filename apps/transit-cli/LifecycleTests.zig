@@ -3,6 +3,7 @@ test {
     _ = @import("Options.zig");
     _ = @import("Settings.zig");
     _ = @import("Show.zig");
+    _ = @import("Results.zig");
     _ = @import("server/Process.zig");
     _ = @import("server/Applications.zig");
     _ = @import("server/Hosts.zig");

@@ -4,6 +4,10 @@ These are complete applications using `transit-client` or Station. Each director
 its entry point and application handler together. They demonstrate how to program
 against Transit; no example is required to run the authority.
 
+The public [workload gallery](../docs/guides/workload-examples.md) connects these
+applications to inspection, telemetry, coordination, research, shared context
+and enrichment, with source excerpts across SQL, Python, TypeScript, Rust and Zig.
+
 | Example | Binary | Application behavior |
 | --- | --- | --- |
 | [Work items](work-items/README.md) | `transit-work-items` | Two-column application with bounded, verified data migration and native disk recovery; generated UI/placements pending |

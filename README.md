@@ -36,6 +36,8 @@ Start with [What is Transit?](docs/guides/introduction.md),
 | Reactive streams | [AsyncAPI](docs/reference/asyncapi.md) |
 | Analytical clients | [Flight SQL and ADBC](docs/reference/flight.md) |
 | Application clients | [Language SDKs](docs/reference/sdks.md), [native protocol](docs/reference/native.md) |
+| Workload design | [Architectural priorities](docs/reference/workloads.md), [performance and improvement plan](docs/reference/performance.md) |
+| Example recipes | [SQL, Python, TypeScript, Rust and Zig](docs/guides/workload-examples.md) |
 
 Preview the Docusaurus site with `nix develop`, `just transit-docs::install` and
 `just transit-docs::dev`. The [documentation index](docs/README.md) and
@@ -68,7 +70,7 @@ For the multi-process programming example, follow the
 
 - [Documentation](docs/README.md): scope, architecture, terminology, and design contracts.
 - [Component map](docs/reference/components.md): libraries, apps, and their READMEs.
-- [Examples](examples/README.md): complete Zig callers using the public client.
+- [Examples](examples/README.md): complete applications and public SDK callers.
 - [Proof coverage](tests/README.md): checks, failure schedules, and qualification limits.
 - [Agent instructions](AGENTS.md): how to change this repository.
 

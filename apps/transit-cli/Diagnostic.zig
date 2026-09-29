@@ -148,6 +148,7 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
+    if (err == error.InvalidTimingCommand) return out.writeAll("Usage: .timing on|off\n");
     const Advice = struct { []const u8, ?[]const u8 };
     const advice: ?Advice = switch (err) {
         error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },

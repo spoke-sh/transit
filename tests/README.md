@@ -3459,7 +3459,7 @@ no expanded hosted CI budget is claimed.
 ## M26 documentation handbook
 
 `just transit-docs::check` checks the real Docusaurus package: Vite+ formatting
-and lint, strict TypeScript, five source/reference tests and production static
+and lint, strict TypeScript, six source/reference tests and production static
 rendering with broken links/anchors treated as errors. The initial site included
 all 31 foundational Markdown files. The current catalog includes every public
 guide/reference and selected owning component/wire guides. Its ownership test
@@ -3475,9 +3475,10 @@ fields, union alternatives and bounds from the checked Board/serving OpenAPI and
 reactive AsyncAPI; downloaded descriptions retain their original bytes.
 
 `just transit-docs::browser` builds and serves the actual output with Chromium.
-Three checks cover desktop navigation/search/API anchors, exact downloads,
+Four checks cover desktop navigation/search/API anchors, exact downloads,
 mobile menu and overflow, light/dark accessibility, and every published Mermaid
-diagram. `TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser` runs the same
+diagram, plus workload-to-performance/session navigation, code languages and
+search discovery. `TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser` runs the same
 proof below a path prefix. Screenshots and failures stay in
 `.cache/verification/docs-browser`; the server belongs to that proof and starts
 no Transit processes. Accessibility checks exercise selected pages; they are not
@@ -3552,6 +3553,28 @@ site check and all three production browser checks at `/` also pass. Source
 validation passes 3,915 links across 416 Markdown files. These checks cover
 documentation integration; the revised version-3 onboarding commands, runtime
 deployment proofs and full ordinary clean CI suite were not rerun in this pass.
+
+### Workload architecture and examples — 2026-09-29
+
+The public workload/performance references and example gallery pass `just check`
+after the locked workspace install, including 174 CLI cases and six documentation
+content tests. The added excerpt check matches the Python, TypeScript, Rust and
+Zig snippets to contiguous lines of their executable owners, allowing common
+indentation only. The final focused site format/lint/type/content checks pass.
+All four production browser checks pass at `/` and `/handbook/`, including
+language rendering, gallery navigation into measured costs and planned session
+semantics, and search discovery. Source validation resolves 4,052 local links
+across 424 Markdown files before this ledger entry.
+
+The featured source also passes Python's strict mypy configuration (21 files),
+the TypeScript example package's `tsc --noEmit`, Rust's `cargo check --locked
+--offline` with the built native libraries, and `zig build examples`, under the
+pinned Nix tools. The snippets reuse existing applications: their full SDK,
+Document, connector and query integration schedules are linked rather than
+rerun for this documentation change. No performance experiment is rerun or new
+runtime speedup established. Fresh interactive sessions/cancel-on-exit and bulk
+storage improvements remain explicitly planned; no new wire/runtime behavior,
+site deployment or full clean CI run is claimed.
 
 ## CLI diagnostic qualification
 
@@ -3705,3 +3728,204 @@ including automatic `(automatic)` settings in shared terminal scrollback before
 an independent SQL result. These runs qualify settings presentation; they do not
 add a timing setting or establish query latency targets. Clean-checkout CI is
 reported separately against the committed revision.
+
+The rebase of native Arrow rendering and timing onto the aligned settings change
+passes `just check` with **177 CLI cases** and `zig build test-cli-lifecycle`.
+`.show` retains aligned text in both result modes and adds `timing` as `on`/`off`
+plus its origin. The merged batch check verifies settings text followed by a
+complete JSON query result, with timing confined to stderr; PTY checks preserve
+timing and its origin across `.connect`. `just test::console table` passes in
+**295.35 s**, including **215.79 s** of console checks, 41 rows/six segments,
+saved-intent recovery, current denial, cancellation, TLS and terminal interruption.
+Terminal RSS high-water is **13,688,832 bytes**. These are functional integration
+results, not a new query performance comparison.
+
+### Native table rendering and query timing
+
+The console renders verified native Arrow batches directly, avoiding the previous
+Arrow-to-hex-to-Arrow conversion before presentation. Table output has box borders,
+column names/types, numeric alignment and a final row count. JSON retains its
+lossless page envelope. `.timing` is off by default, can be set in rc scripts or
+interactively, survives connection changes, and emits attempt/phase wall time
+only to stderr.
+
+`just check` passes with 163 CLI cases. The additional cases cover merged timing
+preferences, interactive overrides and invalid rc values. Native renderer units
+pass for all six scalar types, 64-bit extrema, escaping and all five cell states,
+including conflict identities. `just test::console table` passes in **300.73 s**,
+including **219.79 s** of console checks: saved-intent recovery, six result segments,
+current denial, automatic SQL, separate timing/JSON output, PTY connection changes,
+TLS trust failures and bounded output. PTY cold/warm completion measures
+1079.45/359.18 ms with 13,574,144-byte RSS high-water. These are executed checks,
+not a new latency guarantee. The renderer units were repeated after extending
+coverage to boolean, binary and conflict cells and passed.
+
+The latency investigation uses isolated empty local Tables, disk Ursula/MinIO,
+eight resident authority pages and frozen executable copies. Initial probes
+inadvertently combined an optimized CLI with a Debug node; the node's
+SHA-256 exactly matches a rebuilt Debug artifact and the developer's running
+node. Those observations must not be reported as ReleaseSafe engine performance:
+
+- Repeated table queries took 62.48 and 82.55 s; JSON took 82.60 s and COUNT took
+  78.95 s. An empty result and changing output format did not explain the delay.
+- A console-only HTTP counting proxy measured 63.32 s: preparation 144 ms,
+  compilation 338 ms, submission/advancement 13,122 ms, wait 47,367 ms,
+  fetch/verification 2336 ms, render below 1 ms and persistence 16 ms. It counted
+  513 native calls, mostly point reads. The proxy did not count worker/courier
+  traffic and its timings include queues and transport, not just engine work.
+- Fresh Debug-node installations with 64 versus eight cached pages took
+  20.82 versus 62.85 s, consuming 16.86 versus 52.52 node CPU seconds. This proves
+  cache sensitivity in that build, not a cache-size fix or optimized performance.
+  No cache budget, authorization gate or durability behavior was changed.
+
+`just test::console-latency` builds all three Transit executables in ReleaseSafe,
+freezes and hashes them, and measures repeated table/JSON/COUNT queries with node
+CPU and client phase times. It uses its own installation and listeners, checks
+timing on failed SQL, and imposes no latency threshold. It does not touch an
+existing installation or restart a developer's server. Render time cannot explain
+the observed long waits; repeated signed reads, polling, page decoding and digest
+verification remain the relevant paths for further profiling.
+
+The consistently ReleaseSafe run passes with first/repeated table queries at
+**13.64/18.46 s**, JSON at **19.72 s**, and COUNT at **17.65 s**. The first table
+attempt spends 23 ms preparing, 48 ms compiling, 2919 ms submitting/advancing,
+10,204 ms waiting, 430 ms fetching/verifying, below 1 ms rendering and 11 ms in
+separately measured persistence. Authority CPU is 5.98 s for that query and
+8.37/8.39/7.78 s for the remaining queries. Thus Debug execution amplifies the
+problem, but optimized empty queries remain slow. This comparison does not
+attribute the improvement to the renderer. The server transcript/lifecycle check
+also passes with the native tables in **47.42 s**. No latency optimization to the
+query engine or storage is claimed by this change.
+
+A controlled ReleaseSafe cache probe with the same executables and separate fresh
+installations measures **13.95 s / 6.10 node CPU s** with eight resident pages and
+**5.73 s / 1.94 node CPU s** with 64. This confirms substantial page-cache sensitivity
+after removing the Debug-build confounder. Even the larger diagnostic cache leaves
+seconds of native work for an empty result; the shipped eight-page budget remains
+unchanged. No other qualification or build ran concurrently with these final
+measurements; the developer's existing server remained running throughout.
+
+The final ReleaseSafe console-only proxy probe takes **13.79 s** and counts
+**382 native requests**: 110 resource reads, 218 entry reads (one non-success
+response), eight capability reads, four sends, 38 process reads and four batched
+entry reads. Resource/entry calls alone account for 7.95 s of proxy-observed
+wall time. Rendering again measures below 1 ms. These counts exclude all worker
+and courier requests, so they are a lower bound on system request amplification.
+The next performance work should distinguish redundant status polling, repeated
+authority/data page reads and page verification cost before selecting batching,
+cache-policy or scheduling changes. Existing current-authority and complete-result
+checks must remain covered by denial and recovery proofs.
+
+The timing command requires `on` or `off`. CLI diagnostics pass **174 real command
+cases**, including missing/blank, invalid and extra timing arguments in both
+output modes, tab-separated settings, batch stopping and no stdout contamination.
+Offline controlling-PTY checks exercise the real console in table and JSON modes:
+`Usage: .timing on|off` leaves an enabled setting intact, the prompt accepts `.show`
+and `.timing off` afterward, and terminal attributes are restored on exit.
+`just check` passes with these cases, and the focused CLI diagnostics pass again
+after keeping timing-argument errors out of query-recovery diagnostics.
+
+### Native query latency: whole-node attribution
+
+A subsequent isolated disk-backed profile counts all native callers, including
+source/requester workers and the courier. ReleaseSafe builds of the same node and
+query host are held fixed; the profiling node adds per-request page counter deltas
+and monotonic timers around provider page requests, page decoding and backend
+page verification. Diagnostics contain operation names, numeric actor identities,
+status, durations and counters, without credentials, keys or values. Temporary
+LRU and bounded-range experiments use a detached checkout and are not part of the
+shipped engine. Raw traces, source patches, the driver and binary hashes are
+retained locally under `.cache/transit-latency/` with
+`deep-profile-manifest.json`. These are diagnostic samples, not latency targets.
+
+The local server sets **100 ms** worker/courier idle intervals, overriding the
+query host executable's standalone 20 ms default. For a first empty Table SELECT
+with the shipped eight-page cache and 100 ms intervals, the profile measures
+**12.96 s**: prepare 21 ms, compile 50 ms, submit 2,951 ms, wait 9,547 ms, fetch
+373 ms, render below 1 ms and persist 10 ms. It observes:
+
+- **1,120 native requests**, of which 384 are console requests, 367 source-worker,
+  153 requester-worker, 203 courier and 13 manager requests.
+- **31,466 page-cache misses** and 22,815 hits; every miss reads a separate
+  immutable page record through the Ursula HTTP client.
+- **51 durable native updates**, including four upload sends, 17 view opens,
+  17 turns and 13 deliveries. The source takes 12 turns and the requester five.
+- **1,471 staged pages**, about 1.84 MB of attempted page JSON payload for an empty
+  result. These exclude root-journal payloads, HTTP framing and provider WAL/
+  replication amplification. All cache/polling experiments stage the same number
+  of pages.
+- **12.58 s inside the serialized node handlers**, including 9.16 s of page
+  provider I/O, 0.58 s decoding fetched pages and 0.39 s of backend fetch digest
+  checks. The remaining handler time includes signature checks, tree work, the
+  core's additional digest checks and root-journal I/O; it is not attributed to
+  any one of those operations by this probe.
+
+Within the query window, source-worker step spans total 8.756 s while their native
+client request spans total 8.701 s. The approximately 55 ms remainder includes
+local bookkeeping and query computation; this empty-query observation does not
+establish execution costs for populated tables or more complex SQL. The timings
+and whole-node counts locate the delay in native orchestration and storage.
+
+Grouping the same recorded request counters by mutation gives **1,069 read
+requests / 8.63 handler seconds** and **51 update requests / 3.94 handler seconds**.
+These times include each operation's checks and I/O and partition the 12.58-second
+handler total; they must not be added to the overlapping 9.16-second page-I/O
+measurement. The page cache misses 58% of its 54,281 loads, and the 51 updates
+average 28.8 staged pages each. These are derived attributions of the existing
+trace, not a new benchmark or a predicted speedup from removing an operation.
+
+Controlled first-query experiments, each on a fresh installation:
+
+| Page cache | Worker/courier idle interval | Diagnostic change | Elapsed | Page misses |
+| ---: | ---: | --- | ---: | ---: |
+| 8 | 100 ms | Baseline | 12.96 s | 31,466 |
+| 8 | 20 ms | Faster polling | 15.52 s | 36,604 |
+| 64 | 20 ms | Larger cache | 5.50 s | 624 |
+| 8 | 200 ms | Slower polling | 15.67 s | 31,642 |
+| 8 | 100 ms | LRU replacement | 12.50 s | 27,397 |
+| 8 | 100 ms | Stop scans at the catalog range boundary | 11.99 s | 24,548 |
+
+LRU and range-bounded scans reduce reads but do not resolve multi-second empty
+queries. These single elapsed samples are subject to host variance and do not
+qualify either experimental engine change. Slower polling primarily helps idle
+work: at 100 ms, three idle seconds use 0.24 node CPU seconds and cause 114 native
+requests/924 page misses; at 20 ms these rise to 0.97 CPU seconds and 467 requests/
+3,832 misses. At 200 ms they fall to 0.12 CPU seconds and 61 requests/481 misses,
+but query completion takes longer. Polling must be evaluated alongside wake-up
+latency and durable work, not reduced blindly.
+
+The running developer node's executable hash still matches the earlier Debug
+control. Its 86.9-second reported query is consistent with the already measured
+Debug amplification; an optimized CLI does not replace an already running Debug
+node. The developer installation was neither queried nor restarted by the probes.
+
+The benchmark now supports reproducible fixture-only controls and idle CPU
+measurement, building to its own output prefix:
+
+```sh
+just test::console-latency --single
+just test::console-latency --single --resident-pages 64
+just test::console-latency --single --worker-interval-ms 200
+```
+
+It hashes and freezes the selected binaries, applies controls only to its own
+child configurations, verifies the result and joins all owned processes. The
+next changes should reduce repeated native metadata/point reads and intermediate
+page staging within bounded operations, and reduce result-publication turns
+where the existing atomic mutation budget permits. Current-authority checks,
+retained versions, exact receipts and final result verification remain required.
+
+The extended benchmark passes against the uninstrumented ReleaseSafe binaries
+both without overrides (**14.01 s**, 6.12 node CPU seconds) and with the fixture-only
+64-page/100-ms controls (**5.69 s**, 1.91 node CPU seconds). Both return the verified
+empty typed table; render time is below 1 ms. Idle node CPU is 0.24 and 0.14 seconds
+respectively over three seconds. Binary hashes match between runs. No build or
+other qualification ran concurrently with these measurements; the developer's
+existing server remained running. These controls reproduce the cache sensitivity
+without relying on the profiling node.
+
+`just check` passes after adding the benchmark controls and attribution notes,
+including the 174 CLI cases, Zig unit checks, generated contracts, frontend checks,
+public documentation validation and site build. The diagnostic range experiment
+also passed the standalone core's existing unit suite in its isolated checkout;
+no engine change is promoted on that evidence alone.

@@ -32,7 +32,9 @@ Public guides/reference cannot depend on internal links. Every cataloged page,
 including component guides and generated API content/downloads, plus every wire
 contract in `contracts/`, is checked for milestone labels and roadmap references. Write these pages as a
 snapshot of supported capabilities, retaining real wire/profile versions and
-stating unsupported cases without delivery promises. See
+stating unsupported cases without delivery promises. Public workload priorities
+and performance improvement plans distinguish selected direction from implemented
+behavior and link their measured evidence. See
 [documentation ownership](../../docs/README.md#where-documentation-lives).
 
 Use direct interface language in the homepage and documentation. Describe
@@ -44,6 +46,13 @@ to included pages onto site routes and other repository links onto GitHub source
 Literal code examples are untouched. Original edit links point at the owning file.
 Markdown uses CommonMark mode; Mermaid fences render as diagrams. No separate
 copy of the foundations or generated wire schema is maintained here.
+
+The [workload gallery](../../docs/guides/workload-examples.md) uses excerpts from
+complete executable examples. A `source-excerpt` HTML comment before a code fence
+names its repository-relative owner; content tests require the block to match
+contiguous source lines, allowing only common indentation. Keep imports, setup
+and run commands linked to the complete example. This guards documentation drift;
+it does not replace the language checks or the example's real-authority proof.
 
 `lib/specs.ts` renders API operations/messages and recursive field/variant tables
 from checked Board/serving OpenAPI and reactive AsyncAPI descriptions. Builds copy
@@ -73,6 +82,8 @@ TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser
 
 The browser proof builds and serves real output, checking desktop/mobile navigation,
 search, generated references, exact spec downloads, diagrams and accessibility.
+It also follows the workload gallery into performance evidence and planned
+session semantics, checking highlighted language blocks and search discovery.
 It uses a private loopback port (4179 by default, `TRANSIT_DOCS_TEST_PORT` to change).
 No Transit deployment is started or modified.
 

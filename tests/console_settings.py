@@ -1,6 +1,6 @@
 """Assertions for the human settings layout, including JSON result sessions."""
 
-NAMES = ('connection', 'connection_source', 'url', 'format', 'format_source')
+NAMES = ('connection', 'connection_source', 'url', 'format', 'format_source', 'timing', 'timing_source')
 
 
 def parse_show(output):

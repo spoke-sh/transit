@@ -307,6 +307,11 @@ console source="table":
 cli-diagnostics:
     zig build test-cli-diagnostics
 
+# Measure the default local empty Table with consistently optimized executables.
+console-latency *args:
+    zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
+    python3 -B tests/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
+
 # Actual native server with independent console and owned process failures.
 server:
     zig build test-server -Doptimize=ReleaseSafe

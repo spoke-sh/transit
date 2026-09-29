@@ -9,7 +9,7 @@ import socket
 import subprocess
 import sys
 import tempfile
-from console_settings import parse_show
+from console_settings import parse_show, read_show
 
 CLI = str(Path(sys.argv[1]).resolve())
 ENV = {key: value for key, value in os.environ.items() if not key.startswith('TRANSIT_')}
@@ -25,7 +25,8 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
     assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
     if expected:
         assert result.stdout == b'', (args, result.stdout)
-        assert result.stderr.startswith(b'error: '), (args, result.stderr)
+        prefix = b'Usage: ' if stderr is not None and stderr.startswith('Usage: ') else b'error: '
+        assert result.stderr.startswith(prefix), (args, result.stderr)
         for label in (b'\n  at: ', b'\n  cause: ', b'\n  next: ', b'\n  help: '):
             assert label not in result.stderr, (args, label, result.stderr)
         assert b'private-must-not-appear' not in result.stderr, result.stderr
@@ -239,6 +240,44 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     assert parse_show(shown.stdout)['connection_source'] == '--config'
     shown = invoke(['console'], 0, env=dict(environment, TRANSIT_CONSOLE_CONFIG=str(connection)), cwd=project, data=b'.show\n')
     assert parse_show(shown.stdout)['connection_source'] == 'TRANSIT_CONSOLE_CONFIG'
+    (home/'.transitrc').write_text('.timing off\n')
+    (project/'.transitrc').write_text('.timing on\n')
+    shown = invoke(['console', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
+    settings = parse_show(shown.stdout)
+    assert settings['timing'] == 'on' and settings['timing_source'] == str(project/'.transitrc')
+    shown = invoke(['console', '--config', connection], 0, env=environment, cwd=project, data=b'.timing off\n.show\n')
+    settings = parse_show(shown.stdout)
+    assert settings['timing'] == 'off' and settings['timing_source'] == '.timing'
+    for format in ('table', 'json'):
+        for text in (b'.timing\n', b'.timing \t\n', b'.timing private-must-not-appear\n', b'.timing on off\n'):
+            invoke(['console', '--no-rc', '--config', connection, '--format', format], 1,
+                   env=environment, cwd=project, data=text+b'.show\n', stderr='Usage: .timing on|off\n')
+    shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project,
+                   data=b'.timing\ton\n.show\n')
+    assert parse_show(shown.stdout)['timing'] == 'on'
+    # Local settings need no server. Real terminals keep the setting and prompt
+    # after usage errors, with no status JSON accidentally left on stdout.
+    from console_terminal import Terminal
+    for format in ('table', 'json'):
+        terminal = Terminal(CLI, connection, format=format, cwd=project)
+        try:
+            terminal.send('.timing on\r')
+            terminal.expect('transit> .timing on\r\n')
+            for text in ('.timing', '.timing off on'):
+                terminal.send(text+'\r')
+                terminal.expect('Usage: .timing on|off\r\n')
+                terminal.send('.show\r')
+                settings = read_show(terminal)
+                assert settings['timing'] == 'on' and settings['format'] == format, settings
+            terminal.send('.timing off\r')
+            terminal.expect('transit> .timing off\r\n')
+            terminal.send('.show\r')
+            assert read_show(terminal)['timing'] == 'off'
+        finally:
+            terminal.close()
+        CASES += 1
+    (project/'.transitrc').write_text('.timing invalid\n')
+    invoke(['console', '--config', connection], env=environment, cwd=project, contains=('.timing must be on or off',))
     (project/'.transitrc').write_text('SELECT private-must-not-appear;\n')
     invoke(['console', '--config', connection], env=environment, cwd=project, contains=('startup command',))
     shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
