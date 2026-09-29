@@ -253,7 +253,7 @@ pub const Console = struct {
             self.next_connection = try self.init.arena.allocator().dupe(u8, file);
             return;
         }
-        if (std.mem.eql(u8, text, ".show")) return self.json(.{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source });
+        if (std.mem.eql(u8, text, ".show")) return @import("Show.zig").write(self.out, .{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source });
         if (std.mem.eql(u8, text, ".tables")) {
             const description = try q.Workspace.apply(allocator, self.client, self.config, .describe);
             if (self.session.format == .json) return self.json(description);

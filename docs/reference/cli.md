@@ -163,7 +163,7 @@ commands are unsupported. Completion never submits.
 | `.sources`, `.tables`, `.schema` | Inspect the authorized source and schema |
 | `.mode table\|json` | Select result presentation |
 | `.connect PATH` | Switch connection in a terminal, after resolving outstanding work |
-| `.show` | Effective settings and their origins |
+| `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
 | `.status`, `.info` | Saved query status or evidence |
 | `.resume [ID]` | Recover the saved or selected existing query and print results |
 | `.cancel` | Request durable cancellation of the saved query |

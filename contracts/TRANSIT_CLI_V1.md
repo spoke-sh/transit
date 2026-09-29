@@ -195,6 +195,11 @@ accept/dismiss/undo, resize and Ctrl-C draft clearing. History is not persisted.
 
 The console exposes `.help`, `.info`, `.tables`, `.sources`, `.schema`, `.status`,
 `.resume [ID]`, `.cancel`, `.mode table|json`, `.show`, `.connect PATH` and `.quit`.
+`.show` emits one setting per line on stdout, with right-aligned names, aligned
+colons and escaped text values, independently of the query result format.
+Automatic connection selection is `(automatic)`; boolean settings use `on`/`off`.
+It reports effective settings and their origins without changing settings,
+submitting queries or retrying saved work.
 `.connect` is terminal-only and refuses to abandon unresolved work. Unknown
 commands/arguments reject as a whole. Normal SQL compiles before identity
 allocation, selects a nonzero unused random identity within the exact protocol
