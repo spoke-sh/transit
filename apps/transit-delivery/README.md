@@ -55,4 +55,4 @@ CLI signs this read in its separate delivery domain; it consumes no sequence.
 checks byte-identical retries and restarts it. Core tests prove scope restrictions,
 revocation and terminal denial. Local, Compose and reference launchers deploy
 this service; the same public Zig caller checks a queued output across courier
-and authority restarts in [M8 qualification](../../docs/roadmap/M8.md).
+and authority restarts in [M8 qualification](../../docs/internal/roadmap/M8.md).

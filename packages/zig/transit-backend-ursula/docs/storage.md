@@ -87,7 +87,7 @@ the pinned client with crashes between physical operations and durable outcomes.
 The [proof guide](../../../../tests/README.md) records tested schedules and limits.
 Native TTL and physical erasure of all historical copies are not claimed.
 M7 performs keyed compaction through core's validated whole-realm checkpoint;
-the adapter does not choose application keys or independent resource policies. The portable contract lives in [RETENTION.md](../../../../docs/RETENTION.md).
+the adapter does not choose application keys or independent resource policies. The portable contract lives in [RETENTION.md](../../../../docs/internal/RETENTION.md).
 
 ## Persistence configuration
 
@@ -106,12 +106,12 @@ recovery behavior. See
 [durability and consistency](https://ursula.tonbo.io/docs/concepts/durability-and-consistency/).
 
 Test execution-worker loss separately from Ursula restart and persistent-volume loss
-in the [reference deployment](../../../../docs/DEPLOYMENT.md). Multi-node failure tolerance,
+in the [reference deployment](../../../../docs/internal/DEPLOYMENT.md). Multi-node failure tolerance,
 S3-compatible cold storage, backup/restore, and retention need explicit design
 and tests before broader use. Unread mailbox data must survive authorized
 suspension within its accepted lifetime; expiry must make recovery terminal.
 Benchmark realistic process backlogs and exchange groups rather than inheriting
-upstream throughput claims. M1's completed outcomes and limits live in [M1](../../../../docs/roadmap/M1.md).
+upstream throughput claims. M1's completed outcomes and limits live in [M1](../../../../docs/internal/roadmap/M1.md).
 
 ## Immutable payload deletion
 

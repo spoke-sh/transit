@@ -3,8 +3,8 @@
 Status: implemented bounded M1 profile with additive [M7 state](STATE_V1.md)
 and M8 [lifecycle](LIFECYCLE_V1.md)/[collection](CATALOG_V1.md) extensions; not a
 stable public API.
-The owning requirements remain in [TRANSIT.md](../docs/TRANSIT.md) and
-[SECURITY.md](../docs/SECURITY.md).
+The owning requirements remain in [TRANSIT.md](../docs/internal/TRANSIT.md) and
+[SECURITY.md](../docs/internal/SECURITY.md).
 
 ## Encoding and identity
 
@@ -115,7 +115,7 @@ failure. Failure evidence survives replay and checkpointing. The sample counter
 uses checked addition in the worker. Application tests establish its arithmetic;
 Transit establishes protocol legality, not honest or deterministic computation.
 Two distinct Zig applications exercise the same unchanged node through
-[`transit-client`](../docs/CLIENT.md).
+[`transit-client`](../docs/internal/CLIENT.md).
 
 Mailbox bodies remain in storage. State holds counts and a scan position;
 the Ursula adapter caches at most 16 records. This trades scanning cost for a
@@ -327,7 +327,7 @@ remain unlimited. Dynamic capacity expansion is outside this experimental profil
 
 Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
 own executable proofs. Basic immutable payload deletion is described below;
-the [M1 milestone](../docs/roadmap/M1.md#m1-completion-and-limits) records the completed evidence audit.
+the [M1 milestone](../docs/internal/roadmap/M1.md#m1-completion-and-limits) records the completed evidence audit.
 Cross-realm delivery is outside this slice.
 The [experimental service](SERVICE_V2.md) hosts signed ingress and scoped views
 for application callers, including the reference counter. Conformance is limited to the documented

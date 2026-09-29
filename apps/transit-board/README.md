@@ -3,7 +3,7 @@
 Zig inspection service with optional separately credentialed query workspaces, containing the static [Board frontend](../transit-board-web/README.md)
 and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime libraries are `transit-client`, `transit-board-api`, `transit-query`, and the neutral
 `telemetry` package, the shared `transit-station-app` compiler/publication adapter, plus the neutral
-[HTTP server](../../packages/zig/transit-http-server/README.md). It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/BOARD.md) owns the architecture.
+[HTTP server](../../packages/zig/transit-http-server/README.md). It has no kernel, Ursula or provider access and runs no application handlers. [Board's design](../../docs/internal/BOARD.md) owns the architecture.
 
 ## Configuration guide
 

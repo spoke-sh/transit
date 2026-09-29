@@ -4,7 +4,7 @@ Domain-neutral Zig instrumentation, exported as `telemetry`, with no package
 dependencies. Board owns its HTTP events; Transit-specific vocabulary belongs in
 `transit-observability`. This package owns bounded emission, resource identity,
 short spans, metric instruments and context. See the
-[observability design](../../../docs/OBSERVABILITY.md).
+[observability design](../../../docs/internal/OBSERVABILITY.md).
 
 ## Composition and configuration
 

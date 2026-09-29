@@ -13,7 +13,7 @@ The clean-consumer proof removes extracted crates and build outputs before
 running the executable against a real disk authority.
 
 The existing M9 `transit-station` crate remains unchanged while the separate
-typed Station SDK is built. See the [Rust design](../../../docs/sdk/RUST.md).
+typed Station SDK is built. See the [Rust design](../../../docs/internal/sdk/RUST.md).
 
 Enter `nix develop .#bindings` and run `just bindings::rust-build` to create
 `.cache/bindings/rust/transit-client-0.2.0.crate` and its matching

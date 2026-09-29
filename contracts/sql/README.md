@@ -5,7 +5,7 @@ administrative extension syntax. `TransitExtensions.g4` is the checked reference
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
 The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/sql.md)
 lowers this SELECT profile to the existing `Stream.Plan`/`PlanCodec`.
-[M12](../../docs/roadmap/M12.md) tracks its qualification and limits.
+[M12](../../docs/internal/roadmap/M12.md) tracks its qualification and limits.
 
 M18's additive [v2 compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
 reuses this grammar and owned AST for declared KV/Table/Document schemas. Its

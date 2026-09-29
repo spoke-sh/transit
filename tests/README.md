@@ -1060,7 +1060,7 @@ These checks passed locally on Linux x86_64 with the pinned compiler. They do no
 yet qualify general public multi-call/followup APIs, managed secret providers,
 every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
-[M15](../docs/roadmap/M15.md) exit obligations. The shared capture
+[M15](../docs/internal/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage
 from protocol completeness and effect-result acceptance.
 
@@ -1069,7 +1069,7 @@ from protocol completeness and effect-result acceptance.
 This directory owns conformance harnesses, fault injection, test-only executors,
 and proof results. Application examples live under [examples](../examples/README.md);
 tests launch those real binaries rather than a separate implementation of their
-logic. The [conformance design](../docs/CONFORMANCE.md) owns the required adversarial
+logic. The [conformance design](../docs/internal/CONFORMANCE.md) owns the required adversarial
 scenarios. Results below describe the recorded bounded milestone profiles, not
 a claim that all commands are rerun on every documentation change.
 
@@ -1513,7 +1513,7 @@ namespace/release selection, useful empty-selection diagnostics, and rejection
 of control characters or oversized human-table fields without partial output.
 
 The plugin's [runbook](../apps/kubectl-transit/README.md) and
-[full plan](../docs/roadmap/M5.md) define its inspection-only scope.
+[full plan](../docs/internal/roadmap/M5.md) define its inspection-only scope.
 Toolchain smoke checks verify Kind and both kubectl plugins offline.
 
 `just launchers::reference::test-plugin` passed on Linux x86_64 against the

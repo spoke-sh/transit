@@ -2,7 +2,7 @@
 
 M23 implementation contract. The model, parser and conditional publication owner are implemented;
 publication, browser and placement qualification remain open until recorded in
-the [milestone](../docs/roadmap/M23.md). This contract grants no execution rights.
+the [milestone](../docs/internal/roadmap/M23.md). This contract grants no execution rights.
 
 ## Definition
 

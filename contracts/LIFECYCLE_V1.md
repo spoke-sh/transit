@@ -1,7 +1,7 @@
 # Process lifecycle controls v1
 
 Implemented M8 extension under `Command.lifecycle`. [Transit](TRANSIT_V2.md)
-remains the execution authority; [Station](../docs/STATION.md) owns behavior policy.
+remains the execution authority; [Station](../docs/internal/STATION.md) owns behavior policy.
 
 ## Initialization
 

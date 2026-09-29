@@ -1,6 +1,6 @@
 # Transit CLI v1
 
-Status: selected implementation contract for [M24](../docs/roadmap/M24.md),
+Status: selected implementation contract for [M24](../docs/internal/roadmap/M24.md),
 not qualification evidence. The [CLI guide](../apps/transit-cli/README.md) records
 which commands actually exist. Native placement initially targets Linux x86_64.
 

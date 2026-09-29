@@ -3,7 +3,7 @@ export type Page = { source: string; route: string; label: string };
 export type Section = { label: string; pages: Page[] };
 const page = (source: string, route: string, label: string): Page => ({ source, route, label });
 const foundation = (name: string, label: string): Page =>
-  page(`docs/${name}.md`, `concepts/${name.toLowerCase().replaceAll("_", "-")}`, label);
+  page(`docs/internal/${name}.md`, `concepts/${name.toLowerCase().replaceAll("_", "-")}`, label);
 const guide = (name: string, label: string): Page =>
   page(`docs/guides/${name}.md`, `guides/${name}`, label);
 const reference = (name: string, label: string): Page =>
@@ -132,11 +132,11 @@ export const sections: Section[] = [
       foundation("SCOPE", "Scope and limits"),
       foundation("ARCHITECTURE", "Architecture and components"),
       foundation("QUERY_LANGUAGE", "Declarative language design"),
-      page("docs/DEVELOPMENT.md", "contributing/development", "Development"),
-      page("docs/TESTING.md", "contributing/testing", "Testing strategy"),
-      page("docs/CONFORMANCE.md", "contributing/conformance", "Conformance requirements"),
+      page("docs/internal/DEVELOPMENT.md", "contributing/development", "Development"),
+      page("docs/internal/TESTING.md", "contributing/testing", "Testing strategy"),
+      page("docs/internal/CONFORMANCE.md", "contributing/conformance", "Conformance requirements"),
       page("docs/README.md", "contributing/documentation", "Documentation ownership"),
-      page("docs/roadmap/README.md", "contributing/roadmap", "Roadmap"),
+      page("docs/internal/roadmap/README.md", "contributing/roadmap", "Roadmap"),
     ],
   },
 ];

@@ -45,7 +45,7 @@ whole output. PyArrow-produced round trips and thirteen malformed schema/state
 cases qualify this reader independently of Fuze's encoder.
 
 Station owns authorized Table adapters and durable result publication; the
-[Fuze design](../../../docs/FUZE.md) describes the broader direction.
+[Fuze design](../../../docs/internal/FUZE.md) describes the broader direction.
 
 M10's separate `Stream` interface implements bounded steps with owned progress,
 whole-query limits/aggregates and Arrow segments. See the
@@ -78,5 +78,5 @@ output failure, and the compatible upstream compute suite. PyArrow is a test
 dependency; no C++ query engine is linked into Fuze.
 
 [Integration notes](docs/integration.md) record pins, compatibility changes and
-measured limits. [Tables](../../../docs/TABLES.md) owns transaction and result
-semantics; [Arrow](../../../docs/ARROW.md) owns later remote interoperability.
+measured limits. [Tables](../../../docs/internal/TABLES.md) owns transaction and result
+semantics; [Arrow](../../../docs/internal/ARROW.md) owns later remote interoperability.

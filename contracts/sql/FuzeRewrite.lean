@@ -1,7 +1,7 @@
 /-
-Candidate rewrite-safety theorem for Fuze's planner, per docs/TESTING.md's
+Candidate rewrite-safety theorem for Fuze's planner, per docs/internal/TESTING.md's
 Lean scoping ("a Fuze rewrite with exact error semantics") and
-docs/QUERY_LANGUAGE.md. This formalizes the SPECIFICATION in FUZE_V1.md
+docs/internal/QUERY_LANGUAGE.md. This formalizes the SPECIFICATION in FUZE_V1.md
 ("Filter precedes limit; aggregates consume that limited selection") at the
 row-selection level, not the Zig implementation. Model/implementation
 correspondence is a separate, stated assumption here, exactly as

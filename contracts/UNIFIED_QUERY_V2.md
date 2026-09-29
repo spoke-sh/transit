@@ -3,7 +3,7 @@
 Status: selected M18 contract; implementation and qualification are in progress.
 The existing [public Table v1](PUBLIC_QUERY_V1.md), `FZP1` plans and retained
 `GQM2` results keep their original interpretation. This document does not mark
-unimplemented surfaces as available. See [M18](../docs/roadmap/M18.md).
+unimplemented surfaces as available. See [M18](../docs/internal/roadmap/M18.md).
 
 ## Ownership and source identity
 

@@ -1,7 +1,7 @@
 # State resources v1
 
 Status: implemented bounded M7 protocol, service and Zig client. See
-[STATE.md](../docs/STATE.md) for the design and [M7](../docs/roadmap/M7.md) for
+[STATE.md](../docs/internal/STATE.md) for the design and [M7](../docs/internal/roadmap/M7.md) for
 qualification. Query `capabilities` on the running authority; schema presence
 alone does not advertise its support.
 
@@ -29,7 +29,7 @@ or multi-stream commit. Larger upload-backed resources require another profile.
 
 These are enforced compile-time ceilings in the legacy v1 implementation, not
 runtime cache settings or Ursula service limits. The target collection model
-decouples retained data from working memory; [M10](../docs/roadmap/M10.md) plans
+decouples retained data from working memory; [M10](../docs/internal/roadmap/M10.md) plans
 and qualifies that correction. This document still specifies the unchanged v1
 profile; a future storage/encoding change needs explicit compatibility evidence.
 

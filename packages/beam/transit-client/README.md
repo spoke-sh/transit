@@ -6,7 +6,7 @@ client port. It depends directly on the separate native application and does not
 import Station. Public records are in `include/transit_client.hrl`; generated
 wire schemas remain in `priv/contract.json`.
 
-The external-consumer proof passes under [M11](../../../docs/roadmap/M11.md)
+The external-consumer proof passes under [M11](../../../docs/internal/roadmap/M11.md)
 through `just bindings::beam-sdk-test`. The [usage guide](docs/USAGE.md) describes
 installation, recovery, scheduling and supervision. The target is Linux x86_64 with OTP 28 from
 the optional pinned bindings shell. Runtime loading starts no native work.

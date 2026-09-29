@@ -2,40 +2,40 @@
 
 ## Before changing code
 
-Read [README.md](README.md), [scope](docs/SCOPE.md), and
-[architecture](docs/ARCHITECTURE.md) first. Use the [glossary](docs/GLOSSARY.md)
+Read [README.md](README.md), [scope](docs/internal/SCOPE.md), and
+[architecture](docs/internal/ARCHITECTURE.md) first. Use the [glossary](docs/internal/GLOSSARY.md)
 for names. Read the affected package/app README for implementation, configuration,
-and limits; the [component map](docs/ARCHITECTURE.md#planned-monorepo-decomposition)
+and limits; the [component map](docs/internal/ARCHITECTURE.md#planned-monorepo-decomposition)
 links them. Treat proposed design as intent, not implemented behavior.
 
 Follow the contracts for the area you change:
 
 | Area | Required references |
 | --- | --- |
-| Protocol, processes, ownership | [Transit](docs/TRANSIT.md), [v2 profile](contracts/TRANSIT_V2.md) |
-| Authentication, grants, credentials, trust | [Security](docs/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
-| Storage, delivery, producer/consumer behavior | [Streams](docs/STREAMS.md), [Ursula boundary](docs/URSULA.md) |
-| State resources, associations, KV/Table/Document APIs | [State](docs/STATE.md), [M7](docs/roadmap/M7.md), [Document M17](docs/roadmap/M17.md) |
-| Declarative interfaces, SQL, Fuze/query planning and execution | [Query language](docs/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [Fuze](docs/FUZE.md), [Tables](docs/TABLES.md) |
-| Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/ARROW.md) |
-| Inbound services, HTTP APIs, service/route publication | [Serving](docs/SERVING.md), [Security](docs/SECURITY.md), [M19](docs/roadmap/M19.md) |
-| Reactive APIs, SSE/WebSocket, sessions, watches, OpenAPI/AsyncAPI | [Reactive APIs](docs/REACTIVE_API.md), [Serving](docs/SERVING.md), [M20](docs/roadmap/M20.md) |
-| Reactive views, freshness, snapshot refresh | [Reactive interfaces](docs/REACTIVE.md), [Serving](docs/SERVING.md), [M21](docs/roadmap/M21.md) |
-| Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/RETENTION.md) |
-| Caller APIs and language bindings | [Caller model](docs/CLIENT.md), [SDK milestone M11](docs/roadmap/M11.md), [public protocol package](packages/zig/transit-protocol/README.md) |
-| Operator/agent inspection, Board UI/API | [Board](docs/BOARD.md), [query language](docs/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [M2 plan](docs/roadmap/M2.md) |
-| Service logs, metrics, traces, probes | [Observability](docs/OBSERVABILITY.md), [M4](docs/roadmap/M4.md) |
-| Behaviors, supervision, names | [Station](docs/STATION.md) |
-| Effects, capture, secret interpolation | [Connectors](docs/CONNECTORS.md), [gRPC](docs/GRPC.md) for RPC work |
-| Kubernetes, provider bindings, recovery | [Deployment](docs/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
+| Protocol, processes, ownership | [Transit](docs/internal/TRANSIT.md), [v2 profile](contracts/TRANSIT_V2.md) |
+| Authentication, grants, credentials, trust | [Security](docs/internal/SECURITY.md), [service contract](contracts/SERVICE_V2.md) |
+| Storage, delivery, producer/consumer behavior | [Streams](docs/internal/STREAMS.md), [Ursula boundary](docs/internal/URSULA.md) |
+| State resources, associations, KV/Table/Document APIs | [State](docs/internal/STATE.md), [M7](docs/internal/roadmap/M7.md), [Document M17](docs/internal/roadmap/M17.md) |
+| Declarative interfaces, SQL, Fuze/query planning and execution | [Query language](docs/internal/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [Fuze](docs/internal/FUZE.md), [Tables](docs/internal/TABLES.md) |
+| Arrow IPC/C interfaces, Flight/Flight SQL, ADBC | [Arrow](docs/internal/ARROW.md) |
+| Inbound services, HTTP APIs, service/route publication | [Serving](docs/internal/SERVING.md), [Security](docs/internal/SECURITY.md), [M19](docs/internal/roadmap/M19.md) |
+| Reactive APIs, SSE/WebSocket, sessions, watches, OpenAPI/AsyncAPI | [Reactive APIs](docs/internal/REACTIVE_API.md), [Serving](docs/internal/SERVING.md), [M20](docs/internal/roadmap/M20.md) |
+| Reactive views, freshness, snapshot refresh | [Reactive interfaces](docs/internal/REACTIVE.md), [Serving](docs/internal/SERVING.md), [M21](docs/internal/roadmap/M21.md) |
+| Lifetimes, expiry, compaction, deletion, capacity | [Retention](docs/internal/RETENTION.md) |
+| Caller APIs and language bindings | [Caller model](docs/internal/CLIENT.md), [SDK milestone M11](docs/internal/roadmap/M11.md), [public protocol package](packages/zig/transit-protocol/README.md) |
+| Operator/agent inspection, Board UI/API | [Board](docs/internal/BOARD.md), [query language](docs/internal/QUERY_LANGUAGE.md), [grammar contract](contracts/sql/README.md), [M2 plan](docs/internal/roadmap/M2.md) |
+| Service logs, metrics, traces, probes | [Observability](docs/internal/OBSERVABILITY.md), [M4](docs/internal/roadmap/M4.md) |
+| Behaviors, supervision, names | [Station](docs/internal/STATION.md) |
+| Effects, capture, secret interpolation | [Connectors](docs/internal/CONNECTORS.md), [gRPC](docs/internal/GRPC.md) for RPC work |
+| Kubernetes, provider bindings, recovery | [Deployment](docs/internal/DEPLOYMENT.md), [runtime contract](contracts/RUNTIME_SUBSTRATE_V1.md) |
 | Local/Compose lifecycle and developer environments | [Launchers](launchers/README.md) |
 
-Read [conformance](docs/CONFORMANCE.md) for adversarial obligations and tie work
-to a [roadmap milestone](docs/roadmap/README.md). Preserve the proved M1 gates before
+Read [conformance](docs/internal/CONFORMANCE.md) for adversarial obligations and tie work
+to a [roadmap milestone](docs/internal/roadmap/README.md). Preserve the proved M1 gates before
 expanding framework or real-effect integrations. Preserve the
-[M8 runtime readiness](docs/roadmap/M8.md) contracts and qualification limits when
-building Station; the [pre-Station review](docs/reviews/PRE_STATION.md) records their rationale.
-Use the [testing strategy](docs/TESTING.md) and [M10](docs/roadmap/M10.md) for
+[M8 runtime readiness](docs/internal/roadmap/M8.md) contracts and qualification limits when
+building Station; the [pre-Station review](docs/internal/reviews/PRE_STATION.md) records their rationale.
+Use the [testing strategy](docs/internal/TESTING.md) and [M10](docs/internal/roadmap/M10.md) for
 verification, CI changes and scale qualification. Distinguish planned checks
 from executable evidence; never treat a skipped or incomplete proof as passed.
 
@@ -47,15 +47,15 @@ from executable evidence; never treat a skipped or incomplete proof as passed.
 - Name streaming-runtime artifacts and deployments Transit; Rey is the intended
   downstream trading application. Board, Station and Fuze belong to Transit;
   use `transit-board*`, `transit-station*` and `transit-fuze*` for their artifacts.
-  Keep their readable names in prose. Follow the [glossary](docs/GLOSSARY.md)
+  Keep their readable names in prose. Follow the [glossary](docs/internal/GLOSSARY.md)
   for roles.
 - Write kernel, framework, connectors, and backends in Zig. Use strict TypeScript
   and Vite+ for frontends. Keep external infrastructure in its upstream language.
   M9's language bindings and M11's public SDKs, host adapters, examples and
   conformance tests may use their target languages; share the Zig client/framework
-  through the [binding boundary](docs/CLIENT.md#language-neutral-boundary) instead of duplicating
+  through the [binding boundary](docs/internal/CLIENT.md#language-neutral-boundary) instead of duplicating
   protocol semantics. Keep query execution Zig native and outside kernel authority;
-  follow [Fuze](docs/FUZE.md) for DataFusion/Acero inspiration and query boundaries.
+  follow [Fuze](docs/internal/FUZE.md) for DataFusion/Acero inspiration and query boundaries.
   Neither upstream engine is a runtime dependency.
 - Keep generated wire/ABI declarations separate from language-native public APIs.
   SDKs own types, codecs, handler dispatch, scheduling and packaging; the shared
@@ -64,7 +64,7 @@ from executable evidence; never treat a skipped or incomplete proof as passed.
   host tasks and handler fields are not durable state.
 - Design Board and other operator interfaces as views over Transit's declarative
   model. Map objects, forms, diagrams and actions to the SQL grammar and shared
-  typed contracts in [Query language](docs/QUERY_LANGUAGE.md#declarative-model-and-visual-interfaces).
+  typed contracts in [Query language](docs/internal/QUERY_LANGUAGE.md#declarative-model-and-visual-interfaces).
   SQL, visual editing, CLI and SDK surfaces must share validation and semantics:
   queries lower to Fuze plans; declarations and controls use their owning public
   operations, never a separate UI configuration authority. Show definitions,
@@ -73,7 +73,7 @@ from executable evidence; never treat a skipped or incomplete proof as passed.
   propose missing contracts explicitly instead of inventing runnable SQL or
   treating parser acceptance as execution support. Edits may schedule qualified
   read queries in a visible, scoped Live worksheet session, as proposed in
-  [Board console D4](docs/design/board-console/D4.md#live-execution-snapshot-and-stream).
+  [Board console D4](docs/internal/design/board-console/D4.md#live-execution-snapshot-and-stream).
   Keep exact, speculative and earlier-draft results distinct; bind work to its
   draft, query, source basis and budget. Probability may guide scheduling, never
   authorization or result truth. Editing does not implicitly apply administrative
@@ -145,12 +145,12 @@ Keep component READMEs navigable; place substantial configuration, recovery, or
 integration guides in that component's `docs/` and link them from its README.
 Update the owning document with meaningful changes and distinguish implemented,
 proposed, and unverified behavior. Keep rationale with its topic. Do not add ADRs
-yet; preserve `docs/decisions/README.md` and `TEMPLATE.md` for future use.
+yet; preserve `docs/internal/decisions/README.md` and `TEMPLATE.md` for future use.
 
-Reserve `docs/design/` for UI/UX reviews. Document system architecture in its
+Reserve `docs/internal/design/` for UI/UX reviews. Document system architecture in its
 owning topic documents and scope, decisions and qualification in roadmap milestones.
-Register UI/UX design items in the [design index](docs/design/README.md). Keep one
-linear review sequence and summary table per item in `docs/design/<item>/README.md`,
+Register UI/UX design items in the [design index](docs/internal/design/README.md). Keep one
+linear review sequence and summary table per item in `docs/internal/design/<item>/README.md`,
 with one `D<number>.md` per review in that directory. Use the shared template,
 preserve recorded outcomes, and distinguish accepted design from implemented behavior.
 Use black-and-white wireframes for structure and interaction reviews. Introduce
@@ -159,7 +159,7 @@ labels, geometry and line styles.
 
 Keep the roadmap linear: give additional work its own numbered milestone and
 renumber upcoming milestones and references, following the
-[sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
+[sequencing rule](docs/internal/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17
 compiler and standard library, not examples from older releases. Install locked

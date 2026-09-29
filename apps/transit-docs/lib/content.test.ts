@@ -9,10 +9,10 @@ const root = path.resolve(import.meta.dirname, "../../..");
 
 describe("documentation ownership and navigation", () => {
   it("includes every foundation and resolves every catalog source without route collisions", () => {
-    const foundations = readdirSync(path.join(root, "docs")).filter((name) => name.endsWith(".md"));
+    const foundations = readdirSync(path.join(root, "docs/internal")).filter((name) => name.endsWith(".md"));
     for (const name of foundations)
       expect(
-        pages.some((entry) => entry.source === `docs/${name}`),
+        pages.some((entry) => entry.source === `docs/internal/${name}`),
         name,
       ).toBe(true);
     for (const entry of pages)
@@ -21,7 +21,7 @@ describe("documentation ownership and navigation", () => {
     expect(new Set(pages.map((entry) => entry.source)).size).toBe(pages.length);
   });
   it("keeps page/anchor links inside a mounted site and unselected owners in source", () => {
-    expect(resolveLink(root, "docs/CLIENT.md", "reference/cli.md#commands", "/handbook/")).toBe(
+    expect(resolveLink(root, "docs/internal/CLIENT.md", "../reference/cli.md#commands", "/handbook/")).toBe(
       "/handbook/reference/cli#commands",
     );
     expect(

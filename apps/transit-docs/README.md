@@ -71,4 +71,4 @@ For a static host, set `TRANSIT_DOCS_URL` to its origin and optionally
 default is a local preview at `http://localhost:3000/`. Publish the resulting
 `dist/` contents under that path; clean URLs need the host's `.html` resolution.
 These tasks do not publish the site or assume a production domain. Versioned
-release docs and immutable source links belong to [M27](../../docs/roadmap/M27.md).
+release docs and immutable source links belong to [M27](../../docs/internal/roadmap/M27.md).

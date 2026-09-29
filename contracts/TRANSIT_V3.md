@@ -5,7 +5,7 @@ client implement the bounded command/query boundary; M11 adds the same operation
 to the [raw C ABI](../packages/zig/transit-client/docs/bindings.md). Launcher defaults,
 Session, the default Station interface and legacy foreign behavior bindings remain v2/state-v1. See the
 [node guide](../apps/transit-node/docs/growing.md) for exact partial capabilities;
-this does not authorize interpreting old history as a new profile. [M10](../docs/roadmap/M10.md)
+this does not authorize interpreting old history as a new profile. [M10](../docs/internal/roadmap/M10.md)
 records its growth, integration and recovery qualification limits.
 
 [Growth.zig](../packages/zig/transit-protocol/src/Growth.zig) owns the neutral types;

@@ -1,7 +1,7 @@
 # transit-query
 
 Shared Zig public Table query client and application-side Station behaviors for
-[M13](../../../docs/roadmap/M13.md). Board and `transit` use the same compiler,
+[M13](../../../docs/internal/roadmap/M13.md). Board and `transit` use the same compiler,
 frozen request and result readers. The [v1 contract](../../../contracts/PUBLIC_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 

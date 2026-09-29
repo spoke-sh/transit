@@ -63,7 +63,7 @@ cannot install or rotate workers. All still share the trusted local OS account.
 For your own worker, implement the bootstrap and role contract, link
 `transit-client` / Station public packages, and declare the resources and rights
 it actually needs. The [work-item source](../../examples/work-items/README.md) is
-the runnable consumer; [caller semantics](../CLIENT.md) explains turns and exact
+the runnable consumer; [caller semantics](../internal/CLIENT.md) explains turns and exact
 recovery. See [SDKs](../reference/sdks.md) for the wider language surface, whose
 installation into this supervisor is not yet qualified.
 

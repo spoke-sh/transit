@@ -42,7 +42,7 @@ native client is not a browser credential adapter.
 - Read bounded pages and own/release Arrow buffers through the binding contract;
   do not copy the whole retained collection into a resident queue.
 
-Use the [caller model](../CLIENT.md) for authority and turn semantics, and
-[shared SDK contracts](../SDK.md) for API decisions and qualification boundaries.
+Use the [caller model](../internal/CLIENT.md) for authority and turn semantics, and
+[shared SDK contracts](../internal/SDK.md) for API decisions and qualification boundaries.
 The first separately compiled worker installed by `transit app` is Zig; the
 wider SDK matrix does not imply every language has that supervisor host adapter.

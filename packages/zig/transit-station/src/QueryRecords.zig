@@ -292,7 +292,7 @@ pub const Publication = struct {
         return .{ .result = decoded.result, .segment = decoded.page, .offset = decoded.written };
     }
 };
-/// Receiver-issued application admission credit (docs/FLOW_CONTROL.md): the
+/// Receiver-issued application admission credit (docs/internal/FLOW_CONTROL.md): the
 /// destination durably grants credit only for segments it has itself sealed.
 /// `granted` is monotonically non-decreasing; the sender retains the last
 /// value it observed under key tag `g`, independent of its own send cursor.

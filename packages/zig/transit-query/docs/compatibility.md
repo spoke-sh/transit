@@ -3,10 +3,10 @@
 This matrix describes the implemented query contracts. Qualification is tracked
 in the [proof guide](../../../../tests/README.md#m18-qualification); a planned
 transport does not become available by sharing an engine. Planned
-[HTTP serving M19](../../../../docs/roadmap/M19.md),
-[reactive APIs M20](../../../../docs/roadmap/M20.md),
-[reactive refresh M21](../../../../docs/roadmap/M21.md) and
-[Flight M22](../../../../docs/roadmap/M22.md) have separate qualification gates.
+[HTTP serving M19](../../../../docs/internal/roadmap/M19.md),
+[reactive APIs M20](../../../../docs/internal/roadmap/M20.md),
+[reactive refresh M21](../../../../docs/internal/roadmap/M21.md) and
+[Flight M22](../../../../docs/internal/roadmap/M22.md) have separate qualification gates.
 
 | Surface | Public Table v1 (M13) | Unified v2 (M18) |
 | --- | --- | --- |

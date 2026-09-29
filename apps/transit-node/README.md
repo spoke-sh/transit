@@ -61,7 +61,7 @@ worker is required for standalone client-driven use.
 owns background lifetime/checkpoint/reclamation work. The independently deployed
 [transit-delivery](../transit-delivery/README.md) pumps committed outboxes through
 the public client. Framework timers and lifecycle notifications remain
-[M9 work](../../docs/roadmap/M9.md#entry-gates).
+[M9 work](../../docs/internal/roadmap/M9.md#entry-gates).
 
 ## API, trust, and validation
 

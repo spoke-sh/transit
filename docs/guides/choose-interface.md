@@ -14,7 +14,7 @@ Choose the owner that matches the job; a transport never grants authority.
 | Expose application commands and reads | [Serving OpenAPI](../reference/openapi.md) | Signed native commands and scoped reads through a published service |
 | Follow changes | [Reactive API / AsyncAPI](../reference/asyncapi.md) | Int64 Table sessions and resumable notifications, fetch-SSE or WebSocket |
 | Connect an Arrow analytical client | [Flight SQL / ADBC](../reference/flight.md) | Finite Table v1, selected int64 types and independently tested clients |
-| Call an external HTTP or RPC service | [Connectors](../CONNECTORS.md), [gRPC](../GRPC.md) | Recorded effect intent, capture, retry policy and unknown outcomes |
+| Call an external HTTP or RPC service | [Connectors](../internal/CONNECTORS.md), [gRPC](../internal/GRPC.md) | Recorded effect intent, capture, retry policy and unknown outcomes |
 
 ## Version and capability rules
 
@@ -34,5 +34,5 @@ history into a new profile.
 - SQL reference grammar contains additional administrative declarations.
   Parser acceptance does not make them executable commands.
 
-[Scope](../SCOPE.md) and the [qualification ledger](../../tests/README.md) distinguish
+[Scope](../internal/SCOPE.md) and the [qualification ledger](../../tests/README.md) distinguish
 implemented behavior, tested client/topology combinations and planned extensions.

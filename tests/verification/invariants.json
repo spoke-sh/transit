@@ -4,7 +4,7 @@
     {
       "id": "AUTH-01",
       "claim": "One conditional successor publishes a prepared transition",
-      "owner": "docs/TRANSIT.md",
+      "owner": "docs/internal/TRANSIT.md",
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
@@ -25,7 +25,7 @@
     {
       "id": "AUTH-02",
       "claim": "Current grants and activation generation fence new publication and receipt disclosure",
-      "owner": "docs/SECURITY.md",
+      "owner": "docs/internal/SECURITY.md",
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
@@ -47,7 +47,7 @@
     {
       "id": "STATE-01",
       "claim": "Mutations, consumed input and outputs have one visibility decision",
-      "owner": "docs/STATE.md",
+      "owner": "docs/internal/STATE.md",
       "implementation": [
         "packages/zig/transit-core/src/resources.zig"
       ],
@@ -70,7 +70,7 @@
     {
       "id": "RETRY-01",
       "claim": "Exact retry preserves one durable outcome and unknown is not rejection",
-      "owner": "docs/CLIENT.md",
+      "owner": "docs/internal/CLIENT.md",
       "implementation": [
         "packages/zig/transit-client/src/root.zig"
       ],
@@ -93,7 +93,7 @@
     {
       "id": "LIFE-01",
       "claim": "Expiry and settlement closure cannot be reopened by late work or old recovery state",
-      "owner": "docs/RETENTION.md",
+      "owner": "docs/internal/RETENTION.md",
       "implementation": [
         "packages/zig/transit-core/src/Time.zig"
       ],
@@ -114,7 +114,7 @@
     {
       "id": "REPLAY-01",
       "claim": "Recovery restores decisions without running handlers or redispatching effects",
-      "owner": "docs/STREAMS.md",
+      "owner": "docs/internal/STREAMS.md",
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
@@ -135,7 +135,7 @@
     {
       "id": "CAP-01",
       "claim": "Pressure never silently deletes accepted work and control reserve permits closure",
-      "owner": "docs/RETENTION.md",
+      "owner": "docs/internal/RETENTION.md",
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
@@ -156,7 +156,7 @@
     {
       "id": "HOST-01",
       "claim": "Cancellation and disposal join owned native work without manufacturing rollback",
-      "owner": "docs/CLIENT.md",
+      "owner": "docs/internal/CLIENT.md",
       "implementation": [
         "packages/zig/transit-station-bindings/src/Abi.zig"
       ],
@@ -175,7 +175,7 @@
     {
       "id": "ARROW-01",
       "claim": "Complete query bytes retain exact schema, values, nulls and source revision",
-      "owner": "docs/ARROW.md",
+      "owner": "docs/internal/ARROW.md",
       "implementation": [
         "packages/zig/transit-fuze/src/execute.zig"
       ],
@@ -239,7 +239,7 @@
     {
       "id": "RUNTIME-01",
       "claim": "Provider recovery and upgrades cannot grant ownership or redirect durable work",
-      "owner": "docs/DEPLOYMENT.md",
+      "owner": "docs/internal/DEPLOYMENT.md",
       "implementation": [
         "packages/zig/transit-runtime-substrate/src/root.zig"
       ],
@@ -261,7 +261,7 @@
     {
       "id": "READ-01",
       "claim": "Inspection preserves current authorization, revision boundaries and explicit gaps",
-      "owner": "docs/BOARD.md",
+      "owner": "docs/internal/BOARD.md",
       "implementation": [
         "packages/zig/transit-core/src/resource_read.zig"
       ],
@@ -284,7 +284,7 @@
     {
       "id": "O11Y-01",
       "claim": "Diagnostic pressure cannot stall authority or expose application credentials",
-      "owner": "docs/OBSERVABILITY.md",
+      "owner": "docs/internal/OBSERVABILITY.md",
       "implementation": [
         "packages/zig/transit-observability/src/root.zig"
       ],
@@ -303,7 +303,7 @@
     {
       "id": "CODEC-01",
       "claim": "Accepted bounded wire values preserve canonical identity and owned bytes",
-      "owner": "docs/CLIENT.md",
+      "owner": "docs/internal/CLIENT.md",
       "implementation": [
         "packages/zig/transit-protocol/src/Value.zig",
         "packages/zig/transit-station/src/Frame.zig"
@@ -324,7 +324,7 @@
     {
       "id": "PAGES-01",
       "claim": "Immutable roots preserve old values independently of resident cache and root-journal trimming",
-      "owner": "docs/STATE.md",
+      "owner": "docs/internal/STATE.md",
       "implementation": [
         "packages/zig/transit-core/src/pages.zig",
         "packages/zig/transit-backend-ursula/src/PageStore.zig",
@@ -347,7 +347,7 @@
     {
       "id": "GROWTH-01",
       "claim": "A growing control root atomically retains mailbox admission and exact retry evidence beyond legacy process/principal counts",
-      "owner": "docs/STATE.md",
+      "owner": "docs/internal/STATE.md",
       "implementation": [
         "packages/zig/transit-core/src/growing.zig"
       ],
@@ -369,7 +369,7 @@
     {
       "id": "GROWTH-02",
       "claim": "Growing state turns atomically publish bounded mutations, progress, captured outputs and closed views without loading the whole resource",
-      "owner": "docs/STATE.md",
+      "owner": "docs/internal/STATE.md",
       "implementation": [
         "packages/zig/transit-core/src/growing_state.zig"
       ],
@@ -390,7 +390,7 @@
     {
       "id": "GROWTH-03",
       "claim": "Bounded paged reads preserve their declared state basis without retaining stale permission or ownership",
-      "owner": "docs/SECURITY.md",
+      "owner": "docs/internal/SECURITY.md",
       "implementation": [
         "packages/zig/transit-core/src/growing_read.zig"
       ],
@@ -413,7 +413,7 @@
     {
       "id": "GROWTH-04",
       "claim": "Indexed delivery and bounded settlement preserve order, retry identity and permanent closure without scanning retained work",
-      "owner": "docs/CONNECTORS.md",
+      "owner": "docs/internal/CONNECTORS.md",
       "implementation": [
         "packages/zig/transit-core/src/growing_work.zig"
       ],
@@ -434,7 +434,7 @@
     {
       "id": "GROWTH-05",
       "claim": "Published growing authority roots recover through disk restart and opted-in root-history compaction without materializing all retained state",
-      "owner": "docs/STATE.md",
+      "owner": "docs/internal/STATE.md",
       "implementation": [
         "packages/zig/transit-backend-ursula/src/GrowingStore.zig",
         "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
@@ -459,7 +459,7 @@
     {
       "id": "GROWTH-06",
       "claim": "An explicit growing service profile supports signed bounded caller reads and atomic turns without exposing raw storage or executing application handlers",
-      "owner": "docs/CLIENT.md",
+      "owner": "docs/internal/CLIENT.md",
       "implementation": [
         "apps/transit-node/Growing.zig",
         "packages/zig/transit-client/src/root.zig",
@@ -489,7 +489,7 @@
     {
       "id": "GROWTH-07",
       "claim": "Bounded background suggestions revalidate before publication and physical trimming requires current control authority and committed opt-in",
-      "owner": "docs/RETENTION.md",
+      "owner": "docs/internal/RETENTION.md",
       "implementation": [
         "packages/zig/transit-core/src/growing_maintenance.zig",
         "packages/zig/transit-core/src/growing.zig",
@@ -625,7 +625,7 @@
     {
       "id": "GROWTH-11",
       "claim": "A growing control root refuses new admission before an explicit journal reserve, while revocation, retry, termination, delivery, observation, checkpoint and output-free turns keep draining and closing existing work through it",
-      "owner": "docs/RETENTION.md",
+      "owner": "docs/internal/RETENTION.md",
       "implementation": [
         "packages/zig/transit-core/src/growing.zig",
         "packages/zig/transit-core/src/growing_read.zig"
@@ -669,7 +669,7 @@
     {
       "id": "GROWTH-12",
       "claim": "Offered public load preserves every admission, exact receipt and row update across disk restart while scoped revocation progresses",
-      "owner": "docs/TESTING.md",
+      "owner": "docs/internal/TESTING.md",
       "implementation": [
         "tests/growing_load.zig",
         "tests/growing_load.py",
@@ -763,7 +763,7 @@
     {
       "id": "QUERY-02",
       "claim": "Board keeps inspection read-only and exposes separately credentialed Table queries with one draft/result and current-authority disclosure",
-      "owner": "docs/BOARD.md",
+      "owner": "docs/internal/BOARD.md",
       "implementation": [
         "apps/transit-board/Growing.zig",
         "apps/transit-board-web/src/atlas.tsx",
@@ -943,7 +943,7 @@
     {
       "id": "REACTIVE-01",
       "claim": "A live consumer preserves bounded snapshot identity, exact uncertain operations and current read authority",
-      "owner": "docs/REACTIVE.md",
+      "owner": "docs/internal/REACTIVE.md",
       "implementation": [
         "packages/zig/transit-serving/src/Refresh.zig",
         "packages/zig/transit-serving/src/ReactiveAdapter.zig",

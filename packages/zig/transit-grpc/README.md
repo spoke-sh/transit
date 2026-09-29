@@ -1,13 +1,13 @@
 # transit-grpc
 
-Finite Zig HTTP/2 gRPC transport for [M16](../../../docs/roadmap/M16.md). This
+Finite Zig HTTP/2 gRPC transport for [M16](../../../docs/internal/roadmap/M16.md). This
 package performs one connection and one RPC over a preconstructed message batch.
 Station's connector must supply committed intent, current authorization, scoped
 credentials, durable capture and terminal settlement before exposing results.
 The [Station adapter](../transit-station-grpc/README.md) and
 [worker](../../../apps/transit-station-grpc-worker/README.md) own those integrations.
 
-[M22](../../../docs/roadmap/M22.md) also adds the separate inbound `Server`:
+[M22](../../../docs/internal/roadmap/M22.md) also adds the separate inbound `Server`:
 see [server ownership and limits](docs/server.md). Its transport proof does not
 qualify Flight, authentication or serving/query authority.
 

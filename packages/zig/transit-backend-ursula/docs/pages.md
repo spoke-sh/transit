@@ -136,7 +136,7 @@ Both runs used `storage.cold.backend = "none"` and inline provider snapshots:
 they do not qualify the provider's cold-tier growth behavior. Cold storage and
 snapshot configuration need separate measurements before selecting a scale profile.
 
-The [Rey workload model](../../../../docs/workloads/REY.md) motivates measuring
+The [Rey workload model](../../../../docs/internal/workloads/REY.md) motivates measuring
 the whole storage boundary, including Ursula's memory and stream metadata. A
 fixed client cache is not evidence that provider memory stays fixed as retained
 pages grow. This primitive mapping must pass those growth/amplification gates

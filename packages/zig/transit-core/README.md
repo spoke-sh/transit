@@ -29,7 +29,7 @@ calling application logic or dispatching effects.
 M1 serializes one realm through one journal, with bounded catalogs and replay
 windows. This is not a sharded or production capacity design. Exact types, limits,
 and rejection rules live in the [v2 protocol profile](../../../contracts/TRANSIT_V2.md).
-The [Transit design](../../../docs/TRANSIT.md) describes the broader invariants.
+The [Transit design](../../../docs/internal/TRANSIT.md) describes the broader invariants.
 
 ## Source map and current limits
 
@@ -100,7 +100,7 @@ from the journal/checkpoint. The [proof guide](../../../tests/README.md#m7-state
 records serialized/layout limits, stack findings and disk-recovery evidence.
 
 These are compiled total-capacity constraints, not configurable cache sizes.
-[M10](../../../docs/roadmap/M10.md) selects paged growing state and bounded
+[M10](../../../docs/internal/roadmap/M10.md) selects paged growing state and bounded
 working memory before public SDKs. Its future profile must preserve this
 package's authority and recovery guarantees; raising the arrays alone is not
 the target design.

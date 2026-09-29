@@ -48,7 +48,7 @@ createConnection
     ;
 
 // CREATE SOURCE trades FROM HTTP CONNECTION kafka_conn WITH (poll_ms = '1000');
-// A new Fuze source adapter (docs/GLOSSARY.md's "Query source adapter")
+// A new Fuze source adapter (docs/internal/GLOSSARY.md's "Query source adapter")
 // backed by a connector's captured observations, not durable state.
 createSource
     : CREATE SOURCE identifier FROM connectorKind CONNECTION identifier (WITH? connectionOptions)?
@@ -62,7 +62,7 @@ createSink
     ;
 
 connectorKind
-    : identifier // e.g. HTTP, GRPC: a docs/CONNECTORS.md connector family name
+    : identifier // e.g. HTTP, GRPC: a docs/internal/CONNECTORS.md connector family name
     ;
 
 connectionOptions
@@ -78,7 +78,7 @@ optionValue
     | secretRef
     ;
 
-// docs/CONNECTORS.md#variables-and-secrets: names a credential binding,
+// docs/internal/CONNECTORS.md#variables-and-secrets: names a credential binding,
 // never carries or echoes the secret value itself.
 secretRef
     : SECRET LPAREN STRING RPAREN
@@ -86,7 +86,7 @@ secretRef
 
 // CREATE TABLE orders (id INT64 NOT NULL, sym UTF8);
 // A relational spelling of Table.create/table_create; see
-// docs/QUERY_LANGUAGE.md's noted prerequisite (today's Table is fixed at
+// docs/internal/QUERY_LANGUAGE.md's noted prerequisite (today's Table is fixed at
 // exactly two columns, so a real multi-column CREATE TABLE needs that
 // model to grow first — this rule states the target shape, not current
 // support).
@@ -137,7 +137,7 @@ privilege
 
 // SHOW TABLES; SHOW SOURCES; SHOW SINKS; SHOW CONNECTIONS;
 // The relational-surface answer to `transit-cli`'s planned `/tables`-style
-// meta-commands (docs/roadmap/M13.md) — same catalog, two frontends.
+// meta-commands (docs/internal/roadmap/M13.md) — same catalog, two frontends.
 showStatement
     : SHOW catalogKind
     ;
@@ -157,7 +157,7 @@ describeStatement
 // deliberately excluded from the executable SELECT profile here — `orders FOR SYSTEM_TIME AS OF 240`.
 // Deliberately the SQL:2011 system-versioned-table clause name (forensic
 // point-in-time reconstruction, not a windowing/event-time concept: see
-// docs/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
+// docs/internal/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
 // Transit revision — an integer journal position — not the standard's
 // wall-clock TIMESTAMP literal. Names existing retained-read-version
 // machinery (contracts/READ_VERSIONS_V1.md, GROWTH-10) rather than inventing

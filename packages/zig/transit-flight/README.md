@@ -1,6 +1,6 @@
 # transit-flight
 
-The [M22](../../../docs/roadmap/M22.md) Flight adapter implements a qualified finite profile.
+The [M22](../../../docs/internal/roadmap/M22.md) Flight adapter implements a qualified finite profile.
 The selected profile is the public finite Table query v1 with primitive int64
 columns, using the existing Fuze SQL compiler and durable Station query identity.
 Pinned PyArrow independently validates the metadata IPC, optional filters,

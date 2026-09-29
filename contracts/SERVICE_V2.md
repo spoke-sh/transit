@@ -24,7 +24,7 @@ return 409, permanent protocol rejections 422, and unavailable authority/storage
 public `ErrorCode` enum; unknown internal errors become `AuthorityUnavailable`.
 The client exposes recognized rejections through `last_rejection`. Malformed or
 unknown error bodies produce `InvalidAuthorityResponse`, not an invented receipt.
-See the [caller guide](../docs/CLIENT.md) for retry and ownership rules.
+See the [caller guide](../docs/internal/CLIENT.md) for retry and ownership rules.
 
 `POST /v2/view` accepts a signed request with `sequence:0` and
 `command:{"inspect":PID}`. Zero is reserved for this nonmutating surface; the

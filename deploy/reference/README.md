@@ -2,7 +2,7 @@
 
 Owned local M1 recovery/isolation harness, using the versions and official Ursula
 image digest in [versions.json](versions.json). The
-[deployment design](../../docs/DEPLOYMENT.md) explains authority boundaries;
+[deployment design](../../docs/internal/DEPLOYMENT.md) explains authority boundaries;
 this runbook explains how to operate the proof. It is not a production installer.
 
 Commands live under `just launchers::reference`; see the
@@ -13,7 +13,7 @@ the owned cluster and all its workload volumes.
 
 ## Prerequisites and lifecycle
 
-The [reference deployment](../../docs/DEPLOYMENT.md) targets Kubernetes and Agent Substrate.
+The [reference deployment](../../docs/internal/DEPLOYMENT.md) targets Kubernetes and Agent Substrate.
 Its Linux x86_64 recovery harness requires a running Docker daemon, Nix, Git,
 internet access for pinned images and upstream builds, and enough resources for
 a local Substrate installation. It uses pinned Kind Kubernetes with Substrate's

@@ -20,7 +20,7 @@ nix build .#transit-local --out-link .cache/transit-local
 This builds the current checkout with locked dependencies. Keep its Nix output
 link while using the installation: startup requires the same artifact hashes.
 Published versioned downloads and compatible Transit upgrades remain
-[publication work](../roadmap/M27.md).
+[publication work](../internal/roadmap/M27.md).
 
 ## Create explicit configuration
 

@@ -7,7 +7,7 @@ process by default in version-3 local installations, with `--no-ui` for headless
 The `transit` executable provides the local `server`, explicit-submit `console`
 and existing signed query shells. Existing `rey-cli` administration commands remain separate.
 
-[M24](../../docs/roadmap/M24.md) implements the selected
+[M24](../../docs/internal/roadmap/M24.md) implements the selected
 [server/console contract](../../contracts/TRANSIT_CLI_V1.md). Shared parser and
 cursor assistance lives in Fuze/query packages. The [console guide](docs/console.md)
 covers versioned configuration, terminal editing, trust and exact recovery.
