@@ -26,8 +26,12 @@ query. These distinctions also apply when Tables or Documents materialize
 application history into current state.
 
 The [performance reference](performance.md) quantifies current small-page read
-and write amplification. Planned bounded read/update batching and bulk immutable
-publication must preserve the final authority commit and payload availability.
+and write amplification. Catalog reads stop at namespace boundaries. Bounded tree mutation batches copy
+shared paths once, and the backend stages sibling immutable pages in groups.
+Verified pages use a bounded LRU cache. Every batch acknowledgement is checked
+before the existing final authority commit; failed staging can leave retained
+orphans but cannot publish a partial turn. Format-2 page locators remain compatible.
+Application mutation quotas and durable payload publication bounds are unchanged.
 The [workload model](workloads.md#architectural-priorities) distinguishes hot
 keyed state, append-heavy history and analytical read structures; none bypass
 the public authorization boundary.

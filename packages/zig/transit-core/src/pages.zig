@@ -7,6 +7,7 @@ pub const branch_children = 5;
 pub const max_height = 32;
 pub const max_encoded_bytes = 24 * 1024;
 pub const page_entries = 8;
+pub const mutation_batch = 8;
 pub const Reference = struct {
     digest: [32]u8,
     /// Opaque storage address; core never interprets provider coordinates.
@@ -163,6 +164,38 @@ pub fn Tree(comptime Store: type) type {
             for (children, 0..) |child, i| page.body.branch[i] = child;
             return self.stage(&page);
         }
+        fn stages(self: Self, batch: []const Page, output: []Child) !void {
+            if (@hasDecl(Store, "stageMany") and batch.len > 1) {
+                var refs: [mutation_batch]Reference = undefined;
+                try self.store.stageMany(batch, refs[0..batch.len]);
+                for (batch, refs[0..batch.len], output) |*page, ref, *child| {
+                    try ref.verify(page);
+                    child.* = .{ .minimum = page.minimum(), .reference = ref };
+                }
+            } else for (batch, output) |*page, *child| child.* = try self.stage(page);
+        }
+        fn leaves(self: Self, entries: []const Entry, output: *Changed) !void {
+            var batch: [(leaf_entries + mutation_batch + leaf_entries - 1) / leaf_entries]Page = undefined;
+            const count = std.math.divCeil(usize, entries.len, leaf_entries) catch unreachable;
+            for (batch[0..count], 0..) |*page, i| {
+                const group = entries[i * leaf_entries .. @min((i + 1) * leaf_entries, entries.len)];
+                page.* = .{ .count = @intCast(group.len), .body = .{ .leaf = @splat(null) } };
+                for (group, 0..) |entry, j| page.body.leaf[j] = entry;
+            }
+            try self.stages(batch[0..count], output.children[0..count]);
+            output.count = count;
+        }
+        fn branches(self: Self, children: []const Child, output: *Changed) !void {
+            var batch: [(branch_children + mutation_batch + branch_children - 1) / branch_children]Page = undefined;
+            const count = std.math.divCeil(usize, children.len, branch_children) catch unreachable;
+            for (batch[0..count], 0..) |*page, i| {
+                const group = children[i * branch_children .. @min((i + 1) * branch_children, children.len)];
+                page.* = .{ .height = output.height, .count = @intCast(group.len), .body = .{ .branch = @splat(null) } };
+                for (group, 0..) |child, j| page.body.branch[j] = child;
+            }
+            try self.stages(batch[0..count], output.children[0..count]);
+            output.count = count;
+        }
         fn childIndex(page: *const Page, key: *const Key) usize {
             var index: usize = 0;
             while (index + 1 < page.count and order(&page.body.branch[index + 1].?.minimum, key) != .gt) : (index += 1) {}
@@ -198,6 +231,108 @@ pub fn Tree(comptime Store: type) type {
                 return (try self.branch(&.{ result.left, right }, result.height + 1)).reference;
             }
             return result.left.reference;
+        }
+        /// Rewrite each affected path once for a bounded atomic candidate.
+        /// Staging is immutable; only the caller may publish the returned root.
+        pub fn mutate(self: Self, root: ?Reference, mutations: []const Mutation) !?Reference {
+            if (mutations.len > mutation_batch) return error.PageMutationBudget;
+            if (mutations.len == 0) return root;
+            var sorted: [mutation_batch]Mutation = undefined;
+            for (mutations, 0..) |mutation, i| {
+                try mutation.key.validate();
+                if (mutation.key.len == 0) return error.InvalidPageValue;
+                if (mutation.value) |value| try value.validate();
+                sorted[i] = mutation;
+            }
+            std.mem.sort(Mutation, sorted[0..mutations.len], {}, struct {
+                fn less(_: void, a: Mutation, b: Mutation) bool {
+                    return order(&a.key, &b.key) == .lt;
+                }
+            }.less);
+            for (1..mutations.len) |i| if (order(&sorted[i - 1].key, &sorted[i].key) == .eq) return error.DuplicatePageMutation;
+            var changed = try self.mutatePage(root, null, sorted[0..mutations.len]);
+            if (changed.count == 0) return null;
+            while (changed.count > 1) {
+                if (changed.height >= max_height) return error.PageDepthExceeded;
+                var parent: Changed = .{ .height = changed.height + 1 };
+                try self.branches(changed.children[0..changed.count], &parent);
+                changed = parent;
+            }
+            var next = changed.children[0].reference;
+            for (0..max_height + 1) |_| {
+                const page = try self.load(next, null);
+                if (page.body == .leaf or page.count != 1) return next;
+                next = page.body.branch[0].?.reference;
+            }
+            return error.InvalidPageHeight;
+        }
+        const Changed = struct { children: [branch_children + mutation_batch]Child = undefined, count: usize = 0, height: u8 };
+        fn mutatePage(self: Self, ref: ?Reference, height: ?u8, mutations: []const Mutation) anyerror!Changed {
+            const original: ?Page = if (ref) |reference| try self.load(reference, height) else null;
+            const level: u8 = if (original) |page| page.height else 0;
+            var result: Changed = .{ .height = level };
+            if (level == 0) {
+                var merged: [leaf_entries + mutation_batch]Entry = undefined;
+                var count: usize = 0;
+                var index: usize = 0;
+                const previous_count: usize = if (original) |page| page.count else 0;
+                for (mutations) |mutation| {
+                    while (index < previous_count and order(&original.?.body.leaf[index].?.key, &mutation.key) == .lt) : (index += 1) {
+                        merged[count] = original.?.body.leaf[index].?;
+                        count += 1;
+                    }
+                    if (index < previous_count and order(&original.?.body.leaf[index].?.key, &mutation.key) == .eq) index += 1;
+                    if (mutation.value) |value| {
+                        merged[count] = .{ .key = mutation.key, .value = value };
+                        count += 1;
+                    }
+                }
+                while (index < previous_count) : (index += 1) {
+                    merged[count] = original.?.body.leaf[index].?;
+                    count += 1;
+                }
+                if (original != null and count == previous_count) {
+                    const unchanged = for (merged[0..count], 0..) |entry, i| {
+                        if (!std.meta.eql(entry, original.?.body.leaf[i].?)) break false;
+                    } else true;
+                    if (unchanged) {
+                        result.children[0] = .{ .minimum = original.?.minimum(), .reference = ref.? };
+                        result.count = 1;
+                        return result;
+                    }
+                }
+                try self.leaves(merged[0..count], &result);
+                return result;
+            }
+            var merged: [branch_children + mutation_batch]Child = undefined;
+            var count: usize = 0;
+            var first: usize = 0;
+            const children = original.?.body.branch;
+            for (children[0..original.?.count], 0..) |slot, i| {
+                var end = first;
+                while (end < mutations.len and (i + 1 == original.?.count or order(&mutations[end].key, &children[i + 1].?.minimum) == .lt)) : (end += 1) {}
+                if (first == end) {
+                    merged[count] = slot.?;
+                    count += 1;
+                } else {
+                    const changed = try self.mutatePage(slot.?.reference, level - 1, mutations[first..end]);
+                    @memcpy(merged[count..][0..changed.count], changed.children[0..changed.count]);
+                    count += changed.count;
+                }
+                first = end;
+            }
+            if (count == original.?.count) {
+                const unchanged = for (merged[0..count], 0..) |child, i| {
+                    if (!std.meta.eql(child, children[i].?)) break false;
+                } else true;
+                if (unchanged) {
+                    result.children[0] = .{ .minimum = original.?.minimum(), .reference = ref.? };
+                    result.count = 1;
+                    return result;
+                }
+            }
+            try self.branches(merged[0..count], &result);
+            return result;
         }
         fn insert(self: Self, ref: Reference, height: ?u8, entry: Entry) anyerror!Split {
             const page = try self.load(ref, height);
@@ -287,26 +422,32 @@ pub fn Tree(comptime Store: type) type {
             }
         }
         pub fn scan(self: Self, root: ?Reference, after: ?Key) !Slice {
-            return self.scanBound(root, after, false);
+            return self.scanBound(root, after, false, null);
         }
         pub fn scanFrom(self: Self, root: ?Reference, first: Key) !Slice {
-            return self.scanBound(root, first, true);
+            return self.scanBound(root, first, true, null);
         }
-        fn scanBound(self: Self, root: ?Reference, after: ?Key, inclusive: bool) !Slice {
+        pub fn scanRange(self: Self, root: ?Reference, first: Key, inclusive: bool, until: Key) !Slice {
+            try until.validate();
+            if (order(&first, &until) != .lt) return error.InvalidPageRange;
+            return self.scanBound(root, first, inclusive, until);
+        }
+        fn scanBound(self: Self, root: ?Reference, after: ?Key, inclusive: bool, until: ?Key) !Slice {
             if (after) |key| try key.validate();
             const ref = root orelse return .{};
             var found: [page_entries + 1]Entry = undefined;
             var count: usize = 0;
-            try self.visit(ref, null, after, inclusive, &found, &count);
+            try self.visit(ref, null, after, inclusive, until, &found, &count);
             var result: Slice = .{};
             for (found[0..@min(count, page_entries)], 0..) |entry, i| result.entries[i] = entry;
             if (count > page_entries) result.next = found[page_entries - 1].key;
             return result;
         }
-        fn visit(self: Self, ref: Reference, height: ?u8, after: ?Key, inclusive: bool, out: *[page_entries + 1]Entry, count: *usize) anyerror!void {
+        fn visit(self: Self, ref: Reference, height: ?u8, after: ?Key, inclusive: bool, until: ?Key, out: *[page_entries + 1]Entry, count: *usize) anyerror!void {
             const page = try self.load(ref, height);
             switch (page.body) {
                 .leaf => |entries| for (entries[0..page.count]) |slot| {
+                    if (until) |key| if (order(&slot.?.key, &key) != .lt) return;
                     if (after) |key| {
                         const comparison = order(&slot.?.key, &key);
                         if (comparison == .lt or (comparison == .eq and !inclusive)) continue;
@@ -316,8 +457,9 @@ pub fn Tree(comptime Store: type) type {
                     if (count.* == out.len) return;
                 },
                 .branch => |children| for (children[0..page.count], 0..) |slot, i| {
+                    if (until) |key| if (order(&slot.?.minimum, &key) != .lt) return;
                     if (after) |key| if (i + 1 < page.count and order(&children[i + 1].?.minimum, &key) != .gt) continue;
-                    try self.visit(slot.?.reference, page.height - 1, after, inclusive, out, count);
+                    try self.visit(slot.?.reference, page.height - 1, after, inclusive, until, out, count);
                     if (count.* == out.len) return;
                 },
             }

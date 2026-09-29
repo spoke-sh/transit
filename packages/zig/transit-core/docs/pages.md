@@ -1,8 +1,8 @@
 # Immutable page index
 
-Status: M10 storage primitive in development. Exported as `transit_core.pages`;
-the running v2/state-v1 authority and Station still use their legacy catalogs.
-This implementation does not advertise a new public capability or migrate data.
+The growing v3 authority uses `transit_core.pages` and its typed catalog. The
+legacy v2/state-v1 profile retains its separate representation; selecting the
+growing profile does not reinterpret legacy data.
 
 The ordered copy-on-write tree stages immutable pages and returns a candidate
 root. Only an authoritative journal decision may publish that root with
@@ -17,7 +17,7 @@ SHA-256 references. Page/catalog format 2 adds an opaque 16-byte storage locator
 beside each digest. Core never interprets that address; the adapter verifies its
 mapping. The hash covers a domain-separated canonical encoding, including child
 locators. Format 1 pages/catalogs are rejected explicitly; these development
-formats have never been selected by the running v2 service.
+formats are separate from the v2 service representation.
 Every read checks the expected digest, page shape and child height. Unknown
 versions, malformed ordering, missing pages and corrupted bytes fail explicitly.
 There is no missing-page-as-empty fallback.
@@ -25,7 +25,7 @@ There is no missing-page-as-empty fallback.
 `Tree(Store)` borrows a provider exposing `load(reference)` and
 `stage(reference, page)`, which returns the persisted reference with its locator.
 Core checks that staging preserved the content digest. The provider owns durable placement and cache policy;
-core does not import provider APIs. `get`, `put`, `remove` and `scan` operate on
+core does not import provider APIs. `get`, `put`, `remove`, `mutate` and `scan` operate on
 root references. A snapshot retains one immutable root instead of copying all
 entries. Deleting a key creates a new version; older roots keep their values.
 
@@ -36,12 +36,19 @@ explicit address-space guard, not a 32-row catalog. Metadata and identity
 keyspaces can use the same index; their versioned public encodings remain a
 separate integration obligation. The tree does not interpret application values.
 
-Writes copy only the search path, splitting pages as needed. Deletion removes
+Single writes copy the search path, splitting pages as needed. `mutate` validates
+at most eight distinct keys before staging and rewrites each affected path once.
+It preserves unaffected child references and avoids staging no-op updates.
+When the provider supports `stageMany`, sibling pages are staged as a bounded
+group; otherwise the same tree uses individual staging calls. Every returned
+reference is checked against its expected digest before becoming a candidate. Deletion removes
 empty subtrees and collapses a one-child root; internal one-child pages retain
 their height. It does not yet rebalance sparse siblings. This can amplify storage
 and lookup work after churn, which the growing-profile measurements must expose.
 Continuation scans seek strictly after an opaque key; `scanFrom` supplies an
-inclusive initial lower bound for catalog ranges. Both read one extra entry to
+inclusive initial lower bound for catalog ranges. `scanRange` also takes an
+exclusive upper bound, so catalog namespace scans avoid unrelated leaves. Scans
+read one extra in-range entry to
 distinguish continuation from completion and return owned bytes at the supplied root.
 
 ## Persistence and publication obligations
@@ -57,11 +64,9 @@ collection requires retained roots, live views, recovery dependencies and staged
 publication races to be accounted for. The current primitive provides **no page
 deletion or GC authorization**. Unlimited retention remains the baseline.
 
-The growable index alone does not solve the wider M10 migration: control catalogs,
-principal IDs, state cursors, retained receipts/waits/results, service/client
-capabilities, Station's handler reads, quota reserves and checkpoint roots still
-need integration. Existing histories must remain readable by their explicit
-legacy profile; they must not be reinterpreted as this page format.
+The authority's growing profile owns process/resource validation, admission,
+quotas and atomic root publication. Batching pages grants no new mutation or
+retention rights. Existing explicit legacy histories retain their own profile.
 
 ## Typed catalog
 

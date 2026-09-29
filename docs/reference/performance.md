@@ -133,7 +133,8 @@ the cost of the others. See [storage](storage.md), [Tables](tables.md) and
 
 At eight pages, diagnostic LRU replacement measured 12.50 s and 27,397 page
 misses; bounded catalog range scans measured 11.99 s and 24,548 misses. Neither
-experiment resolves the multi-second latency; neither is adopted on this evidence.
+experiment resolved the multi-second latency on its own. Bounded range scans and
+LRU replacement are now implemented with the separate storage qualification below.
 Faster 20 ms polling measured 15.52 s and 36,604 misses. Slower 200 ms polling
 measured 15.67 s. All are separate single samples with host variance.
 
@@ -143,17 +144,49 @@ At 20 ms, those became 0.97 CPU seconds, 467 requests and 3,832 misses. Faster
 polling increases load; slower polling can delay completion. Neither is a
 substitute for reducing work or introducing appropriate wake-ups.
 
+## Bounded storage batches
+
+The growing authority batches one turn's resource-entry changes before publishing
+its final catalog root. Shared paths are copied once. The packed backend sends
+bounded groups of immutable sibling pages, checks every provider acknowledgement
+and returns no references if any frame is uncertain. This retains page format 2,
+old roots and the existing authority commit. Namespace scans stop at their upper
+boundary; the verified packed-page cache uses LRU replacement.
+
+A ReleaseSafe storage-primitive comparison uses the same binary, two cache slots,
+256 keys with 1 KiB values, half-key deletion, retained-root verification and
+unpublished candidates:
+
+| Write-phase metric | Single-key updates | Eight-key batches |
+| --- | ---: | ---: |
+| Staged immutable pages | 1,960 | 330 |
+| Page-provider request attempts | 5,820 | 2,617 |
+| Encoded page payload attempted | 4,099,816 bytes | 1,252,826 bytes |
+| Sampled client peak RSS | 3,068 KiB | 3,904 KiB |
+
+Both paths pass disk restart and root checkpoint/trim, including old values and
+deleted-key absence. Accepted appends with lost, incomplete or failed per-frame
+acknowledgements cannot publish authority. A separate 1,024-key cold-storage run
+passes with two resident pages. These counts include verification and candidate
+staging; they are not application throughput or total physical write amplification.
+Other qualification ran concurrently, so elapsed times are not used here.
+
+Application turn quotas, inline-value limits and durable result-publication
+chunks are unchanged. Bulk page staging is a backend primitive, not an application
+blob upload API. Persistent columnar Table blocks and larger application payload
+publication remain separate storage work.
+
 ## Planned improvements
 
 These priorities implement the [workload model](workloads.md). Interactive
-snapshots are implemented; further storage changes below remain planned until
-their owning interfaces and evidence say otherwise. No dates or speedups are promised.
+snapshots and bounded page/read batching are implemented. The remaining payload
+and read-structure changes below remain planned. No dates or speedups are promised.
 
 | Priority | Intended change | Required evidence |
 | --- | --- | --- |
 | Interactive sessions | Fresh snapshot per SELECT, bounded Arrow streaming, cancel on exit, server-enforced cleanup after disconnect; retain explicit durable jobs separately | First batch/completion and cancellation tails, revocation after a prefix, complete/incomplete framing, bounded pins and memory |
-| Shared read/write amplification | Bounded batched native reads and tree updates, reusable verified pages with current authorization, fewer repeated metadata reads | Native/provider requests, staged bytes and pages per operation; unchanged atomicity, permission and retry behavior |
-| Bulk immutable publication | Persist bounded blocks before atomic publication of verified references and source progress | Uncertain commits, orphan handling, payload availability, quotas, recovery and actual physical write amplification |
+| Shared read/write amplification | Implemented: bounded native metadata reads, tree mutation/page staging batches, verified LRU pages and snapshot-local point caching | Native/provider requests, staged bytes and pages per operation; unchanged atomicity, permission and retry behavior |
+| Application bulk immutable publication | Persist bounded application blocks before atomic publication of verified references and source progress | Uncertain commits, orphan handling, payload availability, quotas, recovery and actual physical write amplification |
 | Workload-specific read structures | KV point/range access, columnar Table blocks and pruning, Document path/sequence and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
 
 The implemented interactive lifecycle is documented in
@@ -184,6 +217,9 @@ just test::console-latency --single --execution durable
 just test::interactive-query
 just test::interactive-query --source table --rows 257 --age 128
 just test::interactive-query --source table --resident-pages 0
+just test::pages --keys 256 --cache 2 --mutation-batch 1
+just test::pages --keys 256 --cache 2 --mutation-batch 8
+just test::pages-cold --keys 1024 --cache 2
 ```
 
 The runner reports first stdout byte, completion, sampled console RSS (20 ms

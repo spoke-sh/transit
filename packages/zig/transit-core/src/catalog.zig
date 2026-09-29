@@ -62,6 +62,18 @@ pub const Range = struct {
         if (self.minor) |id| std.mem.writeInt(u64, bytes[9..17], id, .big);
         return pages.Key.init(bytes[0..if (self.minor != null) @as(usize, 17) else if (self.major != null) @as(usize, 9) else 1]) catch unreachable;
     }
+    pub fn end(self: Range) pages.Key {
+        var value = self.prefix();
+        var i: usize = value.len;
+        while (i > 0) {
+            i -= 1;
+            if (value.data[i] != 255) {
+                value.data[i] += 1;
+                return pages.Key.init(value.data[0 .. i + 1]) catch unreachable;
+            }
+        }
+        unreachable; // Namespace tags are strictly below 255.
+    }
 };
 fn validateKey(value: *const pages.Key) !void {
     try value.validate();
@@ -73,6 +85,11 @@ fn encode(value: anytype) !pages.Value {
     var writer: std.Io.Writer = .fixed(&bytes);
     std.json.Stringify.value(value, .{}, &writer) catch return error.CatalogRecordTooLarge;
     return pages.Value.init(writer.buffered());
+}
+pub fn putMutation(address: pages.Key, value: anytype) !pages.Mutation {
+    comptime owned(@TypeOf(value));
+    try validateKey(&address);
+    return .{ .key = address, .value = try encode(value) };
 }
 fn owned(comptime T: type) void {
     switch (@typeInfo(T)) {
@@ -126,6 +143,21 @@ pub fn Catalog(comptime Store: type) type {
             const next = try self.tree.put(self.snapshot.root, address, bytes);
             self.snapshot = .{ .root = next, .records = count };
         }
+        pub fn mutate(self: *Self, mutations: []const pages.Mutation) !void {
+            if (mutations.len > pages.mutation_batch) return error.PageMutationBudget;
+            var added: u64 = 0;
+            var removed: u64 = 0;
+            for (mutations, 0..) |mutation, i| {
+                try validateKey(&mutation.key);
+                for (mutations[0..i]) |previous| if (std.mem.eql(u8, previous.key.slice(), mutation.key.slice())) return error.DuplicatePageMutation;
+                const exists = try self.tree.get(self.snapshot.root, mutation.key) != null;
+                if (mutation.value != null and !exists) added += 1;
+                if (mutation.value == null and exists) removed += 1;
+            }
+            const records = try std.math.add(u64, try std.math.sub(u64, self.snapshot.records, removed), added);
+            const next = try self.tree.mutate(self.snapshot.root, mutations);
+            self.snapshot = .{ .root = next, .records = records };
+        }
         /// Structural removal only. The authority must independently establish
         /// retention/deletion permission; this method grants neither.
         pub fn remove(self: *Self, address: pages.Key) !void {
@@ -140,7 +172,7 @@ pub fn Catalog(comptime Store: type) type {
                 try validateKey(&cursor);
                 if (!std.mem.startsWith(u8, cursor.slice(), prefix.slice())) return error.InvalidCatalogCursor;
             }
-            const page = if (after) |cursor| try self.tree.scan(self.snapshot.root, cursor) else try self.tree.scanFrom(self.snapshot.root, prefix);
+            const page = try self.tree.scanRange(self.snapshot.root, after orelse prefix, after == null, range.end());
             var result: Batch(T) = .{};
             for (page.entries, 0..) |slot, i| if (slot) |entry| {
                 if (!std.mem.startsWith(u8, entry.key.slice(), prefix.slice())) return result;

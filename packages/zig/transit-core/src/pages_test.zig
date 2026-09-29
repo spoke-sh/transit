@@ -46,6 +46,29 @@ fn value(index: usize) p.Value {
     return p.Value.init(&buffer) catch unreachable;
 }
 
+test "bounded tree ranges stop at the exclusive end and avoid unrelated leaves" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    for (0..256) |i| root = try tree.put(root, key(i), value(i));
+    store.reads = 0;
+    const short = try tree.scanRange(root, key(30), true, key(31));
+    const bounded_reads = store.reads;
+    try t.expect(short.entries[0].?.key.len != 0 and short.entries[1] == null and short.next == null);
+    try t.expectEqualSlices(u8, key(30).slice(), short.entries[0].?.key.slice());
+    store.reads = 0;
+    _ = try tree.scanFrom(root, key(30));
+    try t.expect(bounded_reads < store.reads);
+    const empty = try tree.scanRange(root, key(30), false, key(31));
+    try t.expect(empty.entries[0] == null and empty.next == null);
+    const full = try tree.scanRange(root, key(30), true, key(38));
+    try t.expect(full.entries[7] != null and full.next == null);
+    const more = try tree.scanRange(root, key(30), true, key(39));
+    try t.expectEqualSlices(u8, key(37).slice(), more.next.?.slice());
+    try t.expectError(error.InvalidPageRange, tree.scanRange(root, key(31), true, key(30)));
+}
+
 test "immutable pages grow beyond legacy rows and keep independent snapshot roots" {
     var store: Store = .{};
     defer store.deinit();
@@ -200,4 +223,71 @@ test "lost staging acknowledgements do not publish candidates and retry is idemp
     try t.expectEqual(candidate, retried);
     try t.expect((try tree.get(root, key(100))) == null);
     try t.expectEqualSlices(u8, value(100).slice(), (try tree.get(candidate, key(100))).?.slice());
+}
+
+test "bounded mutations match an independent map and retain every old cut" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    var expected: [257]?usize = @splat(null);
+    for (0..160) |round| {
+        const previous = root;
+        const before = expected;
+        var mutations: [p.mutation_batch]p.Mutation = undefined;
+        for (&mutations, 0..) |*mutation, i| {
+            // Prime modulus gives distinct, deliberately unordered keys per batch.
+            const index = (round * 47 + i * 31) % expected.len;
+            expected[index] = if ((round + i) % 3 == 0) null else round * 8 + i;
+            mutation.* = .{ .key = key(index), .value = if (expected[index]) |n| value(n) else null };
+        }
+        root = try tree.mutate(root, &mutations);
+        for (expected, before, 0..) |now, old, i| {
+            const current = try tree.get(root, key(i));
+            const retained = try tree.get(previous, key(i));
+            if (now) |n| try t.expectEqualSlices(u8, value(n).slice(), current.?.slice()) else try t.expect(current == null);
+            if (old) |n| try t.expectEqualSlices(u8, value(n).slice(), retained.?.slice()) else try t.expect(retained == null);
+        }
+    }
+    // Deletion collapses all levels, including missing keys, back to an empty root.
+    for (0..33) |batch| {
+        var mutations: [p.mutation_batch]p.Mutation = undefined;
+        const count = @min(mutations.len, expected.len - batch * mutations.len);
+        for (mutations[0..count], 0..) |*mutation, i| mutation.* = .{ .key = key(batch * mutations.len + i), .value = null };
+        root = try tree.mutate(root, mutations[0..count]);
+    }
+    try t.expect(root == null);
+}
+
+test "batch validation and every staging failure leave the published root intact" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    for (0..64) |i| root = try tree.put(root, key(i), value(i));
+    var mutations: [p.mutation_batch]p.Mutation = undefined;
+    for (&mutations, 0..) |*mutation, i| mutation.* = .{ .key = key(i + 8), .value = value(i + 100) };
+    const writes = store.writes;
+    _ = try tree.mutate(root, &mutations);
+    const staged = store.writes - writes;
+    const sequential = store.writes;
+    var separate = root;
+    for (mutations) |mutation| separate = try tree.put(separate, mutation.key, mutation.value.?);
+    try t.expect(staged < store.writes - sequential);
+    for (0..staged) |failure| {
+        for (0..2) |kind| {
+            if (kind == 0) store.fail_at = store.writes + failure else store.lose_at = store.writes + failure;
+            if (kind == 0) try t.expectError(error.StagingFailed, tree.mutate(root, &mutations)) else try t.expectError(error.StagingAcknowledgementLost, tree.mutate(root, &mutations));
+            store.fail_at = null;
+            store.lose_at = null;
+            for (0..64) |i| try t.expectEqualSlices(u8, value(i).slice(), (try tree.get(root, key(i))).?.slice());
+        }
+    }
+    const before = store.writes;
+    try t.expectError(error.DuplicatePageMutation, tree.mutate(root, &.{ mutations[0], mutations[0] }));
+    const excessive: [p.mutation_batch + 1]p.Mutation = @splat(mutations[0]);
+    try t.expectError(error.PageMutationBudget, tree.mutate(root, &excessive));
+    const unchanged = try tree.mutate(root, &.{ .{ .key = key(3), .value = value(3) }, .{ .key = key(999), .value = null } });
+    try t.expectEqualDeep(root, unchanged);
+    try t.expectEqual(before, store.writes);
 }

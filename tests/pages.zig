@@ -49,7 +49,7 @@ fn recorded(journal: adapter.Journal, at: u64) !Root {
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len != 6) return error.ExpectedUrlPhaseKeysCacheAndLayout;
+    if (args.len != 7) return error.ExpectedUrlPhaseKeysCacheAndLayout;
     if (std.mem.eql(u8, args[5], "packed")) return run(adapter.PackedPageStore, init, args);
     if (std.mem.eql(u8, args[5], "closed")) return run(adapter.PageStore, init, args);
     return error.UnknownPageLayout;
@@ -57,6 +57,8 @@ pub fn main(init: std.process.Init) !void {
 fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const u8) !void {
     const keys = try std.fmt.parseInt(usize, args[3], 10);
     const cache_pages = try std.fmt.parseInt(usize, args[4], 10);
+    const batch_size = try std.fmt.parseInt(usize, args[6], 10);
+    if (batch_size != 1 and batch_size != p.mutation_batch) return error.InvalidBatchSize;
     if (keys < 64 or keys > 16384 or keys % 2 != 0) return error.InvalidDataset;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
     defer client.deinit();
@@ -73,11 +75,25 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
         }
         try t.expectError(error.PageUnavailable, store.load(missing));
         var root: ?p.Reference = null;
-        for (0..keys) |i| root = try tree.put(root, key(i), value(i));
+        var inserted: usize = 0;
+        while (inserted < keys) {
+            const count = @min(batch_size, keys - inserted);
+            var mutations: [p.mutation_batch]p.Mutation = undefined;
+            for (mutations[0..count], 0..) |*mutation, i| mutation.* = .{ .key = key(inserted + i), .value = value(inserted + i) };
+            root = if (batch_size == 1) try tree.put(root, mutations[0].key, mutations[0].value.?) else try tree.mutate(root, mutations[0..count]);
+            inserted += count;
+        }
         try t.expect(keys * 1024 > store.residentBytes());
         try t.expect(try publish(journal, 0, .{ .root = root.?, .entries = keys }));
         const snapshot = root;
-        for (0..keys / 2) |i| root = try tree.remove(root, key(i * 2));
+        var deleted: usize = 0;
+        while (deleted < keys / 2) {
+            const count = @min(batch_size, keys / 2 - deleted);
+            var mutations: [p.mutation_batch]p.Mutation = undefined;
+            for (mutations[0..count], 0..) |*mutation, i| mutation.* = .{ .key = key((deleted + i) * 2), .value = null };
+            root = if (batch_size == 1) try tree.remove(root, mutations[0].key) else try tree.mutate(root, mutations[0..count]);
+            deleted += count;
+        }
         try t.expect(try publish(journal, 1, .{ .root = root.?, .entries = keys / 2 }));
         try t.expect(!try publish(journal, 1, .{ .root = snapshot.?, .entries = keys }));
         // Staged orphan is not a publication; root discovery comes only from
@@ -108,8 +124,31 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
                 const retained = try store.load(ref);
                 try t.expectEqualSlices(u8, value(keys + i + 2).slice(), retained.body.leaf[0].?.value.slice());
             }
+            var batch: [p.mutation_batch]p.Page = undefined;
+            for (&batch, 0..) |*item, i| {
+                item.* = page;
+                item.body.leaf[0].?.value = value(keys + i + 20);
+            }
+            const bulk_requests = store.requests;
+            try store.stageMany(&batch, &references);
+            try t.expectEqual(@as(u64, 1), store.requests - bulk_requests);
+            store.clearCache();
+            for (references, batch) |ref, expected| try t.expectEqualDeep(expected, try store.load(ref));
             try t.expectEqual(@as(u64, 2), try journal.tail());
         }
+    } else if (std.mem.eql(u8, args[2], "staging_fault")) {
+        if (PageStore != adapter.PackedPageStore) return error.UnsupportedFaultProfile;
+        var batch: [p.mutation_batch]p.Page = undefined;
+        for (&batch, 0..) |*page, i| {
+            page.* = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+            page.body.leaf[0] = .{ .key = key(keys + i + 50), .value = value(i) };
+        }
+        const sentinel: p.Reference = .{ .digest = @splat(42) };
+        var references: [p.mutation_batch]p.Reference = @splat(sentinel);
+        if (store.stageMany(&batch, &references)) |_| return error.ExpectedStagingFailure else |_| {}
+        for (references) |ref| try t.expectEqualDeep(sentinel, ref);
+        try t.expectEqual(@as(u64, 1), store.requests); // No hidden retry after uncertainty.
+        try t.expectEqual(@as(u64, 2), try journal.tail());
     } else if (!std.mem.eql(u8, args[2], "recover") and !std.mem.eql(u8, args[2], "checkpoint") and !std.mem.eql(u8, args[2], "trim_recover")) return error.UnknownPhase;
 
     store.clearCache();
@@ -155,7 +194,7 @@ fn run(comptime PageStore: type, init: std.process.Init, args: []const [:0]const
     }
     var output_buffer: [2048]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try std.json.Stringify.value(.{ .page_version = p.version, .layout = args[5], .phase = args[2], .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_pages = store.created, .created_page_streams = if (PageStore == adapter.PackedPageStore) @as(u64, if (std.mem.eql(u8, args[2], "write")) 1 else 0) else store.created, .page_http_requests = store.requests, .page_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
+    try std.json.Stringify.value(.{ .page_version = p.version, .layout = args[5], .phase = args[2], .mutation_batch = batch_size, .keys = keys, .retained_value_bytes = keys * 1024, .resident_pages = cache_pages, .cache_bytes = store.residentBytes(), .hits = store.hits, .misses = store.misses, .created_pages = store.created, .created_page_streams = if (PageStore == adapter.PackedPageStore) @as(u64, if (std.mem.eql(u8, args[2], "write")) 1 else 0) else store.created, .page_http_requests = store.requests, .page_payload_bytes_attempted = store.create_payload_bytes_attempted }, .{}, &output.interface);
     try output.interface.writeByte('\n');
     try output.interface.flush();
 }

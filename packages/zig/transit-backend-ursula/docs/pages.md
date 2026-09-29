@@ -2,12 +2,12 @@
 
 `PageStore` and `PackedPageStore` implement the
 [core page interface](../../transit-core/docs/pages.md).
-It is an M10 primitive, now composed by the explicit development v3 node.
-Launcher defaults and Station retain the legacy state profile. Page persistence
-alone does not qualify a growing authority.
+The growing v3 node composes the packed mapping; the legacy authority retains
+its separate storage profile. Page persistence alone does not establish authority
+validation or application computation.
 
-Each store borrows a journal/client and owns a configurable FIFO cache of decoded
-pages. Evicting a slot never removes durable bytes. Zero slots disables caching;
+Each store borrows a journal/client and owns a bounded decoded-page cache.
+`PackedPageStore` uses least-recently-used replacement; `PageStore` uses FIFO. Evicting a slot never removes durable bytes. Zero slots disables caching;
 the 1,024-slot configuration guard bounds this implementation's resident cache,
 not the number of retained pages. `residentBytes` reports cache allocation only;
 HTTP buffers, parsing, tree stack and the process runtime require additional memory.
@@ -28,7 +28,7 @@ This mapping is deliberately measurable: one stream per page and small tree
 fanout can cause substantial metadata and write amplification. It is not yet a
 recommended production layout or a claim of provider scaling.
 
-## Packed mapping under qualification
+## Packed mapping
 
 `PackedPageStore` appends immutable page records to one separate JSON journal
 scoped by the authority's bucket and stream name. Bootstrap explicitly creates
@@ -46,13 +46,28 @@ a duplicate unreachable page, which remains retained. Only the separate,
 conditional authority append publishes the root and fences concurrent changes.
 Packing changes placement, not the commit boundary.
 
+`stageMany` accepts at most eight immutable pages and sends a length-prefixed
+provider batch. Each frame is an independent append. The adapter validates every
+JSON acknowledgement, status and exact single-record coordinate before returning
+any reference; concurrent writers may create gaps between coordinates. A lost,
+partial or malformed acknowledgement fails the whole staging call without an
+automatic retry. Accepted records remain unreachable until the authority commits
+an enclosing root. Existing single-page locators and format-2 readers remain
+compatible; this does not introduce a page-format migration.
+
+Tree mutation batches use this operation for sibling pages. The encoded staging
+buffer is bounded by eight times 24 KiB; upstream request framing owns a second
+bounded copy. This primitive reduces provider requests and discarded path copies.
+It does not change application mutation quotas, expand inline values or replace
+the durable query result-publication protocol.
+
 The page journal has no trimming, page GC or rotation yet. Root-journal trimming
 in the proof cannot remove referenced page records. Access is privileged storage
 infrastructure; application clients receive neither locators nor provider access.
-This mapping still serializes page appends and retains path copies, so fewer
-streams alone do not qualify production scale or horizontal throughput.
+The authority remains a conditional serial journal. Batching reduces page work
+without establishing horizontal throughput.
 
-`page.stage` and `page.load` emit storage spans through the journal's borrowed
+`page.stage`, `page.stage_batch` and `page.load` emit storage spans through the journal's borrowed
 observer. Expected absence during staging does not emit a failed-load warning.
 Cache hits are excluded from network-operation counts. No keys, values, stream
 names or page digests enter diagnostic events.
@@ -62,6 +77,7 @@ names or page digests enter diagnostic events.
 ```sh
 just test::pages
 just test::pages --keys 256 --cache 2
+just test::pages --keys 256 --cache 2 --mutation-batch 1
 just test::pages --keys 256 --cache 16
 just test::pages --layout closed --keys 64 --cache 2
 just test::pages-cold --keys 1024 --cache 2
@@ -82,12 +98,17 @@ and kills its staging worker before another request can pass. Authority stays
 unchanged; a fresh worker stages again and completes from committed roots.
 The orphan never becomes a discovered root or an implicit accepted operation.
 
+The default applies mutations in groups of eight; `--mutation-batch 1` retains
+the single-key control using the same binary and cache. It also exercises lost,
+incomplete and failed per-frame replies after accepted provider appends; no
+locators or authority publication escape those failures.
+
 The default exercises packed format-2 pages with 64 KiB of values and two decoded
 cache slots; the artifact reports their actual size. The original format-1 cache
 used 17,032 bytes. Evidence under
-`.cache/verification/pages-<layout>-<hot|s3>-<keys>-<cache>.json` records revision,
+`.cache/verification/pages-<layout>-<hot|s3>-<keys>-<cache>-batch<1|8>.json` records revision,
 dirty status, binary hash, tool/platform, elapsed time, cache statistics and page/stream creation counts. It also records page HTTP request attempts and
-attempted page payload bytes; these omit root-journal/bootstrap HTTP work, headers and the
+attempted page payload bytes, including unsuccessful staging attempts; these omit batch framing, root-journal/bootstrap HTTP work, headers and the
 provider's internal replication/WAL amplification. Linux `/proc` sampling every
 20 ms reports both client and Ursula process metrics. RSS is the kernel's process
 high-water mark; thread/FD counts are sampled peaks that can miss short spikes.

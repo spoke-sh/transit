@@ -3984,3 +3984,52 @@ are exercised by the ReleaseSafe fixture and empty-cache control above.
 Physical reclamation remains unsupported. Deterministic snapshot tests cover
 lease expiry/restart/epoch and concurrent source changes; these console proofs
 do not establish a multi-node session service or host power-loss behavior.
+
+
+### Bounded tree mutations and immutable page batches
+
+On 2026-09-29, the unit suite passes bounded range termination, an independent
+257-key map across 160 mixed mutation batches, retained cuts,
+no-op/duplicate/budget handling and failure or acknowledgement loss at every
+staging step. Packed-cache tests cover LRU eviction, disabled cache and recency
+counter wrap. Per-frame receipt tests reject failed, missing, duplicate, malformed
+and incomplete coordinates before modifying returned references.
+
+The real-disk commands pass in ReleaseSafe:
+
+```sh
+zig build test-pages -Doptimize=ReleaseSafe -- --keys 256 --cache 2 --mutation-batch 1
+zig build test-pages -Doptimize=ReleaseSafe -- --keys 256 --cache 2 --mutation-batch 8
+zig build test-pages -Doptimize=ReleaseSafe -- --cold-s3 --keys 1024 --cache 2
+just test::storage
+just test::service
+just test::growing-service-release
+```
+
+The primitive checks every retained value after SIGKILL/restart and root-only
+checkpoint/trim. The HTTP fault peer forwards actual accepted immutable batches,
+then drops the whole reply, corrupts a coordinate or substitutes a failed frame.
+No references are returned, no staging retry occurs, authority remains unchanged
+and both retained roots still read. The first trial incorrectly expected batch
+coordinates in top-level headers; it failed closed with `InvalidAppendReceipt`.
+That trial is excluded. The corrected per-frame JSON decoder and all three fault
+modes pass. Page locators remain format 2, with mixed single and batch records.
+
+With one binary and two cache slots, the 256-key write/verification phase stages
+1,960 pages for single updates versus 330 for batches, makes 5,820 versus 2,617
+page HTTP attempts and encodes 4,099,816 versus 1,252,826 attempted payload bytes.
+Elapsed samples overlapped other qualification and are not used as performance
+comparisons. The artifacts include binary hash, revision, dirty status and
+per-phase counters under `.cache/verification/pages-*-batch*.json`.
+
+The growing service suite preserves exact receipts after lost replies and disk
+restart, current read denial, retirement, maintenance snapshot/page reply loss,
+trim timeout, growing Station recovery, multi-turn query publication and explicit
+quota/control reserve behavior. The generic storage and legacy service suites
+also pass. These checks do not authorize page GC or establish host power-loss
+or horizontal-throughput guarantees.
+
+The earlier interactive change also passes `just test::console table`, including
+durable recovery, controlling-PTY input/editing/interrupt behavior, command/file/
+stdin stopping rules and private-CA/hostname checks. The complete run took about
+290 seconds including provisioning and query worker/node/store restart.

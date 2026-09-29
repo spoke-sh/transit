@@ -44,6 +44,7 @@ def sample_process(pid, peak):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("binary")
+    parser.add_argument("--mutation-batch", type=int, choices=(1, 8), default=8)
     parser.add_argument("--keys", type=int, default=64)
     parser.add_argument("--cache", type=int, default=2)
     parser.add_argument("--layout", choices=("closed", "packed"), default="packed")
@@ -61,7 +62,7 @@ def main():
                 "sample_interval_ms": 20, "phases": []}
     storage_profile = "s3" if args.cold_s3 else "hot"
     evidence["storage_profile"] = storage_profile
-    destination = root / ".cache/verification" / f"pages-{args.layout}-{storage_profile}-{args.keys}-{args.cache}.json"
+    destination = root / ".cache/verification" / f"pages-{args.layout}-{storage_profile}-{args.keys}-{args.cache}-batch{args.mutation_batch}.json"
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
         with ExitStack() as resources:
@@ -78,7 +79,7 @@ def main():
                 peak, provider_peak, cold_peak = metrics(), metrics(), metrics()
                 assert fixture.server is not None
                 sample_process(fixture.server.pid, provider_peak)
-                process = subprocess.Popen([binary, fixture.url, phase, str(args.keys), str(args.cache), args.layout],
+                process = subprocess.Popen([binary, fixture.url, phase, str(args.keys), str(args.cache), args.layout, str(args.mutation_batch)],
                     env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 try:
                     while process.poll() is None:
@@ -110,6 +111,9 @@ def main():
                     if process.poll() is None:
                         process.kill()
                     process.communicate()
+                if i == 0 and args.layout == 'packed':
+                    from page_batch_faults import check
+                    check(binary, fixture, args.keys, args.cache, args.mutation_batch)
                 fixture.stop()  # SIGKILL: no graceful shutdown flush.
         evidence["status"] = "passed"
         print("Immutable page roots, old views and deleted-key absence survive disk WAL interruption and root-only checkpoint/trim.")

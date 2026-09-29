@@ -365,18 +365,23 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         process.owner = null;
         process.generation += 1;
     } else {
+        var mutations: [g.turn_mutations]@import("pages.zig").Mutation = undefined;
+        var mutation_count: usize = 0;
         for (command.mutations) |slot| if (slot) |mutation| {
             const data = if (write) |*value| value else return error.MissingWriteView;
             const key = try c.key(.entry, data.id, 0, mutation.key.slice());
             const exists = try candidate.get(g.Entry, key) != null;
             if (mutation.value) |value| {
-                try candidate.put(key, g.Entry{ .key = mutation.key, .value = value, .revision = position });
+                mutations[mutation_count] = try c.putMutation(key, g.Entry{ .key = mutation.key, .value = value, .revision = position });
+                mutation_count += 1;
                 if (!exists) data.entries += 1;
             } else if (exists) {
-                try candidate.remove(key);
+                mutations[mutation_count] = .{ .key = key, .value = null };
+                mutation_count += 1;
                 data.entries -= 1;
             }
         };
+        try candidate.mutate(mutations[0..mutation_count]);
         if (write) |*data| {
             // Validate the final atomic batch, not its intermediate cardinality:
             // replacing a key at the encoding ceiling must remain possible.
