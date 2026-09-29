@@ -146,7 +146,7 @@ fn cycle(self: *Self) !void {
     try self.worker(allocator, .requester);
     const connection = installation.connection();
     const courier_config = try installation.path("courier.json");
-    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = .{ connection.source, connection.requester } } }, .interval_ms = 100, .request_timeout_ms = 2000 });
+    try Files.json(self.init.io, allocator, courier_config, .{ .url = installation.wire.url, .realm = config.realm, .principal = Installation.courier, .seed_file = try installation.path("courier.seed"), .role = .{ .courier = .{ .destinations = .{ connection.source, connection.requester } } }, .interval_ms = 100, .idle_max_interval_ms = 1000, .request_timeout_ms = 2000 });
     try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
     try installation.initializeBehaviors();
     var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
@@ -221,7 +221,7 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const process = (try installation.query(.{ .process = pid })).body.process.process;
     if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
     const generation = try std.math.add(u64, process.generation, 1);
-    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, request_timeout_ms: u32 = 2000, role: union(enum) { table_source: q.TableSource.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
+    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { table_source: q.TableSource.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
     const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .table_source = installation.table() } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
     try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);

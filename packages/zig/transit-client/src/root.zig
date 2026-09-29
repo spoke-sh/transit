@@ -40,6 +40,7 @@ pub const Client = struct {
     http: std.http.Client,
     url: []const u8,
     timeout_ms: u32 = 5000,
+    last_exchange_ms: ?i64 = null,
     observer: ?*telemetry.Runtime = null,
     parent_context: ?telemetry.Context = null,
     call_context: ?telemetry.Context = null,
@@ -48,7 +49,7 @@ pub const Client = struct {
     last_rejection: ?protocol.ErrorCode = null,
 
     pub fn init(allocator: std.mem.Allocator, io: std.Io, url: []const u8) Client {
-        return .{ .http = .{ .allocator = allocator, .io = io }, .url = std.mem.trimEnd(u8, url, "/") };
+        return .{ .http = .{ .allocator = allocator, .io = io, .connection_pool = .{ .free_size = 1 } }, .url = std.mem.trimEnd(u8, url, "/") };
     }
     pub fn deinit(self: *Client) void {
         self.http.deinit();
@@ -57,7 +58,7 @@ pub const Client = struct {
     /// The caller owns deadlines and retry policy. Never follow redirects with
     /// signed requests; the configured endpoint is the trusted authority.
     pub fn call(self: *Client, comptime T: type, path: []const u8, signed: anytype) !T {
-        const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else "inspect";
+        const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
             inline for (.{ "/v2/view", "/v2/inspect", "/v2/state", "/v2/delivery", "/v2/command", "/v3/command", "/v3/query" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
@@ -143,6 +144,8 @@ pub const Client = struct {
     }
 
     fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype) anyerror!T {
+        self.expireIdleConnection();
+        defer self.last_exchange_ms = std.Io.Clock.awake.now(self.http.io).toMilliseconds();
         const allocator = self.http.allocator;
         const url = try allocator.print("{s}{s}", .{ self.url, path });
         defer allocator.free(url);
@@ -151,15 +154,29 @@ pub const Client = struct {
         var buffer: [max_body]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&buffer);
         const parent_header = if (self.call_context) |context| context.header() else @as([55]u8, @splat(0));
-        const trace_headers = [_]std.http.Header{.{ .name = "traceparent", .value = &parent_header }};
+        var headers: [2]std.http.Header = undefined;
+        var header_count: usize = 0;
+        if (self.call_context != null) {
+            headers[header_count] = .{ .name = "traceparent", .value = &parent_header };
+            header_count += 1;
+        }
+        const control = if (@TypeOf(signed) == protocol.Growth.SignedQuery) switch (signed.query.kind) {
+            .close_snapshot => true,
+            .snapshot_read => |read| read.finish,
+            else => false,
+        } else false;
+        if (control) {
+            headers[header_count] = .{ .name = "x-transit-control", .value = "snapshot" };
+            header_count += 1;
+        }
         const response = try self.http.fetch(.{
             .location = .{ .url = url },
             .method = .POST,
             .payload = body,
             .headers = .{ .content_type = .{ .override = "application/json" } },
             .redirect_behavior = .not_allowed,
-            .extra_headers = if (self.call_context != null) &trace_headers else &.{},
-            .keep_alive = false,
+            .extra_headers = headers[0..header_count],
+            .keep_alive = true,
             .response_writer = &writer,
         });
         self.last_status = response.status;
@@ -185,6 +202,16 @@ pub const Client = struct {
         }
         if (T == protocol.Growth.Response) protocol.Growth.validateResponse(parsed.value, signed.query) catch return error.InvalidAuthorityResponse;
         return parsed.value;
+    }
+
+    /// One borrower per Client. Retire idle sockets BEFORE sending, without
+    /// retrying any request. This short reuse window fits native idle deadlines.
+    pub fn expireIdleConnection(self: *Client) void {
+        const now = std.Io.Clock.awake.now(self.http.io).toMilliseconds();
+        if (self.last_exchange_ms) |last| if (now - last >= 200) {
+            self.http.connection_pool.deinit(self.http.io);
+            self.http.connection_pool = .{ .free_size = 1 };
+        };
     }
 
     pub fn view(self: *Client, request: transit.Request, key: transit.Ed25519.KeyPair) !View {

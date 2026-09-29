@@ -33,8 +33,12 @@ or the [reference runbook](../../deploy/reference/README.md) for Kubernetes.
 
 ## Topology and scaling
 
-The current profile has one realm journal and a sequential HTTP server, with one
-request per connection and bounded buffers. Conditional append fences competing
+The v2 profile has one realm journal and a sequential HTTP server, with one
+request per connection and bounded buffers. The growing v3 listener admits bounded
+concurrent connections and sequential connection reuse; authority work remains
+serialized within the realm. Network reads and response writes do not hold that
+authority lock. See the [growing limits](docs/growing.md#public-surface-and-limits).
+Conditional append fences competing
 authorities; it does not turn replicas into independent write shards. No throughput
 or high-availability target is claimed. Run maintenance separately so ingress
 cannot occupy its loop; the finite-capacity proof assumes one maintenance writer

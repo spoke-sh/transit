@@ -251,6 +251,14 @@ rejection responses distinguish conflict, denial, invalid proposals and uncertai
 service/clock failures. Transport loss, malformed success and response allocation
 failure after acceptance cannot authorize a new mutation sequence.
 
+The growing listener uses the bounded [HTTP serving profile](HTTP_SERVING_V1.md)
+with sequential connection reuse. A client can send `X-Transit-Control: snapshot`
+for `close_snapshot` or `snapshot_read` with `finish: true` to use reserved control
+admission. Other query kinds with that hint reject as `InvalidRequest`; unknown
+values and duplicate hint headers reject. The hint is unsigned scheduling metadata,
+never permission or evidence that release succeeded. Signed checks and uncertain
+transport outcomes are unchanged.
+
 Client response validation checks version/realm, query variant, requested IDs,
 resource/view revision basis, safe integer range, dense ordered pages and advancing
 continuations. Empty filtered catalog pages can legitimately advance. Output IDs

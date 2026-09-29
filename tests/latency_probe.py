@@ -46,6 +46,8 @@ class Probe:
                     labels.append(classified)
                     if operation == 'snapshot_read' and envelope['kind'][operation]['finish']:
                         labels.append('snapshot_finish')
+                    if operation == 'snapshot_read' and 'open' in envelope['kind'][operation]['snapshot']:
+                        labels.append('snapshot_open')
                     labels.append('principal:' + str(envelope['principal']))
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
                 connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)

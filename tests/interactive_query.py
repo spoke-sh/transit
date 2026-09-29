@@ -124,8 +124,8 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     gate.clear()
                     release.clear()
                     blocked[0] = True
-                    previous_closes = probe.snapshot()['read:close_snapshot']
-                    previous_opens = probe.snapshot()['read:open_snapshot']
+                    previous_closes = probe.snapshot()['read:close_snapshot'] + probe.snapshot()['snapshot_finish']
+                    previous_opens = probe.snapshot()['read:open_snapshot'] + probe.snapshot()['snapshot_open']
                     terminal.send('\x1b[200~SELECT * FROM items; SELECT COUNT(*) FROM items;\x1b[201~\r')
                     assert gate.wait(timeout=30)
                     terminal.process.send_signal(signal.SIGINT)
@@ -134,8 +134,8 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     terminal.expect('Query cancelled.', timeout=30)
                     terminal.screen = terminal.screen[terminal.screen.index(b'Query cancelled.'):]
                     terminal.expect('\rtransit> ', timeout=30)
-                    assert probe.snapshot()['read:close_snapshot'] == previous_closes + 1
-                    assert probe.snapshot()['read:open_snapshot'] == previous_opens + 1
+                    assert probe.snapshot()['read:close_snapshot'] + probe.snapshot()['snapshot_finish'] == previous_closes + 1
+                    assert probe.snapshot()['read:open_snapshot'] + probe.snapshot()['snapshot_open'] == previous_opens + 1
                     assert not terminal.buffer and not select.select([terminal.process.stdout], [], [], .1)[0]
                     blocked[0] = False
                     frame = terminal.call('SELECT * FROM items LIMIT 3;')

@@ -70,6 +70,23 @@ applicable. Values remain opaque application bytes. Computation runs in the
 caller; the node validates identity, ordering, state dependencies and publication.
 Requests use the common bounded, cancelable HTTP loop and diagnostics.
 
+The listener allows 16 sockets, four active data requests and two reserved
+control requests. Health, commands and snapshot release/finish use the reserve.
+`X-Transit-Control: snapshot` is an admission hint: on query routes the parsed
+operation must actually be `close_snapshot` or a finishing `snapshot_read`, and
+ordinary signed authorization still applies. The hint cannot grant access.
+Connections permit 64 sequential exchanges, with an idle/header deadline of
+the smaller of one second and `request_timeout_ms`. Body reads and response
+writes run outside the cancelable authority mutex; mutable engine, page-store
+and backend-client work has one owner at a time. These bounds isolate slow
+transports but do not establish per-principal fairness or a latency guarantee.
+
+Request diagnostics include `wait_ns` for authority-lock acquisition, `work_ns`
+for serialized authority work including provider I/O, and `cache_hits` /
+`cache_misses` for decoded page-cache access during that work. They count one
+attempt, not durable outcomes or total provider requests. The separate immutable
+control-record cache is described in [storage](../../../docs/reference/storage.md).
+
 Capabilities advertise the implemented operation budgets, named association
 lookup, scoped failed-input retry, retained read versions and support for root
 history reclamation. Retained versions use bounded point/page reads under current

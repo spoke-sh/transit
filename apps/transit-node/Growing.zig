@@ -6,6 +6,7 @@ const wire = @import("transit_client");
 const observations = @import("transit_observability");
 const telemetry = observations.telemetry;
 const g = wire.protocol.Growth;
+const http = @import("transit_http_server");
 const Engine = core.growing.Engine(adapter.GrowingStore, adapter.PackedPageStore);
 const Maintenance = @import("GrowingMaintenance.zig");
 const Config = struct {
@@ -57,7 +58,12 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     try init.io.randomSecure(&snapshot_epoch);
     engine.snapshot_epoch = snapshot_epoch;
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = &engine, .accept_trace_parent = config.accept_trace_parent };
-    return serve(init, &server, config.listen, config.port, config.request_timeout_ms, diagnostics);
+    _ = serve;
+    var listener = try (try std.Io.net.IpAddress.parseIp4(config.listen, config.port)).listen(init.io, .{ .reuse_address = true });
+    defer listener.deinit(init.io);
+    var context: Context = .{ .server = &server, .diagnostics = diagnostics };
+    diagnostics.event(.{ .name = "service.ready" });
+    try http.serve(init.io, init.gpa, &listener, .{ .connections = 16, .requests = 4, .control_requests = 2, .header_timeout_ms = @min(1000, config.request_timeout_ms), .request_timeout_ms = config.request_timeout_ms, .requests_per_connection = 64 }, &context);
 }
 
 const Server = struct {
@@ -66,8 +72,36 @@ const Server = struct {
     engine: *Engine,
     observation: telemetry.Http = .{},
     accept_trace_parent: bool,
+    mutex: *std.Io.Mutex = undefined,
+    locked: bool = false,
+    work_started: ?std.Io.Clock.Timestamp = null,
+    cache_hits: u64 = 0,
+    cache_misses: u64 = 0,
 
+    fn acquire(self: *Server) !void {
+        const waiting = std.Io.Clock.Timestamp.now(self.io, .awake);
+        defer self.observation.wait_ns = @intCast(@max(0, waiting.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
+        try self.mutex.lock(self.io);
+        self.locked = true;
+        self.work_started = .now(self.io, .awake);
+        self.cache_hits = self.engine.page_store.hits;
+        self.cache_misses = self.engine.page_store.misses;
+        self.engine.journal.journal.parent_context = self.observation.span.context;
+        self.engine.page_store.authority.parent_context = self.observation.span.context;
+    }
+    fn release(self: *Server) void {
+        if (!self.locked) return;
+        self.observation.work_ns = @intCast(@max(0, self.work_started.?.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
+        self.observation.cache_hits = self.engine.page_store.hits - self.cache_hits;
+        self.observation.cache_misses = self.engine.page_store.misses - self.cache_misses;
+        self.engine.journal.journal.parent_context = null;
+        self.engine.page_store.authority.parent_context = null;
+        self.locked = false;
+        self.mutex.unlock(self.io);
+    }
     fn json(self: *Server, request: *std.http.Server.Request, status: std.http.Status, value: anytype) !void {
+        // The response owns its bytes. Slow peers must not hold authority access.
+        self.release();
         const bytes = try std.json.Stringify.valueAlloc(self.allocator, value, .{});
         defer self.allocator.free(bytes);
         self.observation.status = @backingInt(status);
@@ -75,7 +109,7 @@ const Server = struct {
             self.observation.error_type = @tagName(value.err);
             self.observation.protocol_outcome = if (status == .service_unavailable) .uncertain else .rejected;
         }
-        try request.respond(bytes, .{ .status = status, .keep_alive = false, .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }} });
+        try request.respond(bytes, .{ .status = status, .keep_alive = true, .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }} });
         self.observation.written = true;
     }
     fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {
@@ -92,52 +126,80 @@ const Server = struct {
         };
         return self.json(request, status, wire.protocol.ErrorResponse{ .err = code });
     }
-    pub fn handle(self: *Server, stream: std.Io.net.Stream) !void {
-        var input: [8192]u8 = undefined;
-        var output: [4096]u8 = undefined;
-        var reader = stream.reader(self.io, &input);
-        var writer = stream.writer(self.io, &output);
-        var http = std.http.Server.init(&reader.interface, &writer.interface);
-        var request = try http.receiveHead();
+    pub fn handle(self: *Server, request: *std.http.Server.Request) !void {
+        defer self.release();
         const route: []const u8 = route: {
             inline for (.{ "/health", "/v3/command", "/v3/query" }) |known| if (std.mem.eql(u8, request.head.target, known)) break :route known;
             break :route "unmatched";
         };
-        self.observation.received(&request, route, self.accept_trace_parent);
-        self.engine.journal.journal.parent_context = self.observation.span.context;
-        self.engine.page_store.authority.parent_context = self.observation.span.context;
-        defer self.engine.journal.journal.parent_context = null;
-        defer self.engine.page_store.authority.parent_context = null;
+        self.observation.received(request, route, self.accept_trace_parent);
+        const control = if (try http.header(request, "x-transit-control")) |value| control: {
+            if (!std.mem.eql(u8, value, "snapshot")) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            break :control true;
+        } else false;
         if (request.head.method == .GET and std.mem.eql(u8, route, "/health")) {
+            try self.acquire();
             try self.engine.refresh();
-            return self.json(&request, .ok, .{ .ready = true, .profile = "growing_v3" });
+            return self.json(request, .ok, .{ .ready = true, .profile = "growing_v3" });
         }
         const mutation = std.mem.eql(u8, route, "/v3/command");
-        if (request.head.method != .POST or (!mutation and !std.mem.eql(u8, route, "/v3/query"))) return self.json(&request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
-        const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
+        if (request.head.method != .POST or (!mutation and !std.mem.eql(u8, route, "/v3/query"))) return self.json(request, .not_found, wire.protocol.ErrorResponse{ .err = .NotFound });
+        const bytes = request.readerExpectNone(&.{}).allocRemaining(self.allocator, .limited(wire.max_body)) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidBody });
         defer self.allocator.free(bytes);
         if (mutation) {
-            const parsed = std.json.parseFromSlice(g.SignedRequest, self.allocator, bytes, .{}) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            const parsed = std.json.parseFromSlice(g.SignedRequest, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
             defer parsed.deinit();
-            g.validate(parsed.value.request) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            g.validate(parsed.value.request) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+            try self.acquire();
             self.observation.protocol_outcome = .uncertain;
-            const position = self.engine.submit(parsed.value) catch |err| return self.failure(&request, err);
+            const position = self.engine.submit(parsed.value) catch |err| return self.failure(request, err);
             self.observation.protocol_outcome = .receipt;
             self.observation.realm = parsed.value.request.realm;
             self.observation.sequence = parsed.value.request.sequence;
             self.observation.pid = g.commandPid(parsed.value.request.command);
             self.observation.operation = @tagName(parsed.value.request.command);
             self.observation.position = position;
-            return self.json(&request, .ok, wire.Receipt{ .position = position });
+            return self.json(request, .ok, wire.Receipt{ .position = position });
         }
-        const parsed = std.json.parseFromSlice(g.SignedQuery, self.allocator, bytes, .{}) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+        const parsed = std.json.parseFromSlice(g.SignedQuery, self.allocator, bytes, .{}) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
         defer parsed.deinit();
-        g.validateQuery(parsed.value.query) catch return self.json(&request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
-        const response = self.engine.query(parsed.value) catch |err| return self.failure(&request, err);
+        if (control and parsed.value.query.kind != .close_snapshot and !(parsed.value.query.kind == .snapshot_read and parsed.value.query.kind.snapshot_read.finish)) return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+        g.validateQuery(parsed.value.query) catch return self.json(request, .bad_request, wire.protocol.ErrorResponse{ .err = .InvalidRequest });
+        try self.acquire();
+        const response = self.engine.query(parsed.value) catch |err| return self.failure(request, err);
         self.observation.protocol_outcome = .read;
         self.observation.realm = response.realm;
         self.observation.operation = @tagName(parsed.value.query.kind);
         self.observation.position = response.position;
-        return self.json(&request, .ok, response);
+        return self.json(request, .ok, response);
+    }
+};
+
+/// Network parsing/writes are concurrent; mutable authority and backend clients
+/// have one cancelable owner at a time. Every request owns its observation.
+const Context = struct {
+    server: *Server,
+    diagnostics: *telemetry.Runtime,
+    mutex: std.Io.Mutex = .init,
+    pub fn isControl(_: *@This(), request: *std.http.Server.Request) bool {
+        return std.mem.eql(u8, request.head.target, "/v3/command") or
+            (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
+    }
+    pub fn connectionError(self: *@This(), err: anyerror, started: bool) void {
+        if (!started and err != error.EndOfStream) self.diagnostics.event(.{ .name = "transit.http.connection", .level = .debug, .error_type = @errorName(err) });
+    }
+    pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+        var server = self.server.*;
+        server.io = io;
+        server.allocator = allocator;
+        server.mutex = &self.mutex;
+        server.observation = .{ .span = self.diagnostics.begin(.server, null) };
+        var failure: ?anyerror = null;
+        const read_only = !std.mem.eql(u8, request.head.target, "/v3/command");
+        defer server.observation.finish("transit.http.request", failure, if (failure) |err| err == error.Canceled else false, read_only);
+        server.handle(request) catch |err| {
+            failure = err;
+            return err;
+        };
     }
 };

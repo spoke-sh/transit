@@ -16,6 +16,7 @@ const Config = struct {
     association: []const u8 = "state",
     activation_directory: ?[]const u8 = null,
     interval_ms: u32 = 20,
+    idle_max_interval_ms: u32 = 0,
     request_timeout_ms: u32 = 5000,
     role: union(enum) {
         source: q.Behavior.Source,
@@ -47,7 +48,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
     defer parsed.deinit();
     var config = parsed.value;
-    if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
+    if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.idle_max_interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var key = if (bootstrap) key: {
         if (config.seed_file != null or config.role == .courier) return error.InvalidBootstrapConfiguration;
         var seed: [32]u8 = undefined;
@@ -113,6 +114,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .courier => unreachable,
     };
     diagnostics.event(.{ .name = "service.ready", .operation = @tagName(config.role), .realm = config.realm, .pid = config.pid, .generation = config.generation });
+    var idle_ms = config.interval_ms;
     while (true) {
         const now: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds());
         var observation = diagnostics.begin(.application, null);
@@ -144,7 +146,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         // host steps, never counters of newly completed queries or fresh turns.
         observation.finish(.{ .name = "query.worker.step", .operation = @tagName(config.role), .level = if (step == .blocked) .err else if (step == .committed) .info else .debug, .outcome = if (step == .idle) .idle else if (step == .blocked) .rejected else .ok, .protocol_outcome = if (step == .committed) .receipt else .none, .realm = config.realm, .pid = config.pid, .generation = config.generation });
         if (step == .blocked) return server.handler_error orelse error.QueryHostBlocked;
-        if (step == .idle) try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+        if (step == .idle) {
+            try init.io.sleep(.fromMilliseconds(idle_ms), .awake);
+            idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
+        } else idle_ms = config.interval_ms;
     }
 }
 fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.Ed25519.KeyPair) !void {
@@ -153,6 +158,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
     wire.observer.?.event(.{ .name = "service.ready", .operation = "courier", .realm = config.realm });
     var after: ?u64 = null;
     var pending: ?g.SignedRequest = null;
+    var idle_ms = config.interval_ms;
     while (true) {
         if (pending) |signed| {
             _ = wire.submitGrowing(signed) catch |err| {
@@ -162,6 +168,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             };
             after = signed.request.command.deliver;
             pending = null;
+            idle_ms = config.interval_ms;
             continue;
         }
         const basis = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
@@ -184,6 +191,9 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             }
             after = output.id;
         };
-        if (pending == null and page.body.outputs.next == null) try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+        if (pending == null and page.body.outputs.next == null) {
+            try init.io.sleep(.fromMilliseconds(idle_ms), .awake);
+            idle_ms = @min(@max(config.interval_ms, config.idle_max_interval_ms), idle_ms * 2);
+        } else idle_ms = config.interval_ms;
     }
 }

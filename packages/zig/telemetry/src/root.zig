@@ -39,6 +39,10 @@ pub const Event = struct {
     binding_revision: ?u64 = null,
     sequence: ?u64 = null,
     position: ?u64 = null,
+    wait_ns: ?u64 = null,
+    work_ns: ?u64 = null,
+    cache_hits: ?u64 = null,
+    cache_misses: ?u64 = null,
 };
 pub const bucket_ns = [_]u64{ 1_000_000, 5_000_000, 10_000_000, 50_000_000, 100_000_000, 500_000_000, 1_000_000_000, 5_000_000_000, std.math.maxInt(u64) };
 const scope_count = @typeInfo(Scope).@"enum".field_names.len;

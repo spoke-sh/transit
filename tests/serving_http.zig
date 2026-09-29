@@ -6,6 +6,7 @@ const Context = struct {
     pub fn handle(self: *@This(), io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) anyerror!void {
         _ = self.active.fetchAdd(1, .monotonic);
         defer _ = self.active.fetchSub(1, .monotonic);
+        if (std.mem.eql(u8, request.head.target, "/keep")) return request.respond("{}", .{ .keep_alive = true });
         if (std.mem.eql(u8, request.head.target, "/health")) return http.respond(request, .ok, "{\"ready\":true}");
         if (std.mem.eql(u8, request.head.target, "/large")) {
             const bytes = try allocator.alloc(u8, 8 * 1024 * 1024);
@@ -28,7 +29,7 @@ pub fn main(init: std.process.Init) !void {
     var listener = try (try std.Io.net.IpAddress.parseIp4("127.0.0.1", try std.fmt.parseInt(u16, args[1], 10))).listen(init.io, .{ .reuse_address = true });
     defer listener.deinit(init.io);
     var context: Context = .{};
-    const options: http.Options = .{ .connections = 8, .requests = 2, .control_requests = 1, .header_timeout_ms = 200, .request_timeout_ms = 700 };
+    const options: http.Options = .{ .connections = 8, .requests = 2, .control_requests = 1, .header_timeout_ms = 200, .request_timeout_ms = 700, .requests_per_connection = 3 };
     const Task = struct {
         fn run(io: std.Io, allocator: std.mem.Allocator, server: *std.Io.net.Server, limits: http.Options, ctx: *Context) anyerror!void {
             try http.serve(io, allocator, server, limits, ctx);

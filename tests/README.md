@@ -4103,3 +4103,32 @@ partial runs are not full-suite passes. Earlier clean-checkout runs were stopped
 when their tested revisions were superseded. Hosted CI did not start because of
 the GitHub account billing/spending limit. Current PR validation reports the
 revision and result of subsequent runs.
+
+### Combined reads, control caching and bounded transport
+
+The next read-path revision adds canonical `snapshot_read` fixtures and generated
+native schema coverage. `just contract::check` and `just test::unit` pass. Core
+tests distinguish the captured source from final current metadata, allow an
+injected unrelated publication during materialization, reject current revocation,
+retain a slot after failed finish validation, and enforce byte-limited continuation
+and expiry. Immutable control-cache tests cover scan eviction pressure, changed
+roots, unpublished candidates and retained roots; cached bytes cannot grant access.
+
+`just test::serving-http` passes with three exchanges on one socket, advertised
+closure at the configured cap and health progress between exchanges. The existing
+deadline, cancellation/join, partial header/body and capacity cases still pass.
+`just test::server-faults` passes the real growing node/gateway, including socket
+reuse, fresh sessions after an idle connection expires, stalled body isolation,
+false control-hint rejection, full data admission with control parsing and signed
+denial still available, interrupted provisioning and rollback refusal. Its final
+lifecycle/fault runs take 17.05/16.85 seconds. Health under data pressure takes
+2.91 ms in that run; this is a sample, not a latency bound.
+
+The transport change also passes `just test::service` for legacy close-after-reply
+authorities and `just test::growing-service-release` for exact retry, malformed
+replies, revocation, resource reads, current/retained versions, node/provider
+restart, maintenance uncertainty, quota reserve and durable Station/query recovery.
+The latter includes a 41-row, 9,984-byte durable result through staging, sealing,
+publication, partial consumption and retained acknowledgement. No transport retry
+is introduced. Growing authority work remains serialized; these finite proofs
+do not establish per-principal fairness or offered-load throughput.

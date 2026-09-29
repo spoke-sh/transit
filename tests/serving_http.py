@@ -48,6 +48,19 @@ try:
         except OSError:
             assert process.poll() is None and time.monotonic() < until
             time.sleep(.02)
+    # Bounded reuse keeps one socket; the final response advertises closure.
+    persistent = http.client.HTTPConnection('127.0.0.1', port, timeout=2)
+    first_socket = None
+    for index in range(3):
+        persistent.request('GET', '/keep')
+        if first_socket is None:
+            first_socket = persistent.sock
+        assert persistent.sock is first_socket
+        response = persistent.getresponse()
+        assert response.status == 200 and response.read() == b'{}'
+        assert (response.getheader('Connection') == 'close') == (index == 2)
+        assert request()[0] == 200, 'an idle reusable socket blocked health'
+    persistent.close()
     assert request('/echo', b'Unicode: \xe2\x98\x83')[1] == b'Unicode: \xe2\x98\x83'
     chunked = raw(b'POST /echo HTTP/1.1\r\nHost: test\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nabc\r\n0\r\n\r\n')
     assert b'200 OK' in chunked and chunked.endswith(b'abc'), chunked

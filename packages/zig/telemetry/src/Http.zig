@@ -14,6 +14,10 @@ realm: ?u64 = null,
 pid: ?u64 = null,
 sequence: ?u64 = null,
 position: ?u64 = null,
+wait_ns: ?u64 = null,
+work_ns: ?u64 = null,
+cache_hits: ?u64 = null,
+cache_misses: ?u64 = null,
 
 pub fn received(self: *Http, req: *std.http.Server.Request, route: []const u8, trusted_parent: bool) void {
     self.method = @tagName(req.head.method);
@@ -45,5 +49,9 @@ pub fn finish(self: *Http, name: []const u8, err: ?anyerror, timed_out: bool, qu
         .pid = self.pid,
         .sequence = self.sequence,
         .position = self.position,
+        .wait_ns = self.wait_ns,
+        .work_ns = self.work_ns,
+        .cache_hits = self.cache_hits,
+        .cache_misses = self.cache_misses,
     });
 }

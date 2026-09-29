@@ -11,11 +11,13 @@ pub const Options = struct {
     control_requests: u8 = 2,
     header_timeout_ms: u32 = 1000,
     request_timeout_ms: u32 = 5000,
+    requests_per_connection: u16 = 1,
 
     pub fn validate(self: Options) !void {
         if (self.connections < 2 or self.connections > 64 or self.requests == 0 or self.control_requests == 0 or
             @as(u16, self.requests) + self.control_requests > self.connections or self.header_timeout_ms == 0 or
-            self.header_timeout_ms > self.request_timeout_ms or self.request_timeout_ms > 300000) return error.InvalidHttpLimits;
+            self.header_timeout_ms > self.request_timeout_ms or self.request_timeout_ms > 300000 or
+            self.requests_per_connection == 0 or self.requests_per_connection > 256) return error.InvalidHttpLimits;
     }
 };
 
@@ -57,7 +59,7 @@ pub fn validateHead(request: *std.http.Server.Request) !void {
     if (transfer) |value| if (!std.ascii.eqlIgnoreCase(value, "chunked")) return error.UnsupportedTransferEncoding;
     if (try header(request, "content-encoding")) |value| if (!std.ascii.eqlIgnoreCase(value, "identity")) return error.UnsupportedContentEncoding;
     if (try header(request, "expect") != null) return error.UnsupportedExpectation;
-    for ([_][]const u8{ "origin", "authorization", "content-type", "upgrade" }) |name| _ = try header(request, name);
+    for ([_][]const u8{ "origin", "authorization", "content-type", "upgrade", "x-transit-control" }) |name| _ = try header(request, name);
 }
 
 pub fn respond(request: *std.http.Server.Request, status: std.http.Status, body: []const u8) !void {
@@ -112,17 +114,24 @@ pub fn serve(io: Io, allocator: std.mem.Allocator, listener: *Io.net.Server, opt
             connection(worker_io, alloc, stream, limits, admission, ctx, &handler_started) catch |err| ctx.connectionError(err, handler_started);
         }
         fn connection(worker_io: Io, alloc: std.mem.Allocator, stream: Io.net.Stream, limits: Options, admission: *Admission, ctx: @TypeOf(context), handler_started: *bool) !void {
-            const started = Io.Clock.awake.now(worker_io);
             var input: [8192]u8 = undefined;
             var output: [4096]u8 = undefined;
             var reader = stream.reader(worker_io, &input);
             var writer = stream.writer(worker_io, &output);
             var server = std.http.Server.init(&reader.interface, &writer.interface);
-            var request: ?std.http.Server.Request = null;
-            try deadline(worker_io, limits.header_timeout_ms, receive, .{ &server, &request });
-            const elapsed = started.durationTo(Io.Clock.awake.now(worker_io)).toMilliseconds();
-            const remaining: u32 = @intCast(@max(1, @as(i64, limits.request_timeout_ms) - elapsed));
-            try deadline(worker_io, remaining, dispatch, .{ worker_io, alloc, &request.?, limits, admission, ctx, handler_started });
+            for (0..limits.requests_per_connection) |index| {
+                handler_started.* = false;
+                const started = Io.Clock.awake.now(worker_io);
+                var request: ?std.http.Server.Request = null;
+                try deadline(worker_io, limits.header_timeout_ms, receive, .{ &server, &request });
+                // Consumers may opt into keep-alive, but the listener always
+                // forces the final response to advertise Connection: close.
+                if (index + 1 == limits.requests_per_connection) request.?.head.keep_alive = false;
+                const elapsed = started.durationTo(Io.Clock.awake.now(worker_io)).toMilliseconds();
+                const remaining: u32 = @intCast(@max(1, @as(i64, limits.request_timeout_ms) - elapsed));
+                try deadline(worker_io, remaining, dispatch, .{ worker_io, alloc, &request.?, limits, admission, ctx, handler_started });
+                if (!request.?.head.keep_alive or server.reader.state != .ready) return;
+            }
         }
         fn dispatch(worker_io: Io, alloc: std.mem.Allocator, request: *std.http.Server.Request, limits: Options, admission: *Admission, ctx: @TypeOf(context), handler_started: *bool) anyerror!void {
             validateHead(request) catch return respond(request, .bad_request, "{\"err\":\"InvalidHttpRequest\"}");

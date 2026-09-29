@@ -144,7 +144,8 @@ def main():
             node_fields.update(port=real_port, ursula_url=probes['provider'].url)
         gate = fixture.root / 'probe-gate' if args.instrument else None
         override(fixture, 'node', node_fields, gate)
-        override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms})
+        override(fixture, 'query_host', {'interval_ms': args.worker_interval_ms,
+                                       'idle_max_interval_ms': 0 if args.worker_interval_ms is not None else None})
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': 0, 'instrumented': args.instrument,

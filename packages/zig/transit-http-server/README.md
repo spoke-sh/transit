@@ -13,6 +13,13 @@ Every request gets 8 KiB input/4 KiB output buffers; consumer working memory is
 additional and must be bounded independently. Partial headers can occupy sockets
 only until the header deadline; this is not an authenticated per-principal quota.
 
+`Options.requests_per_connection` defaults to 1 and accepts 1–256. An opting-in
+consumer also sends keep-alive responses. Requests on a socket remain sequential,
+with fresh admission and deadlines; idle sockets retain no data/control slot.
+The header deadline bounds idle reuse and the final response advertises closure.
+The growing node and local gateway use 64 exchanges per connection. Other
+consumers keep their existing close-after-response behavior.
+
 `Context.handle(io, allocator, request)` may run concurrently. Consumers must use
 private arenas/observations and coordinate shared signers, throttles and mutations.
 `connectionError(error, handler_started)` receives finite error categories, never

@@ -1,5 +1,6 @@
 """Adversarial local server startup and native gateway proofs; all state is owned."""
 import json
+import http.client
 import os
 from pathlib import Path
 import shutil
@@ -51,6 +52,42 @@ def gateway_hosts(fixture):
                 pass
             assert not data or data.startswith((b"HTTP/1.1 400", b"HTTP/1.1 403")), data
     print("Transit gateway hosts: default/configured aliases, exact ports, unknown/malformed/duplicate hosts and identity-header refusal passed", flush=True)
+
+
+def reusable_connections(fixture):
+    for role in ('gateway', 'node'):
+        port = fixture.config['ports'][role]
+        connection = http.client.HTTPConnection('127.0.0.1', port, timeout=3)
+        try:
+            peer = None
+            for _ in range(3):
+                connection.request('GET', '/health')
+                if peer is None:
+                    peer = connection.sock
+                assert connection.sock is peer, role
+                reply = connection.getresponse()
+                assert reply.status == 200 and json.loads(reply.read())['ready']
+                assert reply.getheader('Connection') != 'close'
+            # Reading an incomplete body must not hold the authority lock or
+            # monopolize accept. Health uses the separate admission reserve.
+            slow = socket.create_connection(('127.0.0.1', port), timeout=3)
+            try:
+                slow.sendall(f'POST /v3/query HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 100\r\n\r\nx'.encode())
+                connection.request('GET', '/health')
+                reply = connection.getresponse()
+                assert reply.status == 200 and json.loads(reply.read())['ready']
+            finally:
+                slow.close()
+        finally:
+            connection.close()
+    # Priority hints cannot turn an ordinary operation into a release or grant.
+    query = {'query': {'version': 3, 'realm': fixture.config['realm'], 'principal': 0,
+                      'kind': {'capabilities': {}}}, 'signature': [0] * 64}
+    for direct in (False, True):
+        assert response(fixture, '/v3/query', json.dumps(query).encode(), direct=direct)[0] == 403
+        assert response(fixture, '/v3/query', json.dumps(query).encode(),
+                        {'X-Transit-Control': 'snapshot'}, direct)[0] == 400
+    print('Transit transport: socket reuse, partial-body isolation and checked control hints passed', flush=True)
 
 
 def configured_hosts(cli, node, host):
@@ -122,6 +159,14 @@ def gateway(fixture):
         elapsed = time.monotonic() - start
         assert elapsed < 2, elapsed
         assert response(fixture, "/v3/query", b"{}")[0] == 503
+        # The reserve admits cleanup-shaped requests even with data slots full;
+        # parsing and signed authority checks remain mandatory after admission.
+        assert response(fixture, "/v3/query", b"{}", headers={"X-Transit-Control": "snapshot"})[0] == 400
+        release = {'query': {'version': 3, 'realm': fixture.config['realm'], 'principal': 0,
+                            'kind': {'close_snapshot': {'epoch': [7] * 16, 'serial': 1}}},
+                   'signature': [0] * 64}
+        assert response(fixture, "/v3/query", json.dumps(release).encode(),
+                        headers={"X-Transit-Control": "snapshot"})[0] == 403
         # Whole-request deadlines close all slow bodies without retaining tasks.
         for peer in held:
             peer.settimeout(6)

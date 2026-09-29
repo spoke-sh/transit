@@ -59,7 +59,15 @@ It removes trailing separators before appending the operation route, preserving
 the base path and its escaping. Foreign SDKs use this same transport behavior.
 
 Each client is used by one operation at a time; sessions sharing a principal also
-share its mutation sequence. Delivered input includes position, opaque value and
+share its mutation sequence. A client retains at most one free HTTP connection
+and discards it before a new exchange after 200 ms idle. This is below the growing
+node's one-second idle-header deadline; peers may still close sooner. A failed
+exchange remains a transport failure without automatic replay, including for
+signed mutations. Legacy authorities that close every response remain supported.
+Snapshot release and combined finish reads carry a checked control-admission
+hint; signed authorization and request semantics remain mandatory.
+
+Delivered input includes position, opaque value and
 versioned authenticated origin. `Session.receive` rejects unsupported origin
 versions. Match the expected source PID/turn or effect attempt before interpreting
 application correlation; claimed senders inside opaque bytes carry no authority.

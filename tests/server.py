@@ -205,8 +205,9 @@ def run(cli, node, host):
         fixture.refusal("file not found")
         fixture.start(initialize=True)
         fixture.ready()
-        from server_faults import gateway_hosts
+        from server_faults import gateway_hosts, reusable_connections
         gateway_hosts(fixture)
+        reusable_connections(fixture)
         from console_terminal import local_transcript
         local_transcript(fixture.cli, fixture.root)
         original = fixture.record()
@@ -218,6 +219,11 @@ def run(cli, node, host):
             page = shell.call('SELECT COUNT(*) FROM items;')
             assert page['complete_coverage'] and page['rows'] == '1', page
             assert page['cells'][0][0]['value']['uint64'] == '0', page
+            # Reuse protocol support, but retire idle transport sockets and open
+            # an independent snapshot after the listener's idle deadline.
+            time.sleep(1.2)
+            again = shell.call('SELECT COUNT(*) FROM items;')
+            assert again['session'] != page['session'] and again['complete_coverage']
             shell.close()
         finally:
             if shell.process.poll() is None:

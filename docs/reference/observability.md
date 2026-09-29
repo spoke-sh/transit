@@ -24,6 +24,15 @@ Count admission, commit, delivery, dispatch and settlement separately. Retrying 
 request adds a transport attempt without necessarily adding accepted work.
 Recovery must not invent a fresh application completion or external dispatch.
 
+Growing-authority request events separate `wait_ns` (authority-lock acquisition)
+from `work_ns` (serialized engine work, including provider I/O). Their
+`cache_hits` and `cache_misses` count decoded page-cache access during that work.
+These fields exclude network body/response time and are absent when the request
+does not acquire the authority. Cache misses are not total provider requests:
+journal fences and other provider operations have their own observations.
+Use native operation names and provider attempt spans to attribute amplification;
+do not add overlapping span durations as though they were separate elapsed phases.
+
 ## Correlation and privacy
 
 Correlate with authenticated realm, PID, generation and operation identity where
