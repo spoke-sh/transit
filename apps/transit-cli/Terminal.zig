@@ -205,6 +205,16 @@ const Editor = struct {
             try self.echo(statement);
             self.remember(statement);
             if (!try self.console.execute(statement)) return false;
+            if (self.console.query_interrupted) {
+                // Ctrl-C cancels the submitted draft, including any remaining
+                // pasted statements. They must not become a background queue.
+                if (self.console.access_lost) {
+                    self.console.access_lost = false;
+                    self.erasePrivate();
+                } else self.remove(0, self.length);
+                self.pasting = false;
+                return true;
+            }
             if (self.console.access_lost) {
                 self.console.access_lost = false;
                 self.erasePrivate();

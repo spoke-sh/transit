@@ -297,7 +297,7 @@ pub fn main(init: std.process.Init) !void {
         try observe(init, &client, receipt);
         return print(init, receipt);
     }
-    if (std.mem.eql(u8, command, "status")) return print(init, try client.status(1));
+    if (std.mem.eql(u8, command, "status")) return print(init, try client.status(if (args.len == 5) try std.fmt.parseInt(u64, args[4], 10) else 1));
     if (std.mem.eql(u8, command, "activate-host")) {
         if (args.len != 6) return error.Usage;
         const requester = std.mem.eql(u8, args[4], "requester");

@@ -71,6 +71,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                             if request["principal"] == 65536 and not fault["stage"].is_set() and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Us") for item in turn.get("mutations", [])):
                                 fault["stage"].set()
                                 fault["resume"].wait(timeout=60)
+                        if hook := fault.get('console_hook'):
+                            data = hook(self.path, message, data)
                         self.send_response(response.status)
                         self.send_header("Content-Length", str(len(data)))
                         self.end_headers()

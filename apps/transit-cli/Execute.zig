@@ -19,11 +19,14 @@ pub fn sql(console: *Console, statement: []const u8) !void {
             else => return error.UnresolvedSubmission,
         } else if (session.length != 0) return error.UnresolvedSubmission;
     };
+    console.query_running = true;
+    if (Signals.interrupted()) return error.ConsoleInterrupted;
     var arena: std.heap.ArenaAllocator = .init(console.init.gpa);
     defer arena.deinit();
     // Compile before changing identity; invalid SQL cannot start durable work.
     timing.enter(.compile);
     _ = try q.Workspace.apply(arena.allocator(), console.client, console.config, .{ .compile = .{ .sql = statement } });
+    if (Signals.interrupted()) return error.ConsoleInterrupted;
     timing.enter(.prepare);
     var id: u64 = 0;
     for (0..8) |_| {
@@ -36,6 +39,7 @@ pub fn sql(console: *Console, statement: []const u8) !void {
     if (id == 0) return error.QueryIdentityUnavailable;
     session.clear();
     session.namespace = id;
+    console.active_query = id;
     timing.enter(.persist);
     try session.checkpoint();
     timing.enter(.submit);
@@ -59,6 +63,8 @@ pub fn recover(console: *Console, selected: ?u64) !void {
         }
     }
     if (session.namespace == null) return error.NoQuery;
+    console.query_running = true;
+    console.active_query = session.namespace;
     // An explicit resume starts presentation at the beginning. No result rows
     // are saved locally, so a disconnected output stream cannot be reconstructed.
     session.cursor = null;

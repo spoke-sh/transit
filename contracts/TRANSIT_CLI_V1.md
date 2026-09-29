@@ -65,8 +65,10 @@ never treats uncertainty as proof of rejection.
 
 Successful help, version, ordinary disconnect and joined server shutdown return
 0; invalid invocation/configuration returns 2; runtime failure returns 1. A
-console interrupted while waiting disconnects with 130 without inventing durable
-cancellation. Server SIGINT/SIGTERM initiate joined shutdown. Machine records go
+console interrupted during SQL or `.resume` attempts recorded query cancellation
+and returns to the interactive prompt. Batch interruption exits 130 after a
+resolved outcome, or 1 if cancellation fails. Interrupting metadata or idle batch
+input disconnects with 130 without cancellation. Server SIGINT/SIGTERM initiate joined shutdown. Machine records go
 to stdout and diagnostics to stderr; JSON mode has no banner or prompt. Broken
 stdout ends the local session without cancelling accepted work.
 
@@ -220,7 +222,22 @@ same signed intent and upload, waits and reads results from the beginning;
 previously printed rows may repeat. `.resume ID` selects an existing query only
 when no unresolved operation would be displaced. `.cancel` is an explicit native
 cancellation request; its admission does not promise completed cancellation.
-Disconnecting, clearing a draft, timeout and SIGINT never cancel accepted work.
+Ctrl-C during SQL or `.resume` settles only the frozen operation before preparing
+native cancellation. Repeated Ctrl-C coalesces during cleanup; SIGTERM still
+disconnects. The console observes the requester disposition and active-slot
+release before clearing saved intent and returning to an empty prompt. It
+discards remaining statements in the submitted draft. Cancellation closes the
+requester wait and withdraws the request publication; source work observes closure
+between bounded turns. A turn already in progress may finish. If completion won,
+the console reports completed execution with interrupted presentation, without
+claiming to undo the query. An incomplete prefix does not acquire a final coverage
+marker or row total through cancellation; output already emitted stays disclosed.
+Unconfirmed cancellation retains the original query and frozen operation, reports
+the failure, and prevents new SQL from replacing unresolved work. Persistence
+failure ends the session. Frozen-input settlement and active-slot cleanup each
+check a 30-second budget between bounded native operations. Current grants still
+apply. Ordinary disconnect, draft clearing, timeout, SIGTERM and output failure
+do not cancel accepted work. Compatibility query shells keep their own contracts.
 
 One session retains one prepared request, finite compiled bundle and result cursor.
 Each result page uses complete verified coverage and a current authorized reread.
