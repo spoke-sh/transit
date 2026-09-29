@@ -59,8 +59,8 @@ route. The optional growing query profile is configured separately below.
 
 ### Migrating the experimental Board v1 profile
 
-M17 adds required `documents` capability and growing-record lens fields, plus the
-selected Document metadata response. Update Board and its generated browser client
+The current schema includes the required `documents` capability and growing-record
+lens fields, plus the selected Document metadata response. Update Board and its generated browser client
 together; older strict validators reject the additional fields. Existing Table
 query payloads retain their original contract. Document inspection adds no write
 or query capability to the inspection principal.

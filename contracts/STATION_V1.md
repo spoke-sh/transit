@@ -1,6 +1,6 @@
 # Station v1 profile
 
-Status: implemented experimental M9 profile: behaviors, calls, scoped framework
+Status: implemented experimental bounded profile: behaviors, calls, scoped framework
 services, Tables and shared language exports. The
 [framework design](../docs/reference/station.md) distinguishes this bounded implementation
 from the broader direction; no stable public SDK release is implied.

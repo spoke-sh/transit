@@ -1,14 +1,14 @@
 # Query compatibility and protocol handoff
 
 This matrix describes the implemented query contracts. Qualification is tracked
-in the [proof guide](../../../../tests/README.md#m18-qualification); a planned
-transport does not become available by sharing an engine.
+in the [proof guide](../../../../tests/README.md); sharing an engine does not
+establish transport compatibility.
 [HTTP serving](../../../../docs/reference/serving.md),
 [reactive APIs and refresh](../../../../docs/reference/reactive.md) and
 [Flight](../../../../docs/reference/flight.md) have separately qualified profiles.
 Flight exposes the selected int64 Table v1 path; it does not expose unified v2.
 
-| Surface | Public Table v1 (M13) | Unified v2 (M18) |
+| Surface | Public Table v1 | Unified v2 |
 | --- | --- | --- |
 | Source | Exact Table schema: int64 key plus one nullable value | Declared KV decoders, exact Table schema, or accepted Document reference/projections |
 | Plan/result identity | `FZP1`, original `GQM2` result | `UQS2` source, `FZP2` plan, `UQB2` bundle, `UQM2` manifest |
@@ -17,7 +17,7 @@ Flight exposes the selected int64 Table v1 path; it does not expose unified v2.
 | Reads | Original captured-segment delivery | Current authorized publication reads with ordered digest/row/byte verification |
 | Shell | `transit query CONFIG` | `transit query-v2 CONFIG`; explicit frozen bundle/token recovery |
 | Board | Separate `query` credential/configuration | Separate `query_v2`; one configured source and budgets, explicit submission |
-| Language callers | Existing SDK Table/Station APIs | All ten M11 SDKs over the same Zig native/port implementation |
+| Language callers | Existing SDK Table/Station APIs | All ten non-Zig SDKs over the same Zig native/port implementation |
 | Flight / Flight SQL / ADBC | Qualified finite int64 Table endpoint; see the [client/type matrix](../../transit-flight/docs/compatibility.md) | No implemented endpoint or implicit nested-cell conversion |
 
 V1 is not upgraded in place. Its compiler, retained result interpretation,
@@ -36,7 +36,7 @@ All v2 Arrow columns use a non-null struct with state, actual kind, nullable
 value and a non-null alternative list. Integers keep all 64 bits, finite float64
 keeps negative zero, binary stays bytes and text stays UTF-8. Conflicts retain
 ordered assignment counter/replica IDs and each alternative's state. A plain
-nullable Arrow column cannot represent this contract losslessly. A future
+nullable Arrow column cannot represent this contract losslessly. A compatible
 transport must expose this layout or declare and qualify an explicit conversion;
 client support for primitive Arrow alone is insufficient.
 
@@ -57,7 +57,7 @@ page/segment/byte budgets and durable progress, not a fixed resident row count.
 Input commit, completed capture, final manifest, returned prefix and verified
 complete coverage are distinct observations.
 
-Future ingress must preserve frozen mutation identity after lost responses,
+Ingress must preserve frozen mutation identity after lost responses,
 current authority checks before and after disclosure, owned result lifetime,
 ordered error/overflow behavior and explicit cancellation. Closing a local
 handle or network stream cannot promise cancellation of accepted durable work.

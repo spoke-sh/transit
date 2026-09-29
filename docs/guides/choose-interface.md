@@ -35,4 +35,4 @@ history into a new profile.
   Parser acceptance does not make them executable commands.
 
 [Scope](../reference/architecture.md) and the [qualification ledger](../../tests/README.md) distinguish
-implemented behavior, tested client/topology combinations and planned extensions.
+supported behavior, tested client/topology combinations and excluded capabilities.

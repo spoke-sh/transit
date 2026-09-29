@@ -8,6 +8,26 @@ import { object, readSpecification, renderSpecification, specifications } from "
 const root = path.resolve(import.meta.dirname, "../../..");
 
 describe("documentation ownership and navigation", () => {
+  it("describes capabilities without delivery-plan references across every published source", () => {
+    const deliveryReference = /\b(?:m\d+|milestones?|roadmap)\b/i;
+    for (const entry of pages) {
+      expect(
+        `${entry.label}\n${entry.route}\n${pageContent(root, entry.source)}`,
+        entry.source,
+      ).not.toMatch(deliveryReference);
+    }
+    // Wire contracts remain public reference material even when linked to source.
+    for (const name of readdirSync(path.join(root, "contracts"), { recursive: true })) {
+      if (typeof name !== "string" || !name.endsWith(".md")) continue;
+      const source = `contracts/${name.split(path.sep).join("/")}`;
+      expect(readFileSync(path.join(root, source), "utf8"), source).not.toMatch(deliveryReference);
+    }
+    // Downloads are public too, including description fields not rendered as tables.
+    for (const entry of specifications)
+      expect(readFileSync(path.join(root, entry.source), "utf8"), entry.source).not.toMatch(
+        deliveryReference,
+      );
+  });
   it("publishes every public page without internal prerequisites or route collisions", () => {
     for (const directory of ["guides", "reference"]) {
       const sources = readdirSync(path.join(root, "docs", directory), { recursive: true }).filter(

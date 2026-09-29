@@ -1,16 +1,16 @@
 # Growing Station query capture — v2 design
 
-Status: the `GrowingQuery` capture slice has bounded M10 qualification. The
+Status: the `GrowingQuery` capture slice has bounded integration qualification. The
 publication/receiver codecs below (`QueryDelivery`, `QueryRecords`) are
 implemented with both in-memory and real disk/node/caller qualification; no
 default end-to-end growing-query capability is advertised. A growing `GenServer`
 still rejects `result_chunk`/`result_complete`/`result_ack` frames with
 `error.UnsupportedGrowingQuery` unless a host explicitly supplies a
 `QueryDelivery.Context` (bounded workspace and cancellation flag) — this is a
-deliberate opt-in. The M11 growing C/port ABI can own that bounded context when
+deliberate opt-in. The growing C/port ABI can own that bounded context when
 configured with `query_results: true`; its focused proof and
 `test::growing-query` qualify publication/receipt under real disk
-Ursula/node restart. Public language runners remain M11 work. It builds
+Ursula/node restart. Public language runners use this same shared implementation. It builds
 on [growing Station](STATION_GROWING.md), [retained read versions](READ_VERSIONS_V1.md)
 and [incremental Fuze](FUZE_STREAM_V1.md). It does not reinterpret the finite
 Station v1 result layout or enable growing results in legacy foreign ABIs.
@@ -243,7 +243,7 @@ the chain — this is the boundary an untrusted or buggy peer's bytes cross, not
 an internal trust assumption. `Inspect.segment` does not special-case Arrow
 `BodyCompression`; a compressed record batch decodes transparently through the
 same call and is accepted like any other, bounded only by the caller's
-workspace allocator. Compression is out of scope for this milestone by
+workspace allocator. Compression is out of scope for this profile by
 decision, not oversight: `segment_bytes` (8192) already caps the wire payload
 tightly against the model's row/cell ceilings (32 rows × 220-byte cells × 2
 columns encodes to at most 7,848 bytes), so IPC-level compression buys little

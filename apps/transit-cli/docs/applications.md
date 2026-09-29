@@ -1,6 +1,6 @@
 # Local applications
 
-M25 adds a separately compiled application to a trusted local Linux neighborhood.
+Install a separately compiled application into a trusted local Linux neighborhood.
 The CLI implements the [language-neutral installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md).
 The initial consumer is Zig; other language hosts and distributed placement are
 not qualified by this profile. See the [proof guide](../../../tests/README.md)

@@ -1,7 +1,7 @@
 # Station immutable index v1
 
-Status: component implementation and private-turn tests pass for [Documents M17](../docs/internal/roadmap/M17.md).
-Document service/disk qualification remains in progress.
+Status: implemented immutable index used by Documents. Component/private-turn
+and Document service/disk evidence are recorded in the [proof ledger](../tests/README.md).
 This is a Station library format, not a kernel command or grant. It supplies an
 immutable ordered index over [Publication](STATION_PUBLICATION_V1.md); Document
 acceptance, causal validation, retained roots and current authorization remain

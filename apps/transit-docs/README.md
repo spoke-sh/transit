@@ -28,7 +28,11 @@ Every page in `docs/guides/` and `docs/reference/` must appear in the catalog.
 These are the shared current documentation for users, developers and agents;
 component guides stay beside their implementation. Engineering history and
 planning live in `docs/internal/` and are excluded from the catalog and search.
-Public guides/reference cannot depend on internal links; tests enforce this boundary. See
+Public guides/reference cannot depend on internal links. Every cataloged page,
+including component guides and generated API content/downloads, plus every wire
+contract in `contracts/`, is checked for milestone labels and roadmap references. Write these pages as a
+snapshot of supported capabilities, retaining real wire/profile versions and
+stating unsupported cases without delivery promises. See
 [documentation ownership](../../docs/README.md#where-documentation-lives).
 
 The docs plugin reads those files directly. A Markdown AST transform maps links
@@ -72,5 +76,6 @@ For a static host, set `TRANSIT_DOCS_URL` to its origin and optionally
 `TRANSIT_DOCS_BASE_URL` to a path beginning and ending with `/`, then build. The
 default is a local preview at `http://localhost:3000/`. Publish the resulting
 `dist/` contents under that path; clean URLs need the host's `.html` resolution.
-These tasks do not publish the site or assume a production domain. Versioned
-release docs and immutable source links belong to [M27](../../docs/internal/roadmap/M27.md).
+These tasks do not publish the site or assume a production domain. The preview
+documents the checked-out source capabilities; published versioned
+release documentation and immutable release links are not provided by this package.

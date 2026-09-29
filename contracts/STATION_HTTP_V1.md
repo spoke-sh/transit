@@ -1,10 +1,11 @@
 # Station HTTP capture v1
 
-Status: experimental M15 implementation profile. Finite public service admission
+Status: experimental finite HTTP implementation profile. Public service admission
 and all ten public SDK request/call/replay APIs are implemented and locally
 qualified. Zig public followup admission composes frozen-policy validation and
 atomic child routing. All ten SDKs qualify typed followup submission and correlated
-policy refusal. Broader lifecycle and deployment qualification remain M15 work.
+policy refusal. The [proof ledger](../tests/README.md) separately records durable
+worker recovery and local/Compose/reference deployment evidence.
 This protocol-specific layer uses the
 [exchange contract](STATION_EXCHANGE_V1.md); it adds no kernel authority.
 
@@ -133,8 +134,8 @@ All ten public SDKs expose durable disposal and typed acknowledgements through
 the shared `http_release` capability. Their local readers remain independent
 of that explicit durable operation. Public followup submission uses the
 extension below; multi-exchange queue scheduling remains outside this finite
-profile. Explicit controller followups retain the same policies. The remaining M15 lifecycle obligations
-must be qualified before claiming a completed public connector.
+profile. Explicit controller followups retain the same policies. Lifecycle and
+recovery evidence remains scoped to the exercised schedules in the proof ledger.
 
 ## Explicit followup policies
 

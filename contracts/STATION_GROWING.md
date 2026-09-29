@@ -1,9 +1,9 @@
 # Station growing development profile
 
-Status: M10 development behavior/point-state slice over the explicit
+Status: implemented development behavior/point-state profile over the explicit
 [Transit v3 profile](TRANSIT_V3.md). Existing launchers, Station v1, Board lenses
 and legacy foreign ABIs continue to use [Station v1](STATION_V1.md). There is no implicit
-upgrade, mixed-profile resource or claim that all M9 services are available here.
+upgrade, mixed-profile resource or claim that all Station v1 services are available here.
 
 ## State and turns
 
@@ -49,12 +49,12 @@ across handlers. A later handler reopens the durable ID and may resume a matchin
 Table cursor. The application must persist its job/cursor/progress and send durable
 continuations in the same turn decision. Station does not infer a restartable job
 from a native iterator, and no general query scheduler or Arrow result protocol
-is implied by these helpers. M11's explicit growing C/port ABI exposes these bounded operations; legacy
+is implied by these helpers. The explicit growing C/port ABI exposes these bounded operations; legacy
 v2 bindings retain their original profile.
 
 ## Calls and lifetimes
 
-M14 adds the opt-in Zig [immutable publication layout](STATION_PUBLICATION_V1.md)
+The opt-in Zig [immutable publication layout](STATION_PUBLICATION_V1.md) operates
 within growing KV. It keeps the same private-turn budgets, authority and retained
 source semantics. No query/legacy layout or foreign ABI changes implicitly.
 
@@ -72,7 +72,7 @@ waits or Table rows than fit the legacy snapshot do not require deletion.
 Association, current grants, activation, view deadlines and one authoritative
 state/input/output decision retain their kernel meanings.
 
-M15 supports the shared Zig registry operations with existing scope, binding and
+The shared Zig registry operations support existing scope, binding and
 grant encodings, full-width principal IDs and bounded point reads. Name rebinding
 does not redirect previously committed outputs. This is not a foreign registry
 capability or a growing runtime binding.
@@ -81,5 +81,5 @@ This profile does not advertise growing supervision, runtime bindings,
 complete foreign SDKs or complete Station capability. Result frames require explicit
 host query configuration; otherwise they fail with `UnsupportedGrowingQuery`.
 The configured capture/publication/receipt slice has real disk/node/caller
-recovery and independent Arrow evidence in the [test guide](../tests/README.md#m10-verification-and-scale-foundations).
-A production query host and public query ingress remain M13 scope.
+recovery and independent Arrow evidence in the [test guide](../tests/README.md).
+The [public query profile](PUBLIC_QUERY_V1.md) owns query-host and ingress integration.

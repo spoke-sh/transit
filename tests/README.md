@@ -3459,13 +3459,18 @@ no expanded hosted CI budget is claimed.
 ## M26 documentation handbook
 
 `just transit-docs::check` checks the real Docusaurus package: Vite+ formatting
-and lint, strict TypeScript, four source/reference tests and production static
+and lint, strict TypeScript, five source/reference tests and production static
 rendering with broken links/anchors treated as errors. The initial site included
 all 31 foundational Markdown files. The current catalog includes every public
 guide/reference and selected owning component/wire guides. Its ownership test
 excludes internal records from published navigation/search and rejects internal
-links in public guides/reference. Those references share current concepts,
-guarantees and failure semantics with users, developers and agents. API pages render operations, nested
+links in public guides/reference. A separate snapshot check rejects milestone IDs,
+milestone wording and roadmap references in all cataloged page labels, routes and
+raw content, including link targets and component guides. It also checks every
+Markdown wire contract, generated API reference content and exact downloadable
+description source.
+Those references share current concepts, guarantees and failure semantics with
+users, developers and agents. API pages render operations, nested
 fields, union alternatives and bounds from the checked Board/serving OpenAPI and
 reactive AsyncAPI; downloaded descriptions retain their original bytes.
 
@@ -3518,3 +3523,13 @@ This pass changes documentation/navigation and source pointers, not runtime
 semantics. It does not rerun runtime deployment proofs, the full ordinary clean
 CI suite or hosted timing. The previously executed onboarding proof remains the
 basis for the unchanged runnable commands.
+
+The capability-snapshot pass removes delivery-plan references from all 56
+published pages and all 35 Markdown wire documents, including source links and
+SQL grammar guidance. It replaces stale implementation-status prose with the
+existing qualified capability profiles. `just check` passes with the five
+source/reference tests; all three production browser checks pass at `/`, and
+source validation passes 3,904 local links across 415 Markdown files. The guard
+also checks generated reference text and original specification downloads.
+This documentation-only pass does not rerun runtime deployment proofs or the
+full ordinary clean CI suite.

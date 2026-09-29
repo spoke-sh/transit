@@ -55,7 +55,7 @@ service proof restricts itself and its children to one CPU and exercises stalled
 request headers/bodies, an authority that never replies, and paused storage
 across successive maintenance deadlines.
 
-Finite lifetimes and M7 resource read-view/turn operations require
+Finite lifetimes and resource read-view/turn operations require
 `genesis.max_clock_error_ms`. Even unlimited-lifetime resources use finite read
 views, so their caller turns require this clock profile. On Linux, the node reads
 `adjtimex` in read-only mode, rejects unsynchronized/error status, and records the

@@ -33,7 +33,7 @@ already disclosed by known-PID views; they are not per-PID event counts.
 `resource` is one of `processes`, `process`, `mailbox`, `outbox`, `effects`,
 `payloads`, `history`. All except `processes` require `pid`; discovery forbids it.
 Arrays have 16 nullable slots. Omitted resources have empty arrays, not implied
-zero totals. Catalogs have the M1 fixed bounds; history scans at most 128 positions
+zero totals. Catalogs have the native v2 fixed bounds; history scans at most 128 positions
 and returns at most 16 matching records per request. `scanned` is scan work, not
 an authorized-resource count. Responses own their bytes and fit the client/server
 256 KiB bound. Authority catch-up retains its existing request deadline; the scan
@@ -59,7 +59,7 @@ PID and cut with the returned `next` as `after` to continue. These fields are al
 signed. `after` is the next array slot or journal position, not a page number.
 Clients must retain the query identity alongside the continuation.
 
-M2 deliberately expires cuts on **any** authority change: `409 QueryExpired`
+This profile expires cuts on **any** authority change: `409 QueryExpired`
 requires discarding the partial assembled query and explicitly refreshing.
 This avoids snapshot storage, unbounded retained versions and mixed-state pages.
 A busy authority can repeatedly invalidate pagination; the caller must show that

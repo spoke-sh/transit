@@ -4,7 +4,7 @@ This page describes the original v1 compiler. `Unified.Sql` reuses the parser to
 target v2 KV/Table/Document plans; see [unified SQL](unified-sql.md) for its
 separate capability, allocation and result rules.
 
-`transit_fuze.Sql` is M12's allocation-free Zig frontend for the existing
+`transit_fuze.Sql` is the allocation-free Zig frontend for
 `Stream.Plan`. It parses one complete statement into an owned, bounded `Ast`,
 then resolves names/types against a caller-supplied source descriptor:
 
@@ -92,11 +92,13 @@ Joins, sorting, grouping, arithmetic, compound predicates, `COUNT(column)`,
 output aliases, general casts, time travel, KV/Document sources and SQL writes
 are excluded. Administrative DDL/connector statements remain reference-grammar
 artifacts and produce `UnsupportedStatement` in the production frontend.
-There is no public SQL endpoint or CLI introduced by this library; M13/M22
-own ingress and capability integration. No optimizer rewrite is enabled.
+The compiler does not host an endpoint. The [Transit CLI](../../../../docs/reference/cli.md),
+Board query workspace and [Flight gateway](../../../../docs/reference/flight.md)
+provide separately configured ingress and capability checks. No optimizer rewrite
+is enabled.
 
 Run `just test::sql` for the shared ANTLR/PostgreSQL/Zig AST and actual paged
 Arrow proof; `just check` includes the package's parser/compiler unit tests.
 `just test::sql-rewrites` checks the separately scoped Lean theorems. See the
-[test guide](../../../../tests/README.md#m12-declarative-interface-readiness)
+[test guide](../../../../tests/README.md)
 for evidence and limitations.

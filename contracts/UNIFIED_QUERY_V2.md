@@ -1,15 +1,16 @@
 # Unified state query profile v2
 
-Status: selected M18 contract; implementation and qualification are in progress.
+Status: implemented unified state query profile. The [compatibility matrix](../packages/zig/transit-query/docs/compatibility.md)
+records supported sources, callers and result representations.
 The existing [public Table v1](PUBLIC_QUERY_V1.md), `FZP1` plans and retained
 `GQM2` results keep their original interpretation. This document does not mark
-unimplemented surfaces as available. See [M18](../docs/internal/roadmap/M18.md).
+unimplemented surfaces as available.
 
 ## Ownership and source identity
 
 Fuze v2 is a pure, bounded engine over typed rows. It imports neither Station nor
 Document. The `transit-query` package composes Station's current/retained readers
-and M17's accepted Document reader; Document never imports query execution.
+and the accepted Document reader; Document never imports query execution.
 A source definition declares one resource and exactly one of these adapters:
 
 | Source | Declared decoding / projection | Ordering |
@@ -60,7 +61,7 @@ errors/conflicts. State predicates allow callers to select those states directly
 Sum ignores missing/null, rejects error/conflict and checks overflow in source
 order across page boundaries. Count includes selected rows, regardless of cell
 state. Limit is applied after filtering and before aggregation. No rewrite,
-predicate pushdown, sorting or implicit coercion is enabled. M12's theorems do
+predicate pushdown, sorting or implicit coercion is enabled. The bounded SQL rewrite theorems do
 not establish new v2 operator correctness.
 
 Arrow represents each projected column as a non-null struct containing a state,
@@ -85,7 +86,7 @@ record. These are resident/batch limits, not total source or result cardinality.
 V2 advertises separate plan, source, result and upload capabilities. It never
 widens Transit values, mailbox frames or the four-mutation turn budget. Source
 metadata and canonical plan bytes form a bounded immutable request bundle;
-requests larger than M13's 207-byte allowance use Station Publication.
+requests larger than the public Table v1 profile's 207-byte allowance use Station Publication.
 
 An authenticated requester behavior accepts a bounded begin/chunk/seal sequence
 from its configured query principal. Chunk parts fit ordinary Station frames;
@@ -124,7 +125,7 @@ through a floating-point number.
 
 The source validates current peer policy, request-resource access, bundle digest,
 source contract and supported plan before capture. It retains an exact source
-cut and commits bounded resumable progress. M14 Publication stores independently
+cut and commits bounded resumable progress. Station Publication stores independently
 verified Arrow segments and a final immutable manifest. Staged segments are not
 a complete result. The manifest binds the query, original reply route, all source
 and schema evidence, plan digest, ordered segment digests and complete row/byte
@@ -185,7 +186,7 @@ and semantic validation apply to the library and the port.
 
 ### SQL capability profile
 
-The v2 SQL compiler reuses M12's complete-input parser and reference grammar.
+The v2 SQL compiler reuses the complete-input SQL parser and reference grammar.
 One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
@@ -213,7 +214,7 @@ Compilation owns projection/literal storage in a caller-supplied allocator and
 validates the resulting plan; it performs no reads and confers no authority.
 V1 SQL continues to use its original compiler, limits, null rules and wire format.
 
-The signed shell, explicit-submit Board query workspace and all ten M11 SDKs use
+The signed shell, explicit-submit Board query workspace and all ten non-Zig SDKs use
 the shared Zig contract. SDKs own their typed objects and Arrow buffers; they do
 not implement decoders, query semantics, publication or retries independently.
 Board's inspection identity remains separate from optional query credentials.
@@ -225,7 +226,7 @@ Each source requires independent expression/Arrow fixtures, page-boundary
 permutations, exact signed retry, worker/node recovery, current-policy denial
 before/during/after capture, returned-prefix denial, expiry, retained-version
 release, retirement and cleanup. Local, Compose and Substrate examples record
-actual evidence and measured costs. M22 receives a source/type/protocol matrix;
+actual evidence and measured costs. The compatibility matrix defines sources and types;
 no Flight, Flight SQL or ADBC support follows from this contract alone.
 
 Finite requester process/resource lifetimes also bound its Station call wait to

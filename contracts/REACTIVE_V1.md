@@ -1,8 +1,8 @@
 # Reactive API v1
 
-Status: implemented M20 opt-in int64 Table profile. No SSE/WebSocket capability
+Status: implemented opt-in int64 Table profile. No SSE/WebSocket capability
 is advertised by default. Independent TLS peers, Chromium, Compose and reference
-recovery are recorded in the [proof ledger](../tests/README.md#m20-qualification). [Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
+recovery are recorded in the [proof ledger](../tests/README.md). [Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
 [generated descriptions](../packages/zig/transit-serving/api/) own the encodings. This extends
 [serving v1](SERVING_V1.md), not native authority or Board's OpenAPI 3.1 contract.
 
@@ -100,8 +100,8 @@ or appears as a newer data watermark, so coalescing cannot lose relevant changes
 
 A finite query's captured basis can cover a watermark only for the same source
 resource and schema, with `captured revision >= data watermark`. A query result
-cursor/source pin is not a watch cursor. Finite query capture releases its pin
-under M18; watching requires its own current reads. Empty pages and bookkeeping-only
+cursor/source pin is not a watch cursor. Finite query capture releases its source
+pin; watching requires its own current reads. Empty pages and bookkeeping-only
 commits do not invent a data invalidation. Schema, policy, binding and lifetime
 changes still produce their own control/availability outcomes.
 
@@ -173,8 +173,9 @@ Authenticated discovery identifies the accepted binding and description digests.
 Existing Board OpenAPI stays versioned separately.
 
 The proof matrix records Table/SSE and Table/WebSocket, non-UI peers, a minimal
-browser transport harness and each actual placement independently. Board
-inspection, KV/Document watches, live-view UX, reactive SDK wrappers, compression,
-lossless event histories and other inbound protocols remain unavailable until
-qualified in their own rows. M21 consumes the demonstrated snapshot/watch and
-reset contracts; it owns refresh scheduling and presentation.
+browser transport harness and each actual placement independently.
+[Live views](../docs/reference/reactive.md) use these snapshot/watch and reset
+contracts for bounded refresh in Board and applications, with a shared browser
+client. KV/Document watches, compression and lossless event histories are not
+supported. Refresh scheduling, presentation and any other protocol adapter retain
+their own compatibility and qualification boundaries.

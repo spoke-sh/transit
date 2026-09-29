@@ -1,6 +1,6 @@
 # Public Table query profile v1
 
-Status: implemented M13 public profile. The owning [query package](../packages/zig/transit-query/README.md)
+Status: implemented public Table profile. The owning [query package](../packages/zig/transit-query/README.md)
 shares this profile between Board and `transit`. This is an application protocol
 above [growing Transit](TRANSIT_V3.md) and [Station query delivery](STATION_QUERY_V2.md),
 not a new kernel command or authority to execute arbitrary values.
@@ -32,7 +32,7 @@ observation window but cannot retract bytes disclosed before a later revocation.
 
 ## Submission and admission
 
-The pure M12 compiler binds one SQL statement to the authorized Table name and
+The pure SQL compiler binds one SQL statement to the authorized Table name and
 schema. `prepare` freezes an ordinary signed v3 `send` to the requester. Its
 Station cast payload is `PQR1`, the 32-byte schema fingerprint, then canonical
 Fuze `FZP1` plan bytes. The 243-byte Station payload leaves **207 plan bytes**.

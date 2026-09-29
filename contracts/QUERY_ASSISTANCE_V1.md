@@ -1,6 +1,6 @@
 # Query assistance v1
 
-Status: M24 implementation contract. [CLI v1](TRANSIT_CLI_V1.md) owns terminal
+Status: implemented cursor-assistance contract. [CLI v1](TRANSIT_CLI_V1.md) owns terminal
 interaction; [workspace v2](../packages/zig/transit-query/docs/unified-client.md) owns
 current-authority queries. This contract adds no SQL execution or grants.
 

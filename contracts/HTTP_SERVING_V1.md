@@ -1,7 +1,7 @@
 # HTTP serving profile v1
 
-Status: qualified M19 neutral listener profile, used by Board and application
-serving. The [proof ledger](../tests/README.md#m19-qualification) records separate
+Status: qualified neutral listener profile, used by Board and application
+serving. The [proof ledger](../tests/README.md) records separate
 application admission, TLS and deployment evidence. [Serving](../docs/reference/serving.md) owns the architecture.
 
 The listener accepts bounded HTTP/1.1 origin-form requests, requires exactly one
@@ -33,7 +33,7 @@ uses one data slot and cannot borrow the reserved health slots. Header-flood
 capacity and application per-principal fairness need separate measured proofs.
 
 TLS, application service bindings, caller provenance, command/reply records,
-stable operation identity and current read policy remain with M19's serving
+stable operation identity and current read policy remain with the serving
 consumer. The [serving example's local nginx termination](../examples/serving/docs/termination.md)
-passes its real signed-call/recovery proof; remote TLS placement remains separate. SSE and
-WebSocket are M20 extensions and remain unavailable until their own proofs.
+passes its real signed-call/recovery proof; remote TLS placement remains separate.
+SSE and WebSocket use the separately qualified [reactive profile](REACTIVE_V1.md).

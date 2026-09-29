@@ -1,7 +1,8 @@
 # Retained read versions — growing-profile extension
 
 Status: implemented in the explicit v3 core/node and Zig client, with focused
-qualification below. Station/Fuze resumable result capture remains M10 work.
+qualification below. Station/Fuze resumable result capture has a separate
+[delivery contract](STATION_QUERY_V2.md).
 This does not change default v2 callers, launchers or foreign bindings.
 [Transit v3](TRANSIT_V3.md) owns the enclosing profile.
 

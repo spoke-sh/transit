@@ -1,6 +1,6 @@
 # Transit console
 
-`transit console --config console.json [--format table|json]` is the M24
+`transit console --config console.json [--format table|json]` is the
 explicit-submit interface over the shared v2 KV/Table/Document query session.
 It needs a provisioned native authority, scoped caller and query workers. The
 separate `query` and `query-v2` entry points retain their single-line contracts.
@@ -145,4 +145,4 @@ retention limits or an external cancellation promise.
 `just test::console table` exercises the real command over disk Ursula and query
 workers, with pipe, controlling-PTY and explicit TLS trust fixtures. `kv` and
 `document` select other source profiles. The [proof ledger](../../../tests/README.md)
-distinguishes completed runs and remaining M24 server/lifecycle work.
+records the qualified console and server lifecycle profiles separately.

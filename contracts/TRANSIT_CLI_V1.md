@@ -1,8 +1,8 @@
 # Transit CLI v1
 
-Status: selected implementation contract for [M24](../docs/internal/roadmap/M24.md),
-not qualification evidence. The [CLI guide](../apps/transit-cli/README.md) records
-which commands actually exist. Native placement initially targets Linux x86_64.
+Status: implemented CLI contract. The [CLI guide](../apps/transit-cli/README.md)
+records available commands and the [proof ledger](../tests/README.md) records
+qualification evidence. Native placement targets Linux x86_64.
 
 ## Command and compatibility boundary
 
@@ -34,7 +34,7 @@ stdout ends the local session without cancelling accepted work.
 `query`, `query-v2`, `rey-cli`, `kubectl-transit` and the existing launcher commands
 retain their separate configuration and behavior. No alias silently changes a
 single-line shell into a multiline console, adopts a launcher installation or
-converts a v2 authority into the growing profile. No removal is selected in M24.
+converts a v2 authority into the growing profile. These separate commands remain supported.
 
 ## Local server and recovery
 
@@ -54,15 +54,16 @@ The configuration names its installation directory and executable dependencies.
 The persistent installation records a random installation identity, format and
 artifact identities, realm/root public key, storage locations, role identities,
 credential references and accepted provisioning receipts. Dependency checking
-happens before provisioning. M28 owns distributing these artifacts; a shell,
+happens before provisioning. Published release bundles are not available; a shell,
 Python, `just`, Process Compose and a source checkout are not runtime dependencies
 of the server. Ursula remains the pinned upstream binary.
 
 The selected local profile also runs an explicitly supplied native MinIO binary:
 pinned Ursula provides S3 cold storage, with no filesystem cold backend. Keeping
 the provider separate preserves its bounded hot/cache profile without introducing
-a new storage engine into the CLI. M28 must distribute this dependency and its
-license alongside the selected Transit artifacts. Role limits and exact artifact
+a new storage engine into the CLI. The source-built local bundle includes this
+dependency; distribution must retain its license alongside the selected Transit
+artifacts. Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 
 `--initialize` deliberately creates a new installation, refusing an existing
@@ -190,5 +191,5 @@ catalog acquisition. Complete-statement validation remains authoritative.
 Independent fixtures must cover valid prefixes, incomplete tokens, suffixes,
 unsupported forms, quote/comment boundaries, Unicode offsets and stale/denied
 metadata in both Board and the real terminal. Report cold/warm latency and
-resident bounds for those fixtures. M23's catalog of complete SQL drafts remains
+resident bounds for those fixtures. The catalog of complete SQL drafts remains
 a separate API and does not satisfy this cursor-assistance contract.

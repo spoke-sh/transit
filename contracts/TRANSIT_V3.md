@@ -1,8 +1,8 @@
 # Transit growing profile v3
 
-Status: M10 development contract. An explicitly selected node profile and Zig
-client implement the bounded command/query boundary; M11 adds the same operations
-to the [raw C ABI](../packages/zig/transit-client/docs/bindings.md). Launcher defaults,
+Status: implemented growing development profile. The explicitly selected node
+profile, Zig client and [raw C ABI](../packages/zig/transit-client/docs/bindings.md)
+support the bounded command/query boundary. Launcher defaults,
 Session, the default Station interface and legacy foreign behavior bindings remain v2/state-v1. See the
 [node guide](../apps/transit-node/docs/growing.md) for exact partial capabilities;
 this does not authorize interpreting old history as a new profile. [The proof ledger](../tests/README.md)
@@ -11,7 +11,7 @@ records growth, integration and recovery qualification limits.
 [Growth.zig](../packages/zig/transit-protocol/src/Growth.zig) owns the neutral types;
 [transit-v3.schema.json](transit-v3.schema.json) is generated alongside the unchanged
 [v2 schema](transit-v2.schema.json) by `just contract::generate`. Both are checked
-by `just contract::check` before transport integration.
+by `just contract::check` for schema drift.
 
 ## Representation and compatibility
 
@@ -48,9 +48,9 @@ bounded catalog pages at that same position. A grant change expires that cut;
 clients must not join the old identity observation to a newer page. Current
 resource grants continue to filter resource discovery independently. Earlier
 query/signature encodings are unchanged; older nodes need not support this
-new variant. Core unit tests cover grant expansion, stale-cut rejection and
-revocation. Board integration must also qualify this through real signed HTTP
-before M13 completes.
+new variant. Grant expansion and revocation invalidate existing cuts; stale cuts
+fail explicitly. Board uses real signed HTTP for these observations; its scoped
+inspection profile does not acquire mutation authority.
 
 ## Bounded operations over growing collections
 
@@ -201,7 +201,7 @@ This does not add a public history query or page-GC capability.
 
 ### Conditional local worker replacement
 
-M25 adds `create_principal` and capability-gated `rotate_worker`. Both require
+`create_principal` and capability-gated `rotate_worker` both require
 root authorization. `create_principal` takes the existing Grant fields but
 refuses any previously allocated subject, including a revoked one. Exact retries
 retain their original receipt; a fresh operation cannot overwrite another
@@ -229,11 +229,11 @@ from its selected unlimited/checkpointed policy; only genesis opt-in allows a
 public `checkpoint`. A trusted `--maintain` process authenticates current
 realm-wide control authority, verifies committed intent and performs physical
 trimming. Its optional interval cannot authorize retention on its own.
-Before completing service qualification, M10 must
-qualify all authority transitions, provider persistence, current read/receipt
-authorization, finite lifetime/settlement behavior, quotas/control reserves,
-client/Station usage, failure schedules and compatibility tests. There is no
-implicit feature equivalence with v2 merely because command names resemble it.
+Qualification is scoped to the exercised authority transitions, provider
+persistence, current read/receipt authorization, finite lifetime/settlement
+behavior, quotas/control reserves, client/Station usage and failure schedules
+recorded in the proof ledger. Matching command names do not establish feature
+equivalence with v2.
 
 
 ## HTTP boundary

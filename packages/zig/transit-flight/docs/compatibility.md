@@ -1,7 +1,7 @@
 # Finite Flight compatibility
 
 The [protocol](../../../../contracts/FLIGHT_V1.md) defines exact formats and
-exclusions; the [proof ledger](../../../../tests/README.md#m22-qualification)
+exclusions; the [proof ledger](../../../../tests/README.md)
 records executed combinations. A new combination requires its own evidence.
 
 | Dimension | Selected profile |
@@ -64,7 +64,7 @@ Earlier authorized batches remain a prefix until successful terminal status and
 complete ordered coverage.
 
 Outbound calls use [transit-station-flight](../../transit-station-flight/README.md)
-and the M16 recorded RPC worker. The qualified outbound type profile is one or two
+and the recorded RPC worker. The qualified outbound type profile is one or two
 int64 columns. Its native TLS peer/restart proof is separate from inbound and
 placement evidence. Replay has no network dispatch path and requires a complete,
 currently authorized capture before reporting successful completion.

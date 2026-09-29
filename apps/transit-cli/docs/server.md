@@ -66,9 +66,9 @@ separately; Ursula stops admitting writes below 64 MiB free and resumes above
 The selected dependency set is the matching Transit CLI/node/query-host/Board build,
 pinned Ursula 0.5.1 and MinIO RELEASE.2025-09-07T16-13-09Z. The proof extracts the
 native MinIO binary from its pinned fixture image. Docker is proof setup, not a
-server runtime dependency. M28 owns distributing and verifying that complete
-artifact set, including upstream licenses. The server hashes every configured
-executable and itself with bounded streaming reads before provisioning; ordinary
+server runtime dependency. Source builds supply this complete dependency set;
+there is no published release bundle or general runtime upgrade path. The server
+hashes every configured executable and itself with bounded streaming reads before provisioning; ordinary
 startup requires the same hashes and normalized configuration. It currently
 refuses artifact/configuration changes; this is not an upgrade mechanism.
 
@@ -194,7 +194,7 @@ a replacement cold bucket. Missing storage markers and an authority position
 below the recorded observation fail closed. Corruption, an unavailable provider
 or quota pressure never triggers deletion, expiry or a reset. This observed
 position is not a global latest-history oracle. Snapshot restore, distributed
-ownership and disaster recovery remain M29.
+ownership and live disaster recovery are outside this profile.
 
 ## Roles, credentials and bounds
 

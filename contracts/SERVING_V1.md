@@ -1,7 +1,7 @@
 # Serving profile v1
 
-Status: qualified M19 initial service-caller profile. The
-[proof ledger](../tests/README.md#m19-qualification) separates socket, durable
+Status: qualified service-caller profile. The
+[proof ledger](../tests/README.md) separates socket, durable
 admission, lifecycle and physical deployment evidence. [Serving](../docs/reference/serving.md) owns the architecture.
 
 ## Owner and publication
@@ -48,7 +48,8 @@ reader is a trusted service component; callers receive no raw resource grant.
 Service policy explicitly permits this result disclosure. Neither the native
 identity proof alone nor a bearer operation ID authorizes another read scope.
 Every disclosure rechecks current authority and service policy. Browser session
-bootstrap is a separate M20 extension, not an invented browser signing mechanism.
+bootstrap follows the separate [reactive contract](REACTIVE_V1.md); it does not
+create an alternate native signing mechanism.
 
 The application trusts only the configured ingress PID's authority-derived
 process origin. The forwarded invocation includes original caller, service,
@@ -113,7 +114,8 @@ principal/input disposition. Principals and counters use the native safe-integer
 range. Codec IDs are u16; active limits are u8. Opaque payloads are lowercase hex
 in JSON. Field changes require an explicit compatible contract revision.
 
-HTTP mechanics are defined in [HTTP_SERVING_V1](HTTP_SERVING_V1.md). SSE,
-WebSocket, gRPC and Flight remain unavailable until individually qualified.
-M20 can bind the same service operation identity and outcome records to additional
-transports without creating a retry database or changing command meaning.
+HTTP mechanics are defined in [HTTP_SERVING_V1](HTTP_SERVING_V1.md). The
+[reactive profile](REACTIVE_V1.md) qualifies Table SSE/WebSocket and reuses the
+same service operation identity and outcome records across transports. The
+[Flight profile](FLIGHT_V1.md) separately qualifies finite Table queries. Neither
+provides a generic inbound application gRPC server or another retry database.

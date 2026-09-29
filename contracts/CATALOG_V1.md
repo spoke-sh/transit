@@ -1,6 +1,6 @@
 # Working catalog retention v1
 
-Implemented M8 extension to [Transit v2](TRANSIT_V2.md). It changes working-set
+Implemented extension to [Transit v2](TRANSIT_V2.md). It changes working-set
 capacity, not mailbox ordering or default history retention.
 
 ## Opt-in and authority

@@ -9,7 +9,7 @@ This reference is shared by application authors, Transit contributors and agents
 Start with [the quickstart](../guides/quickstart.md) for an executable local system
 and [interface selection](../guides/choose-interface.md) for supported profiles.
 Transit is experimental. The qualified local application profile is Linux x86_64;
-source builds are available, while public release distribution remains planned.
+source builds are available; published release distribution is not supported.
 
 ## Responsibilities
 

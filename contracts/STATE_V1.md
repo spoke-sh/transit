@@ -1,7 +1,7 @@
 # State resources v1
 
-Status: implemented bounded M7 protocol, service and Zig client. See
-[STATE.md](../docs/reference/state.md) for the design and [M7](../docs/internal/roadmap/M7.md) for
+Status: implemented bounded state protocol, service and Zig client. See
+[state](../docs/reference/state.md) for the model and the [proof ledger](../tests/README.md) for
 qualification. Query `capabilities` on the running authority; schema presence
 alone does not advertise its support.
 
@@ -28,10 +28,10 @@ or multi-stream commit. Larger upload-backed resources require another profile.
 ## Bounds and storage
 
 These are enforced compile-time ceilings in the legacy v1 implementation, not
-runtime cache settings or Ursula service limits. The target collection model
-decouples retained data from working memory; [M10](../docs/internal/roadmap/M10.md) plans
-and qualifies that correction. This document still specifies the unchanged v1
-profile; a future storage/encoding change needs explicit compatibility evidence.
+runtime cache settings or Ursula service limits. The separate
+[growing profile](TRANSIT_V3.md) decouples retained data from working memory.
+This document specifies the unchanged v1 profile; storage/encoding changes need
+explicit compatibility evidence.
 
 | Item | v1 bound |
 | --- | --- |
@@ -182,6 +182,6 @@ view-opening records in retained history. Revocation denies receipt disclosure
 without undoing the original durable decision. Restoring permission can reveal
 the same original receipt, never a fresh mutation.
 
-[M8 catalog retention](CATALOG_V1.md) can release a reclaimed resource slot only
+[Catalog retention](CATALOG_V1.md) can release a reclaimed resource slot only
 after its separate payload/history policy and association/view dependencies allow
 it. This does not relax the four-resource simultaneous bound.

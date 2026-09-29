@@ -1,8 +1,8 @@
 # Declarative application v1
 
-M23 implementation contract. The model, parser and conditional publication owner are implemented;
-publication, browser and placement qualification remain open until recorded in
-the [milestone](../docs/internal/roadmap/M23.md). This contract grants no execution rights.
+Status: implemented model, parser and conditional publication owner. The
+[proof ledger](../tests/README.md) records native publication recovery, browser
+and selected work-item placement evidence. This contract grants no execution rights.
 
 ## Definition
 
@@ -19,7 +19,8 @@ Bindings distinguish inspection, finite query and explicit service command.
 Inspection names a qualified public projection and holds one bounded page.
 Query bindings name an exact resource, source kind (Table/KV/Document), source/schema contract, query profile and
 immutable SQL. Compilation uses the owning Fuze compiler with an authorized
-source. Follow requires the qualified Table watch and M21 admission owner; a KV or Document source explicitly rejects Follow even with a unified query profile.
+source. Follow requires the qualified Table watch and refresh admission owner;
+a KV or Document source explicitly rejects Follow even with a unified query profile.
 A command names a service, destination, binding revision and codec; a renderer
 cannot substitute any of them. Neither bindings nor associations grant access.
 
@@ -33,7 +34,7 @@ Canonical SQL preserves semantic values, not comments or source formatting.
 
 ## Publication and migration
 
-Interface bodies use M14 immutable publication. A Station owner records one
+Interface bodies use immutable publication. A Station owner records one
 conditional active revision plus the exact immutable body/digest. It validates
 body and compatibility before visibility. Conflicting base revisions fail;
 repeating the same accepted identity/digest recovers its disposition. A changed

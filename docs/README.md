@@ -21,8 +21,12 @@ users, contributors and agents. Start with [What is Transit?](guides/introductio
 
 Select a supported profile with the [interface matrix](guides/choose-interface.md).
 Unsupported behavior, uncertainty, recovery rules and qualification limits belong
-beside the feature users rely on. Public documentation is not a simplified layer
-that requires an internal specification to understand the real contract.
+beside the feature users rely on. Describe the capabilities in the documented
+source revision, using interface versions and explicit supported/unsupported
+profiles. Keep delivery-plan labels, sequencing and future-work promises in
+internal records, including when a component guide or wire contract is published
+in the handbook. Public documentation does not require an internal specification
+to understand the real contract.
 
 ## Where documentation lives
 

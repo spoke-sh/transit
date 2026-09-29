@@ -1,7 +1,7 @@
 # Transit v2 experimental protocol profile
 
-Status: implemented bounded M1 profile with additive [M7 state](STATE_V1.md)
-and M8 [lifecycle](LIFECYCLE_V1.md)/[collection](CATALOG_V1.md) extensions; not a
+Status: implemented bounded profile with additive [state](STATE_V1.md)
+and [lifecycle](LIFECYCLE_V1.md)/[collection](CATALOG_V1.md) extensions; not a
 stable public API.
 The owning requirements remain in [TRANSIT.md](../docs/reference/processes.md) and
 [SECURITY.md](../docs/reference/security.md).
@@ -19,12 +19,12 @@ recomputes admission and rejects mismatches; a denied delivery or evidence-only
 observation is not a mailbox input. Positions start at one, match the physical JSON
 record ordinal in this adapter, and remain explicit protocol fields. The portable
 engine does not interpret an Ursula byte cursor. A PID is `(realm, spawn position)`.
-Retired process entries are preserved by default. Explicit M8 catalog collection
+Retired process entries are preserved by default. Explicit catalog collection
 can release eligible working slots without reusing any durable identity.
 
-M8 admissions persist authenticated origin evidence and outbox delivery selection;
+Admissions persist authenticated origin evidence and outbox delivery selection;
 replay validates those fields against the accepted command. The
-[public input envelope](SERVICE_V2.md#authenticated-input-origins-m8) exposes only
+[public input envelope](SERVICE_V2.md#authenticated-input-origins) exposes only
 validated source identities, independently of opaque application bytes.
 
 Requests contain these fields in this canonical order:
@@ -110,7 +110,7 @@ not whether application computation truly failed. Acceptance records
 leaves the input unconsumed. Admissions, turns and activations then fail with
 `BlockedProcess`; runtime reconciliation stops the Actor rather than replacing
 it indefinitely. Explicit termination or opted-in expiry cancels the outstanding
-input; M1 provides no automatic retry or same-PID reset for a reported
+input; this profile provides no automatic retry or same-PID reset for a reported
 failure. Failure evidence survives replay and checkpointing. The sample counter
 uses checked addition in the worker. Application tests establish its arithmetic;
 Transit establishes protocol legality, not honest or deterministic computation.
@@ -122,9 +122,9 @@ the Ursula adapter caches at most 16 records. This trades scanning cost for a
 small, provable recovery mechanism. A deployment is currently limited to 16
 principals, 64 working process slots, 128 effect slots, 256 output slots and
 16 standalone payload slots. These remain lifetime allocations by default;
-[M8 catalog retention](CATALOG_V1.md) permits explicit safe slot reclamation. Typed journal
+[Catalog retention](CATALOG_V1.md) permits explicit safe slot reclamation. Typed journal
 entries are bounded by 8 KiB and checkpoints by 1 MiB. Reaching quotas fails
-before admission. Larger simultaneous catalogs require a later capacity/index design.
+before admission. Larger simultaneous catalogs use the separate [growing profile](TRANSIT_V3.md).
 
 ## Runtime bindings and activation
 
@@ -327,7 +327,7 @@ remain unlimited. Dynamic capacity expansion is outside this experimental profil
 
 Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
 own executable proofs. Basic immutable payload deletion is described below;
-the [M1 milestone](../docs/internal/roadmap/M1.md#m1-completion-and-limits) records the completed evidence audit.
+the [proof ledger](../tests/README.md) records the completed evidence audit.
 Cross-realm delivery is outside this slice.
 The [experimental service](SERVICE_V2.md) hosts signed ingress and scoped views
 for application callers, including the reference counter. Conformance is limited to the documented
@@ -356,5 +356,5 @@ This first contract supports standalone bytes and unlimited-lifetime owners.
 Finite owners are rejected with `UnsupportedPayloadLifetime`. This inline profile has no protocol-recognized references from state, mailbox
 or effect fields to these bytes; a general
 payload read/upload API, reference graph and bounded finite upload reconciliation
-remain outside M1. See [payload lifecycle](../packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
+remain outside this profile. See [payload lifecycle](../packages/zig/transit-backend-ursula/docs/storage.md#immutable-payload-deletion)
 for recovery rules and the unresolved-creation limit.

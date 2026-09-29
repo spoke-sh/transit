@@ -1,6 +1,6 @@
 # Experimental Transit service profile
 
-Status: implemented for the generic bounded M1 protocol. Zig applications use
+Status: implemented for the bounded native protocol v2. Zig applications use
 `transit-client`; the counter is the reference deployment workload. `just test::service`
 owns an isolated disk Ursula, authority, and workers. It exercises signed HTTP
 ingress, scoped reads, key renewal/revocation, paused-worker fencing, slow
@@ -80,7 +80,7 @@ read view. Reads fence against a changed journal tail; stale pagination cuts
 fail explicitly. Resource mutations use `/v2/command` and the existing receipt
 and retry rules. Legacy inline-only callers retain their original wire format.
 
-## Authenticated input origins (M8)
+## Authenticated input origins
 
 Every non-null `View.input` includes `origin: {version: 1, source: ...}`.
 `source` is exactly one of:
@@ -103,7 +103,7 @@ Clients must understand this required envelope; signed v2 mutation encodings are
 unchanged. A received effect result is a recorded connector claim, not independent
 proof of the external system's state.
 
-## Courier status and delivery (M8)
+## Courier status and delivery
 
 `POST /v2/delivery` accepts `Delivery.SignedQuery`: typed `query` fields
 `version=1, realm, principal`, signed with

@@ -1,7 +1,7 @@
 # Local application installation v1
 
-Status: implemented and qualified for M25's trusted local Linux/Zig profile.
-[Executed evidence and limits](../tests/README.md#m25-local-application-qualification)
+Status: implemented and qualified for the trusted local Linux/Zig profile.
+[Executed evidence and limits](../tests/README.md)
 include two applications, exact native reply recovery, migration and real ENOSPC.
 Public values live in `transit_client.Application`. The generated structural
 schema and semantic validation must agree; declarations are not authority.
@@ -132,4 +132,5 @@ Applications compose the existing migration ledger through authenticated domain
 commands. They own the transform, write pause and complete target verification.
 A compatible worker can resume retained migration receipts; no automatic schema
 conversion or cross-resource transaction is implied by deployment replacement.
-Distributed runtime bindings, authority movement and disaster recovery remain M29.
+Distributed application placement, authority movement and disaster recovery are
+outside this local installation profile.

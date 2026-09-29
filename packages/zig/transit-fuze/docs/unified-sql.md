@@ -1,6 +1,6 @@
 # Unified state SQL
 
-`Unified.Sql.plan(allocator, text, source)` parses the existing complete M12
+`Unified.Sql.plan(allocator, text, source)` parses the complete read-only
 SELECT grammar and lowers it to `Unified.Plan`. `compile(allocator, ast, source)`
 accepts the same owned AST. Supply one explicit `Source { name, schema }`; the
 compiler performs no catalog lookup, I/O or authorization. Projection and literal

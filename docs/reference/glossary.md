@@ -5,8 +5,8 @@ Use these names consistently across applications, commands and documentation.
 a term in this glossary alone is not a compatibility claim.
 
 Shared vocabulary for users, developers and agents. Official names are
-established; definitions cover both implemented profiles and explicitly identified design
-direction. Detailed contracts and qualification limits live with their owners.
+established; definitions distinguish implemented profiles from unsupported
+concepts. Detailed contracts and qualification limits live with their owners.
 
 ## Names and roles
 
@@ -120,7 +120,7 @@ have different responsibilities.
 ## Arrow execution and interchange
 
 These interfaces live above the kernel; their owning contracts distinguish
-implemented profiles from future extensions. [Fuze](queries.md) owns query
+implemented profiles from unsupported capabilities. [Fuze](queries.md) owns query
 execution; [Arrow](arrow.md) owns interchange and the qualified remote query profile;
 [SQL](sql.md) distinguishes executable syntax from reference grammar.
 
@@ -128,8 +128,8 @@ execution; [Arrow](arrow.md) owns interchange and the qualified remote query pro
 | --- | --- |
 | Logical query plan | Versioned, typed query operations independent of entity storage, SQL spelling, execution scheduling or transport |
 | Relational surface | SQL spelling over shared typed operations. Finite SELECT compiles to Fuze; broader administrative DDL/DML remains grammar-only unless its separate owner qualifies execution |
-| Dataframe surface | A proposed typed per-language builder over the shared logical plan; existing typed plans do not imply a complete dataframe API |
-| System namespace | A proposed relational addressing of non-data sources (connector attempts, transport state) through Board's existing inspection contract, distinct from Table/KV/Document's plan-based sources |
+| Dataframe surface | A typed per-language builder over the shared logical plan. A complete dataframe API is not supported; callers use the existing typed plans |
+| System namespace | Relational addressing of non-data sources such as connector attempts or transport state. This is not supported SQL; Board inspection uses its public API |
 | Query source adapter | Supplies an authorized versioned state view, schema/capabilities and bounded batches to Fuze; distinct from a durable storage backend |
 | Physical operator | A bounded local scan/transform/aggregate/sink in Fuze; not a Transit PID or durable commit |
 | Arrow C Data / C Stream | Native array and batch-stream ownership interfaces for in-process interoperability; distinct from the Transit/Station command ABI |
@@ -227,7 +227,7 @@ checkpoint authority, and reclamation guarantees.
 | Transport | Byte/stream carriage with connection lifecycle, multiplexing and wire flow control but no effect-shaped contract of its own: TCP, QUIC, SCTP, and HTTP/2's session layer as gRPC uses it. Never a connector; nothing to capture, retry or reconcile until a connector's protocol is layered on it. |
 | Effect | Work at an external or nondeterministic boundary, requested through a committed intent and observed through recorded outcomes. |
 | Capability | Scoped authority to request or perform particular operations, enforced by the protocol and runtime boundaries. |
-| Connector | Library and executor logic for a particular effect family, including its capture, retry, and reconciliation semantics. Built on one transport; HTTP, gRPC, and (planned) FTP/SFTP/FTPS, filesystem, S3, GCS and SSH each fit this shape. |
+| Connector | Library and executor logic for a particular effect family, including its capture, retry, and reconciliation semantics. Built on one transport; HTTP, gRPC and the selected outbound Flight profile are implemented. Other effect families are not supplied by this connector set. |
 | Serving layer | Implemented inbound boundary over public Transit/Station operations: scoped service bindings, admission and bounded disclosure/recovery. Qualified HTTP/reactive and Flight adapters have separate profiles; distinct from outbound connectors. |
 | Service binding | Versioned, realm-scoped binding of explicit operations, targets, codecs, policies and budgets through a qualified serving protocol. Naming or publication grants no access. |
 | HTTP route | A method/path-template binding to a published operation and codec revision; transport presentation rather than a new application authority. |
@@ -308,7 +308,7 @@ package; Board owns its service instrumentation separately. The neutral
 | Term | Meaning |
 | --- | --- |
 | Package | A source/dependency boundary in the monorepo with its own build definition. A Zig package may expose modules, executable artifacts, or both. |
-| Library/module | Reusable Zig code imported by consumers. Transit and Station will expose libraries; packaging a static/shared artifact is a separate consumer need. |
+| Library/module | Reusable Zig code imported by consumers. Transit and Station expose packages with explicit module interfaces; static/shared artifacts have their own consumer and compatibility requirements. |
 | Language binding | Generated declarations/codecs and a thin host-runtime adapter over the shared client/framework implementation; targets the languages in [Client](callers.md) |
 | Language SDK | A language-native public API over shared bindings, with typed operations, errors, handler/runtime integration and packaging; implemented in [the SDKs](sdks.md), sharing Zig protocol semantics |
 | Handler runner | SDK integration that dispatches local handlers and drives the shared Station turn machine; temporary worker machinery, not durable process identity or execution authority |

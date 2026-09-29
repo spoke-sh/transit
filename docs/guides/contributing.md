@@ -24,7 +24,7 @@ same task group. `down` preserves data; `reset` explicitly deletes a stopped
 installation. The [launcher guide](../../launchers/README.md) owns the workflow,
 configuration and recovery limits. New resource-backed installations require
 Linux and a synchronized trusted clock; other declared toolchain platforms do
-not yet qualify that runtime profile.
+not qualify that runtime profile.
 
 `launchers::compose` exercises the same development scenario in containers.
 `launchers::reference` provides a persistent Kubernetes/Substrate installation
@@ -87,8 +87,8 @@ Package READMEs give focused commands and integration requirements.
 
 All packages use the Nix-pinned compiler. External dependencies belong to their
 consumer's manifest with immutable revision/hash pins. Libraries become static
-or shared artifacts only when needed; independent releases and stable public
-APIs remain future work. Board frontend tooling lives in a Vite+/pnpm
+or shared artifacts only when needed; independent releases are not available and
+the public APIs are experimental. Board frontend tooling lives in a Vite+/pnpm
 workspace, connected through generated OpenAPI and shared Transit contracts.
 
 ## Verification

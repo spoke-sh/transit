@@ -147,7 +147,12 @@ reserve it for plans, historical reviews and proposals. Do not create a competin
 internal product specification. Keep exact wire specifications in `contracts/`,
 component implementation/usage beside their package/app, and proof details in
 `tests/README.md`. Public guides/reference must explain current behavior without
-links into internal records; site tests enforce this boundary.
+links into internal records. Public documentation describes a snapshot of
+capabilities at its source revision. Never use milestone IDs, milestone headings,
+roadmap links or delivery sequencing in published prose, examples, link targets
+or generated descriptions. Use named capabilities, actual interface versions and
+supported/unsupported profiles instead. This also applies to component guides
+included by the site and every wire contract; checks cover these public sources.
 Keep component READMEs navigable; place substantial configuration, recovery, or
 integration guides in that component's `docs/` and link them from its README.
 Update the owning document with meaningful changes and distinguish implemented,

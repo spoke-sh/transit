@@ -1,6 +1,6 @@
 # Station immutable publication v1
 
-Status: qualified growing Zig implementation; [M14 evidence](../tests/README.md#m14-immutable-publication). This is a Station
+Status: qualified growing Zig implementation; see the [proof ledger](../tests/README.md). This is a Station
 KV layout, not a new Transit command or language ABI. See the
 [implementation guide](../packages/zig/transit-station/docs/publications.md).
 
@@ -137,7 +137,7 @@ Retained published bodies/tombstones are governed by resource capacity and
 lifetime, separately from staging reservation. Logical key/value bytes for a
 nonempty record are `length + 23*ceil(length/256) + 127`; namespace overhead is
 55 bytes. Provider indexes, history, retained versions and journal overhead are
-additional. M14 qualifies 64 KiB content and growing record counts; it does not
+additional. The executed proof qualifies 64 KiB content and growing record counts; it does not
 claim production throughput or arbitrary u32-sized records.
 
 ## Envelope-sized parts

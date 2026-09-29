@@ -1,6 +1,6 @@
 # Station exchange capture v1
 
-Status: M15 implementation contract; connector qualification is still in progress.
+Status: implemented capture layout shared by the finite HTTP and RPC connectors.
 This is a framework layout over growing KV and [publication v1](STATION_PUBLICATION_V1.md),
 not a new kernel effect or a permission carried by a reference.
 
@@ -177,7 +177,7 @@ host APIs must reuse those codecs. Resource values remain at most 256 bytes and
 turns at most four mutations. Configured per-exchange limits bound live work,
 while resource quotas bound durable history independently of resident memory.
 
-M15 must qualify these contracts with HTTP and disk recovery before completion;
-M16 must reuse the same corpus for its binary and directional records. This
-contract alone is not evidence of network isolation, complete HTTP/gRPC capture,
+The [proof ledger](../tests/README.md) records HTTP disk recovery and the RPC
+corpus for binary and directional records. This contract alone is not evidence
+of network isolation, complete HTTP/gRPC capture,
 SDK compatibility or remote exactly-once execution.

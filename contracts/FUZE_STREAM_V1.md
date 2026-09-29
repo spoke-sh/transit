@@ -1,8 +1,8 @@
 # Fuze incremental execution — v1 development extension
 
 Status: the pure Zig execution/owned-progress boundary is implemented by
-`transit_fuze.Stream`. Station integration below remains a required M10 gate;
-this is not yet an advertised end-to-end query capability. The finite
+`transit_fuze.Stream`. [Station delivery](STATION_QUERY_V2.md) and the
+[public query profile](PUBLIC_QUERY_V1.md) separately define durable query integration. The finite
 [Fuze v1 profile](FUZE_V1.md) remains supported.
 
 ## Execution boundary
@@ -10,15 +10,15 @@ this is not yet an advertised end-to-end query capability. The finite
 The Zig-native engine accepts one bounded, ordered source batch at a time. It
 has no authority, client, durable storage, task scheduler or source credentials.
 Station supplies authorized pages from one retained Table version. KV/Document
-source adapters remain subsequent roadmap work.
+source adapters belong to the separate [unified query profile](UNIFIED_QUERY_V2.md).
 
 A separate incremental plan retains the existing typed predicates, projections
 and aggregate meanings. Its optional 64-bit row limit applies to the entire
 filtered selection; null means no logical row limit. A batch working bound must
 never act as an implicit whole-query limit. Initial operators are rows, count
 and checked int64 sum; joins, grouping, global sorting and external spilling
-remain unsupported. M12's [SQL frontend](../packages/zig/transit-fuze/docs/sql.md)
-now compiles the declared Table SELECT subset to this same plan; it changes
+remain unsupported. The [SQL frontend](../packages/zig/transit-fuze/docs/sql.md)
+compiles the declared Table SELECT subset to this same plan; it changes
 no engine or authorization semantics.
 
 A bound plan identifies the exact resource revision and schema plus its plan
@@ -134,9 +134,9 @@ the legacy whole-query ceilings (70 rows and a 16,008-byte text result in seven
 independently decoded segments). This is bounded caller-side evidence, not
 durable publication or restart qualification.
 
-Remaining integration qualification must cover source/cursor/plan changes,
-cancellation and allocation faults, queries and Arrow results beyond M9's
-total-size ceilings, interrupted fragment staging,
+Integration qualification is recorded separately in the [proof ledger](../tests/README.md):
+source/cursor/plan changes, cancellation and allocation faults, queries and Arrow
+results beyond the bounded v1 total-size ceilings, interrupted fragment staging,
 worker/node/provider restart, policy revocation, missing/duplicate/reordered
 fragments, and independent PyArrow decoding of durably captured bytes. The pure
 engine checks alone do not satisfy those integration gates.

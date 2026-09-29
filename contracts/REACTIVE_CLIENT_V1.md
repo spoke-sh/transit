@@ -1,6 +1,6 @@
 # Reactive private host client v1
 
-Status: M21 implementation in progress. The owning types are
+Status: implemented private host client for the bounded int64 Table profile. The owning types are
 [`ReactiveClient`](../packages/zig/transit-serving/src/ReactiveClient.zig); generated
 [host schemas](../packages/zig/transit-serving/api/client.json) accompany the
 existing [reactive API](REACTIVE_V1.md). This adapter adds no session or cursor
@@ -34,7 +34,7 @@ the client lifecycle. Session opening and subscription generations come from
 those actual committed input positions.
 
 Sign-read binds the configured realm/principal/service/ingress. The resulting
-signed read uses M20's HTTP read, challenge and SSE bootstrap unchanged. Challenge
+signed read uses the reactive API's HTTP read, challenge and SSE bootstrap unchanged. Challenge
 and streaming attachment must reach the same gateway. An attached message means
 the host observed that exact attachment commit; interruption before it preserves
 the frozen attach operation. Reconnect first recovers that operation and observes
@@ -47,7 +47,7 @@ adapter and returns schema, exact source basis and data progress without row
 values. The paired cursor can precede the metadata observation: this may repeat
 an invalidation and cannot skip one. Both observations retain their own basis.
 An explicitly configured application viewer may enable `snapshot_values` and
-read M20's bounded int64 Table snapshot. This does not add a decoder to Board.
+read the reactive API's bounded int64 Table snapshot. This does not add a decoder to Board.
 
 `covered` delegates to `TableWatch.covered` for the same resource, contract and
 schema; it is a deterministic relation, not an authorization decision. Complete

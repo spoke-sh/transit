@@ -1,10 +1,10 @@
 # Finite Flight gateway profile v1
 
-Status: selected M22 profile under implementation. Wire declarations, bounded
-inbound transport, ticket codecs and IPC splitting have local tests. Pinned
-PyArrow validates metadata IPC and real native TLS queries. ADBC C/Python pass
-schema, row and selected SQL checks; adversarial lifecycle and placement
-qualification remain open. This contract
+Status: implemented finite int64 Table profile. Pinned PyArrow and ADBC C/Python
+clients have qualified metadata, query, retry and current-permission checks,
+with native, Compose and reference TLS/recovery evidence. The
+[compatibility matrix](../packages/zig/transit-flight/docs/compatibility.md)
+records supported client versions, bounds and excluded operations. This contract
 extends [serving](SERVING_V1.md) and [public Table query](PUBLIC_QUERY_V1.md);
 it does not replace their authorization, admission or result evidence.
 
@@ -18,8 +18,8 @@ subset. Key is non-null; value can be null. Projection, checked int64 sum, count
 finite filters/limits and empty results retain the public v1 value semantics.
 The unified v2 nested cell representation is outside this profile.
 
-Implement GetSchema, GetFlightInfo and server-streaming DoGet, with a single
-endpoint per finite result. Catalog metadata comprises GetCatalogs, GetDbSchemas,
+The gateway implements GetSchema, GetFlightInfo and server-streaming DoGet, with
+a single endpoint per finite result. Catalog metadata comprises GetCatalogs, GetDbSchemas,
 GetTables, GetTableTypes and GetSqlInfo, including the standard dense-union/list/
 map capability schema. Unsupported information IDs and methods fail explicitly;
 never silently omit requested information or advertise unimplemented SQL types.
@@ -27,7 +27,8 @@ Prepared statements/parameters, writes, transactions, savepoints, bulk ingestion
 DoPut, DoExchange, polling and cancellation actions return UNIMPLEMENTED.
 ListActions is empty; ListFlights is unsupported. Catalog discovery uses the
 standard Flight SQL metadata commands and cannot start an application query.
-The independent ADBC driver's unprepared fallback must be proved, not inferred.
+The pinned ADBC Python DBAPI uses its qualified unprepared fallback; the C
+consumer uses direct statement execution.
 
 ## Credentials, publication and admission
 
@@ -39,7 +40,7 @@ upstream or resource overrides. Connection pooling grants no authorization;
 authenticate every RPC. The gateway's inspection key cannot substitute for the
 mapped caller's current native read/send rights or source/requester permissions.
 
-Metadata, admission and result reads use M19's current service identity and read
+Metadata, admission and result reads use current serving identity and read
 policy checks plus the public query client's current source/requester checks.
 New admission additionally requires the configured published binding. Retained
 results keep their original source, request and schema identity; changing a
@@ -106,9 +107,9 @@ malformed messages and cancellation cannot leave borrowed buffers in detached
 tasks. A partial write can require physical connection closure rather than a
 fabricated successful trailer. No deadline authorizes durable deletion.
 
-Qualify pinned PyArrow and ADBC C/Python consumers independently, including
+Pinned PyArrow and ADBC C/Python consumers have independent checks for
 metadata schemas, null/empty/aggregate results, explicit retry, pooled credential
 separation, current read-only revocation and physical restart. Outbound Flight
-remains a separately authorized M16 connector effect with recorded capture,
+remains a separately authorized RPC connector effect with recorded capture,
 terminal outcome and network-free replay. Native inbound query reads cannot
 silently authorize an outbound call.

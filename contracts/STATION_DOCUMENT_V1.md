@@ -1,7 +1,7 @@
 # Station Document v1
 
-Status: M17 component implementation and merge tests; durable service, SDK and
-placement qualification are in progress. This is a Station format, not a kernel
+Status: implemented with component, durable service, SDK and selected placement
+evidence in the [proof ledger](../tests/README.md). This is a Station format, not a kernel
 command. [Documents](../docs/reference/documents.md) owns the model and
 [the package](../packages/zig/transit-station-document/README.md) owns usage.
 No external CRDT wire compatibility is implied.
@@ -132,8 +132,8 @@ reclaim that interval's unreachable nodes/request, with at most one bounded
 Publication operation per turn. Accepted job intervals and snapshots stay retained
 until an explicit checkpoint/lifetime policy permits their disposition. Capacity
 failure never chooses that policy. Disk and checkpoint recovery evidence is in
-the [test guide](../tests/README.md#m17-qualification); remote placement remains
-pending. Private-turn component tests alone are not evidence for those gates.
+the [test guide](../tests/README.md), alongside separate local two-client,
+Compose and reference placement proofs. Private-turn tests alone do not establish those properties.
 
 ## Checkpoints and finite merge windows
 

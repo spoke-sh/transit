@@ -69,5 +69,5 @@ diagnostic interpretation. A SIGKILL/restart proof is not a host power-loss proo
 The [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md),
 [adapter](../../packages/zig/transit-runtime-substrate/README.md) and
 [controller](../../apps/transit-runtime-controller/README.md) own exact provider
-operations. Public release channels and broader clustered portability remain
-planned; the checked-in chart is not evidence of published releases.
+operations. Public release channels and broader clustered portability are not qualified;
+the checked-in chart is not evidence of published releases.

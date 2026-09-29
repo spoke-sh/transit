@@ -8,7 +8,8 @@ turning accepted work into a new request.
 Use Transit when the identity and recovery of work matter beyond the lifetime of
 a process or network connection. It is experimental: the implemented profiles
 have explicit limits and tested configurations, rather than a general production
-compatibility promise. Start on the qualified Linux x86_64 local profile.
+compatibility promise. This handbook describes the capabilities of its source
+revision. Start on the qualified Linux x86_64 local profile.
 
 ## The pieces you use
 

@@ -1,8 +1,8 @@
 # Station gRPC capture v1
 
-Status: M16 implementation contract in progress. The finite transport is qualified;
-request and capture layouts have independent fixtures and pure replay has live
-peer evidence. Durable worker recovery and SDKs are not yet qualified. It composes
+Status: implemented finite RPC capture profile. Request and capture layouts have
+independent fixtures; transport, replay, durable worker recovery and SDK evidence
+are recorded in the [proof ledger](../tests/README.md). It composes
 [exchange v1](STATION_EXCHANGE_V1.md) and [publication v1](STATION_PUBLICATION_V1.md)
 without widening a kernel turn, mailbox value or effect permit.
 
