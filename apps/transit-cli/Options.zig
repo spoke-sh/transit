@@ -1,5 +1,6 @@
 //! Explicit command options with an optional console configuration default.
 const std = @import("std");
+const Diagnostic = @import("Diagnostic.zig");
 pub const Format = enum { table, json };
 pub const Options = struct {
     command: enum { help, version, console, server },
@@ -13,36 +14,94 @@ pub fn parse(args: []const []const u8) !Options {
     return parseWithConsoleConfig(args, null);
 }
 pub fn parseWithConsoleConfig(args: []const []const u8, console_config: ?[]const u8) !Options {
+    var diagnostic: Diagnostic = .{};
+    return parseDiagnosed(args, console_config, &diagnostic);
+}
+pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, diagnostic: *Diagnostic) !Options {
     if (args.len == 0) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--help")) return .{ .command = .help };
     if (args.len == 1 and std.mem.eql(u8, args[0], "--version")) return .{ .command = .version };
-    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server") or std.mem.eql(u8, args[0], "serve")) .server else return error.InvalidInvocation };
+    var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server") or std.mem.eql(u8, args[0], "serve")) .server else {
+        diagnostic.atArgument(1, null);
+        return diagnostic.fail(error.InvalidInvocation, "unknown command or misplaced global option", "Choose server, serve, console, app, query or query-v2; use transit --help to list commands.");
+    } };
+    const server = result.command == .server;
+    diagnostic.command = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve" else "transit server") else "transit console";
+    diagnostic.help = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve --help" else "transit server --help") else "transit console --help";
+    diagnostic.usage = if (server) "transit server --config PATH [--initialize] [--no-ui]" else "transit console [--config PATH] [--format table|json]";
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        if (std.mem.eql(u8, arg, "--help") and !result.help) {
+        const known = for ([_][]const u8{ "--help", "--initialize", "--no-ui", "--config", "--format" }) |name| {
+            if (std.mem.eql(u8, arg, name)) break name;
+        } else null;
+        diagnostic.atArgument(i + 1, known);
+        const option = known orelse return diagnostic.fail(error.InvalidInvocation, "unexpected argument", "Remove this argument or choose an option listed by the command's help.");
+        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and std.mem.eql(u8, option, "--format")))
+            return diagnostic.fail(error.InvalidInvocation, "option is not supported by this command", "Remove this option; see the command's help for supported options.");
+        if (std.mem.eql(u8, option, "--help")) {
+            if (result.help) return duplicate(diagnostic);
             result.help = true;
-        } else if (std.mem.eql(u8, arg, "--initialize") and result.command == .server and !result.initialize) {
+        } else if (std.mem.eql(u8, option, "--initialize")) {
+            if (result.initialize) return duplicate(diagnostic);
             result.initialize = true;
-        } else if (std.mem.eql(u8, arg, "--no-ui") and result.command == .server and !result.no_ui) {
+        } else if (std.mem.eql(u8, option, "--no-ui")) {
+            if (result.no_ui) return duplicate(diagnostic);
             result.no_ui = true;
-        } else if (std.mem.eql(u8, arg, "--config") and result.path == null and i + 1 < args.len) {
+        } else {
+            const config = std.mem.eql(u8, option, "--config");
+            if ((config and result.path != null) or (!config and result.format != null)) return duplicate(diagnostic);
+            if (i + 1 == args.len or args[i + 1].len == 0 or std.mem.startsWith(u8, args[i + 1], "--"))
+                return diagnostic.fail(error.InvalidInvocation, "option requires a value", if (config) "Provide the configuration file path after --config." else "Provide table or json after --format.");
             i += 1;
-            if (args[i].len == 0 or std.mem.startsWith(u8, args[i], "--")) return error.InvalidInvocation;
-            result.path = args[i];
-        } else if (std.mem.eql(u8, arg, "--format") and result.command == .console and result.format == null and i + 1 < args.len) {
-            i += 1;
-            result.format = std.meta.stringToEnum(Format, args[i]) orelse return error.InvalidInvocation;
-        } else return error.InvalidInvocation;
-    }
-    if (result.command == .console and result.path == null) {
-        if (console_config) |path| {
-            if (path.len > 0) result.path = path;
+            if (config) result.path = args[i] else {
+                diagnostic.atArgument(i + 1, "--format");
+                result.format = std.meta.stringToEnum(Format, args[i]) orelse return diagnostic.fail(error.InvalidInvocation, "unsupported output format", "Use --format table or --format json.");
+            }
         }
     }
-    if (!result.help and result.path == null) return error.InvalidInvocation;
+    if (!server and result.path == null) if (console_config) |path| {
+        if (path.len > 0) {
+            result.path = path;
+        }
+    };
+    if (!result.help and result.path == null) {
+        diagnostic.atArgument(null, "--config");
+        return diagnostic.fail(error.InvalidInvocation, "missing required configuration", if (server) "Run transit server --config PATH with an existing server configuration. Add --initialize only when deliberately creating a new installation." else "Pass --config PATH or set TRANSIT_CONSOLE_CONFIG to a console configuration file.");
+    }
+    diagnostic.atArgument(null, null);
+    diagnostic.usage = null;
     return result;
 }
+fn duplicate(diagnostic: *Diagnostic) anyerror {
+    return diagnostic.fail(error.InvalidInvocation, "option was supplied more than once", "Keep one occurrence of this option.");
+}
+pub fn writeHelp(io: std.Io, options: Options) !void {
+    return std.Io.File.stdout().writeStreamingAll(io, switch (options.command) {
+        .server => server_help,
+        .console => console_help,
+        else => help,
+    });
+}
+const server_help =
+    \\Usage: transit server|serve --config PATH [--initialize] [--no-ui]
+    \\Run a configured local installation in the foreground. --config is required.
+    \\Paths in the JSON file resolve relative to that file.
+    \\--initialize creates a new installation; ordinary restarts omit it.
+    \\--no-ui skips Board for this invocation, preserving retained state.
+    \\Configuration: docs/reference/cli.md and apps/transit-cli/docs/server.md
+    \\Next: transit server --config PATH
+    \\
+;
+const console_help =
+    \\Usage: transit console [--config PATH] [--format table|json]
+    \\--config overrides TRANSIT_CONSOLE_CONFIG; one must select a configuration.
+    \\Submit SQL with a semicolon; /help lists session commands.
+    \\Configuration: apps/transit-cli/docs/console.md
+    \\Next: transit console --config PATH
+    \\
+;
+
 pub const help =
     \\Transit — explicit local services and signed SQL
     \\  transit console [--config PATH] [--format table|json]

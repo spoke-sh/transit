@@ -4,6 +4,7 @@ const wire = @import("transit_query").wire;
 const A = wire.Application;
 const Files = @import("server/Files.zig");
 const Config = @import("server/Config.zig");
+const Diagnostic = @import("Diagnostic.zig");
 const help =
     \\transit app install --config MANAGEMENT --file DECLARATION --operation ID
     \\transit app replace --config MANAGEMENT --file REPLACEMENT --operation ID
@@ -14,37 +15,30 @@ const help =
     \\Artifact paths resolve relative to --file; omitted hashes are computed locally.
     \\
 ;
-pub fn run(init: std.process.Init, args: []const []const u8) !void {
+pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic) !void {
     if (args.len == 0 or (args.len == 1 and std.mem.eql(u8, args[0], "--help"))) return std.Io.File.stdout().writeStreamingAll(init.io, help);
-    const Mode = enum { install, replace, retry, status, connect };
-    const mode = std.meta.stringToEnum(Mode, args[0]) orelse return error.InvalidInvocation;
+    const options = try @import("AppOptions.zig").parse(args, report);
+    const mode = options.mode;
+    const flags = options.flags;
     const allocator = init.arena.allocator();
-    const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, operation: ?[]const u8 = null, application: ?[]const u8 = null, caller: ?[]const u8 = null, output: ?[]const u8 = null, after: ?[]const u8 = null };
-    var flags: Flags = .{};
-    var i: usize = 1;
-    while (i < args.len) : (i += 2) {
-        if (i + 1 >= args.len or !std.mem.startsWith(u8, args[i], "--") or args[i + 1].len == 0 or std.mem.startsWith(u8, args[i + 1], "--")) return error.InvalidInvocation;
-        var found = false;
-        inline for (@typeInfo(Flags).@"struct".field_names) |field| if (std.mem.eql(u8, args[i][2..], field)) {
-            if (@field(flags, field) != null) return error.InvalidInvocation;
-            @field(flags, field) = args[i + 1];
-            found = true;
-        };
-        if (!found) return error.InvalidInvocation;
-    }
     const mutation = mode == .install or mode == .replace;
-    if ((mutation and (flags.file == null or flags.operation == null)) or (mode == .retry and flags.operation == null) or
-        ((mode == .status or mode == .connect) and flags.application == null) or (mode == .connect and flags.caller == null) or
-        (!mutation and flags.file != null) or (mode != .connect and (flags.output != null or flags.caller != null)) or
-        (mode != .status and flags.after != null) or ((mutation or mode == .retry) and flags.application != null)) return error.InvalidInvocation;
-    const absolute = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.config orelse return error.InvalidInvocation, allocator);
-    var config = try Files.read(A.Management, init.io, allocator, absolute);
-    if (config.version != 1) return error.InvalidConfiguration;
+    report.atFile(flags.config.?);
+    const absolute = std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.config.?, allocator) catch |err| {
+        report.setFailure(err, "cannot locate the management configuration file", "Pass --config with the management_config path emitted by the ready server.");
+        return error.InvalidConfigurationPath;
+    };
+    var config = try report.readJson(A.Management, init, absolute, 65536);
+    if (config.version != 1) return report.invalidField("version", "unsupported management configuration version", "Use version 1 management configuration emitted by the server.");
     config.seed_file = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.seed_file });
     config.recovery_directory = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.recovery_directory });
     var client = try A.Client.init(init.gpa, init.io, config.url);
     defer client.deinit();
-    var key = try wire.readKey(init.gpa, init.io, config.seed_file);
+    report.field = "seed_file";
+    var key = wire.readKey(init.gpa, init.io, config.seed_file) catch |err| {
+        report.setFailure(err, "cannot load the management signing credential", "Check seed_file relative to the configuration file and its permissions; do not print or paste the seed.");
+        return error.InvalidCredentialFile;
+    };
+    report.field = null;
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
     const operation = flags.operation orelse "read";
     try A.name(operation);
@@ -52,11 +46,13 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
     var lock: ?std.Io.File = null;
     defer if (lock) |file| file.close(init.io);
     if (mutation or mode == .retry) {
+        report.atFile(config.recovery_directory);
         lock = try std.Io.Dir.cwd().createFile(init.io, try std.fs.path.join(allocator, &.{ config.recovery_directory, "client.lock" }), .{ .truncate = false, .permissions = .fromMode(0o600) });
         if (!try lock.?.tryLock(init.io, .exclusive)) return error.ManagementClientInUse;
     }
     var signed: A.Signed = undefined;
     if (mode == .retry) {
+        report.atFile(recovery);
         signed = try Files.read(A.Signed, init.io, allocator, recovery);
         if (signed.request.realm != config.realm or signed.request.principal != config.principal or !std.mem.eql(u8, &signed.request.installation, &config.installation) or !std.mem.eql(u8, signed.request.operation, operation)) return error.RecoveryIdentityMismatch;
         try A.verify(allocator, signed);
@@ -64,6 +60,7 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
         var request: A.Request = .{ .installation = config.installation, .realm = config.realm, .principal = config.principal, .operation = operation, .command = undefined };
         switch (mode) {
             .install => {
+                report.atFile(flags.file.?);
                 const path = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.file.?, allocator);
                 var declaration = try Files.read(A.Declaration, init.io, allocator, path);
                 const roles = try allocator.dupe(A.Role, declaration.roles);
@@ -73,17 +70,19 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
                 request.command = .{ .install = declaration };
             },
             .replace => {
+                report.atFile(flags.file.?);
                 const path = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.file.?, allocator);
                 var replacement = try Files.read(A.Replacement, init.io, allocator, path);
                 try resolveArtifact(init, &replacement.artifact, std.fs.path.dirname(path).?);
                 request.command = .{ .replace = replacement };
             },
-            .status => request.command = .{ .status = .{ .application = flags.application.?, .after = if (flags.after) |after| try std.fmt.parseInt(u32, after, 10) else 0 } },
+            .status => request.command = .{ .status = .{ .application = flags.application.?, .after = options.after } },
             .connect => request.command = .{ .connect = .{ .application = flags.application.?, .caller = flags.caller.? } },
             .retry => unreachable,
         }
         signed = try A.sign(allocator, request, key);
         if (mutation) {
+            report.atFile(recovery);
             const previous = Files.read(A.Signed, init.io, allocator, recovery) catch |err| value: {
                 if (err != error.FileNotFound) return err;
                 break :value null;
@@ -94,13 +93,17 @@ pub fn run(init: std.process.Init, args: []const []const u8) !void {
             } else try Files.json(init.io, allocator, recovery, signed);
         }
     }
+    report.atFile(absolute);
     if (signed.request.command == .connect) {
         const response = client.call(A.Connection, signed) catch |err| {
             diagnostic(&client);
             return err;
         };
         defer response.deinit();
-        if (flags.output) |destination| return Files.json(init.io, allocator, destination, response.value);
+        if (flags.output) |destination| {
+            report.atFile(destination);
+            return Files.json(init.io, allocator, destination, response.value);
+        }
         try output(init, response.value);
     } else {
         const response = client.call(A.Status, signed) catch |err| {

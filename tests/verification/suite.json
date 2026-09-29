@@ -191,6 +191,7 @@
   "nested_tasks": {
     "check-core": [
       "test::unit",
+      "test::cli-diagnostics",
       "contract::check"
     ]
   }

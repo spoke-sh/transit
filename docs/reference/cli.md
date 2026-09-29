@@ -39,6 +39,85 @@ an explicit `TRANSIT_CONSOLE_CONFIG` environment default; `--config` overrides
 it. Server and management configuration stay explicit. Configurations reject
 unknown/duplicate fields and unsupported versions.
 
+## Output philosophy: explain, locate, guide
+
+CLI output helps the reader make the next decision. A failure answers three
+questions in order: **what failed and why, where to look, and what to do next**.
+An implementation error name alone does not answer them. Each diagnostic leads
+with a plain-language explanation, supplies the best available coordinates, and
+gives a concrete next action. The underlying error identifier remains available
+as `cause` for investigation. When an outer failure class differs from that cause,
+`code` retains it too (for example, restart budget exhausted after a child exits).
+
+For example, running `transit server` without configuration reports:
+
+```text
+error: missing required configuration
+  at: transit server --config
+  cause: InvalidInvocation
+  next: Run transit server --config PATH with an existing server configuration. Add --initialize only when deliberately creating a new installation.
+  usage: transit server --config PATH [--initialize] [--no-ui]
+  help: transit server --help
+```
+
+`PATH` denotes the file you select. Help describes that command's supported
+options and configuration guide without requiring files, credentials or a running
+server. Configuration remains explicit: a diagnostic does not create files,
+select credentials, initialize an installation or submit an operation.
+
+### Coordinates that lead to the problem
+
+| Failure | Coordinate and interpretation |
+| --- | --- |
+| Unknown, repeated or misplaced argument; missing or invalid option value | Command, `argv[n]` and recognized option name. Index 1 is the first argument after the executable. Argument values are omitted. A missing required option has its name but no invented argument index. |
+| Configuration file cannot be opened | Command and the selected file path, with the underlying filesystem error |
+| Configuration JSON cannot be decoded | File and one-based `line:column` at the parser's detection point; columns count bytes. This can be the end of an object for a missing field, not the start of the offending value. Missing required struct fields also name the schema path when available. |
+| Invalid server or console setting | Configuration file and named field; conflicting ports name both fields. Semantic checks do not invent line numbers. |
+| Configured executable cannot be located or validated | Configuration file and `executables` field |
+| Listener cannot be bound | Configuration file, port field and exact loopback address/port |
+| Server role cannot reach readiness | Installation path, role and underlying failure; check that role's configured executable, port and storage permissions before restarting |
+
+Invocation diagnostics cover `server`/`serve`, `console`, `app` subcommands and
+both query shells. File decoding coordinates cover server, console and application
+management configuration. Server/console startup adds validated field coordinates,
+listener failures and recovery advice. Other failures retain the known command or
+file context and error identifier; the CLI does not claim a more specific cause
+than it can establish. Query-shell configuration and in-session result formats
+retain their separate contracts.
+
+### Next steps preserve evidence
+
+Advice names the option, supported value, file, field or inspection step that
+can resolve the failure. Missing configuration points to `--config` and help;
+a bad format lists `table` and `json`; a port conflict identifies the listener.
+Unknown failures ask for the diagnostic and executable version for a bug report.
+Diagnostic wording and underlying error names are human interfaces, not a stable
+machine schema.
+
+Recovery advice respects durable identity. An uncertain operation calls for
+inspection or retry of its saved signed intent. It does not imply rejection,
+suggest fresh SQL as a retry, or recommend deleting history. A server identity
+mismatch asks for the recorded configuration and matching executables. The
+`--initialize` option is only for deliberately creating an installation; ordinary
+restarts omit it.
+
+### Streams, privacy and limits
+
+Top-level failures write diagnostics to stderr and leave stdout available for
+machine records. Help/version write to stdout and exit 0. Invocation and
+server/console/management configuration errors exit 2; runtime failures exit 1;
+an interrupted console wait exits 130. Console command result records, including
+structured `err`/`uncertain` outcomes, remain on stdout under their existing
+contract. Prompts and human diagnostic prose stay off machine stdout.
+
+Diagnostics show coordinates without dumping command arguments, configuration
+bodies, credentials, SQL or result payloads. Displayed file paths are limited to
+256 input bytes, with an explicit `...` suffix when truncated. Quotes,
+backslashes, control bytes and non-ASCII bytes are escaped, including invalid
+UTF-8, so paths cannot control the terminal. Output is plain text and needs no
+color, terminal width or interactive prompt to be understood. A file path is a
+reference, not permission to disclose its contents.
+
 ## Console commands
 
 The console requires a semicolon outside SQL literals/comments before submission.

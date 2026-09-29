@@ -3,6 +3,7 @@ const std = @import("std");
 const q = @import("transit_query");
 const u = @import("Unified.zig");
 const Options = @import("Options.zig");
+const Diagnostic = @import("Diagnostic.zig");
 const Recovery = @import("Recovery.zig");
 const Signals = @import("Signals.zig");
 const sql_input = q.fuze.SqlInput;
@@ -23,9 +24,12 @@ fn path(allocator: std.mem.Allocator, base: []const u8, relative: []const u8) ![
     if (relative.len == 0 or std.mem.indexOfScalar(u8, relative, 0) != null) return error.InvalidConfiguration;
     return std.fs.path.resolve(allocator, &.{ base, relative });
 }
-fn validate(config: Config, allocator: std.mem.Allocator) !void {
+fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnostic) !void {
+    diagnostic.field = "version";
     if (config.version != 1) return error.UnsupportedConsoleVersion;
+    diagnostic.field = "request_timeout_ms";
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidRequestTimeout;
+    diagnostic.field = "url / transport / ca_file";
     const uri = std.Uri.parse(config.url) catch return error.InvalidEndpoint;
     if (uri.user != null or uri.password != null or uri.query != null or uri.fragment != null or uri.host == null or uri.port == 0) return error.InvalidEndpoint;
     const host = try uri.host.?.toRawMaybeAlloc(allocator);
@@ -36,33 +40,57 @@ fn validate(config: Config, allocator: std.mem.Allocator) !void {
         .tls_system => if (!std.mem.eql(u8, uri.scheme, "https") or config.ca_file != null) return error.InvalidEndpoint,
         .tls_ca => if (!std.mem.eql(u8, uri.scheme, "https") or config.ca_file == null) return error.InvalidEndpoint,
     }
-    inline for (@typeInfo(q.UnifiedClient.Connection).@"struct".field_names) |field| if (@field(config.connection, field) == 0) return error.InvalidConfiguration;
+    inline for (@typeInfo(q.UnifiedClient.Connection).@"struct".field_names) |field| if (@field(config.connection, field) == 0) {
+        diagnostic.field = "connection." ++ field;
+        return error.InvalidConfiguration;
+    };
+    diagnostic.field = "workspace.source / connection.resource";
     const source = try config.workspace.source.native(allocator);
     if (source.resource != config.connection.resource) return error.InvalidConfiguration;
+    diagnostic.field = "workspace.limits";
     _ = try config.workspace.limits.native();
+    diagnostic.field = "workspace.name";
     _ = try q.fuze.Unified.Name.init(config.workspace.name);
+    diagnostic.field = null;
 }
-pub fn run(init: std.process.Init, options: Options.Options) !void {
+pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();
     const allocator = arena.allocator();
-    const config_path = std.Io.Dir.cwd().realPathFileAlloc(init.io, options.path.?, allocator) catch return error.InvalidConfigurationPath;
+    diagnostic.atFile(options.path.?);
+    const config_path = std.Io.Dir.cwd().realPathFileAlloc(init.io, options.path.?, init.arena.allocator()) catch |err| {
+        diagnostic.setFailure(err, "cannot locate the console configuration file", "Check --config or TRANSIT_CONSOLE_CONFIG; use the console_config path emitted by the ready server.");
+        return error.InvalidConfigurationPath;
+    };
     const base = std.fs.path.dirname(config_path).?;
-    const bytes = std.Io.Dir.cwd().readFileAlloc(init.io, config_path, allocator, .limited(65536)) catch return error.InvalidConfiguration;
-    const config = (std.json.parseFromSlice(Config, allocator, bytes, .{}) catch return error.InvalidConfiguration).value;
-    validate(config, allocator) catch |err| {
-        std.debug.print("console configuration: {s}\n", .{@errorName(err)});
+    const config = try diagnostic.readJson(Config, init, config_path, 65536);
+    validate(config, allocator, diagnostic) catch |err| {
+        diagnostic.setFailure(err, "invalid console configuration", switch (err) {
+            error.UnsupportedConsoleVersion => "Use console configuration version 1.",
+            error.InvalidRequestTimeout => "Set request_timeout_ms to an integer from 1 through 60000.",
+            error.InvalidEndpoint => "Match url, transport and ca_file: loopback uses http://127.0.0.1 or http://[::1]; TLS uses https. Omit userinfo, query and fragment; tls_ca requires ca_file.",
+            else => "Correct the named field using apps/transit-cli/docs/console.md; connection identities must be nonzero and match the workspace source.",
+        });
         return error.InvalidConfiguration;
     };
     var wire = q.wire.Client.init(init.gpa, init.io, std.mem.trimEnd(u8, config.url, "/"));
     defer wire.deinit();
     wire.timeout_ms = config.request_timeout_ms;
     if (config.ca_file) |file| {
+        diagnostic.field = "ca_file";
         const now = std.Io.Clock.real.now(init.io);
-        try wire.http.ca_bundle.addCertsFromFilePathAbsolute(init.gpa, init.io, now, try path(allocator, base, file));
+        wire.http.ca_bundle.addCertsFromFilePathAbsolute(init.gpa, init.io, now, try path(allocator, base, file)) catch |err| {
+            diagnostic.setFailure(err, "cannot load the configured CA certificates", "Check ca_file relative to the configuration file, its read permissions and PEM certificates.");
+            return error.InvalidConfiguration;
+        };
         wire.http.now = now;
     }
-    var client: q.UnifiedClient = .{ .wire = &wire, .connection = config.connection, .key = q.wire.readKey(init.gpa, init.io, try path(allocator, base, config.seed_file)) catch return error.InvalidCredentialFile };
+    diagnostic.field = "seed_file";
+    var client: q.UnifiedClient = .{ .wire = &wire, .connection = config.connection, .key = q.wire.readKey(init.gpa, init.io, try path(allocator, base, config.seed_file)) catch |err| {
+        diagnostic.setFailure(err, "cannot load the console signing credential", "Check seed_file relative to the configuration file and its permissions; do not print or paste the seed.");
+        return error.InvalidCredentialFile;
+    } };
+    diagnostic.field = "recovery_file";
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     var session: u.Session = .{ .format = if ((options.format orelse config.format) == .json) .json else .table, .interrupted = Signals.interrupted };
     defer session.clear();
@@ -73,6 +101,7 @@ pub fn run(init: std.process.Init, options: Options.Options) !void {
         session.checkpoint_fn = Recovery.checkpoint;
         try session.checkpoint();
     }
+    diagnostic.field = null;
     const signals = try Signals.install();
     defer signals.close();
     var output_buffer: [8192]u8 = undefined;

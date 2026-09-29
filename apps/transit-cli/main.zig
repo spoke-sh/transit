@@ -1,6 +1,7 @@
 //! Signed query shell. SQL/authorization/result semantics live in transit-query.
 const std = @import("std");
 const q = @import("transit_query");
+const Diagnostic = @import("Diagnostic.zig");
 const Config = struct { url: []const u8, seed_file: []const u8, connection: q.Model.Connection, request_timeout_ms: u32 = 5000 };
 const Session = struct {
     client: *q.Client,
@@ -17,8 +18,9 @@ const Session = struct {
     }
 };
 pub fn main(init: std.process.Init) !void {
-    dispatch(init) catch |err| {
-        std.debug.print("transit: {s}\n", .{@errorName(err)});
+    var diagnostic: Diagnostic = .{};
+    dispatch(init, &diagnostic) catch |err| {
+        diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted => 130,
             error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile => 2,
@@ -26,19 +28,31 @@ pub fn main(init: std.process.Init) !void {
         });
     };
 }
-fn dispatch(init: std.process.Init) !void {
+fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
-    if (args.len > 1 and std.mem.eql(u8, args[1], "app")) return @import("Application.zig").run(init, args[2..]);
+    if (args.len > 1 and std.mem.eql(u8, args[1], "app")) return @import("Application.zig").run(init, args[2..], diagnostic);
     if (args.len > 1 and std.mem.eql(u8, args[1], "__transit_child_v1")) return @import("server/Process.zig").trampoline(init, args);
     if (args.len == 3 and std.mem.eql(u8, args[1], "__transit_gateway_v1")) return @import("server/Gateway.zig").run(init, args[2]);
+    if (args.len > 1 and (std.mem.eql(u8, args[1], "query") or std.mem.eql(u8, args[1], "query-v2"))) {
+        const v2 = std.mem.eql(u8, args[1], "query-v2");
+        diagnostic.command = if (v2) "transit query-v2" else "transit query";
+        diagnostic.help = if (v2) "transit query-v2 --help" else "transit query --help";
+        diagnostic.usage = if (v2) "transit query-v2 CONFIG" else "transit query CONFIG";
+        if (args.len == 3 and std.mem.eql(u8, args[2], "--help")) return std.Io.File.stdout().writeStreamingAll(init.io, if (v2) "Usage: transit query-v2 CONFIG\nSingle-line unified query shell. Configuration: apps/transit-cli/docs/unified-query.md\n" else "Usage: transit query CONFIG\nSingle-line Table query shell. Configuration: apps/transit-cli/README.md\n");
+        if (args.len != 3 or args[2].len == 0 or std.mem.startsWith(u8, args[2], "--")) {
+            diagnostic.atArgument(if (args.len > 3) 3 else if (args.len == 3) 2 else null, "CONFIG");
+            return diagnostic.fail(error.InvalidInvocation, "query shell requires one configuration file", "Pass exactly one positional configuration path; use console for --config and --format options.");
+        }
+        diagnostic.atFile(args[2]);
+    }
     if (args.len == 3 and std.mem.eql(u8, args[1], "query-v2")) return @import("Unified.zig").run(init, args[2]);
     if (args.len != 3 or !std.mem.eql(u8, args[1], "query")) {
-        const options = try @import("Options.zig").parseWithConsoleConfig(args[1..], init.environ_map.get("TRANSIT_CONSOLE_CONFIG"));
-        if (options.command == .help or options.help) return std.Io.File.stdout().writeStreamingAll(init.io, @import("Options.zig").help);
+        const options = try @import("Options.zig").parseDiagnosed(args[1..], init.environ_map.get("TRANSIT_CONSOLE_CONFIG"), diagnostic);
+        if (options.command == .help or options.help) return @import("Options.zig").writeHelp(init.io, options);
         return switch (options.command) {
             .version => std.Io.File.stdout().writeStreamingAll(init.io, "Transit development; CLI contract 1\n"),
-            .console => @import("Console.zig").run(init, options),
-            .server => @import("server/Server.zig").run(init, options),
+            .console => @import("Console.zig").run(init, options, diagnostic),
+            .server => @import("server/Server.zig").run(init, options, diagnostic),
             .help => unreachable,
         };
     }
