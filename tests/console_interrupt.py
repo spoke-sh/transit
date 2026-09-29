@@ -1,7 +1,9 @@
 """Ctrl-C against real query workers, signed requests, disk storage and a PTY."""
 import json
+import os
 import select
 import signal
+import subprocess
 import threading
 import time
 
@@ -167,6 +169,62 @@ def check(binary, path, root, kind, invoke, fault):
         assert invoke('status', str(query), direct=True)['phase'] == 'complete'
         next_query()
 
+        # The same partial-display rule applies to .resume and the default table
+        # format. Do not print a success row-total footer for a cancelled prefix.
+        terminal.send('.mode table\r')
+        terminal.expect('\rtransit> ')
+        page_gate = gate()
+        fault['console_hook'] = interrupted_results
+        terminal.send(f'.resume {query}\r')
+        first_line = terminal.read(json_line=False, timeout=120)
+        assert first_line.startswith('┌'.encode()), first_line
+        assert page_gate.reached.wait(30)
+        terminal.send('\x03')
+        page_gate.release.set()
+        terminal.expect(f'Query {query} already completed; result display interrupted.')
+        terminal.expect('\rtransit> ')
+        displayed = first_line+b'\n'+terminal.buffer
+        terminal.buffer = b''
+        while select.select([terminal.process.stdout], [], [], .05)[0]:
+            displayed += os.read(terminal.process.stdout.fileno(), 65536)
+        assert b' rows\n' not in displayed and b' row\n' not in displayed, displayed
+        terminal.send('.mode json\r')
+        terminal.expect('\rtransit> ')
+        next_query()
+
+        # A lost cancellation acknowledgement remains uncertain locally even
+        # when the requester later closes. Preserve its exact signed operation.
+        upload = gate()
+        cancellations = []
+
+        def lost_cancellation(route, message, data):
+            command = payload(message)
+            if command.startswith(b'UQP2'):
+                upload.pause()
+            if command.startswith(b'UQK2'):
+                cancellations.append(message)
+                if len(cancellations) == 1:
+                    return b'{"position":0}'
+            return data
+
+        fault['console_hook'] = lost_cancellation
+        terminal.send('SELECT * FROM items;\r')
+        assert upload.reached.wait(60)
+        query = record()['namespace']
+        terminal.send('\x03')
+        upload.release.set()
+        idle('query cancellation could not be confirmed')
+        assert f'Query {query} cancelled.'.encode() not in terminal.screen
+        saved = record()
+        assert saved['namespace'] == query and saved['pending']['signed'] == cancellations[0]
+        terminal.send('SELECT COUNT(*) FROM items;\r')
+        idle('UnresolvedSubmission')
+        assert record() == saved, 'new SQL replaced unresolved cancellation'
+        result = terminal.call('.cancel')
+        assert result['query'] == query and result['phase'] == 'cancelled'
+        assert cancellations[0] == cancellations[1], 'cancellation retry changed signed identity'
+        next_query()
+
         # Completion already printed remains complete; Ctrl-C now clears input.
         saved = recovery.read_bytes()
         sends = fault['console_sends']
@@ -174,10 +232,29 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.expect('\rtransit> ')
         assert recovery.read_bytes() == saved and fault['console_sends'] == sends
         next_query()
-        print(f'Transit console {kind}: Ctrl-C before submission, exact uncertain-upload cancellation, repeated interrupts, discarded pasted tail, active source closure, streamed-prefix/completion race and prompt reuse passed.', flush=True)
+        terminal.close()
+        terminal = None
+
+        # Noninteractive invocation uses the same cancellation path and exits
+        # 130; diagnostics must not leak into machine stdout.
+        fault['console_waiting'].clear(); fault['console_delay'].set()
+        batch = subprocess.Popen([binary, 'console', '--no-rc', '--config', str(path),
+                                  '-c', 'SELECT COUNT(*) FROM items'],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            assert fault['console_waiting'].wait(10)
+            batch.send_signal(signal.SIGINT)
+            out, err = batch.communicate(timeout=30)
+            assert batch.returncode == 130 and not out, (batch.returncode, out, err)
+            assert b'Query cancelled before submission.' in err and b'not cancelled' not in err, err
+        finally:
+            if batch.poll() is None:
+                batch.kill(); batch.communicate(timeout=10)
+        print(f'Transit console {kind}: Ctrl-C before submission, exact uncertain-upload/cancellation retry, repeated interrupts, discarded pasted tail, active source closure, JSON/table streamed-prefix/completion races, prompt reuse and batch exit 130 passed.', flush=True)
     finally:
         for value in gates:
             value.release.set()
         fault.pop('console_hook', None)
         fault['console_delay'].clear()
-        terminal.close()
+        if terminal is not None:
+            terminal.close()

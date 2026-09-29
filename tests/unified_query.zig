@@ -384,7 +384,8 @@ pub fn main(init: std.process.Init) !void {
         return print(init, .{ .rows = decoded.count, .ordinal = ordinal, .complete = page.next == null, .manifest = page.manifest });
     }
     if (std.mem.eql(u8, command, "versions")) {
-        const versions = (try admin.query(.{ .read_versions = .{ .pid = config.connection.source } })).body.read_versions;
+        const after = if (args.len == 5) (try std.json.parseFromSlice(p.Growth.ReadVersionId, init.arena.allocator(), args[4], .{})).value else null;
+        const versions = (try admin.query(.{ .read_versions = .{ .pid = config.connection.source, .after = after } })).body.read_versions;
         return print(init, versions);
     }
     return error.UnknownCommand;

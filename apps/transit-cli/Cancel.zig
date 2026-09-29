@@ -24,6 +24,7 @@ pub fn interrupt(console: *Console) !void {
     var status = try console.client.status(id);
     if (status) |current| switch (current.phase) {
         .uploading, .sealed, .admitted => {
+            if (console.recovery == null) return error.ConsoleRecoveryRequired;
             session.pending = try console.client.prepare(.{ .cancel = id });
             session.length = 0;
             try u.settle(console.init, session, console.client);
