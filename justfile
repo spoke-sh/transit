@@ -67,6 +67,7 @@ check-core:
     zig fmt --check build.zig packages/zig apps examples tests/*.zig
     just contract::check
     just test::unit
+    just test::cli-diagnostics
     python3 -B tests/docs.py
     git diff --check
 

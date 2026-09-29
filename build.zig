@@ -535,6 +535,12 @@ pub fn build(b: *std.Build) void {
     const lifecycle_test = b.addRunArtifact(b.addTest(.{ .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/LifecycleTests.zig"), .target = target, .optimize = optimize, .link_libc = true, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} }) }));
     test_step.dependOn(&lifecycle_test.step);
     b.step("test-cli-lifecycle", "Prove bounded local process log draining").dependOn(&lifecycle_test.step);
+    const diagnostics_test = b.addSystemCommand(&.{ "python3", "-B" });
+    diagnostics_test.addFileArg(b.path("tests/cli_diagnostics.py"));
+    diagnostics_test.addArtifactArg(query_shell);
+    diagnostics_test.has_side_effects = true;
+    diagnostics_test.stdio = .inherit;
+    b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
     for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host }) |artifact| server_test.addArtifactArg(artifact);

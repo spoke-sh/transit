@@ -303,6 +303,10 @@ unified-ingress source="table":
 console source="table":
     nix develop .#serving --command zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-console=true -Dunified-console-tls=true
 
+# Real command diagnostics, configuration locations and stderr/privacy boundaries.
+cli-diagnostics:
+    zig build test-cli-diagnostics
+
 # Actual native server with independent console and owned process failures.
 server:
     zig build test-server -Doptimize=ReleaseSafe

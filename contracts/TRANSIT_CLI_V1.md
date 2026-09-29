@@ -23,6 +23,13 @@ credential discovery, and no other environment configuration overlay.
 Paths resolve relative to the configuration file. Private keys are referenced by
 files and never accepted as command arguments. Diagnostics name the failing
 field or role without printing configuration, request bodies or credentials.
+The [public CLI reference](../docs/reference/cli.md#output-philosophy-explain-locate-guide)
+owns the human-output conventions: plain-language cause, available coordinates
+and a concrete next step. Invocation coordinates use argument positions and
+known option names; configuration decoding reports the file and parser location;
+semantic validation names fields. Human wording and implementation error names
+are not a versioned machine schema. Recovery advice preserves saved identity and
+never treats uncertainty as proof of rejection.
 
 Successful help, version, ordinary disconnect and joined server shutdown return
 0; invalid invocation/configuration returns 2; runtime failure returns 1. A

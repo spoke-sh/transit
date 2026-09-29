@@ -58,6 +58,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::flight-outbound` | Record a TLS Flight effect through the RPC worker and replay typed Arrow after node/store loss with the peer stopped |
 | `just test::unified-query` | Run signed v2 source/requester recovery fixtures; optionally select a source with `-Dunified-source=kv`, `table` or `document` |
 | `just test::server` | Exercise the native local server and independent console, with disk providers, fresh worker activations and owned process failures |
+| `just test::cli-diagnostics` | Check real CLI errors, argument/file/field/listener coordinates, next steps, privacy and stdout/stderr separation without starting services; included in `just check` |
 | `just test::server-board`, `just test::server-board-package` | Qualify default embedded Board, explicit headless operation, retained inspection grants, recovery and the Nix downstream manifest |
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
 | `just test::server-capacity` | Fill a newly allocated ext4 image to real ENOSPC, preserve accepted query identity and recover the same installation |

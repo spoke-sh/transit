@@ -3552,3 +3552,22 @@ site check and all three production browser checks at `/` also pass. Source
 validation passes 3,915 links across 416 Markdown files. These checks cover
 documentation integration; the revised version-3 onboarding commands, runtime
 deployment proofs and full ordinary clean CI suite were not rerun in this pass.
+
+## CLI diagnostic qualification
+
+`just test::cli-diagnostics` runs the actual `transit` executable against invalid
+invocations and owned temporary files, without a provider. The same check runs
+within `just check` as a separately named core check. It verifies command-specific help, required/duplicate/
+inapplicable options, application subcommands, query-shell arity, explicit console
+environment precedence, configuration JSON parser coordinates and semantic fields,
+missing executables/credentials, occupied listener coordinates, privacy, escaped
+and bounded paths, exit codes, and stdout/stderr separation. It also checks that
+invalid input creates no installation. This is CLI failure-presentation evidence;
+server lifecycle and durable console recovery retain their separate proofs above.
+
+The local diagnostic run passes **95 real command cases** with the pinned Zig
+0.17 compiler. `just check` passes, including the handbook production build.
+The existing `just test::server` lifecycle proof passes in **28.60 seconds**
+excluding compilation, including independent console output, manager/worker
+recovery and restart-budget exhaustion. The latter verifies that diagnostics
+retain both the underlying role failure and the outer exhaustion code.

@@ -7,16 +7,21 @@ process by default in version-3 local installations, with `--no-ui` for headless
 The `transit` executable provides the local `server`, explicit-submit `console`
 and existing signed query shells. Existing `rey-cli` administration commands remain separate.
 
-[M24](../../docs/internal/roadmap/M24.md) implements the selected
-[server/console contract](../../contracts/TRANSIT_CLI_V1.md). Shared parser and
+The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
+configuration and recovery. Shared parser and
 cursor assistance lives in Fuze/query packages. The [console guide](docs/console.md)
 covers versioned configuration, terminal editing, trust and exact recovery.
 The [local server guide](docs/server.md) describes the implemented supervisor,
 private native gateway and selected dependency/credential profile. Focused recovery,
-gateway pressure, physical capacity and clean-checkout qualification pass within
-the selected M24 profiles. Existing query entry points retain their qualified contracts.
+gateway pressure, physical capacity and clean-checkout qualification are recorded in the [proof ledger](../../tests/README.md). Existing query entry points retain their qualified contracts.
 The local gateway supports [localhost and explicit tunnel aliases](docs/server.md#local-names-and-ssh-tunnels)
 and reports its URL and accepted authorities in the ready record.
+
+The [public CLI reference](../../docs/reference/cli.md#output-philosophy-explain-locate-guide)
+defines output conventions, diagnostic coordinates, next steps, streams and exit
+statuses. Use `transit server --help` or `transit console --help` for command-specific
+configuration guidance. `just test::cli-diagnostics` checks the real executable's
+invocation and configuration failures without starting an installation.
 
 `transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
 [unified shell guide](docs/unified-query.md) covers source declarations, finite
@@ -37,7 +42,7 @@ Configuration contains `url`, `seed_file`, `connection`, and optional
 first. A configuration file never grants access by itself.
 
 Enter one qualified read-only Table SQL statement per line to run explicitly.
-M12's [SQL subset](../../packages/zig/transit-fuze/docs/sql.md) applies; the public
+The [SQL subset](../../packages/zig/transit-fuze/docs/sql.md) applies; the public
 frame additionally caps encoded plans at 207 bytes, including an exact schema
 fence. Unsupported operations fail before submission. No shell command creates,
 changes or exports a Table. No query or result history is saved to disk.
@@ -69,4 +74,4 @@ its signed mutation sequence. An uncertain result must be reconciled with
 retried with the same read command. The shell does not claim automatic polling,
 saved sessions, multiline editing or indefinite in-memory result accumulation.
 
-See [local applications](docs/applications.md) for M25 installation, public connection exports, compatible replacement and exact retry.
+See [local applications](docs/applications.md) for installation, public connection exports, compatible replacement and exact retry.
