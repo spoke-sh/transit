@@ -22,6 +22,32 @@ test("production navigation, search, generated references and exact downloads", 
   await page.getByRole("link", { name: "SQL Syntax, types and query profiles" }).click();
   await expect(page.getByRole("heading", { name: "SQL reference", exact: true })).toBeVisible();
   await expect(page.getByText("grammar-only", { exact: true })).toBeVisible();
+  const sidebar = page.locator(".theme-doc-sidebar-menu");
+  const categories = sidebar.locator(":scope > .menu__list-item > .menu__list-item-collapsible");
+  for (const name of [
+    "CLI",
+    "SQL",
+    "SDKs",
+    "HTTP APIs / OpenAPI",
+    "Reactive APIs / AsyncAPI",
+    "Flight SQL and ADBC",
+    "Native protocol",
+  ])
+    await expect(categories.getByText(name, { exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("sql-navigation.png") });
+  await sidebar.getByRole("link", { name: "SELECT", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "SELECT", exact: true })).toBeVisible();
+  await sidebar.getByRole("link", { name: "CREATE TABLE", exact: true }).click();
+  await expect(page.getByText("Grammar only.", { exact: true })).toBeVisible();
+  await sidebar.getByRole("link", { name: "Application declarations", exact: true }).click();
+  await expect(page.locator("#create-interface")).toBeVisible();
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByLabel("Words or an interface name").fill("CREATE SINK");
+  await page
+    .locator(".search-results")
+    .getByRole("link", { name: "CREATE SINK", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "CREATE SINK", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Search", exact: true }).click();
   await page.getByLabel("Words or an interface name").fill("Flight");
   await page
@@ -79,6 +105,17 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
     true,
   );
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole("button", { name: "Toggle navigation bar" }).click();
+  const mobileMenu = page.locator(".navbar-sidebar");
+  await mobileMenu.getByRole("button", { name: "SQL", exact: true }).click();
+  await mobileMenu.getByRole("link", { name: "CREATE TABLE", exact: true }).click();
+  await expect(mobileMenu).not.toBeInViewport();
+  await expect(page.getByRole("heading", { name: "CREATE TABLE", exact: true })).toBeVisible();
+  await expect(page.getByText("Grammar only.", { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: testInfo.outputPath("sql-mobile.png") });
 });
 
 test("every published Mermaid diagram renders", async ({ page, baseURL }) => {
@@ -95,7 +132,7 @@ test("every published Mermaid diagram renders", async ({ page, baseURL }) => {
   expect(errors).toEqual([]);
 });
 
-test("workload examples link to measured performance and distinguish planned sessions", async ({
+test("workload examples link to measured performance and interactive sessions", async ({
   page,
   baseURL,
 }) => {
@@ -110,7 +147,10 @@ test("workload examples link to measured performance and distinguish planned ses
   await expect(page.locator("#planned-improvements")).toHaveText(/Planned improvements/);
   await expect(page.getByRole("cell", { name: "1,120", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "query sessions", exact: true }).click();
-  await expect(page.getByText("This profile is not implemented.", { exact: false })).toBeVisible();
+  await expect(page.locator("#interactive-sessions")).toHaveText(/Interactive sessions/);
+  await expect(
+    page.getByText("Reconnecting does not resume a previous interactive SELECT.", { exact: false }),
+  ).toBeVisible();
   await page.goto(new URL("search", baseURL).href);
   await page.getByLabel("Words or an interface name").fill("telemetry");
   await expect(

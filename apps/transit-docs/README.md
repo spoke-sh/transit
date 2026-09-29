@@ -24,6 +24,17 @@ There is no dependency on Board's runtime or a running Transit installation.
 ## Sources and navigation
 
 `catalog.ts` maps each owned Markdown file to a readable route and sidebar label.
+Top-level sections follow the homepage's interface entry points: CLI, SQL, SDKs,
+HTTP APIs/OpenAPI, reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol.
+Usage guides and wire contracts sit with their interface; shared concepts,
+application state and operation have their own sections. Existing page routes
+stay stable when their navigation location changes.
+
+The [SQL reference](../../docs/reference/sql.md) indexes every statement in the
+checked query/extension grammar, its historical-read fragment and the separate
+application declaration language. Statement pages live in `docs/reference/sql/`
+and distinguish executable queries, offline definitions and grammar-only syntax.
+
 Every page in `docs/guides/` and `docs/reference/` must appear in the catalog.
 These are the shared current documentation for users, developers and agents;
 component guides stay beside their implementation. Engineering history and
@@ -82,10 +93,18 @@ TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser
 
 The browser proof builds and serves real output, checking desktop/mobile navigation,
 search, generated references, exact spec downloads, diagrams and accessibility.
+It follows the top-level interface sections into executable SELECT, grammar-only
+DDL and application declarations, and finds a statement through search.
 It also follows the workload gallery into performance evidence and planned
 session semantics, checking highlighted language blocks and search discovery.
 It uses a private loopback port (4179 by default, `TRANSIT_DOCS_TEST_PORT` to change).
 No Transit deployment is started or modified.
+
+`just test::sql-grammar` also parses the public SQL examples and checks that they
+cover every statement rule and the historical-read fragment. This verifies syntax,
+not execution of administrative forms. `just test::application-grammar` validates
+the complete published application program through the independent grammar and
+real offline compiler, including its canonical model round-trip.
 
 For a static host, set `TRANSIT_DOCS_URL` to its origin and optionally
 `TRANSIT_DOCS_BASE_URL` to a path beginning and ending with `/`, then build. The

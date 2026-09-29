@@ -1,5 +1,6 @@
 """Independent ANTLR/typed-model agreement through the actual application CLI."""
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -121,11 +122,20 @@ def main():
         for changed in [{**model, 'unknown': 1}, {**model, 'realm': 9007199254740992},
                         {**model, 'revision': '018'}]:
             run('format', json.dumps(changed), directory, False)
+        documentation = (ROOT / 'docs/reference/sql/application.md').read_text()
+        programs = re.findall(r'^```sql\n(.*?)^```', documentation, re.M | re.S)
+        assert programs, 'missing complete application documentation example'
+        for source in programs:
+            documented_model = json.loads(run('parse', source, directory))
+            assert documented_model == reference(source)
+            canonical = run('format', json.dumps(documented_model), directory)
+            assert json.loads(run('parse', canonical, directory)) == documented_model
     schema = json.loads(subprocess.check_output([CLI, 'schema']))
     assert schema['$defs']['Definition']['properties']['revision']['type'] == 'string'
     query = schema['$defs']['Binding']['properties']['source']['oneOf'][1]
     assert query['properties']['query']['properties']['sql']['maxLength'] == 4096
     print('Application grammar: independent model agreement, visual round-trip, full-width revision, complete rejection passed.')
+    print(f'Application documentation: {len(programs)} complete programs compile and round-trip.')
 
 
 if __name__ == '__main__':

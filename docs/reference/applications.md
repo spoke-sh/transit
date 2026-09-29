@@ -51,6 +51,10 @@ semantic validation. Offline parse/format/module generation performs no publicat
 query submission or effect dispatch. Structural schema validity alone cannot
 validate graph references, grants or runtime capability.
 
+The [application SQL reference](sql/application.md) describes `CREATE INTERFACE`,
+`CREATE THEME`, `CREATE SCREEN`, `CREATE BINDING` and `CREATE ACTION`, including
+their required options and a complete program.
+
 Publication uses a frozen reviewed proposal and conditional active revision.
 Bounded upload/staging is recoverable; only final validated activation changes
 the published interface. Status reads use the operator's current policy, not a
