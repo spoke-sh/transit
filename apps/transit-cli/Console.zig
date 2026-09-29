@@ -247,6 +247,12 @@ pub const Console = struct {
         self.diagnostic.atArgument(null, null);
         self.diagnostic.file = null;
         self.diagnostic.field = null;
+        if (self.interactive and err == error.ConsoleInterrupted) {
+            self.diagnostic.summary = null;
+            self.diagnostic.cause = null;
+            self.diagnostic.next = null;
+            return error.InteractiveQueryCancelled;
+        }
         if (err == error.ConsoleRecoveryRequired) return self.diagnostic.fail(err, "automatic queries require a recovery_file in the console configuration", "This private file retains the query and exact signed intent for recovery.");
         const hint = if (self.session.namespace != null and !self.session.complete) std.fmt.allocPrint(self.init.arena.allocator(), "Query {d} remains saved. Reconnect with the same configuration; use .resume to recover its result or .cancel to request cancellation. Disconnecting does not cancel it.", .{self.session.namespace.?}) catch null else null;
         return self.diagnostic.fail(err, "query could not complete", hint);

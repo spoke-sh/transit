@@ -22,7 +22,7 @@ pub fn main(init: std.process.Init) !void {
     dispatch(init, &diagnostic) catch |err| {
         diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
-            error.ConsoleInterrupted => 130,
+            error.ConsoleInterrupted, error.InteractiveQueryCancelled => 130,
             error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile => 2,
             else => 1,
         });

@@ -261,7 +261,7 @@ const Editor = struct {
             }
             self.key(event.byte) catch |err| {
                 if (err == error.ConsoleQuit) return;
-                if (err == error.ConsoleInterrupted or err == error.ConsoleOutputTimeout or err == error.WriteFailed) return err;
+                if (err == error.ConsoleInterrupted or err == error.InteractiveQueryCancelled or err == error.ConsoleOutputTimeout or err == error.WriteFailed) return err;
                 if (self.console.recovery) |file| if (file.failed) return err;
                 self.dismiss();
                 try self.out.print("\r\x1b[2Kerror: {s}\n", .{@errorName(err)});
