@@ -1,5 +1,10 @@
 # Retention and resource lifetimes
 
+Choose a retention policy only when your application can tolerate the specified
+loss of old data or recovery eligibility. The default is unlimited. This page
+separates logical expiry, reconciliation closure and physical cleanup; see
+[node operations](../apps/transit-node/docs/operations.md) for maintenance configuration.
+
 Status: application opt-in and lifetime guarantees are established requirements.
 M1 implements a bounded subset: finite execution/settlement, checkpoint/trim,
 immutable payload deletion, and finite admission with a physical reserve proof.
@@ -7,8 +12,8 @@ immutable payload deletion, and finite admission with a physical reserve proof.
 and [maintenance](../apps/transit-node/README.md) own the mechanisms;
 [tests](../tests/README.md) own evidence. [M7](roadmap/M7.md) implements bounded
 KV dependencies, resource expiry and keyed checkpoint compaction;
-[STATE.md](STATE.md) owns that model. General resource graphs, finite external
-body lifetimes, per-key TTL and distributed compaction remain planned.
+[STATE.md](STATE.md) owns that model. M14–M16 add finite publication/capture lifetime and bounded disposal. General
+resource graphs, per-key TTL and distributed compaction remain planned.
 
 ## Application contract
 

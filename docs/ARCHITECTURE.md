@@ -1,10 +1,14 @@
 # Architecture
 
+Use this map to place your component in the stack and find its public package.
+Start with [the user overview](guides/introduction.md) for the application model;
+this page explains ownership and dependency direction.
+
 Status: experimental M1 kernel, client, storage adapter, and reference runtime
 implemented and verified. Board supplies the qualified M2 inspection UI/API.
-M7 state resources and M8 runtime readiness are implemented and qualified in bounded
-profiles. M9 adds Station behaviors, shared language bindings and bounded Fuze
-Table queries; connectors and downstream applications follow. Use
+The implemented stack now includes growing state, Station, language SDKs,
+HTTP/gRPC connectors, Documents, unified queries, serving/reactive APIs, Flight
+and local application installation, each with its own qualified profile. Use
 the [roadmap](roadmap/README.md) for scope and the [test guide](../tests/README.md) for proved behavior and limits.
 
 ## Execution model
@@ -246,7 +250,8 @@ follow a second concrete implementation, not a speculative plugin system.
 | [transit-station-host](../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../apps/transit-query-host/README.md) | Runnable growing v1/v2 source/requester workers and scoped courier |
-| [transit-cli](../apps/transit-cli/README.md) (`transit`) | Interactive signed v1 Table and v2 unified SQL shells through transit-query |
+| [transit-cli](../apps/transit-cli/README.md) (`transit`) | Local server/application lifecycle, explicit-submit console and signed v1 Table/v2 unified SQL shells |
+| [transit-docs](../apps/transit-docs/README.md) | Static Docusaurus handbook over owned Markdown and generated interface descriptions; no runtime authority or credentials |
 | [transit-board](../apps/transit-board/README.md) | Inspection API plus optional separate v1 Table or v2 unified query capability with embedded [TanStack Router frontend](../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |

@@ -1,5 +1,9 @@
 # Testing and verification strategy
 
+Use this guide to choose evidence appropriate to a change. Runnable commands
+and measured outcomes belong in [the proof ledger](../tests/README.md). A skipped
+check or a diagram does not qualify a runtime behavior.
+
 Status: [M10](roadmap/M10.md) is qualified within its recorded profile and workload
 limits. Conservative workflow selection, separate unit/build checks, clean-run
 timings, generated transitions, reviewed bounds, finite TLA+ models and concrete
@@ -178,6 +182,20 @@ repeat counts. Establish tolerances from measured variance. Keep strict protocol
 deadline assertions separate from noisy performance regressions. Single-authority
 growth does not prove horizontal throughput: the current realm-wide journal is a
 serialization point, and [M29](roadmap/M29.md) owns broader cluster qualification.
+
+## Documentation verification
+
+[M26](roadmap/M26.md) adds the Docusaurus handbook. Source-link checks remain in
+`tests/docs.py`; `just transit-docs::check` additionally verifies every foundation
+is cataloged, generated API operations/schemas, strict frontend types and a
+production build with broken routes/anchors treated as errors. The actual browser
+proof covers desktop/mobile navigation, local search, diagrams, exact specification
+downloads and accessibility at both root and a configured path prefix.
+
+The experience lane owns the site check on full runs. Documentation-only PRs run
+the same task in a dedicated job, and the aggregate required check rejects failed,
+cancelled or skipped selected documentation work. Hosted timing for this added
+build is unmeasured; historical M10 budgets below remain historical evidence.
 
 ## CI selection, cost and local parity
 

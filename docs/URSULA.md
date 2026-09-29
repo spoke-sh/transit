@@ -1,5 +1,10 @@
 # Ursula integration boundary
 
+Ursula is the storage provider behind the public Transit boundary. Application
+code uses the client, not raw Ursula streams. Start with the
+[local server](../apps/transit-cli/docs/server.md) for a configured installation
+or the [backend guide](../packages/zig/transit-backend-ursula/README.md) for implementation.
+
 Status: Ursula is the selected durable storage and transport implementation.
 [transit-backend-ursula](../packages/zig/transit-backend-ursula/README.md) integrates
 the pinned server through upstream `ursula-zig`. Its [component guides](../packages/zig/transit-backend-ursula/README.md#guides) own

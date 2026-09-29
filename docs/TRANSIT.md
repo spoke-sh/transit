@@ -1,11 +1,17 @@
 # Transit — kernel protocol
 
+Use this model to understand what a worker may commit and how it recovers.
+The [native protocol reference](reference/native.md) owns wire entry points;
+[the application guide](guides/applications.md) shows a caller in practice.
+
 Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay
 slice is implemented; its supported surface and limits are specified in
 [the v2 profile](../contracts/TRANSIT_V2.md), with evidence in the
 [test guide](../tests/README.md). M7 adds the [bounded associated KV profile](../contracts/STATE_V1.md). General
-payloads, framework behaviors and migrations remain planned.
+payloads and broader kernel lifecycle mechanisms remain design direction.
+Station behaviors and selected application migrations are implemented above the
+kernel; [growing v3](../contracts/TRANSIT_V3.md) adds the separate paged profile.
 
 ## Boundary
 

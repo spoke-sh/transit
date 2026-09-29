@@ -1,5 +1,9 @@
 # Durable streams and mailboxes
 
+Use a process mailbox for ordered durable input and a committed outbox for
+recorded destinations. This page explains admission, delivery and replay; the
+[caller model](CLIENT.md) shows how an application consumes that input in turns.
+
 Status: Ursula and the unbounded mailbox are established choices. This document
 owns durable transport requirements; [Transit](TRANSIT.md) owns execution rules.
 The [backend](../packages/zig/transit-backend-ursula/README.md) implements the M1

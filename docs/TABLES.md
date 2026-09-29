@@ -1,13 +1,18 @@
 # Station Tables and Arrow results
 
+Use a Table for typed rows in a durable resource. Begin with the
+[Table API guide](../packages/zig/transit-station/docs/tables.md) for mutations
+and the [SQL reference](reference/sql.md) for reads. A Table is a Station
+abstraction; its values and query schema are not kernel policy.
+
 Status: the bounded [M9](roadmap/M9.md) Table/Fuze profile is implemented; the
 [Table guide](../packages/zig/transit-station/docs/tables.md) owns exact type,
 capacity and result-delivery limits. Broader transaction/query directions below
 remain planned. [State](STATE.md) owns the underlying resource
 contract; [Station](STATION.md) owns behaviors and remote request/reply.
 
-[M10](roadmap/M10.md) selects growing durable Tables and paged access before
-public SDKs. The M9 row/result ceilings remain enforced today; they must not
+[M10](roadmap/M10.md) implements growing durable Tables and paged access in
+the explicit v3 profile, used by public SDKs. The M9 row/result ceilings remain enforced today; they must not
 become permanent total-size semantics. Bound resident batches and atomic work
 independently of total retained rows/results, following
 [State](STATE.md#collection-size-and-working-memory).
@@ -28,7 +33,9 @@ row, descriptor, correlation and result keys share the resource's capacity.
 An Arrow row number is not a primary key. Distinguish absent rows, null fields,
 empty values, deleted rows and unavailable history.
 
-The proposed operation families are:
+The operation model is below; the [Table API guide](../packages/zig/transit-station/docs/tables.md)
+defines the implemented local methods and remote commands. Broader transaction
+forms remain design direction.
 
 | Operation | M9 meaning |
 | --- | --- |

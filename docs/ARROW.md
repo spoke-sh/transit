@@ -1,5 +1,10 @@
 # Arrow interchange and remote queries
 
+Use Arrow for typed query results and analytical client interoperability. Start
+with the [Flight SQL and ADBC reference](reference/flight.md) for remote clients
+or the [SQL reference](reference/sql.md) for admitted queries. This page explains
+which layer owns buffers, query execution and remote access.
+
 Status: M9 implements finite IPC results, checked by an independent Arrow
 consumer, and qualifies C Data/C Stream ownership. See the [integration evidence](../packages/zig/transit-fuze/docs/integration.md).
 M16 qualifies outbound gRPC and [M19](roadmap/M19.md) establishes HTTP serving.

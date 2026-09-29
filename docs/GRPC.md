@@ -1,5 +1,10 @@
 # gRPC connector
 
+Use the RPC connector for recorded outbound calls and replay. Start with the
+[application example](../examples/station-grpc/README.md) and
+[adapter](../packages/zig/transit-station-grpc/README.md). For inbound analytical
+clients, use the separate [Flight reference](reference/flight.md).
+
 Status: the finite [M16](roadmap/M16.md) profile is implemented and locally
 qualified after [HTTP M15](roadmap/M15.md). The Zig [transport](../packages/zig/transit-grpc/README.md),
 [durable adapter](../packages/zig/transit-station-grpc/README.md), actual worker,

@@ -1,5 +1,9 @@
 # Protocol conformance and implementation gates
 
+Use these requirements to evaluate a change or a deployment guarantee. For
+commands and executed results, follow the [proof ledger](../tests/README.md);
+for user-visible compatibility, start with [interface selection](guides/choose-interface.md).
+
 Status: adversarial requirements with executable evidence for the bounded M1
 profile and its M2–M9 extensions. [tests/README.md](../tests/README.md) maps commands to recorded results,
 failure schedules, and limits. The [roadmap](roadmap/README.md) owns milestone gates.

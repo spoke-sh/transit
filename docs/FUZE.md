@@ -1,5 +1,10 @@
 # Fuze — query and compute engine
 
+Use Fuze to query declared state through bounded batches. Start with the
+[SQL reference](reference/sql.md) and [console](../apps/transit-cli/docs/console.md);
+use the [package API](../packages/zig/transit-fuze/README.md) when embedding the
+engine. This page explains execution ownership and future extension boundaries.
+
 Status: the bounded M9 Table profile is implemented. The [package](../packages/zig/transit-fuze/README.md)
 implements the [v1 bounded query profile](../contracts/FUZE_V1.md), Arrow
 dependency integration and finite IPC encoding. Broader capabilities below
@@ -22,13 +27,15 @@ maximum Table or retained-result size. A larger dataset must not imply collectin
 all rows or result bytes in a worker's memory.
 The [incremental execution contract](../contracts/FUZE_STREAM_V1.md) now has a
 qualified pure Zig engine with bounded batches and whole-query progress. Station's
-durable fragment/result publication is still being implemented; this engine
-boundary alone does not close the large-query recovery gate.
+durable fragment/result publication and growing recovery are qualified separately
+in M10; pure engine evidence alone does not establish service recovery.
 
 The [unified v2 contract](../contracts/UNIFIED_QUERY_V2.md) now fixes M18's
 source/decoder/projection boundary, five-state typed cells and Publication-based
-request/result direction. Initial pure model/codec tests are implemented; adapter,
-Arrow and end-to-end qualification remain in progress.
+request/result direction. KV/Table/Document adapters, nested Arrow and native
+source/lifecycle qualification are implemented. The
+[compatibility matrix](../packages/zig/transit-query/docs/compatibility.md)
+limits physical placement recovery evidence to its tested combinations.
 
 ## Purpose and ownership
 

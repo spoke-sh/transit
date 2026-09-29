@@ -1,5 +1,10 @@
 # Board — system inspection and Table workspace
 
+Use Board to inspect current, authorized evidence and separately configured query
+workspaces. Begin with [configuration](../apps/transit-board/docs/configuration.md)
+and the [HTTP API reference](reference/board-api.md). UI review proposals later
+in this page describe future interactions; they are not a command reference.
+
 Status: bounded [M2](roadmap/M2.md) inspection profile implemented and qualified
 on the reference deployment, before Station. Board is the UI and
 OpenAPI surface through which operators and agents comprehend a running Transit
@@ -82,7 +87,7 @@ runtime capacity or cross-realm read surface.
 
 The [D5 resource review](design/board-atlas/D5.md) explores a cityscape alongside that
 process fabric. Each backing resource has one stable plot; declared Table, KV
-and proposed Document structure shapes its architecture. Current value bytes
+and accepted Document structure shapes its architecture. Current value bytes
 are the candidate shared height measure, with groups replacing buildings at
 scale and associations shown on selection. Logical Tables sharing one resource
 appear as wings of one site, preserving identity, transaction and lifetime

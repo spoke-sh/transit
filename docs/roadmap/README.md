@@ -33,7 +33,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M23](M23.md) | Board grammar and declarative reactive applications | Complete: selected UI, publication, migration and three-placement application proofs; clean qualification passed |
 | [M24](M24.md) | Transit CLI | Complete: Linux local server recovery/capacity, Table/KV/Document console and shared assistance; clean qualification passed |
 | [M25](M25.md) | Local application installation and replacement | Complete: separate Zig consumer, neutral installation/bootstrap, scoped replacement, exact recovery and physical-capacity qualification |
-| [M26](M26.md) | User documentation and interface reference | In progress: Docusaurus, task-oriented foundations and generated API references |
+| [M26](M26.md) | User documentation and interface reference | Complete: Docusaurus handbook, task-oriented foundations, generated API references and local onboarding proof |
 | [M27](M27.md) | Board in the local neighborhood | Implemented: separate supervised Board, explicit headless operation and packaged assets; focused proofs pass, clean qualification running |
 | [M28](M28.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M29](M29.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
@@ -86,6 +86,8 @@ model with explicit publication and migrations. [M24](M24.md) formalizes
 for SQL and slash commands with Board's shared grammar/catalog assistance.
 [M25](M25.md) makes separately compiled applications installable in the local
 neighborhood, with scoped worker replacement and application-owned migration.
+[M26](M26.md) presents those implemented interfaces in a user handbook, with
+SQL/CLI references and generated OpenAPI/AsyncAPI documentation.
 [M28](M28.md) publishes versioned Transit artifacts through tag-triggered GitHub
 release workflows and qualified installation channels. [M29](M29.md) then
 qualifies these boundaries across broader authority/runtime topologies. Fuze
@@ -130,6 +132,7 @@ qualification recorded. M28–M29 remain planned.
 | [M23](M23.md#entry-gates) | M19–M22 public operations, reactive consumers and the Atlas/Console/Grammar designs | Shared SQL/visual definitions, monochrome UI, attributable controls, publication and application migration recovery |
 | [M24](M24.md#baseline-and-owners) | Existing query shells, launcher recovery, serving and M23 language assistance | Local supervisor/gateway lifecycle, two-command CLI contract and bounded authorized terminal completion |
 | [M25](M25.md#owners-and-implementation-sequence) | M24 local lifecycle, public growing bootstrap and M23 migration ledger | Neutral declaration, exact provisioning recovery and permission-preserving application replacement |
+| [M26](M26.md#scope-and-owners) | M25 downstream workflow and the existing typed/wire contracts | User journeys, supported interface reference and generated API descriptions from the same owners |
 | [M28](M28.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
 | [M29](M29.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
 

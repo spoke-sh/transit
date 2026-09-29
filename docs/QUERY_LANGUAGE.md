@@ -1,5 +1,9 @@
 # Query language: relational and dataframe surfaces over one plan
 
+For runnable statements, use the [SQL reference](reference/sql.md). This page
+owns language design, UI mappings and proposed declarations beyond that finite
+SELECT profile. Reference grammar and visual mockups do not enable execution.
+
 Status: M12's read-only, single-Table `SELECT` frontend is implemented and
 qualified. The [SQL guide](../packages/zig/transit-fuze/docs/sql.md) owns its
 exact grammar, budgets and `Sql.parse` / `Sql.compile` / `Sql.plan` API.
@@ -7,15 +11,16 @@ It produces the existing `Stream.Plan`/`PlanCodec` and runs through Fuze's
 bounded Arrow engine. It introduces no public query endpoint or CLI.
 The DDL/DML-write, broader dataframe and connector/transport namespace designs
 below remain direction, not implemented SQL capabilities. [M13](roadmap/M13.md)
-owns public typed query access; [M22](roadmap/M22.md) owns Flight SQL ingress
-and should reuse this compiler. Neither milestone acquires new authority from
+owns public typed query access; [M22](roadmap/M22.md) implements Flight SQL
+ingress using this compiler. Neither milestone acquires new authority from
 accepting query text.
 
 M18 adds a [unified SQL compiler](../packages/zig/transit-fuze/docs/unified-sql.md)
 over the same parsed grammar for explicitly declared KV/Table/Document sources.
 It returns v2 plans and nested cell-state Arrow, with an explicit capability
 matrix; it does not change v1 Table compilation. The pure compiler/reference
-checks pass. Its shell/Board ingress qualification remains in progress.
+checks and shell/Board ingress qualification pass within the
+[declared matrix](../packages/zig/transit-query/docs/compatibility.md).
 
 ## The one-line answer
 
@@ -368,8 +373,8 @@ position on these, unlike the excluded items below:
   HTTP text capture; it does not yet specify decoding captured bytes into
   Fuze rows.
 - **`SHOW`/`DESCRIBE` as the relational-surface answer to `transit-cli`'s
-  planned `/`-prefixed meta-commands** (`docs/roadmap/M13.md`). Both need to
-  read the same catalog; today only the CLI side is named.
+  implemented `/`-prefixed meta-commands**. The console has scoped source/schema
+  reads; equivalent SQL administration remains reference grammar only.
 - **Multi-column schema evolution.** Already flagged in this document's DDL
   section as a Table-model prerequisite; every system named above has an
   `ALTER`/schema-registry story this repo hasn't needed yet because Table

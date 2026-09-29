@@ -1,5 +1,9 @@
 # Public SDK design
 
+Use the [language package index](reference/sdks.md) for installation and native
+APIs. This page explains the shared choices those SDKs preserve: durable identity,
+owned values, scoped turns, scheduling and uncertainty.
+
 Status: M11 shared public API contracts. The [Python](sdk/PYTHON.md) design is
 implemented with typed raw/Station packages, executable counter/query examples,
 clean wheel installation and focused lifecycle/data proofs. The

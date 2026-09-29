@@ -1,5 +1,10 @@
 # State — resources and process associations
 
+Store durable application values in resources and access them through bounded
+public reads and committed turns. Begin with [Tables](TABLES.md) or
+[Documents](DOCUMENTS.md) for higher-level values; use the
+[growing client](../packages/zig/transit-client/docs/growing.md) for raw KV access.
+
 Status: bounded M7 profile implemented and verified, before Station. The
 [wire contract](../contracts/STATE_V1.md) and component READMEs own exact APIs,
 numerical bounds and compatibility. [M7](roadmap/M7.md) and the
@@ -19,9 +24,9 @@ M10's explicit [v3 development profile](../contracts/TRANSIT_V3.md) publishes
 immutable state roots through the authority and supplies bounded node/client
 access to growing resources and process associations. It remains separate from
 the default state-v1 profile. Explicit growing Station behaviors, retained
-sources/results and finite quotas have executable proofs. M10's repeated scale
-and CI budget qualification remains in progress; the development profile does
-not remove the default profile's limits.
+sources/results, scale and finite quotas have executable proofs. M10 records its
+completed scale/hosted-budget qualification; later additions do not inherit that
+timing result. Growing v3 does not remove legacy state-v1 limits.
 
 ## Purpose
 
@@ -40,7 +45,7 @@ resource. [Streams](STREAMS.md) owns the transport boundary.
 
 ## Collection size and working memory
 
-KV resources, Tables, future Documents and retained framework records are
+KV resources, Tables, Documents and retained framework records are
 logically growing durable collections. Their total size must not be fixed by
 the number of slots in an authority, worker or read-view buffer. A handler should
 read the keys/pages it needs, not materialize the entire resource before handling
@@ -127,7 +132,7 @@ Query computation and schema validation stay in callers; the kernel does not
 become a SQL or Arrow compute engine.
 
 [Fuze](FUZE.md) names that shared query engine. Its target source model includes
-KV, Table and a proposed Station Document for structured values and collaborative
+KV, Table and the Station Document for structured values and collaborative
 text. [M17](roadmap/M17.md) owns Document change/CRDT semantics above core and
 the qualification of its storage/lifetime profile. Shared querying does not add
 those semantics to the current KV resource or widen its transaction boundary.

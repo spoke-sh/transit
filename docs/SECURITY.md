@@ -1,5 +1,10 @@
 # Identity, authorization, and trust boundaries
 
+Provision identity, permissions and worker ownership separately. Start with the
+[native protocol reference](reference/native.md) for signed callers,
+[serving OpenAPI](reference/openapi.md) for application ingress or
+[Board access](reference/board-api.md) for private inspection.
+
 Status: required security boundaries with a bounded M1 implementation. The
 [v2 protocol](../contracts/TRANSIT_V2.md) and [service contract](../contracts/SERVICE_V2.md)
 specify signed requests, grants, revocation, and scoped reads; [state v1](../contracts/STATE_V1.md) adds
@@ -16,7 +21,9 @@ reads combine a signature over the exact service/operation read with a matching
 native identity proof and current service policy. Its trusted gateway reader has
 an independent resource grant; callers receive no raw grant to other callers'
 records. Provisioned public keys are bounded gateway configuration, not a grant
-database. Inbound TLS/deployment qualification is separate and remains in progress.
+database. Selected inbound TLS and native/Compose/reference deployment proofs
+pass in [M19](roadmap/M19.md); federation and broader topologies remain outside
+that evidence.
 
 Authentication establishes who is calling. Authorization decides which action
 that principal may perform on which resource. Execution ownership separately

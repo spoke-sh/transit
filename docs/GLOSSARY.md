@@ -1,18 +1,22 @@
 # Glossary
 
+Use these names consistently across applications, commands and documentation.
+[Choose an interface](guides/choose-interface.md) for its implemented profile;
+a term in this glossary alone is not a compatibility claim.
+
 Shared vocabulary for Transit's foundational documents. Official names are
-established; definitions describe the intended architecture, not implemented
-capabilities. Detailed contracts live in the linked design documents.
+established; definitions cover both implemented profiles and explicitly identified design
+direction. Detailed contracts and qualification limits live with their owners.
 
 ## Names and roles
 
 | Term | Meaning |
 | --- | --- |
 | Rey | The intended downstream trading application built using Transit. The repository retains its historical `rey` name; that name does not own runtime semantics. |
-| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and planned Station framework and Fuze engine. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
+| Transit | The reusable streaming runtime subsystem: the agentic streaming kernel, supporting services, clients, storage/runtime adapters, Board inspection surface, and Station framework and Fuze engine. Its foundational execution protocol is enforced by durable message sequences. See [TRANSIT.md](TRANSIT.md). |
 | Board | Transit's operator/agent inspection surface: a static UI and OpenAPI service hosted by the Zig `transit-board` executable. Its views derive from authorized Transit evidence; it grants no execution authority. See [BOARD.md](BOARD.md). |
-| Station | Transit's planned OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [STATION.md](STATION.md). |
-| Fuze | Transit's planned Zig-native query and compute engine across KV, Table and Document state, inspired by DataFusion and Acero. Its artifact family is `transit-fuze*`; it runs outside kernel authority. See [FUZE.md](FUZE.md). |
+| Station | Transit's OTP-inspired framework above the kernel, providing GenServer behaviors, supervision, registries, and composition. Its artifacts use the `transit-station*` name family. See [STATION.md](STATION.md). |
+| Fuze | Transit's Zig-native query and compute engine across KV, Table and Document state, inspired by DataFusion and Acero. Its artifact family is `transit-fuze*`; it runs outside kernel authority. See [FUZE.md](FUZE.md). |
 | Agentic | The class of workloads the system is intended to support. It does not place reasoning loops, goals, or agent/task delegation in the kernel. |
 | Ursula | The selected durable stream storage and transport implementation. See [URSULA.md](URSULA.md). |
 | ursula-zig | The upstream Zig client used by Transit's Ursula adapter. It handles transport/protocol operations; Transit defines execution semantics. |
@@ -31,8 +35,8 @@ Short deployment roles such as `board` and `node`
 identify instances of those artifacts. The kernel implementation library lives
 in `packages/zig/transit-core` and exports the `transit_core` Zig module.
 `transit-protocol` owns public wire
-contracts; `transit-client` is the application entry point. The planned Station
-library is `transit-station` and exports `transit_station`; the planned Fuze
+contracts; `transit-client` is the application entry point. The Station
+library is `transit-station` and exports `transit_station`; the Fuze
 library is `transit-fuze` and exports `transit_fuze`. See the
 [decomposition plan](ARCHITECTURE.md#planned-monorepo-decomposition) for implemented
 and proposed packages.
@@ -55,7 +59,7 @@ not authorize that change.
 | Initialization barrier | Process control state that prevents handler execution until declared required associations exist and initialization is explicitly completed. |
 | PID | Opaque, durably scoped process identity. It survives eligible worker recovery, suspension, and migration; logical termination or process expiry retires it permanently. |
 | Actor | A programming-model participant implemented by a Transit process. It adds no separate identity layer. Use **Substrate Actor** when referring to the external runtime resource. |
-| GenServer | A planned Station behavior running in a Transit process, providing sequential message handling, state associations, and request/reply under that process's PID. |
+| GenServer | A Station behavior running in a Transit process, providing sequential message handling, state associations, and request/reply under that process's PID. |
 | Mailbox | The process's ordered view of durably admitted input messages. Admission and processing progress are distinct. |
 | Input origin | Authority-derived evidence identifying an external principal, source-process output or effect attempt; not a sender claim inside application bytes. |
 | Unbounded mailbox | A logically unbounded durable backlog that can outlive a worker and exceed its RAM. Read windows, storage capacity, and admission still have explicit limits. |
@@ -97,7 +101,7 @@ implement resource associations.
 | Read basis | The exact resource identities/revisions observed by a turn and the evidence supporting its recovery/replay contract |
 | KV | The initial versioned resource interface for opaque key/value lookup, put, delete, and bounded enumeration |
 | Table | A Station typed keyspace within a state resource, with declared schema/keys and Arrow query results; M9 implements a bounded profile, and several tables can share one resource's transaction boundary |
-| Document | A planned [M17](roadmap/M17.md) Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
+| Document | An implemented [M17](roadmap/M17.md) Station state abstraction for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
 | Table transaction | A bounded mutation batch committed in one resource/turn; M9 does not extend this across separate resources or writer PIDs |
 | Arrow record batch | A finite set of typed column arrays with one schema, used for tabular interchange and query computation; it is not a durable commit |
 | Arrow IPC stream | Serialized schema and record batches for cross-process interchange; durability, result framing and recovery remain Station/Transit responsibilities |
@@ -116,7 +120,8 @@ have different responsibilities.
 
 ## Arrow execution and interchange
 
-These are planned interfaces above the kernel. [Fuze](FUZE.md) owns query
+These interfaces live above the kernel; their owning contracts distinguish
+implemented profiles from future extensions. [Fuze](FUZE.md) owns query
 execution; [Arrow](ARROW.md) owns interchange and the M22 remote query profile;
 [Query language](QUERY_LANGUAGE.md) owns the relational/dataframe surface design.
 
@@ -131,7 +136,7 @@ execution; [Arrow](ARROW.md) owns interchange and the M22 remote query profile;
 | Arrow C Data / C Stream | Native array and batch-stream ownership interfaces for in-process interoperability; distinct from the Transit/Station command ABI |
 | Flight RPC | Remote Arrow discovery/transfer protocol; a live connection and a Flight ticket do not supply durable mailbox or execution authority |
 | Flight SQL | SQL query/metadata protocol over Flight; the server still defines its supported SQL and transaction capabilities |
-| ADBC | Arrow-oriented database client/driver API; planned access through existing Flight SQL drivers, separate from general Transit clients |
+| ADBC | Arrow-oriented database client/driver API; qualified finite Table access through pinned Flight SQL drivers, separate from general Transit clients |
 | Flight ticket | Opaque reference to a query result; our gateway must bind it to exact evidence, current read permission and availability, not treat possession as a grant |
 | Acero | Apache Arrow's C++ execution engine, used as design inspiration for bounded batch execution; Transit implements its engine in Zig |
 | DataFusion | Apache's extensible Rust query engine, used as design inspiration for Fuze's sources, expressions, logical/physical plans and optimization; not an embedded dependency |
@@ -257,7 +262,7 @@ its distinction from transport flow control.
 ## Inspection and interpretation
 
 See [Serving](SERVING.md), [Reactive APIs](REACTIVE_API.md) and
-[Reactive interfaces](REACTIVE.md) for the proposed inbound service, API and
+[Reactive interfaces](REACTIVE.md) for the qualified inbound service, API and
 live-view contracts, separate from connector attempts.
 
 | Term | Meaning |
@@ -270,16 +275,16 @@ Arrivals and departures are presentation terms mapped to mailbox admissions,
 committed outputs, and effect stages. They do not change those stages' guarantees.
 See [Board](BOARD.md) for the visual language and evidence rules.
 
-## Declarative application interfaces (proposed)
+## Declarative application interfaces
 
 | Term | Meaning |
 | --- | --- |
-| Interface definition | Proposed M23 typed composition of screens, public bindings, actions and theme references, authored through equivalent SQL/visual/API surfaces. It grants no authority. |
+| Interface definition | M23 typed composition of screens, public bindings, actions and theme references within its selected declaration grammar and publication profile. General SQL/visual equivalence remains design direction. It grants no authority. |
 | Interface revision | An immutable validated definition with explicit component/contract compatibility; conditional publication selects the active revision without atomically changing unrelated resources. |
 | Interface binding | A declared connection from presentation to an exact public inspection projection, finite query or command target, with schema, capability and budget requirements. Distinct from a service or runtime binding. |
-| Application migration | A proposed immutable plan between application revisions, with conditional public operations, bounded progress and recoverable step receipts. Not an implicit cross-resource transaction or authority restore. |
+| Application migration | A versioned data-owner plan between application revisions, with conditional public operations, bounded progress and recoverable step receipts in the selected M23 profile. Not an implicit cross-resource transaction or authority restore. |
 
-[Reactive applications](REACTIVE_APPLICATIONS.md) owns this proposed M23 model;
+[Reactive applications](REACTIVE_APPLICATIONS.md) owns this M23 model and its broader design;
 [Board grammar](design/board-grammar/README.md) owns its interface review.
 
 ## Operational observability
@@ -306,7 +311,7 @@ package; Board owns its service instrumentation separately. The neutral
 | Package | A source/dependency boundary in the monorepo with its own build definition. A Zig package may expose modules, executable artifacts, or both. |
 | Library/module | Reusable Zig code imported by consumers. Transit and Station will expose libraries; packaging a static/shared artifact is a separate consumer need. |
 | Language binding | Generated declarations/codecs and a thin host-runtime adapter over the shared client/framework implementation; M9 targets the languages in [Client](CLIENT.md#m9-language-targets) |
-| Language SDK | A language-native public API over shared bindings, with typed operations, errors, handler/runtime integration and packaging; planned in [M11](roadmap/M11.md), sharing Zig protocol semantics |
+| Language SDK | A language-native public API over shared bindings, with typed operations, errors, handler/runtime integration and packaging; implemented in [M11](roadmap/M11.md), sharing Zig protocol semantics |
 | Handler runner | SDK integration that dispatches local handlers and drives the shared Station turn machine; temporary worker machinery, not durable process identity or execution authority |
 | C ABI | The versioned native call boundary implemented for client/Station bindings, with opaque handles and explicit ownership; distinct from the signed network protocol and Arrow's data interfaces |
 | Example application | A complete runnable caller demonstrating the public client. `example-counter` and `example-byte-log` are examples; neither is required Transit infrastructure. |

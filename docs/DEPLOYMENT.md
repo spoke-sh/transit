@@ -1,5 +1,10 @@
 # Deployment and runtime boundary
 
+Start with the [local quickstart](guides/quickstart.md) for a single-user
+installation, [launchers](../launchers/README.md) for development topologies, or
+the [reference runbook](../deploy/reference/README.md) for Kubernetes/Substrate.
+This page explains what physical recovery can and cannot authorize.
+
 Status: Kubernetes with Agent Substrate is the selected reference architecture
 and recommended execution target. The bounded M1 runtime is implemented; broader
 portability remains planned. Use the [reference runbook](../deploy/reference/README.md)

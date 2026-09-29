@@ -1,5 +1,10 @@
 # Serving — inbound protocols over Transit services
 
+Use serving to expose application commands and reads through a published service
+binding. Start with [OpenAPI](reference/openapi.md) and the
+[runnable example](../examples/serving/README.md). This page explains how inbound
+requests preserve application identity, admission and response evidence.
+
 Status: [M19](roadmap/M19.md) initial HTTP profile is qualified. The shared bounded
 [HTTP listener](../packages/zig/transit-http-server/README.md), Board migration and
 [service profile](../contracts/SERVING_V1.md) pass their separately recorded

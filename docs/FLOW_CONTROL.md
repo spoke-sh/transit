@@ -1,5 +1,10 @@
 # Flow control
 
+Use explicit application credit when a producer can outpace durable acceptance.
+The [query delivery contract](../contracts/STATION_QUERY_V2.md#flow-control) is
+the implemented example. Socket backpressure alone does not prove a receiver
+has durably stored application work.
+
 Status: one concrete instance is implemented —
 [growing result delivery](../contracts/STATION_QUERY_V2.md#flow-control),
 checked abstractly by [`Delivery.tla`](../tests/verification/models/Delivery.tla)

@@ -3455,3 +3455,39 @@ grants and unlimited retained history. It does not qualify per-user login,
 browser query/operator credentials, history import, an in-place older-runtime
 upgrade, power loss or broader platforms. New tasks remain separately selectable;
 no expanded hosted CI budget is claimed.
+
+## M26 documentation handbook
+
+`just transit-docs::check` checks the real Docusaurus package: Vite+ formatting
+and lint, strict TypeScript, four source/reference tests and production static
+rendering with broken links/anchors treated as errors. The catalog includes all
+31 foundational Markdown files, alongside task guides, public interface references
+and selected owning component/wire guides. API pages render operations, nested
+fields, union alternatives and bounds from the checked Board/serving OpenAPI and
+reactive AsyncAPI; downloaded descriptions retain their original bytes.
+
+`just transit-docs::browser` builds and serves the actual output with Chromium.
+Three checks cover desktop navigation/search/API anchors, exact downloads,
+mobile menu and overflow, light/dark accessibility, and every published Mermaid
+diagram. `TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser` runs the same
+proof below a path prefix. Screenshots and failures stay in
+`.cache/verification/docs-browser`; the server belongs to that proof and starts
+no Transit processes. Accessibility checks exercise selected pages; they are not
+a manual audit of every document or an all-browser compatibility claim.
+
+The local quickstart and first-application commands were also executed from the
+published Markdown blocks: the pinned Nix bundle initialized a fresh version-2
+installation, a console query returned uint64 count zero after verified completion,
+and the independently compiled work-item worker installed and committed one row.
+After graceful server stop and ordinary restart without `--initialize`, the same
+query was resumed and the application row remained visible. The temporary server
+was stopped; no existing launcher installation was modified. These are onboarding
+checks, not new runtime/failure qualification or public release evidence.
+
+`just check`, `just doctor` and `just test::reactive-descriptions` pass locally.
+The latter validates the existing generated descriptions against pinned official
+schemas and checks reflected-type drift. The experience lane owns the site check
+on ordinary runs. Documentation-only PRs run that same check in the small `docs`
+Nix shell; the aggregate CI gate rejects a skipped/failed selected job. Hosted
+feedback/cost for this addition remains unmeasured. No site was published and
+this work does not constitute a full ordinary `ci-clean` run.

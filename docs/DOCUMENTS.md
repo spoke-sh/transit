@@ -1,5 +1,10 @@
 # Documents and collaborative text
 
+Use Documents for accepted structured changes and collaborative text. Begin with
+the [Document service guide](../packages/zig/transit-station-document/docs/service.md)
+and query accepted projections through [unified SQL](reference/sql.md). Speculative
+edits and accepted revisions remain different states.
+
 Status: M17's declared growing profile is implemented and qualified: durable
 merge/checkpoint recovery, all ten installed SDKs, two independent editors,
 Board metadata and local/Compose/reference placement pass. [M14](roadmap/M14.md) supplies bounded immutable publication over

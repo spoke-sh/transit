@@ -1,5 +1,10 @@
 # Reactive APIs — SSE, WebSocket and described contracts
 
+Use this API to host resumable Table notifications over fetch-SSE or WebSocket.
+The [OpenAPI reference](reference/openapi.md) describes HTTP operations;
+[AsyncAPI](reference/asyncapi.md) describes channels and messages. This page
+explains their shared durable sessions, subscriptions and lifetime rules.
+
 Status: [M20](roadmap/M20.md) implements the opt-in int64 Table profile over [M19 serving](SERVING.md).
 The [v1 contract](../contracts/REACTIVE_V1.md) and [example guide](../examples/serving/docs/reactive.md)
 record the implemented int64 Table/SSE/WebSocket profile and its

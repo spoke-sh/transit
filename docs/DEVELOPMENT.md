@@ -1,5 +1,9 @@
 # Development
 
+This guide is for contributors building and checking the repository. Application
+users can start with [Run Transit locally](guides/quickstart.md); documentation
+contributors use the [site guide](../apps/transit-docs/README.md).
+
 Install Nix with flakes and `nix-command`, then work from the repository root:
 
 ```sh
@@ -34,6 +38,13 @@ port and browser origin, including remote LAN development. See the
 [configuration guide](../launchers/README.md#local-development-configuration).
 Protocol v2 requires a fresh development realm; automatic migration of v1
 histories and signatures is not implemented.
+
+## Documentation site
+
+Run `just transit-docs::dev` for the user handbook. `just transit-docs::check`
+validates strict types, generated API rendering and a production build with
+broken-link checks; `just check` includes it. Edit the owning Markdown, not a
+copy in the frontend. See the [site guide](../apps/transit-docs/README.md).
 
 ## Guides by responsibility
 

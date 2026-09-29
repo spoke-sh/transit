@@ -1,5 +1,10 @@
 # Station — framework and behaviors
 
+Use Station to implement sequential handlers, durable calls, state access and
+supervision above Transit. Start with the [application walkthrough](guides/applications.md)
+or a [language SDK](reference/sdks.md). Station conveniences preserve the same
+current grants and turn commit boundary as a raw caller.
+
 Status: the [Station package](../packages/zig/transit-station/README.md) implements
 the bounded M9 profile: GenServer turns, associated state, durable calls, typed
 Tables, captured Arrow replies, scoped registries, timed waits, supervision and
@@ -29,7 +34,7 @@ The `transit-station` Zig library uses `transit-client` and the public protocol,
 without importing the kernel implementation. It exposes behaviors and
 composition helpers. Connector libraries and worker executables build on it;
 Station itself stays independent of the selected transport and deployment
-provider. Its artifacts use the `transit-station*` family, including the planned
+provider. Its artifacts use the `transit-station*` family, including the
 `transit-station-http` connector and worker executables. Station remains the
 framework's name in prose. See the [monorepo decomposition](ARCHITECTURE.md#planned-monorepo-decomposition).
 
@@ -151,8 +156,9 @@ stream-driven materialization, and transaction limits for M9. Application
 serializers, predicates and compute kernels run in callers, outside the node.
 
 A Table identifies a schema and keyspace within an associated resource. The
-proposed API offers typed insert/update/upsert/delete, get/scan, and a bounded
-query plan. Requests to another writer travel through its PID's mailbox;
+Table API offers typed mutations, reads/scans and bounded query plans; the
+[package guide](../packages/zig/transit-station/docs/tables.md) defines the exact
+implemented method set. Requests to another writer travel through its PID's mailbox;
 local operations contribute to the current handler's proposal. The first query
 surface uses versioned structured operations. [M12](roadmap/M12.md) implements
 the bounded read-only Table SQL frontend; M13 exposes it publicly. M18 extends
@@ -160,8 +166,8 @@ source contracts, and [M22](roadmap/M22.md) adds Flight SQL transport over that
 same compiler and capability matrix.
 
 Tabular results use Apache Arrow: bounded record batches in memory and Arrow IPC
-for cross-process exchange. Plan to build on `zarrow` and `zarrow-compute` after
-compiler, ownership and interoperability qualification. The Table design separates
+for cross-process exchange. The implementation uses pinned `zarrow` and `zarrow-compute` integrations with
+separate compiler, ownership and interoperability qualification. The Table design separates
 an Arrow batch stream from a durable Transit stream: Arrow supplies representation
 and compute building blocks; Station supplies ordering, recovery, result framing,
 retention and transactional visibility.

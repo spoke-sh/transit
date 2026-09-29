@@ -1,5 +1,10 @@
 # Reactive interfaces — notifications and exact snapshots
 
+Use a live-view client when an interface must show changes while preserving
+exact snapshot evidence. Start with the [TypeScript client](../packages/ts/transit-reactive-client/README.md)
+and [reactive example](../examples/serving/docs/reactive.md). An invalidation
+schedules a refresh; it is not itself the refreshed result.
+
 Status: implemented bounded [M21](roadmap/M21.md) consumer of
 [M20 reactive APIs](REACTIVE_API.md) over [M19 serving](SERVING.md).
 The selected scope is live views with resumable change notifications and snapshot
@@ -114,7 +119,7 @@ portable durable cursors also require the qualified shared signing identity.
 
 ## Transport and API consumption
 
-SSE is the initial proposed UI notification binding; ordinary HTTP carries
+SSE is the initial implemented UI notification binding; ordinary HTTP carries
 commands, status and reads. M20 also qualifies a bidirectional WebSocket binding
 for application API consumers. Both share message meaning, scope and recovery.
 Use the published capabilities and client implementation; protocol framing,

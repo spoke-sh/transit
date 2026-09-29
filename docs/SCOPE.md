@@ -1,21 +1,18 @@
 # Scope
 
-Status: kernel direction and deployment reference established. The bounded
-[M1 profile](../contracts/TRANSIT_V2.md) is implemented, with evidence in the
-[roadmap](roadmap/README.md). [Board M2](roadmap/M2.md) is implemented and qualified
-for bounded inspection. The [M7 KV profile](roadmap/M7.md) and
-[M8 runtime readiness](roadmap/M8.md) are also implemented and qualified.
-[M9](roadmap/M9.md) adds Station and the first bounded Fuze Table profile.
-[M10](roadmap/M10.md) qualifies growing state and measured verification budgets;
-[M11](roadmap/M11.md) supplies the language SDKs. [M12](roadmap/M12.md) through
-[M14](roadmap/M14.md) add SQL, public queries and immutable publication.
-[HTTP M15](roadmap/M15.md), [RPC M16](roadmap/M16.md) and
-[Documents M17](roadmap/M17.md) are qualified within their declared profiles.
-[Unified querying M18](roadmap/M18.md) implements the shared state-query model;
-its proof ledger qualifies native source/lifecycle coverage and Table physical recovery.
-[Serving M19](roadmap/M19.md) qualifies the initial signed HTTP service, shared
-Board listener and separate native/Compose/Substrate recovery profiles. Broader deployment,
-transport and application outcomes below remain design direction.
+Use this page to decide whether Transit fits your application and to distinguish
+implemented profiles from target architecture. New users can start with
+[What is Transit?](guides/introduction.md) and the [interface matrix](guides/choose-interface.md).
+
+Status: implemented experimental profiles extend through [M25](roadmap/M25.md):
+growing process/state access, Station and language SDKs, SQL and unified queries,
+immutable publication, HTTP/gRPC connectors, Documents, serving/reactive APIs,
+finite Flight SQL, declarative interfaces and local application installation.
+The [roadmap](roadmap/README.md) records each profile; the
+[proof ledger](../tests/README.md) records tested combinations and limitations.
+Public release distribution and clustered portability remain upcoming work.
+Broader requirements below are design direction unless their owning contract and
+qualification establish support.
 
 ## Purpose
 

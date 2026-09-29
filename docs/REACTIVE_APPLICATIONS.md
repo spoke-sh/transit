@@ -1,5 +1,10 @@
 # Declarative reactive applications
 
+Use the qualified application declaration to bind presentation to public queries
+and commands. Begin with [Board application configuration](../apps/transit-board/docs/application.md)
+or the [separate application walkthrough](guides/applications.md). Declarative
+interface publication, worker replacement and data migration have separate identities.
+
 Status: [M23](roadmap/M23.md) selected profiles implemented and qualified, reviewed through
 [board-grammar D1](design/board-grammar/D1.md). The bounded application v1 compiler, conditional publication, declared Board
 shell, finite Table draft scheduler and data-owner migration ledger are

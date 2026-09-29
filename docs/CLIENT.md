@@ -1,5 +1,10 @@
 # Caller programming model
 
+Use the public client when your application needs to send messages, execute
+turns or recover an uncertain operation. Choose a [language SDK](reference/sdks.md)
+or follow the [separate application walkthrough](guides/applications.md). This
+page defines the semantics shared by those interfaces.
+
 Status: experimental v2 Zig client and [M7 state-resource API](roadmap/M7.md)
 implemented. [M9](roadmap/M9.md) adds the shared C ABI, generated signatures and
 exact-request export/import, with [binding evidence](../packages/zig/transit-client/docs/bindings.md).

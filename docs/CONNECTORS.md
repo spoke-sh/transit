@@ -1,7 +1,12 @@
 # Connectors and external exchanges
 
-Status: [HTTP M15](roadmap/M15.md) is the first connector, under implementation;
-[gRPC M16](roadmap/M16.md) is the second. The broad group, streaming and provider
+Use a connector for external HTTP or gRPC work whose intent and observed result
+must survive recovery. Start with the [HTTP worker](../apps/transit-station-http-worker/README.md)
+or [RPC connector](GRPC.md). Inbound application APIs instead use
+[serving](SERVING.md).
+
+Status: [HTTP M15](roadmap/M15.md) and [gRPC M16](roadmap/M16.md) are implemented
+and qualified within their finite profiles. The broad group, streaming and provider
 requirements below remain design intent outside the qualified finite HTTP profile. Transit has
 opaque intents, dispatch authorization, observations, and bounded closure in its
 [effect contract](../contracts/TRANSIT_V2.md#effect-intents-and-observations).
@@ -26,10 +31,11 @@ The finite Zig service also qualifies caller-requested retries, redirects, statu
 queries and cancellation with atomic child routing, frozen policy checks and
 recovery of revoked request reads. Ancestor evidence remains held until children
 settle or are explicitly abandoned before intent. All ten SDKs
-qualify typed followup submission and correlated policy refusal. Board and
-deployment qualification remain open; this does not complete M15.
+qualify typed followup submission and correlated policy refusal. Board inspection
+and local/Compose/reference recovery also pass the selected M15 profile;
+[the proof ledger](../tests/README.md) records their limits.
 
-The connector milestones will add [Board](BOARD.md) enrichment for exchanges and
+The connector profiles include [Board](BOARD.md) inspection of exchanges and
 attempts, respecting transcript permissions, secret omissions, retained-body
 gaps, and the distinction between authorization and observed remote outcomes.
 
@@ -41,8 +47,8 @@ bounded cleanup. Its 64 KiB proof includes real worker/node/store recovery and
 source-bound reads. [M15](roadmap/M15.md) is now the first consumer for external
 exchanges; Documents are scheduled separately in [M17](roadmap/M17.md).
 
-The following table is the target decomposition. The initial libraries above
-implement a subset; the remaining gates belong to M15/M16:
+The following table is the target decomposition. The libraries above
+implement the finite M15/M16 profiles; broader provider integrations remain future work:
 
 | Owner | Reusable responsibility | Remains outside it |
 | --- | --- | --- |
@@ -91,7 +97,7 @@ security and failure proofs run; M14 byte integrity is not that evidence.
 
 ## Transport, connector and integration
 
-Inbound server protocols belong to the proposed [serving layer](SERVING.md).
+Inbound server protocols belong to the separate [serving layer](SERVING.md).
 [M19](roadmap/M19.md) first qualifies HTTP application APIs and Board;
 [M22](roadmap/M22.md) reuses that foundation for Flight. A server accepts and
 authorizes external requests; a connector executes committed outbound intents.
@@ -128,7 +134,7 @@ proposed here.
 effect intent, with attempt identity, dispatch authorization, idempotency,
 retry/redirect handling, and a reconciliation policy distinguishing a
 confirmed outcome from closed-with-outcome-unknown. HTTP ([M15](roadmap/M15.md))
-and gRPC ([M16](roadmap/M16.md)) are the two planned connectors. FTP/SFTP/FTPS,
+and gRPC ([M16](roadmap/M16.md)) are the two implemented connectors. FTP/SFTP/FTPS,
 filesystem, S3, GCS and SSH effects fit the same shape — each has a natural
 per-operation attempt/outcome boundary (put, get, list, delete) — and belong
 here when they are built, reusing this document's attempt/reconciliation

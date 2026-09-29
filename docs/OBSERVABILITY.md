@@ -1,5 +1,10 @@
 # Observability
 
+Use logs, metrics, traces and probes to locate a stalled component, then inspect
+durable evidence before deciding whether an operation committed. Start with
+[node operations](../apps/transit-node/docs/operations.md) and
+[Board configuration](../apps/transit-board/docs/configuration.md).
+
 Status: [M4](roadmap/M4.md) implemented before Station.
 Board request logs and the bounded [telemetry primitives](../packages/zig/telemetry/README.md)
 are implemented across Board, Transit, storage, maintenance, runtime and callers.
