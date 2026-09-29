@@ -243,13 +243,15 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     assert '東京' not in serialized and 'UQP2' not in serialized
                     for seed in ('08', '09', '0a', '0b'): assert seed*32 not in serialized
                 after = None
+                position = None
                 while True:
-                    versions = invoke("versions", *([json.dumps(after)] if after else []), direct=True)
+                    versions = invoke("versions", *([json.dumps(after), str(position)] if after else []), direct=True)
                     assert all(version["released_at"] is not None for version in versions["entries"] if version)
                     if versions['next'] is None:
                         break
                     assert versions['next'] != after, 'read-version pagination did not advance'
                     after = versions['next']
+                    position = versions['position']
                 invoke('retire-source', direct=True)
                 for owner in (native, port_client, *callers):
                     try:
