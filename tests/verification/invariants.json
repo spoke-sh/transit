@@ -1149,7 +1149,7 @@
         "Independent console verifies empty Table COUNT through a gateway that preserves signed bodies/native denial and reserves control under stalled data",
         "Real ext4 ENOSPC after accepted query; bounded control/shutdown and exact query recovery after space is released; full log prefixes keep draining"
       ],
-      "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M27 owns neighborhood upgrade transitions.",
+      "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M28 owns neighborhood upgrade transitions.",
       "model": null
     },
     {
@@ -1178,7 +1178,36 @@
         "Current worker/installer/resource revocation rejects; old worker signatures fail; malformed, denied and over-quota management is bounded",
         "Accepted input survives real owned-volume ENOSPC and resumes with its original receipt, PID and resource"
       ],
-      "limits": "Per-declaration 8 roles/16 resources/8 callers, configurable active-app/role quotas, 64 KiB public values and 256 KiB per-app checkpoints, eight-receipt pages; retained disk history is unlimited. Trusted same-UID Linux placement, not a sandbox or distributed authority protocol. Only Zig hosts are qualified; native configuration/provider upgrades remain M27.",
+      "limits": "Per-declaration 8 roles/16 resources/8 callers, configurable active-app/role quotas, 64 KiB public values and 256 KiB per-app checkpoints, eight-receipt pages; retained disk history is unlimited. Trusted same-UID Linux placement, not a sandbox or distributed authority protocol. Only Zig hosts are qualified; native configuration/provider upgrades remain M28.",
+      "model": null
+    },
+    {
+      "id": "CLI-04",
+      "claim": "Default Board is a supervised inspection-only view whose retained grants and exact provisioning survive UI toggles and failures",
+      "owner": "contracts/TRANSIT_CLI_V1.md",
+      "implementation": [
+        "apps/transit-cli/server/Board.zig",
+        "apps/transit-cli/server/Installation.zig",
+        "apps/transit-cli/server/Applications.zig",
+        "packages/zig/transit-client/src/Application.zig",
+        "tests/server_board.py",
+        "tests/server_board_package.py"
+      ],
+      "profile": "M27 version-3 trusted local Linux neighborhood with default embedded Board and explicit application inspection",
+      "tasks": [
+        "test::unit",
+        "contract::check",
+        "test::server-board",
+        "test::server-board-package"
+      ],
+      "scenarios": [
+        "Both aliases default to authorized embedded Board; headless initialization and repeated UI toggles preserve realm, identity and history",
+        "Versioned application scopes filter resources; replacement preserves IDs and restart does not renew revoked resource/principal grants",
+        "Lost principal creation and application resource-grant replies recover exact requests and receipts after manager death",
+        "Port conflicts, missing/changed/incompatible artifacts, node/store/Board loss and signals have bounded outcomes and joined children",
+        "Nix manifest consumer starts the embedded frontend with unavailable PATH and no runtime frontend tools"
+      ],
+      "limits": "Loopback only; realm-wide process metadata and explicit per-resource grants, no per-viewer authentication, browser query/operator credentials or in-place upgrades of older pinned neighborhoods. Nine fixed native roles plus explicit application quotas; one bounded atlas startup probe, three restarts and retained receipts. No hosted CI budget expansion.",
       "model": null
     }
   ]

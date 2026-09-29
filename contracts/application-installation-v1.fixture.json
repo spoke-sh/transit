@@ -1,4 +1,102 @@
 {
+  "inspection": {
+    "version": 2,
+    "application": "items",
+    "roles": [
+      {
+        "name": "data",
+        "contract": "items-v1",
+        "artifact": {
+          "path": "/worker",
+          "sha256": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        "configuration": "{}",
+        "accesses": [],
+        "depends_on": []
+      }
+    ],
+    "resources": [
+      {
+        "name": "data",
+        "writer": "data"
+      }
+    ],
+    "callers": [],
+    "initialize": [],
+    "inspection": [
+      {
+        "resource": "data",
+        "permissions": 3
+      }
+    ]
+  },
+  "inspection_digest": [
+    116,
+    107,
+    75,
+    193,
+    159,
+    1,
+    26,
+    125,
+    12,
+    234,
+    100,
+    117,
+    181,
+    30,
+    60,
+    68,
+    177,
+    193,
+    229,
+    204,
+    238,
+    86,
+    35,
+    92,
+    201,
+    96,
+    210,
+    250,
+    72,
+    65,
+    177,
+    158
+  ],
   "signed": {
     "request": {
       "version": 1,

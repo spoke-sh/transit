@@ -355,7 +355,7 @@ gaps require resynchronization and quota pressure cannot delete accepted evidenc
 [M21 reactive interfaces](REACTIVE.md) separately bounds refresh work and view
 attachment; closing a view cannot erase retained results or accepted commands.
 M22 distinguishes [Flight handles and retained results](ARROW.md#identity-lifetime-and-failure)
-from transport timeouts. M28 extends the proofs to distributed consumers and
+from transport timeouts. M29 extends the proofs to distributed consumers and
 broader recovery operations. See [roadmap](roadmap/README.md).
 
 ## Working catalog reclamation

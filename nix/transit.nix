@@ -5,6 +5,12 @@
   fetchurl,
   autoPatchelfHook,
   zig,
+  stdenvNoCC,
+  fetchPnpmDeps,
+  pnpm,
+  python3,
+  zstd,
+  vite-plus,
 }:
 let
   # Seed Zig's package directory from fixed-output downloads. The build itself
@@ -47,10 +53,6 @@ let
       ''
     ) dependencies}
   '';
-in
-stdenv.mkDerivation {
-  pname = "transit";
-  version = "0.1.0";
   src = lib.fileset.toSource {
     root = ../.;
     fileset = lib.fileset.unions [
@@ -62,8 +64,53 @@ stdenv.mkDerivation {
       ../tests
       ../examples
       ../tasks
+      ../contracts
+      ../package.json
+      ../pnpm-lock.yaml
+      ../pnpm-workspace.yaml
     ];
   };
+  # Match package.json exactly so Vite+ never bootstraps a package manager in
+  # the network-isolated asset build. This does not change the developer shell.
+  frontendPnpm = pnpm.override {
+    version = "10.32.1";
+    hash = "sha256-m5Q7lLyPVe+5k6rY5EtTjmsJHmCp5KlE3N6GmFXyM+M=";
+  };
+  frontendVp = vite-plus.override { pnpm = frontendPnpm; };
+  frontendDeps = fetchPnpmDeps {
+    pnpm = frontendPnpm;
+    pname = "transit-board";
+    version = "0.1.0";
+    inherit src;
+    fetcherVersion = 3;
+    hash = "sha256-SIPo1z9uYY2IG9v4VXhuZO9ACIummcHtXAnu/uOWIdo=";
+  };
+  boardAssets = stdenvNoCC.mkDerivation {
+    pname = "transit-board-assets";
+    version = "0.1.0";
+    inherit src;
+    nativeBuildInputs = [
+      python3
+      zstd
+      frontendVp
+    ];
+    configurePhase = ''
+      export VP_HOME="$TMPDIR/vite-plus"
+      mkdir -p "$TMPDIR/pnpm-store"
+      tar --zstd -xf ${frontendDeps}/pnpm-store.tar.zst -C "$TMPDIR/pnpm-store"
+      chmod -R u+w "$TMPDIR/pnpm-store"
+      vp install --offline --frozen-lockfile --ignore-scripts -- --store-dir "$TMPDIR/pnpm-store"
+    '';
+    buildPhase = ''
+      python3 -B tasks/embed_web.py "$out/assets.zig" apps/transit-board-web contracts/transit-board-v1.openapi.json
+    '';
+    dontInstall = true;
+  };
+in
+stdenv.mkDerivation {
+  pname = "transit";
+  version = "0.1.0";
+  inherit src;
   nativeBuildInputs = [ zig ] ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ];
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [ stdenv.cc.libc ];
   configurePhase = ''
@@ -73,7 +120,7 @@ stdenv.mkDerivation {
   '';
   buildPhase = ''
     runHook preBuild
-    zig build transit transit-node transit-query-host --system ${zigDependencies} -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
+    zig build transit transit-node transit-query-host transit-board -Dboard-assets=${boardAssets}/assets.zig --system ${zigDependencies} -Doptimize=ReleaseSafe -Dcpu=baseline -j$NIX_BUILD_CORES --prefix "$out"
     runHook postBuild
   '';
   doInstallCheck = true;
@@ -86,7 +133,7 @@ stdenv.mkDerivation {
     runHook postInstallCheck
   '';
   dontInstall = true;
-  passthru = { inherit zigDependencies; };
+  passthru = { inherit zigDependencies boardAssets frontendDeps; };
   meta = {
     description = "Transit CLI and matching native runtime artifacts";
     mainProgram = "transit";

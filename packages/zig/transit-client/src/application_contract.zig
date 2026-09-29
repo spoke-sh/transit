@@ -8,7 +8,8 @@ pub fn main(init: std.process.Init) !void {
     if (args.len == 2 and std.mem.eql(u8, args[1], "--fixture")) {
         const key = try client.protocol.Ed25519.KeyPair.generateDeterministic(@splat(7));
         const request: client.Application.Request = .{ .installation = @splat(1), .realm = 42, .principal = 9, .operation = "status-1", .command = .{ .status = .{ .application = "items" } } };
-        try client.protocol.Json.write(.{ .signed = try client.Application.sign(init.arena.allocator(), request, key), .digest = try client.Application.digest(init.arena.allocator(), request) }, &out);
+        const inspection: client.Application.Declaration = .{ .version = 2, .application = "items", .roles = &.{.{ .name = "data", .contract = "items-v1", .artifact = .{ .path = "/worker", .sha256 = @splat(1) }, .accesses = &.{} }}, .resources = &.{.{ .name = "data", .writer = "data" }}, .callers = &.{}, .inspection = &.{.{ .resource = "data", .permissions = 3 }} };
+        try client.protocol.Json.write(.{ .inspection = inspection, .inspection_digest = try client.Application.digest(init.arena.allocator(), inspection), .signed = try client.Application.sign(init.arena.allocator(), request, key), .digest = try client.Application.digest(init.arena.allocator(), request) }, &out);
         try writer.interface.writeByte('\n');
         return writer.interface.flush();
     }

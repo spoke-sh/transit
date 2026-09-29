@@ -181,7 +181,9 @@
       "test::server",
       "test::server-faults",
       "test::server-applications",
-      "test::server-application-faults"
+      "test::server-application-faults",
+      "test::server-board",
+      "test::server-board-package"
     ]
   },
   "nested_tasks": {

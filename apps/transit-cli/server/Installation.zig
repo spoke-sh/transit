@@ -11,6 +11,7 @@ pub const requester = 21;
 pub const courier = 22;
 pub const maintenance = 23;
 pub const installer = 24;
+pub const board = 25;
 pub const read_permissions = p.State.permission(.inspect) | p.State.permission(.read);
 pub const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 128, .result_bytes = 1048576 };
 pub const Record = struct {
@@ -26,8 +27,9 @@ pub const Record = struct {
     registration: ?q.wire.bootstrap.GrowingRegistration = null,
     pending: ?Pending = null,
     installer_receipt: ?u64 = null,
+    board_receipts: [3]?u64 = @splat(null),
 };
-const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer }, index: u8 };
+const Pending = struct { signed: g.SignedRequest, effect: enum { provision, initialize, activation, installer, board }, index: u8 };
 const Self = @This();
 init: std.process.Init,
 config: Config,
@@ -64,6 +66,7 @@ pub fn flush(self: *Self) !void {
         .initialize => self.record.initialized[pending.index] = true,
         .activation => {},
         .installer => self.record.installer_receipt = receipt.position,
+        .board => self.record.board_receipts[pending.index] = receipt.position,
     }
     self.record.position = @max(self.record.position, receipt.position);
     self.record.pending = null;
@@ -117,6 +120,23 @@ pub fn provision(self: *Self) !void {
         try self.submit(0, .{ .create_principal = .{ .subject = installer, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.admin) } }, .installer, 0);
     }
 }
+/// Completed grants are never reissued on restart, including after revocation.
+pub fn provisionBoard(self: *Self) !void {
+    try self.flush();
+    for (self.record.board_receipts, 0..) |receipt, i| {
+        if (receipt != null) continue;
+        if (@import("../Signals.zig").interrupted()) return error.ServerStopped;
+        var key = try q.wire.readKey(self.init.gpa, self.init.io, try self.path("board.seed"));
+        defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
+        const c = self.connection();
+        const command: g.Command = switch (i) {
+            0 => .{ .create_principal = .{ .subject = board, .public_key = key.public_key.toBytes(), .permissions = p.permission(.inspect) } },
+            1, 2 => .{ .grant_resource = .{ .subject = board, .resource = if (i == 1) c.resource else c.requests, .permissions = read_permissions } },
+            else => unreachable,
+        };
+        try self.submit(0, command, .board, @intCast(i));
+    }
+}
 pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration) !void {
     // The child owns the private key. Record its public registration before
     // granting anything, and resolve old frozen operations before calling here.
@@ -152,7 +172,7 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
         if (std.mem.eql(u8, name, "wal") or std.mem.eql(u8, name, "cold")) try Files.write(init.io, try std.fs.path.join(allocator, &.{ temporary, name, "transit-installation" }), &std.fmt.bytesToHex(random, .lower));
     }
     var root_public: [32]u8 = undefined;
-    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "cold", "installer" }) |name| {
+    for ([_][]const u8{ "root", "caller", "courier", "maintenance", "cold", "installer", "board" }) |name| {
         var seed: [32]u8 = undefined;
         defer std.crypto.secureZero(u8, &seed);
         try init.io.randomSecure(&seed);

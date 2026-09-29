@@ -24,15 +24,34 @@ pub const Read = struct { resource: []const u8, permissions: u8 = read_permissio
 pub const Caller = struct { name: []const u8, send_to: ?[]const u8 = null, reads: []const Read = &.{} };
 pub const Initialize = struct { role: []const u8, caller: []const u8, value: p.Value };
 pub const Declaration = struct {
-    pub const json_schema_fields = .{ .version = .{ .@"const" = 1 } };
+    pub const json_schema_fields = .{ .version = .{ .type = "integer", .minimum = 1, .maximum = 2 } };
     version: u32 = 1,
     application: []const u8,
     roles: []const Role,
     resources: []const Resource,
     callers: []const Caller,
     initialize: []const Initialize = &.{},
+    inspection: []const Read = &.{},
+    /// Preserve the original v1 signed representation and retained digest.
+    /// Explicit inspection declarations select v2; omitted v1 defaults stay v1.
+    pub fn jsonStringify(self: Declaration, out: *std.json.Stringify) std.Io.Writer.Error!void {
+        try out.beginObject();
+        inline for (@typeInfo(Declaration).@"struct".field_names) |field| {
+            if (comptime std.mem.eql(u8, field, "inspection")) {
+                if (self.version == 2) {
+                    try out.objectField(field);
+                    try p.Json.write(self.inspection, out);
+                }
+            } else {
+                try out.objectField(field);
+                try p.Json.write(@field(self, field), out);
+            }
+        }
+        try out.endObject();
+    }
     pub fn validate(self: Declaration) !void {
-        if (self.version != 1) return error.UnsupportedApplicationVersion;
+        if (self.version != 1 and self.version != 2) return error.UnsupportedApplicationVersion;
+        if (self.version == 1 and self.inspection.len != 0) return error.UnsupportedApplicationVersion;
         try name(self.application);
         if (self.roles.len == 0 or self.roles.len > max_roles or self.resources.len > max_resources or self.callers.len > max_callers or self.initialize.len > 16) return error.ApplicationLimit;
         try unique(self.roles);
@@ -74,6 +93,12 @@ pub const Declaration = struct {
                     if (!associated) return error.InvalidApplicationGrant;
                 }
             }
+        }
+        if (self.inspection.len > max_resources) return error.ApplicationLimit;
+        for (self.inspection, 0..) |read, i| {
+            _ = index(Resource, self.resources, read.resource) orelse return error.UnknownApplicationResource;
+            if (read.permissions == 0 or read.permissions & ~read_permissions != 0) return error.InvalidApplicationGrant;
+            for (self.inspection[0..i]) |previous| if (std.mem.eql(u8, previous.resource, read.resource)) return error.InvalidApplicationGrant;
         }
         for (self.initialize) |initial| {
             _ = index(Role, self.roles, initial.role) orelse return error.UnknownApplicationRole;
@@ -407,4 +432,21 @@ test "public results reject duplicate bindings and non-advancing receipt cursors
     try status.validate(0);
     status.next = 0;
     try std.testing.expectError(error.InvalidApplicationResponse, status.validate(0));
+}
+
+test "inspection requires v2, explicit read scopes and stable v1 signatures" {
+    const allocator = std.testing.allocator;
+    var declaration: Declaration = .{ .application = "items", .roles = &.{.{ .name = "data", .contract = "items-v1", .artifact = .{ .path = "/worker", .sha256 = @splat(1) }, .accesses = &.{} }}, .resources = &.{.{ .name = "data", .writer = "data" }}, .callers = &.{} };
+    const legacy = .{ .version = declaration.version, .application = declaration.application, .roles = declaration.roles, .resources = declaration.resources, .callers = declaration.callers, .initialize = declaration.initialize };
+    try std.testing.expectEqual(try digest(allocator, legacy), try digest(allocator, declaration));
+    declaration.inspection = &.{.{ .resource = "data", .permissions = 3 }};
+    try std.testing.expectError(error.UnsupportedApplicationVersion, declaration.validate());
+    declaration.version = 2;
+    try declaration.validate();
+    declaration.inspection = &.{.{ .resource = "data", .permissions = 7 }};
+    try std.testing.expectError(error.InvalidApplicationGrant, declaration.validate());
+    declaration.inspection = &.{.{ .resource = "hidden", .permissions = 1 }};
+    try std.testing.expectError(error.UnknownApplicationResource, declaration.validate());
+    declaration.inspection = &.{ .{ .resource = "data", .permissions = 1 }, .{ .resource = "data", .permissions = 3 } };
+    try std.testing.expectError(error.InvalidApplicationGrant, declaration.validate());
 }

@@ -424,3 +424,14 @@ server-application-capacity:
     zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe
     cd examples/work-items && zig build -Doptimize=ReleaseSafe
     nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/server_capacity.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+
+# Default embedded Board, retained inspection grants and local UI recovery.
+server-board:
+    zig build transit transit-node transit-query-host transit-board -Doptimize=ReleaseSafe
+    cd examples/work-items && zig build -Doptimize=ReleaseSafe
+    python3 -B tests/server_board.py zig-out/bin/transit zig-out/bin/transit-node zig-out/bin/transit-query-host zig-out/bin/transit-board examples/work-items/zig-out/bin/transit-work-items examples/work-items/zig-out/bin/work-items
+
+# Downstream-consumable closure and manifest, with no source-runtime dependencies.
+server-board-package:
+    nix build .#transit-local --out-link .cache/transit-board-package
+    python3 -B tests/server_board_package.py .cache/transit-board-package

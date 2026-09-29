@@ -6,7 +6,8 @@ supply the CLI and pinned native neighborhood artifacts.
 
 `transit server --config server.json --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
-`--initialize`. The Linux `local_table_v1` bootstrap, independent console and
+`--initialize`. Version 3 runs embedded Board by default; add `--no-ui` to
+either command name for a headless invocation. The Linux `local_table_v1` bootstrap, independent console and
 process-recovery, interrupted bootstrap, gateway pressure and physical ENOSPC
 proofs pass. Completed evidence belongs in the
 [test guide](../../../tests/README.md). It is a trusted single-user placement,
@@ -16,7 +17,7 @@ with Kubernetes/Substrate remaining the reference isolation profile.
 
 ```json
 {
-  "version": 1,
+  "version": 3,
   "installation": "./local-transit",
   "realm": 73,
   "gateway_allowed_hosts": [],
@@ -33,16 +34,25 @@ with Kubernetes/Substrate remaining the reference isolation profile.
     "minio": "/absolute/path/to/minio",
     "ursula": "/absolute/path/to/ursula",
     "node": "/absolute/path/to/transit-node",
-    "query_host": "/absolute/path/to/transit-query-host"
+    "query_host": "/absolute/path/to/transit-query-host",
+    "board": "/absolute/path/to/transit-board"
   }
 }
 ```
 
 JSON rejects unknown fields and incompatible versions. Paths resolve against
 the explicit configuration file; ports must be distinct and above 1023. All
-listeners bind `127.0.0.1`. The parent of `installation` must exist. Board,
-connectors, remote listeners and alternate source definitions are unsupported
-in this profile and cannot be enabled by adding unchecked fields.
+listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
+remote listeners and alternate source definitions remain unsupported.
+
+Version 3 requires `executables.board`. Optional `board` settings default to
+`{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for
+multiple installations; omit the origin to derive it from that port, or specify
+the exact matching loopback origin. Other origins reject in this local profile.
+Board retains its exact Host/Origin checks. All configured ports, including
+optional application management, must be distinct. Startup checks occupied
+listeners before effects; `--no-ui` skips only Board's listener preflight.
+Version 3 accepts the same optional `applications` quotas as version 2.
 
 The native admission ceiling defaults to 65,536 journal positions, with 4,096
 additional control positions. The selected profile accepts ceilings from 128
@@ -52,10 +62,10 @@ cannot reopen exhausted admission. Physical disk headroom must be provisioned
 separately; Ursula stops admitting writes below 64 MiB free and resumes above
 128 MiB. Neither physical pressure nor reserve exhaustion authorizes data loss.
 
-The selected dependency set is the matching Transit CLI/node/query-host build,
+The selected dependency set is the matching Transit CLI/node/query-host/Board build,
 pinned Ursula 0.5.1 and MinIO RELEASE.2025-09-07T16-13-09Z. The proof extracts the
 native MinIO binary from its pinned fixture image. Docker is proof setup, not a
-server runtime dependency. M27 owns distributing and verifying that complete
+server runtime dependency. M28 owns distributing and verifying that complete
 artifact set, including upstream licenses. The server hashes every configured
 executable and itself with bounded streaming reads before provisioning; ordinary
 startup requires the same hashes and normalized configuration. It currently
@@ -68,11 +78,14 @@ certificate directory, without inheriting the operator's home or credentials.
 Its browser is disabled; the separate cold-console port remains reserved.
 
 When the complete neighborhood is ready, stdout emits one JSON record naming
-`console_config`, `gateway_url` and the effective `allowed_hosts`. For example,
+`console_config`, optional `management_config`, `gateway_url`, the effective
+`allowed_hosts`, `board_url` and `ui`. For example,
 port 19105 reports `gateway_url: "http://127.0.0.1:19105"` and
 `allowed_hosts: ["127.0.0.1:19105", "localhost:19105"]`. The URL is the native
-protocol gateway; use `/health` for a readiness check. Open an independent
-terminal with:
+protocol gateway; use `/health` for a readiness check.
+`ui` is `"ready"` only after authorized Board atlas inspection; headless
+invocations report `"disabled"` and `board_url: null`. Recovery emits a fresh
+ready record after the replacement neighborhood passes its checks. Open an independent terminal with:
 
 ```sh
 transit console --config local-transit/console.json
@@ -180,13 +193,13 @@ a replacement cold bucket. Missing storage markers and an authority position
 below the recorded observation fail closed. Corruption, an unavailable provider
 or quota pressure never triggers deletion, expiry or a reset. This observed
 position is not a global latest-history oracle. Snapshot restore, distributed
-ownership and disaster recovery remain M28.
+ownership and disaster recovery remain M29.
 
 ## Roles, credentials and bounds
 
 | Role | Native authority / private inputs | Resident and work bounds |
 | --- | --- | --- |
-| Manager | Root key; provisioning and scoped caller key for initial casts | One 64 KiB installation record, one frozen request, eight children, 64 KiB streaming artifact hash buffer |
+| Manager | Root key; provisioning and scoped caller key for initial casts | One 64 KiB installation record, one frozen request, nine children, 64 KiB streaming artifact hash buffer |
 | MinIO | Local provider credential only | Two Go scheduler threads, 256 MiB Go soft heap target; independent provider, no Transit authority |
 | Ursula | Disk WAL and local cold credential | One Raft group, two cores, 8 MiB hot data and 8 MiB cold read cache; 8 MiB uncommitted Raft payload cap, 64 live-read waiters per core, 512 MiB RSS admission threshold |
 | Authority | Genesis public root key, raw storage location | Eight decoded authority pages, sequential requests, 256 KiB native body/reply contract, two-second HTTP deadline |
@@ -195,6 +208,7 @@ ownership and disaster recovery remain M28.
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
 | Gateway | No signing key or raw provider access | Eight sockets, four data requests plus two control requests; 8 KiB headers, 256 KiB body/reply; 500 ms header and four-second whole-request deadlines |
+| Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
 | Console | Realm-scoped inspect/send caller key and two specific resource read grants | Its separate [console bounds](console.md) and optional private recovery file |
 
 Each child has two independent 64 KiB in-memory log prefixes. After each prefix
@@ -215,3 +229,59 @@ roles share one OS user; this separation does not sandbox them from that user's
 other files. Remote TLS belongs to an explicitly qualified deployment boundary.
 
 Version 2 adds the [application manager](applications.md), a separate management listener and explicit active-app/role quotas. Version 1 retains the table-only neighborhood. Neither version permits an implicit pinned-neighborhood upgrade.
+
+
+## Default Board and compatibility
+
+Open the printed `board_url`. Every caller that can reach this loopback listener
+shares its inspection scope; there is no viewer login. Board cannot borrow the
+console or installer signing sequence. Query and operator workspaces remain
+separate opt-in contracts and are not enabled by this server profile.
+
+```sh
+transit server --config server.json --initialize
+# After stopping, resume headlessly, then enable Board again:
+transit serve --config server.json --no-ui
+transit serve --config server.json
+```
+
+For headless first initialization add `--no-ui --initialize`. The installation
+still pins Board's executable/settings and creates its private seed; first UI
+enablement records principal creation and the built-in source/requester resource
+grants using the retained exact-operation journal. Disabling UI preserves that
+seed, realm, application history, accepted work and receipts. A pending accepted
+provisioning operation is reconciled even when restarting headlessly. Re-enabling
+never renews a completed grant. Revoked resources disappear from Board; revoking
+its principal fails UI-enabled startup until an explicit authorized policy repair.
+
+Applications opt into resource inspection with declaration version 2 and an
+explicit `inspection` list; see [application inspection](applications.md#board-inspection).
+Board's growing profile uses a realm-wide process inspector with individually
+filtered resources. Process metadata is shared across this trusted local realm;
+resource association or installation alone does not authorize resource contents.
+The manager grants declared inspection once and retains its receipts, including
+when applications were installed before first UI enablement.
+
+Board starts after the native gateway, with a 30-second readiness window and a
+four-second bounded atlas attempt. Readiness checks the real Board atlas and its
+current inspection identity. Ongoing one-second observations use that identity
+and HTTP health without competing with viewer atlas throttling. Board exits or
+upstream outages stop dependents and enter the existing three-restart budget;
+invalid responses or unsafe/revoked principals fail visibly. Shutdown joins Board
+and parent death kills it with the same Linux mechanism as other owned roles.
+Default startup never silently falls back to headless operation.
+
+Versions 1 and 2 remain headless configurations and require `--no-ui` with this
+CLI. They cannot name Board settings or its executable. An installation created
+by an older CLI retains its exact artifact/configuration hashes: neither this
+flag nor changing the JSON version upgrades it. Keep such an installation on its
+original pinned package/configuration. To adopt this profile, initialize a
+separately named version-3 installation with the matching packaged artifacts;
+there is no in-place history import or runtime upgrade in this milestone. Once
+created under version 3, all UI toggles use the same configuration and history.
+
+Retain the `transit-local` Nix output with a profile or GC-rooted build link for
+the lifetime of its installations. Its manifest includes Board and all native
+providers; paths and executable hashes identify the selected bytes. Do not replace
+individual pinned paths during ordinary restart. Runtime execution needs no
+Node, Python, frontend dev server, source tree, Docker or ambient PATH lookup.

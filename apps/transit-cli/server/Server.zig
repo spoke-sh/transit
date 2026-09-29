@@ -5,20 +5,26 @@ const Config = @import("Config.zig");
 const Installation = @import("Installation.zig");
 const Files = @import("Files.zig");
 const Process = @import("Process.zig");
+const Board = @import("Board.zig");
 const Provider = @import("Provider.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
-const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway };
+const Role = enum { cold, store, node, maintenance, source, requester, courier, gateway, board };
 init: std.process.Init,
 installation: *Installation,
 executable: []const u8,
-processes: [8]Process = @splat(.{}),
+ui: bool,
+processes: [9]Process = @splat(.{}),
 active_role: Role = .cold,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options) !void {
     const config = Config.load(init, options.path.?) catch |err| {
         std.debug.print("server configuration: {s}\n", .{@errorName(err)});
         return error.InvalidConfiguration;
     };
+    if (!options.no_ui and config.board == null) {
+        std.debug.print("server configuration: Board requires version 3; use --no-ui for headless versions 1/2\n", .{});
+        return error.InvalidConfiguration;
+    }
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const identity = try config.identities(init, executable);
     // The sibling lock also serializes first initialization before the directory exists.
@@ -26,7 +32,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options) !
     const lock = try std.Io.Dir.cwd().createFile(init.io, lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
     defer lock.close(init.io);
     if (!try lock.tryLock(init.io, .exclusive)) return error.InstallationInUse;
-    try config.preflight(init.io);
+    try config.preflight(init.io, !options.no_ui);
     if (options.initialize) try Installation.create(init, config, identity);
     const record_path = try std.fs.path.join(init.arena.allocator(), &.{ config.installation, "installation.json" });
     const record = try Files.read(Installation.Record, init.io, init.arena.allocator(), record_path);
@@ -45,7 +51,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options) !
     try installation.checkStorage();
     const self = try init.gpa.create(Self);
     defer init.gpa.destroy(self);
-    self.* = .{ .init = init, .installation = &installation, .executable = executable };
+    self.* = .{ .init = init, .installation = &installation, .executable = executable, .ui = !options.no_ui };
     defer self.stop();
     var restarts: u8 = 0;
     while (!Signals.interrupted()) {
@@ -56,7 +62,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options) !
             std.debug.print("server role {s}: {s}\n", .{ @tagName(self.active_role), @errorName(err) });
             // Storage identity/rollback, local durability failure and explicit
             // native denials are never repaired by rewriting installation state.
-            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.AccessDenied or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
+            if (installation.failed or err == error.AuthorityRollback or err == error.StorageIdentityMismatch or err == error.AccessDenied or err == error.InvalidBoardResponse or err == error.UnsafeBoardPrincipal or err == error.InstallationSyncFailed or err == error.NoSpaceLeft) return err;
             if (restarts == 3) return error.RestartBudgetExhausted;
             restarts += 1;
             try init.io.sleep(.fromMilliseconds(@as(u32, restarts) * 250), .awake);
@@ -101,7 +107,7 @@ fn cycle(self: *Self) !void {
     const installation = self.installation;
     const config = installation.config;
     try installation.checkStorage();
-    try config.preflight(self.init.io);
+    try config.preflight(self.init.io, self.ui);
     const secret = try std.Io.Dir.cwd().readFileAlloc(self.init.io, try installation.path("cold.seed"), allocator, .limited(65));
     defer std.crypto.secureZero(u8, secret);
     if (secret.len != 64) return error.InvalidCredentialFile;
@@ -125,6 +131,7 @@ fn cycle(self: *Self) !void {
     defer if (applications) |manager| manager.destroy();
     if (applications) |manager| try manager.recover();
     try installation.provision();
+    if (self.ui) try installation.provisionBoard();
     try self.start(allocator, .maintenance, &.{ config.executables.node, node_config, "--maintain" }, &.{}, false);
     try self.worker(allocator, .source);
     try self.worker(allocator, .requester);
@@ -152,6 +159,21 @@ fn cycle(self: *Self) !void {
     try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
+    if (self.ui) {
+        const board_path = try Board.configuration(installation, allocator);
+        try self.start(allocator, .board, &.{ config.executables.board.?, board_path }, &.{}, false);
+        const board_started = std.Io.Clock.awake.now(self.init.io);
+        while (true) {
+            if (Signals.interrupted()) return error.ServerStopped;
+            if (!self.allAlive()) return error.ChildExited;
+            Board.ready(installation) catch |err| {
+                if (err == error.AccessDenied or err == error.UnsafeBoardPrincipal or err == error.InvalidBoardResponse or board_started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 30000) return err;
+                try self.init.io.sleep(.fromMilliseconds(100), .awake);
+                continue;
+            };
+            break;
+        }
+    }
     const console_path = try installation.path("console.json");
     try Files.json(self.init.io, allocator, console_path, @import("../Console.zig").Config{ .version = 1, .profile = .unified_v2, .url = try Provider.url(allocator, config.ports.gateway), .transport = .loopback, .seed_file = "caller.seed", .connection = connection, .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) }, .recovery_file = "console-recovery.json" });
     const report = try std.json.Stringify.valueAlloc(allocator, .{
@@ -161,6 +183,8 @@ fn cycle(self: *Self) !void {
         .management_config = if (applications != null) try installation.path("management.json") else null,
         .gateway_url = try Provider.url(allocator, config.ports.gateway),
         .allowed_hosts = try @import("Hosts.zig").list(allocator, config.ports.gateway, config.gateway_allowed_hosts),
+        .board_url = if (self.ui) config.board.?.public_origin else null,
+        .ui = if (self.ui) "ready" else "disabled",
     }, .{});
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
@@ -173,6 +197,10 @@ fn cycle(self: *Self) !void {
         if (last.durationTo(now).toMilliseconds() >= 1000) {
             self.active_role = .node;
             _ = try installation.query(.{ .capabilities = {} });
+            if (self.ui) {
+                self.active_role = .board;
+                try Board.check(installation);
+            }
             last = now;
         }
         try self.init.io.sleep(.fromMilliseconds(100), .awake);

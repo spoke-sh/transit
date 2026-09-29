@@ -6,7 +6,7 @@ which commands actually exist. Native placement initially targets Linux x86_64.
 
 ## Command and compatibility boundary
 
-`transit server --config PATH [--initialize]` runs one local installation in the
+`transit server --config PATH [--initialize] [--no-ui]` runs one local installation in the
 foreground; `serve` is an equivalent alias. `transit console --config PATH [--format table|json]` opens an
 explicit-submit terminal session. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
@@ -42,21 +42,26 @@ The initial service neighborhood is a growing authority over disk-backed Ursula,
 bounded maintenance, a delivery courier, a separately activated query source and
 requester, and a public native-protocol gateway. The initial source is an empty
 declared int64 Table; a functioning installation need not contain example data.
-Board and effect connectors are opt-in roles with independently scoped keys;
-unsupported optional configurations reject rather than starting partial roles.
+M27 version-3 server configuration enables Board by default with its own retained
+inspection-only key and explicit resource grants. `--no-ui` disables its process
+and listener for one invocation without changing configuration or history. Older
+configuration versions require this headless option; pinned artifact identities
+still forbid implicit upgrades. Effect connectors remain unsupported optional
+roles. Board readiness, configuration and compatibility belong to the
+[server guide](../apps/transit-cli/docs/server.md#default-board-and-compatibility).
 
 The configuration names its installation directory and executable dependencies.
 The persistent installation records a random installation identity, format and
 artifact identities, realm/root public key, storage locations, role identities,
 credential references and accepted provisioning receipts. Dependency checking
-happens before provisioning. M27 owns distributing these artifacts; a shell,
+happens before provisioning. M28 owns distributing these artifacts; a shell,
 Python, `just`, Process Compose and a source checkout are not runtime dependencies
 of the server. Ursula remains the pinned upstream binary.
 
 The selected local profile also runs an explicitly supplied native MinIO binary:
 pinned Ursula provides S3 cold storage, with no filesystem cold backend. Keeping
 the provider separate preserves its bounded hot/cache profile without introducing
-a new storage engine into the CLI. M27 must distribute this dependency and its
+a new storage engine into the CLI. M28 must distribute this dependency and its
 license alongside the selected Transit artifacts. Role limits and exact artifact
 versions belong in the [server guide](../apps/transit-cli/docs/server.md).
 

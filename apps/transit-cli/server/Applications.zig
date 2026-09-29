@@ -12,7 +12,7 @@ const Process = @import("Process.zig");
 const Signals = @import("../Signals.zig");
 const Self = @This();
 const Candidate = struct { artifact: A.Artifact, configuration: []const u8, revision: [32]u8 };
-const Pending = struct { signed: g.SignedRequest, effect: union(enum) { provision: struct { pid: ?u8 = null, resource: ?u8 = null }, activation: u8, fence: u8 } };
+const Pending = struct { signed: g.SignedRequest, effect: union(enum) { provision: struct { pid: ?u8 = null, resource: ?u8 = null }, activation: u8, fence: u8, inspection: void } };
 const record_bytes = 256 * 1024;
 const Record = struct {
     version: u32 = 1,
@@ -29,6 +29,7 @@ const Record = struct {
     selected: [A.max_roles]?Candidate = @splat(null),
     next: u32 = 0,
     installed: bool = false,
+    inspection_next: u8 = 0,
     blocked: ?[]const u8 = null,
     rejected: ?Pending = null,
     receipt_count: u32 = 0,
@@ -427,6 +428,7 @@ fn flush(self: *Self, allocator: std.mem.Allocator, record: *Record) !void {
             if (effect.resource) |i| record.resources[i] = accepted.position;
             record.next += 1;
         },
+        .inspection => record.inspection_next += 1,
         .activation, .fence => |i| {
             record.public_keys[i] = pending.signed.request.command.rotate_worker.public_key;
             record.generations[i] = pending.signed.request.command.rotate_worker.expected_generation + 1;
@@ -489,6 +491,12 @@ fn advance(self: *Self, allocator: std.mem.Allocator, app: *Runtime, record: *Re
         }
         record.installed = true;
         try self.save(allocator, record.*);
+        return;
+    }
+    if (self.installation.record.board_receipts[0] != null and record.inspection_next < record.declaration.inspection.len) {
+        const read = record.declaration.inspection[record.inspection_next];
+        const resource = record.resources[A.index(A.Resource, record.declaration.resources, read.resource).?].?;
+        try self.submit(allocator, record, .{ .command = .{ .grant_resource = .{ .resource = resource, .subject = Installation.board, .permissions = read.permissions } }, .effect = .inspection });
         return;
     }
     if (record.replacement) |replacement| {

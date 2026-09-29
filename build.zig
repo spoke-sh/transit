@@ -319,13 +319,15 @@ pub fn build(b: *std.Build) void {
     b.step("client-abi", "Build the shared client library").dependOn(&b.addInstallArtifact(client.artifact("transit_client"), .{}).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("transit_client") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = client.module("client_abi") })).step);
-    const embed = b.addSystemCommand(&.{ "python3", "-B" });
-    embed.addFileArg(b.path("tasks/embed_web.py"));
-    const asset_source = embed.addOutputFileArg("assets.zig");
-    embed.addArgs(&.{ "apps/transit-board-web", "contracts/transit-board-v1.openapi.json" });
-    // Vite owns its dependency graph. Always rebuild the closed asset manifest;
-    // Zig still caches compilation by the resulting bytes.
-    embed.has_side_effects = true;
+    const asset_source: std.Build.LazyPath = if (b.option([]const u8, "board-assets", "Prebuilt closed Board asset module")) |path| .{ .cwd_relative = path } else assets: {
+        const embed = b.addSystemCommand(&.{ "python3", "-B" });
+        embed.addFileArg(b.path("tasks/embed_web.py"));
+        const source = embed.addOutputFileArg("assets.zig");
+        embed.addArgs(&.{ "apps/transit-board-web", "contracts/transit-board-v1.openapi.json" });
+        // Vite owns its dependency graph; Zig caches the resulting asset bytes.
+        embed.has_side_effects = true;
+        break :assets source;
+    };
     const asset_module = b.createModule(.{ .root_source_file = asset_source, .target = target, .optimize = optimize });
     const board = b.addExecutable(.{ .name = "transit-board", .root_module = b.createModule(.{ .root_source_file = b.path("apps/transit-board/main.zig"), .target = target, .optimize = optimize, .imports = &.{
         .{ .name = "transit_station_app", .module = application.module("transit_station_app") },
