@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+from console_settings import parse_show
 
 CLI = str(Path(sys.argv[1]).resolve())
 ENV = {key: value for key, value in os.environ.items() if not key.startswith('TRANSIT_')}
@@ -223,22 +224,38 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     (home/'.transitrc').write_text('.connect missing.json\n.mode json\n')
     (project/'.transitrc').write_text('.connect console.yaml\n')
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    settings = json.loads(shown.stdout)
+    settings = parse_show(shown.stdout)
     assert settings['connection'] == str(connection) and settings['format'] == 'json'
+    assert settings['connection_source'] == str(project/'.transitrc')
     assert settings['format_source'] == str(home/'.transitrc')
     (project/'.transitrc').write_text('.connect console.yaml\n.mode table\n')
-    settings = json.loads(invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n').stdout)
+    settings = parse_show(invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n').stdout)
     assert settings['format'] == 'table'
-    settings = json.loads(invoke(['console', '--format', 'json'], 0, env=environment, cwd=project, data=b'.show\n').stdout)
+    assert settings['format_source'] == str(project/'.transitrc')
+    settings = parse_show(invoke(['console', '--format', 'json'], 0, env=environment, cwd=project, data=b'.show\n').stdout)
     assert settings['format'] == 'json' and settings['format_source'] == '--format'
     invoke(['console'], env=dict(environment, TRANSIT_CONSOLE_CONFIG='absent.json'), cwd=project, contains=('absent.json',))
     shown = invoke(['console', '--config', connection], 0, env=dict(environment, TRANSIT_CONSOLE_CONFIG='absent.json'), cwd=project, data=b'.show\n')
-    assert json.loads(shown.stdout)['connection_source'] == '--config'
+    assert parse_show(shown.stdout)['connection_source'] == '--config'
+    shown = invoke(['console'], 0, env=dict(environment, TRANSIT_CONSOLE_CONFIG=str(connection)), cwd=project, data=b'.show\n')
+    assert parse_show(shown.stdout)['connection_source'] == 'TRANSIT_CONSOLE_CONFIG'
     (project/'.transitrc').write_text('SELECT private-must-not-appear;\n')
     invoke(['console', '--config', connection], env=environment, cwd=project, contains=('startup command',))
-    invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
+    shown = invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
+    assert parse_show(shown.stdout)['format_source'] == 'connection configuration'
     chosen = home/'custom.rc'; chosen.write_text(f'.connect {connection}\n.mode json\n')
-    invoke(['console', '--init', chosen], 0, env=environment, cwd=project, data=b'.show\n')
+    shown = invoke(['console', '--init', chosen], 0, env=environment, cwd=project, data=b'.show\n')
+    assert parse_show(shown.stdout)['format_source'] == str(chosen)
+    assert parse_show(shown.stdout)['connection_source'] == str(chosen)
+    shown = invoke(['console', '--no-rc', '--config', connection, '--format', 'json'], 0,
+                   env=environment, cwd=project, data=b'.mode table\n.show\n')
+    assert parse_show(shown.stdout)['format'] == 'table'
+    assert parse_show(shown.stdout)['format_source'] == '.mode'
+    escaped_connection = project/'control\n\r\t\x1b\\".yaml'
+    escaped_connection.write_bytes(connection.read_bytes())
+    shown = invoke(['console', '--no-rc', '--config', escaped_connection], 0,
+                   env=environment, cwd=project, data=b'.show\n')
+    assert parse_show(shown.stdout)['connection'] == json.dumps(str(escaped_connection))[1:-1]
     for arguments in (['-c', 'select 1', '-f', 'x'], ['--init', chosen, '--no-rc'], ['-c'], ['-f'], ['-c', '-f']):
         invoke(['console', *arguments], env=environment, cwd=project)
     local = project/'.transit'; local.mkdir()
@@ -249,18 +266,18 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
                   complete=True, genesis_observed=True, provision=list(range(1, 15)))
     (local/'installation.json').write_text(json.dumps(record))
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    settings = json.loads(shown.stdout)
-    assert settings['connection'] is None and settings['connection_source'] == 'local installation'
+    settings = parse_show(shown.stdout)
+    assert settings['connection'] == '(automatic)' and settings['connection_source'] == 'local installation'
     assert settings['url'] == 'http://127.0.0.1:19105'
     assert not (local/'console.json').exists() and not (local/'console.yaml').exists()
     (home/'.transitrc').write_text('.mode json\n')
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    assert json.loads(shown.stdout)['format'] == 'json'
+    assert parse_show(shown.stdout)['format'] == 'json'
     project_server.write_text('ports:\n  gateway: 29305\n')
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
-    assert json.loads(shown.stdout)['url'] == 'http://127.0.0.1:29305'
+    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:29305'
     shown = invoke(['console'], 0, env=dict(environment, TRANSIT_PORTS__GATEWAY='29306'), cwd=project, data=b'.show\n')
-    assert json.loads(shown.stdout)['url'] == 'http://127.0.0.1:29306'
+    assert parse_show(shown.stdout)['url'] == 'http://127.0.0.1:29306'
     record['complete'] = False
     (local/'installation.json').write_text(json.dumps(record))
     invoke(['console'], env=environment, cwd=project, contains=('is not initialized',))

@@ -11,6 +11,7 @@ import subprocess
 import termios
 import time
 from unified_shell import Shell
+from console_settings import read_show
 
 ANSI = re.compile(rb'\x1b\[[0-?]*[ -/]*[@-~]')
 
@@ -86,6 +87,17 @@ def check(binary, path, root, kind, invoke, fault):
     terminal = Terminal(binary, path)
     sends = fault['console_sends']
     try:
+        saved = (root/'console-recovery.json').read_bytes()
+        terminal.send('.show\r')
+        settings = read_show(terminal)
+        assert settings['connection'] == str(path) and settings['connection_source'] == '--config'
+        assert settings['format'] == 'json' and settings['format_source'] == '--format'
+        for mode in ('table', 'json'):
+            terminal.send('.mode '+mode+'\r.show\r')
+            settings = read_show(terminal)
+            assert settings['format'] == mode and settings['format_source'] == '.mode'
+        assert fault['console_sends'] == sends, 'settings inspection sent a native mutation'
+        assert (root/'console-recovery.json').read_bytes() == saved
         terminal.send('SE')
         terminal.expect('transit> SE')
         started = time.monotonic()
@@ -173,6 +185,12 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.expect('transit> ')
         assert b'COUNT' not in ANSI.sub(b'', terminal.screen)
         invoke('restore', direct=True)
+        sends = fault['console_sends']
+        terminal.send('.connect '+json.dumps(str(path))+'\r.show\r')
+        settings = read_show(terminal)
+        assert settings['connection'] == str(path) and settings['connection_source'] == '.connect'
+        assert settings['format'] == 'json' and settings['format_source'] == '.mode'
+        assert fault['console_sends'] == sends
         # Interrupt a real native read; no durable cancellation or fresh query.
         sends = fault['console_sends']
         fault['console_waiting'].clear(); fault['console_delay'].set()
@@ -194,6 +212,9 @@ def local_transcript(binary, cwd):
     """An actual shared terminal retains submitted SQL above its human table."""
     terminal = Terminal(binary, format='table', shared_output=True, cwd=cwd)
     try:
+        terminal.send('.show\r')
+        terminal.expect('       connection: (automatic)\r\nconnection_source: local installation\r\n')
+        terminal.expect('           format: table\r\n    format_source: --format\r\n')
         terminal.send('SELECT * FROM items;\r')
         terminal.expect('transit> SELECT * FROM items;\r\n')
         terminal.expect('0 rows\r\n', timeout=120)

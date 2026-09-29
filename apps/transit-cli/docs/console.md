@@ -142,7 +142,7 @@ error and returns to the prompt when recovery permits.
 | `.help` | Available SQL and console commands |
 | `.tables`, `.sources`, `.schema` | Currently authorized source and schema |
 | `.mode table\|json` | Result presentation |
-| `.show` | Effective console settings and origins |
+| `.show` | Aligned text showing effective console settings and origins |
 | `.connect PATH` | Switch connection in an interactive session |
 | `.status`, `.info` | Saved query status or result evidence |
 | `.resume [ID]` | Recover the saved query, or a selected existing query, and print its results |
@@ -153,6 +153,25 @@ There is no `.new`, `.retry`, `.advance` or `.next` in the console. Normal SQL
 performs that bookkeeping. The compatibility `query` and `query-v2` shells keep
 their separate explicit protocols, with dot commands; they are not advertised in
 root help. See the [v2 shell guide](unified-query.md) for that interface.
+
+`.show` always prints one setting per line with right-aligned names and aligned
+colons, including in JSON result mode. Automatic connection selection appears
+as `(automatic)`; an explicit connection shows its file path. For example:
+
+```text
+transit> .show
+       connection: (automatic)
+connection_source: local installation
+              url: http://127.0.0.1:19105
+           format: table
+    format_source: connection configuration
+```
+
+The source rows identify the effective rc file, environment variable, command-line
+option or interactive command. Paths and other text escape control characters.
+Inspection does not change settings, submit or retry a query, or change query
+result formatting. A script containing `.show` includes these text rows on stdout
+even when its SQL results use JSON envelopes.
 
 Table mode prints escaped cells with column headings and a row total. JSON mode
 emits one lossless page envelope per line, including its manifest, ordinal,

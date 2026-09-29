@@ -6,6 +6,7 @@ import stat
 import subprocess
 import time
 from unified_shell import Shell
+from console_settings import parse_show
 
 
 class Console(Shell):
@@ -76,6 +77,11 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert fault['console_sends'] == before
         result = run(b'.info\n', args=('--format', 'json'))
         assert json.loads(result.stdout)['uncertain'] and fault['console_sends'] == before
+        saved = recovery.read_bytes()
+        shown = run(b'.show\n', args=('--format', 'json')).stdout
+        assert parse_show(shown)['format'] == 'json'
+        assert recovery.read_bytes() == saved and fault['console_sends'] == before
+        assert not fault['retry'], 'settings inspection retried uncertain work'
         result = run(b'.resume\n', args=('--format', 'json'))
         assert fault['retry'], 'resume did not retry the original signed request'
         pages = [json.loads(line) for line in result.stdout.splitlines()]
@@ -105,8 +111,10 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         script.write_text(count_sql+';\n'+count_sql)
         result = run(args=('-f', str(script), '--format', 'json'))
         assert len(result.stdout.splitlines()) == 2
-        result = run(count_sql.encode(), args=('--format', 'json'))
-        assert json.loads(result.stdout)['complete_coverage']
+        result = run(('.show\n'+count_sql).encode(), args=('--format', 'json'))
+        shown, page = result.stdout.rsplit(b'\n', 2)[:2]
+        assert parse_show(shown+b'\n')['format'] == 'json'
+        assert json.loads(page)['complete_coverage']
         # Batch stops after the first invalid statement; no later dispatch.
         before = fault['console_sends']
         result = run(('CREATE KV nope (UTF8);'+count_sql+';').encode(), expected_code=1)

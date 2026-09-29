@@ -3681,3 +3681,27 @@ as JSON. The earlier value-decoder failure and the run interrupted by rebuilding
 a pinned executable are not counted as passes; the fixture now copies its CLI
 before startup so concurrent builds cannot change retained artifact identity.
 The final diagnostics report 160 passing cases, and `just check` passes.
+
+### Console settings presentation
+
+The `.show` presentation follow-up passes `just check` and
+`zig build test-cli-lifecycle` with the pinned Zig 0.17 compiler. The renderer
+checks exact name/colon alignment, automatic selection, boolean `on`/`off`, enum
+values and escaped controls. `just test::cli-diagnostics` passes **163 real
+command cases**, including settings in both query result modes, home/project and
+explicit rc origins, environment and flag precedence, interactive-command origins
+in batch input, automatic topology defaults and escaped connection filenames.
+
+`just test::console table` passes in **328.22 s** excluding compilation, including
+**241.03 s** of console checks over 41 rows on disk Ursula. Settings inspection
+preserves the exact uncertain recovery record and sends no native mutation or
+retry. A following SQL statement still emits verified JSON. The controlling PTY
+checks `.show` in both modes, `.mode` and `.connect` origins, unchanged saved work,
+and the existing editing, denial, signal and TLS schedules. Terminal RSS high-water
+is **17,854,464 bytes** under the fixture's 64 MiB ceiling.
+
+`just test::server` passes its core lifecycle in **48.16 s** excluding compilation,
+including automatic `(automatic)` settings in shared terminal scrollback before
+an independent SQL result. These runs qualify settings presentation; they do not
+add a timing setting or establish query latency targets. Clean-checkout CI is
+reported separately against the committed revision.
