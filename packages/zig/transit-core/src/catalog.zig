@@ -117,11 +117,39 @@ pub fn Batch(comptime T: type) type {
     };
 }
 
+/// Verified immutable control records, keyed by the entire catalog root.
+/// Data scans cannot evict them. This supplies bytes to normal validation,
+/// never a cached permission decision or a substitute for an authority barrier.
+pub const RecordCache = struct {
+    const capacity = 16;
+    const Cached = struct { key: pages.Key, value: ?pages.Value };
+    root: ?pages.Reference = null,
+    entries: [capacity]?Cached = @splat(null),
+    next: usize = 0,
+    hits: u64 = 0,
+    misses: u64 = 0,
+    fn select(self: *RecordCache, root: ?pages.Reference) void {
+        if (!std.meta.eql(root, self.root)) {
+            self.entries = @splat(null);
+            self.root = root;
+            self.next = 0;
+        }
+    }
+    fn eligible(key_value: pages.Key) bool {
+        const namespace: Namespace = @fromBackingInt(@intCast(key_value.data[0]));
+        return switch (namespace) {
+            .principal, .process, .resource, .grant, .association, .associated_resource, .required_association, .required_resource_users, .owner_required_users => true,
+            else => false,
+        };
+    }
+};
+
 pub fn Catalog(comptime Store: type) type {
     return struct {
         const Self = @This();
         tree: pages.Tree(Store),
         snapshot: Snapshot,
+        record_cache: ?*RecordCache = null,
 
         pub fn open(store: *Store, snapshot: Snapshot) !Self {
             try snapshot.validate();
@@ -129,8 +157,27 @@ pub fn Catalog(comptime Store: type) type {
         }
         pub fn get(self: *const Self, comptime T: type, address: pages.Key) !?T {
             try validateKey(&address);
-            const value = (try self.tree.get(self.snapshot.root, address)) orelse return null;
+            const value = (try self.getBytes(address)) orelse return null;
             return try decode(T, &value);
+        }
+        fn getBytes(self: *const Self, address: pages.Key) !?pages.Value {
+            const cache = if (RecordCache.eligible(address)) self.record_cache else null;
+            if (cache) |records| {
+                records.select(self.snapshot.root);
+                for (records.entries) |slot| if (slot) |cached| {
+                    if (std.mem.eql(u8, cached.key.slice(), address.slice())) {
+                        records.hits +|= 1;
+                        return cached.value;
+                    }
+                };
+                records.misses +|= 1;
+            }
+            const value = try self.tree.get(self.snapshot.root, address);
+            if (cache) |records| {
+                records.entries[records.next] = .{ .key = address, .value = value };
+                records.next = (records.next + 1) % RecordCache.capacity;
+            }
+            return value;
         }
         pub fn put(self: *Self, address: pages.Key, value: anytype) !void {
             comptime owned(@TypeOf(value));

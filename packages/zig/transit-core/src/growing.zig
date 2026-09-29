@@ -88,6 +88,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         page_store: *PageStore,
         genesis: Genesis,
         head: Head,
+        record_cache: catalog.RecordCache = .{},
         clock: ?core.Time.Source = null,
         /// Inject a fresh secure epoch at service startup. Volatile read pins
         /// cannot survive restart or replace retained durable read versions.
@@ -151,7 +152,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             self.head = next;
         }
         pub fn state(self: *Self) !Catalog {
-            return Catalog.open(self.page_store, self.head.catalog);
+            var result = try Catalog.open(self.page_store, self.head.catalog);
+            result.record_cache = &self.record_cache;
+            return result;
         }
         pub fn principal(self: *Self, id: u64) !Principal {
             var current = try self.state();

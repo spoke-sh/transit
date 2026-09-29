@@ -207,3 +207,13 @@ terminal source cancellation, post-termination outcome capture, finite budgets,
 late rejection and permanent process expiry. Indexed effect inspection preserves
 retired callers' evidence. These internal checks use injected storage, not the
 real effect connector or service deployment.
+
+### Immutable control metadata cache
+
+The engine shares a 16-record resident cache for principal, process, resource,
+grant and dependency/association records. Verified bytes and exact absence are
+keyed by the complete immutable catalog root. A changed root clears the cache;
+private candidate roots cannot authorize a read against another root. Data-entry
+reads do not occupy these slots. All ordinary validation and final authority
+barriers remain in place. The cache does not bound retained metadata cardinality
+or keep resources alive, and it grants no permission of its own.

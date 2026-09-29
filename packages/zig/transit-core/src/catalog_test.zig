@@ -73,3 +73,29 @@ test "catalog nested range includes its exact lower key and fences other routes"
     try t.expect(continued.records[1] == null and continued.next == null);
     try t.expectError(error.InvalidCatalogCursor, catalog.scan(u64, range, try c.key(.mailbox, 42, 9, "")));
 }
+
+test "bounded control records survive data reads and invalidate on root changes" {
+    var store: Store = .{};
+    defer store.deinit();
+    var catalog = try c.Catalog(Store).open(&store, .{});
+    const grant = try c.key(.grant, 4, 3, "");
+    try catalog.put(grant, @as(u64, 7));
+    for (0..32) |i| try catalog.put(try c.key(.entry, 4, i, "data"), @as(u64, i));
+    var cache: c.RecordCache = .{};
+    catalog.record_cache = &cache;
+    try t.expectEqual(@as(?u64, 7), try catalog.get(u64, grant));
+    for (0..32) |i| _ = try catalog.get(u64, try c.key(.entry, 4, i, "data"));
+    const before = store.reads;
+    try t.expectEqual(@as(?u64, 7), try catalog.get(u64, grant));
+    try t.expectEqual(before, store.reads);
+    try t.expect(cache.hits > 0);
+    const old = catalog.snapshot;
+    try catalog.put(grant, @as(u64, 0));
+    try t.expectEqual(@as(?u64, 0), try catalog.get(u64, grant));
+    var retained = try c.Catalog(Store).open(&store, old);
+    retained.record_cache = &cache;
+    try t.expectEqual(@as(?u64, 7), try retained.get(u64, grant));
+    try t.expectEqual(@as(?u64, 0), try catalog.get(u64, grant));
+    try catalog.remove(grant);
+    try t.expectEqual(@as(?u64, null), try catalog.get(u64, grant));
+}
