@@ -25,7 +25,7 @@ class Console(Shell):
 
 def check(binary, root, kind, invoke, expected, fault, config, tls=False):
     started = time.monotonic()
-    config = dict(config, version=1, profile='unified_v2', transport='loopback', format='table', recovery_file='console-recovery.json')
+    config = dict(config, version=1, profile='unified_v2', execution='durable', transport='loopback', format='table', recovery_file='console-recovery.json')
     config['seed_file'] = os.path.relpath(config['seed_file'], root)
     path = root/'console.json'
     path.write_text(json.dumps(config))

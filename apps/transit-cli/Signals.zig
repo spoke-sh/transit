@@ -1,6 +1,7 @@
 //! Signal handlers set a flag only. Normal code owns persistence and cleanup.
 const std = @import("std");
 var stopped: std.atomic.Value(u8) = .init(0);
+pub var cancellation: std.atomic.Value(bool) = .init(false);
 pub fn interrupted() bool {
     return stopped.load(.monotonic) != 0;
 }
@@ -9,9 +10,11 @@ pub fn terminating() bool {
 }
 pub fn clear() void {
     stopped.store(0, .monotonic);
+    cancellation.store(false, .release);
 }
 fn handler(signal: std.c.SIG) callconv(.c) void {
     stopped.store(if (signal == .TERM) 2 else 1, .monotonic);
+    cancellation.store(true, .release);
 }
 const Self = @This();
 old_int: std.c.Sigaction,

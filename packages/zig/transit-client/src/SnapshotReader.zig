@@ -35,10 +35,18 @@ fn fetch(self: *Self, key: ?p.Value, after: ?p.Value) !g.Batch(g.Entry, p.Value)
     if (self.closed) return error.QueryClosed;
     if (self.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
     if (self.failed) |err| return err;
-    return self.fetchOnce(key, after) catch |err| {
-        self.failed = err;
-        return err;
-    };
+    for (0..3) |_| {
+        if (self.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+        return self.fetchOnce(key, after) catch |err| {
+            // Retry only an authority-tail race, at the same retained cut and
+            // cursor. Expiry, denial and transport uncertainty never re-open.
+            if (err == error.Conflict and self.client.wire.last_rejection == .Conflict) continue;
+            self.failed = err;
+            return err;
+        };
+    }
+    self.failed = error.Conflict;
+    return error.Conflict;
 }
 fn fetchOnce(self: *Self, key: ?p.Value, after: ?p.Value) !g.Batch(g.Entry, p.Value) {
     const result = (try self.client.query(.{ .snapshot_entries = .{ .id = self.snapshot.id, .key = key, .after = after } })).body.snapshot_entries;

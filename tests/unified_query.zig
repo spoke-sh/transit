@@ -34,6 +34,7 @@ fn value(index: usize, buffer: []u8, padding: usize) ![]const u8 {
 }
 const Seed = struct {
     kind: Kind,
+    rows: usize = count,
     peer: u64,
     requests: u64,
     done: bool = false,
@@ -90,7 +91,7 @@ const Seed = struct {
             return;
         }
         const first: usize = @intCast(command);
-        for (first..@min(first + 4, count)) |index| {
+        for (first..@min(first + 4, self.rows)) |index| {
             var bytes: [220]u8 = undefined;
             const text = try value(index, &bytes, 128);
             if (self.kind == .table) {
@@ -169,8 +170,10 @@ pub fn main(init: std.process.Init) !void {
     var admin: Admin = .{ .wire = &transport, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
     if (std.mem.eql(u8, command, "provision") or std.mem.eql(u8, command, "provision-expiring")) {
-        if (args.len != 5) return error.Usage;
+        if (args.len != 5 and args.len != 6) return error.Usage;
         const kind = std.meta.stringToEnum(Kind, args[4]) orelse return error.InvalidKind;
+        const rows = if (args.len == 6) try std.fmt.parseInt(usize, args[5], 10) else count;
+        if (rows > 512 or (kind == .document and args.len == 6)) return error.InvalidRowCount;
         const writer_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
         const requester_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9));
         const caller_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
@@ -185,7 +188,7 @@ pub fn main(init: std.process.Init) !void {
             if (resource != 0) _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         }
         var server = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
-        var seed: Seed = .{ .kind = kind, .peer = requester.pid, .requests = requester.resource };
+        var seed: Seed = .{ .kind = kind, .rows = rows, .peer = requester.pid, .requests = requester.resource };
         const handler: s.GrowingGenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
         try admin.send(writer.pid, -1);
         try drive(init, &server, handler);
@@ -202,7 +205,7 @@ pub fn main(init: std.process.Init) !void {
                 }
             }
         } else {
-            for (0..11) |index| {
+            for (0..(rows + 3) / 4) |index| {
                 try admin.send(writer.pid, @intCast(index * 4));
                 try drive(init, &server, handler);
             }
@@ -261,6 +264,13 @@ pub fn main(init: std.process.Init) !void {
     }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
+    if (std.mem.eql(u8, command, "age")) {
+        if (args.len != 5) return error.Usage;
+        const entries = try std.fmt.parseInt(usize, args[4], 10);
+        if (entries > 10000) return error.InvalidHistoryCount;
+        for (0..entries) |_| _ = try admin.submit(.{ .spawn = .{} });
+        return;
+    }
     if (std.mem.eql(u8, command, "expire-request")) {
         if (config.expiry_at_ms == null) return error.ExpiryNotOptedIn;
         _ = try admin.submit(.{ .expire_resource = config.connection.requests });

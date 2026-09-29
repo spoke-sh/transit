@@ -53,7 +53,7 @@ os.execv({executable!r}, [{executable!r}] + sys.argv[1:])
     fixture.config['executables'][role] = str(wrapper)
 
 
-def measured_run(args, cwd, timeout=420):
+def measured_run(args, cwd, timeout=420, node=None):
     """Drain both pipes, sample resident memory, and time the first output byte.
 
     First output is observable presentation latency, not an inferred server
@@ -65,6 +65,11 @@ def measured_run(args, cwd, timeout=420):
                                env={'PATH': '/unavailable'})
     first = None
     peak = 0
+    node_peak = 0
+    def node_cpu():
+        fields = Path(f'/proc/{node}/stat').read_text().split()
+        return sum(map(int, fields[13:15])) / os.sysconf('SC_CLK_TCK')
+    before_cpu = node_cpu() if node is not None else None
     buffers = [bytearray(), bytearray()]
     try:
         with selectors.DefaultSelector() as selector:
@@ -76,6 +81,9 @@ def measured_run(args, cwd, timeout=420):
                 try:
                     resident = int(Path(f'/proc/{process.pid}/statm').read_text().split()[1])
                     peak = max(peak, resident * os.sysconf('SC_PAGE_SIZE'))
+                    if node is not None:
+                        resident = int(Path(f'/proc/{node}/statm').read_text().split()[1])
+                        node_peak = max(node_peak, resident * os.sysconf('SC_PAGE_SIZE'))
                 except FileNotFoundError:
                     pass
                 for key, _ in selector.select(timeout=0.02):
@@ -89,9 +97,12 @@ def measured_run(args, cwd, timeout=420):
                     if len(buffers[key.data]) > 16 * 1024 * 1024:
                         raise ValueError('console output exceeds measurement bound')
         code = process.wait(timeout=10)
-        return code, *(buffer.decode() for buffer in buffers), {
+        metrics = {
             'seconds': time.monotonic() - started,
             'first_stdout_seconds': first, 'sampled_peak_rss_bytes': peak}
+        if node is not None:
+            metrics.update(node_sampled_peak_rss_bytes=node_peak, node_cpu_seconds=node_cpu() - before_cpu)
+        return code, *(buffer.decode() for buffer in buffers), metrics
     finally:
         if process.poll() is None:
             process.kill()
@@ -106,6 +117,7 @@ def main():
         parser.add_argument(role)
     parser.add_argument('--resident-pages', type=int, choices=range(1025), metavar='0..1024')
     parser.add_argument('--worker-interval-ms', type=int, choices=range(1, 60001), metavar='1..60000')
+    parser.add_argument('--execution', choices=('interactive', 'durable'), default='interactive')
     parser.add_argument('--single', action='store_true', help='measure only the first empty SELECT')
     parser.add_argument('--repeat', type=int, default=1, choices=range(1, 101), metavar='1..100')
     parser.add_argument('--age-queries', type=int, default=0, choices=range(1001), metavar='0..1000',
@@ -136,7 +148,7 @@ def main():
         fixture.path.write_text(json.dumps(fixture.config))
         print(json.dumps({'executables': {role: digest(path) for role, path in
               binaries.items()}, 'source_rows': 0, 'instrumented': args.instrument,
-              'age_queries': args.age_queries, 'repeat': args.repeat,
+              'age_queries': args.age_queries, 'repeat': args.repeat, 'execution': args.execution,
               'cache_condition': 'post-bootstrap; later queries share the node cache',
               'overrides': {'resident_pages': args.resident_pages,
                             'worker_interval_ms': args.worker_interval_ms}}), flush=True)
@@ -174,13 +186,16 @@ def main():
                                        for name, probe in probes.items()}}), flush=True)
 
         script = fixture.root / 'measurement.sql'
-        def execute(mode, sql):
+        durable = fixture.root / 'durable-connection.yaml'
+        durable.write_text(json.dumps(fixture.console_config()))
+        def execute(mode, sql, execution=args.execution):
             script.write_text('.timing on\n' + sql + '\n')
-            return measured_run([fixture.cli, 'console', '--no-rc', '--format', mode,
-                                 '-f', str(script)], fixture.root)
+            connection = ['--config', str(durable)] if execution == 'durable' else []
+            return measured_run([fixture.cli, 'console', '--no-rc', *connection, '--format', mode,
+                                 '-f', str(script)], fixture.root, node=authority[0])
 
         for _ in range(args.age_queries):
-            code, _, stderr, _ = execute('table', 'SELECT * FROM items;')
+            code, _, stderr, _ = execute('table', 'SELECT * FROM items;', 'durable')
             assert code == 0, stderr
 
         # Sequential queries expose warm/history behavior as well as presentation.

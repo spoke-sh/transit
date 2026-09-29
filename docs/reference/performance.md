@@ -1,14 +1,45 @@
 # Performance characteristics and improvement plan
 
-An empty interactive query currently spends most of its time in native
-orchestration and storage, with negligible table-rendering time. The evidence
-supports reducing that protocol and storage work before optimizing SQL operators.
-This page records local measurements from 2026-09-29 and planned improvements;
-it does not claim the proposed session or storage changes are implemented.
+The console executes fresh interactive queries through leased native snapshots
+and client-side Fuze. It avoids the durable upload/result-publication workflow
+whose measured costs motivated this change. This page records local measurements
+from 2026-09-29, their limits and the remaining storage improvements.
 
-## What was measured
+## Interactive execution measurements
 
-The workload is `SELECT * FROM items;` over an empty Table through the console's
+The default local server returns the empty typed Table in **121–146 ms** across
+eight sequential queries (SELECT, COUNT and both output formats). The first
+SELECT takes 131 ms; first stdout appears at 128 ms. These ReleaseSafe samples
+use the default eight-page cache and background workers, without transport
+proxies. Sampled console RSS is about 15 MB and node RSS about 10 MB. The earlier
+14.014-second durable control below is historical evidence, not a simultaneous
+comparison of otherwise identical revisions.
+
+An isolated native-node fixture also checks populated sources. It uses a
+64-page cache, disk Ursula and MinIO, with a native HTTP counting proxy and no
+query workers. Times include CLI startup and verified output:
+
+| Source | Rows | First stdout | Completion | Native requests | Durable updates |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Table | 41 | 50–60 ms | 147–157 ms | 39 | 0 |
+| KV | 41 | 48–53 ms | 152–159 ms | 38 | 0 |
+| Document list | 12 | 384–415 ms | 439–469 ms | 82 | 0 |
+
+Each statement opens a new leased cut and releases it. Query execution uses
+bounded native Arrow batches. A session-local cache holds at most 64 immutable
+point reads; permissions, source policy and leases are checked again before
+output. The same Document fixture previously needed 733 native reads and about
+3.8 seconds without that cache. Batched current metadata reads and descriptor
+reuse reduce the Table fixture from 75 requests to 39.
+
+These are a few local observations on a shared host, not percentiles or an
+interactive latency guarantee. Fixture provisioning is excluded from query
+latency. Document provisioning remains expensive; removing durable work from
+SELECT does not make application writes or durable publication inexpensive.
+
+## Historical durable-query measurements
+
+The earlier workload is `SELECT * FROM items;` over an empty Table through the console's
 unified v2 captured-query path. Each controlled first query uses a fresh local
 disk-backed Ursula installation with MinIO cold storage. The optimized controls
 use the same ReleaseSafe binaries, with the server's 100 ms worker/courier idle
@@ -62,7 +93,7 @@ into a rate does not establish sustainable offered-load throughput.
 
 ### Why a SELECT writes durable state
 
-The current console uploads a plan, records its call, captures a source version,
+The explicitly selected durable execution mode uploads a plan, records its call, captures a source version,
 stages Arrow segments and publishes a complete manifest. Empty results still
 carry schema and completion evidence. The measured 51 updates comprise four
 console sends, 17 durable view opens, 17 worker turns and 13 deliveries. Query
@@ -114,8 +145,9 @@ substitute for reducing work or introducing appropriate wake-ups.
 
 ## Planned improvements
 
-These priorities implement the [workload model](workloads.md); they are design
-direction, not shipped capabilities or promised dates/speedups.
+These priorities implement the [workload model](workloads.md). Interactive
+snapshots are implemented; further storage changes below remain planned until
+their owning interfaces and evidence say otherwise. No dates or speedups are promised.
 
 | Priority | Intended change | Required evidence |
 | --- | --- | --- |
@@ -124,12 +156,12 @@ direction, not shipped capabilities or promised dates/speedups.
 | Bulk immutable publication | Persist bounded blocks before atomic publication of verified references and source progress | Uncertain commits, orphan handling, payload availability, quotas, recovery and actual physical write amplification |
 | Workload-specific read structures | KV point/range access, columnar Table blocks and pruning, Document path/sequence and versioned projections | Selective/full scans, retained data beyond cache, source freshness, rebuild cost and concurrent writes |
 
-The accepted interactive lifecycle is documented in
-[query sessions](queries.md#planned-interactive-sessions). A new neutral contract
-must define the cancellation/completion race, abnormal-disconnect lease or
-deadline, current-policy checks and resource accounting before implementation.
-Snapshot pin accounting may still require durable decisions; the aim is to avoid
-durable progress and result writes for each small interactive fragment.
+The implemented interactive lifecycle is documented in
+[query sessions](queries.md#interactive-sessions) and the
+[neutral contract](../../contracts/INTERACTIVE_QUERY_V1.md), including cancellation,
+leases, current-policy checks and resource accounting. The append-only page
+profile permits volatile snapshot pins; physical reclamation must account for
+them before being enabled. Explicit durable jobs retain their separate contract.
 
 Batching must preserve the final atomic publication boundary. New tree layouts
 require explicit format compatibility. Fuze and applications stay outside raw
@@ -148,11 +180,15 @@ just test::console-latency --single --resident-pages 64
 just test::console-latency --single --worker-interval-ms 200
 just test::console-latency --single --repeat 3 --age-queries 5
 just test::console-latency --single --instrument
+just test::console-latency --single --execution durable
+just test::interactive-query
+just test::interactive-query --source table --rows 257 --age 128
+just test::interactive-query --source table --resident-pages 0
 ```
 
 The runner reports first stdout byte, completion, sampled console RSS (20 ms
-sampling), node CPU and executable hashes. Repetitions share an installation;
-`--age-queries` adds completed query history before measurement. A first query
+sampling), node CPU, sampled node RSS and executable hashes. Repetitions share an installation;
+`--age-queries` uses explicit durable execution to add completed query history before measurement. A first query
 is post-bootstrap, not a cold OS or provider cache. `--resident-pages 0` disables
 the native immutable-page cache without flushing the operating system.
 
@@ -163,7 +199,11 @@ not unique durable commits or retained disk bytes. Proxy overhead can alter
 polling and retries substantially: compare these runs separately from ordinary
 elapsed-time measurements. No payloads or credentials are logged.
 
-The task builds ReleaseSafe binaries into its own cache directory, freezes their
+The populated-source task reports native requests and checks distinct session IDs,
+completion framing, cancellation and revocation after a prefix. `--age` adds
+unrelated durable operations before querying; it does not reuse a query session.
+
+The tasks build ReleaseSafe binaries into its own cache directory, freezes their
 hashes, creates an owned local fixture, checks the empty result and joins its
 children. Overrides apply only to that fixture. This is a local diagnostic task,
 not a request to reconfigure or reinitialize a running installation.

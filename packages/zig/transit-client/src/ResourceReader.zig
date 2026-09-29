@@ -90,10 +90,21 @@ pub const Batch = struct {
     }
 };
 pub fn readBatch(self: Self, resource: u64, revision: ?u64, keys: []const p.Value) !Batch {
-    if (keys.len == 0 or keys.len > g.page_size) return error.InvalidResourceRead;
-    if (!(try self.query(.capabilities)).body.capabilities.resource_read_batch) return error.ResourceReadBatchUnavailable;
-    var requested: [g.page_size]?p.Value = @splat(null);
-    for (keys, 0..) |key, i| requested[i] = key;
-    const result = (try self.query(.{ .read_entries = .{ .resource = resource, .revision = revision, .keys = requested } })).body.read_entries;
-    return .{ .resource = result.resource, .view = .{ .resource = resource, .revision = result.resource.revision }, .keys = requested, .entries = result.entries };
+    return (try self.batches()).read(resource, revision, keys);
 }
+/// Negotiate immutable protocol support once. The handle caches no permission,
+/// resource metadata or values; each read still uses current signed authority.
+pub fn batches(self: Self) !Batches {
+    if (!(try self.query(.capabilities)).body.capabilities.resource_read_batch) return error.ResourceReadBatchUnavailable;
+    return .{ .client = self };
+}
+pub const Batches = struct {
+    client: Self,
+    pub fn read(self: Batches, resource: u64, revision: ?u64, keys: []const p.Value) !Batch {
+        if (keys.len == 0 or keys.len > g.page_size) return error.InvalidResourceRead;
+        var requested: [g.page_size]?p.Value = @splat(null);
+        for (keys, 0..) |key, i| requested[i] = key;
+        const result = (try self.client.query(.{ .read_entries = .{ .resource = resource, .revision = revision, .keys = requested } })).body.read_entries;
+        return .{ .resource = result.resource, .view = .{ .resource = resource, .revision = result.resource.revision }, .keys = requested, .entries = result.entries };
+    }
+};

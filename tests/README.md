@@ -3949,3 +3949,38 @@ including the 174 CLI cases, Zig unit checks, generated contracts, frontend chec
 public documentation validation and site build. The diagnostic range experiment
 also passed the standalone core's existing unit suite in its isolated checkout;
 no engine change is promoted on that evidence alone.
+
+### Fresh interactive console execution
+
+On 2026-09-29, `just test::interactive-query` passes for a 41-row Table,
+41-row KV prefix and 12-row Document list on owned disk Ursula/MinIO. Every
+statement has a distinct session ID, retains its source basis, streams bounded
+frames and marks only terminal coverage complete. SELECT, COUNT, LIMIT, empty
+output and table/JSON rendering make zero durable update requests. SIGINT during
+a gated source read releases the lease without output; resource revocation after
+a prefix prevents completion and a restored grant permits a new statement.
+The Document fixture takes about 501 seconds including provisioning; its two
+measured SELECTs take 0.469 and 0.439 seconds with 82 native requests. Provisioning
+is excluded from query timing and remains costly.
+
+`just test::interactive-query --source table --rows 257 --age 128` also passes:
+retained state exceeds the source batch, with unrelated durable history before
+the read. An empty Table with `--resident-pages 0` passes, including the added
+closed-output-consumer case: failed output closes its snapshot. These are finite
+scenarios, not load percentiles. The populated fixture counts requests through a
+proxy without query workers; its timings are not default-server timings.
+
+The separate default-server runner, without proxies or concurrent qualification,
+returns eight empty SELECT/COUNT samples in 121–146 ms, first SELECT 131 ms and
+first stdout 128 ms. It uses the default cache and background workers. The
+executable hashes and per-phase data are emitted by `tests/console_latency.py`.
+`--execution durable` selects the old lifecycle explicitly; `--age-queries`
+always uses that lifecycle to create actual durable history.
+
+`just check` passes after the console switch, including unit tests, CLI
+configuration/diagnostics, generated-contract checks and the public site build.
+`zig build test-cli-lifecycle` passes. Later bounded-workspace/LIMIT-zero changes
+are exercised by the ReleaseSafe fixture and empty-cache control above.
+Physical reclamation remains unsupported. Deterministic snapshot tests cover
+lease expiry/restart/epoch and concurrent source changes; these console proofs
+do not establish a multi-node session service or host power-loss behavior.

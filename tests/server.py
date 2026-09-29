@@ -167,7 +167,7 @@ class Fixture:
     def console_config(self):
         # Explicit remote-connection fixture from the observed allocation receipts.
         done = self.record()['provision']
-        return dict(version=1, profile='unified_v2', transport='loopback', url=self.url,
+        return dict(version=1, profile='unified_v2', execution='durable', transport='loopback', url=self.url,
                     seed_file=str(self.installation/'caller.seed'),
                     recovery_file=str(self.installation/'console-recovery.json'),
                     connection=dict(realm=self.config['realm'], principal=10, requester=done[0],
@@ -216,7 +216,7 @@ def run(cli, node, host):
         try:
             assert shell.call('.schema')['description']['source']['capabilities']['table']
             page = shell.call('SELECT COUNT(*) FROM items;')
-            assert page['complete_coverage'] and page['manifest']['rows'] == '1', page
+            assert page['complete_coverage'] and page['rows'] == '1', page
             assert page['cells'][0][0]['value']['uint64'] == '0', page
             shell.close()
         finally:

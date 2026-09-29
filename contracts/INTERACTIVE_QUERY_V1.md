@@ -1,8 +1,7 @@
 # Interactive queries v1
 
-Native leased resource snapshots are implemented. The query execution and
-presentation sections specify the proposed client integration. Capabilities on
-the running authority determine support.
+The console supports this profile for finite Table, KV and Document queries.
+Capabilities on the running authority determine native snapshot support.
 
 ## Ownership and compatibility
 

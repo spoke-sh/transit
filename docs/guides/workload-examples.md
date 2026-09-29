@@ -65,7 +65,7 @@ For one statement and exit:
 
 Read the phase timings alongside the [performance reference](../reference/performance.md).
 The current console uses durable captured queries. Fresh interactive sessions
-and cancellation on exit are [planned behavior](../reference/queries.md#planned-interactive-sessions).
+and cancellation on exit are [planned behavior](../reference/queries.md#interactive-sessions).
 The commands above do not demonstrate that future lifecycle.
 
 To exercise populated sources without modifying your local installation:

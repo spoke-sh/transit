@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 
 class Probe:
-    def __init__(self, target, port=0, native=False):
+    def __init__(self, target, port=0, native=False, before=None):
         endpoint = urlsplit(target)
         assert endpoint.scheme == 'http' and endpoint.hostname == '127.0.0.1'
         self.counts = Counter()
@@ -31,6 +31,8 @@ class Probe:
                     self.send_error(413)
                     return
                 body = self.rfile.read(length)
+                if before:
+                    before(self.path, body)
                 labels = [self.command, 'request_bytes']
                 if native and self.path in ('/v3/query', '/v3/command'):
                     value = json.loads(body)

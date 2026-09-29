@@ -128,7 +128,7 @@ const Editor = struct {
     }
     fn complete(self: *Editor) !void {
         self.dismiss();
-        const response = (q.Workspace.apply(self.arena.allocator(), self.console.client, self.console.config, .{ .assist = .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console } }) catch |err| {
+        var response = (q.Workspace.apply(self.arena.allocator(), self.console.client, self.console.config, .{ .assist = .{ .sql = self.text(), .cursor = @intCast(self.cursor), .generation = self.generation, .mode = .console } }) catch |err| {
             if (Console.denied(err)) self.erasePrivate();
             return err;
         }).assistance;
@@ -138,6 +138,16 @@ const Editor = struct {
         if (Signals.pending()) {
             self.dismiss();
             return;
+        }
+        if (self.console.interactive) {
+            const items = try self.arena.allocator().alloc(@TypeOf(response.items[0]), response.items.len);
+            var count: usize = 0;
+            for (response.items) |item| {
+                if (std.mem.startsWith(u8, item.text, ".resume") or std.mem.eql(u8, item.text, ".cancel") or std.mem.eql(u8, item.text, ".status")) continue;
+                items[count] = item;
+                count += 1;
+            }
+            response.items = items[0..count];
         }
         self.assistance = response;
         self.expires = self.now() + 5000;

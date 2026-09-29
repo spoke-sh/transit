@@ -31,9 +31,9 @@ interactive SELECT**. Completion releases the session's resources. Exiting the
 console cancels its active query; reconnecting starts new work rather than
 resuming that interactive query. A session is not a new durable PID or principal.
 
-This lifecycle is planned. The console currently uses captured durable queries
-and saved recovery intent; disconnecting does not cancel them. The precise
-[query lifecycle proposal](queries.md#planned-interactive-sessions) defines the
+This lifecycle is implemented by the console. Explicit captured durable queries
+retain saved recovery intent; disconnecting does not cancel them. The precise
+[query lifecycle contract](queries.md#interactive-sessions) defines the
 required boundaries, including server cleanup after an abnormal disconnect.
 Existing explicit durable jobs retain their own recovery contract.
 

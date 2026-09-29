@@ -20,6 +20,7 @@ pub const Config = struct {
     request_timeout_ms: u32 = 5000,
     format: Options.Format = .table,
     recovery_file: ?[]const u8 = null,
+    execution: enum { interactive, durable } = .interactive,
 };
 fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), diagnostic: *Diagnostic) !Config {
     const Installation = @import("server/Installation.zig");
@@ -133,7 +134,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
     var session: u.Session = .{ .format = if ((preferences.format orelse config.format) == .json) .json else .table, .interrupted = Signals.interrupted };
     defer session.clear();
-    var recovery: ?Recovery = if (config.recovery_file) |file| try Recovery.open(init, try path(allocator, base, file), &client, &session) else null;
+    var recovery: ?Recovery = if (config.execution == .durable and config.recovery_file != null) try Recovery.open(init, try path(allocator, base, config.recovery_file.?), &client, &session) else null;
     defer if (recovery) |*file| file.close();
     if (recovery) |*file| {
         session.checkpoint_context = file;
@@ -141,17 +142,21 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         try session.checkpoint();
     }
     // One local signing owner per credential file, even across recovery paths.
-    const caller_lock_path = try std.fmt.allocPrint(allocator, "{s}.console.lock", .{try path(allocator, base, config.seed_file)});
-    const caller_lock = try std.Io.Dir.cwd().createFile(init.io, caller_lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
-    defer caller_lock.close(init.io);
-    if (!try caller_lock.tryLock(init.io, .exclusive)) return error.ConsoleRecoveryInUse;
+    const caller_lock: ?std.Io.File = if (config.execution == .durable) lock: {
+        const caller_lock_path = try std.fmt.allocPrint(allocator, "{s}.console.lock", .{try path(allocator, base, config.seed_file)});
+        const file = try std.Io.Dir.cwd().createFile(init.io, caller_lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
+        errdefer file.close(init.io);
+        if (!try file.tryLock(init.io, .exclusive)) return error.ConsoleRecoveryInUse;
+        break :lock file;
+    } else null;
+    defer if (caller_lock) |file| file.close(init.io);
     diagnostic.field = null;
     const signals = try Signals.install();
     defer signals.close();
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
-    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic };
+    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.execute(sql);
@@ -192,6 +197,7 @@ pub const Console = struct {
     next_connection: ?[]const u8 = null,
     had_error: bool = false,
     access_lost: bool = false,
+    interactive: bool = false,
     pub fn execute(self: *Console, raw: []const u8) !bool {
         const text = std.mem.trim(u8, raw, " \t\r\n");
         if (text.len == 0) return true;
@@ -205,7 +211,8 @@ pub const Console = struct {
     }
     fn perform(self: *Console, text: []const u8) !void {
         const execution = @import("Execute.zig");
-        if (!isMeta(text)) return execution.sql(self, text);
+        if (!isMeta(text)) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
+        if (self.interactive and (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) return error.NoQuery;
         if (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ")) {
             const id: ?u64 = if (text.len == 7) null else try q.Values.unsigned(std.mem.trim(u8, text[8..], " \t"));
             return execution.recover(self, id);
@@ -245,6 +252,10 @@ pub const Console = struct {
         return self.diagnostic.fail(err, "query could not complete", hint);
     }
     fn dispatch(self: *Console, text: []const u8, allocator: std.mem.Allocator) !void {
+        if (self.interactive and std.mem.eql(u8, text, ".help")) {
+            if (self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .timing on|off .connect PATH .show .info .quit\nEach statement gets a fresh snapshot. Ctrl-C or exit cancels active execution.\n");
+            return self.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "mode", "timing", "connect", "show", "info", "quit" }, .sql = "Finite SELECT over a fresh leased snapshot. Exit cancels active execution." });
+        }
         if (std.mem.eql(u8, text, ".help") and self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .timing on|off .connect PATH .show .info .quit\nRecovery: .status .resume [ID] .cancel\nDisconnecting does not cancel accepted work.\n");
         if (std.mem.eql(u8, text, ".help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT. SQL prints verified results; .resume recovers the saved query." });
         if (std.mem.startsWith(u8, text, ".connect ")) {

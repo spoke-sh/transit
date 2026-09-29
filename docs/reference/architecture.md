@@ -52,11 +52,11 @@ latency, freshness and recovery needs. The [workload model](workloads.md) record
 those requirements and their [multilanguage examples](../guides/workload-examples.md).
 Durable accepted data does not require every reader to be a recoverable job.
 
-The selected interactive design gives each SELECT a fresh query session and
+The console gives each SELECT a fresh query session and
 snapshot, cancels active work on console exit, and keeps explicit durable jobs
-separate. This is planned behavior; the console currently uses durable captured
-queries. [Query execution](queries.md#planned-interactive-sessions) defines that
-distinction and the required cancellation/cleanup contract.
+separate. Fuze executes in the client over generic leased native snapshots.
+[Query execution](queries.md#interactive-sessions) defines that
+distinction and the cancellation/cleanup contract.
 
 The architectural priorities are authorized snapshot sessions, lower shared
 read/write amplification, generic bulk immutable publication, and read structures

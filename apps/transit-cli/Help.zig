@@ -61,7 +61,7 @@ pub const console =
     \\Paths in the configuration resolve relative to its file.
     \\Submit SQL with a semicolon. .help lists dot commands.
     \\YAML configures connections; .transitrc contains dot commands.
-    \\Disconnecting does not cancel accepted work.
+    \\Each SELECT gets a fresh snapshot. Exit cancels active execution.
     \\
     \\Configuration: apps/transit-cli/docs/console.md
     \\

@@ -77,8 +77,9 @@ pub fn page(definition: Def, expected: m.Basis, cursor: Cursor, data: anytype, c
             if (entries.next == null) output.next.done = true;
         },
         .table => |table_definition| {
-            const table = try q.station.Table.open(data, table_definition.id);
-            if (!std.meta.eql(table.schema, table_definition.schema)) return error.TableSchemaChanged;
+            // page() validates this declaration against the captured descriptor.
+            // Reuse the compiled schema instead of fetching it twice per page.
+            const table: q.station.Table = .{ .resource = definition.resource, .id = table_definition.id, .schema = table_definition.schema };
             const continuation: ?q.station.Table.Cursor = if (cursor.table_after) |after| .{
                 .source = if (@TypeOf(data.view.id) == u64) .{ .view = data.view.id } else .{ .version = data.view.id },
                 .resource = definition.resource,

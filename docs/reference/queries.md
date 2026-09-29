@@ -38,16 +38,16 @@ resource budgets. Query admission is separate from execution and complete result
 publication. Current source permission is checked independently from requester
 ownership or a gateway's own credential.
 
-The console's unified v2 SQL path uses durable captured queries. The requester
+Explicit durable queries use the unified v2 captured-query path. The requester
 uploads and seals the plan bundle, then makes a durable source call. The source
 retains a read version, stages Arrow segments through bounded Publication turns,
 publishes a complete manifest and returns its reference through the original
 reply route. Even an empty result carries its schema and completion evidence.
 Source rows remain unchanged by a SELECT, but query bookkeeping and result
-publication write durable state. There is no separate console execution profile
-that streams a snapshot result without this captured-query lifecycle.
+publication write durable state. The console defaults to the separate interactive
+session profile below; explicit durable callers retain this recovery contract.
 
-Each requester runs one active query. Retained queries and results can
+Each durable requester runs one active query. Retained queries and results can
 grow on disk without loading their complete history into memory. Work is bounded
 by pages, operators, batches, upload and active execution; omitting SQL `LIMIT`
 does not authorize unbounded resident memory or silently truncate the answer.
@@ -78,26 +78,28 @@ operators and errors. The [public v1 contract](../../contracts/PUBLIC_QUERY_V1.m
 [unified v2 contract](../../contracts/UNIFIED_QUERY_V2.md) own wire details.
 Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
 
-## Planned interactive sessions
+## Interactive sessions
 
 The [interactive query contract](../../contracts/INTERACTIVE_QUERY_V1.md) defines
-the proposed leased snapshot, cancellation and bounded output boundary.
+the leased snapshot, cancellation and bounded output boundary.
 
-The selected console design opens a fresh query session and source snapshot for
+The console opens a fresh query session and source snapshot for
 each SELECT. Completion releases that session; console exit cancels its active
 query. Reconnecting does not resume a previous interactive SELECT. This changes
 interactive query recovery, not the durability of accepted application state.
 Existing callers explicitly requesting durable captured jobs keep their recovery
 contract. A session does not require a new durable PID or principal.
 
-This profile is not implemented. Today's console uses the durable path described
-above, including saved recovery intent; exit does not cancel accepted work.
-Before changing it, a shared neutral contract must define:
+Fuze executes in the client over signed native snapshot reads. The authority
+does not execute SQL. There are no durable upload, execution-progress or result
+publication turns in this profile. Table, KV and Document share the existing
+finite compiler, source adapters and Arrow codecs. The contract provides:
 
 - One explicit source basis per session, bounded plan/buffers/cursor/pins and
   current authorization before disclosure. It is not a global snapshot.
-- Idempotent cancellation and a defined completion/cancellation race, with
-  bounded acknowledgement and reserved control capacity.
+- Idempotent release and a defined completion/cancellation race. Release needs
+  no new snapshot slot or durable journal admission; failed acknowledgements
+  fall back to the lease.
 - A server-enforced lease or deadline for cleanup after a killed client or broken
   connection; cleanup cannot depend on a final packet from the console.
 - Complete, failed and canceled result framing. A visible prefix cannot become
@@ -106,7 +108,17 @@ Before changing it, a shared neutral contract must define:
   Shared verified immutable bytes may be cached, but cached bytes never retain
   permission or resume a previous query.
 
-The aim is authorized snapshot acquisition and bounded Arrow streaming without
-durable execution progress and result writes per small interactive fragment.
+The authority admits 64 active snapshot slots, at most eight per principal.
+Each has a renewable 60-second lease and a five-minute hard lifetime. Expired
+slots are reclaimed on bounded snapshot operations, and restart invalidates
+tokens. These limits apply to snapshot bookkeeping, not underlying data retention.
+Client computation stops with the process. A failed release falls back to lease
+expiry. Current grants, principal epoch and source liveness still gate reads.
+
+Console output keeps only bounded Arrow batches and a 64-entry snapshot cache.
+Cached bytes are checked against the live lease and current source policy before
+disclosure. A failed, interrupted or denied prefix has no successful completion
+footer. Reconnecting starts new statements; `execution: durable` explicitly
+selects the captured-query/recovery console behavior.
 [Workload priorities](workloads.md) and [measured costs](performance.md) explain
 the rationale and the shared storage work needed alongside this lifecycle.

@@ -1,12 +1,14 @@
 # Transit console
 
 `transit console` is the query interface for finite, read-only SQL over the
-configured KV, Table or Document source. It compiles SQL, assigns a query identity,
-persists the exact intent, advances the upload and prints verified result pages.
+configured KV, Table or Document source. Each statement compiles SQL, acquires a
+fresh leased snapshot and executes Fuze in the client, printing native Arrow
+batches. Completion or cancellation releases the snapshot. No durable query
+upload, execution progress or result publication is written by a SELECT.
 Bare `transit console` uses the [local server](server.md)'s topology defaults,
 including its `transit.yaml` discovery and `TRANSIT_` overrides. It reads allocated
 resource identities from the existing installation and uses its scoped
-`caller.seed` and private recovery record. No console configuration file is
+`caller.seed`. No console configuration file is
 generated or required. The default endpoint is `http://127.0.0.1:19105`, and the
 default installation is `./.transit`. The console never initializes the server.
 
@@ -61,9 +63,10 @@ The same [bounded YAML subset](server.md#defaults-and-configuration) applies,
 with a 64 KiB limit. Unknown/duplicate fields,
 unsupported versions and invalid endpoints reject before native operations.
 Paths resolve relative to this file. Private signing keys stay in referenced
-files. Automatic SQL requires `recovery_file`; the local defaults
-include it. This explicitly retains private query text and signed intent so an
-interrupted query can be recovered. Inspection remains available without it.
+files. The default `execution: interactive` needs no recovery file. Select
+`execution: durable` with a `recovery_file` to retain exact signed query intent
+and recover captured results after disconnection. That explicit mode retains
+its serialized caller and recovery-file locks.
 
 ```yaml
 version: 1
@@ -94,7 +97,7 @@ workspace:
     result_bytes: "1048576"
 request_timeout_ms: 5000
 format: "table"
-recovery_file: "console-recovery.json"
+execution: "interactive"
 ```
 
 The example is a configuration shape, not allocated identities or a grant.
@@ -147,9 +150,9 @@ error and returns to the prompt when recovery permits.
 | `.show` | Aligned text showing effective console settings and origins |
 | `.connect PATH` | Switch connection in an interactive session |
 | `.status`, `.info` | Saved query status or result evidence |
-| `.resume [ID]` | Recover the saved query, or a selected existing query, and print its results |
-| `.cancel` | Request durable cancellation of the saved query |
-| `.quit`, EOF | Disconnect without cancellation |
+| `.resume [ID]` | In durable mode, recover the saved query or a selected existing query |
+| `.cancel` | In durable mode, request cancellation of the saved query |
+| `.quit`, EOF | Exit; active interactive execution is canceled |
 
 There is no `.new`, `.retry`, `.advance` or `.next` in the console. Normal SQL
 performs that bookkeeping. The compatibility `query` and `query-v2` shells keep
@@ -183,8 +186,9 @@ box borders, column names and native types, right-aligned numbers and a row tota
 Strings are quoted and escaped so literal `"NULL"`, null, missing, type errors and
 conflicts stay distinguishable; binary values use hex. Each bounded page has its
 own headings and widths. JSON mode
-emits one lossless page envelope per line, including its manifest, ordinal,
-columns, typed cells and complete-coverage evidence. Integers remain decimal
+emits one lossless `interactive_v1` envelope per line, with session identity,
+source basis, ordinal, columns, typed cells and complete-coverage evidence.
+Durable mode retains its captured-result manifest envelope. Integers remain decimal
 strings, binary stays hex, floats preserve bits and missing/null/type-error/
 conflict states remain distinct. Pages are verified through the shared query
 client and read under current grants. Rows are released after each page; the
@@ -192,8 +196,9 @@ console never accumulates the whole result. Prompts and diagnostics use stderr.
 
 `.timing on` reports monotonic elapsed milliseconds to stderr after each SQL or
 `.resume` attempt, including failed attempts. The total includes preparation,
-compilation, submission/advancement, waiting for completion, fetching/verifying
-pages, rendering/output and recovery persistence. Submission includes the native
+compilation, snapshot acquisition, fetching/executing pages, rendering/output
+and release. Interactive mode has no durable wait phase; the `persist` field
+accounts for snapshot release. In durable mode, submission includes the native
 upload protocol and its checkpoints: begin the upload, send plan parts, seal the
 bundle and submit it, waiting for requester processing between steps. The wait
 phase includes source-worker execution, durable result publication and delivery
@@ -225,10 +230,19 @@ already disclosed and cannot be recalled.
 Normal disconnect/help exits 0; invalid invocation/configuration exits 2;
 runtime or batch command failure exits 1. An interrupted native wait disconnects
 with 130 after its bounded request settles. Broken stdout also disconnects.
-Neither action cancels accepted work; `.cancel` is a separate native operation
-and its outcome must be observed. Cancellation cannot undo already completed work.
+Interactive execution stops and releases its snapshot. Killed clients leave only
+bounded lease bookkeeping: 60 seconds between reads, with a five-minute hard
+lifetime. The authority admits at most 64 active snapshots, eight per principal.
+Tokens do not survive authority restart. Durable mode uses its separate `.cancel`
+operation. Cancellation cannot undo already completed work or a disclosed prefix.
 
 ## Exact recovery and bounds
+
+The recovery behavior below applies to `execution: durable`. Interactive queries
+start fresh after reconnecting and do not create or load recovery records. Their
+source adapter workspace is bounded to 1 MiB per page, with a 64-entry snapshot
+cache and fixed Arrow buffers. A visible prefix is incomplete until its terminal
+frame or row footer; failures never turn it into a successful result.
 
 The recovery record is at most 128 KiB and binds the realm, principal, requester,
 request resource and caller public key. It contains query literals and signed

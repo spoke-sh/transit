@@ -312,6 +312,11 @@ console-latency *args:
     zig build transit transit-node transit-query-host -Doptimize=ReleaseSafe --prefix .cache/transit-latency/release
     python3 -B tests/console_latency.py .cache/transit-latency/release/bin/transit .cache/transit-latency/release/bin/transit-node .cache/transit-latency/release/bin/transit-query-host {{args}}
 
+# Leased native snapshots and real finite Fuze/Arrow execution for all sources.
+interactive-query *args:
+    zig build transit transit-node unified-query-proof -Doptimize=ReleaseSafe --prefix .cache/transit-interactive
+    python3 -B tests/interactive_query.py .cache/transit-interactive/bin/transit-node .cache/transit-interactive/bin/transit-unified-query-proof .cache/transit-interactive/bin/transit {{args}}
+
 # Actual native server with independent console and owned process failures.
 server:
     zig build test-server -Doptimize=ReleaseSafe

@@ -322,6 +322,6 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['console'], env=environment, cwd=project, contains=('is not initialized',))
     # Leading SQL comments are values, not CLI flags.
     invoke(['console', '--no-rc', '--config', connection, '-c', '-- comment\nSELECT COUNT(*) FROM items'], 1,
-           env=environment, cwd=project, contains=('recovery_file',))
+           env=environment, cwd=project, contains=('query could not complete',))
     assert not installation.exists()
 print(f'CLI diagnostics passed: {CASES} real command cases; no configuration or credential disclosure, stdout contamination or provisioning.')

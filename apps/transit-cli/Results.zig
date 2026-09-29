@@ -15,7 +15,7 @@ pub fn write(allocator: std.mem.Allocator, out: *std.Io.Writer, page: q.UnifiedR
     }
     try table(allocator, out, page.schema, batch);
 }
-fn table(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: m.Schema, batch: *const m.Inspect.Batch) !void {
+pub fn table(allocator: std.mem.Allocator, out: *std.Io.Writer, schema: m.Schema, batch: *const m.Inspect.Batch) !void {
     try schema.validate();
     const count = schema.columns.len;
     if (batch.columns != count or batch.count > m.max_rows) return error.InvalidArrowResult;
