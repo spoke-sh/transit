@@ -3576,6 +3576,26 @@ runtime speedup established. Fresh interactive sessions/cancel-on-exit and bulk
 storage improvements remain explicitly planned; no new wire/runtime behavior,
 site deployment or full clean CI run is claimed.
 
+### Interface navigation and SQL statement reference — 2026-09-29
+
+The interface navigation and fourteen new SQL reference pages pass `just check`
+after the locked frontend install. Existing routes stay stable. The four
+production browser checks pass at both `/` and `/handbook/`, covering top-level
+interface categories, SELECT/DDL/application navigation, statement search,
+mobile navigation, generated descriptions/downloads, diagrams and accessibility.
+The workload navigation assertion now follows the implemented interactive-session
+reference instead of expecting its earlier unimplemented wording.
+
+`just test::sql-grammar` parses 37 published examples and requires coverage of
+every statement rule in `TransitExtensions.g4` plus its historical-read fragment.
+The existing 103 PostgreSQL/ANTLR AST cases, 17 syntax exclusions and 13 extension
+cases also pass. Administrative examples establish syntax only, not executable
+DDL or effects. `just test::application-grammar` passes the complete published
+application program through the independent parser and real offline compiler,
+then checks its canonical model round-trip alongside the existing rejection
+and schema cases. These changes add no runtime SQL capability or new recovery
+guarantee; those remain under their owning service proofs.
+
 ## CLI diagnostic qualification
 
 `just test::cli-diagnostics` runs the actual `transit` executable against invalid

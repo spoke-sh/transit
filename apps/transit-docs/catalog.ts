@@ -19,6 +19,107 @@ export const sections: Section[] = [
     ],
   },
   {
+    label: "CLI",
+    pages: [
+      reference("cli", "Transit CLI"),
+      page("apps/transit-cli/docs/console.md", "guides/console", "Use the console"),
+      page("apps/transit-cli/docs/server.md", "guides/server", "Configure a local server"),
+      page(
+        "apps/transit-cli/docs/applications.md",
+        "guides/install-applications",
+        "Install and replace applications",
+      ),
+      page(
+        "apps/transit-cli/docs/unified-query.md",
+        "guides/query-v2",
+        "Query recovery and source configuration",
+      ),
+    ],
+  },
+  {
+    label: "SQL",
+    pages: [
+      reference("sql", "SQL reference"),
+      reference("sql/syntax", "Syntax, names and literals"),
+      reference("sql/select", "SELECT"),
+      reference("sql/create-connection", "CREATE CONNECTION"),
+      reference("sql/create-source", "CREATE SOURCE"),
+      reference("sql/create-sink", "CREATE SINK"),
+      reference("sql/create-table", "CREATE TABLE"),
+      reference("sql/create-document", "CREATE DOCUMENT"),
+      reference("sql/create-kv", "CREATE KV"),
+      reference("sql/grant", "GRANT"),
+      reference("sql/revoke", "REVOKE"),
+      reference("sql/show", "SHOW"),
+      reference("sql/describe", "DESCRIBE"),
+      reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),
+      reference("sql/application", "Application declarations"),
+      reference("queries", "Query execution and recovery"),
+      page("packages/zig/transit-fuze/docs/sql.md", "reference/sql-table", "Table SQL v1"),
+      page(
+        "packages/zig/transit-fuze/docs/unified-sql.md",
+        "reference/sql-unified",
+        "Unified SQL v2",
+      ),
+      page(
+        "packages/zig/transit-query/docs/compatibility.md",
+        "reference/query-compatibility",
+        "Query compatibility",
+      ),
+    ],
+  },
+  {
+    label: "SDKs",
+    pages: [
+      reference("sdks", "Language SDKs"),
+      reference("callers", "Caller and SDK semantics"),
+      reference("station", "Behaviors and supervision"),
+    ],
+  },
+  {
+    label: "HTTP APIs / OpenAPI",
+    pages: [
+      reference("openapi", "Serving OpenAPI"),
+      reference("serving", "Serve an application API"),
+      reference("board-api", "Board OpenAPI"),
+      page("contracts/SERVING_V1.md", "reference/serving-wire", "Serving wire contract"),
+    ],
+  },
+  {
+    label: "Reactive APIs / AsyncAPI",
+    pages: [
+      reference("asyncapi", "Reactive AsyncAPI"),
+      reference("reactive", "Sessions, watches and live views"),
+      page("contracts/REACTIVE_V1.md", "reference/reactive-wire", "Reactive wire contract"),
+    ],
+  },
+  {
+    label: "Flight SQL and ADBC",
+    pages: [
+      reference("flight", "Flight SQL and ADBC"),
+      reference("arrow", "Arrow interchange"),
+      page(
+        "packages/zig/transit-flight/docs/compatibility.md",
+        "reference/flight-compatibility",
+        "Flight compatibility",
+      ),
+      page(
+        "apps/transit-flight-gateway/docs/configuration.md",
+        "guides/flight-gateway",
+        "Configure a Flight gateway",
+      ),
+      page("contracts/FLIGHT_V1.md", "reference/flight-wire", "Flight wire contract"),
+    ],
+  },
+  {
+    label: "Native protocol",
+    pages: [
+      reference("native", "Native signed protocol"),
+      page("contracts/SERVICE_V2.md", "reference/native-wire", "Native HTTP wire contract"),
+      page("contracts/TRANSIT_V3.md", "reference/growing-wire", "Growing protocol v3"),
+    ],
+  },
+  {
     label: "Core concepts",
     pages: [
       reference("architecture", "Architecture and scope"),
@@ -34,87 +135,25 @@ export const sections: Section[] = [
   {
     label: "Build applications",
     pages: [
-      reference("callers", "Caller and SDK semantics"),
-      reference("sdks", "Language SDKs"),
-      reference("station", "Behaviors and supervision"),
       reference("tables", "Tables and materialization"),
       reference("documents", "Documents and text"),
       reference("connectors", "Effects, HTTP and gRPC connectors"),
-      reference("serving", "Serve an application API"),
-      reference("reactive", "Sessions, watches and live views"),
       reference("applications", "Installation, definitions and migration"),
-      page(
-        "apps/transit-cli/docs/applications.md",
-        "guides/install-applications",
-        "Install and replace applications",
-      ),
       page(
         "examples/work-items/docs/local.md",
         "guides/work-items",
         "Work-item commands and migration",
       ),
-    ],
-  },
-  {
-    label: "Query data",
-    pages: [
-      reference("sql", "SQL reference"),
-      reference("queries", "Query execution and recovery"),
-      page("packages/zig/transit-fuze/docs/sql.md", "reference/sql-table", "Table SQL v1"),
-      page(
-        "packages/zig/transit-fuze/docs/unified-sql.md",
-        "reference/sql-unified",
-        "Unified SQL v2",
-      ),
-      page("apps/transit-cli/docs/console.md", "guides/console", "Use the console"),
-      page(
-        "apps/transit-cli/docs/unified-query.md",
-        "guides/query-v2",
-        "Query recovery and source configuration",
-      ),
-      page(
-        "packages/zig/transit-query/docs/compatibility.md",
-        "reference/query-compatibility",
-        "Query compatibility",
-      ),
-      reference("arrow", "Arrow interchange"),
-      reference("flight", "Flight SQL and ADBC"),
-      page(
-        "packages/zig/transit-flight/docs/compatibility.md",
-        "reference/flight-compatibility",
-        "Flight compatibility",
-      ),
-      page(
-        "apps/transit-flight-gateway/docs/configuration.md",
-        "guides/flight-gateway",
-        "Configure a Flight gateway",
-      ),
-    ],
-  },
-  {
-    label: "Interface reference",
-    pages: [
-      reference("cli", "Transit CLI"),
-      reference("native", "Native signed protocol"),
-      reference("openapi", "Serving OpenAPI"),
-      reference("board-api", "Board OpenAPI"),
-      reference("asyncapi", "Reactive AsyncAPI"),
       page(
         "contracts/APPLICATION_INSTALLATION_V1.md",
         "reference/application-installation",
         "Installation and bootstrap contract",
       ),
-      page("contracts/SERVING_V1.md", "reference/serving-wire", "Serving wire contract"),
-      page("contracts/REACTIVE_V1.md", "reference/reactive-wire", "Reactive wire contract"),
-      page("contracts/FLIGHT_V1.md", "reference/flight-wire", "Flight wire contract"),
-      page("contracts/SERVICE_V2.md", "reference/native-wire", "Native HTTP wire contract"),
-      page("contracts/TRANSIT_V3.md", "reference/growing-wire", "Growing protocol v3"),
     ],
   },
   {
     label: "Operate Transit",
     pages: [
-      page("apps/transit-cli/docs/server.md", "guides/server", "Configure a local server"),
       page("launchers/README.md", "guides/launchers", "Development launchers"),
       reference("deployment", "Deployment and recovery"),
       guide("inspect-board", "Inspect with Board"),

@@ -1,6 +1,7 @@
 """Regenerate ANTLR, check complete statements, and compare covered Postgres ASTs."""
 import hashlib
 import json
+import re
 from reference import ROOT, generate, tree, antlr_ast, pg_ast
 
 
@@ -16,6 +17,42 @@ def corpus():
             lines = (ROOT / 'contracts/sql/corpus' / source['path']).read_text().splitlines()
             assert case['sql'] == '\n'.join(lines[source['first_line'] - 1:source['last_line']])
     return data
+
+
+def documentation_examples():
+    from antlr4 import InputStream
+    from TransitExtensionsLexer import TransitExtensionsLexer
+    from TransitExtensionsParser import TransitExtensionsParser
+
+    grammar = (ROOT / 'contracts/sql/TransitExtensions.g4').read_text()
+    extensions = re.search(r'extensionStatement\s*:(.*?);', grammar, re.S).group(1)
+    required = set(re.findall(r'\b[a-z]\w*\b', extensions)) | {'selectStatement', 'asOfClause'}
+    covered = set()
+    count = 0
+
+    def visit(node):
+        if hasattr(node, 'getRuleIndex'):
+            covered.add(TransitExtensionsParser.ruleNames[node.getRuleIndex()])
+            for child in node.getChildren():
+                visit(child)
+
+    directory = ROOT / 'docs/reference/sql'
+    for path in [directory.with_suffix('.md'), *sorted(directory.glob('*.md'))]:
+        if path.name == 'application.md':
+            continue  # Its complete program uses the separate application grammar proof.
+        for block in re.findall(r'^```sql\n(.*?)^```', path.read_text(), re.M | re.S):
+            # Split on lexer terminators, preserving semicolons inside strings/comments.
+            start = 0
+            ends = [token.stop + 1 for token in TransitExtensionsLexer(InputStream(block)).getAllTokens()
+                    if token.type == TransitExtensionsLexer.SEMI] + [len(block)]
+            for end in ends:
+                statement = block[start:end].strip()
+                start = end
+                if statement:
+                    visit(tree(statement, 'asOfFragment' if path.stem == 'as-of' else 'statement'))
+                    count += 1
+    assert required <= covered, f'Missing SQL reference examples: {sorted(required - covered)}'
+    print(f'SQL documentation: {count} examples parse; every statement and historical fragment covered (syntax only).')
 
 
 def check():
@@ -44,6 +81,7 @@ def check():
     for sql in data['extensions']:
         tree(sql)
     tree('FOR SYSTEM_TIME AS OF 240', 'asOfFragment')
+    documentation_examples()
     print(f"SQL grammar: {len(data['select'])} SELECT ASTs agree with libpg_query; "
           f"{len(data['reject'])} syntax exclusions; {len(data['extensions'])} extensions; zero ANTLR diagnostics.")
     return data

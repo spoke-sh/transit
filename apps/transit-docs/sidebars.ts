@@ -5,7 +5,7 @@ const sidebars: SidebarsConfig = {
   handbook: sections.map((section) => ({
     type: "category",
     label: section.label,
-    collapsed: section.label !== "Start here",
+    collapsed: true,
     items: section.pages.map((entry) => ({ type: "doc", id: docId(entry), label: entry.label })),
   })),
 };

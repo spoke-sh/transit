@@ -2,8 +2,16 @@
 
 Transit executes a finite, read-only `SELECT` subset through Fuze. SQL compiles
 to the same typed plan used by native callers. It does not grant access, create
-a source or change its declaration. Query workers capture an authorized source
-basis and publish bounded Arrow result segments.
+a source or change its declaration. The console uses a fresh authorized snapshot
+session for each query; explicit durable queries capture a source basis and
+publish bounded Arrow result segments. See [query execution](queries.md).
+
+This reference covers every statement in the
+[SQL grammar](../../contracts/sql/TransitExtensions.g4), its separate historical-read
+fragment, and the [application declaration grammar](../../contracts/application/Application.g4).
+Syntax recognition, query compilation and administrative publication are separate
+capabilities. Administrative SQL extensions are **grammar-only**; their examples
+describe syntax and do not execute in the query console.
 
 Choose the profile before writing a query:
 
@@ -23,6 +31,27 @@ Choose the profile before writing a query:
 | Results | Primitive Arrow | Nested typed cells: value, null, missing, type error, conflict |
 
 ## Statement forms
+
+Each statement page gives its syntax, examples, meaning and support boundary.
+Start with [syntax, names and literals](sql/syntax.md) for notation and shared rules.
+
+| Statement | Support | Reference |
+| --- | --- | --- |
+| `SELECT` | Executable finite read in the profiles above | [Projection, filtering, limits and aggregates](sql/select.md) |
+| `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
+| `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
+| `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
+| `CREATE TABLE` | Grammar only | [Columns, types and nullability](sql/create-table.md) |
+| `CREATE DOCUMENT` | Grammar only | [Document declaration](sql/create-document.md) |
+| `CREATE KV` | Grammar only | [Typed KV declaration](sql/create-kv.md) |
+| `GRANT` | Grammar only | [Privilege declaration](sql/grant.md) |
+| `REVOKE` | Grammar only | [Privilege revocation](sql/revoke.md) |
+| `SHOW` | Grammar only | [Tables, sources, sinks and connections](sql/show.md) |
+| `DESCRIBE` | Grammar only | [Named-object description](sql/describe.md) |
+| `FOR SYSTEM_TIME AS OF` | Separate grammar fragment; not part of `SELECT` | [Revision selection](sql/as-of.md) |
+| `CREATE INTERFACE`, `THEME`, `SCREEN`, `BINDING`, `ACTION` | Separate application compiler; publication is explicit | [Application declarations](sql/application.md) |
+
+## Query examples
 
 Given an authorized source named `items` with `id` and `value` int64 columns:
 
@@ -46,6 +75,9 @@ limit on input. The inner projection must retain the aggregate column. General
 subqueries, outer predicates and nested derived tables are unsupported.
 
 ## Names, literals and comparisons
+
+The [syntax reference](sql/syntax.md) describes lexical rules and option lists;
+[SELECT](sql/select.md) describes type-specific comparisons and failures.
 
 Unquoted ASCII names fold to lowercase. Double-quoted names preserve case but
 must satisfy Fuze's identifier rules. A column qualifier must match the declared
@@ -73,7 +105,7 @@ to 207 bytes; v2 uses an explicitly budgeted finite upload.
 Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
 `COUNT(column)`, general casts, writes and continuous queries are unsupported.
 `CREATE`, `GRANT`, `REVOKE`, `SHOW` and `DESCRIBE` in the
-[reference grammar](../../contracts/sql/README.md) are **grammar-only**.
+[reference grammar](../../contracts/sql/README.md) are grammar-only.
 They do not execute in the console, Board query workspace or Flight SQL.
 
 This is not PostgreSQL execution compatibility. The checked corpus establishes

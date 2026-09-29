@@ -1,5 +1,9 @@
 # SQL grammar and rewrite proofs
 
+The public [SQL statement reference](../../docs/reference/sql.md#statement-forms)
+covers every statement below with syntax, examples and execution limits, including
+the separate [historical-read fragment](../../docs/reference/sql/as-of.md).
+
 The reference grammar covers read-only single-Table `SELECT` and the existing
 administrative extension syntax. `TransitExtensions.g4` is the checked reference;
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
