@@ -11,6 +11,8 @@ The [local server guide](docs/server.md) describes the implemented supervisor,
 private native gateway and selected dependency/credential profile. Focused recovery,
 gateway pressure, physical capacity and clean-checkout qualification pass within
 the selected M24 profiles. Existing query entry points retain their qualified contracts.
+The local gateway supports [localhost and explicit tunnel aliases](docs/server.md#local-names-and-ssh-tunnels)
+and reports its URL and accepted authorities in the ready record.
 
 `transit query-v2` adds the explicit KV/Table/Document SQL profile. Its
 [unified shell guide](docs/unified-query.md) covers source declarations, finite

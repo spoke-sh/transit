@@ -3264,6 +3264,34 @@ M23/M24 committed-HEAD clean gate also passes, as recorded below. These focused
 tasks do not change M10's hosted CI budgets.
 
 
+### Local gateway host alias checks
+
+[Issue #11](https://github.com/rupurt/rey/issues/11) adds the local host policy
+described in the [server guide](../apps/transit-cli/docs/server.md#local-names-and-ssh-tunnels).
+`zig build test-cli-lifecycle` includes case-insensitive exact authority matching,
+port separation, DNS-label/IPv6 syntax and the eight-entry/200-byte bounds.
+These tests reject wildcard, URL, userinfo, control-byte, suffix and malformed-port
+inputs without resolving configured names through DNS.
+
+`just test::server` reads the actual ready record's gateway URL/effective hosts
+and performs a `localhost` HTTP request. Independent socket requests cover the
+numeric/default name, uppercase hostname, wrong name/port, missing or duplicate
+Host, malformed Host and unchanged Origin/forwarded-identity rejection.
+`just test::server-faults` adds explicit developer names and a different forwarded
+port, refusal of invalid policy before installation, recovery of the same
+installation with the same policy and configuration-identity refusal after policy
+drift. Its existing native denial, pressure, joined shutdown, interrupted
+bootstrap and provider rollback checks remain required.
+`just test::server-applications` checks the same default gateway authorities and
+ready fields while retaining the version 2 application management profile and
+its installation/replacement/recovery checks.
+
+The forwarded-port proof sends the exact Host an SSH tunnel preserves; it does
+not provision an SSH daemon or change the server's loopback-only listener.
+The application-serving Origin policy and console endpoint policy are separate
+and unchanged. Existing binary/configuration identity guards remain in force;
+these tests do not qualify a runtime upgrade of older installations.
+
 ## M23 and M24 final clean qualification
 
 The final implementation and proof harnesses at **`21089bb654f0`** pass all

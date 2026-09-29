@@ -149,12 +149,19 @@ fn cycle(self: *Self) !void {
     installation.record.complete = true;
     try installation.save();
     const gateway_config = try installation.path("gateway.json");
-    try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url });
+    try Files.json(self.init.io, allocator, gateway_config, @import("Gateway.zig").Config{ .port = config.ports.gateway, .upstream = installation.wire.url, .allowed_hosts = config.gateway_allowed_hosts });
     try self.start(allocator, .gateway, &.{ self.executable, "__transit_gateway_v1", gateway_config }, &.{}, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.gateway}));
     const console_path = try installation.path("console.json");
     try Files.json(self.init.io, allocator, console_path, @import("../Console.zig").Config{ .version = 1, .profile = .unified_v2, .url = try Provider.url(allocator, config.ports.gateway), .transport = .loopback, .seed_file = "caller.seed", .connection = connection, .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) }, .recovery_file = "console-recovery.json" });
-    const report = try std.json.Stringify.valueAlloc(allocator, .{ .ready = true, .profile = if (applications != null) "local_applications_v1" else "local_table_v1", .console_config = console_path, .management_config = if (applications != null) try installation.path("management.json") else null }, .{});
+    const report = try std.json.Stringify.valueAlloc(allocator, .{
+        .ready = true,
+        .profile = if (applications != null) "local_applications_v1" else "local_table_v1",
+        .console_config = console_path,
+        .management_config = if (applications != null) try installation.path("management.json") else null,
+        .gateway_url = try Provider.url(allocator, config.ports.gateway),
+        .allowed_hosts = try @import("Hosts.zig").list(allocator, config.ports.gateway, config.gateway_allowed_hosts),
+    }, .{});
     var output_buffer: [1024]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(self.init.io, &output_buffer);
     try @import("../Output.zig").write(self.init, &output.interface, try std.fmt.allocPrint(allocator, "{s}\n", .{report}));

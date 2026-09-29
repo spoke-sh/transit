@@ -3,4 +3,5 @@ test {
     _ = @import("Options.zig");
     _ = @import("server/Process.zig");
     _ = @import("server/Applications.zig");
+    _ = @import("server/Hosts.zig");
 }
