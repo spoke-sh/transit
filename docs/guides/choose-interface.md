@@ -25,8 +25,8 @@ history into a new profile.
 
 - Query v1 serves a single declared two-column Table; query v2 adds explicit
   KV/Table/Document sources and five-state nested Arrow cells.
-- Flight SQL uses the qualified Table v1 path. Its availability does not imply
-  that every native query v2 source or type works through Flight.
+- Flight SQL serves Table v1 queries. Native query v2 sources and nested cell
+  types use the native query interface.
 - OpenAPI describes Board and the serving HTTP adapter. It does not replace the
   native signing specification or turn every kernel operation into a REST route.
 - AsyncAPI describes the reactive WebSocket binding. Fetch-SSE is documented by
@@ -34,5 +34,5 @@ history into a new profile.
 - SQL reference grammar contains additional administrative declarations.
   Parser acceptance does not make them executable commands.
 
-[Scope](../reference/architecture.md) and the [qualification ledger](../../tests/README.md) distinguish
-supported behavior, tested client/topology combinations and excluded capabilities.
+See [architecture and scope](../reference/architecture.md) for component
+responsibilities and [deployment](../reference/deployment.md) for supported environments.

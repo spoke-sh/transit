@@ -1,6 +1,6 @@
-# Station growing development profile
+# Station growing profile
 
-Status: implemented development behavior/point-state profile over the explicit
+Growing Station provides behaviors and point-state operations over the explicit
 [Transit v3 profile](TRANSIT_V3.md). Existing launchers, Station v1, Board lenses
 and legacy foreign ABIs continue to use [Station v1](STATION_V1.md). There is no implicit
 upgrade, mixed-profile resource or claim that all Station v1 services are available here.

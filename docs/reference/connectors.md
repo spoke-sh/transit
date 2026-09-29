@@ -40,7 +40,7 @@ original permitted bytes and mark secret omissions. Decoding and re-encoding a
 message is not byte-exact capture. Current read rights govern transcripts and
 referenced payloads; knowing their identifiers never grants access.
 
-## Qualified transports
+## Supported transports
 
 | Connector | Implemented profile | Important limits |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ Start with the [HTTP example](../../examples/station-http/README.md) or
 [HTTP package](../../packages/zig/transit-station-http/README.md),
 [RPC package](../../packages/zig/transit-station-grpc/README.md) and
 [outbound Flight package](../../packages/zig/transit-station-flight/README.md)
-for exact configuration and qualified peers. Wire formats and budgets stay in
+for configuration and peer compatibility. Wire formats and budgets stay in
 [HTTP v1](../../contracts/STATION_HTTP_V1.md) and
 [gRPC v1](../../contracts/STATION_GRPC_V1.md).
 

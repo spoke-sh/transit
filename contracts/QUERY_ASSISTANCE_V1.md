@@ -1,6 +1,6 @@
 # Query assistance v1
 
-Status: implemented cursor-assistance contract. [CLI v1](TRANSIT_CLI_V1.md) owns terminal
+Cursor assistance provides context-aware SQL and console suggestions. [CLI v1](TRANSIT_CLI_V1.md) owns terminal
 interaction; [workspace v2](../packages/zig/transit-query/docs/unified-client.md) owns
 current-authority queries. This contract adds no SQL execution or grants.
 

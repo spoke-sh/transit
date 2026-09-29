@@ -67,8 +67,8 @@ collection. Query frames are provisional until their declared completeness and
 digest checks pass. Arrow ownership is explicit; an owned IPC object or C release
 callback must outlive consumers. See [queries](queries.md) and [Arrow](arrow.md).
 
-The installed SDK matrix is qualified separately from application supervisor
-hosting. The first independently compiled installation host is Zig. Native Node
+The local application supervisor hosts separately compiled Zig workers. The SDK
+packages expose client and framework APIs independently of that supervisor. Native Node
 SDKs are distinct from browser query/reactive/application clients and their
 credential scopes. See [installation](applications.md) for that boundary.
 

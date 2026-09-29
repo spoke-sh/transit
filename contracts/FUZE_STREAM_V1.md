@@ -1,7 +1,7 @@
-# Fuze incremental execution — v1 development extension
+# Fuze incremental execution v1
 
-Status: the pure Zig execution/owned-progress boundary is implemented by
-`transit_fuze.Stream`. [Station delivery](STATION_QUERY_V2.md) and the
+`transit_fuze.Stream` executes bounded batches with owned progress that callers
+can persist and resume. [Station delivery](STATION_QUERY_V2.md) and the
 [public query profile](PUBLIC_QUERY_V1.md) separately define durable query integration. The finite
 [Fuze v1 profile](FUZE_V1.md) remains supported.
 

@@ -1,7 +1,7 @@
 # Sessions, watches and live views
 
 The reactive API supplies resumable notifications and exact snapshot refresh for
-the qualified int64 Table profile. A notification says the source may have
+int64 Table sources. A notification says the source may have
 changed. It is not a new query result, every intermediate row change or a
 continuous SQL engine.
 
@@ -71,7 +71,7 @@ typing and incremental continuous results are unsupported.
 SSE is a signed POST fetch stream, not `EventSource` GET. WebSocket uses the
 `transit.reactive.v1` subprotocol and the configured challenge bootstrap; there
 are no URL credentials. Connection-local challenges need the same gateway until
-consumed, and portable cursors need the qualified shared signing identity.
+consumed, and portable cursors require the configured shared signing identity.
 Heartbeats and successful writes do not establish application progress.
 
 Exact messages, limits and resumption rules are in

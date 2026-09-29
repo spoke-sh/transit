@@ -1,10 +1,9 @@
-# Transit v2 experimental protocol profile
+# Transit protocol v2
 
-Status: implemented bounded profile with additive [state](STATE_V1.md)
-and [lifecycle](LIFECYCLE_V1.md)/[collection](CATALOG_V1.md) extensions; not a
-stable public API.
-The owning requirements remain in [TRANSIT.md](../docs/reference/processes.md) and
-[SECURITY.md](../docs/reference/security.md).
+Transit v2 defines bounded commands, reads and ownership, with additive
+[state](STATE_V1.md), [lifecycle](LIFECYCLE_V1.md) and [catalog collection](CATALOG_V1.md)
+extensions. See [processes](../docs/reference/processes.md) and
+[security](../docs/reference/security.md) for the execution and authorization model.
 
 ## Encoding and identity
 
@@ -225,7 +224,7 @@ unknown observations and otherwise valid late results. A same-identity retry of
 an earlier accepted operation may return its historical receipt under current
 permission and the retry policy; it does not admit anything again. A closed
 unknown attempt does not deliver a fabricated failure message, cancel remote
-work, or authorize a retry. The experimental caller must inspect its closure;
+work, or authorize a retry. The caller must inspect its closure;
 a typed framework notification is later work.
 
 Dispatch records `reconcile_before_ms` (required for a finite caller) and a
@@ -239,9 +238,9 @@ not invoke external I/O or invent a remote outcome.
 An unlimited caller may omit the wall-clock bound and close explicitly or exhaust
 the observation budget. That is not a finite reconciliation-time guarantee;
 connectors must choose and record their required finite window before real I/O.
-The test-only synthetic executor has real-I/O/closure proofs, but no production
-connector is installed. The current effect grant combines intent, dispatch and
-observation rights; destination and secret scopes remain connector work.
+The bundled synthetic executor is a test fixture. HTTP and RPC connectors use
+the [growing profile](TRANSIT_V3.md) and their own destination and secret scopes.
+The v2 effect grant combines intent, dispatch and observation rights.
 
 ## Authority time and bounded settlement
 
@@ -323,13 +322,13 @@ and trim; the one post-ceiling checkpoint cannot be repeated with fresh request
 identities. See the [capacity profile](../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity)
 and [physical proof](../tests/README.md#physical-capacity-profile)
 for record/byte bounds, the tested reserve, and deployment limits. Defaults
-remain unlimited. Dynamic capacity expansion is outside this experimental profile.
+remain unlimited. Dynamic capacity expansion is unsupported in this profile.
 
 Synthetic effect I/O and Kubernetes/Substrate recovery/isolation now have their
 own executable proofs. Basic immutable payload deletion is described below;
 the [proof ledger](../tests/README.md) records the completed evidence audit.
 Cross-realm delivery is outside this slice.
-The [experimental service](SERVICE_V2.md) hosts signed ingress and scoped views
+The [native HTTP service](SERVICE_V2.md) hosts signed ingress and scoped views
 for application callers, including the reference counter. Conformance is limited to the documented
 profiles, topology and fault schedules; broader guarantees need new evidence.
 

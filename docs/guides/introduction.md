@@ -6,10 +6,9 @@ Transit validates and records which changes commit. A worker can restart without
 turning accepted work into a new request.
 
 Use Transit when the identity and recovery of work matter beyond the lifetime of
-a process or network connection. It is experimental: the implemented profiles
-have explicit limits and tested configurations, rather than a general production
-compatibility promise. This handbook describes the capabilities of its source
-revision. Start on the qualified Linux x86_64 local profile.
+a process or network connection. Get started on Linux x86_64 with the
+[local quickstart](quickstart.md). Each interface reference defines its operations,
+types, compatibility rules and limits.
 
 ## The pieces you use
 
@@ -50,5 +49,5 @@ worker ownership, including on reads and replay.
 
 Retention is unlimited unless an application explicitly opts into a finite
 policy. Memory pressure, disk pressure and restarts do not authorize deletion.
-See the [scope](../reference/architecture.md), [interface matrix](choose-interface.md) and
-[verification limits](../reference/verification.md) before choosing a profile.
+See the [architecture](../reference/architecture.md), [interface matrix](choose-interface.md)
+and [recovery guarantees](../reference/verification.md) for details.

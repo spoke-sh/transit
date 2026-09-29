@@ -3,8 +3,7 @@
 This starts an isolated, application-capable local installation and queries an
 empty Table. Use Linux x86_64 with Nix flakes enabled and this repository checked
 out. The complete local bundle includes pinned Transit, Ursula and MinIO;
-Docker is not required for this path. Other platforms and public installers are
-not qualified by this guide.
+Docker is not required for this path.
 
 Run from the repository root. Choose unused ports 19101–19106 and a new
 `.cache/docs-start` directory. Keep that directory to resume the installation.

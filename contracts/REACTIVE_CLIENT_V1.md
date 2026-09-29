@@ -1,6 +1,6 @@
 # Reactive private host client v1
 
-Status: implemented private host client for the bounded int64 Table profile. The owning types are
+The private host client connects browser viewers to bounded int64 Table sessions. The owning types are
 [`ReactiveClient`](../packages/zig/transit-serving/src/ReactiveClient.zig); generated
 [host schemas](../packages/zig/transit-serving/api/client.json) accompany the
 existing [reactive API](REACTIVE_V1.md). This adapter adds no session or cursor
@@ -73,7 +73,7 @@ conservative upper clock bound. Callers choose open/renew deadlines from that
 sample and the advertised maximum lease. Reading a description does not emit an
 observer command. Only the separately authorized observer records clock progress.
 
-The read-only `clock` operation returns the same qualified observer sample through
+The read-only `clock` operation returns the same validated observer sample through
 reserved control capacity, with current native/service authorization. Renewal
 uses it without repeating discovery/schema reads. It grants no extra lease;
 the owner still validates the subsequently recorded conditional renew command.

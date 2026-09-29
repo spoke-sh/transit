@@ -57,7 +57,7 @@ cut/continuation semantics. Query errors are JSON, including unknown API routes;
 they never fall through to HTML. The default inspection profile has no mutation
 route. The optional growing query profile is configured separately below.
 
-### Migrating the experimental Board v1 profile
+### Board v1 schema compatibility
 
 The current schema includes the required `documents` capability and growing-record
 lens fields, plus the selected Document metadata response. Update Board and its generated browser client

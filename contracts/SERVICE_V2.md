@@ -1,10 +1,9 @@
-# Experimental Transit service profile
+# Transit native HTTP service v2
 
-Status: implemented for the bounded native protocol v2. Zig applications use
-`transit-client`; the counter is the reference deployment workload. `just test::service`
-owns an isolated disk Ursula, authority, and workers. It exercises signed HTTP
-ingress, scoped reads, key renewal/revocation, paused-worker fencing, slow
-requests, and authority/storage restart. This is not full deployment conformance.
+The native HTTP service exposes signed commands, scoped reads and receipt
+recovery for Transit protocol v2. Zig applications use `transit-client` for
+encoding, signatures and exact retries. The [service tests](../tests/README.md)
+exercise authentication, fencing and recovery against disk-backed storage.
 
 ## Implementations and operation
 

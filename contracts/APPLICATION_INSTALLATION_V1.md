@@ -1,18 +1,17 @@
 # Local application installation v1
 
-Status: implemented and qualified for the trusted local Linux/Zig profile.
-[Executed evidence and limits](../tests/README.md)
-include two applications, exact native reply recovery, migration and real ENOSPC.
-Public values live in `transit_client.Application`. The generated structural
+This contract defines local installation, management and worker bootstrap for
+separately compiled Zig applications on Linux. Public values live in
+`transit_client.Application`. The generated structural
 schema and semantic validation must agree; declarations are not authority.
 See the [generated schema](application-installation-v1.schema.json) and
 [shared signing fixture](application-installation-v1.fixture.json).
 
 ## Placement and identities
 
-The initial profile is trusted local Linux, with separately compiled Zig workers.
-JSON configuration, management and bootstrap values are language neutral. Other
-language hosts are not qualified by the Zig example. There is no shell, source
+The supervisor runs trusted local Linux processes with separately compiled Zig workers.
+JSON configuration, management and bootstrap values are language neutral. Worker
+adapters for other languages are unsupported. There is no shell, source
 compiler, hot loader or downstream supervisor in the running neighborhood.
 
 The realm installation pins its Transit/provider artifacts independently from

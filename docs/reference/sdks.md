@@ -5,10 +5,9 @@ operations, read capabilities and preserve exact recovery. Station adds typed
 messages, private turns, Tables and handler runners. Shared protocol and framework
 semantics stay in Zig; host packages own language types, codecs and scheduling.
 
-The implemented installation/interoperability matrix covers Linux x86_64.
-These are built and installed packages from this checkout, not a promise of
-public-registry releases or every OS/architecture. Follow the owning package's
-commands and [SDK examples](../../examples/station-sdk/README.md).
+Build and install the SDKs from this checkout on Linux x86_64. Follow each
+package's installation commands and the [SDK examples](../../examples/station-sdk/README.md).
+Packages are not distributed through public registries.
 
 | Language | Raw client | Framework |
 | --- | --- | --- |
@@ -44,5 +43,5 @@ native client is not a browser credential adapter.
 
 Use [caller and SDK semantics](callers.md) for authority, scoped turns, native
 ownership, scheduling and exact recovery.
-The first separately compiled worker installed by `transit app` is Zig; the
-wider SDK matrix does not imply every language has that supervisor host adapter.
+`transit app` installs separately compiled Zig workers. Other SDKs provide client
+and framework APIs; the local supervisor has no worker adapter for those languages.

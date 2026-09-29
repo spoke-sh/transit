@@ -1,6 +1,6 @@
 # Fuze v1 bounded Table profile
 
-Status: implemented bounded Table profile. This is the structured query contract;
+This contract defines bounded structured queries over a Table snapshot;
 joins, grouping, windowing and user-selected sorting are unsupported.
 The [SQL frontend](../packages/zig/transit-fuze/docs/sql.md) lowers read-only
 Table syntax to the separate incremental `Stream.Plan` without extending these

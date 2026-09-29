@@ -78,9 +78,9 @@ this is not a full transcript replay or a decoded application body.
 
 Change the types/projection and tests here, then run `just transit-board::generate`
 and `just transit-board::contract` from the repository root. Update service
-routing and frontend validation in the same change. The experimental v1 API has
-had deliberate removals; the [Board migration guide](../../../apps/transit-board/docs/configuration.md#migrating-the-experimental-board-v1-profile)
-and app state section record them.
+routing and frontend validation in the same change. The
+[Board compatibility guide](../../../apps/transit-board/docs/configuration.md#board-v1-schema-compatibility)
+and app state section describe schema changes and client update requirements.
 
 `zig build transit-board-contract` at the repository root generates the
 [OpenAPI 3.1 contract](../../../contracts/transit-board-v1.openapi.json) using the shared

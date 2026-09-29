@@ -153,6 +153,11 @@ roadmap links or delivery sequencing in published prose, examples, link targets
 or generated descriptions. Use named capabilities, actual interface versions and
 supported/unsupported profiles instead. This also applies to component guides
 included by the site and every wire contract; checks cover these public sources.
+Describe interfaces directly in the present tense. State supported operations,
+types, platforms, version compatibility, configuration and failure behavior.
+Avoid maturity labels and generic qualification or production-readiness caveats.
+Keep concrete limits beside the affected interface and test execution details in
+the proof ledger; do not imply broader support or guarantees by changing tone.
 Keep component READMEs navigable; place substantial configuration, recovery, or
 integration guides in that component's `docs/` and link them from its README.
 Update the owning document with meaningful changes and distinguish implemented,

@@ -1,15 +1,15 @@
 # Deployment and recovery
 
-Choose a deployment for its qualified lifecycle and isolation boundaries.
+Choose a deployment for its lifecycle and isolation requirements.
 Kubernetes with Agent Substrate is the reference runtime. Local and Compose
 profiles are useful development environments; they do not provide equivalent
-worker isolation or qualify a new distributed recovery topology.
+worker isolation. Distributed recovery across authorities is unsupported.
 
 | Entry point | Intended use | Guide |
 | --- | --- | --- |
 | `transit server` | Trusted local service neighborhood and version-2 application manager | [Server](../../apps/transit-cli/docs/server.md), [applications](../../apps/transit-cli/docs/applications.md) |
 | Local launcher | Persistent native development stack with Board and example workload | [Launchers](../../launchers/README.md) |
-| Compose launcher | Containerized development/qualification | [Launchers](../../launchers/README.md) |
+| Compose launcher | Containerized development and integration testing | [Launchers](../../launchers/README.md) |
 | Reference launcher/chart | Kubernetes/Substrate infrastructure and persistent application | [Reference runbook](../../deploy/reference/README.md), [Helm chart](../../charts/transit/README.md) |
 
 ## Initialize and restart deliberately
@@ -57,17 +57,17 @@ terminal expiry are different diagnoses. Stop new work if the current authority
 or required recovery basis cannot be established.
 
 An old backup may predate revocation, retirement or a completed remote effect.
-Automatic live restore from rolled-back history is not qualified. Broader disaster
+Automatic live restore from rolled-back history is unsupported. Broader disaster
 recovery needs explicit fencing, new recovery/trust generations and external
 reconciliation; cloning for inspection cannot quietly become live execution.
 
-Finite admission/control reserves preserve qualified control progress under
-pressure, not unlimited application drain or automatic disk provisioning. See
+Finite admission/control reserves retain capacity for control operations under
+pressure. They do not allocate disk or drain all accepted application work. See
 [retention](retention.md) and [observability](observability.md) for capacity and
 diagnostic interpretation. A SIGKILL/restart proof is not a host power-loss proof.
 
 The [runtime contract](../../contracts/RUNTIME_SUBSTRATE_V1.md),
 [adapter](../../packages/zig/transit-runtime-substrate/README.md) and
 [controller](../../apps/transit-runtime-controller/README.md) own exact provider
-operations. Public release channels and broader clustered portability are not qualified;
-the checked-in chart is not evidence of published releases.
+operations. Use the chart from this checkout; public release channels and
+deployment on other cluster runtimes are unsupported.

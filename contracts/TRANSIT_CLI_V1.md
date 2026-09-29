@@ -1,8 +1,8 @@
 # Transit CLI v1
 
-Status: implemented CLI contract. The [CLI guide](../apps/transit-cli/README.md)
-records available commands and the [proof ledger](../tests/README.md) records
-qualification evidence. Native placement targets Linux x86_64.
+This contract defines CLI commands, local server lifecycle and console recovery.
+The [CLI guide](../apps/transit-cli/README.md) lists commands and usage.
+The local server runs on Linux x86_64.
 
 ## Command and compatibility boundary
 

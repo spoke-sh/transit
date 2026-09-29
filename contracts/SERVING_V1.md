@@ -1,8 +1,8 @@
 # Serving profile v1
 
-Status: qualified service-caller profile. The
-[proof ledger](../tests/README.md) separates socket, durable
-admission, lifecycle and physical deployment evidence. [Serving](../docs/reference/serving.md) owns the architecture.
+Serving v1 defines service identity, caller authorization, durable command
+admission and bounded reads. [Serving](../docs/reference/serving.md) explains
+the architecture and protocol adapters.
 
 ## Owner and publication
 

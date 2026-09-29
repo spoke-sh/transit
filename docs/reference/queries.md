@@ -30,7 +30,7 @@ resource budgets. Query admission is separate from execution and complete result
 publication. Current source permission is checked independently from requester
 ownership or a gateway's own credential.
 
-The qualified requester has one active query. Retained queries and results can
+Each requester runs one active query. Retained queries and results can
 grow on disk without loading their complete history into memory. Work is bounded
 by pages, operators, batches, upload and active execution; omitting SQL `LIMIT`
 does not authorize unbounded resident memory or silently truncate the answer.

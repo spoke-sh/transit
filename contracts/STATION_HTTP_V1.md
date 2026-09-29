@@ -1,12 +1,9 @@
 # Station HTTP capture v1
 
-Status: experimental finite HTTP implementation profile. Public service admission
-and all ten public SDK request/call/replay APIs are implemented and locally
-qualified. Zig public followup admission composes frozen-policy validation and
-atomic child routing. All ten SDKs qualify typed followup submission and correlated
-policy refusal. The [proof ledger](../tests/README.md) separately records durable
-worker recovery and local/Compose/reference deployment evidence.
-This protocol-specific layer uses the
+The HTTP connector provides finite request admission, capture, replay and explicit
+followups through Zig and all ten public SDKs. Followup admission validates the
+frozen policy and atomically records child routing; policy refusal returns a
+correlated outcome. This protocol-specific layer uses the
 [exchange contract](STATION_EXCHANGE_V1.md); it adds no kernel authority.
 
 ## Requests and scope
@@ -232,7 +229,7 @@ It checks required kinds/order, complete heads, request/body counts, final statu
 timing/omission/completion records and shared digest/coverage. Only its final
 `complete` part establishes replay completion. `require_unredacted` rejects captures
 with omitted response fields or request secret references as `HttpReplayGap`.
-Missing records and prequalification captures lacking terminal records also return
+Missing records and older captures lacking terminal records also return
 gaps. A failed reader must be reopened under current permissions. This API accepts
 no network, DNS or credential resolver and cannot refetch missing data.
 

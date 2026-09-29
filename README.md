@@ -17,10 +17,10 @@ frontends, and development tooling. Ursula supplies durable storage; Kubernetes
 with Agent Substrate is the reference deployment. **Rey is the intended downstream
 trading application**, using the same primitives as other workloads.
 
-**Status:** experimental. The implemented profiles cover durable processes and
-state, Station SDKs, HTTP/gRPC connectors, KV/Table/Document queries, reactive
-APIs, finite Flight SQL and local application installation. Each has explicit
-bounds and separately recorded qualification; see the [interface profiles](docs/guides/choose-interface.md).
+Transit provides durable processes and state, Station SDKs, HTTP/gRPC connectors,
+KV/Table/Document queries, reactive APIs, finite Flight SQL and local application
+installation. The [interface guide](docs/guides/choose-interface.md) describes
+their operations, supported types and compatibility rules.
 
 ## Documentation
 

@@ -145,4 +145,4 @@ retention limits or an external cancellation promise.
 `just test::console table` exercises the real command over disk Ursula and query
 workers, with pipe, controlling-PTY and explicit TLS trust fixtures. `kv` and
 `document` select other source profiles. The [proof ledger](../../../tests/README.md)
-records the qualified console and server lifecycle profiles separately.
+records console and server lifecycle tests separately.

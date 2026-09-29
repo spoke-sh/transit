@@ -1,8 +1,7 @@
 # Finite query draft budget v1
 
-Status: implemented native owner, Table host and browser scheduling. The
-[proof ledger](../tests/README.md) records exact lost-upload recovery, reload,
-coalescing and budget exhaustion. This extends the v2 requester without changing
+The query draft budget bounds automatic finite-query evaluation for a Table
+workspace. It extends the v2 requester without changing
 explicit Run or Follow semantics. It supplies no watch or continuous query support.
 
 An explicit open conditionally advances the requester's draft generation. It

@@ -491,7 +491,7 @@ The name and internal base port are persisted; use a new name to change the
 Ursula/Transit ports. Board's settings can change as described above. An occupied
 port fails rather than adopting a service.
 The selected checkout must have a path short enough for the local Unix socket.
-Linux x86_64 is qualified here; other host/engine combinations remain unverified.
+Use Linux x86_64 with the documented engine configuration.
 
 ```sh
 REY_LAUNCHER_NAME=experiment REY_LAUNCHER_BASE_PORT=18300 just launchers::local::up

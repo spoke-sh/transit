@@ -1,8 +1,7 @@
 # Finite Flight gateway profile v1
 
-Status: implemented finite int64 Table profile. Pinned PyArrow and ADBC C/Python
-clients have qualified metadata, query, retry and current-permission checks,
-with native, Compose and reference TLS/recovery evidence. The
+The Flight gateway serves finite int64 Table queries to PyArrow and ADBC C/Python
+clients. The
 [compatibility matrix](../packages/zig/transit-flight/docs/compatibility.md)
 records supported client versions, bounds and excluded operations. This contract
 extends [serving](SERVING_V1.md) and [public Table query](PUBLIC_QUERY_V1.md);
@@ -27,7 +26,7 @@ Prepared statements/parameters, writes, transactions, savepoints, bulk ingestion
 DoPut, DoExchange, polling and cancellation actions return UNIMPLEMENTED.
 ListActions is empty; ListFlights is unsupported. Catalog discovery uses the
 standard Flight SQL metadata commands and cannot start an application query.
-The pinned ADBC Python DBAPI uses its qualified unprepared fallback; the C
+The pinned ADBC Python DBAPI uses its unprepared fallback; the C
 consumer uses direct statement execution.
 
 ## Credentials, publication and admission

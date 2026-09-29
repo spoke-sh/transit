@@ -1,11 +1,9 @@
 # Station immutable index v1
 
-Status: implemented immutable index used by Documents. Component/private-turn
-and Document service/disk evidence are recorded in the [proof ledger](../tests/README.md).
-This is a Station library format, not a kernel command or grant. It supplies an
+This Station library format supplies an
 immutable ordered index over [Publication](STATION_PUBLICATION_V1.md); Document
 acceptance, causal validation, retained roots and current authorization remain
-with its consumer. No production compatibility claim is made yet.
+with its consumer. Index references grant no access by themselves.
 
 A tree uses one resource and Publication namespace. Each node is an immutable
 record identified by its nonzero u64 record ID plus exact Publication spec. A

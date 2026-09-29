@@ -1,13 +1,12 @@
 # State resources v1
 
-Status: implemented bounded state protocol, service and Zig client. See
-[state](../docs/reference/state.md) for the model and the [proof ledger](../tests/README.md) for
-qualification. Query `capabilities` on the running authority; schema presence
-alone does not advertise its support.
+State v1 defines resource identity, associations, read views and atomic mutations
+for protocol v2. See [state](../docs/reference/state.md) for the model. Query
+`capabilities` on the running authority to discover enabled operations.
 
 ## Compatibility and authority
 
-The profile extends the experimental v2 realm with a `state` command family and
+The profile extends the v2 realm with a `state` command family and
 domain-separated state reads. Existing command encodings, signatures, inline
 process state, and inspection v1 stay unchanged. Old authorities reject the new
 command family. Once a realm contains state operations or a state checkpoint,

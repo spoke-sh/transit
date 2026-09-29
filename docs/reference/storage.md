@@ -42,5 +42,5 @@ See [retention](retention.md) and [deployment](deployment.md).
 
 The [backend package](../../packages/zig/transit-backend-ursula/README.md) and
 [storage mapping](../../packages/zig/transit-backend-ursula/docs/storage.md) own
-the implemented journal/checkpoint layout, adapter operations, cold-store setup
-and qualifications. Changing providers requires evidence for those guarantees.
+the journal/checkpoint layout, adapter operations, cold-store setup and recovery
+requirements. A replacement provider must satisfy those same requirements.

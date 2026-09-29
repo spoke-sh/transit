@@ -49,8 +49,8 @@ the sender advances from credit it actually observed. Completion requires the
 whole verified result, not a successful socket write.
 
 See the [query flow-control contract](../../contracts/STATION_QUERY_V2.md#flow-control)
-for exact frame and recovery rules. This is a qualified instance, not a generic
-credit API for every connector. Connector byte/message/concurrency budgets remain
+for exact frame and recovery rules. This credit API belongs to query delivery.
+Connector byte/message/concurrency budgets remain
 independent of transport flow control and of retained-history size.
 
 The [delivery executable](../../apps/transit-delivery/README.md) documents courier

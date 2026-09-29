@@ -1,6 +1,7 @@
 # Application migration ledger v1
 
-Status: shared ledger core implemented; domain ingress and physical qualification pending.
+The migration ledger records reviewed plans, bounded steps and activation in the
+application's state resource. Application commands provide its ingress.
 [Application definitions](APPLICATION_V1.md) and
 [reactive applications](../docs/reference/applications.md) own the surrounding model.
 This ledger belongs above Station. It neither grants execution authority nor
@@ -18,7 +19,7 @@ handlers remain responsible for their normal application authorization.
 The ledger records an active data epoch and at most one active plan. Historical
 plans and step receipts are addressed by durable keys; their cardinality is not
 bounded by a resident array. Read and mutation batches remain bounded. An active
-plan is a deliberate write pause for the first qualified transformation, not a
+plan is a deliberate write pause for the work-item transformation, not a
 lease inferred from wall time or coordinator liveness. A coordinator restart
 cannot release it. Unsupported transforms reject before beginning a plan.
 
@@ -82,7 +83,7 @@ never permission to expire work, unpause writes, discard receipts or infer that 
 step did not commit. Current resource grants and permanent retirement continue to
 apply to reads and replay independently of the ledger.
 
-## Required qualification
+## Verification
 
 Independent canonical fixtures precede transport wiring. Deterministic tests must
 cover digest conflicts, concurrent plans, out-of-order steps, current revocation,
@@ -90,12 +91,13 @@ allocation failure, restart reconstruction and the four-write bound. The actual
 generated work-item binary must additionally prove bounded copy/verification,
 unknown admission replies, native/disk recovery, old/new binding separation and
 explicit rollback limits through native, Compose and reference placements.
-These obligations remain open until executable evidence is recorded in tests.
+The [test guide](../tests/README.md) records the work-item recovery, migration,
+browser and deployment results.
 
 ## Implemented ledger records
 
-The shared Zig ledger core and its independent fixtures are implemented. There is
-no network migration endpoint yet. Keys are `00 4d`, application u64 big-endian,
+The shared Zig ledger is called by the application's authenticated command handler;
+it exposes no standalone network endpoint. Keys are `00 4d`, application u64 big-endian,
 a one-byte tag, then two u64 big-endian identifiers. Values reuse the bounded
 `AP1` version envelope with the same tag, followed by declared-order fixed
 little-endian integers, one-byte enums/bools, fixed byte arrays and length-prefixed
@@ -124,5 +126,6 @@ domain callback. It restores the caller's original turn decision on any failure,
 including tentative domain writes. A normal step uses two ledger mutations;
 activation uses three, leaving at most one domain mutation in that turn. This
 protects the commit boundary, not the honesty of arbitrary domain computation.
-The selected work-item owner must still implement and qualify its transform,
-write pause and complete verification before using activation.
+The work-item owner enforces its write pause and verifies the complete target
+before activation. Other application owners must enforce the same boundary for
+their own transforms.

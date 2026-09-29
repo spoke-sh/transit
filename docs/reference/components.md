@@ -10,17 +10,17 @@ The [architecture](architecture.md) explains dependency direction and authority.
 | --- | --- | --- |
 | [transit-http-server](../../packages/zig/transit-http-server/README.md) / `transit_http_server` | Bounded HTTP/1.1 and WebSocket framing, concurrent socket ownership, control reserve and joined deadlines; consumed by Board and serving | None |
 | [transit-station-app](../../packages/zig/transit-station-app/README.md) / `transit_station_app` | neutral definitions, shared compiler, signed conditional publication, bounded host contract and upload continuation | transit-serving |
-| [transit-serving](../../packages/zig/transit-serving/README.md) / `transit_serving` | admission/current reads; session controls, Table watch coverage and generated reactive contracts; native/Compose/Substrate qualification | transit-station, transit-query |
+| [transit-serving](../../packages/zig/transit-serving/README.md) / `transit_serving` | admission/current reads; session controls, Table watch coverage and generated reactive contracts | transit-station, transit-query |
 | [transit-query-client](../../packages/ts/transit-query-client/README.md) | Reflected finite-query host types, bounded browser transport, semantic cell validation and complete-result reads shared by Board and applications | transit-query schema, transit-reactive-client caller coordination, AJV |
 | [transit-application](../../packages/ts/transit-application/README.md) | generated validators, pure visual edits, scoped signing and exact pending/reviewed-plan recovery | transit-station-app reflected contract, AJV |
 | [transit-serving-http](../../packages/zig/transit-serving-http/README.md) / `transit_serving_http` | Reusable signed HTTP/SSE/WebSocket dispatch, local challenges and joined streaming tasks | transit-serving, transit-http-server |
-| [transit-exchange](../../packages/zig/transit-exchange/README.md) / `transit_exchange` | qualified segment capture, frozen intent coverage and explicit cleanup | transit-station |
-| [transit-station-document](../../packages/zig/transit-station-document/README.md) / `transit_station_document` | structured merge, collaborative text and qualified paged accepted-state publication | transit-station |
-| [transit-station-http](../../packages/zig/transit-station-http/README.md) / `transit_station_http` | qualified finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
+| [transit-exchange](../../packages/zig/transit-exchange/README.md) / `transit_exchange` | segment capture, frozen intent coverage and explicit cleanup | transit-station |
+| [transit-station-document](../../packages/zig/transit-station-document/README.md) / `transit_station_document` | structured merge, collaborative text and paged accepted-state publication | transit-station |
+| [transit-station-http](../../packages/zig/transit-station-http/README.md) / `transit_station_http` | finite HTTP request construction, strict framing and durable capture | transit-exchange, transit-tls |
 | [transit-tls](../../packages/zig/transit-tls/README.md) / `transit_tls` | Compiler-pinned TLS client with bounded certificate-path verification | Pinned zig-libs certificate-validation snapshot |
-| [transit-station-grpc](../../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | qualified durable finite RPC adapter | transit-exchange, transit-grpc |
-| [transit-flight](../../packages/zig/transit-flight/README.md) / `transit_flight` | Qualified finite Table Flight gateway, pinned wire, bounded IPC and standard metadata codecs | transit-grpc, transit-query, transit-serving |
-| [transit-station-flight](../../packages/zig/transit-station-flight/README.md) / `transit_station_flight` | Recorded outbound Flight requests and bounded typed replay, with native TLS peer qualification | transit-flight, transit-station-grpc |
+| [transit-station-grpc](../../packages/zig/transit-station-grpc/README.md) / `transit_station_grpc` | durable finite RPC adapter | transit-exchange, transit-grpc |
+| [transit-flight](../../packages/zig/transit-flight/README.md) / `transit_flight` | Finite Table Flight gateway, pinned wire, bounded IPC and standard metadata codecs | transit-grpc, transit-query, transit-serving |
+| [transit-station-flight](../../packages/zig/transit-station-flight/README.md) / `transit_station_flight` | Recorded outbound Flight requests and bounded typed replay | transit-flight, transit-station-grpc |
 | [transit-grpc](../../packages/zig/transit-grpc/README.md) / `transit_grpc` | Finite HTTP/2 RPC transport and protobuf codecs; no dispatch authority | transit-tls, pinned zig-libs HTTP/2/protobuf/gRPC client snapshot |
 | [transit-observability](../../packages/zig/transit-observability/README.md) / `transit_observability` | Transit diagnostic vocabulary and optional instrumentation | transit-protocol, telemetry |
 | [telemetry](../../packages/zig/telemetry/README.md) / `telemetry` | Bounded diagnostic sinks, local metrics and trace context | None |
@@ -41,9 +41,9 @@ The [architecture](architecture.md) explains dependency direction and authority.
 
 | Entry point | Role |
 | --- | --- |
-| [transit-station-document-worker](../../apps/transit-station-document-worker/README.md) | authenticated Document writer and bounded maintenance; local/Compose/reference recovery qualified |
-| [transit-station-grpc-worker](../../apps/transit-station-grpc-worker/README.md) | qualified finite RPC preparation/dispatch/capture worker |
-| [transit-station-http-worker](../../apps/transit-station-http-worker/README.md) | qualified finite HTTP preparation/dispatch/capture worker |
+| [transit-station-document-worker](../../apps/transit-station-document-worker/README.md) | authenticated Document writer and bounded maintenance |
+| [transit-station-grpc-worker](../../apps/transit-station-grpc-worker/README.md) | finite RPC preparation/dispatch/capture worker |
+| [transit-station-http-worker](../../apps/transit-station-http-worker/README.md) | finite HTTP preparation/dispatch/capture worker |
 | [transit-node](../../apps/transit-node/README.md) | Hosts core with Ursula, signed ingress, trusted time; separate maintenance mode |
 | [transit-delivery](../../apps/transit-delivery/README.md) | Public-client courier for ordered committed outboxes; no storage or handler authority |
 | [transit-runtime-controller](../../apps/transit-runtime-controller/README.md) | Composes public client and Substrate adapter to reconcile one PID |

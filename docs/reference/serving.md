@@ -52,11 +52,11 @@ own lifetimes. A quota refusal cannot delete accepted evidence or imply expiry.
 [OpenAPI](openapi.md) renders the actual generated HTTP operations and budgets.
 [AsyncAPI](asyncapi.md) describes the WebSocket binding of the same reactive
 session model; [reactive views](reactive.md) explains snapshots and notifications.
-[Flight](flight.md) is a separately qualified finite analytical ingress adapter.
+[Flight](flight.md) serves finite analytical queries through its own gateway.
 Board has its own [private inspection API](board-api.md).
 
-These interfaces do not turn every kernel operation into REST or qualify a
-generic inbound gRPC server. Use the [serving wire contract](../../contracts/SERVING_V1.md),
+The HTTP API exposes the listed operations; generic inbound application gRPC
+hosting is unsupported. Use the [serving wire contract](../../contracts/SERVING_V1.md),
 [HTTP host](../../packages/zig/transit-serving-http/README.md) and
 [compatibility matrix](../../packages/zig/transit-serving/docs/compatibility.md)
 for exact fields, deployment configuration and tested combinations.

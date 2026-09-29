@@ -77,5 +77,4 @@ control operations still progress. Provision and measure actual storage headroom
 See the [authority capacity guide](../../packages/zig/transit-core/docs/authority.md),
 [storage maintenance](../../packages/zig/transit-backend-ursula/docs/storage.md),
 [catalog contract](../../contracts/CATALOG_V1.md) and [Document service](../../packages/zig/transit-station-document/docs/service.md).
-Unsupported per-key TTL, generic dependency deletion and broad distributed
-compaction must not be inferred from the selected qualified profiles.
+Per-key TTL, generic dependency deletion and distributed compaction are unsupported.

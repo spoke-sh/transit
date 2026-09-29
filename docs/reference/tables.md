@@ -43,8 +43,8 @@ actually used.
 
 [SQL](sql.md) compiles into typed Fuze plans. Results use bounded Arrow batches
 with complete-result verification; an initial page is not the whole result.
-[Reactive watches](reactive.md) currently qualify int64 Table notifications and
-exact snapshot refresh, not arbitrary continuous materialized SQL.
+[Reactive watches](reactive.md) provide int64 Table notifications and exact
+snapshot refresh. Continuous materialized SQL is unsupported.
 
 For APIs use [Station](../../packages/zig/transit-station/README.md) and the
 [query host](../../apps/transit-query-host/README.md). Exact contracts are

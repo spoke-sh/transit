@@ -1,16 +1,12 @@
-# Growing Station query capture — v2 design
+# Growing Station query capture v2
 
-Status: the `GrowingQuery` capture slice has bounded integration qualification. The
-publication/receiver codecs below (`QueryDelivery`, `QueryRecords`) are
-implemented with both in-memory and real disk/node/caller qualification; no
-default end-to-end growing-query capability is advertised. A growing `GenServer`
-still rejects `result_chunk`/`result_complete`/`result_ack` frames with
-`error.UnsupportedGrowingQuery` unless a host explicitly supplies a
-`QueryDelivery.Context` (bounded workspace and cancellation flag) — this is a
-deliberate opt-in. The growing C/port ABI can own that bounded context when
-configured with `query_results: true`; its focused proof and
-`test::growing-query` qualify publication/receipt under real disk
-Ursula/node restart. Public language runners use this same shared implementation. It builds
+`GrowingQuery` captures results in bounded immutable segments. `QueryDelivery`
+and `QueryRecords` define publication, delivery and acknowledgement. Enable
+result frames by supplying a `QueryDelivery.Context` with a bounded workspace
+and cancellation flag. Without it, a growing `GenServer` rejects
+`result_chunk`/`result_complete`/`result_ack` with `error.UnsupportedGrowingQuery`.
+The growing C/port ABI owns that context when configured with `query_results: true`.
+Public language runners use the same shared implementation. This contract builds
 on [growing Station](STATION_GROWING.md), [retained read versions](READ_VERSIONS_V1.md)
 and [incremental Fuze](FUZE_STREAM_V1.md). It does not reinterpret the finite
 Station v1 result layout or enable growing results in legacy foreign ABIs.
@@ -20,7 +16,7 @@ Station v1 result layout or enable growing results in legacy foreign ABIs.
 A query starts from an authenticated Station call. Its result ID is the service's
 input position; destination and correlation come from the authenticated source
 and frame. A point index binds `(peer PID, correlation)` to that result forever
-unless an application explicitly selects a qualified reclamation policy. Reusing
+unless an application explicitly selects a supported reclamation policy. Reusing
 a correlation cannot create a second result. No scan of all completed calls is
 required. The caller's durable wait continues to name the service PID.
 
@@ -105,7 +101,7 @@ publication completes, and — when it advances stored credit — immediately
 self-casts a continuation so a blocked sender resumes without waiting for an
 unrelated turn. [`Delivery.tla`](../tests/verification/models/Delivery.tla)
 checks this abstractly (`WindowBound`, `CreditSound`, `NoPrematureAck`); the
-implementation is qualified in-memory (`query_growing_test.zig`, including a
+implementation is tested in-memory (`query_growing_test.zig`, including a
 forged-peer rejection and an exact count of one grant per sealed segment) and
 against real disk Ursula/node restart (`test::growing-query`'s `publish`/
 `deliver` phases, which now exercise the gate under real asynchronous delay).
@@ -147,25 +143,23 @@ it does not cancel a committed job. Closed receiver waits never reopen for late
 fragments, completion or ordinary replies. Uncertain mutation outcomes retain
 their exact signed request until reconciliation or fenced replacement.
 
-## Qualification gates
+## Host configuration and recovery
 
-Codecs and bounded capture are implemented; enabling result frames in the
-growing GenServer by default remains gated on the qualification below, not on
-missing code. `test::growing-query` now covers interruption during staging,
-seal and publication (exact retry of a lost publish/receive reply, cancellation
-while a submit is uncertain) and node/caller replacement, against real disk
-Ursula. `query_growing_test.zig` independently covers duplicate/conflicting/
-missing fragments and terminal acknowledgement without deletion, in-memory.
-Still open: independent Arrow decoding of captured results beyond 32
-rows/672 bytes; global-limit/aggregate continuity; provider (not just node)
-replacement during publication; current-policy and grant changes taking effect
-mid-publication; and explicit close after source loss racing delivery. Keep
-legacy service, foreign ABI and finite-result proofs. This design does not yet
-pass those remaining gates, and nothing enables it in a production host.
+Hosts opt into result delivery with the bounded context described above.
+The [query host](../apps/transit-query-host/README.md) composes source and requester
+workers for [public Table queries](PUBLIC_QUERY_V1.md). Staging, sealing and
+publication retain exact operation identities across caller, worker and storage
+restarts. Recovery resumes those operations; it does not prepare a new query.
+Current authorization still applies to publication and reads.
+
+`just test::growing-query` exercises disk-backed recovery. The
+[test guide](../tests/README.md) records fault schedules, independent Arrow
+decoding and client/deployment coverage. Component tests additionally check
+duplicate, conflicting and missing fragments and acknowledgement without deletion.
 
 ## Capture layout
 
-The development capture implementation uses reserved keys `00 Q <tag:u8>
+Capture uses reserved keys `00 Q <tag:u8>
 <result:u64be> <ordinal:u64be> <fragment:u16be>` (21 bytes). Tags `j`, `p`, `e`
 and `s` identify the job, compact plan, engine progress and current stage with
 zero ordinal/fragment. Tag `i` uses peer PID and correlation in the two u64

@@ -1,11 +1,11 @@
 # Query compatibility and protocol handoff
 
-This matrix describes the implemented query contracts. Qualification is tracked
-in the [proof guide](../../../../tests/README.md); sharing an engine does not
-establish transport compatibility.
+This matrix defines supported sources, clients and wire formats for each query
+interface. Query engine, result representation and transport versions are
+separate compatibility requirements.
 [HTTP serving](../../../../docs/reference/serving.md),
 [reactive APIs and refresh](../../../../docs/reference/reactive.md) and
-[Flight](../../../../docs/reference/flight.md) have separately qualified profiles.
+[Flight](../../../../docs/reference/flight.md) have separate interface contracts.
 Flight exposes the selected int64 Table v1 path; it does not expose unified v2.
 
 | Surface | Public Table v1 | Unified v2 |
@@ -18,7 +18,7 @@ Flight exposes the selected int64 Table v1 path; it does not expose unified v2.
 | Shell | `transit query CONFIG` | `transit query-v2 CONFIG`; explicit frozen bundle/token recovery |
 | Board | Separate `query` credential/configuration | Separate `query_v2`; one configured source and budgets, explicit submission |
 | Language callers | Existing SDK Table/Station APIs | All ten non-Zig SDKs over the same Zig native/port implementation |
-| Flight / Flight SQL / ADBC | Qualified finite int64 Table endpoint; see the [client/type matrix](../../transit-flight/docs/compatibility.md) | No implemented endpoint or implicit nested-cell conversion |
+| Flight / Flight SQL / ADBC | Finite int64 Table endpoint; see the [client/type matrix](../../transit-flight/docs/compatibility.md) | No endpoint or implicit nested-cell conversion |
 
 V1 is not upgraded in place. Its compiler, retained result interpretation,
 request limits and SQL null behavior remain unchanged. V2's version and digest
@@ -37,12 +37,12 @@ value and a non-null alternative list. Integers keep all 64 bits, finite float64
 keeps negative zero, binary stays bytes and text stays UTF-8. Conflicts retain
 ordered assignment counter/replica IDs and each alternative's state. A plain
 nullable Arrow column cannot represent this contract losslessly. A compatible
-transport must expose this layout or declare and qualify an explicit conversion;
+transport must expose this layout or define and test an explicit conversion;
 client support for primitive Arrow alone is insufficient.
 
 The typed plan supports one comparison or a cell-state test, ordered projection,
 limit, count and checked int64 sum. SQL uses the existing parser and exposes only
-its qualified subset: star or two named columns, one exact-type comparison or
+its supported subset: star or two named columns, one exact-type comparison or
 `IS NULL`, row output, `COUNT(*)`, and int64 `SUM`. Uint64/float64 comparisons and
 all five state tests are available through typed plans; SQL has no corresponding
 numeric literals or general state-test syntax yet. `IS NULL` selects only explicit

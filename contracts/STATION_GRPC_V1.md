@@ -1,8 +1,7 @@
 # Station gRPC capture v1
 
-Status: implemented finite RPC capture profile. Request and capture layouts have
-independent fixtures; transport, replay, durable worker recovery and SDK evidence
-are recorded in the [proof ledger](../tests/README.md). It composes
+The RPC connector captures finite requests and responses for durable recovery
+and network-free replay. It composes
 [exchange v1](STATION_EXCHANGE_V1.md) and [publication v1](STATION_PUBLICATION_V1.md)
 without widening a kernel turn, mailbox value or effect permit.
 
@@ -124,7 +123,7 @@ cannot invent those counts or remote durable offsets.
 
 A terminal envelope requires END_STREAM on the exact trailers block, or on the
 initial Trailers-Only block. Missing/duplicate status, premature status, malformed
-ordering, truncated messages, unqualified compression and budget exhaustion cannot
+ordering, truncated messages, unsupported compression and budget exhaustion cannot
 produce complete success. `OK` additionally requires the cardinality of the
 selected response shape; non-OK may legitimately contain no response message.
 RPC status is not an application rollback guarantee. A peer can terminate before

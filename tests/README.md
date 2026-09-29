@@ -3533,3 +3533,12 @@ source validation passes 3,904 local links across 415 Markdown files. The guard
 also checks generated reference text and original specification downloads.
 This documentation-only pass does not rerun runtime deployment proofs or the
 full ordinary clean CI suite.
+
+The interface-language pass replaces maturity labels and broad readiness caveats
+with direct operations, platform requirements, compatibility rules and concrete
+limits across the handbook and wire contracts. `just check` passes after the
+locked workspace install. The final site-only format/type/test/build run and all
+three browser checks pass after updating the homepage and shared footer. Source
+validation passes 3,900 links across 415 Markdown files. A separate built-output
+audit checks every HTML page and all 56 search entries for the removed maturity
+wording. No runtime integration or deployment proof was rerun for this prose change.

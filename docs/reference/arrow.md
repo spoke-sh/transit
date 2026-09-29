@@ -13,11 +13,11 @@ decoding and current-policy rules.
 | Arrow C data/stream interfaces | In-process ownership and release callbacks for compatible consumers |
 | Flight | RPC transport for selected Arrow operations |
 | Flight SQL | SQL/metadata conventions over Flight |
-| ADBC | A client API; the qualified driver connects through Flight SQL |
+| ADBC | A client API; the Flight SQL driver connects to the gateway |
 
 Support for one boundary does not imply every Arrow type or protocol method.
-Native unified queries carry five-state nested cells; the qualified Flight
-gateway currently serves finite Table v1 and its selected int64 types. It cannot
+Native unified queries carry five-state nested cells; the Flight
+gateway serves finite Table v1 with int64 types. It cannot
 silently flatten arbitrary v2 Documents or KV projections into that profile.
 
 ## Ownership and complete results

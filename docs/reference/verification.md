@@ -1,12 +1,11 @@
 # Guarantees and verification limits
 
-Transit documents guarantees for explicit profiles, workloads and failure
-boundaries. Passing a unit test, compiling an example or selecting a feature in
-a schema does not qualify every deployment. An incomplete or skipped proof is
-not a pass. This reference is for users assessing fit as well as contributors
-changing the system.
+Transit preserves identity, authorization and atomic commit across worker
+restarts and uncertain transport outcomes. The contracts below define the
+guarantees at each boundary, the required deployment assumptions and how the
+test suites exercise them.
 
-## What the evidence must establish
+## Guarantees by boundary
 
 | Boundary | Required behavior under failure | Public contract |
 | --- | --- | --- |
@@ -26,8 +25,7 @@ changing the system.
 The machine-readable [invariant inventory](../../tests/verification/invariants.json)
 maps these claims to owning implementation, tasks, scenarios and limits.
 [The proof ledger](../../tests/README.md) records actual commands and results,
-including independent clients and placement evidence. Consult those exact
-combinations before extending a claim to your own application.
+including independent clients, workloads and deployment configurations.
 
 ## Verification layers
 
@@ -43,7 +41,7 @@ size. The selected SQL rewrite theorems are specification results with explicit
 correspondence assumptions; no optimizer rewrite is enabled by those proofs.
 
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
-current permissions and process interruption. Deployment tests separately qualify
+current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,
 protocol use, generation ownership and accessibility. Installed SDK tests and
 independent consumers expose dependencies hidden by a monorepo build.

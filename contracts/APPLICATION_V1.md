@@ -1,8 +1,7 @@
 # Declarative application v1
 
-Status: implemented model, parser and conditional publication owner. The
-[proof ledger](../tests/README.md) records native publication recovery, browser
-and selected work-item placement evidence. This contract grants no execution rights.
+This contract defines application interfaces, their canonical representation and
+conditional publication. Publishing a definition grants no execution rights.
 
 ## Definition
 
@@ -16,10 +15,10 @@ use canonical decimal JSON strings. Components are static, allowlisted versioned
 artifacts; the program cannot load code or interpolate credentials.
 
 Bindings distinguish inspection, finite query and explicit service command.
-Inspection names a qualified public projection and holds one bounded page.
+Inspection names a supported public projection and holds one bounded page.
 Query bindings name an exact resource, source kind (Table/KV/Document), source/schema contract, query profile and
 immutable SQL. Compilation uses the owning Fuze compiler with an authorized
-source. Follow requires the qualified Table watch and refresh admission owner;
+source. Follow requires the Table watch and refresh admission owner;
 a KV or Document source explicitly rejects Follow even with a unified query profile.
 A command names a service, destination, binding revision and codec; a renderer
 cannot substitute any of them. Neither bindings nor associations grant access.

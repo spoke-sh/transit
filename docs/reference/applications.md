@@ -26,10 +26,10 @@ than preparing a new installation with fresh identities.
 | Data epoch | Active domain/schema state |
 | Published interface revision | Conditional active UI/service definition |
 
-The version-2 local server qualifies separate installed applications, scoped
+The version-2 local server supports separate installed applications, scoped
 caller exports, compatible replacement and exact recovery on Linux x86_64.
-The first independently built host is Zig. The wider SDK matrix does not qualify
-every language for this supervisor bootstrap. Pinned neighborhood upgrades,
+The supervisor hosts independently compiled Zig workers. Worker adapters for
+other SDK languages are not available. Pinned neighborhood upgrades,
 arbitrary incompatible executable replacement and automatic history migration
 remain outside the profile.
 
@@ -37,8 +37,8 @@ remain outside the profile.
 
 The shared compiler validates a bounded complete definition and its reference
 graph. Query declarations, explicit commands, renderer/theme compatibility and
-source capabilities are distinct. Only qualified sources support Follow; finite
-query support alone is not a watch capability.
+source capabilities are distinct. Follow supports int64 Table sources;
+KV and Document sources support finite queries without watches.
 
 SQL text, visual edits and generated modules use that same neutral model and
 semantic validation. Offline parse/format/module generation performs no publication,
@@ -74,5 +74,5 @@ and step evidence; broader transforms need their own implementation and proof.
 - [Browser package](../../packages/ts/transit-application/README.md): generated runtime validation, scoped signing and proposal recovery.
 
 General DDL in the wider SQL reference grammar is still grammar-only. The
-application declaration compiler's qualified syntax does not make arbitrary
-administration executable in the query console. See [SQL](sql.md).
+application declaration compiler handles application definitions; the query
+console executes finite SELECT statements. See [SQL](sql.md).

@@ -1,12 +1,11 @@
 # Transit growing profile v3
 
-Status: implemented growing development profile. The explicitly selected node
-profile, Zig client and [raw C ABI](../packages/zig/transit-client/docs/bindings.md)
-support the bounded command/query boundary. Launcher defaults,
-Session, the default Station interface and legacy foreign behavior bindings remain v2/state-v1. See the
-[node guide](../apps/transit-node/docs/growing.md) for exact partial capabilities;
-this does not authorize interpreting old history as a new profile. [The proof ledger](../tests/README.md)
-records growth, integration and recovery qualification limits.
+Transit v3 provides paged catalogs and growing state through bounded commands and
+queries. Select it explicitly in the node, Zig client or
+[raw C ABI](../packages/zig/transit-client/docs/bindings.md). Launcher defaults,
+Session, the default Station interface and legacy foreign behavior bindings use
+v2/state-v1. The [node guide](../apps/transit-node/docs/growing.md) lists supported
+operations. Existing history retains its original protocol version.
 
 [Growth.zig](../packages/zig/transit-protocol/src/Growth.zig) owns the neutral types;
 [transit-v3.schema.json](transit-v3.schema.json) is generated alongside the unchanged
@@ -33,7 +32,7 @@ Legacy signatures, grant identities, checkpoints, slot cursors and ABI structs
 are not v3 values. A realm must select its profile explicitly; automatic migration,
 mixed-profile writers and rollback into an older format are forbidden. Migration
 is unimplemented; use a fresh realm for v3. Existing v2 histories and their
-qualified code path remain available with their documented limits.
+client/node interfaces remain available with their documented limits.
 
 ## Current identity observation
 
@@ -62,7 +61,7 @@ retained calls or receipts. Large logical results require explicit segments and
 complete-result evidence above these bounded records.
 
 Capabilities must report the configured required-resource and lifetime-owner
-graph validation budgets. The development profile requires quiescence of an
+graph validation budgets. This profile requires quiescence of an
 owner and its borrowers before changing that owner's required dependency topology;
 it rejects changes that could invalidate an existing borrower's admitted work
 budget. These are explicit operation/admission constraints, not limits on total
@@ -162,7 +161,7 @@ ceiling new obligations fail with `AdmissionClosed`; at the end of the reserve
 new control mutations also fail with `ControlCapacity`. Exact accepted retries
 and currently authorized reads remain available. Neither trim nor restart resets
 this accounting. The [authority guide](../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)
-owns allowed reserve operations and the finite physical qualification.
+defines allowed reserve operations, capacity limits and failure behavior.
 
 Delivery resolves one retained output under current courier authority. Pending
 route order is per source/destination pair; a later output cannot bypass an
@@ -180,8 +179,9 @@ attempt. A result after caller retirement remains evidence and cannot revive tha
 PID. Closed attempts reject new results; exact historical retries still require
 current permission. The growing engine currently enforces these rules internally;
 the explicit HTTP profile exposes them. A separate node maintenance process
-materializes terminal dispositions with bounded scans. Provider deployment and
-large-catalog maintenance lag remain unqualified.
+materializes terminal dispositions with bounded scans. Maintenance latency depends
+on scan budgets and catalog size; there is no fixed lag bound. See
+[deployment](../docs/reference/deployment.md) for runtime requirements.
 
 The [immutable catalog](../packages/zig/transit-core/docs/pages.md#typed-catalog)
 is the storage basis. One conditional journal decision must publish state roots,
@@ -190,7 +190,7 @@ does not accept work. Recovery must consume published roots without dispatching
 effects or executing handlers. Unlimited retention requires growing durable
 receipt, wait and result history; cache eviction cannot authorize deletion.
 
-The development `checkpoint` command requires explicit realm/application
+The `checkpoint` command requires explicit realm/application
 `allow_history_trim` genesis opt-in; unlimited journal history remains the default.
 Capabilities distinguish support for root-history reclamation from the selected
 retained-history policy. The checkpoint publication records a monotonic floor
@@ -229,11 +229,10 @@ from its selected unlimited/checkpointed policy; only genesis opt-in allows a
 public `checkpoint`. A trusted `--maintain` process authenticates current
 realm-wide control authority, verifies committed intent and performs physical
 trimming. Its optional interval cannot authorize retention on its own.
-Qualification is scoped to the exercised authority transitions, provider
+The [test guide](../tests/README.md) records authority transitions, provider
 persistence, current read/receipt authorization, finite lifetime/settlement
-behavior, quotas/control reserves, client/Station usage and failure schedules
-recorded in the proof ledger. Matching command names do not establish feature
-equivalence with v2.
+behavior, capacity and recovery tests. Select v2 or v3 explicitly; matching
+command names do not make their wire formats interchangeable.
 
 
 ## HTTP boundary

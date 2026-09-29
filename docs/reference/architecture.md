@@ -8,8 +8,8 @@ never substitutes for that history.
 This reference is shared by application authors, Transit contributors and agents.
 Start with [the quickstart](../guides/quickstart.md) for an executable local system
 and [interface selection](../guides/choose-interface.md) for supported profiles.
-Transit is experimental. The qualified local application profile is Linux x86_64;
-source builds are available; published release distribution is not supported.
+The local application server runs on Linux x86_64. Build it from source using the
+quickstart; release downloads are not available.
 
 ## Responsibilities
 
@@ -65,12 +65,12 @@ grow beyond resident caches. There is no automatic history conversion between
 profiles. Query v1, query v2, service bindings, SDK ABIs, application revisions
 and ownership generations are distinct compatibility dimensions.
 
-Implemented combinations include local application installation, Station SDKs,
+Transit supports local application installation, Station SDKs,
 finite HTTP/gRPC effects, structured Documents, finite KV/Table/Document queries,
 Table notifications and snapshot refresh, and finite Table Flight SQL.
 Cross-resource transactions, general continuous SQL, interactive outbound RPC
 resumption, federated identity and general live disaster recovery remain outside
-those profiles. A runnable subset does not establish the broader feature.
+those interfaces.
 
 Kubernetes with Agent Substrate is the reference runtime. Trusted local and
 Compose deployments do not provide the same isolation. Restore from an old

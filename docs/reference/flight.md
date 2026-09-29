@@ -1,7 +1,7 @@
 # Flight SQL and ADBC
 
 The Flight gateway serves finite, read-only Table queries using Fuze and the
-existing durable query requester. The qualified profile is a single configured
+existing durable query requester. Each gateway serves a single configured
 Table with two int64 columns (nullable value). It is independent of the broader
 KV/Table/Document query v2 interface.
 
@@ -67,7 +67,7 @@ A partial batch stream remains a prefix until successful terminal completion.
 The selected result cap is 63 batches / 240 KiB retained IPC. Larger results
 reject rather than invent nonstandard framing. See the
 [compatibility matrix](../../packages/zig/transit-flight/docs/compatibility.md)
-for all memory, connection, deadline and qualification limits, and the
+for client compatibility and memory, connection and deadline limits. See the
 [Flight wire contract](../../contracts/FLIGHT_V1.md) for exact messages.
 
 Outbound Flight is a separate [recorded connector](../../packages/zig/transit-station-flight/README.md).

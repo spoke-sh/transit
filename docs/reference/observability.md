@@ -47,6 +47,5 @@ is independent of whether a log was sampled or suppressed.
 Start with [launcher diagnostics](../../launchers/README.md#service-diagnostics)
 and [node operations](../../apps/transit-node/docs/operations.md) for exact options.
 Use [Board](../guides/inspect-board.md) to follow authorized durable evidence,
-including gaps, revision and freshness. Broader collectors/export paths require
-their own configuration and qualification; instrumentation alone does not imply
-a deployed OpenTelemetry collector.
+including gaps, revision and freshness. Configure collectors and export paths
+separately; Transit does not deploy an OpenTelemetry collector automatically.

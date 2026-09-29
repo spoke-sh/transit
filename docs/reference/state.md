@@ -59,8 +59,8 @@ a reference do not create an implicit dependency. Neither associations nor old
 root references grant arbitrary retention pins.
 
 Capacity bounds active work and physical storage; it does not authorize expiry.
-The growing profile separates collection size from resident memory but cannot
-promise infinite disk. See [retention and capacity](retention.md).
+The growing profile separates collection size from resident memory. Configure
+disk capacity and admission quotas through [retention and capacity](retention.md).
 
 For exact fields, values and compatibility use [state v1](../../contracts/STATE_V1.md)
 and [growing v3](../../contracts/TRANSIT_V3.md). For runnable APIs use the

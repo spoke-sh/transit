@@ -1,9 +1,9 @@
 # Build your first application
 
-The first downstream installation profile uses a separately compiled Zig worker
+Local application installation uses a separately compiled Zig worker
 and a language-neutral JSON installation/bootstrap contract. Application code
 links public packages; it does not import the CLI's internals or become a node
-handler. The current proof uses public path dependencies in this checkout;
+handler. The example uses public path dependencies in this checkout;
 release-distributed dependency consumption is not supported.
 
 Start the version-2 server in the [local quickstart](quickstart.md), then use the
@@ -64,8 +64,8 @@ For your own worker, implement the bootstrap and role contract, link
 `transit-client` / Station public packages, and declare the resources and rights
 it actually needs. The [work-item source](../../examples/work-items/README.md) is
 the runnable consumer; [caller semantics](../reference/callers.md) explains turns and exact
-recovery. See [SDKs](../reference/sdks.md) for the wider language surface, whose
-installation into this supervisor is not qualified.
+recovery. See [SDKs](../reference/sdks.md) for client and framework APIs in other
+languages. The local supervisor's worker adapter is Zig.
 
 Continue with [replacement and recovery](../../apps/transit-cli/docs/applications.md)
 and the application's [migration commands](../../examples/work-items/docs/local.md).

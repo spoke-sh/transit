@@ -2,8 +2,8 @@
 
 Install a separately compiled application into a trusted local Linux neighborhood.
 The CLI implements the [language-neutral installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md).
-The initial consumer is Zig; other language hosts and distributed placement are
-not qualified by this profile. See the [proof guide](../../../tests/README.md)
+The supervisor hosts Zig workers; other language hosts and distributed placement
+are unsupported. See the [test guide](../../../tests/README.md)
 for executed evidence.
 
 ## Start and install

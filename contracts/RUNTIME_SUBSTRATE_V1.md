@@ -1,4 +1,4 @@
-# Experimental Substrate runtime profile
+# Substrate runtime contract v1
 
 The Zig `transit-runtime-substrate` adapter and `transit-runtime-controller`
 reconcile one configured PID against the [pinned reference baseline](../deploy/reference/versions.json).

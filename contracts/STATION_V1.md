@@ -1,9 +1,9 @@
 # Station v1 profile
 
-Status: implemented experimental bounded profile: behaviors, calls, scoped framework
-services, Tables and shared language exports. The
-[framework design](../docs/reference/station.md) distinguishes this bounded implementation
-from the broader direction; no stable public SDK release is implied.
+Station v1 defines message framing for behaviors, calls, scoped framework
+services, Tables and shared language APIs. The
+[Station reference](../docs/reference/station.md) explains those operations and
+their relationship to Transit authority.
 
 ## Messages and origins
 

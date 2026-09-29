@@ -1,7 +1,7 @@
 # Station immutable publication v1
 
-Status: qualified growing Zig implementation; see the [proof ledger](../tests/README.md). This is a Station
-KV layout, not a new Transit command or language ABI. See the
+Publication defines immutable records in growing Station KV. It uses existing
+Transit commands and the Zig Station API. See the
 [implementation guide](../packages/zig/transit-station/docs/publications.md).
 
 ## Identity and encoding

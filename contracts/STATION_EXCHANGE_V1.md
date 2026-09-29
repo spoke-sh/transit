@@ -1,6 +1,6 @@
 # Station exchange capture v1
 
-Status: implemented capture layout shared by the finite HTTP and RPC connectors.
+Exchange defines the capture layout shared by the finite HTTP and RPC connectors.
 This is a framework layout over growing KV and [publication v1](STATION_PUBLICATION_V1.md),
 not a new kernel effect or a permission carried by a reference.
 
@@ -93,8 +93,8 @@ lineage is refused. This deliberately conservative hold protects ancestors'
 request/policy evidence during child preparation and recovery, without scanning
 or storing all descendants in memory. An abandoned child has no effect and cannot
 admit descendants, so it can retire independently of other outstanding children.
-The former experimental EXB1 layout lacks these holds and is rejected; existing
-prequalification exchange state needs a fresh installation, not silent adoption.
+The older EXB1 layout lacks these holds and is rejected. Existing EXB1 exchange
+state requires a fresh installation; automatic migration is unsupported.
 Child lineage keys use tag `l`, ordinal zero; `EXL1` values contain root:u64,
 parent:u64, ordinal:u32, reason:u8 (retry=1, redirect=2, reconcile=3, cancel=4),
 policy:u64 and policy_revision:u64. These additive records preserve existing
@@ -158,8 +158,8 @@ caller:u8 (none=1, held=2, released=3), effect:u64. The frozen `EXI1` is retaine
 tag `i`, ordinal zero. Dependency keys are `00 45` + exchange:u64 big endian +
 `h` + token:u64 big endian; `EXH1` values contain holder:u64 and phase:u8
 (held=1, released=2). Absent control means no published intent and no holds;
-bound captures lacking control cannot retire. These are additive experimental
-records, not a migration promise for prequalification snapshots.
+bound captures lacking control cannot retire. Snapshots without these records
+cannot be migrated automatically.
 
 ## Encoding and proof boundary
 

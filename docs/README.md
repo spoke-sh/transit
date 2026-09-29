@@ -20,13 +20,19 @@ users, contributors and agents. Start with [What is Transit?](guides/introductio
 | Operation and contribution | [Deployment](reference/deployment.md), [Board](guides/inspect-board.md), [observability](reference/observability.md), [verification limits](reference/verification.md), [contributing](guides/contributing.md) |
 
 Select a supported profile with the [interface matrix](guides/choose-interface.md).
-Unsupported behavior, uncertainty, recovery rules and qualification limits belong
+Unsupported behavior, uncertainty, recovery rules and compatibility limits belong
 beside the feature users rely on. Describe the capabilities in the documented
 source revision, using interface versions and explicit supported/unsupported
 profiles. Keep delivery-plan labels, sequencing and future-work promises in
 internal records, including when a component guide or wire contract is published
 in the handbook. Public documentation does not require an internal specification
 to understand the real contract.
+
+Write interfaces in the present tense: what they do, how to use them, supported
+types and platforms, version compatibility and failure behavior. Avoid maturity
+labels and blanket readiness caveats. Put concrete limits beside the operation
+they affect; keep test execution details in the proof ledger. Clear wording must
+preserve the actual support boundary.
 
 ## Where documentation lives
 

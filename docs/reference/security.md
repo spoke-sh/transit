@@ -79,8 +79,8 @@ local aliases do not expose a browser API or bind another interface. See
 
 SDKs and same-user local processes are trusted code, not a native-code sandbox.
 Kubernetes/Substrate supplies the reference isolation boundary; storage and
-provider credentials stay in their adapters. TLS support or passing local tests
-does not qualify arbitrary public ingress or a new deployment topology.
+provider credentials stay in their adapters. Configure each ingress using its
+documented TLS, Host/Origin and authorization requirements.
 
 [Service v2](../../contracts/SERVICE_V2.md), [state v1](../../contracts/STATE_V1.md)
 and [growing v3](../../contracts/TRANSIT_V3.md) specify exact permissions and

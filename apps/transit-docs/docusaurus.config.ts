@@ -91,7 +91,7 @@ const config: Config = {
         { href: repository, label: "GitHub", position: "right" },
       ],
     },
-    footer: { style: "light", copyright: "Transit · Experimental profiles, explicit contracts." },
+    footer: { style: "light", copyright: "Transit · Durable processes and state." },
     colorMode: { respectPrefersColorScheme: true },
     tableOfContents: { minHeadingLevel: 2, maxHeadingLevel: 3 },
     prism: { additionalLanguages: ["bash", "json", "sql", "python", "rust", "toml"] },

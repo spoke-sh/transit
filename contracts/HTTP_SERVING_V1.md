@@ -1,8 +1,7 @@
 # HTTP serving profile v1
 
-Status: qualified neutral listener profile, used by Board and application
-serving. The [proof ledger](../tests/README.md) records separate
-application admission, TLS and deployment evidence. [Serving](../docs/reference/serving.md) owns the architecture.
+Board and application serving share this HTTP/1.1 listener contract.
+[Serving](../docs/reference/serving.md) describes the application boundary.
 
 The listener accepts bounded HTTP/1.1 origin-form requests, requires exactly one
 valid Host and uses one request per connection. Consumers check their exact
@@ -24,7 +23,7 @@ uses a finite deadline before data admission. Data exhaustion returns an explici
 503 when response capacity exists; socket/task exhaustion closes the transport.
 Neither refusal can erase work accepted by a preceding attempt. Accepted sockets
 have no resident pending queue beyond the configured pool. Each connection closes
-or is transferred to a separately qualified upgraded protocol before reuse.
+or is transferred to a supported upgraded protocol before reuse.
 
 Timer and handler tasks are joined before socket/buffer reuse, including parent
 cancellation and scheduling failure. Handlers must be bounded and cooperative;
@@ -36,4 +35,4 @@ TLS, application service bindings, caller provenance, command/reply records,
 stable operation identity and current read policy remain with the serving
 consumer. The [serving example's local nginx termination](../examples/serving/docs/termination.md)
 passes its real signed-call/recovery proof; remote TLS placement remains separate.
-SSE and WebSocket use the separately qualified [reactive profile](REACTIVE_V1.md).
+SSE and WebSocket use the [reactive contract](REACTIVE_V1.md).

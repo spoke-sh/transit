@@ -1,7 +1,7 @@
 # Retained read versions — growing-profile extension
 
-Status: implemented in the explicit v3 core/node and Zig client, with focused
-qualification below. Station/Fuze resumable result capture has a separate
+Retained read versions preserve a source revision across turns through the v3
+core/node and Zig client. Station/Fuze resumable result capture has a separate
 [delivery contract](STATION_QUERY_V2.md).
 This does not change default v2 callers, launchers or foreign bindings.
 [Transit v3](TRANSIT_V3.md) owns the enclosing profile.
@@ -92,7 +92,7 @@ The `retained_read_versions` capability advertises this extension, with
 atomic work, not total retained versions. Catalog namespace additions leave
 existing key bytes unchanged. A root currently covers the shared catalog; this
 can retain unrelated physical pages and is not a space-optimal resource snapshot.
-Selective reachability, quotas and physical cleanup remain unqualified. Cleanup
+This API does not provide selective per-resource reclamation or schedule physical deletion. Cleanup
 must not recursively treat obsolete versions found inside an old source root as
 new authority to retain other roots.
 
@@ -108,10 +108,10 @@ Query policy, per-peer disclosure, encoder/plan compatibility, byte/batch counts
 digests and complete-result evidence belong to Station/Fuze. Whole-query limits
 and aggregates must span page boundaries correctly; applying a finite plan to
 each page independently is insufficient. Global sorting, external materialization
-and broad operator support need explicit qualification. This primitive alone
+and operators beyond the declared query interfaces are unsupported. This primitive alone
 does not remove the existing finite Arrow result limit.
 
-## Evidence and remaining gates
+## Verification
 
 `just test::unit` checks old command/query digest fixtures, atomic private staging,
 invalid release rollback, lost accepted replies, replacement ownership, bounded
@@ -127,6 +127,6 @@ activation reads the retained version while its predecessor is fenced.
 root checkpoint publication, authority-prefix trim and provider restart with one
 resident page. Immutable page storage is preserved; this is not page-GC proof.
 
-Quota/control reserve still needs qualification. Station/Fuze must demonstrate bounded result
-capture across committed continuations, interruption, grant changes and independent
-Arrow validation before advertising growing query/result support.
+Configure admission and control reserves using the [capacity guide](../docs/reference/retention.md).
+Station/Fuze result capture, delivery and recovery follow the separate
+[query contract](STATION_QUERY_V2.md).

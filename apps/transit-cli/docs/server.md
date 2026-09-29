@@ -227,7 +227,7 @@ configured Host is required, and browser Origin, Authorization and forwarded
 identity headers reject. Transport failure remains uncertainty. The gateway is
 a separate process without root/caller credentials in its configuration. All
 roles share one OS user; this separation does not sandbox them from that user's
-other files. Remote TLS belongs to an explicitly qualified deployment boundary.
+other files. Configure remote TLS at the deployment's ingress boundary.
 
 Version 2 adds the [application manager](applications.md), a separate management listener and explicit active-app/role quotas. Version 1 retains the table-only neighborhood. Neither version permits an implicit pinned-neighborhood upgrade.
 

@@ -1,8 +1,8 @@
 # Reactive API v1
 
-Status: implemented opt-in int64 Table profile. No SSE/WebSocket capability
-is advertised by default. Independent TLS peers, Chromium, Compose and reference
-recovery are recorded in the [proof ledger](../tests/README.md). [Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
+The reactive API provides int64 Table snapshots and notifications over SSE and
+WebSocket. Enable each transport explicitly in the service configuration.
+[Public types](../packages/zig/transit-serving/src/ReactiveModel.zig) and
 [generated descriptions](../packages/zig/transit-serving/api/) own the encodings. This extends
 [serving v1](SERVING_V1.md), not native authority or Board's OpenAPI 3.1 contract.
 
@@ -178,4 +178,4 @@ browser transport harness and each actual placement independently.
 contracts for bounded refresh in Board and applications, with a shared browser
 client. KV/Document watches, compression and lossless event histories are not
 supported. Refresh scheduling, presentation and any other protocol adapter retain
-their own compatibility and qualification boundaries.
+their own compatibility and lifecycle requirements.

@@ -1,10 +1,9 @@
 # Station Document v1
 
-Status: implemented with component, durable service, SDK and selected placement
-evidence in the [proof ledger](../tests/README.md). This is a Station format, not a kernel
-command. [Documents](../docs/reference/documents.md) owns the model and
-[the package](../packages/zig/transit-station-document/README.md) owns usage.
-No external CRDT wire compatibility is implied.
+The Document format defines structured changes, merge rules and accepted-state
+reads above Station. [Documents](../docs/reference/documents.md) explains the model;
+[the package](../packages/zig/transit-station-document/README.md) describes usage.
+External CRDT wire formats are unsupported.
 
 ## Identity and changes
 
@@ -207,8 +206,7 @@ Zig validation and implement no independent merge algorithm.
 
 ## Authenticated submission profile
 
-The remote profile is under implementation; the installed scoped SDK proofs
-above do not qualify remote submission or deployment. A caller publishes one
+Remote submission uses an authenticated Station call. A caller publishes one
 canonical SDC1 change as Publication record 1 in a dedicated caller namespace.
 It sends an STN1 `call` carrying SDQ1, a 96-byte reference with these ordered,
 little-endian fields: magic, resource:u64, namespace:u64, document:u64, epoch:u64,

@@ -1,10 +1,9 @@
 # Finite Flight compatibility
 
-The [protocol](../../../../contracts/FLIGHT_V1.md) defines exact formats and
-exclusions; the [proof ledger](../../../../tests/README.md)
-records executed combinations. A new combination requires its own evidence.
+This matrix defines the gateway's supported sources, client versions and limits.
+The [protocol](../../../../contracts/FLIGHT_V1.md) specifies exact wire formats.
 
-| Dimension | Selected profile |
+| Dimension | Supported interface |
 | --- | --- |
 | Source/result | Public Table query v1; one explicitly configured Table per caller |
 | Application types | Two int64 columns, nullable value; full-width integers remain exact |
@@ -15,7 +14,7 @@ records executed combinations. A new combination requires its own evidence.
 | Statement | `CommandStatementQuery`, one endpoint, ordered schema and finite batches through `DoGet` |
 | Admission | Explicit canonical decimal `x-transit-request-sequence`, dedicated native principal/requester; same sequence and plan reconstruct the same signed request |
 | Read lifetime | Signed ticket expiry plus current caller/service/source/request authority on every bounded read and final disclosure |
-| Metadata types | Standard union/list/map schemas qualified separately; they do not widen application SQL types |
+| Metadata types | Standard union/list/map schemas; application SQL types remain int64 |
 | Unsupported | Prepared parameters, transactions, writes/ingest, `ListFlights`, `DoPut`, `DoExchange`, distributed endpoints and arbitrary actions; explicit UNIMPLEMENTED |
 | ADBC fallback | Pinned Python DBAPI attempts preparation and uses its unprepared fallback; C uses direct statement execution |
 
@@ -25,21 +24,17 @@ grant foreign process diagnostics. Board interprets source capture and received
 manifest records using its inspection principal; a recorded manifest does not
 establish that every result segment remains available.
 
-Native, Compose and reference TLS client workloads pass exact 41-row results, nulls, typed
-empty results, count/sum, repeated fetch and exact admission retry. Compose also
-passes physical worker/gateway/node/disk recovery (271.18 seconds with packaging,
-413 cold objects / 42,821,771 bytes retained). Reference passes the same physical
-recovery with fresh Substrate activations in 367.00 seconds (365 cold objects /
-37,968,589 bytes). These are single local proof costs, not throughput or hosted CI
-budgets. See [examples/flight](../../../../examples/flight/README.md).
+The gateway runs in native, Compose and reference TLS deployments; see
+[examples/flight](../../../../examples/flight/README.md) for setup. The
+[test guide](../../../../tests/README.md) records client interoperability,
+restart recovery, fault schedules and measured resource use.
 
-Native faults qualify pooled per-RPC identity, exact lost-admission retry,
-tampered/foreign/expired tickets, entry-read revocation after a real batch, pin
-release, request/source retirement and complete physical recovery. Two concurrent
-fetches tolerate deliberately delayed native reads while a third is refused and
-current-schema control progresses. One-byte HTTP/2 credit stalls terminate within
-the declared write budget. Sampled gateway RSS was 57,794,560 bytes under that
-workload; the proof does not establish peak RSS for every admitted combination.
+Each RPC authenticates its caller independently, including on pooled connections.
+Lost admission replies recover through the original request sequence. Tampered,
+foreign and expired tickets reject. Reads enforce current permission, pin
+availability and request/source lifetime. Per-caller admission allows two
+concurrent data RPCs and refuses a third while reserving control capacity.
+HTTP/2 credit stalls terminate within the configured write budget.
 Compressed, oversized and truncated request frames are rejected before dispatch.
 
 Use the installed client's actual error surface: pinned PyArrow's `GetSchema`
@@ -64,7 +59,6 @@ Earlier authorized batches remain a prefix until successful terminal status and
 complete ordered coverage.
 
 Outbound calls use [transit-station-flight](../../transit-station-flight/README.md)
-and the recorded RPC worker. The qualified outbound type profile is one or two
-int64 columns. Its native TLS peer/restart proof is separate from inbound and
-placement evidence. Replay has no network dispatch path and requires a complete,
+and the recorded RPC worker. Outbound operations support one or two int64 columns.
+Replay has no network dispatch path and requires a complete,
 currently authorized capture before reporting successful completion.

@@ -1,7 +1,7 @@
 # Public Table query profile v1
 
-Status: implemented public Table profile. The owning [query package](../packages/zig/transit-query/README.md)
-shares this profile between Board and `transit`. This is an application protocol
+The [query package](../packages/zig/transit-query/README.md) shares the public
+Table query interface between Board and `transit`. This is an application protocol
 above [growing Transit](TRANSIT_V3.md) and [Station query delivery](STATION_QUERY_V2.md),
 not a new kernel command or authority to execute arbitrary values.
 

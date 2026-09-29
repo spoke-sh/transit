@@ -6,7 +6,7 @@ a term in this glossary alone is not a compatibility claim.
 
 Shared vocabulary for users, developers and agents. Official names are
 established; definitions distinguish implemented profiles from unsupported
-concepts. Detailed contracts and qualification limits live with their owners.
+concepts. Detailed contracts and compatibility requirements live with their owners.
 
 ## Names and roles
 
@@ -111,7 +111,7 @@ alone do not create an association or lifetime dependency.
 | Operation budget | A bound on one request, atomic proposal, scan or result batch; does not by itself cap the whole resource |
 | Staged data | Durably prepared data that remains unpublished until referenced by an accepted commit decision |
 
-See [Tables](tables.md) for the qualified Table surface, materialization and
+See [Tables](tables.md) for Table operations, materialization and
 transaction limits, [Documents](documents.md) for Documents and
 [unified queries](queries.md) for unified querying.
 A finite Arrow batch stream and a durable Transit stream
@@ -121,7 +121,7 @@ have different responsibilities.
 
 These interfaces live above the kernel; their owning contracts distinguish
 implemented profiles from unsupported capabilities. [Fuze](queries.md) owns query
-execution; [Arrow](arrow.md) owns interchange and the qualified remote query profile;
+execution; [Arrow](arrow.md) owns interchange and remote query interfaces;
 [SQL](sql.md) distinguishes executable syntax from reference grammar.
 
 | Term | Meaning |
@@ -135,7 +135,7 @@ execution; [Arrow](arrow.md) owns interchange and the qualified remote query pro
 | Arrow C Data / C Stream | Native array and batch-stream ownership interfaces for in-process interoperability; distinct from the Transit/Station command ABI |
 | Flight RPC | Remote Arrow discovery/transfer protocol; a live connection and a Flight ticket do not supply durable mailbox or execution authority |
 | Flight SQL | SQL query/metadata protocol over Flight; the server still defines its supported SQL and transaction capabilities |
-| ADBC | Arrow-oriented database client/driver API; qualified finite Table access through pinned Flight SQL drivers, separate from general Transit clients |
+| ADBC | Arrow-oriented database client/driver API; finite Table access through the Flight SQL driver, separate from general Transit clients |
 | Flight ticket | Opaque reference to a query result; our gateway must bind it to exact evidence, current read permission and availability, not treat possession as a grant |
 | Acero | Apache Arrow's C++ execution engine, used as design inspiration for bounded batch execution; Transit implements its engine in Zig |
 | DataFusion | Apache's extensible Rust query engine, used as design inspiration for Fuze's sources, expressions, logical/physical plans and optimization; not an embedded dependency |
@@ -228,12 +228,12 @@ checkpoint authority, and reclamation guarantees.
 | Effect | Work at an external or nondeterministic boundary, requested through a committed intent and observed through recorded outcomes. |
 | Capability | Scoped authority to request or perform particular operations, enforced by the protocol and runtime boundaries. |
 | Connector | Library and executor logic for a particular effect family, including its capture, retry, and reconciliation semantics. Built on one transport; HTTP, gRPC and the selected outbound Flight profile are implemented. Other effect families are not supplied by this connector set. |
-| Serving layer | Implemented inbound boundary over public Transit/Station operations: scoped service bindings, admission and bounded disclosure/recovery. Qualified HTTP/reactive and Flight adapters have separate profiles; distinct from outbound connectors. |
-| Service binding | Versioned, realm-scoped binding of explicit operations, targets, codecs, policies and budgets through a qualified serving protocol. Naming or publication grants no access. |
+| Serving layer | Inbound boundary over public Transit/Station operations: scoped service bindings, admission and bounded disclosure/recovery. HTTP/reactive and Flight adapters have separate interfaces; distinct from outbound connectors. |
+| Service binding | Versioned, realm-scoped binding of explicit operations, targets, codecs, policies and budgets through a serving protocol. Naming or publication grants no access. |
 | HTTP route | A method/path-template binding to a published operation and codec revision; transport presentation rather than a new application authority. |
 | Reactive API | Implemented Table interaction contract with SSE/WebSocket bindings, shared typed commands/events, session/subscription lifecycle and generated API descriptions. |
 | API session | Scoped logical reactive interaction with a generation and finite live-work lease; distinct from its disposable connection, subscriptions and accepted operation identities. |
-| Watch | Qualified Table subscription to authorized source/projection change progress, with identity, generation, lease, budgets and resume semantics; not a durable mailbox or continuous query. |
+| Watch | Table subscription to authorized source/projection change progress, with identity, generation, lease, budgets and resume semantics; not a durable mailbox or continuous query. |
 | Follow changes | Implemented bounded live-view mode that uses notifications to request new exact snapshots. Coalesced invalidations do not claim every intermediate state or incremental query maintenance. |
 | Integration | A provider-specific library built on one connector, adding that provider's schema/pagination/auth-flow knowledge without owning a new durability contract; it reuses the connector's attempt/reconciliation machinery rather than inventing its own. |
 | Fetch worker | A connector executor authorized to issue HTTP requests and record response data and attempt metadata. |
@@ -261,14 +261,14 @@ its distinction from transport flow control.
 ## Inspection and interpretation
 
 See [Serving](serving.md), [Reactive APIs](reactive.md) and
-[Reactive interfaces](reactive.md) for the qualified inbound service, API and
+[Reactive interfaces](reactive.md) for inbound service, API and
 live-view contracts, separate from connector attempts.
 
 | Term | Meaning |
 | --- | --- |
 | Observation basis | The source, read position, policy revision, retained boundary, and coverage supporting an inspected view. Different sources need not share one consistent cut. |
 | Journey | A bounded view of recorded causal relationships between inputs, turns, outputs, admissions, and effects. It introduces no new execution identity and may contain explicit gaps. |
-| Lens | A versioned Board interpretation of authorized runtime/framework evidence, without decoding application business values, replacing kernel facts, or broadening access. The earlier experimental counter decoder is no longer supported. |
+| Lens | A versioned Board interpretation of authorized runtime/framework evidence, without decoding application business values, replacing kernel facts, or broadening access. |
 
 Arrivals and departures are presentation terms mapped to mailbox admissions,
 committed outputs, and effect stages. They do not change those stages' guarantees.

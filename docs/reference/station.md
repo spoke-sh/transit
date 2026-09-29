@@ -55,6 +55,6 @@ condition, not permission to expire a child or discard its accepted messages.
 
 The [Station package](../../packages/zig/transit-station/README.md),
 [Station wire contract](../../contracts/STATION_V1.md) and
-[SDK index](sdks.md) own concrete APIs and qualified profiles. See
+[SDK index](sdks.md) describe the APIs and supported interfaces. See
 [deployment](deployment.md) for provider placement and [retention](retention.md)
 for terminal lifecycle rules.

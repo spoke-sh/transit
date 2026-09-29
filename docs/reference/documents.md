@@ -63,7 +63,7 @@ tentative edits or convert conflicts into arbitrary winners.
 
 The [remote caller guide](../../packages/zig/transit-station-document/docs/remote.md)
 binds an allowed replica, frozen request and original reply route. All ten non-Zig
-SDK targets have qualified Document change/read schedules; local, Compose and
-reference placement have separate evidence. This is not compatibility with an
-external CRDT wire format. See [the package](../../packages/zig/transit-station-document/README.md)
-for exact APIs and proof links.
+SDK targets support Document changes and reads. The service runs locally, in
+Compose and in the reference deployment. It uses the Transit Document format;
+external CRDT wire formats are unsupported. See [the package](../../packages/zig/transit-station-document/README.md)
+for exact APIs.

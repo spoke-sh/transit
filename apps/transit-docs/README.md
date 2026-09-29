@@ -35,6 +35,10 @@ snapshot of supported capabilities, retaining real wire/profile versions and
 stating unsupported cases without delivery promises. See
 [documentation ownership](../../docs/README.md#where-documentation-lives).
 
+Use direct interface language in the homepage and documentation. Describe
+operations, compatibility, configuration and errors without maturity labels or
+blanket readiness disclaimers. State specific limits where readers need them.
+
 The docs plugin reads those files directly. A Markdown AST transform maps links
 to included pages onto site routes and other repository links onto GitHub source.
 Literal code examples are untouched. Original edit links point at the owning file.

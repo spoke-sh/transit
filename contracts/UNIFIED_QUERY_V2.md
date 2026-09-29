@@ -1,10 +1,10 @@
 # Unified state query profile v2
 
-Status: implemented unified state query profile. The [compatibility matrix](../packages/zig/transit-query/docs/compatibility.md)
-records supported sources, callers and result representations.
+Unified queries read declared KV, Table and Document sources. The
+[compatibility matrix](../packages/zig/transit-query/docs/compatibility.md)
+defines supported sources, callers and result representations.
 The existing [public Table v1](PUBLIC_QUERY_V1.md), `FZP1` plans and retained
-`GQM2` results keep their original interpretation. This document does not mark
-unimplemented surfaces as available.
+`GQM2` results keep their original interpretation.
 
 ## Ownership and source identity
 

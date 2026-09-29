@@ -42,9 +42,7 @@ export default function Home(): ReactElement {
                 Explore the concepts
               </Link>
             </div>
-            <p className="profile-note">
-              Experimental · Explicit profiles and qualification limits
-            </p>
+            <p className="profile-note">Durable processes · Versioned state · Recoverable work</p>
           </div>
           <div
             className="model-diagram"
