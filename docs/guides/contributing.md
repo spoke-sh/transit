@@ -41,6 +41,12 @@ histories and signatures is not implemented.
 
 ## Shared documentation
 
+Follow the [versioning and hard-cutover policy](../reference/versioning.md) for
+Transit-owned contracts. Before 1.0, replace the current v1 definition and remove
+superseded paths, updating all consumers and proof fixtures in the same cutover.
+Do not add a parallel compatibility implementation or claim that an unchanged
+v1 label makes incompatible builds safe to combine.
+
 Start from the same [public architecture](../reference/architecture.md),
 [glossary](../reference/glossary.md) and topic reference that an application user
 reads. Update behavior, limits, recovery and useful rationale there with code.

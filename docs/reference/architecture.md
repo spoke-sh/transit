@@ -81,6 +81,11 @@ does not grant access or transfer resource lifetime. See [security](security.md)
 
 ## Compatibility is explicit
 
+The [versioning policy](versioning.md) requires one current v1 definition per
+Transit-owned protocol before 1.0. Breaking changes use hard cutovers that remove
+superseded implementations and update consumers together. Matching version labels
+alone do not establish compatibility between builds.
+
 Legacy protocol/state profiles retain their fixed limits. The growing v3 profile
 uses bounded pages and immutable state roots, allowing retained collections to
 grow beyond resident caches. There is no automatic history conversion between

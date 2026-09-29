@@ -38,8 +38,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M28](M28.md) | Concise CLI output | Complete for the selected presentation profile; concise errors, offline command help and preserved recovery/machine output qualified locally |
 | [M29](M29.md) | Unified CLI and conventional configuration | Interface qualified: automatic SQL, dot commands, YAML/defaults and rc preferences; timing and latency triage in progress |
 | [M30](M30.md) | Interactive queries and storage amplification | In progress; fresh leased snapshots, bounded Arrow execution, repeatable measurements and shared storage costs |
-| [M31](M31.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
-| [M32](M32.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
+| [M31](M31.md) | Protocol consolidation and v1 hard cutover | In progress; one current definition per owned protocol, legacy removal and coordinated consumer/proof updates |
+| [M32](M32.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
+| [M33](M33.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -93,8 +94,11 @@ neighborhood, with scoped worker replacement and application-owned migration.
 SQL/CLI references and generated OpenAPI/AsyncAPI documentation.
 [M28](M28.md) simplifies terminal errors and command help while preserving recovery
 and machine output. [M29](M29.md) unifies the console and adds server defaults,
-configuration discovery, environment overrides and merged console preferences. [M31](M31.md) publishes versioned Transit artifacts through tag-triggered GitHub
-release workflows and qualified installation channels. [M32](M32.md) then
+configuration discovery, environment overrides and merged console preferences.
+[M31](M31.md) consolidates Transit-owned protocols on v1 through a hard cutover,
+removing superseded code and migrating consumers before release publication.
+[M32](M32.md) publishes versioned Transit artifacts through tag-triggered GitHub
+release workflows and qualified installation channels. [M33](M33.md) then
 qualifies these boundaries across broader authority/runtime topologies. Fuze
 remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
@@ -103,7 +107,7 @@ their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
 M15–M18 now have executed qualification within their declared profiles. The
-M19–M32 plans carry those findings forward; a planned server, watch or cluster
+M19–M33 plans carry those findings forward; a planned server, watch or cluster
 contract is still not an implemented dependency. Provider-specific integrations
 compose the existing components without a new durability model or application
 policy in the kernel.
@@ -114,7 +118,7 @@ as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../../tests/README.md); implementation and operating details
 stay with their [owning components](../ARCHITECTURE.md#planned-monorepo-decomposition).
 
-## M15–M18 handoff to M19–M32
+## M15–M18 handoff to M19–M33
 
 The [query compatibility matrix](../../../packages/zig/transit-query/docs/compatibility.md)
 and [proof ledger](../../../tests/README.md#m18-qualification) are the baseline for
@@ -127,7 +131,7 @@ int64 Table reactive profiles. M21/M22 are complete for their selected Table
 consumer and finite Flight profiles. M23/M24 are complete for their selected
 application, local server and terminal profiles, with focused and clean
 qualification recorded. M28 implements the accepted CLI presentation review;
-M29 implements the accepted unified CLI direction; M31–M32 remain planned.
+M29 implements the accepted unified CLI direction; M32–M33 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
@@ -141,8 +145,9 @@ M29 implements the accepted unified CLI direction; M31–M32 remain planned.
 | [M26](M26.md#scope-and-owners) | M25 downstream workflow and the existing typed/wire contracts | User journeys, supported interface reference and generated API descriptions from the same owners |
 | [M28](M28.md#scope-and-owners) | Existing diagnostic coordinates, privacy and local recovery | Concise errors, operation-specific help and preserved exit/stream contracts |
 | [M29](M29.md#scope-and-owners) | Local server lifecycle, exact query recovery and concise CLI output | Automatic SQL, dot commands, defaults, YAML/environment overlays and rc precedence |
-| [M31](M31.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
-| [M32](M32.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
+| [M31](M31.md#baseline-and-owners) | Growing authority, unified queries, installed SDKs and existing recovery/authorization proofs | One current v1 definition per protocol, rejection of incompatible artifacts and removal of superseded code |
+| [M32](M32.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
+| [M33](M33.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
 
 At each entry, run the relevant existing proof unchanged, then extend it at the
 new boundary. Preserve accepted-but-lost receipts, changed-intent rejection,

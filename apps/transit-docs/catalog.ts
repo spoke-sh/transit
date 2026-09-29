@@ -123,6 +123,7 @@ export const sections: Section[] = [
     label: "Core concepts",
     pages: [
       reference("architecture", "Architecture and scope"),
+      reference("versioning", "Versioning and hard cutovers"),
       reference("workloads", "Workloads and architectural priorities"),
       reference("processes", "Processes and turns"),
       reference("streams", "Streams and delivery"),

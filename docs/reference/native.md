@@ -5,6 +5,10 @@ implementation owns canonical bytes, Ed25519 signatures, validation, sequencing
 and exact recovery. The node exposes versioned JSON envelopes over HTTP; it is
 not the Board or application serving API.
 
+The [versioning policy](versioning.md) requires a single v1 definition for each
+Transit-owned protocol before 1.0, with hard cutovers and removal of legacy
+implementations.
+
 | Contract | Owns |
 | --- | --- |
 | [Native HTTP service v2](../../contracts/SERVICE_V2.md) | Request/response envelopes, signature domains, HTTP framing and trust |

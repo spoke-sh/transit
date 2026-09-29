@@ -29,6 +29,7 @@ its support boundary before giving examples.
 | Topic | Public documentation |
 | --- | --- |
 | Model and components | [Architecture and scope](reference/architecture.md), [component directory](reference/components.md), [glossary](reference/glossary.md) |
+| Compatibility policy | [Versioning and hard cutovers](reference/versioning.md) |
 | Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [examples across languages](guides/workload-examples.md) |
 | Durable execution | [Processes and turns](reference/processes.md), [streams and delivery](reference/streams.md), [caller/SDK semantics](reference/callers.md) |
 | Authority and lifetime | [Security](reference/security.md), [retention and capacity](reference/retention.md), [storage](reference/storage.md) |

@@ -3390,7 +3390,7 @@ No existing host block device, user installation or reference cluster is changed
 independent schema/SHA-256/Ed25519 fixture checks pass. These new focused/external
 tasks do not expand the ordinary hosted lanes or claim a new M10 budget sample.
 The selected replacement changes configuration with the same compatible binary;
-M31 must additionally qualify changed executable artifacts through installed
+M32 must additionally qualify changed executable artifacts through installed
 release packages. Other SDK hosts, maximum active quotas, local multi-role
 dependency graphs and distributed placement are not qualified by this consumer.
 Interface publication retains its separate M23 proof; worker readiness does not

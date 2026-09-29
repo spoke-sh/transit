@@ -18,6 +18,11 @@ Choose the owner that matches the job; a transport never grants authority.
 
 ## Version and capability rules
 
+The [versioning policy](../reference/versioning.md) requires one current v1
+definition per Transit-owned protocol before 1.0 and hard cutovers between
+incompatible definitions. The profiles below describe the existing implementation
+pending consolidation; they are not long-term compatibility commitments.
+
 A CLI version, native protocol version, query profile and application revision
 are different identifiers. Use the profile in your actual configuration and the
 server's authorized capability read. No interface silently converts old durable

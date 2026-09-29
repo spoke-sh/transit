@@ -43,6 +43,17 @@ established behavior, limits and reasoning into the public owner with the change
 
 ## Implementation rules
 
+- Follow the [versioning policy](docs/reference/versioning.md). Before Transit
+  1.0, every Transit-owned protocol, wire format, schema and ABI has one current
+  definition named v1. Breaking changes replace that definition through a hard
+  cutover; do not add v2/v3, parallel legacy profiles, compatibility shims,
+  fallback decoders or deprecated routes. Remove superseded implementations and
+  migrate their consumers, generated contracts, fixtures, examples and public
+  documentation together. Keep upstream protocol versions and application-owned
+  revisions separate. A v1 label alone never establishes compatibility between
+  different builds. Reject incompatible peers, saved requests and stored formats
+  before execution; never reinterpret old accepted work or silently reset data.
+  Preserve existing safety/recovery checks while replacing their protocol inputs.
 - Keep the Transit kernel generic and Station above it. Reasoning loops, goals,
   delegation, and trading policy belong to applications; LLM/tool access belongs
   in connectors.
