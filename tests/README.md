@@ -1069,7 +1069,7 @@ from protocol completeness and effect-result acceptance.
 This directory owns conformance harnesses, fault injection, test-only executors,
 and proof results. Application examples live under [examples](../examples/README.md);
 tests launch those real binaries rather than a separate implementation of their
-logic. The [conformance design](../docs/internal/CONFORMANCE.md) owns the required adversarial
+logic. The [conformance design](../docs/reference/verification.md) owns the required adversarial
 scenarios. Results below describe the recorded bounded milestone profiles, not
 a claim that all commands are rerun on every documentation change.
 
@@ -3460,9 +3460,12 @@ no expanded hosted CI budget is claimed.
 
 `just transit-docs::check` checks the real Docusaurus package: Vite+ formatting
 and lint, strict TypeScript, four source/reference tests and production static
-rendering with broken links/anchors treated as errors. The catalog includes all
-31 foundational Markdown files, alongside task guides, public interface references
-and selected owning component/wire guides. API pages render operations, nested
+rendering with broken links/anchors treated as errors. The initial site included
+all 31 foundational Markdown files. The current catalog includes every public
+guide/reference and selected owning component/wire guides. Its ownership test
+excludes internal records from published navigation/search and rejects internal
+links in public guides/reference. Those references share current concepts,
+guarantees and failure semantics with users, developers and agents. API pages render operations, nested
 fields, union alternatives and bounds from the checked Board/serving OpenAPI and
 reactive AsyncAPI; downloaded descriptions retain their original bytes.
 
@@ -3500,3 +3503,18 @@ file navigation and byte equality for all three specification downloads. The
 clean clone had no inherited `node_modules`, generated documentation or site
 output; it reused the locked package/tool downloads and installed Chromium.
 This is focused site evidence, not the full ordinary `just ci-clean` suite.
+
+The public/internal documentation reorganization passes `just check` after the
+locked workspace install, plus all three production browser checks at `/` and
+`/handbook/`. The catalog now has 56 pages, including all 36 public guides and
+references; internal plans, reviews and historical design are absent from site
+navigation/search. The updated ownership test requires every public page and
+rejects its links to internal records. Agent instructions, component entry links
+and invariant owners now use the public explanations. The complete glossary and
+developer workflow have public owners, with internal section pointers preserving
+older references. Source validation passes 3,885 local links across 415 Markdown
+files; a separate path check resolves all 114 local documentation image references.
+This pass changes documentation/navigation and source pointers, not runtime
+semantics. It does not rerun runtime deployment proofs, the full ordinary clean
+CI suite or hosted timing. The previously executed onboarding proof remains the
+basis for the unchanged runnable commands.

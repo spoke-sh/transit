@@ -1,5 +1,9 @@
 # Documents and collaborative text
 
+Engineering background and historical design. Use [Documents and collaborative text](../reference/documents.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use Documents for accepted structured changes and collaborative text. Begin with
 the [Document service guide](../../packages/zig/transit-station-document/docs/service.md)
 and query accepted projections through [unified SQL](../reference/sql.md). Speculative

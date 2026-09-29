@@ -1,5 +1,9 @@
 # Station Tables and Arrow results
 
+Engineering background and historical design. Use [Tables and materialization](../reference/tables.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use a Table for typed rows in a durable resource. Begin with the
 [Table API guide](../../packages/zig/transit-station/docs/tables.md) for mutations
 and the [SQL reference](../reference/sql.md) for reads. A Table is a Station

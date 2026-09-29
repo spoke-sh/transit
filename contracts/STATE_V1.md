@@ -1,7 +1,7 @@
 # State resources v1
 
 Status: implemented bounded M7 protocol, service and Zig client. See
-[STATE.md](../docs/internal/STATE.md) for the design and [M7](../docs/internal/roadmap/M7.md) for
+[STATE.md](../docs/reference/state.md) for the design and [M7](../docs/internal/roadmap/M7.md) for
 qualification. Query `capabilities` on the running authority; schema presence
 alone does not advertise its support.
 

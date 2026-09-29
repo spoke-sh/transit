@@ -1,5 +1,9 @@
 # State — resources and process associations
 
+Engineering background and historical design. Use [State resources and associations](../reference/state.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Store durable application values in resources and access them through bounded
 public reads and committed turns. Begin with [Tables](TABLES.md) or
 [Documents](DOCUMENTS.md) for higher-level values; use the

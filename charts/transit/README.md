@@ -1,6 +1,6 @@
 # Transit Helm chart
 
-[Transit](../../docs/internal/TRANSIT.md) is the streaming runtime subsystem. This chart
+[Transit](../../docs/reference/processes.md) is the streaming runtime subsystem. This chart
 packages its current single-realm deployment: a node, disk-backed Ursula,
 optional maintenance, [delivery](../../apps/transit-delivery/README.md), [Board](../../apps/transit-board/README.md), runtime/framework controllers, and
 Agent Substrate worker capacity. Rey is the intended downstream trading
@@ -136,7 +136,7 @@ it can interrupt provider reconciliation. The persistent reference launcher
 uses this chart's optional in-cluster controller with projected credentials.
 Neither profile makes `example-counter` a required runtime component. WorkerPool
 capacity alone does not authorize or launch a Transit process; Actor templates, grants and
-recorded bindings remain necessary. See [deployment](../../docs/internal/DEPLOYMENT.md).
+recorded bindings remain necessary. See [deployment](../../docs/reference/deployment.md).
 
 ## Validation
 

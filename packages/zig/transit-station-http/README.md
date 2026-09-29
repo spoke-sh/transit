@@ -53,7 +53,7 @@ idempotent retries, captured same-authority redirects and declared status/cancel
 actions. It rejects destination, credential, policy and method/body changes outside
 that explicit decision. The worker still owns current dispatch authority and the
 shared exchange layer owns lineage/budgets; this helper performs no I/O.
-The [connector design](../../../docs/internal/CONNECTORS.md) and
+The [connector design](../../../docs/reference/connectors.md) and
 [exchange contract](../../../contracts/STATION_EXCHANGE_V1.md) own authority,
 lifetime, unknown-outcome and replay requirements.
 

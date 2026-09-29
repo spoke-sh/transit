@@ -2,7 +2,7 @@
 
 Status: qualified M19 initial service-caller profile. The
 [proof ledger](../tests/README.md#m19-qualification) separates socket, durable
-admission, lifecycle and physical deployment evidence. [Serving](../docs/internal/SERVING.md) owns the architecture.
+admission, lifecycle and physical deployment evidence. [Serving](../docs/reference/serving.md) owns the architecture.
 
 ## Owner and publication
 

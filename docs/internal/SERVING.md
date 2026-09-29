@@ -1,5 +1,9 @@
 # Serving — inbound protocols over Transit services
 
+Engineering background and historical design. Use [Serving application APIs](../reference/serving.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use serving to expose application commands and reads through a published service
 binding. Start with [OpenAPI](../reference/openapi.md) and the
 [runnable example](../../examples/serving/README.md). This page explains how inbound

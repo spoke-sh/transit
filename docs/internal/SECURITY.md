@@ -1,5 +1,9 @@
 # Identity, authorization, and trust boundaries
 
+Engineering background and historical design. Use [Identity, permissions and trust](../reference/security.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Provision identity, permissions and worker ownership separately. Start with the
 [native protocol reference](../reference/native.md) for signed callers,
 [serving OpenAPI](../reference/openapi.md) for application ingress or

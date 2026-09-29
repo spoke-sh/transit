@@ -50,7 +50,7 @@ test("production navigation, search, generated references and exact downloads", 
   await expect(page.locator("#signedcommand")).toBeInViewport();
   await page.goto(new URL("reference/asyncapi", baseURL).href);
   await expect(page.locator("#channel-reactive")).toHaveText(/Channel reactive/);
-  await page.goto(new URL("concepts/architecture", baseURL).href);
+  await page.goto(new URL("reference/architecture", baseURL).href);
   await expect(page.locator(".docusaurus-mermaid-container svg").first()).toBeVisible();
   expect(errors).toEqual([]);
 });

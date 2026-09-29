@@ -1,5 +1,9 @@
 # Query language: relational and dataframe surfaces over one plan
 
+Engineering background and historical design. Use [SQL reference](../reference/sql.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 For runnable statements, use the [SQL reference](../reference/sql.md). This page
 owns language design, UI mappings and proposed declarations beyond that finite
 SELECT profile. Reference grammar and visual mockups do not enable execution.

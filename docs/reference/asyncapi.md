@@ -28,5 +28,5 @@ or interruption, never a claim of continuous coverage.
 
 See the [reactive wire contract](../../contracts/REACTIVE_V1.md),
 [runnable reactive example](../../examples/serving/docs/reactive.md) and
-[live-view model](../internal/REACTIVE.md) for exact recovery and snapshot freshness.
+[live-view model](reactive.md) for exact recovery and snapshot freshness.
 The directions `receive` and `send` below are from the server's perspective.

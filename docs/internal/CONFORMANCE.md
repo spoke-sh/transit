@@ -1,5 +1,9 @@
 # Protocol conformance and implementation gates
 
+Engineering background and historical design. Use [Guarantees and verification limits](../reference/verification.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use these requirements to evaluate a change or a deployment guarantee. For
 commands and executed results, follow the [proof ledger](../../tests/README.md);
 for user-visible compatibility, start with [interface selection](../guides/choose-interface.md).

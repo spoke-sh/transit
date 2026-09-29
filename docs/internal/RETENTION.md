@@ -1,5 +1,9 @@
 # Retention and resource lifetimes
 
+Engineering background and historical design. Use [Retention, lifetimes and capacity](../reference/retention.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Choose a retention policy only when your application can tolerate the specified
 loss of old data or recovery eligibility. The default is unlimited. This page
 separates logical expiry, reconciliation closure and physical cleanup; see

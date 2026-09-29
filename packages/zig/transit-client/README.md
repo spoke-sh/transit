@@ -32,7 +32,7 @@ experimental v2 API; explicit `submitGrowing` and `queryGrowing` methods expose
 the [M10 v3 development boundary](docs/growing.md). The raw C ABI also exposes
 explicit growing command/query kinds; existing Session and legacy Station foreign
 behavior APIs retain v2;
-`GrowingSession` is an explicit activation helper for the new profile. For the architectural boundary, read [the caller model](../../../docs/internal/CLIENT.md).
+`GrowingSession` is an explicit activation helper for the new profile. For the architectural boundary, read [the caller model](../../../docs/reference/callers.md).
 
 ## Caller guide
 

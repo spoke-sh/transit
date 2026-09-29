@@ -31,8 +31,8 @@ remains execution authority.
 1. [Run Transit locally](quickstart.md) and query its initial empty Table.
 2. [Build an application](applications.md) separately and install its workers.
 3. [Choose an interface](choose-interface.md) for your application's clients.
-4. Learn [processes and turns](../internal/TRANSIT.md), [state](../internal/STATE.md) and
-   [permissions](../internal/SECURITY.md) before adding writes or external effects.
+4. Learn [processes and turns](../reference/processes.md), [state](../reference/state.md) and
+   [permissions](../reference/security.md) before adding writes or external effects.
 
 ## Three distinctions to keep
 
@@ -49,5 +49,5 @@ worker ownership, including on reads and replay.
 
 Retention is unlimited unless an application explicitly opts into a finite
 policy. Memory pressure, disk pressure and restarts do not authorize deletion.
-See the [scope](../internal/SCOPE.md), [interface matrix](choose-interface.md) and
-[roadmap](../internal/roadmap/README.md) before choosing a profile.
+See the [scope](../reference/architecture.md), [interface matrix](choose-interface.md) and
+[verification limits](../reference/verification.md) before choosing a profile.

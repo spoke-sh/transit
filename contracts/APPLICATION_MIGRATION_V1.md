@@ -2,7 +2,7 @@
 
 Status: shared ledger core implemented; domain ingress and physical qualification pending.
 [Application definitions](APPLICATION_V1.md) and
-[reactive applications](../docs/internal/REACTIVE_APPLICATIONS.md) own the surrounding model.
+[reactive applications](../docs/reference/applications.md) own the surrounding model.
 This ledger belongs above Station. It neither grants execution authority nor
 changes Transit's one-mutated-resource, four-mutation turn boundary.
 

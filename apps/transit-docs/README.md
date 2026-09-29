@@ -24,9 +24,11 @@ There is no dependency on Board's runtime or a running Transit installation.
 ## Sources and navigation
 
 `catalog.ts` maps each owned Markdown file to a readable route and sidebar label.
-All top-level foundational `docs/*.md` files must appear in the catalog. Task
-guides and cross-interface references live in `docs/guides` and `docs/reference`;
-component guides stay beside their implementation. See
+Every page in `docs/guides/` and `docs/reference/` must appear in the catalog.
+These are the shared current documentation for users, developers and agents;
+component guides stay beside their implementation. Engineering history and
+planning live in `docs/internal/` and are excluded from the catalog and search.
+Public guides/reference cannot depend on internal links; tests enforce this boundary. See
 [documentation ownership](../../docs/README.md#where-documentation-lives).
 
 The docs plugin reads those files directly. A Markdown AST transform maps links

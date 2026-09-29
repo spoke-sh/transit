@@ -1,5 +1,9 @@
 # Connectors and external exchanges
 
+Engineering background and historical design. Use [Effects, HTTP and gRPC connectors](../reference/connectors.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use a connector for external HTTP or gRPC work whose intent and observed result
 must survive recovery. Start with the [HTTP worker](../../apps/transit-station-http-worker/README.md)
 or [RPC connector](GRPC.md). Inbound application APIs instead use

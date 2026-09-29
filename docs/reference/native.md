@@ -33,5 +33,5 @@ The neutral boundary already has generated declarations and independent signing
 fixtures. Bind the shared Zig client rather than duplicating protocol semantics.
 Validate all values crossing the boundary at runtime, preserve full-width integer
 encodings and distinguish an uncertain remote outcome from a local cancellation.
-The [caller model](../internal/CLIENT.md) and [SDK contracts](../internal/SDK.md) define ownership
+The [caller model](callers.md) and [SDK contracts](callers.md) define ownership
 and scheduling. Generated declarations are not the language-native public API.

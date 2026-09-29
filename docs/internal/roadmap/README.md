@@ -33,7 +33,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M23](M23.md) | Board grammar and declarative reactive applications | Complete: selected UI, publication, migration and three-placement application proofs; clean qualification passed |
 | [M24](M24.md) | Transit CLI | Complete: Linux local server recovery/capacity, Table/KV/Document console and shared assistance; clean qualification passed |
 | [M25](M25.md) | Local application installation and replacement | Complete: separate Zig consumer, neutral installation/bootstrap, scoped replacement, exact recovery and physical-capacity qualification |
-| [M26](M26.md) | User documentation and interface reference | Complete: Docusaurus handbook, task-oriented foundations, generated API references and local onboarding proof |
+| [M26](M26.md) | User documentation and interface reference | Complete: shared public guides/reference for users, developers and agents; internal plans/history separated; generated API references and local onboarding proof |
 | [M27](M27.md) | Board in the local neighborhood | Implemented: separate supervised Board, explicit headless operation and packaged assets; focused proofs pass, clean qualification running |
 | [M28](M28.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M29](M29.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |

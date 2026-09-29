@@ -1,5 +1,9 @@
 # Ursula integration boundary
 
+Engineering background and historical design. Use [Storage and recovery boundary](../reference/storage.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Ursula is the storage provider behind the public Transit boundary. Application
 code uses the client, not raw Ursula streams. Start with the
 [local server](../../apps/transit-cli/docs/server.md) for a configured installation

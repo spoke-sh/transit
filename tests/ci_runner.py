@@ -46,7 +46,7 @@ def main():
     cold = summarize(sample, [job], cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
-    assert not select(["docs/internal/STATE.md", "README.md"])["full"]
+    assert not select(["docs/reference/state.md", "docs/internal/roadmap/M26.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],
                   ["docs/internal/STATE.md", "packages/zig/transit-core/README.md"]):

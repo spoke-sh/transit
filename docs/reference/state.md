@@ -1,0 +1,68 @@
+# State resources and associations
+
+Store durable values in versioned resources. Read the keys or bounded pages a
+turn needs, then propose mutations together with input progress and outputs.
+Worker fields and caches are volatile; they are not the resource or its lifetime.
+
+## Choose a profile
+
+| Profile | Implemented boundary |
+| --- | --- |
+| Legacy state v1 | Four resources with 32 entries each; fixed catalog/view limits; one writer PID and one mutated resource per turn |
+| Growing v3 | Immutable roots and bounded catalog/resource pages; retained size independent of resident cache, subject to explicit operation/admission/storage bounds |
+| Station Table | Typed schema and row access above a resource; mutations retain that resource's commit boundary |
+| Station Document | Accepted structured/text changes and immutable indexes above growing state |
+
+Legacy ceilings are admission limits, not tuning hints. Growing support does not
+upgrade existing history automatically. Use explicit profile/capability selection.
+Neither profile supplies arbitrary transactions across resources.
+
+## Identity, access and ownership
+
+A resource has a realm-qualified identity and revision. A process association
+records its access/dependency relationship to that resource. These are separate
+from the writer PID, resource lifetime owner and current grant.
+
+Association changes cannot grant access, transfer writer authority or keep an
+expired resource alive. A process can be allowed to inspect metadata without
+reading entries. A grant can be revoked even while an association or read-view
+handle still exists. Check [current authorization](security.md) for every read,
+commit and receipt reconciliation.
+
+## Read and commit
+
+Open an authorized view against the declared resource revision. Bound page sizes,
+scan work and active views. Preserve its continuation and source evidence when
+paging; do not merge pages from different cuts into an invented snapshot.
+Views and borrowed buffers have explicit lifetimes in the [caller API](callers.md).
+
+A turn validates its read/dependency basis and one mutated resource alongside
+input progress and outputs. The existing bounded KV mutation/value limits still
+apply to growing operations; larger data uses staged [immutable publication](../../contracts/STATION_PUBLICATION_V1.md).
+Staging publishes bytes incrementally, but only the final accepted head makes the
+new logical value visible. A staging acknowledgement is not final acceptance.
+
+Publication can bind a descriptor, application head and reply in one final turn.
+It verifies byte completeness, not honest computation or Document merge validity.
+Interrupted staging remains recoverable or explicitly abandoned, with declared
+quotas and identity evidence; pressure never silently accepts a prefix.
+
+## Data and history lifetimes
+
+Current state can survive trimming old history through a validated checkpoint.
+A live value does not expire merely because its last write is old. Retention is
+unlimited by default; finite policies need explicit opt-in.
+
+A required resource limits the dependent process's recovery lifetime. An optional
+resource's expiry is an explicit read outcome. Inline bytes that happen to encode
+a reference do not create an implicit dependency. Neither associations nor old
+root references grant arbitrary retention pins.
+
+Capacity bounds active work and physical storage; it does not authorize expiry.
+The growing profile separates collection size from resident memory but cannot
+promise infinite disk. See [retention and capacity](retention.md).
+
+For exact fields, values and compatibility use [state v1](../../contracts/STATE_V1.md)
+and [growing v3](../../contracts/TRANSIT_V3.md). For runnable APIs use the
+[growing client](../../packages/zig/transit-client/docs/growing.md),
+[Tables](tables.md) and [Documents](documents.md).

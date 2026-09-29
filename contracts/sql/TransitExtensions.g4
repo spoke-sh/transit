@@ -48,7 +48,7 @@ createConnection
     ;
 
 // CREATE SOURCE trades FROM HTTP CONNECTION kafka_conn WITH (poll_ms = '1000');
-// A new Fuze source adapter (docs/internal/GLOSSARY.md's "Query source adapter")
+// A new Fuze source adapter (docs/reference/glossary.md's "Query source adapter")
 // backed by a connector's captured observations, not durable state.
 createSource
     : CREATE SOURCE identifier FROM connectorKind CONNECTION identifier (WITH? connectionOptions)?
@@ -56,13 +56,13 @@ createSource
 
 // CREATE SINK fills INTO HTTP CONNECTION kafka_conn WITH (path = '/orders');
 // A write target that dispatches a connector effect attempt
-// (contracts/../docs/CONNECTORS.md#effect-boundary), not a durable row store.
+// (docs/reference/connectors.md), not a durable row store.
 createSink
     : CREATE SINK identifier INTO connectorKind CONNECTION identifier (WITH? connectionOptions)?
     ;
 
 connectorKind
-    : identifier // e.g. HTTP, GRPC: a docs/internal/CONNECTORS.md connector family name
+    : identifier // e.g. HTTP, GRPC: a docs/reference/connectors.md connector family name
     ;
 
 connectionOptions
@@ -78,7 +78,7 @@ optionValue
     | secretRef
     ;
 
-// docs/internal/CONNECTORS.md#variables-and-secrets: names a credential binding,
+// docs/reference/security.md#effects-and-secrets: names a credential binding,
 // never carries or echoes the secret value itself.
 secretRef
     : SECRET LPAREN STRING RPAREN

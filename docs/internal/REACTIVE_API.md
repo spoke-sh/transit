@@ -1,5 +1,9 @@
 # Reactive APIs — SSE, WebSocket and described contracts
 
+Engineering background and historical design. Use [Sessions, watches and live views](../reference/reactive.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use this API to host resumable Table notifications over fetch-SSE or WebSocket.
 The [OpenAPI reference](../reference/openapi.md) describes HTTP operations;
 [AsyncAPI](../reference/asyncapi.md) describes channels and messages. This page

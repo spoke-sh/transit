@@ -29,7 +29,7 @@ calling application logic or dispatching effects.
 M1 serializes one realm through one journal, with bounded catalogs and replay
 windows. This is not a sharded or production capacity design. Exact types, limits,
 and rejection rules live in the [v2 protocol profile](../../../contracts/TRANSIT_V2.md).
-The [Transit design](../../../docs/internal/TRANSIT.md) describes the broader invariants.
+The [Transit design](../../../docs/reference/processes.md) describes the broader invariants.
 
 ## Source map and current limits
 

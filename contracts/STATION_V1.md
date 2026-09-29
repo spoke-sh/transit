@@ -2,7 +2,7 @@
 
 Status: implemented experimental M9 profile: behaviors, calls, scoped framework
 services, Tables and shared language exports. The
-[framework design](../docs/internal/STATION.md) distinguishes this bounded implementation
+[framework design](../docs/reference/station.md) distinguishes this bounded implementation
 from the broader direction; no stable public SDK release is implied.
 
 ## Messages and origins

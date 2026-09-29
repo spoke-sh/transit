@@ -1,5 +1,9 @@
 # Observability
 
+Engineering background and historical design. Use [Logs, metrics, traces and probes](../reference/observability.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use logs, metrics, traces and probes to locate a stalled component, then inspect
 durable evidence before deciding whether an operation committed. Start with
 [node operations](../../apps/transit-node/docs/operations.md) and

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { pages } from "../catalog";
 import { pageContent, resolveLink } from "./content";
@@ -8,20 +8,35 @@ import { object, readSpecification, renderSpecification, specifications } from "
 const root = path.resolve(import.meta.dirname, "../../..");
 
 describe("documentation ownership and navigation", () => {
-  it("includes every foundation and resolves every catalog source without route collisions", () => {
-    const foundations = readdirSync(path.join(root, "docs/internal")).filter((name) => name.endsWith(".md"));
-    for (const name of foundations)
-      expect(
-        pages.some((entry) => entry.source === `docs/internal/${name}`),
-        name,
-      ).toBe(true);
-    for (const entry of pages)
+  it("publishes every public page without internal prerequisites or route collisions", () => {
+    for (const directory of ["guides", "reference"]) {
+      const sources = readdirSync(path.join(root, "docs", directory), { recursive: true }).filter(
+        (name): name is string => typeof name === "string" && name.endsWith(".md"),
+      );
+      for (const name of sources) {
+        const source = `docs/${directory}/${name.split(path.sep).join("/")}`;
+        expect(
+          pages.some((entry) => entry.source === source),
+          source,
+        ).toBe(true);
+        const content = readFileSync(path.join(root, source), "utf8");
+        for (const match of content.matchAll(/\]\(([^)\s]+)\)|^\[[^\]]+\]:\s+(\S+)/gm)) {
+          const url = match[1] ?? match[2]!;
+          expect(resolveLink(root, source, url, "/"), `${source}: ${url}`).not.toContain(
+            "/docs/internal/",
+          );
+        }
+      }
+    }
+    for (const entry of pages) {
       expect(existsSync(path.join(root, entry.source)), entry.source).toBe(true);
+      expect(entry.source.startsWith("docs/internal/"), entry.source).toBe(false);
+    }
     expect(new Set(pages.map((entry) => entry.route)).size).toBe(pages.length);
     expect(new Set(pages.map((entry) => entry.source)).size).toBe(pages.length);
   });
   it("keeps page/anchor links inside a mounted site and unselected owners in source", () => {
-    expect(resolveLink(root, "docs/internal/CLIENT.md", "../reference/cli.md#commands", "/handbook/")).toBe(
+    expect(resolveLink(root, "docs/reference/callers.md", "cli.md#commands", "/handbook/")).toBe(
       "/handbook/reference/cli#commands",
     );
     expect(
@@ -38,7 +53,12 @@ describe("documentation ownership and navigation", () => {
     expect(resolveLink(root, "docs/README.md", "https://example.test/a#b", "/")).toBe(
       "https://example.test/a#b",
     );
-    expect(resolveLink(root, "docs/README.md", "#foundations", "/")).toBe("#foundations");
+    expect(resolveLink(root, "docs/README.md", "#where-documentation-lives", "/")).toBe(
+      "#where-documentation-lives",
+    );
+    expect(resolveLink(root, "docs/README.md", "internal/README.md", "/")).toBe(
+      "https://github.com/rupurt/rey/blob/main/docs/internal/README.md",
+    );
     expect(() => resolveLink(root, "docs/README.md", "missing-guide.md", "/")).toThrow(
       "missing link",
     );

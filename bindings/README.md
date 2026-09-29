@@ -8,7 +8,7 @@ exceptions and runtime scheduling. They do not reimplement those protocols.
 These are M9's qualified low-level bindings. [M11](../docs/internal/roadmap/M11.md)
 provides qualified language-native public SDKs with typed operations, managed handler runners
 and installable artifacts. The current manual turn/action APIs remain available;
-the [caller design](../docs/internal/CLIENT.md#idiomatic-language-sdks) defines the public
+the [caller design](../docs/reference/callers.md) defines the public
 layer above them.
 
 All target public SDKs are implemented separately from these low-level adapters.

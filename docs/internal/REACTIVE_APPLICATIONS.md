@@ -1,5 +1,9 @@
 # Declarative reactive applications
 
+Engineering background and historical design. Use [Application installation, definitions and migration](../reference/applications.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use the qualified application declaration to bind presentation to public queries
 and commands. Begin with [Board application configuration](../../apps/transit-board/docs/application.md)
 or the [separate application walkthrough](../guides/applications.md). Declarative

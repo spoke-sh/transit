@@ -1,5 +1,9 @@
 # Architecture
 
+Engineering background and historical design. Use [Architecture and scope](../reference/architecture.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use this map to place your component in the stack and find its public package.
 Start with [the user overview](../guides/introduction.md) for the application model;
 this page explains ownership and dependency direction.

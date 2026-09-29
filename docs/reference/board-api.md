@@ -28,5 +28,5 @@ The specification covers its declared inspection/query routes. Optional private
 reactive and application adapters have their own
 [reactive client](../../contracts/REACTIVE_CLIENT_V1.md) and
 [application](../../apps/transit-board/docs/application.md) contracts. They are
-not silently added to this OpenAPI surface. Read [Board concepts](../internal/BOARD.md)
+not silently added to this OpenAPI surface. Read [Board concepts](../guides/inspect-board.md)
 for the distinction between implemented interfaces and reviewed UI proposals.

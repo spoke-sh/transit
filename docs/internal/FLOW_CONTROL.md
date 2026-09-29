@@ -1,5 +1,9 @@
 # Flow control
 
+Engineering background and historical design. Use [Streams and delivery](../reference/streams.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use explicit application credit when a producer can outpace durable acceptance.
 The [query delivery contract](../../contracts/STATION_QUERY_V2.md#flow-control) is
 the implemented example. Socket backpressure alone does not prove a receiver

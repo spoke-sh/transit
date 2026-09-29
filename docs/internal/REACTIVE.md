@@ -1,5 +1,9 @@
 # Reactive interfaces — notifications and exact snapshots
 
+Engineering background and historical design. Use [Sessions, watches and live views](../reference/reactive.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use a live-view client when an interface must show changes while preserving
 exact snapshot evidence. Start with the [TypeScript client](../../packages/ts/transit-reactive-client/README.md)
 and [reactive example](../../examples/serving/docs/reactive.md). An invalidation

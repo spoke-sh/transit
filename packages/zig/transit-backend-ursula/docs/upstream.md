@@ -103,7 +103,7 @@ or a trusted-writer convention do not establish atomic authority.
 Mailboxes and exchange stream groups are Transit abstractions over Ursula. Group
 membership, complete-record visibility, and safe retention need explicit
 manifests and policies; do not assume a native group/transaction API. Follow
-[STREAMS.md](../../../../docs/internal/STREAMS.md) and [CONNECTORS.md](../../../../docs/internal/CONNECTORS.md).
+[STREAMS.md](../../../../docs/reference/streams.md) and [CONNECTORS.md](../../../../docs/reference/connectors.md).
 
 ## Updating the client dependency
 

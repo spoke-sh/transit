@@ -6,7 +6,7 @@ Ursula storage and transport adapter, exported as `transit_backend_ursula`.
 [transit-core](../transit-core/README.md) and pinned upstream `ursula-zig`, importing
 its `ursula` module. Callers never receive this raw storage capability.
 
-The [Ursula design](../../../docs/internal/URSULA.md) owns the provider boundary;
+The [Ursula design](../../../docs/reference/storage.md) owns the provider boundary;
 the guides below own API mappings, pinned behavior, integration findings, and operations.
 
 ## Guides
@@ -18,7 +18,7 @@ the guides below own API mappings, pinned behavior, integration findings, and op
 
 ## Security boundary
 
-[The integration design](../../../docs/internal/URSULA.md) defines logical ownership and
+[The integration design](../../../docs/reference/storage.md) defines logical ownership and
 provider independence. The backend adds retry/recovery and retention policy around
 upstream HTTP operations; handlers use the public Transit client.
 
@@ -29,7 +29,7 @@ authentication/ACLs; the optional gateway can validate access tokens and enforce
 bucket access. A bucket alone is not a security boundary, and gateway ownership
 does not authorize a Transit turn or deletion. See the
 [pinned upstream security contract](https://github.com/tonbo-io/ursula/blob/v0.5.1/docs/web/src/content/docs/pages/security.mdx)
-and [Transit's authority model](../../../docs/internal/SECURITY.md).
+and [Transit's authority model](../../../docs/reference/security.md).
 
 ## Source and ownership
 

@@ -97,7 +97,7 @@ export default function Home(): ReactElement {
               Inspect durable evidence, distinguish admission from completion, and recover the
               original work.
             </p>
-            <Link to="/concepts/deployment">Deployment and recovery →</Link>
+            <Link to="/reference/deployment">Deployment and recovery →</Link>
           </div>
         </section>
       </main>

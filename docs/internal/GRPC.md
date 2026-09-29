@@ -1,5 +1,9 @@
 # gRPC connector
 
+Engineering background and historical design. Use [Effects, HTTP and gRPC connectors](../reference/connectors.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use the RPC connector for recorded outbound calls and replay. Start with the
 [application example](../../examples/station-grpc/README.md) and
 [adapter](../../packages/zig/transit-station-grpc/README.md). For inbound analytical

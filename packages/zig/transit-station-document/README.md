@@ -11,7 +11,7 @@ immutable publication/indexes; it does not depend on effect connectors.
 The [neutral v1 contract](../../../contracts/STATION_DOCUMENT_V1.md) fixes stable
 replica/operation identities, canonical changes, observed-remove map conflicts,
 list/text ordering and bounded accepted-state reads. The
-[model design](../../../docs/internal/DOCUMENTS.md) records the choices and limits.
+[model design](../../../docs/reference/documents.md) records the choices and limits.
 
 `Change` owns up to eight operations. `codec.encode/decode` validate its neutral
 format; `Document.apply(store, change)` returns a candidate snapshot and original

@@ -1,5 +1,9 @@
 # Testing and verification strategy
 
+Engineering background and historical design. Use [Guarantees and verification limits](../reference/verification.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use this guide to choose evidence appropriate to a change. Runnable commands
 and measured outcomes belong in [the proof ledger](../../tests/README.md). A skipped
 check or a diagram does not qualify a runtime behavior.
@@ -186,8 +190,8 @@ serialization point, and [M29](roadmap/M29.md) owns broader cluster qualificatio
 ## Documentation verification
 
 [M26](roadmap/M26.md) adds the Docusaurus handbook. Source-link checks remain in
-`tests/docs.py`; `just transit-docs::check` additionally verifies every foundation
-is cataloged, generated API operations/schemas, strict frontend types and a
+`tests/docs.py`; `just transit-docs::check` additionally verifies every public guide/reference
+is cataloged without internal prerequisites, generated API operations/schemas, strict frontend types and a
 production build with broken routes/anchors treated as errors. The actual browser
 proof covers desktop/mobile navigation, local search, diagrams, exact specification
 downloads and accessibility at both root and a configured path prefix.

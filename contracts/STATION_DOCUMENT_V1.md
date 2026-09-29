@@ -2,7 +2,7 @@
 
 Status: M17 component implementation and merge tests; durable service, SDK and
 placement qualification are in progress. This is a Station format, not a kernel
-command. [Documents](../docs/internal/DOCUMENTS.md) owns the model and
+command. [Documents](../docs/reference/documents.md) owns the model and
 [the package](../packages/zig/transit-station-document/README.md) owns usage.
 No external CRDT wire compatibility is implied.
 

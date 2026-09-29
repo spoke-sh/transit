@@ -1,5 +1,9 @@
 # Public SDK design
 
+Engineering background and historical design. Use [Caller and SDK semantics](../reference/callers.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use the [language package index](../reference/sdks.md) for installation and native
 APIs. This page explains the shared choices those SDKs preserve: durable identity,
 owned values, scoped turns, scheduling and uncertainty.

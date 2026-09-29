@@ -13,7 +13,7 @@ artifact, function signatures and wire schemas are preserved by this extraction.
 Additive M15 exports prepare HTTP request commitments, decode outcomes and expose
 one bounded replay reader. Scoped publication actions and validated HTTP calls
 reuse the same native turn and dispatch gate. These are native composition APIs;
-all [ten public SDKs](../../../docs/internal/CLIENT.md#http-connector-callers) provide typed
+all [ten public SDKs](../../../docs/reference/callers.md) provide typed
 request/call/replay conveniences with local qualification. Explicit durable
 release is also available through shared codecs and scoped `http_release` calls;
 all ten SDKs expose it. Scoped `http_followup` calls validate published request

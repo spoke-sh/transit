@@ -1,5 +1,9 @@
 # Caller programming model
 
+Engineering background and historical design. Use [Caller and SDK semantics](../reference/callers.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use the public client when your application needs to send messages, execute
 turns or recover an uncertain operation. Choose a [language SDK](../reference/sdks.md)
 or follow the [separate application walkthrough](../guides/applications.md). This

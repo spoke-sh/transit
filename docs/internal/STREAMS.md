@@ -1,5 +1,9 @@
 # Durable streams and mailboxes
 
+Engineering background and historical design. Use [Streams and delivery](../reference/streams.md)
+for the current public explanation shared by users, developers and agents.
+Consult this record for rationale and proposals; it does not extend a qualified profile.
+
 Use a process mailbox for ordered durable input and a committed outbox for
 recorded destinations. This page explains admission, delivery and replay; the
 [caller model](CLIENT.md) shows how an application consumes that input in turns.

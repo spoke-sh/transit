@@ -7,9 +7,9 @@ durable message sequences.
 
 Transit gives programs durable processes, ordered mailboxes, and associated state.
 Application code runs in callers; the kernel governs what can commit and how work
-recovers. [Board](docs/internal/BOARD.md) makes that history inspectable. [Station](docs/internal/STATION.md)
+recovers. [Board](docs/guides/inspect-board.md) makes that history inspectable. [Station](docs/reference/station.md)
 provides behaviors, supervision, registries and typed Tables through Zig and
-shared language bindings. [Fuze](docs/internal/FUZE.md) queries declared KV, Table and accepted Document sources
+shared language bindings. [Fuze](docs/reference/queries.md) queries declared KV, Table and accepted Document sources
 through one versioned plan and nested Arrow result model.
 
 This monorepo contains Transit's Zig libraries and services, TypeScript/Vite+
@@ -20,7 +20,7 @@ trading application**, using the same primitives as other workloads.
 **Status:** experimental. The implemented profiles cover durable processes and
 state, Station SDKs, HTTP/gRPC connectors, KV/Table/Document queries, reactive
 APIs, finite Flight SQL and local application installation. Each has explicit
-bounds and separately recorded qualification; see the [roadmap](docs/internal/roadmap/README.md).
+bounds and separately recorded qualification; see the [interface profiles](docs/guides/choose-interface.md).
 
 ## Documentation
 
@@ -59,7 +59,7 @@ scope; run it on a private development network. Logs stream in the foreground;
 Ctrl-C stops services and preserves data.
 
 The [launcher guide](launchers/README.md) covers host/port settings, updates,
-Compose, and the Kubernetes reference. Use [development](docs/internal/DEVELOPMENT.md)
+Compose, and the Kubernetes reference. Use [development](docs/guides/contributing.md)
 for build profiles and checks, or run `just` to browse tasks.
 For the multi-process programming example, follow the
 [Station ledger guide](examples/station-ledger/docs/running.md).
@@ -67,7 +67,7 @@ For the multi-process programming example, follow the
 ## Find your way
 
 - [Documentation](docs/README.md): scope, architecture, terminology, and design contracts.
-- [Component map](docs/internal/ARCHITECTURE.md#planned-monorepo-decomposition): libraries, apps, and their READMEs.
+- [Component map](docs/reference/components.md): libraries, apps, and their READMEs.
 - [Examples](examples/README.md): complete Zig callers using the public client.
 - [Proof coverage](tests/README.md): checks, failure schedules, and qualification limits.
 - [Agent instructions](AGENTS.md): how to change this repository.

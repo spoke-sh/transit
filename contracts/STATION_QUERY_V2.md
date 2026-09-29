@@ -84,7 +84,7 @@ retain durable work, rather than keeping a native Arrow task or stack alive.
 
 ## Flow control
 
-This is the first concrete instance of [FLOW_CONTROL.md](../docs/internal/FLOW_CONTROL.md)'s
+This is the first concrete instance of [FLOW_CONTROL.md](../docs/reference/streams.md)'s
 application-admission-credit pattern; that document owns the general shape and
 its distinction from transport flow control, this section owns this protocol's
 specific unit and implementation.
@@ -113,7 +113,7 @@ against real disk Ursula/node restart (`test::growing-query`'s `publish`/
 Credit is scoped per result, not pooled across a destination's concurrently
 published results — the simplest choice given `Job`/`Transfer` are already
 per-result records, and the one this document's own multiplexing question
-([FLOW_CONTROL.md](../docs/internal/FLOW_CONTROL.md#where-this-applies-today)) leaves
+([FLOW_CONTROL.md](../docs/reference/streams.md)) leaves
 open for a future peer-pooled scheme if one destination's several concurrent
 results need shared fairness. `credit_window`'s value is a fixed, reviewed
 constant, not adaptive or negotiated, matching this design's stated preference
