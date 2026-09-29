@@ -121,7 +121,7 @@ def node(real, directory, args):
                         if armed.exists():
                             selection = json.loads(armed.read_text())
                             selected = selection['label']
-                            if selection['command'] in envelope['request']['command'] and (selection.get('principal') is None or selection['principal'] == envelope['request']['principal']):
+                            if selection['command'] in envelope['request']['command'] and (selection.get('principal') is None or selection['principal'] == envelope['request']['principal']) and (selection.get('resource') is None or selection['resource'] == envelope['request']['command'][selection['command']].get('resource')):
                                 frozen = dict(body=body.hex(), receipt=data.hex())
                                 (directory / ('dropped-' + selected + '.json')).write_text(json.dumps(frozen))
                                 armed.unlink()

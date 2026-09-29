@@ -22,7 +22,7 @@ PIDs and resource IDs. Installer, worker and application caller identities remai
 separate. Role contract, artifact/configuration revision, ownership generation,
 application data epoch and interface revision are distinct coordinates.
 
-A declaration has version 1, application, roles, resources, callers and optional
+A declaration has version 1 or 2, application, roles, resources, callers and optional
 initialization messages. It contains at most eight roles, sixteen resources,
 eight callers and sixteen initialization messages. Role order is dependency order;
 unknown, duplicate or forward dependencies reject before effects. Each role names
@@ -44,6 +44,24 @@ letter/digit. Paths are at most 4096 bytes; configuration is at most 8192 UTF-8
 bytes per role and the complete management value has a finite encoded-byte bound.
 Credentials remain file references; executable/configuration hashes are not proof
 that application computation is compatible or honest.
+
+## Board inspection extension
+
+M27 adds declaration version 2 with at most sixteen explicit `inspection`
+entries, each naming a declared resource and metadata/read permissions (1–3).
+Only bits 1 and 2 are allowed; zero, duplicates and undeclared resources reject.
+These entries authorize the local manager to provision its dedicated Board
+principal's resource grants once, using the same exact native operation/receipt
+journal. They do not enable browser queries or operator actions. A headless
+installation can defer these grants until the retained Board principal exists.
+Completed grants are never reissued by worker replacement or manager restart.
+
+Version-1 declarations reject nonempty inspection scopes and retain their exact
+original serialization (no `inspection` field), preserving signed requests and
+retained declaration digests. Version 2 serializes this field after `initialize`.
+The generated schema accepts both declaration versions; semantic validation
+additionally enforces the version/scope relationship. Management requests and
+worker bootstrap remain version 1. Older managers reject version-2 declarations.
 
 ## Management authentication and recovery
 
@@ -114,4 +132,4 @@ Applications compose the existing migration ledger through authenticated domain
 commands. They own the transform, write pause and complete target verification.
 A compatible worker can resume retained migration receipts; no automatic schema
 conversion or cross-resource transaction is implied by deployment replacement.
-Distributed runtime bindings, authority movement and disaster recovery remain M28.
+Distributed runtime bindings, authority movement and disaster recovery remain M29.

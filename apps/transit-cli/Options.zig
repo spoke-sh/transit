@@ -6,6 +6,7 @@ pub const Options = struct {
     path: ?[]const u8 = null,
     format: ?Format = null,
     initialize: bool = false,
+    no_ui: bool = false,
     help: bool = false,
 };
 pub fn parse(args: []const []const u8) !Options {
@@ -23,6 +24,8 @@ pub fn parseWithConsoleConfig(args: []const []const u8, console_config: ?[]const
             result.help = true;
         } else if (std.mem.eql(u8, arg, "--initialize") and result.command == .server and !result.initialize) {
             result.initialize = true;
+        } else if (std.mem.eql(u8, arg, "--no-ui") and result.command == .server and !result.no_ui) {
+            result.no_ui = true;
         } else if (std.mem.eql(u8, arg, "--config") and result.path == null and i + 1 < args.len) {
             i += 1;
             if (args[i].len == 0 or std.mem.startsWith(u8, args[i], "--")) return error.InvalidInvocation;
@@ -43,14 +46,15 @@ pub fn parseWithConsoleConfig(args: []const []const u8, console_config: ?[]const
 pub const help =
     \\Transit — explicit local services and signed SQL
     \\  transit console [--config PATH] [--format table|json]
-    \\  transit server|serve --config PATH [--initialize]
+    \\  transit server|serve --config PATH [--initialize] [--no-ui]
     \\  transit app --help (local application installation and replacement)
     \\  transit --help | --version
     \\  transit query CONFIG | query-v2 CONFIG (existing single-line shells)
     \\Configuration is explicit versioned JSON; paths are relative to its file.
     \\Console defaults to TRANSIT_CONSOLE_CONFIG when --config is omitted.
     \\Console SQL submits on a semicolon; /help lists local commands.
-    \\Server runs the explicit local Table profile in the foreground (Linux).
+    \\Server runs in the foreground with Board by default (Linux, configuration v3).
+    \\--no-ui disables Board for this invocation without changing retained state.
     \\
 ;
 
@@ -68,4 +72,14 @@ test "console defaults are explicit, overridable and never select server configu
     try std.testing.expectEqual(.server, server.command);
     try std.testing.expect(server.initialize);
     try std.testing.expect((try parseWithConsoleConfig(&.{ "console", "--help" }, null)).help);
+}
+
+test "both server aliases default to UI and accept only one opt-out" {
+    for ([_][]const u8{ "server", "serve" }) |alias| {
+        try std.testing.expect(!(try parse(&.{ alias, "--config", "server.json" })).no_ui);
+        try std.testing.expect((try parse(&.{ alias, "--config", "server.json", "--no-ui", "--initialize" })).no_ui);
+        try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--no-ui", "--no-ui" }));
+        try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--ui" }));
+    }
+    try std.testing.expectError(error.InvalidInvocation, parse(&.{ "console", "--config", "console.json", "--no-ui" }));
 }

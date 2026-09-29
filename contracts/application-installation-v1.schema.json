@@ -11,11 +11,14 @@
         "roles",
         "resources",
         "callers",
-        "initialize"
+        "initialize",
+        "inspection"
       ],
       "properties": {
         "version": {
-          "const": 1
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
         },
         "application": {
           "type": "string",
@@ -272,6 +275,37 @@
             ],
             "x-transit-defaults": {}
           }
+        },
+        "inspection": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "x-transit-field-order": [
+              "resource",
+              "permissions"
+            ],
+            "properties": {
+              "resource": {
+                "type": "string",
+                "maxLength": 8192
+              },
+              "permissions": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 255,
+                "x-transit-bits": 8,
+                "x-transit-signed": false
+              }
+            },
+            "required": [
+              "resource"
+            ],
+            "x-transit-defaults": {
+              "permissions": 3
+            }
+          }
         }
       },
       "required": [
@@ -282,7 +316,8 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "initialize": []
+        "initialize": [],
+        "inspection": []
       }
     },
     "Request": {
@@ -348,11 +383,14 @@
                     "roles",
                     "resources",
                     "callers",
-                    "initialize"
+                    "initialize",
+                    "inspection"
                   ],
                   "properties": {
                     "version": {
-                      "const": 1
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2
                     },
                     "application": {
                       "type": "string",
@@ -609,6 +647,37 @@
                         ],
                         "x-transit-defaults": {}
                       }
+                    },
+                    "inspection": {
+                      "type": "array",
+                      "maxItems": 16,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "x-transit-field-order": [
+                          "resource",
+                          "permissions"
+                        ],
+                        "properties": {
+                          "resource": {
+                            "type": "string",
+                            "maxLength": 8192
+                          },
+                          "permissions": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255,
+                            "x-transit-bits": 8,
+                            "x-transit-signed": false
+                          }
+                        },
+                        "required": [
+                          "resource"
+                        ],
+                        "x-transit-defaults": {
+                          "permissions": 3
+                        }
+                      }
                     }
                   },
                   "required": [
@@ -619,7 +688,8 @@
                   ],
                   "x-transit-defaults": {
                     "version": 1,
-                    "initialize": []
+                    "initialize": [],
+                    "inspection": []
                   }
                 }
               }
@@ -872,11 +942,14 @@
                         "roles",
                         "resources",
                         "callers",
-                        "initialize"
+                        "initialize",
+                        "inspection"
                       ],
                       "properties": {
                         "version": {
-                          "const": 1
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 2
                         },
                         "application": {
                           "type": "string",
@@ -1133,6 +1206,37 @@
                             ],
                             "x-transit-defaults": {}
                           }
+                        },
+                        "inspection": {
+                          "type": "array",
+                          "maxItems": 16,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "x-transit-field-order": [
+                              "resource",
+                              "permissions"
+                            ],
+                            "properties": {
+                              "resource": {
+                                "type": "string",
+                                "maxLength": 8192
+                              },
+                              "permissions": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 255,
+                                "x-transit-bits": 8,
+                                "x-transit-signed": false
+                              }
+                            },
+                            "required": [
+                              "resource"
+                            ],
+                            "x-transit-defaults": {
+                              "permissions": 3
+                            }
+                          }
                         }
                       },
                       "required": [
@@ -1143,7 +1247,8 @@
                       ],
                       "x-transit-defaults": {
                         "version": 1,
-                        "initialize": []
+                        "initialize": [],
+                        "inspection": []
                       }
                     }
                   }

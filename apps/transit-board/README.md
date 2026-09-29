@@ -27,6 +27,11 @@ The demo starts isolated disk-backed Ursula, Transit, and the real counter calle
 It prints a loopback URL. Open it directly; Board has no access keys, sign-in,
 or browser sessions. Ctrl-C removes the disposable realm.
 
+For a packaged local neighborhood, `transit server --config PATH` starts Board
+by default with version-3 configuration; `--no-ui` disables it for one invocation.
+The [local server guide](../transit-cli/docs/server.md#default-board-and-compatibility)
+owns its retained identity, grant and restart contract.
+
 For a persistent development system with an actively polling caller, use
 `just launchers::local::up` or `just launchers::compose::up` instead. Their
 [guide](../../launchers/README.md) covers logs, inputs and restart without losing

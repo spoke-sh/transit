@@ -11,6 +11,10 @@ actual = sys.stdin.buffer.read()
 expected = (root / 'contracts/application-installation-v1.fixture.json').read_bytes()
 assert actual == expected, 'Application signing fixture drift: run just contract::generate'
 fixture = json.loads(actual)
+inspection = fixture['inspection']
+canonical_inspection = dict(version=2, application='items', roles=[dict(name='data', contract='items-v1', artifact=dict(path='/worker', sha256=[1] * 32), configuration='{}', accesses=[], depends_on=[])], resources=[dict(name='data', writer='data')], callers=[], initialize=[], inspection=[dict(resource='data', permissions=3)])
+assert inspection == canonical_inspection
+assert fixture['inspection_digest'] == list(hashlib.sha256(b'transit.application.v1\0' + json.dumps(canonical_inspection, separators=(',', ':')).encode()).digest())
 signed = fixture['signed']
 # Field/default order is part of v1; object insertion order from the exporter
 # alone would not detect an accidental change to the public field ordering.

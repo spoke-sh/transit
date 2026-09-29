@@ -146,3 +146,22 @@ The public status is an authorized, sampled deployment observation. Read domain
 state through the caller's current native/resource grants. Repeated operation
 history grows on disk, with unlimited retention by default; active quotas and
 bounded record/page reads do not turn that history into a resident queue.
+
+
+## Board inspection
+
+A version-3 server starts Board by default. A declaration with `version: 2` may
+include `"inspection": [{"resource":"data","permissions":3}]`, where `data`
+is one of its declared resource names. Permission `1` allows metadata; `3` also
+allows bounded entry/framework inspection. Write bits, unknown resources and
+duplicates reject before provisioning. Omitting this list grants no resources.
+Version-1 declarations keep their original canonical signed bytes and cannot
+request this field with a nonempty value. Management and bootstrap remain v1.
+
+The trusted installer authorizes this declaration; Board receives its own
+inspection-only principal, never a caller's signing seed. Accepted resource grants
+have exact pending requests and retained receipts in the application's existing
+journal. Headless installation may precede Board's first enablement. Subsequent
+restart, replacement and re-enablement do not repeat completed grants or restore
+revoked access. Board's realm-wide process metadata remains visible; resource
+visibility is independently filtered by its current grants.

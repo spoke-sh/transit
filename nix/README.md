@@ -25,18 +25,24 @@ the following packages for downstream applications.
 ## Transit CLI packages
 
 `nix build .#transit` builds the native `transit`, `transit-node` and
-`transit-query-host` executables together. Compilation uses fixed-output source
+`transit-query-host` and embedded `transit-board` executables together. Board
+assets build offline from the locked frontend dependency store using Vite+ and
+the exact package-manager version declared in `package.json`. The runtime closure
+does not include the frontend toolchain. Compilation uses fixed-output source
 downloads for the three external Zig dependencies, verifies their Zig package
 identities and builds with an offline system package directory. No ambient Zig
 package cache or source checkout artifact is required.
 
 On Linux x86_64, `nix build .#transit-local` adds the pinned Ursula and MinIO
 providers to the closure. It exposes the CLI in `bin/` and a JSON executable map
-in `share/transit/local-executables.json`; downstream flakes can also use the
+in `share/transit/local-executables.json` (including `board`); downstream flakes can also use the
 `transit`, `ursula` and `minio` passthru packages to construct explicit server
 configuration. It does not initialize storage or start processes during a build
 or shell entry. Run `transit serve --config PATH --initialize` once, then omit
-`--initialize` to resume; see the [server guide](../apps/transit-cli/docs/server.md).
+`--initialize` to resume. Use server configuration version 3 for this manifest;
+Board is enabled by default, with `--no-ui` for headless use. Retain the package
+output through a Nix profile or build-link GC root while installations use its
+pinned paths; see the [server guide](../apps/transit-cli/docs/server.md).
 
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is

@@ -5,6 +5,8 @@ declarations, signed management requests and fresh-worker bootstrap values.
 The [installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md)
 owns the implemented workflow and qualification limits. Semantic validation rejects
 conflicting names, dependency order and grant scopes before provisioning.
+M27 adds version-2 declarations with explicit Board resource inspection scopes;
+version-1 declaration signatures remain byte-compatible.
 
 `Session.receive` distinguishes permanent `ProcessExpired`/`ProcessTerminated`
 from `StaleActivation`. Only the latter may be resolved by obtaining a valid new

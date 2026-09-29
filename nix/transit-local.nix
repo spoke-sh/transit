@@ -53,6 +53,7 @@ runCommand "transit-local-0.1.0"
       ursula = "${ursula}/bin/ursula";
       node = "${transit}/bin/transit-node";
       query_host = "${transit}/bin/transit-query-host";
+      board = "${transit}/bin/transit-board";
     }}
     EOF
   ''

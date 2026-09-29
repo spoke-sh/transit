@@ -3390,7 +3390,7 @@ No existing host block device, user installation or reference cluster is changed
 independent schema/SHA-256/Ed25519 fixture checks pass. These new focused/external
 tasks do not expand the ordinary hosted lanes or claim a new M10 budget sample.
 The selected replacement changes configuration with the same compatible binary;
-M27 must additionally qualify changed executable artifacts through installed
+M28 must additionally qualify changed executable artifacts through installed
 release packages. Other SDK hosts, maximum active quotas, local multi-role
 dependency graphs and distributed placement are not qualified by this consumer.
 Interface publication retains its separate M23 proof; worker readiness does not
@@ -3402,3 +3402,56 @@ built-in activation, and old worker readiness being displayed with a new fence
 generation. A generic JSON tuple needed its original array wire shape preserved.
 The capacity fixture initially paused before domain initialization; it now waits
 for public domain evidence. Failed schedules are not counted as passes.
+
+
+## M27 local Board qualification
+
+`just test::server-board` exercises the actual embedded executable against native
+MinIO and disk Ursula. Its version-3 fixture covers both command aliases, fresh
+default UI, headless initialization followed by first enablement, disabled port
+preflight, exact Host/Origin checks, real JavaScript assets and machine readiness.
+The generic separately compiled work-item application declares resource inspection
+under declaration v2; another application's undeclared resource remains hidden.
+Replacement retains IDs, resource revocation survives toggles/restart, and principal
+revocation rejects UI startup without restoring grants.
+
+The owned-failure schedules kill Board, node, Ursula and management, verify child
+cleanup and retained identities/receipts, and reject missing/changed/incompatible
+artifacts and conflicts with every configured listener. Explicit fault peers lose
+accepted Board principal-creation and application inspection-grant responses;
+recovery must replay identical signed bytes and return the same native receipt.
+These peers are test infrastructure, not runtime dependencies.
+
+`just test::server-board-package` builds the Nix local package and consumes only
+its exported executable manifest. It starts from an unrelated temporary working
+directory with unavailable PATH, fetches the embedded UI and authorized atlas,
+forwards `--no-ui`, then resumes the same retained Board identity. The package
+closure excludes Node, Python, Vite+ and pnpm. Existing M24/M25 recovery tasks now
+request headless operation explicitly. `contract::check` independently verifies
+the v2 inspection declaration digest; a unit fixture preserves v1 signed bytes.
+
+Focused qualification passed after rebasing the implementation onto the gateway
+host-alias changes. The Board lifecycle/revocation schedule completed in 33.37
+seconds; both lost-reply schedules recovered the exact accepted request/receipt.
+The Nix packaged consumer passed with a 14-path runtime closure excluding Node,
+Python, Vite+ and pnpm. `just check`, `just doctor`, contract drift checks and the
+headless server/application regressions passed. The rebased headless core
+lifecycle took 37.26 seconds; application replacement/recovery took 122.70 seconds,
+and application fault recovery took 28.40 seconds.
+
+`just ci-clean` is running against implementation commit `e077519`. Core, growth,
+experience and launcher lanes have passed; the binding lane remains in progress.
+This is not yet a completed ordinary clean qualification, and it does not include
+the separately selected browser or physical-capacity lanes.
+
+Initial focused attempts exposed a port-conflict fixture needing socket reuse
+after shutdown and a reply-loss assertion needing the public tagged-union shape.
+One concurrent-build M24 attempt observed `AuthorityTimeout` and failed the console
+status assertion. Those attempts are not counted as passes; subsequent focused
+and rebased regression runs passed without weakening the assertions.
+
+The scope is trusted local Linux x86_64, loopback shared viewers, explicit resource
+grants and unlimited retained history. It does not qualify per-user login,
+browser query/operator credentials, history import, an in-place older-runtime
+upgrade, power loss or broader platforms. New tasks remain separately selectable;
+no expanded hosted CI budget is claimed.

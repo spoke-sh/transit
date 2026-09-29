@@ -35,7 +35,8 @@
           pkgs = pkgsFor system;
           zig = zig-overlay.packages.${system}.master;
           kubectl-transit = pkgs.callPackage ./nix/kubectl-transit.nix { inherit zig; };
-          transit = pkgs.callPackage ./nix/transit.nix { inherit zig; };
+          vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
+          transit = pkgs.callPackage ./nix/transit.nix { inherit zig vite-plus; };
           reference = pkgs.callPackage ./nix/reference-tools.nix {
             pins = builtins.fromJSON (builtins.readFile ./deploy/reference/versions.json);
           };
@@ -51,7 +52,7 @@
             inherit transit;
             inherit (ursula-overlay.packages.${system}) ursula;
           };
-          vite-plus = pkgs.callPackage ./nix/vite-plus.nix { };
+          inherit vite-plus;
         }
       );
     in

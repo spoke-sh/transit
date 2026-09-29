@@ -82,6 +82,8 @@ class Fixture:
                 "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve())}}
         self.path = self.root / "server.json"
         self.path.write_text(json.dumps(self.config))
+        self.no_ui = True
+        self.alias = "server"
         self.process = None
         self.logs = []
         self.activation = None
@@ -100,7 +102,9 @@ class Fixture:
         assert self.process is None
         log = (self.root / f"manager-{len(self.logs)}.stderr").open("wb")
         self.logs.append(log)
-        args = [self.cli, "server", "--config", str(self.path)]
+        args = [self.cli, self.alias, "--config", str(self.path)]
+        if self.no_ui:
+            args.append("--no-ui")
         if initialize:
             args.append("--initialize")
         self.process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=log,
@@ -120,6 +124,7 @@ class Fixture:
                 port = self.config["ports"]["gateway"]
                 assert report["gateway_url"] == self.url, report
                 assert report["allowed_hosts"] == [f"127.0.0.1:{port}", f"localhost:{port}"] + self.config.get("gateway_allowed_hosts", []), report
+                assert report["ui"] == "disabled" and report["board_url"] is None, report
                 activation = self.record()["registration"]
                 markers = {path.name for path in (self.installation / "activations").glob("*.activation")}
                 if self.activation is not None:
@@ -148,7 +153,9 @@ class Fixture:
         self.process = None
 
     def refusal(self, message, initialize=False):
-        args = [self.cli, "server", "--config", str(self.path)]
+        args = [self.cli, self.alias, "--config", str(self.path)]
+        if self.no_ui:
+            args.append("--no-ui")
         if initialize:
             args.append("--initialize")
         result = subprocess.run(args, capture_output=True, text=True, timeout=30, env={"PATH": "/unavailable"})
