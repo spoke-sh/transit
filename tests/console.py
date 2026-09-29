@@ -146,6 +146,8 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr): stream.close()
         from console_terminal import check as terminal
         terminal(binary, path, root, kind, invoke, fault)
+        from console_interrupt import check as interrupt
+        interrupt(binary, path, root, kind, invoke, fault)
         stalled = Console(binary, path)
         stalled.process.stdin.write(b'.help\n'*1000); stalled.process.stdin.flush()
         assert stalled.process.wait(timeout=10) == 1

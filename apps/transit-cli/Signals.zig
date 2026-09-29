@@ -2,8 +2,10 @@
 const std = @import("std");
 var stopped: std.atomic.Value(u8) = .init(0);
 pub var cancellation: std.atomic.Value(bool) = .init(false);
+var cancelling: std.atomic.Value(bool) = .init(false);
 pub fn interrupted() bool {
-    return stopped.load(.monotonic) != 0;
+    const signal = stopped.load(.monotonic);
+    return signal == 2 or (signal == 1 and !cancelling.load(.monotonic));
 }
 pub fn terminating() bool {
     return stopped.load(.monotonic) == 2;
@@ -12,8 +14,18 @@ pub fn clear() void {
     stopped.store(0, .monotonic);
     cancellation.store(false, .release);
 }
+/// Coalesce repeated Ctrl-C while normal code settles cancellation. SIGTERM
+/// still interrupts cleanup and must never be overwritten by a later SIGINT.
+pub fn beginCancellation() void {
+    cancelling.store(true, .monotonic);
+}
+pub fn endCancellation() void {
+    cancellation.store(false, .release);
+    _ = stopped.cmpxchgStrong(1, 0, .monotonic, .monotonic);
+    cancelling.store(false, .monotonic);
+}
 fn handler(signal: std.c.SIG) callconv(.c) void {
-    stopped.store(if (signal == .TERM) 2 else 1, .monotonic);
+    _ = stopped.fetchMax(if (signal == .TERM) 2 else 1, .monotonic);
     cancellation.store(true, .release);
 }
 const Self = @This();

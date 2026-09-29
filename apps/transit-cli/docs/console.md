@@ -229,14 +229,46 @@ five seconds. Observed denial clears draft, undo, history, completion and result
 cursor; frozen recovery intent remains separate. Previous terminal output was
 already disclosed and cannot be recalled.
 
+Ctrl-C during SQL stops result presentation, reports cancellation on stderr and
+returns to an empty prompt where another query can run. Remaining statements in
+the submitted draft are discarded. Ctrl-C at the prompt clears only the draft.
+In the default interactive execution mode, it stops local evaluation and attempts
+to release the leased snapshot; failed cleanup falls back to lease expiry.
+
+In durable execution mode, Ctrl-C during SQL or `.resume` requests recorded
+cancellation of that query. The console reconciles any frozen signed request before sending
+the cancellation; it does not finish uploading the remaining plan. It observes
+the requester disposition and release of its active upload slot before clearing
+the saved query. It reports the outcome on stderr and returns to an empty prompt,
+where another query can run.
+
+Repeated Ctrl-C during cancellation is coalesced; SIGTERM still disconnects.
+If execution already completed, the message says so and stops any remaining result
+display without cancelling the completed query. A previously printed prefix is
+not full result coverage; interruption does not print a successful total or a
+final complete page. Already disclosed output cannot be recalled. Cancellation
+closes the requester wait and withdraws its request publication; source workers
+observe closure between bounded turns, and a turn already running may finish.
+It does not undo completed computation or delete retained history.
+
+If cancellation cannot be confirmed, the console reports the failure and retains
+the original query and exact pending operation. Use `.status` and `.cancel` to
+reconcile it; new SQL cannot replace unresolved work. Persistence failure ends
+the session. Native operations settle within their configured request bounds;
+each frozen-input settlement and the active-slot cleanup wait checks a 30-second
+budget between operations. Cancellation never bypasses current authorization.
+
 Normal disconnect/help exits 0; invalid invocation/configuration exits 2;
-runtime or batch command failure exits 1. An interrupted native wait disconnects
-with 130 after its bounded request settles. Broken stdout also disconnects.
-Interactive execution stops and releases its snapshot. Killed clients leave only
-bounded lease bookkeeping: 60 seconds between reads, with a five-minute hard
-lifetime. The authority admits at most 64 active snapshots, eight per principal.
-Tokens do not survive authority restart. Durable mode uses its separate `.cancel`
-operation. Cancellation cannot undo already completed work or a disclosed prefix.
+runtime or batch command failure exits 1. SIGINT during batch SQL or `.resume`
+attempts the same cancellation and exits 130 on a resolved outcome; durable
+cancellation failure exits 1. Interrupting a metadata command or idle piped input
+disconnects with 130. SIGTERM and broken stdout also disconnect. Interactive
+execution stops and releases its snapshot; durable accepted work survives these
+disconnects. Killed interactive clients leave only bounded lease bookkeeping:
+60 seconds between reads, with a five-minute hard lifetime. The authority admits
+at most 64 active snapshots, eight per principal. Tokens do not survive authority
+restart. The `query` and `query-v2` shells retain their explicit cancellation and
+recovery protocols. Cancellation cannot undo completed work or a disclosed prefix.
 
 ## Exact recovery and bounds
 
@@ -258,7 +290,8 @@ request. It records a received receipt before preparing a successor. A failed
 persistence step stops submission. Opening a session only loads saved state;
 it does not retry. New SQL refuses to replace unresolved work.
 
-After interruption, reconnect with the same configuration and use `.resume`.
+After a disconnect that preserves saved work, reconnect with the same configuration
+and use `.resume`.
 It reconciles the original signed request and upload, waits for completion and
 rereads the result from its beginning. It never creates a new query as a retry.
 This can repeat rows already displayed before the interruption. `.resume ID`

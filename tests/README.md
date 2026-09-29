@@ -4083,3 +4083,23 @@ transport counts, not distinct commits, and proxy elapsed time is kept separate.
 
 The final public documentation link check and diff whitespace check pass.
 No existing developer installation was restarted or reinitialized by these tests.
+
+### Console query interruption and prompt reuse
+
+The issue #19 regression fixtures add controlling-PTY checks for Ctrl-C before
+submission, during uncertain upload, during source work and during paged result
+display or `.resume`. They exercise repeated signals, discarded trailing SQL,
+completed-query races, exact retry after an unconfirmed cancellation and a fresh
+statement at the same prompt. Batch interruption checks exit 130. The default
+interactive fixture separately checks snapshot release and a fresh statement
+without durable requests or recovery state.
+
+Before rebasing onto interactive execution, the durable interruption cases and
+terminal/TLS checks passed in two local `just test::console table` attempts. The
+enclosing proof failed in its final retained-version cleanup: the expanded
+history required paging, then an explicit fixed read position with the cursor.
+The corrected cleanup and rebased behavior are pending qualification; those
+partial runs are not full-suite passes. Earlier clean-checkout runs were stopped
+when their tested revisions were superseded. Hosted CI did not start because of
+the GitHub account billing/spending limit. Current PR validation reports the
+revision and result of subsequent runs.

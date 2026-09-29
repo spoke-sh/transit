@@ -7,6 +7,10 @@ const Timing = @import("Timing.zig");
 const m = q.fuze.Unified;
 
 pub fn sql(console: *Console, statement: []const u8) !void {
+    console.query_running = true;
+    // A previous Ctrl-C may have been coalesced while cleanup was finishing.
+    Signals.cancellation.store(false, .release);
+    try interrupted();
     var timing = Timing.start(console.init, console.preferences.timing);
     timing.interactive = true;
     defer timing.report();
@@ -72,6 +76,7 @@ pub fn sql(console: *Console, statement: []const u8) !void {
         try @import("Output.zig").write(console.init, console.out, out.buffered());
         ordinal += 1;
     }
+    console.query_running = false;
 }
 fn interrupted() !void {
     if (Signals.interrupted()) return error.ConsoleInterrupted;

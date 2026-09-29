@@ -297,7 +297,7 @@ pub fn main(init: std.process.Init) !void {
         try observe(init, &client, receipt);
         return print(init, receipt);
     }
-    if (std.mem.eql(u8, command, "status")) return print(init, try client.status(1));
+    if (std.mem.eql(u8, command, "status")) return print(init, try client.status(if (args.len == 5) try std.fmt.parseInt(u64, args[4], 10) else 1));
     if (std.mem.eql(u8, command, "activate-host")) {
         if (args.len != 6) return error.Usage;
         const requester = std.mem.eql(u8, args[4], "requester");
@@ -384,8 +384,12 @@ pub fn main(init: std.process.Init) !void {
         return print(init, .{ .rows = decoded.count, .ordinal = ordinal, .complete = page.next == null, .manifest = page.manifest });
     }
     if (std.mem.eql(u8, command, "versions")) {
-        const versions = (try admin.query(.{ .read_versions = .{ .pid = config.connection.source } })).body.read_versions;
-        return print(init, versions);
+        if (args.len != 4 and args.len != 6) return error.Usage;
+        const after = if (args.len == 6) (try std.json.parseFromSlice(p.Growth.ReadVersionId, init.arena.allocator(), args[4], .{})).value else null;
+        const position = if (args.len == 6) try std.fmt.parseInt(u64, args[5], 10) else null;
+        const response = try admin.query(.{ .read_versions = .{ .pid = config.connection.source, .after = after, .position = position } });
+        const versions = response.body.read_versions;
+        return print(init, .{ .position = response.position, .entries = versions.entries, .next = versions.next });
     }
     return error.UnknownCommand;
 }

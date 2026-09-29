@@ -87,6 +87,11 @@ promise recall of bytes already in transport. A blocked synchronous native call
 is bounded by its configured request timeout; cleanup has the same bound and
 falls back to lease expiry after failure.
 
+After Ctrl-C during SQL, the terminal console reports cancellation on stderr,
+discards the remaining submitted draft and returns to an empty prompt. The next
+statement gets a fresh snapshot. Repeated Ctrl-C during cleanup is coalesced;
+SIGTERM still disconnects. Batch SQL exits 130 after interruption.
+
 Table output uses native typed Arrow batches and emits its total only on success.
 JSON output uses an explicit interactive envelope with session identity, source
 basis, batch ordinal, columns, typed cells and terminal completeness; it must not

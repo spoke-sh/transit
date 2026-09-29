@@ -14,6 +14,7 @@ from cold_storage import ColdStore
 from storage import Fixture, free_port, wait_ready
 from latency_probe import Probe
 from console_latency import measured_run
+from console_terminal import Terminal
 
 
 def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
@@ -113,7 +114,39 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     query('SELECT * FROM items WHERE id > 9223372036854775807;', 0)
                 assert not (root / 'console-recovery.json').exists()
 
+                # A terminal interrupt returns to an empty, reusable prompt.
+                # Repeated signals and the remaining pasted SQL cannot start
+                # another snapshot or poison the next statement's cancel flag.
+                terminal = Terminal(cli, connection)
+                try:
+                    gate.clear()
+                    release.clear()
+                    blocked[0] = True
+                    previous_closes = probe.snapshot()['read:close_snapshot']
+                    previous_opens = probe.snapshot()['read:open_snapshot']
+                    terminal.send('\x1b[200~SELECT * FROM items; SELECT COUNT(*) FROM items;\x1b[201~\r')
+                    assert gate.wait(timeout=30)
+                    terminal.process.send_signal(signal.SIGINT)
+                    terminal.process.send_signal(signal.SIGINT)
+                    release.set()
+                    terminal.expect('Query cancelled.', timeout=30)
+                    terminal.screen = terminal.screen[terminal.screen.index(b'Query cancelled.'):]
+                    terminal.expect('\rtransit> ', timeout=30)
+                    assert probe.snapshot()['read:close_snapshot'] == previous_closes + 1
+                    assert probe.snapshot()['read:open_snapshot'] == previous_opens + 1
+                    assert not terminal.buffer and not select.select([terminal.process.stdout], [], [], .1)[0]
+                    blocked[0] = False
+                    frame = terminal.call('SELECT * FROM items LIMIT 3;')
+                    assert frame['complete_coverage'] and int(frame['rows']) == min(3, count), frame
+                    assert not (root / 'console-recovery.json').exists()
+                finally:
+                    blocked[0] = False
+                    release.set()
+                    terminal.close()
+
                 # Stop one in-flight read; no durable cancel command is needed.
+                gate.clear()
+                release.clear()
                 blocked[0] = True
                 previous_closes = probe.snapshot()['read:close_snapshot']
                 console = subprocess.Popen([*args, '-c', 'SELECT * FROM items;'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)

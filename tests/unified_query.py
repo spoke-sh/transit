@@ -71,6 +71,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                             if request["principal"] == 65536 and not fault["stage"].is_set() and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Us") for item in turn.get("mutations", [])):
                                 fault["stage"].set()
                                 fault["resume"].wait(timeout=60)
+                        if hook := fault.get('console_hook'):
+                            data = hook(self.path, message, data)
                         self.send_response(response.status)
                         self.send_header("Content-Length", str(len(data)))
                         self.end_headers()
@@ -240,9 +242,16 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     serialized = json.dumps(records, ensure_ascii=False)
                     assert '東京' not in serialized and 'UQP2' not in serialized
                     for seed in ('08', '09', '0a', '0b'): assert seed*32 not in serialized
-                versions = invoke("versions", direct=True)
-                assert versions["next"] is None
-                assert all(version["released_at"] is not None for version in versions["entries"] if version)
+                after = None
+                position = None
+                while True:
+                    versions = invoke("versions", *([json.dumps(after), str(position)] if after else []), direct=True)
+                    assert all(version["released_at"] is not None for version in versions["entries"] if version)
+                    if versions['next'] is None:
+                        break
+                    assert versions['next'] != after, 'read-version pagination did not advance'
+                    after = versions['next']
+                    position = versions['position']
                 invoke('retire-source', direct=True)
                 for owner in (native, port_client, *callers):
                     try:

@@ -198,15 +198,43 @@ pub const Console = struct {
     had_error: bool = false,
     access_lost: bool = false,
     interactive: bool = false,
+    query_running: bool = false,
+    active_query: ?u64 = null,
+    query_interrupted: bool = false,
     pub fn execute(self: *Console, raw: []const u8) !bool {
         const text = std.mem.trim(u8, raw, " \t\r\n");
         if (text.len == 0) return true;
         if (std.mem.eql(u8, text, ".quit")) return false;
-        self.perform(text) catch |err| {
+        self.query_interrupted = false;
+        defer {
+            self.query_running = false;
+            self.active_query = null;
+        }
+        const result: ?anyerror = result: {
+            self.perform(text) catch |err| break :result err;
+            break :result null;
+        };
+        if (result) |err| if (denied(err)) {
+            self.access_lost = true;
+            self.session.cursor = null;
+            self.session.complete = false;
+        };
+        if (self.query_running and Signals.interrupted() and !Signals.terminating() and !(self.recovery != null and self.recovery.?.failed)) {
+            self.query_interrupted = true;
+            @import("Cancel.zig").interrupt(self) catch |err| {
+                const failure = self.queryFailure(if (self.recovery != null and self.recovery.?.failed) error.ConsoleRecoveryWriteFailed else err);
+                self.diagnostic.summary = "query cancellation could not be confirmed";
+                if (self.batch or Signals.terminating() or failure == error.ConsoleRecoveryWriteFailed) return failure;
+                self.diagnostic.emit(self.init.io, failure);
+            };
+            if (self.batch) return if (self.interactive) self.queryFailure(error.ConsoleInterrupted) else self.diagnostic.fail(error.ConsoleQueryInterrupted, "console query interrupted", null);
+            return true;
+        }
+        if (result) |err| {
             const failure = self.queryFailure(if (self.recovery != null and self.recovery.?.failed) error.ConsoleRecoveryWriteFailed else err);
             if (self.batch or err == error.ConsoleInterrupted or failure == error.ConsoleRecoveryWriteFailed or err == error.ConsoleOutputTimeout) return failure;
             self.diagnostic.emit(self.init.io, failure);
-        };
+        }
         return self.next_connection == null;
     }
     fn perform(self: *Console, text: []const u8) !void {

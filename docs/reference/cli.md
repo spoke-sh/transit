@@ -139,7 +139,9 @@ restarts omit it.
 Top-level failures write diagnostics to stderr and leave stdout available for
 machine records. Help/version write to stdout and exit 0. Invocation and
 server/console/management configuration errors exit 2; runtime failures exit 1;
-an interrupted console wait exits 130. Console results use stdout; console errors, including query failures, use stderr. Prompts and human diagnostic prose stay off machine stdout.
+an interrupted batch query exits 130 after resolved cancellation. Ctrl-C during
+interactive SQL returns to the prompt. Console results use stdout; console errors,
+including query failures, use stderr. Prompts and human diagnostic prose stay off machine stdout.
 
 Diagnostics show coordinates without dumping command arguments, configuration
 bodies, credentials, SQL or result payloads. Displayed file paths are limited to
@@ -168,10 +170,12 @@ commands are unsupported. Completion never submits.
 | `.status`, `.info` | Saved query status or evidence |
 | `.resume [ID]` | Recover the saved or selected existing query and print results |
 | `.cancel` | Request durable cancellation of the saved query |
-| `.quit`, EOF | Disconnect; accepted work persists |
+| `.quit`, EOF | Disconnect; durable accepted work persists |
 
-SQL automatically chooses a fresh identity, records exact intent, advances its
-upload and prints verified results. `.new`, `.retry`, `.advance`, `.next` and
+SQL uses a fresh leased snapshot by default and executes locally without durable
+query state. In `execution: durable` mode, SQL chooses a fresh identity, records
+exact intent, advances its upload and prints verified results. Recovery commands
+apply to durable mode. `.new`, `.retry`, `.advance`, `.next` and
 manual recovery exports are not console commands. `query` and `query-v2` remain
 callable compatibility shells with their own explicit protocols and dot commands;
 root help advertises `console` as the query interface.
@@ -190,10 +194,20 @@ are explicit. Each result page is bounded; the console does not accumulate
 all rows. Previously displayed output cannot be recalled after revocation.
 
 For `console`, normal disconnect/help exits 0, invalid invocation/configuration
-exits 2, runtime or any piped-command failure exits 1, and an interrupted native
-wait exits 130 after bounded settlement. Disconnect and SIGINT do not submit
-cancellation. Automatic queries require a configured recovery file, explicitly retaining private
+exits 2, and runtime or any piped-command failure exits 1. Ctrl-C during SQL or
+`.resume` returns to an empty terminal prompt after cancellation. Default
+interactive execution stops local evaluation and releases its leased snapshot,
+falling back to lease expiry if cleanup fails. Durable execution requests
+cancellation using the original query identity and waits for bounded settlement
+and cleanup. Repeated Ctrl-C is
+coalesced. Batch input exits 130 on a resolved outcome, or 1 if cancellation fails.
+In durable mode, completed execution is reported separately from interrupted
+result display; unconfirmed cancellation retains saved intent for `.status` and `.cancel`.
+Ordinary disconnect, SIGTERM and metadata interruption do not submit cancellation;
+metadata or idle batch interruption exits 130. The [console guide](../../apps/transit-cli/docs/console.md#input-commands-and-results)
+defines completion races, cleanup bounds and recovery. Durable automatic queries
+require a configured recovery file, explicitly retaining private
 query text and exact intent. Server-generated connections supply this setting.
-Use `.resume` after interruption; it reconciles the same operation and prints its
+Use `.resume` after a disconnect with saved work; it reconciles the same operation and prints its
 result from the beginning, possibly repeating previously displayed rows. New SQL
 refuses to replace unresolved work.
