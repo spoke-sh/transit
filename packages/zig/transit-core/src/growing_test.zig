@@ -1051,6 +1051,65 @@ test "leased snapshot admission, renewal and hard expiry remain bounded" {
     try t.expectError(error.ClockUnavailable, f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(4) } }));
 }
 
+test "leased snapshot global admission refuses without evicting another principal" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    const owners = g.snapshot_capacity / g.snapshots_per_principal;
+    for (0..owners + 1) |owner| {
+        const subject = 65536 + owner;
+        _ = try f.root(.{ .grant = .{ .subject = subject, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+        _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = subject, .permissions = core.protocol.State.permission(.inspect) | core.protocol.State.permission(.read) } });
+    }
+    const position = f.engine.head.position;
+    var first: g.Snapshot = undefined;
+    for (0..owners) |owner| for (0..g.snapshots_per_principal) |nonce| {
+        const opened = (try f.query(65536 + owner, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(@intCast(nonce)) } })).body.open_snapshot;
+        if (owner == 0 and nonce == 0) first = opened;
+    };
+    try t.expectError(error.StateViewCapacity, f.query(65536 + owners, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(0) } }));
+    try t.expectError(error.Forbidden, f.query(65536 + owners, .{ .close_snapshot = first.id }));
+    _ = try f.query(65536, .{ .snapshot_entries = .{ .id = first.id } });
+    _ = try f.query(65536, .{ .close_snapshot = first.id });
+    _ = try f.query(65536 + owners, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(0) } });
+    try t.expectEqual(position, f.engine.head.position);
+}
+
+test "leased reads fail on rollback uncertainty and expiry during materialization" {
+    const Clock = struct {
+        sample: core.Time.Sample,
+        advance: u64 = 0,
+        fn read(raw: *anyopaque) anyerror!core.Time.Sample {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const now = self.sample;
+            self.sample.unix_ms += self.advance;
+            return now;
+        }
+    };
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    const snapshot = (try f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(0) } })).body.open_snapshot;
+    const position = f.engine.head.position;
+    const read: @FieldType(g.Query, "kind") = .{ .snapshot_entries = .{ .id = snapshot.id } };
+    var clock: Clock = .{ .sample = .{ .unix_ms = fixture.now - 1 } };
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    try t.expectError(error.ClockRollback, f.query(0, read));
+    clock.sample = .{ .unix_ms = snapshot.deadline_ms - 5, .error_ms = 5 };
+    try t.expectError(error.DeadlineUncertain, f.query(0, read));
+    // The first clock check passes; materialization crosses the deadline.
+    clock.sample = .{ .unix_ms = snapshot.deadline_ms - 4 };
+    clock.advance = 10;
+    try t.expectError(error.DeadlineExpired, f.query(0, read));
+    clock.advance = 0;
+    try t.expectError(error.QueryExpired, f.query(0, read));
+    try t.expectEqual(position, f.engine.head.position);
+}
+
 test "growing retained versions atomically publish old roots and survive replacement and checkpoint recovery" {
     var fixture: VersionFixture = .{};
     defer fixture.f.deinit();

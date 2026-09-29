@@ -4047,3 +4047,39 @@ directions, COUNT with equality, maximum-key exhaustion, empty LIMIT, distinct
 sessions, interrupted reads, closed output and denial after a prefix.
 Full scans make 174 native attempts; each selected key/range query makes 14 and
 no durable updates. The elapsed samples overlap qualification and are not SLOs.
+
+
+### Final interactive performance qualification
+
+`just check` passes with the final production changes, including source checks,
+unit tests, CLI diagnostics, generated contracts, Board tests and the Docusaurus
+build. Additional snapshot tests then pass in `zig build test`: all 64 slots
+across eight principals, refusal without eviction, owner-only close, admission
+after release, clock rollback, uncertain deadlines and expiry during read
+materialization without renewal or authority writes.
+
+The final `just test::interactive-query` passes all three sources with the
+bounded adapter workspace and cancellation diagnostic. SIGINT returns 130 and
+"query cancelled", with no durable resume advice. Output failure releases its
+snapshot. Document SELECT takes 0.318–0.344 seconds with 82 reads; LIMIT zero
+avoids traversal and takes 0.082 seconds with 26 reads. The whole Document proof
+includes provisioning and takes 373.63 seconds. These are diagnostic observations.
+
+`just test::server` passes in 16.57 seconds, including transcript rendering,
+default discovery, a fresh query after supervisor/node/provider replacement,
+identity preservation and child cleanup. Its first attempt still expected
+`.resume` in the default console and failed; that obsolete expectation was
+replaced with a fresh SELECT. Explicit durable resume remains qualified by the
+separate `just test::console table` proof. The closed-page provider's 64-key batch
+fixture also passes all restart/checkpoint/trim phases.
+
+A final default-server measurement with `--repeat 2 --age-queries 2` uses the
+ReleaseSafe executables, default cache and background workers, no proxies and no
+concurrent qualification. Eight SELECT/COUNT table/JSON samples take 159–196 ms.
+A separate `--single --instrument` run has 14 console native reads, 10 background
+reads, zero command attempts and 188 provider attempts during the query. Its
+three-second idle interval has 108 native and 553 provider attempts. These are
+transport counts, not distinct commits, and proxy elapsed time is kept separate.
+
+The final public documentation link check and diff whitespace check pass.
+No existing developer installation was restarted or reinitialized by these tests.

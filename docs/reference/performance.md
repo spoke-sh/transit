@@ -32,6 +32,19 @@ output. The same Document fixture previously needed 733 native reads and about
 3.8 seconds without that cache. Batched current metadata reads and descriptor
 reuse reduce the Table fixture from 75 requests to 39.
 
+The final default-server run, after two explicit durable queries had added
+history, returns eight uninstrumented empty-query samples in **159–196 ms**.
+It uses the default eight-page cache and background workers, with no concurrent
+qualification. A separate instrumented fresh fixture attributes 14 native reads
+to the console and 10 to background callers during the query, with zero durable
+updates and 188 provider attempts including background work. Its three-second
+idle window has 108 native and 553 provider attempts. Background polling remains
+a measurable cost even when SELECT itself is read-only.
+
+After the storage batches, the 12-row Document fixture returns in about
+318–344 ms with the same 82 native reads; `LIMIT 0` uses 26 reads and takes about
+82 ms. Document provisioning remains a separate multi-minute durable workload.
+
 These are a few local observations on a shared host, not percentiles or an
 interactive latency guarantee. Fixture provisioning is excluded from query
 latency. Document provisioning remains expensive; removing durable work from

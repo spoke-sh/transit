@@ -228,7 +228,7 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        assert fixture.console(".resume\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
+        assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
@@ -238,7 +238,7 @@ def run(cli, node, host):
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
             fixture.console(".schema\n.quit\n")
-            assert fixture.console(".resume\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
+            assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]

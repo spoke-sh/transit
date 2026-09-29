@@ -1,8 +1,9 @@
 # transit-query
 
-Shared Zig public Table query client and application-side Station behaviors for
-[M13](../../../docs/internal/roadmap/M13.md). Board and `transit` use the same compiler,
-frozen request and result readers. The [v1 contract](../../../contracts/PUBLIC_QUERY_V1.md)
+Shared Zig finite-query clients and application-side Station behaviors. Board
+and `transit` share source declarations, the Fuze compiler and Arrow codecs.
+The console uses fresh interactive snapshots by default; explicitly durable
+queries retain frozen request and result recovery. The [v1 contract](../../../contracts/PUBLIC_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
 - `Model` owns connection, source, prepared submission, status, typed page and
@@ -27,13 +28,30 @@ owns authorization, wire encodings, admission, cancellation and limits.
   Both behaviors need a host-owned growing query context.
 
 This package imports Station's and Document's public modules and has no kernel, storage or
-provider dependency. SQL compiles in Fuze, execution runs in the separately
-hosted source behavior, and result verification reuses Station. Current reads
+provider dependency. SQL compiles in Fuze. Interactive execution runs over a
+leased public snapshot in the client; durable execution runs in the separately
+hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::public-query`; [tests](../../../tests/README.md) record evidence.
+
+`Interactive.open/next/close` owns one finite statement over a fresh
+`transit-client.SnapshotReader`. The caller supplies a fresh 16-byte nonce,
+keeps the compiled `Bundle` and native client alive, and closes the session on
+completion or failure. `next` borrows caller-owned source/Arrow work buffers and
+an atomic cancellation flag; returned segment bytes borrow the output buffer.
+Discard each source-page arena before requesting another page. The CLI bounds
+that arena at 1 MiB. The session caches at most 64 immutable point entries,
+including absent entries; current policy and native access remain uncached.
+
+`UnifiedSource.pagePlanned` can use a Table primary-key point/range access path;
+Fuze still evaluates the original predicate. Neither optimization changes the
+bound source basis. Native leases bound abandoned sessions, and a failed read
+never reopens a new cut. The [interactive contract](../../../contracts/INTERACTIVE_QUERY_V1.md)
+owns quotas, lifetime, cancellation and incomplete-result semantics;
+`just test::interactive-query` exercises the real console for all source kinds.
 
 `UnifiedClient` adds signed v2 description, finite upload, frozen submission,
 committed-input observation, status and verified result pages. The
