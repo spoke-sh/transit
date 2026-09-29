@@ -37,11 +37,14 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
         const v2 = std.mem.eql(u8, args[1], "query-v2");
         diagnostic.command = if (v2) "transit query-v2" else "transit query";
         diagnostic.help = if (v2) "transit query-v2 --help" else "transit query --help";
-        diagnostic.usage = if (v2) "transit query-v2 CONFIG" else "transit query CONFIG";
-        if (args.len == 3 and std.mem.eql(u8, args[2], "--help")) return std.Io.File.stdout().writeStreamingAll(init.io, if (v2) "Usage: transit query-v2 CONFIG\nSingle-line unified query shell. Configuration: apps/transit-cli/docs/unified-query.md\n" else "Usage: transit query CONFIG\nSingle-line Table query shell. Configuration: apps/transit-cli/README.md\n");
+        if (args.len == 3 and std.mem.eql(u8, args[2], "--help")) return std.Io.File.stdout().writeStreamingAll(init.io, @import("Help.zig").query(v2));
         if (args.len != 3 or args[2].len == 0 or std.mem.startsWith(u8, args[2], "--")) {
-            diagnostic.atArgument(if (args.len > 3) 3 else if (args.len == 3) 2 else null, "CONFIG");
-            return diagnostic.fail(error.InvalidInvocation, "query shell requires one configuration file", "Pass exactly one positional configuration path; use console for --config and --format options.");
+            if (args.len == 2 or (args.len == 3 and args[2].len == 0)) {
+                diagnostic.usage = if (v2) "transit query-v2 CONFIG" else "transit query CONFIG";
+                return diagnostic.invalidInvocation("a configuration file is required");
+            }
+            diagnostic.atArgument(if (args.len > 3) 3 else 2, null);
+            return diagnostic.invalidArgument("unexpected input");
         }
         diagnostic.atFile(args[2]);
     }

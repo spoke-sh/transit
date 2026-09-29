@@ -5,30 +5,21 @@ const A = wire.Application;
 const Files = @import("server/Files.zig");
 const Config = @import("server/Config.zig");
 const Diagnostic = @import("Diagnostic.zig");
-const help =
-    \\transit app install --config MANAGEMENT --file DECLARATION --operation ID
-    \\transit app replace --config MANAGEMENT --file REPLACEMENT --operation ID
-    \\transit app retry --config MANAGEMENT --operation ID
-    \\transit app status --config MANAGEMENT --application NAME [--after INDEX]
-    \\transit app connect --config MANAGEMENT --application NAME --caller NAME [--output FILE]
-    \\Install/replace freeze exact signed requests; a returned status is not completion.
-    \\Artifact paths resolve relative to --file; omitted hashes are computed locally.
-    \\
-;
 pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic) !void {
-    if (args.len == 0 or (args.len == 1 and std.mem.eql(u8, args[0], "--help"))) return std.Io.File.stdout().writeStreamingAll(init.io, help);
+    if (args.len == 0 or (args.len == 1 and std.mem.eql(u8, args[0], "--help"))) return std.Io.File.stdout().writeStreamingAll(init.io, @import("Help.zig").app);
     const options = try @import("AppOptions.zig").parse(args, report);
+    if (options.help) return @import("Help.zig").application(init.io, options.mode);
     const mode = options.mode;
     const flags = options.flags;
     const allocator = init.arena.allocator();
     const mutation = mode == .install or mode == .replace;
     report.atFile(flags.config.?);
     const absolute = std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.config.?, allocator) catch |err| {
-        report.setFailure(err, "cannot locate the management configuration file", "Pass --config with the management_config path emitted by the ready server.");
+        report.configurationFailure(err);
         return error.InvalidConfigurationPath;
     };
     var config = try report.readJson(A.Management, init, absolute, 65536);
-    if (config.version != 1) return report.invalidField("version", "unsupported management configuration version", "Use version 1 management configuration emitted by the server.");
+    if (config.version != 1) return report.invalidField("version", "must be 1", "Use the management configuration emitted by the server.");
     config.seed_file = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.seed_file });
     config.recovery_directory = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.recovery_directory });
     var client = try A.Client.init(init.gpa, init.io, config.url);

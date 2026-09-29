@@ -33,11 +33,12 @@ browser checks all three result pages, business labels, keyboard navigation,
 two densities, 320 px layout and axe accessibility. See the [browser composition
 guide](docs/browser.md) for roles, finite limits and recovery.
 
-See [the selected migration](docs/migration.md). Work is tied to
-[M23](../../docs/internal/roadmap/M23.md), with authority movement reserved for [M29](../../docs/internal/roadmap/M29.md).
+See [the selected migration](docs/migration.md) for application revision changes.
+Authority movement and disaster recovery follow the separate
+[deployment boundary](../../docs/reference/deployment.md).
 
 The [physical placement guide](docs/placement.md) describes the owned Compose
 and reference tasks, role-specific files, TLS edge and fresh-key recovery. Those
 profiles remain unqualified until their complete fault schedules pass.
 
-The package also has its own build manifest and domain CLI. Follow [separate build and local iteration](docs/local.md) to install it through the public M25 application contract.
+The package also has its own build manifest and domain CLI. Follow [separate build and local iteration](docs/local.md) to install it through the public application installation contract.

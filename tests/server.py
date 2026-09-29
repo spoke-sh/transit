@@ -188,13 +188,13 @@ def run(cli, node, host):
     success = False
     print(f"Transit server proof: {fixture.root}", flush=True)
     try:
-        fixture.refusal("FileNotFound")
+        fixture.refusal("file not found")
         fixture.start(initialize=True)
         fixture.ready()
         from server_faults import gateway_hosts
         gateway_hosts(fixture)
         original = fixture.record()
-        fixture.refusal("InstallationInUse")
+        fixture.refusal("another server manages this installation")
         from console import Console
         shell = Console(fixture.cli, fixture.installation / "console.json")
         try:
@@ -218,7 +218,7 @@ def run(cli, node, host):
                 shell.process.kill(); shell.process.wait(timeout=10)
         print("Transit server independent console: verified empty Table COUNT result", flush=True)
         fixture.stop()
-        fixture.refusal("InstallationExists", initialize=True)
+        fixture.refusal("this installation is already initialized", initialize=True)
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
@@ -235,21 +235,23 @@ def run(cli, node, host):
             assert fixture.console("/resume 1\n/next\n/quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
-        assert "RestartBudgetExhausted" in Path(fixture.logs[-1].name).read_text()
+        failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]
+        assert "restart budget exhausted" in failure and "child process exited" in failure, failure
+        assert "role courier" in failure and "retrying" not in failure, failure
         fixture.stop()
         for name in ("wal", "cold"):
             old = fixture.installation / name
             backup = fixture.installation / (name + "-absent")
             old.rename(backup)
             try:
-                fixture.refusal("FileNotFound")
+                fixture.refusal("file not found")
             finally:
                 backup.rename(old)
         with socket.socket() as listener:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(("127.0.0.1", fixture.config["ports"]["gateway"]))
             listener.listen()
-            fixture.refusal("AddressInUse")
+            fixture.refusal("address already in use")
         fixture.start()
         fixture.ready()
         fixture.console("/schema\n/quit\n")

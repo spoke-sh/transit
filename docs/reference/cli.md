@@ -41,36 +41,65 @@ unknown/duplicate fields and unsupported versions.
 
 ## Output philosophy: explain, locate, guide
 
-CLI output helps the reader make the next decision. A failure answers three
-questions in order: **what failed and why, where to look, and what to do next**.
-An implementation error name alone does not answer them. Each diagnostic leads
-with a plain-language explanation, supplies the best available coordinates, and
-gives a concrete next action. The underlying error identifier remains available
-as `cause` for investigation. When an outer failure class differs from that cause,
-`code` retains it too (for example, restart budget exhausted after a child exits).
+Errors name the problem once. A location or next step appears when it helps
+resolve that problem. Routine option errors usually take one line; missing
+required input can add the minimum invocation. Full option lists belong in help.
 
-For example, running `transit server` without configuration reports:
+Running `transit server` without configuration reports:
 
 ```text
-error: missing required configuration
-  at: transit server --config
-  cause: InvalidInvocation
-  next: Run transit server --config PATH with an existing server configuration. Add --initialize only when deliberately creating a new installation.
-  usage: transit server --config PATH [--initialize] [--no-ui]
-  help: transit server --help
+error: --config is required
+
+Usage: transit server --config PATH
 ```
 
-`PATH` denotes the file you select. Help describes that command's supported
-options and configuration guide without requiring files, credentials or a running
-server. Configuration remains explicit: a diagnostic does not create files,
-select credentials, initialize an installation or submit an operation.
+A correction that fits in the error needs no additional guidance:
+
+```text
+error: --format must be table or json
+```
+
+File and field coordinates appear beside the problem, for example:
+
+```text
+error: invalid JSON in "server.json":12:5
+error: "server.json": ports.gateway and ports.node must be different
+```
+
+These are separate example failures. Parser coordinates identify the detection
+point, not necessarily the start of an offending value. Known filesystem reasons
+use plain language, such as "file not found" or "permission denied". Unmapped
+failures retain their error identifier for investigation without requiring a
+repeat attempt. Restart-budget exhaustion remains distinct from the underlying
+role failure. Routine errors omit redundant implementation codes and labeled
+`at`, `cause`, `next` and `help` fields.
+
+`PATH` denotes the configuration file you select. Configuration remains explicit:
+a diagnostic does not create files, select credentials, initialize an installation
+or submit an operation.
+
+### Help hierarchy
+
+Bare `transit` and `transit --help` list commands with short descriptions.
+`transit app --help` lists application operations. Command help, including
+`transit app install --help` and each other application operation, shows its
+supported options, defaults and configuration guide. `server` is the canonical
+name in server help; `serve` is listed as an alias.
+
+Help requires no configuration file, credentials, network or running server.
+It skips required-option checks but still rejects malformed supplied arguments,
+unknown options and duplicates. Help and version output exit successfully on
+stdout. The query shells accept their existing standalone `--help` invocation.
+Configuration links in help name repository guides; installed bundles need not
+contain those relative paths. The CLI has no `--verbose` option.
 
 ### Coordinates that lead to the problem
 
 | Failure | Coordinate and interpretation |
 | --- | --- |
-| Unknown, repeated or misplaced argument; missing or invalid option value | Command, `argv[n]` and recognized option name. Index 1 is the first argument after the executable. Argument values are omitted. A missing required option has its name but no invented argument index. |
-| Configuration file cannot be opened | Command and the selected file path, with the underlying filesystem error |
+| Missing, repeated, unsupported or invalid known option | The recognized option name and its requirement. Supplied argument values are omitted. |
+| Unknown or misplaced argument | Its argument position and the relevant command help. Position 1 is the first argument after the executable; arbitrary argument text is omitted. |
+| Configuration file cannot be opened | The selected file path and known filesystem reason, or an untranslated error identifier |
 | Configuration JSON cannot be decoded | File and one-based `line:column` at the parser's detection point; columns count bytes. This can be the end of an object for a missing field, not the start of the offending value. Missing required struct fields also name the schema path when available. |
 | Invalid server or console setting | Configuration file and named field; conflicting ports name both fields. Semantic checks do not invent line numbers. |
 | Configured executable cannot be located or validated | Configuration file and `executables` field |
@@ -80,19 +109,20 @@ select credentials, initialize an installation or submit an operation.
 Invocation diagnostics cover `server`/`serve`, `console`, `app` subcommands and
 both query shells. File decoding coordinates cover server, console and application
 management configuration. Server/console startup adds validated field coordinates,
-listener failures and recovery advice. Other failures retain the known command or
-file context and error identifier; the CLI does not claim a more specific cause
-than it can establish. Query-shell configuration and in-session result formats
+listener failures and recovery advice. Other failures retain the useful command or
+file context and an explanation or untranslated error identifier; the CLI does
+not claim a more specific cause than it can establish. Query-shell configuration and in-session result formats
 retain their separate contracts.
 
 ### Next steps preserve evidence
 
 Advice names the option, supported value, file, field or inspection step that
-can resolve the failure. Missing configuration points to `--config` and help;
-a bad format lists `table` and `json`; a port conflict identifies the listener.
-Unknown failures ask for the diagnostic and executable version for a bug report.
-Diagnostic wording and underlying error names are human interfaces, not a stable
-machine schema.
+can resolve the failure. Missing configuration points to `--config` and a minimal
+invocation; a bad format lists `table` and `json`; a port conflict identifies the
+listener.
+Unknown failures retain their identifiers; include the diagnostic and executable
+version when reporting them. Diagnostic wording and underlying error names are
+human interfaces, not a stable machine schema.
 
 Recovery advice respects durable identity. An uncertain operation calls for
 inspection or retry of its saved signed intent. It does not imply rejection,

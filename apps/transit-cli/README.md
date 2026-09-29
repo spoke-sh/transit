@@ -18,8 +18,9 @@ The local gateway supports [localhost and explicit tunnel aliases](docs/server.m
 and reports its URL and accepted authorities in the ready record.
 
 The [public CLI reference](../../docs/reference/cli.md#output-philosophy-explain-locate-guide)
-defines output conventions, diagnostic coordinates, next steps, streams and exit
-statuses. Use `transit server --help` or `transit console --help` for command-specific
+defines concise errors, useful coordinates, recovery guidance, streams and exit
+statuses. Use `transit server --help`, `transit console --help` or application
+operation help such as `transit app install --help` for supported options and
 configuration guidance. `just test::cli-diagnostics` checks the real executable's
 invocation and configuration failures without starting an installation.
 

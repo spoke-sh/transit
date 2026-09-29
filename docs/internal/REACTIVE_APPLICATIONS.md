@@ -162,7 +162,7 @@ the earlier plan or a successful validation is not a grant.
 | Query, source schema, route or watch binding | Add a qualified binding, verify, then explicitly switch new admissions | Fence late results; reset incompatible watches; accepted commands retain the old target and receipt |
 | Data/schema transformation | Expand, bounded backfill, verify, switch consumers, then explicitly retire old definitions | Requires a selected writer/codec contract, concurrent-write policy and resumable progress; no automatic generic `ALTER TABLE` |
 | Credential or access change | Separate metadata revision, consumer rebinding and current-grant operations | Cannot be undone by restoring UI files; preserve independent recovery access and frozen effect references |
-| Physical worker/authority movement or disaster restore | Follow runtime/cluster recovery contracts | [M29](roadmap/M29.md) owns this broader proof; an application migration cannot revive retired authority |
+| Physical worker/authority movement or disaster restore | Follow runtime/cluster recovery contracts | [M30](roadmap/M30.md) owns this broader proof; an application migration cannot revive retired authority |
 
 **Plan** resolves dependencies within current disclosure rights, checks the exact
 base revision, capabilities, schema compatibility and bounds, and reports the
@@ -244,7 +244,7 @@ pauses all normal writes. Each step uses a new bounded read position. Other
 applications must supply their own write coordination or versioned source;
 copying this cursor alone cannot stabilize mutable contents. Abandonment leaves
 target Table identities and receipts retained, so another attempt needs a fresh
-plan/target identity. M29 must preserve these roots and pauses during movement.
+plan/target identity. M30 must preserve these roots and pauses during movement.
 
 The generated work-item browser now composes the same application/query packages
 as Board, with its business decoder outside both Board and the kernel. Its native

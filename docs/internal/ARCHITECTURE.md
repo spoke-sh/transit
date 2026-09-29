@@ -110,7 +110,7 @@ No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M29](roadmap/M29.md) qualifies
+the single-realm serialization bottleneck in M10; [M30](roadmap/M30.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 
@@ -335,7 +335,7 @@ and protocol assertions belong under [tests/](../../tests/README.md).
   import public packages. Compatible worker revision, ownership generation,
   data epoch and published interface revision remain separate. Native key rotation
   preserves permission epochs, so restarting a process cannot renew revoked reads.
-- [M28](roadmap/M28.md) publishes the declared Transit artifact matrix from a
+- [M29](roadmap/M29.md) publishes the declared Transit artifact matrix from a
   tagged commit through GitHub Releases/Packages, Nix, an install script,
   Homebrew, OCI images and Helm. Existing component build/package owners remain
   authoritative; release orchestration binds their outputs to one verified

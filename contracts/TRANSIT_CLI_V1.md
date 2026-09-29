@@ -24,10 +24,14 @@ Paths resolve relative to the configuration file. Private keys are referenced by
 files and never accepted as command arguments. Diagnostics name the failing
 field or role without printing configuration, request bodies or credentials.
 The [public CLI reference](../docs/reference/cli.md#output-philosophy-explain-locate-guide)
-owns the human-output conventions: plain-language cause, available coordinates
-and a concrete next step. Invocation coordinates use argument positions and
-known option names; configuration decoding reports the file and parser location;
-semantic validation names fields. Human wording and implementation error names
+owns the human-output conventions: one specific explanation, with a location
+or next step when useful. Known option errors name the option; unknown arguments
+use positions without echoing their values. Configuration decoding reports the
+file and parser location; semantic validation names fields. Known reasons use
+plain language, while untranslated failures retain their identifiers. Exhausted
+restarts remain distinct from the underlying role failure. Root and application
+group help list commands; each command, including application operations, has
+offline `--help`. Supplied arguments remain strictly validated during help. Human wording and implementation error names
 are not a versioned machine schema. Recovery advice preserves saved identity and
 never treats uncertainty as proof of rejection.
 

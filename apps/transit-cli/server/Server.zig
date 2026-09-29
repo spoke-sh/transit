@@ -21,7 +21,7 @@ processes: [9]Process = @splat(.{}),
 active_role: Role = .cold,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
     const config = try Config.load(init, options.path.?, diagnostic);
-    if (!options.no_ui and config.board == null) return diagnostic.invalidField("version", "Board requires server configuration version 3", "Use --no-ui for headless versions 1/2. Retained installations require their recorded configuration.");
+    if (!options.no_ui and config.board == null) return diagnostic.invalidField("version", "must be 3 to start Board", "Use --no-ui for headless versions 1/2. Retained installations require their recorded configuration.");
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const identity = try config.identities(init, executable, diagnostic);
     // The sibling lock also serializes first initialization before the directory exists.

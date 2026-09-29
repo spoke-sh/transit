@@ -21,47 +21,45 @@ pub fn load(init: std.process.Init, path: []const u8, diagnostic: *Diagnostic) !
     const allocator = init.arena.allocator();
     diagnostic.atFile(path);
     const absolute = std.Io.Dir.cwd().realPathFileAlloc(init.io, path, allocator) catch |err| {
-        diagnostic.setFailure(err, "cannot locate the server configuration file", "Pass --config with an existing readable server JSON file; see transit server --help.");
+        diagnostic.configurationFailure(err);
         return error.InvalidConfigurationPath;
     };
     var self = try diagnostic.readJson(Self, init, absolute, 65536);
-    if (self.version < 1 or self.version > 3) return diagnostic.invalidField("version", "unsupported server configuration version", "Use configuration version 1, 2 or 3; Board requires version 3.");
-    if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "local server requires Linux", "Run this local server profile on Linux x86_64.");
-    if ((self.version == 1 and self.applications != null) or (self.version == 2 and self.applications == null)) return diagnostic.invalidField("applications", "applications settings do not match the configuration version", "Version 1 omits applications; version 2 requires applications; version 3 accepts it optionally.");
-    if (self.realm == 0 or self.realm > @import("transit_query").protocol.max_counter) return diagnostic.invalidField("realm", "realm is outside the supported counter range", "Set realm to an integer from 1 through 9007199254740991.");
-    if (self.version < 3 and (self.board != null or self.executables.board != null)) return diagnostic.invalidField("board / executables.board", "Board settings require configuration version 3", "Omit Board fields in older configurations and start with --no-ui. Retained installations require their recorded configuration.");
+    if (self.version < 1 or self.version > 3) return diagnostic.invalidField("version", "must be 1, 2 or 3", "Board requires version 3.");
+    if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux x86_64", null);
+    if ((self.version == 1 and self.applications != null) or (self.version == 2 and self.applications == null)) return diagnostic.invalidField("applications", "does not match the configuration version", "Version 1 omits applications; version 2 requires applications; version 3 accepts it optionally.");
+    if (self.realm == 0 or self.realm > @import("transit_query").protocol.max_counter) return diagnostic.invalidField("realm", "must be an integer from 1 through 9007199254740991", null);
+    if (self.version < 3 and (self.board != null or self.executables.board != null)) return diagnostic.invalidField("board and executables.board", "require configuration version 3", "Omit Board fields in older configurations and start with --no-ui. Retained installations require their recorded configuration.");
     if (self.version == 3) {
-        if (self.executables.board == null) return diagnostic.invalidFieldCause(error.BoardExecutableRequired, "executables.board", "Board executable is missing", "Set executables.board to the matching transit-board executable, including for --no-ui.");
+        if (self.executables.board == null) return diagnostic.invalidFieldCause(error.BoardExecutableRequired, "executables.board", "is required", "Select the matching transit-board executable, including for --no-ui.");
         var board = self.board orelse Board{};
-        if (board.port < 1024) return diagnostic.invalidField("board.port", "Board port is below 1024", "Choose a distinct port from 1024 through 65535.");
-        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (board.port == @field(self.ports, name)) return diagnostic.invalidField("board.port / ports." ++ name, "two listeners use the same port", "Assign a distinct port to each configured listener.");
-        if (self.applications) |apps| if (apps.port == board.port) return diagnostic.invalidField("board.port / applications.port", "two listeners use the same port", "Assign a distinct port to each configured listener.");
+        if (board.port < 1024) return diagnostic.invalidField("board.port", "must be a port from 1024 through 65535", null);
+        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (board.port == @field(self.ports, name)) return diagnostic.invalidField("board.port and ports." ++ name, "must be different", null);
+        if (self.applications) |apps| if (apps.port == board.port) return diagnostic.invalidField("board.port and applications.port", "must be different", null);
         const origin = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}", .{board.port});
-        if (board.public_origin) |configured| if (!std.mem.eql(u8, configured, origin)) return diagnostic.invalidFieldCause(error.InvalidBoardOrigin, "board.public_origin", "Board origin does not match its loopback listener", "Omit public_origin to derive it from board.port, or use exactly http://127.0.0.1:PORT.");
+        if (board.public_origin) |configured| if (!std.mem.eql(u8, configured, origin)) return diagnostic.invalidFieldCause(error.InvalidBoardOrigin, "board.public_origin", "must match the Board loopback listener", "Omit public_origin to derive it from board.port, or use exactly http://127.0.0.1:PORT.");
         board.public_origin = origin;
         self.board = board;
     }
     if (self.applications) |apps| {
-        if (apps.port < 1024) return diagnostic.invalidField("applications.port", "application management port is below 1024", "Choose a distinct port from 1024 through 65535.");
-        if (apps.max_applications == 0 or apps.max_applications > 64) return diagnostic.invalidField("applications.max_applications", "application quota is outside the supported range", "Use an integer from 1 through 64.");
-        if (apps.max_roles == 0 or apps.max_roles > 256) return diagnostic.invalidField("applications.max_roles", "role quota is outside the supported range", "Use an integer from 1 through 256.");
-        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (apps.port == @field(self.ports, name)) return diagnostic.invalidField("applications.port / ports." ++ name, "two listeners use the same port", "Assign a distinct port to each configured listener.");
+        if (apps.port < 1024) return diagnostic.invalidField("applications.port", "must be a port from 1024 through 65535", null);
+        if (apps.max_applications == 0 or apps.max_applications > 64) return diagnostic.invalidField("applications.max_applications", "must be an integer from 1 through 64", null);
+        if (apps.max_roles == 0 or apps.max_roles > 256) return diagnostic.invalidField("applications.max_roles", "must be an integer from 1 through 256", null);
+        inline for (@typeInfo(Ports).@"struct".field_names) |name| if (apps.port == @field(self.ports, name)) return diagnostic.invalidField("applications.port and ports." ++ name, "must be different", null);
     }
-    if (self.admission_ceiling < 128 or self.admission_ceiling > 65536) return diagnostic.invalidField("admission_ceiling", "admission ceiling is outside the supported range", "Use an integer from 128 through 65536.");
-    if (self.control_reserve > 65536) return diagnostic.invalidField("control_reserve", "control reserve exceeds the supported range", "Use an integer from 0 through 65536.");
+    if (self.admission_ceiling < 128 or self.admission_ceiling > 65536) return diagnostic.invalidField("admission_ceiling", "must be an integer from 128 through 65536", null);
+    if (self.control_reserve > 65536) return diagnostic.invalidField("control_reserve", "must be an integer from 0 through 65536", null);
     @import("Hosts.zig").validate(self.gateway_allowed_hosts) catch |err| {
-        diagnostic.field = "gateway_allowed_hosts";
-        diagnostic.setFailure(err, "invalid gateway host allowlist", "Use at most eight exact host:port authorities, at most 200 bytes each; omit schemes, paths and wildcards.");
-        return error.InvalidConfiguration;
+        return diagnostic.invalidFieldCause(err, "gateway_allowed_hosts", "must contain at most eight exact host:port authorities", "Each authority is limited to 200 bytes; omit schemes, paths and wildcards.");
     };
     const fields = @typeInfo(Ports).@"struct".field_names;
     inline for (fields, 0..) |name, i| {
-        if (@field(self.ports, name) < 1024) return diagnostic.invalidField("ports." ++ name, "listener port is below 1024", "Choose a distinct port from 1024 through 65535.");
-        inline for (fields[0..i]) |previous| if (@field(self.ports, name) == @field(self.ports, previous)) return diagnostic.invalidField("ports." ++ name ++ " / ports." ++ previous, "two listeners use the same port", "Assign a distinct port to each configured listener.");
+        if (@field(self.ports, name) < 1024) return diagnostic.invalidField("ports." ++ name, "must be a port from 1024 through 65535", null);
+        inline for (fields[0..i]) |previous| if (@field(self.ports, name) == @field(self.ports, previous)) return diagnostic.invalidField("ports." ++ name ++ " and ports." ++ previous, "must be different", null);
     }
     const base = std.fs.path.dirname(absolute).?;
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
-    if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return diagnostic.invalidField("installation", "invalid installation directory", "Choose a non-root directory without NUL, newline, quote or backslash characters.");
+    if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return diagnostic.invalidField("installation", "must be a non-root directory without NUL, newline, quote or backslash characters", null);
     inline for (.{ "minio", "ursula", "node", "query_host" }) |name| {
         diagnostic.field = "executables." ++ name;
         @field(self.executables, name) = resolveExecutable(init, base, @field(self.executables, name)) catch |err| {
@@ -138,6 +136,6 @@ fn listen(io: std.Io, port: u16, field: []const u8, diagnostic: *Diagnostic) !st
     return (try std.Io.net.IpAddress.parseIp4("127.0.0.1", port)).listen(io, .{ .reuse_address = true }) catch |err| {
         diagnostic.field = field;
         diagnostic.port = port;
-        return diagnostic.fail(err, "cannot bind the configured listener", "Check which process owns this address and port. Stop the conflicting service if appropriate; retained installations require their recorded ports.");
+        return diagnostic.fail(err, "cannot bind the configured listener", "Check for another running server. Retained installations require their recorded ports.");
     };
 }

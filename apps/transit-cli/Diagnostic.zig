@@ -15,15 +15,38 @@ next: ?[]const u8 = null,
 cause: ?anyerror = null,
 usage: ?[]const u8 = null,
 help: []const u8 = "transit --help",
+show_help: bool = false,
+presentation: enum { general, invocation, option, argument, configuration, json, field } = .general,
 
-pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: []const u8) anyerror {
+pub fn fail(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) anyerror {
     self.setFailure(err, summary, next);
     return err;
 }
-pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: []const u8) void {
+pub fn setFailure(self: *Self, err: anyerror, summary: []const u8, next: ?[]const u8) void {
+    self.presentation = .general;
     self.summary = summary;
     self.next = next;
     self.cause = err;
+}
+pub fn invalidInvocation(self: *Self, summary: []const u8) anyerror {
+    self.setFailure(error.InvalidInvocation, summary, null);
+    self.presentation = .invocation;
+    return error.InvalidInvocation;
+}
+pub fn invalidOption(self: *Self, summary: []const u8) anyerror {
+    self.setFailure(error.InvalidInvocation, summary, null);
+    self.presentation = .option;
+    return error.InvalidInvocation;
+}
+pub fn invalidArgument(self: *Self, summary: []const u8) anyerror {
+    self.setFailure(error.InvalidInvocation, summary, null);
+    self.presentation = .argument;
+    self.show_help = true;
+    return error.InvalidInvocation;
+}
+pub fn configurationFailure(self: *Self, cause: anyerror) void {
+    self.setFailure(cause, "cannot read configuration file", null);
+    self.presentation = .configuration;
 }
 pub fn atArgument(self: *Self, index: ?usize, option: ?[]const u8) void {
     self.argument = index;
@@ -42,20 +65,23 @@ pub fn atFile(self: *Self, file: []const u8) void {
     self.summary = null;
     self.next = null;
     self.cause = null;
+    self.show_help = false;
+    self.presentation = .general;
 }
-pub fn invalidField(self: *Self, field: []const u8, summary: []const u8, next: []const u8) anyerror {
+pub fn invalidField(self: *Self, field: []const u8, summary: []const u8, next: ?[]const u8) anyerror {
     return self.invalidFieldCause(error.InvalidConfiguration, field, summary, next);
 }
-pub fn invalidFieldCause(self: *Self, cause: anyerror, field: []const u8, summary: []const u8, next: []const u8) anyerror {
+pub fn invalidFieldCause(self: *Self, cause: anyerror, field: []const u8, summary: []const u8, next: ?[]const u8) anyerror {
     self.field = field;
     self.setFailure(cause, summary, next);
+    self.presentation = .field;
     return error.InvalidConfiguration;
 }
 pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []const u8, limit: usize) !T {
     self.atFile(path);
     const allocator = init.arena.allocator();
     const bytes = std.Io.Dir.cwd().readFileAlloc(init.io, path, allocator, .limited(limit)) catch |err| {
-        self.setFailure(err, if (err == error.StreamTooLong) "configuration exceeds the command's size limit" else "cannot read the configuration file", "Check the configuration path, file size and read permissions; see the command's configuration guide.");
+        self.configurationFailure(err);
         return error.InvalidConfiguration;
     };
     defer {
@@ -77,12 +103,8 @@ pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []c
         }
         self.line = location.getLine();
         self.column = location.getColumn();
-        self.setFailure(err, switch (err) {
-            error.UnknownField => "configuration contains an unknown field",
-            error.DuplicateField => "configuration repeats a field",
-            error.MissingField => "configuration is missing a required field",
-            else => "configuration is not valid JSON for this command",
-        }, "Correct the JSON at the parser location using the command's configuration guide; values are omitted from diagnostics.");
+        self.cause = err;
+        self.presentation = .json;
         return error.InvalidConfiguration;
     };
 }
@@ -125,42 +147,129 @@ fn quoted(out: *std.Io.Writer, value: []const u8) !void {
     try out.writeByte('"');
 }
 pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
-    const advice = switch (err) {
+    const Advice = struct { []const u8, ?[]const u8 };
+    const advice: ?Advice = switch (err) {
         error.InstallationInUse => .{ "another server manages this installation", "Stop the existing manager before starting another server for this installation." },
         error.InstallationIdentityMismatch => .{ "the configuration or executable differs from the recorded installation", "Restore the recorded configuration and matching executables. Do not initialize or delete the installation to bypass this check." },
         error.InstallationExists => .{ "this installation is already initialized", "Restart with the same configuration and omit --initialize. Preserve the existing installation directory." },
-        error.StorageIdentityMismatch, error.AuthorityRollback => .{ "retained storage does not match the installation's recovery evidence", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
+        error.StorageIdentityMismatch => .{ "retained storage does not match the installation's recovery evidence", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
+        error.AuthorityRollback => .{ "retained authority is older than the recorded recovery position", "Restore the matching storage and recorded configuration using the server recovery guide. Do not delete identity or recovery records to bypass this check." },
         error.NoSpaceLeft => .{ "the filesystem has no space for this operation", "Free space outside retained Transit data or expand the filesystem, then recover the same installation or saved operation." },
-        error.RestartBudgetExhausted, error.RoleReadinessTimeout, error.ChildExited => .{ "a required server role failed to become or remain ready", "Check the named role's executable, port and storage permissions in the server configuration, then restart with the same configuration without --initialize." },
+        error.RestartBudgetExhausted => .{ "server restart budget exhausted", "Check the named role's executable, port and storage permissions, then restart with the same configuration without --initialize." },
+        error.RoleReadinessTimeout => .{ "a required server role did not become ready in time", "Check the named role's executable, port and storage permissions, then restart with the same configuration without --initialize." },
+        error.ChildExited => .{ "a required server role exited", "Check the named role's executable, port and storage permissions, then restart with the same configuration without --initialize." },
         error.ConsoleRecoveryInUse, error.ManagementClientInUse => .{ "another client holds the recovery lock", "Close the other client using this recovery location, then reconnect with the same configuration." },
         error.ConsoleRecoveryIdentityMismatch, error.RecoveryIdentityMismatch => .{ "saved intent belongs to a different configured identity", "Use the original configuration and recovery file together; do not resubmit the operation under a new identity." },
         error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
-        error.ApplicationOutcomeUnknown => .{ "the application operation outcome is uncertain", "Use transit app retry with the same --config and --operation identity to reconcile the saved signed request; do not repeat install/replace under a new ID." },
+        error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Retry the saved request with the same configuration and operation ID:\n  transit app retry --config PATH --operation ID" },
         error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect /status or reconcile saved intent with /retry." },
         error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use /retry for pending signed intent; do not resubmit SQL after an uncertain outcome." },
-        else => .{ "the command could not complete", "Inspect the reported cause and coordinates. Preserve saved operation identity when reconciling uncertain work; include this diagnostic and transit --version in a bug report if the cause remains unexplained." },
+        else => null,
     };
-    try out.print("error: {s}\n  at: {s}", .{ self.summary orelse advice[0], self.command });
-    if (self.argument) |index| try out.print(" argv[{d}]", .{index});
-    if (self.option) |option| try out.print(" {s}", .{option});
-    if (self.file) |file| {
-        try out.writeByte(' ');
-        try quoted(out, file);
+    const cause = self.cause orelse err;
+    try out.writeAll("error: ");
+    switch (self.presentation) {
+        .invocation => try out.writeAll(self.summary.?),
+        .option => try out.print("{s} {s}", .{ self.option.?, self.summary.? }),
+        .argument => try out.print("{s} at argument {d}", .{ self.summary.?, self.argument.? }),
+        .configuration => {
+            if (cause != error.FileNotFound) try out.writeAll("cannot read ");
+            try out.writeAll("configuration file ");
+            try quoted(out, self.file.?);
+            if (cause == error.FileNotFound) try out.writeAll(" was not found") else try out.print(": {s}", .{reason(cause)});
+        },
+        .json => {
+            switch (cause) {
+                error.MissingField => {
+                    try out.writeAll("missing required field");
+                    if (self.field) |field| try out.print(" {s}", .{field});
+                },
+                error.UnknownField => try out.writeAll("unknown field"),
+                error.DuplicateField => try out.writeAll("duplicate field"),
+                error.SyntaxError, error.UnexpectedEndOfInput => try out.writeAll("invalid JSON"),
+                else => try out.print("invalid configuration ({s})", .{@errorName(cause)}),
+            }
+            try out.writeAll(" in ");
+            try quoted(out, self.file.?);
+            try out.print(":{d}:{d}", .{ self.line.?, self.column.? });
+        },
+        .field => {
+            if (self.file) |file| {
+                try quoted(out, file);
+                try out.writeAll(": ");
+            }
+            try out.print("{s} {s}", .{ self.field.?, self.summary.? });
+        },
+        .general => {
+            if (err == error.RestartBudgetExhausted) {
+                // The final exhaustion must not inherit an earlier retry summary.
+                try out.writeAll(advice.?[0]);
+                if (cause != err) try out.print(": {s}", .{reason(cause)});
+            } else if (self.port) |port| {
+                try out.print("cannot bind 127.0.0.1:{d}: {s}", .{ port, reason(cause) });
+            } else if (self.summary) |summary| {
+                try out.print("{s}: {s}", .{ summary, reason(cause) });
+                if (cause != err and advice == null and err != error.InvalidConfiguration and err != error.InvalidConfigurationPath and err != error.InvalidCredentialFile) try out.print(" ({s})", .{@errorName(err)});
+            } else if (advice) |known| {
+                try out.writeAll(known[0]);
+                if (cause != err) try out.print(": {s}", .{reason(cause)});
+            } else {
+                try out.print("{s} failed: {s}", .{ self.command, reason(cause) });
+                if (cause != err) try out.print(" ({s})", .{@errorName(err)});
+            }
+            const exhausted_listener = self.port != null and err == error.RestartBudgetExhausted;
+            if (self.file != null or self.field != null or self.role != null or exhausted_listener) {
+                try out.writeAll("\n  ");
+                if (self.file) |file| try quoted(out, file);
+                if (self.field) |field| try out.print("{s}{s}", .{ if (self.file != null) ": " else "", field });
+                if (self.role) |role| try out.print("{s}role {s}", .{ if (self.file != null or self.field != null) "; " else "", role });
+                if (exhausted_listener) try out.print("{s}listener 127.0.0.1:{d}", .{ if (self.file != null or self.field != null or self.role != null) "; " else "", self.port.? });
+            }
+        },
     }
-    if (self.line) |line| try out.print(":{d}:{d} (parser location)", .{ line, self.column.? });
-    if (self.field) |field| try out.print(" field {s}", .{field});
-    if (self.role) |role| try out.print(" role {s}", .{role});
-    if (self.port) |port| try out.print(" listener 127.0.0.1:{d}", .{port});
-    try out.print("\n  cause: {s}\n  next: {s}\n", .{ @errorName(self.cause orelse err), self.next orelse advice[1] });
-    if (self.cause) |cause| if (cause != err) {
-        try out.print("  code: {s}\n", .{@errorName(err)});
+    try out.writeByte('\n');
+    const next = if (err == error.RestartBudgetExhausted) advice.?[1] else self.next orelse if (self.presentation == .general and advice != null) advice.?[1] else null;
+    if (next) |hint| try out.print("\n{s}\n", .{hint});
+    if (self.usage) |usage| try out.print("\nUsage: {s}\n", .{usage}) else if (self.show_help) try out.print("\nRun {s} for options.\n", .{self.help});
+}
+fn reason(err: anyerror) []const u8 {
+    return switch (err) {
+        error.FileNotFound => "file not found",
+        error.AccessDenied => "permission denied",
+        error.AddressInUse => "address already in use",
+        error.NameTooLong => "path is too long",
+        error.StreamTooLong => "file exceeds the command's size limit",
+        error.IsDir => "expected a file, found a directory",
+        error.NotDir => "a path component is not a directory",
+        error.ChildExited => "child process exited",
+        error.RoleReadinessTimeout => "role readiness timed out",
+        error.NoSpaceLeft => "no space left on the filesystem",
+        else => @errorName(err),
     };
-    if (self.usage) |usage| try out.print("  usage: {s}\n", .{usage});
-    try out.print("  help: {s}\n", .{self.help});
 }
 pub fn emit(self: Self, io: std.Io, err: anyerror) void {
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stderr().writerStreaming(io, &buffer);
     self.render(&writer.interface, err) catch return;
     writer.interface.flush() catch {};
+}
+
+test "unknown failures retain identifiers and recovery advice retains exact identity" {
+    const cases = .{
+        .{ Self{ .command = "transit server", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
+        .{ Self{ .summary = "cannot complete this step", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
+        .{ Self{ .command = "transit app install" }, error.ApplicationOutcomeUnknown, &.{ "outcome is unknown", "saved request", "same configuration and operation ID", "transit app retry --config PATH --operation ID" } },
+        .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{ "not cancelled", "/status", "/retry" } },
+        // Exhaustion must replace a transient retry message and retain the cause.
+        .{ Self{ .summary = "server role failed; retrying the same installation", .next = "Wait for readiness.", .cause = error.ChildExited, .role = "courier" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "child process exited", "role courier", "without --initialize" } },
+        .{ Self{ .cause = error.AddressInUse, .port = 8080, .field = "ports.gateway" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "address already in use", "ports.gateway", "listener 127.0.0.1:8080" } },
+    };
+    inline for (cases) |case| {
+        var out: std.Io.Writer.Allocating = .init(std.testing.allocator);
+        defer out.deinit();
+        try case[0].render(&out.writer, case[1]);
+        inline for (case[2]) |fragment| try std.testing.expect(std.mem.indexOf(u8, out.written(), fragment) != null);
+        try std.testing.expect(std.mem.indexOf(u8, out.written(), "retrying the same installation") == null);
+        try std.testing.expect(std.mem.indexOf(u8, out.written(), "Wait for readiness.") == null);
+    }
 }

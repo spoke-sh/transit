@@ -333,7 +333,7 @@ There is no reason to translate the whole kernel to Lean or gate M11 on it now.
 - **M22 Arrow interoperability:** extend the independent IPC checks with actual
   Flight/ADBC consumers, ticket revocation and incomplete-stream failures. Preserve
   source evidence and capability reporting; transport success is not completeness.
-- **M29 clustering/portability:** model partition and ownership interleavings,
+- **M30 clustering/portability:** model partition and ownership interleavings,
   measure journal contention and prove provider-specific failure behavior. More
   workers or SDK handles do not remove the current realm serialization point.
 

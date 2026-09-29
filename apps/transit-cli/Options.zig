@@ -23,12 +23,11 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     if (args.len == 1 and std.mem.eql(u8, args[0], "--version")) return .{ .command = .version };
     var result: Options = .{ .command = if (std.mem.eql(u8, args[0], "console")) .console else if (std.mem.eql(u8, args[0], "server") or std.mem.eql(u8, args[0], "serve")) .server else {
         diagnostic.atArgument(1, null);
-        return diagnostic.fail(error.InvalidInvocation, "unknown command or misplaced global option", "Choose server, serve, console, app, query or query-v2; use transit --help to list commands.");
+        return diagnostic.invalidArgument("unknown command or misplaced global option");
     } };
     const server = result.command == .server;
     diagnostic.command = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve" else "transit server") else "transit console";
     diagnostic.help = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve --help" else "transit server --help") else "transit console --help";
-    diagnostic.usage = if (server) "transit server --config PATH [--initialize] [--no-ui]" else "transit console [--config PATH] [--format table|json]";
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
@@ -36,9 +35,11 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
             if (std.mem.eql(u8, arg, name)) break name;
         } else null;
         diagnostic.atArgument(i + 1, known);
-        const option = known orelse return diagnostic.fail(error.InvalidInvocation, "unexpected argument", "Remove this argument or choose an option listed by the command's help.");
-        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and std.mem.eql(u8, option, "--format")))
-            return diagnostic.fail(error.InvalidInvocation, "option is not supported by this command", "Remove this option; see the command's help for supported options.");
+        const option = known orelse return diagnostic.invalidArgument("unexpected input");
+        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and std.mem.eql(u8, option, "--format"))) {
+            diagnostic.show_help = true;
+            return diagnostic.invalidOption("is not supported by this command");
+        }
         if (std.mem.eql(u8, option, "--help")) {
             if (result.help) return duplicate(diagnostic);
             result.help = true;
@@ -52,11 +53,11 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
             const config = std.mem.eql(u8, option, "--config");
             if ((config and result.path != null) or (!config and result.format != null)) return duplicate(diagnostic);
             if (i + 1 == args.len or args[i + 1].len == 0 or std.mem.startsWith(u8, args[i + 1], "--"))
-                return diagnostic.fail(error.InvalidInvocation, "option requires a value", if (config) "Provide the configuration file path after --config." else "Provide table or json after --format.");
+                return diagnostic.invalidOption(if (config) "requires a file path" else "must be table or json");
             i += 1;
             if (config) result.path = args[i] else {
                 diagnostic.atArgument(i + 1, "--format");
-                result.format = std.meta.stringToEnum(Format, args[i]) orelse return diagnostic.fail(error.InvalidInvocation, "unsupported output format", "Use --format table or --format json.");
+                result.format = std.meta.stringToEnum(Format, args[i]) orelse return diagnostic.invalidOption("must be table or json");
             }
         }
     }
@@ -67,55 +68,23 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     };
     if (!result.help and result.path == null) {
         diagnostic.atArgument(null, "--config");
-        return diagnostic.fail(error.InvalidInvocation, "missing required configuration", if (server) "Run transit server --config PATH with an existing server configuration. Add --initialize only when deliberately creating a new installation." else "Pass --config PATH or set TRANSIT_CONSOLE_CONFIG to a console configuration file.");
+        diagnostic.usage = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve --config PATH" else "transit server --config PATH") else "transit console --config PATH";
+        return if (server) diagnostic.invalidOption("is required") else diagnostic.invalidInvocation("--config or TRANSIT_CONSOLE_CONFIG is required");
     }
     diagnostic.atArgument(null, null);
     diagnostic.usage = null;
     return result;
 }
 fn duplicate(diagnostic: *Diagnostic) anyerror {
-    return diagnostic.fail(error.InvalidInvocation, "option was supplied more than once", "Keep one occurrence of this option.");
+    return diagnostic.invalidOption("can only be specified once");
 }
 pub fn writeHelp(io: std.Io, options: Options) !void {
     return std.Io.File.stdout().writeStreamingAll(io, switch (options.command) {
-        .server => server_help,
-        .console => console_help,
-        else => help,
+        .server => @import("Help.zig").server,
+        .console => @import("Help.zig").console,
+        else => @import("Help.zig").root,
     });
 }
-const server_help =
-    \\Usage: transit server|serve --config PATH [--initialize] [--no-ui]
-    \\Run a configured local installation in the foreground. --config is required.
-    \\Paths in the JSON file resolve relative to that file.
-    \\--initialize creates a new installation; ordinary restarts omit it.
-    \\--no-ui skips Board for this invocation, preserving retained state.
-    \\Configuration: docs/reference/cli.md and apps/transit-cli/docs/server.md
-    \\Next: transit server --config PATH
-    \\
-;
-const console_help =
-    \\Usage: transit console [--config PATH] [--format table|json]
-    \\--config overrides TRANSIT_CONSOLE_CONFIG; one must select a configuration.
-    \\Submit SQL with a semicolon; /help lists session commands.
-    \\Configuration: apps/transit-cli/docs/console.md
-    \\Next: transit console --config PATH
-    \\
-;
-
-pub const help =
-    \\Transit — explicit local services and signed SQL
-    \\  transit console [--config PATH] [--format table|json]
-    \\  transit server|serve --config PATH [--initialize] [--no-ui]
-    \\  transit app --help (local application installation and replacement)
-    \\  transit --help | --version
-    \\  transit query CONFIG | query-v2 CONFIG (existing single-line shells)
-    \\Configuration is explicit versioned JSON; paths are relative to its file.
-    \\Console defaults to TRANSIT_CONSOLE_CONFIG when --config is omitted.
-    \\Console SQL submits on a semicolon; /help lists local commands.
-    \\Server runs in the foreground with Board by default (Linux, configuration v3).
-    \\--no-ui disables Board for this invocation without changing retained state.
-    \\
-;
 
 test "console defaults are explicit, overridable and never select server configuration" {
     try std.testing.expectError(error.InvalidInvocation, parse(&.{"console"}));

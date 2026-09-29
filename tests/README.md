@@ -3390,7 +3390,7 @@ No existing host block device, user installation or reference cluster is changed
 independent schema/SHA-256/Ed25519 fixture checks pass. These new focused/external
 tasks do not expand the ordinary hosted lanes or claim a new M10 budget sample.
 The selected replacement changes configuration with the same compatible binary;
-M28 must additionally qualify changed executable artifacts through installed
+M29 must additionally qualify changed executable artifacts through installed
 release packages. Other SDK hosts, maximum active quotas, local multi-role
 dependency graphs and distributed placement are not qualified by this consumer.
 Interface publication retains its separate M23 proof; worker readiness does not
@@ -3557,7 +3557,8 @@ deployment proofs and full ordinary clean CI suite were not rerun in this pass.
 
 `just test::cli-diagnostics` runs the actual `transit` executable against invalid
 invocations and owned temporary files, without a provider. The same check runs
-within `just check` as a separately named core check. It verifies command-specific help, required/duplicate/
+within `just check` as a separately named core check. It verifies concise error
+transcripts, command-specific and application-operation help, required/duplicate/
 inapplicable options, application subcommands, query-shell arity, explicit console
 environment precedence, configuration JSON parser coordinates and semantic fields,
 missing executables/credentials, occupied listener coordinates, privacy, escaped
@@ -3565,9 +3566,39 @@ and bounded paths, exit codes, and stdout/stderr separation. It also checks that
 invalid input creates no installation. This is CLI failure-presentation evidence;
 server lifecycle and durable console recovery retain their separate proofs above.
 
-The local diagnostic run passes **95 real command cases** with the pinned Zig
-0.17 compiler. `just check` passes, including the handbook production build.
-The existing `just test::server` lifecycle proof passes in **28.60 seconds**
-excluding compilation, including independent console output, manager/worker
-recovery and restart-budget exhaustion. The latter verifies that diagnostics
-retain both the underlying role failure and the outer exhaustion code.
+The earlier labeled-diagnostic qualification at `720ced6` passed **95 real
+command cases** with the pinned Zig 0.17 compiler, `just check` and the server
+lifecycle proof in **28.60 seconds** excluding compilation. That historical run
+checked separate cause and outer-exhaustion identifiers.
+
+The concise-output implementation passes **125 real command cases**, including
+exact short option errors, useful file/field/listener coordinates, escaped paths,
+untranslated executable failures, and offline application-operation help. Help
+still rejects duplicate, unknown and incomplete supplied options before effects.
+`just check` passes, including diagnostic rendering checks for unknown cause and
+outer failure, exact retry guidance, interruption without cancellation, and
+restart exhaustion after child exit or listener conflict. The handbook production
+build passes. `just test::server` passes in **29.13 seconds** excluding compilation,
+including independent console output, manager/worker recovery and a final
+exhaustion message that identifies the underlying child failure and role.
+
+`just test::console table` also passes with the concise formatter: **177.62 seconds**
+for the combined proof, including **99.20 seconds** of console checks, excluding
+compilation. It covers real PTY interaction, private-CA TLS and trust/hostname
+refusal, recovery-lock exclusion, killed-session exact retry, current denial,
+interrupted waits and bounded machine output. This run qualifies the shared
+presentation change on Table; it does not add a new source or transport profile.
+
+`just test::server-faults` passes with the same formatter: the core lifecycle took
+**30.20 seconds** and the additional bootstrap/gateway/rollback schedules took
+**17.50 seconds**, excluding compilation. The checks retain native denial and
+machine-status distinctions, bounded control under stalled data, exact recovery
+of persisted bootstrap intent, and refusal of configuration/artifact drift and
+provider history below the recorded authority observation.
+
+`just test::server-board` passes its preflight, incompatible-Board, lifecycle and
+interrupted-provisioning schedules. The lifecycle portion took **32.63 seconds**;
+it covers defaults/toggles, embedded assets, application replacement, revoked
+inspection access and owned failures. Both inspection-principal and application
+lost-reply/manager-death schedules recover the exact saved request and receipt.
+No committed-HEAD `ci-clean` run is claimed for this working-tree qualification.

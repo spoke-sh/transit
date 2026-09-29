@@ -59,19 +59,21 @@ pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagno
     const allocator = arena.allocator();
     diagnostic.atFile(options.path.?);
     const config_path = std.Io.Dir.cwd().realPathFileAlloc(init.io, options.path.?, init.arena.allocator()) catch |err| {
-        diagnostic.setFailure(err, "cannot locate the console configuration file", "Check --config or TRANSIT_CONSOLE_CONFIG; use the console_config path emitted by the ready server.");
+        diagnostic.configurationFailure(err);
         return error.InvalidConfigurationPath;
     };
     const base = std.fs.path.dirname(config_path).?;
     const config = try diagnostic.readJson(Config, init, config_path, 65536);
     validate(config, allocator, diagnostic) catch |err| {
-        diagnostic.setFailure(err, "invalid console configuration", switch (err) {
-            error.UnsupportedConsoleVersion => "Use console configuration version 1.",
-            error.InvalidRequestTimeout => "Set request_timeout_ms to an integer from 1 through 60000.",
-            error.InvalidEndpoint => "Match url, transport and ca_file: loopback uses http://127.0.0.1 or http://[::1]; TLS uses https. Omit userinfo, query and fragment; tls_ca requires ca_file.",
-            else => "Correct the named field using apps/transit-cli/docs/console.md; connection identities must be nonzero and match the workspace source.",
-        });
-        return error.InvalidConfiguration;
+        return switch (err) {
+            error.UnsupportedConsoleVersion => diagnostic.invalidField("version", "must be 1", null),
+            error.InvalidRequestTimeout => diagnostic.invalidField("request_timeout_ms", "must be an integer from 1 through 60000", null),
+            error.InvalidEndpoint => diagnostic.invalidField("url / transport / ca_file", "must select a matching endpoint and trust profile", "Loopback uses http://127.0.0.1 or http://[::1]; TLS uses https. Omit userinfo, query and fragment; tls_ca requires ca_file."),
+            else => failure: {
+                diagnostic.setFailure(err, "invalid console configuration", "Correct the named field using apps/transit-cli/docs/console.md; connection identities must be nonzero and match the workspace source.");
+                break :failure error.InvalidConfiguration;
+            },
+        };
     };
     var wire = q.wire.Client.init(init.gpa, init.io, std.mem.trimEnd(u8, config.url, "/"));
     defer wire.deinit();

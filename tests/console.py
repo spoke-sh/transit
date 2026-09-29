@@ -49,7 +49,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert shell.call('CREATE KV items (UTF8);')['err'] == 'UnsupportedStatement'
         assert shell.call('/status')['status'] is None
         duplicate = subprocess.run([binary, 'console', '--config', str(path)], input=b'/quit\n', capture_output=True, timeout=10)
-        assert duplicate.returncode == 1 and b'ConsoleRecoveryInUse' in duplicate.stderr
+        assert duplicate.returncode == 1 and b'another client holds the recovery lock' in duplicate.stderr
         fault['lost'], fault['retry'] = None, False
         sql = 'SELECT *' if kind == 'document' else 'SELECT value'
         shell.process.stdin.write((sql+'\n/* ; /quit /* nested ; */ */ FROM items\nLIMIT 33;\n').encode()); shell.process.stdin.flush()

@@ -58,7 +58,7 @@ def configured_hosts(cli, node, host):
     success = False
     try:
         # Invalid policy fails before initialization creates any runtime state.
-        for invalid, error in ((["*:19905"], "InvalidGatewayHost"), (["localhost:19905"] * 9, "TooManyGatewayHosts")):
+        for invalid, error in ((["*:19905"], "exact host:port authorities"), (["localhost:19905"] * 9, "at most eight")):
             fixture.path.write_text(json.dumps(dict(fixture.config, gateway_allowed_hosts=invalid)))
             fixture.refusal(error, initialize=True)
             assert not fixture.installation.exists()
@@ -76,7 +76,7 @@ def configured_hosts(cli, node, host):
         before = fixture.record()
         changed = dict(fixture.config, gateway_allowed_hosts=[f"other.test:{port}"])
         fixture.path.write_text(json.dumps(changed))
-        fixture.refusal("InstallationIdentityMismatch")
+        fixture.refusal("configuration or executable differs from the recorded installation")
         fixture.path.write_text(json.dumps(fixture.config))
         fixture.start()
         fixture.ready()
@@ -207,14 +207,14 @@ def rollback(cli, node, host):
         original_size = owned_node.stat().st_size
         with owned_node.open("ab") as file:
             file.write(b"changed-artifact")
-        fixture.refusal("InstallationIdentityMismatch")
+        fixture.refusal("configuration or executable differs from the recorded installation")
         with owned_node.open("r+b") as file:
             file.truncate(original_size)
         # This is a negative rollback test, not a supported backup/restore flow.
         for name in ("wal", "cold"):
             shutil.rmtree(fixture.installation / name)
             shutil.copytree(fixture.root / (name + "-snapshot"), fixture.installation / name)
-        fixture.refusal("AuthorityRollback")
+        fixture.refusal("retained authority is older than the recorded recovery position")
         assert fixture.record()["provision"] == old["provision"]
         success = True
         print("Transit recovery: changed executable and provider history below the recorded observation are refused", flush=True)

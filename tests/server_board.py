@@ -139,7 +139,7 @@ def lifecycle(cli, node, host, board, worker, operator):
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(('127.0.0.1', fixture.config['board']['port']))
             listener.listen()
-            fixture.refusal('AddressInUse')
+            fixture.refusal('address already in use')
             fixture.no_ui = True
             fixture.start()
             fixture.ready()
@@ -164,7 +164,7 @@ def lifecycle(cli, node, host, board, worker, operator):
         fixture.ready()
         fixture.revoke({'revoke': 25})
         assert fixture.process.wait(timeout=20) == 1
-        assert 'AccessDenied' in Path(fixture.logs[-1].name).read_text()
+        assert 'permission denied' in Path(fixture.logs[-1].name).read_text()
         fixture.stop()
         fixture.start()
         assert fixture.process.wait(timeout=45) == 1
@@ -254,16 +254,16 @@ def preflight(cli, node, host, board):
         for port in [*original['ports'].values(), original['applications']['port']]:
             fixture.config['board'] = {'port': port}
             fixture.path.write_text(json.dumps(fixture.config))
-            fixture.refusal('InvalidConfiguration', initialize=True)
+            fixture.refusal('must be different', initialize=True)
             assert not fixture.installation.exists()
         fixture.config = json.loads(json.dumps(original))
         fixture.config['board']['public_origin'] = 'http://foreign.invalid'
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.refusal('InvalidBoardOrigin', initialize=True)
+        fixture.refusal('board.public_origin must match the Board loopback listener', initialize=True)
         fixture.config = json.loads(json.dumps(original))
         fixture.config['executables']['board'] = str(fixture.root / 'absent')
         fixture.path.write_text(json.dumps(fixture.config))
-        fixture.refusal('FileNotFound', initialize=True)
+        fixture.refusal('file not found', initialize=True)
         assert not fixture.installation.exists()
         fixture.config = original
         selected = fixture.root / 'selected-board'
@@ -279,9 +279,9 @@ def preflight(cli, node, host, board):
         record = fixture.record()
         with selected.open('ab') as artifact:
             artifact.write(b'changed artifact')
-        fixture.refusal('InstallationIdentityMismatch')
+        fixture.refusal('configuration or executable differs from the recorded installation')
         fixture.no_ui = True
-        fixture.refusal('InstallationIdentityMismatch')
+        fixture.refusal('configuration or executable differs from the recorded installation')
         assert fixture.record() == record
         success = True
         print('Board fresh default, Ctrl-C, all listener conflicts, missing and changed artifacts: passed', flush=True)
