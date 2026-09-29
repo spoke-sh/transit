@@ -13,7 +13,7 @@ and links to supporting material.
 | [board-atlas](board-atlas/README.md) | Board browser, relief atlas and resource workspace |
 | [board-console](board-console/README.md) | Declarative Board interface, monochrome structure, Workspace objects and exploration, operator authentication/secrets/trust and SQL mapping |
 | [board-grammar](board-grammar/README.md) | Reactive Board composition, SQL-to-visual grammar, monochrome theme dimensions and application migration experience |
-| [transit-cli](transit-cli/README.md) | Concise terminal errors, command help and access to diagnostic detail |
+| [transit-cli](transit-cli/README.md) | Terminal errors, command help, a unified query console and conventional configuration |
 
 ## Maintaining the sequence
 
