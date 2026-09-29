@@ -20,7 +20,9 @@ def main():
     reclaim = next(step for step in workflow['jobs']['checks']['steps'] if step.get('name') == 'Reclaim unused hosted SDKs')
     assert reclaim['if'] == "runner.environment == 'github-hosted' && steps.nix-cache.outputs.hit-primary-key != 'true'"
     gate = workflow["jobs"]["foundation-and-protocol"]
-    assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks"]
+    assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
+    assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
+    assert "transit-docs::check" in LANES["experience"]
     matrix = workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]
     for cache in {row["cache"] for row in matrix}:
         assert sum(row["cache_writer"] for row in matrix if row["cache"] == cache) == 1
@@ -78,12 +80,13 @@ def main():
     for plan in ("success", "failure", "cancelled", "skipped", ""):
         for full in ("true", "false", ""):
             for result in ("success", "failure", "cancelled", "skipped", ""):
-                passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
-                    "PLAN": plan, "FULL": full, "RESULT": result,
-                }).returncode == 0
-                assert passed == (plan == "success" and (full, result) in {
-                    ("true", "success"), ("false", "skipped"),
-                }), (plan, full, result)
+                for docs in ("success", "failure", "cancelled", "skipped", ""):
+                    passed = subprocess.run(["bash", "-e", "-c", gate_script], env=os.environ | {
+                        "PLAN": plan, "FULL": full, "RESULT": result, "DOCS": docs,
+                    }).returncode == 0
+                    assert passed == (plan == "success" and (full, result, docs) in {
+                        ("true", "success", "skipped"), ("false", "skipped", "success"),
+                    }), (plan, full, result, docs)
     tasks = [task for lane in selected for task in LANES[lane]]
     assert len(tasks) == len(set(tasks)), "a proof is duplicated across lanes"
     assert {"test::packages-build", "test::compute"} <= set(LANES["core"])

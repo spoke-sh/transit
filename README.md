@@ -17,34 +17,31 @@ frontends, and development tooling. Ursula supplies durable storage; Kubernetes
 with Agent Substrate is the reference deployment. **Rey is the intended downstream
 trading application**, using the same primitives as other workloads.
 
-**Status:** experimental kernel, Board, launchers, instrumentation, and bounded
-KV state are implemented through M8. Station (M9) adds a bounded programming
-profile with durable calls, Tables, Arrow queries and language clients. The
-[verification and scale foundations milestone](docs/roadmap/M10.md) qualifies an
-explicit growing profile and measured CI budgets.
-[Idiomatic language SDKs](docs/roadmap/M11.md) add qualified raw/Station APIs,
-installed examples and public interoperability across all target languages on Linux x86_64.
-[M12](docs/roadmap/M12.md) adds a qualified Table SQL compiler over Fuze's existing
-plan, with independent parser/result checks and scoped Lean rewrite proofs.
-[M13](docs/roadmap/M13.md) adds a signed Table query shell, runnable query hosts
-and Board's growing atlas/workspace with a separate query capability.
-[M14](docs/roadmap/M14.md) adds bounded immutable publication;
-[M15](docs/roadmap/M15.md) and [M16](docs/roadmap/M16.md) qualify the first finite
-HTTP and RPC connectors over shared capture and explicit outcome policies.
-[M17](docs/roadmap/M17.md) adds structured Documents and collaborative text.
-[M18](docs/roadmap/M18.md) extends querying across those state sources, with all
-ten SDKs, explicit SQL ingress and bounded current-authority result readers.
-[M19](docs/roadmap/M19.md) qualifies shared HTTP serving, durable application
-admission, concurrent Board reads and recovery across native, Compose and Substrate placements.
-[M20–M21](docs/REACTIVE.md) add resumable Table invalidations and verified reactive
-views; [M22](docs/roadmap/M22.md) qualifies finite Flight SQL/ADBC access.
-[M23](docs/roadmap/M23.md) implements declarative Board/application publication
-and migration, and [M24](docs/roadmap/M24.md) adds a local server and SQL terminal
-with shared authorized completion. Their selected profiles pass focused and
-clean-checkout qualification.
-The [roadmap](docs/roadmap/README.md) records supported profiles and qualification limits.
+**Status:** experimental. The implemented profiles cover durable processes and
+state, Station SDKs, HTTP/gRPC connectors, KV/Table/Document queries, reactive
+APIs, finite Flight SQL and local application installation. Each has explicit
+bounds and separately recorded qualification; see the [roadmap](docs/roadmap/README.md).
 
-## Get started
+## Documentation
+
+Start with [What is Transit?](docs/guides/introduction.md),
+[Run Transit locally](docs/guides/quickstart.md), or
+[Build your first application](docs/guides/applications.md).
+
+| Reference | Entry point |
+| --- | --- |
+| Query language | [SQL](docs/reference/sql.md) |
+| Commands and recovery | [Transit CLI](docs/reference/cli.md) |
+| HTTP APIs | [Serving OpenAPI](docs/reference/openapi.md), [Board OpenAPI](docs/reference/board-api.md) |
+| Reactive streams | [AsyncAPI](docs/reference/asyncapi.md) |
+| Analytical clients | [Flight SQL and ADBC](docs/reference/flight.md) |
+| Application clients | [Language SDKs](docs/reference/sdks.md), [native protocol](docs/reference/native.md) |
+
+Preview the Docusaurus site with `nix develop`, `just transit-docs::install` and
+`just transit-docs::dev`. The [documentation index](docs/README.md) and
+[site guide](apps/transit-docs/README.md) explain navigation and source ownership.
+
+## Develop the repository
 
 For the current resource-backed local stack, use Linux with synchronized time
 and Nix with flakes and `nix-command` enabled:

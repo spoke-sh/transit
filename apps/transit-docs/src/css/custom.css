@@ -1,0 +1,281 @@
+:root {
+  --ifm-color-primary: #116b61;
+  --ifm-color-primary-dark: #0f6057;
+  --ifm-color-primary-darker: #0e5b52;
+  --ifm-color-primary-darkest: #0c4b44;
+  --ifm-color-primary-light: #13766b;
+  --ifm-color-primary-lighter: #147b70;
+  --ifm-color-primary-lightest: #168b7e;
+  --ifm-font-family-base: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --ifm-font-family-monospace: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ifm-heading-font-weight: 650;
+  --ifm-line-height-base: 1.75;
+  --ifm-code-font-size: 88%;
+  --ifm-navbar-shadow: none;
+  --ifm-global-radius: 5px;
+  --ifm-background-color: #ffffff;
+  --docs-line: #dde5e4;
+  --docs-muted: #56636d;
+  --docs-panel: #f5f8f7;
+}
+[data-theme="dark"] {
+  --ifm-color-primary: #70d6c4;
+  --ifm-color-primary-dark: #50cdb7;
+  --ifm-color-primary-darker: #40c8b1;
+  --ifm-color-primary-darkest: #2fa892;
+  --ifm-color-primary-light: #90dfd1;
+  --ifm-color-primary-lighter: #a0e4d7;
+  --ifm-color-primary-lightest: #cff1ea;
+  --ifm-background-color: #131c20;
+  --ifm-background-surface-color: #182429;
+  --docs-line: #334248;
+  --docs-muted: #b0c0c5;
+  --docs-panel: #1a282d;
+}
+.navbar {
+  border-bottom: 1px solid var(--docs-line);
+}
+.navbar__title {
+  letter-spacing: 0.15em;
+  font-size: 0.95rem;
+}
+.menu {
+  font-size: 0.9rem;
+}
+.menu__link {
+  line-height: 1.45;
+}
+.theme-doc-sidebar-container {
+  border-right-color: var(--docs-line) !important;
+}
+.theme-doc-markdown h1 {
+  font-size: clamp(2rem, 3vw, 2.7rem);
+  letter-spacing: -0.025em;
+}
+.theme-doc-markdown table {
+  font-size: 0.88rem;
+}
+.theme-doc-markdown th {
+  text-align: left;
+}
+.theme-doc-markdown td code {
+  overflow-wrap: anywhere;
+}
+.theme-doc-markdown a:not(.hash-link) {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.theme-doc-markdown pre {
+  max-height: 40rem;
+}
+.docs-home {
+  max-width: 1160px;
+  width: calc(100% - 3rem);
+  margin: 0 auto;
+}
+.docs-hero {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 5rem;
+  align-items: center;
+  padding: 5rem 0 4rem;
+}
+.eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+}
+.docs-hero h1 {
+  font-size: clamp(3rem, 5.5vw, 5rem);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+  margin: 1.2rem 0 1.5rem;
+}
+.hero-description {
+  font-size: 1.15rem;
+  color: var(--docs-muted);
+  line-height: 1.65;
+}
+.hero-actions {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 2rem;
+}
+.hero-actions .button {
+  font-size: 0.95rem;
+  padding: 0.8rem 1rem;
+}
+.profile-note {
+  font-size: 0.8rem;
+  color: var(--docs-muted);
+  margin-top: 1.2rem;
+}
+.model-diagram {
+  border: 1px solid var(--docs-line);
+  padding: 2rem;
+  background: var(--docs-panel);
+  border-radius: 8px;
+}
+.model-node {
+  padding: 1rem 1.5rem;
+  border: 1px solid var(--docs-line);
+  background: var(--ifm-background-color);
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+.model-node span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--docs-muted);
+  font-weight: 400;
+  letter-spacing: normal;
+  margin-top: 0.35rem;
+}
+.model-authority {
+  border-left: 4px solid var(--ifm-color-primary);
+}
+.model-connector {
+  color: var(--docs-muted);
+  padding: 0.65rem 0;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  text-align: center;
+}
+.reference-section {
+  padding: 2.5rem 0;
+  border-top: 1px solid var(--docs-line);
+}
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+}
+.section-heading h2 {
+  font-size: 1.5rem;
+}
+.section-heading a {
+  font-size: 0.9rem;
+}
+.reference-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.reference-card {
+  border: 1px solid var(--docs-line);
+  padding: 1.4rem;
+  border-radius: 6px;
+  color: var(--ifm-font-color-base);
+}
+.reference-card:hover {
+  text-decoration: none;
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  background: var(--docs-panel);
+}
+.reference-card h3 {
+  font-size: 1.08rem;
+  margin-bottom: 0.5rem;
+}
+.reference-card h3 span {
+  float: right;
+  color: var(--docs-muted);
+}
+.reference-card p {
+  font-size: 0.85rem;
+  color: var(--docs-muted);
+  margin: 0;
+}
+.journey-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  padding: 2.5rem 0 4rem;
+}
+.journey-grid h2 {
+  font-size: 1.6rem;
+  letter-spacing: -0.025em;
+}
+.journey-grid p:not(.eyebrow) {
+  color: var(--docs-muted);
+  max-width: 30rem;
+}
+.footer {
+  border-top: 1px solid var(--docs-line);
+  font-size: 0.8rem;
+  background: var(--ifm-background-color);
+  color: var(--docs-muted);
+}
+.search-page {
+  max-width: 850px;
+  padding: 3rem 1.5rem;
+  min-height: 70vh;
+}
+.search-page label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.search-page input {
+  width: 100%;
+  padding: 0.9rem;
+  font: inherit;
+  color: var(--ifm-font-color-base);
+  background: var(--ifm-background-color);
+  border: 1px solid var(--docs-muted);
+  border-radius: 5px;
+}
+.search-page [role="status"] {
+  margin-top: 1rem;
+  color: var(--docs-muted);
+}
+.search-results {
+  padding: 0;
+  list-style: none;
+}
+.search-results li {
+  border-top: 1px solid var(--docs-line);
+  padding: 1.4rem 0;
+}
+.search-results h2 {
+  font-size: 1.3rem;
+}
+.search-results p {
+  color: var(--docs-muted);
+  font-size: 0.95rem;
+}
+@media (max-width: 800px) {
+  .docs-hero {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    padding: 3rem 0;
+  }
+  .model-diagram {
+    max-width: 28rem;
+    width: 100%;
+  }
+  .reference-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .journey-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  .section-heading {
+    display: block;
+  }
+}
+@media (max-width: 480px) {
+  .reference-grid {
+    grid-template-columns: 1fr;
+  }
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

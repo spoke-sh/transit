@@ -42,6 +42,7 @@
     ],
     "experience": [
       "transit-board::check",
+      "transit-docs::check",
       "bindings::node-check",
       "test::observability",
       "transit-board::test",
@@ -183,7 +184,8 @@
       "test::server-applications",
       "test::server-application-faults",
       "test::server-board",
-      "test::server-board-package"
+      "test::server-board-package",
+      "transit-docs::browser"
     ]
   },
   "nested_tasks": {

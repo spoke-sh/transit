@@ -1,9 +1,27 @@
 # Transit documentation
 
-Start with [scope](SCOPE.md), [architecture](ARCHITECTURE.md), and the
-[glossary](GLOSSARY.md). The [roadmap](roadmap/README.md) distinguishes completed bounded profiles
-from planned framework, connector, and application milestones. These profiles
-are experimental; their bounded implementation does not imply support for every target requirement.
+For application users, start with [the introduction](guides/introduction.md),
+[local quickstart](guides/quickstart.md) and [application walkthrough](guides/applications.md).
+[Choose an interface](guides/choose-interface.md) before integrating a client.
+The Docusaurus site presents these guides, references and the foundations below
+in a task-oriented sidebar. Run `just transit-docs::dev` after the locked
+[site setup](../apps/transit-docs/README.md).
+
+## User reference
+
+| Interface | Documentation |
+| --- | --- |
+| SQL | [Admitted syntax and capability matrix](reference/sql.md) |
+| CLI | [Commands, configuration and recovery](reference/cli.md) |
+| HTTP | [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
+| Events | [Reactive AsyncAPI](reference/asyncapi.md), fetch-SSE in serving OpenAPI |
+| Arrow clients | [Flight SQL and ADBC](reference/flight.md) |
+| Native callers | [Signed protocol](reference/native.md), [language SDKs](reference/sdks.md) |
+| Application lifecycle | [Installation and bootstrap](../contracts/APPLICATION_INSTALLATION_V1.md) |
+
+The [roadmap](roadmap/README.md) separates completed profiles from planned work.
+Experimental, bounded implementations do not imply every target requirement is
+supported. Each foundation links current interfaces before deeper design intent.
 
 ## Foundations
 
@@ -13,14 +31,14 @@ are experimental; their bounded implementation does not imply support for every 
 | [Architecture](ARCHITECTURE.md) | Layers, dependency direction, and component map |
 | [Glossary](GLOSSARY.md) | Official names and shared terminology |
 | [Transit](TRANSIT.md) | Processes, PIDs, legal sequences, ownership, and replay |
-| [Caller model](CLIENT.md) | Application computation, bindings and planned idiomatic language SDKs |
-| [Public SDK design](SDK.md) | Shared API decisions and proposed [Python](sdk/PYTHON.md), [TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md) contracts, applications and recovery |
+| [Caller model](CLIENT.md) | Application computation, bindings and implemented language SDK contracts |
+| [Public SDK design](SDK.md) | Shared API decisions and implemented [Python](sdk/PYTHON.md), [TypeScript](sdk/TYPESCRIPT.md) and [Rust](sdk/RUST.md) contracts, applications and recovery |
 | [Security](SECURITY.md) | Identity, authorization, revocation, and trust boundaries |
 | [Streams](STREAMS.md) | Mailboxes, ordering, durable admission, and delivery |
 | [State](STATE.md) | Durable resources, process associations, KV/Table boundary, and state lifetimes |
-| [Documents](DOCUMENTS.md) | Proposed structured/text model, publication prerequisite, acceptance and unified-query handoff |
-| [Tables](TABLES.md) | Planned Station Table operations, Arrow results, materialization and transaction scope |
-| [Fuze](FUZE.md) | Planned Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
+| [Documents](DOCUMENTS.md) | Qualified structured/text model, publication prerequisite, acceptance and unified-query handoff |
+| [Tables](TABLES.md) | Station Table operations, Arrow results, materialization and transaction scope |
+| [Fuze](FUZE.md) | Zig query engine across KV/Table/Document, source adapters, planning and bounded execution |
 | [Query language](QUERY_LANGUAGE.md) | Relational and dataframe surfaces over Fuze's one plan; DDL/DML mapping and the connector/transport namespace idea |
 | [Arrow](ARROW.md) | IPC/C interfaces, Flight/Flight SQL and ADBC integration with Fuze |
 | [Serving](SERVING.md) | Inbound service/route, identity, admission and response contracts; qualified M19 HTTP profile for applications and Board |
@@ -30,10 +48,10 @@ are experimental; their bounded implementation does not imply support for every 
 | [Retention](RETENTION.md) | Application lifetime contracts, compaction, and reclamation |
 | [Board](BOARD.md) | Inspection UI/API, growing atlas, optional Table workspace and observation semantics |
 | [Observability](OBSERVABILITY.md) | Board/Transit instrumentation, correlation, signal semantics, and resource limits |
-| [Station](STATION.md) | Behaviors, language bindings, planned SDK runners, Tables, supervision, and registries |
-| [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract, transport/connector/integration tiers and planned HTTP capture |
+| [Station](STATION.md) | Behaviors, language bindings, SDK runners, Tables, supervision, and registries |
+| [Connectors](CONNECTORS.md) | Shared effect/attempt/reconciliation contract, transport/connector/integration tiers and qualified finite HTTP capture |
 | [Flow control](FLOW_CONTROL.md) | Application admission credit pattern, and its boundary against transport flow control |
-| [gRPC](GRPC.md) | Planned second connector: typed calls, streaming authority, transcripts and recovery |
+| [gRPC](GRPC.md) | Qualified finite RPC connector: typed calls, streaming authority, transcripts and recovery |
 | [Deployment](DEPLOYMENT.md) | Runtime bindings, recovery, isolation, and portability |
 | [Ursula](URSULA.md) | Storage-provider choice and authority boundary |
 | [Conformance](CONFORMANCE.md) | Adversarial obligations and limits on guarantees |
@@ -51,7 +69,9 @@ scenarios, capacity arithmetic and their implications for qualification.
 | Location | Content |
 | --- | --- |
 | Root [README](../README.md) | Orientation, status, and a short runnable start |
-| `docs/` | Scope, cross-component design, invariants, and tradeoffs |
+| `docs/` foundations | Scope, cross-component concepts/design, invariants, tradeoffs and explicit implementation status |
+| `docs/guides/`, `docs/reference/` | User journeys, cross-interface references and links to the authoritative component/wire owners |
+| [apps/transit-docs/](../apps/transit-docs/README.md) | Docusaurus configuration, navigation, generated API rendering, styling and site verification; consumes source Markdown directly |
 | [docs/roadmap/](roadmap/README.md) | Milestone index and individual scope, design decisions, qualification criteria and status files |
 | [docs/design/](design/README.md) | UI/UX reviews; one directory, linear D-numbered review sequence and summary table per item |
 | Package/app READMEs | Purpose, public entry points, dependencies, quick start, limits, and links to deeper guides |
@@ -66,7 +86,14 @@ scenarios, capacity arithmetic and their implications for qualification.
 | [nix/](../nix/README.md), [tasks/](../tasks/README.md) | Toolchain maintenance and command reference |
 | [AGENTS.md](../AGENTS.md) | Working instructions and required reading |
 
-Document a fact where it is owned and link to it from the broader design. Keep
+Document a fact where it is owned and link to it from the broader design.
+The site catalog must include every top-level foundational page. Add a task-first
+entry when a new interface becomes usable, with runnable commands and exact
+profile limits. Keep configuration detail in its component guide and include that
+guide directly in the site where useful. OpenAPI/AsyncAPI pages render the owning
+generated specifications; never maintain another handwritten endpoint schema.
+Repository Markdown must remain readable without the site. Published navigation
+maps included Markdown links to site routes and other repository links to source. Keep
 technical choices and rationale alongside that topic. Preserve failure findings
 and validation limits when moving details; avoid duplicate specifications.
 Future components stay in the design docs until they have real implementation.

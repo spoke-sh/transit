@@ -8,7 +8,8 @@ The root [justfile](../justfile) keeps common commands: `check`, `ci-clean`,
 `fmt`, and `doctor`. Modules under `tasks/` own the grouped recipes:
 [build](build.just), [launchers](launchers.just), [test](test.just),
 [examples](examples.just), [contract](contract.just), [ci](ci.just),
-[bindings](bindings.just), and [transit-board](transit-board.just).
+[bindings](bindings.just), [transit-board](transit-board.just), and
+[transit-docs](transit-docs.just).
 Use double colons, for example `just launchers::reference::up` or `just examples::run counter`.
 Space-separated module paths also work: `just build debug` is equivalent to
 `just build::debug`.
@@ -119,6 +120,21 @@ For prerequisites, proof boundaries, and troubleshooting, use the
 
 `just test::inspection` exercises the signed, bounded public read surface against
 isolated disk-backed Ursula.
+
+## User documentation
+
+`just transit-docs::install` installs locked workspace dependencies; the existing
+Board install recipe also includes the site. `just transit-docs::dev` starts the
+Docusaurus development server on loopback. `build` produces static output and
+`serve` previews it. `just transit-docs::check` runs strict types, Vite+ checks,
+source/reference tests and a production build that rejects broken links and
+anchors; it is included in `just check` and the experience lane.
+
+`just transit-docs::browser-install` installs Chromium. Then run
+`just transit-docs::browser` to exercise desktop/mobile navigation, generated
+API downloads, local search, diagrams and accessibility. Use
+`TRANSIT_DOCS_BASE_URL=/handbook/` to qualify hosting below a path. See the
+[site guide](../apps/transit-docs/README.md) for source ownership and hosting.
 
 ## Build profiles
 

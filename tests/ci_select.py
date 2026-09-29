@@ -7,8 +7,8 @@ import subprocess
 
 
 def select(paths, event="pull_request"):
-    # Only prose with no build/schema consumer is exempt. Component READMEs,
-    # contracts, fixtures and all shared infrastructure deliberately remain full.
+    # Foundation prose runs the documentation-site gate instead of runtime lanes.
+    # Component READMEs, contracts, fixtures and shared infrastructure stay full.
     def prose(path):
         p = PurePosixPath(path)
         return path in {"README.md", "AGENTS.md"} or (

@@ -21,3 +21,7 @@ coverage/
 __pycache__/
 *.pyc
 target/
+
+# Documentation build metadata and generated specification downloads.
+apps/transit-docs/.docusaurus/
+apps/transit-docs/.generated/

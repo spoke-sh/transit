@@ -88,6 +88,18 @@
             ;
         in
         rec {
+          docs = pkgs.mkShellNoCC {
+            packages = [
+              pkgs.just
+              pkgs.git
+              vite-plus
+              pkgs.nodejs_24
+              pkgs.pnpm
+            ];
+            shellHook = ''
+              source ${./nix/dev-environment.sh}
+            '';
+          };
           flight = pkgs.mkShell {
             inputsFrom = [ serving ];
             packages = [ (pkgs.callPackage ./nix/flight-tools.nix { }) ];

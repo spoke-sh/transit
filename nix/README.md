@@ -55,6 +55,13 @@ bundle selects Linux x86_64. Evaluation does not qualify the other platforms.
 
 ## Entering the development shell
 
+For documentation-only work, `nix develop .#docs` supplies the same pinned Node,
+Vite+, pnpm, Git and `just` without Zig or provider tools. Run
+`just transit-docs::install` then `just transit-docs::dev` or
+`just transit-docs::check`. This shell introduces no new Nix input versions;
+`pnpm-lock.yaml` owns the pinned Docusaurus/Mermaid dependency graph. The normal
+development shell still supplies everything needed for application examples.
+
 Use Nix with `nix-command` and `flakes` enabled. Run commands from the repository
 root:
 

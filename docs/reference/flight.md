@@ -1,0 +1,75 @@
+# Flight SQL and ADBC
+
+The Flight gateway serves finite, read-only Table queries using Fuze and the
+existing durable query requester. The qualified profile is a single configured
+Table with two int64 columns (nullable value). It is independent of the broader
+KV/Table/Document query v2 interface.
+
+| Surface | Supported profile |
+| --- | --- |
+| Statement execution | `CommandStatementQuery`, one endpoint, ordered finite batches through `DoGet` |
+| Metadata | `GetSchema`, catalogs, database schemas, Tables, Table types, selected SqlInfo |
+| Application SQL | [Table SQL v1](../../packages/zig/transit-fuze/docs/sql.md), including count, checked sum and typed empty results |
+| Independent clients | PyArrow 23.0.0; ADBC release 24 Flight SQL driver 1.12.0, Python 3.13 and C vtable on Linux x86_64 |
+| Excluded | Prepared parameters, transactions, writes/ingest, `ListFlights`, `DoPut`, `DoExchange`, distributed endpoints and arbitrary actions |
+
+The gateway uses Apache Arrow 23.0.0 protocol definitions. Metadata union/list/map
+coverage does not widen application query types. Unsupported operations return
+explicit UNIMPLEMENTED. Pinned Python ADBC uses its unprepared fallback.
+
+## Connect with ADBC
+
+Provision the query hosts, service binding, dedicated caller/requester and
+[gateway configuration](../../apps/transit-flight-gateway/docs/configuration.md).
+The gateway needs a verified TLS edge and an explicitly trusted CA. This example
+uses files from that provisioned deployment; it does not create identities.
+
+```python
+from pathlib import Path
+import adbc_driver_flightsql as flightsql
+from adbc_driver_flightsql import dbapi
+
+# Substitute your deployment's verified TLS hostname and private files.
+uri = 'grpc+tls://flight.example.test:8443'
+credential = Path('/private/flight-credential').read_text()
+certificate = Path('/private/flight-ca.pem').read_text()
+with dbapi.connect(uri, db_kwargs={
+    flightsql.DatabaseOptions.AUTHORIZATION_HEADER.value: 'Bearer ' + credential,
+    flightsql.DatabaseOptions.TLS_ROOT_CERTS.value: certificate,
+}, autocommit=True) as connection:
+    with connection.cursor() as cursor:
+        # Choose this sequence deliberately and retain it with the exact SQL.
+        cursor.adbc_statement.set_options(**{
+            flightsql.StatementOptions.RPC_CALL_HEADER_PREFIX.value
+            + 'x-transit-request-sequence': '1',
+        })
+        cursor.execute('SELECT id, value FROM items LIMIT 8')
+        result = cursor.fetch_arrow_table()
+```
+
+Use the pinned `nix develop .#flight` environment for these clients. The
+[finite example](../../examples/flight/README.md) provisions isolated native,
+Compose and reference installations and executes the actual Python/C consumers.
+
+## Identity, retry and result lifetime
+
+Every RPC authenticates its caller. Statement admission requires a canonical
+decimal `x-transit-request-sequence`; the same sequence and original SQL/schema
+reconstruct the same signed request. A new sequence means a new query. Preserve
+the old one after uncertainty, including across gateway replacement.
+
+Tickets are signed, scoped and expiring. They never replace current service,
+source and requester rights. Every bounded read and final disclosure rechecks
+those rights. Ticket expiry does not cancel a query or delete its result. Fetching
+again starts the captured result at its first batch; there is no offset resume.
+A partial batch stream remains a prefix until successful terminal completion.
+
+The selected result cap is 63 batches / 240 KiB retained IPC. Larger results
+reject rather than invent nonstandard framing. See the
+[compatibility matrix](../../packages/zig/transit-flight/docs/compatibility.md)
+for all memory, connection, deadline and qualification limits, and the
+[Flight wire contract](../../contracts/FLIGHT_V1.md) for exact messages.
+
+Outbound Flight is a separate [recorded connector](../../packages/zig/transit-station-flight/README.md).
+Replay reads its authorized capture without network dispatch. Flight SQL access
+is not permission to bypass connector policy for external effects.
