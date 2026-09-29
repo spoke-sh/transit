@@ -1,0 +1,150 @@
+[
+  {
+    "query": {
+      "version": 3,
+      "realm": 42,
+      "principal": 65536,
+      "kind": {
+        "snapshot_read": {
+          "snapshot": {
+            "open": {
+              "resource": 17,
+              "nonce": "abcdefghijklmnop"
+            }
+          },
+          "current": [
+            {
+              "resource": 17,
+              "keys": [
+                "61",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            null
+          ],
+          "points": [
+            "61",
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "range": {
+            "after": null,
+            "prefix": "61",
+            "limit": 64,
+            "bytes": 32768
+          },
+          "finish": false
+        }
+      }
+    },
+    "digest": "5d406f4fc5e42b98c742d8dc6ba1eeb9641fd7dcc9a123372f0ac06a9d70a898"
+  },
+  {
+    "query": {
+      "version": 3,
+      "realm": 42,
+      "principal": 65536,
+      "kind": {
+        "snapshot_read": {
+          "snapshot": {
+            "existing": {
+              "epoch": "0123456789abcdef",
+              "serial": 9
+            }
+          },
+          "current": [
+            null,
+            null
+          ],
+          "points": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "range": {
+            "after": "61",
+            "prefix": null,
+            "limit": 3,
+            "bytes": 512
+          },
+          "finish": false
+        }
+      }
+    },
+    "digest": "05a068abe7a89e9dd1f658050cf5aa3796ad3cd17039b590841b417f02803005"
+  },
+  {
+    "query": {
+      "version": 3,
+      "realm": 42,
+      "principal": 65536,
+      "kind": {
+        "snapshot_read": {
+          "snapshot": {
+            "existing": {
+              "epoch": "0123456789abcdef",
+              "serial": 9
+            }
+          },
+          "current": [
+            {
+              "resource": 17,
+              "keys": [
+                "61",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            {
+              "resource": 18,
+              "keys": [
+                "61",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            }
+          ],
+          "points": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "range": null,
+          "finish": true
+        }
+      }
+    },
+    "digest": "f080b8b9339bd5df3f9a10aff6c82a92d6b345117e2411a53caa763a79ba914f"
+  }
+]

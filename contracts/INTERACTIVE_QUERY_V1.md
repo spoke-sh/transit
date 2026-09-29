@@ -58,6 +58,53 @@ revocation still prevents subsequent disclosure. Slow materialization checks
 lifetime again before returning bytes. Close only releases the authenticated
 owner's slot; an unknown/expired token can be acknowledged without granting access.
 
+## Combined snapshot reads
+
+The additive `snapshot_read` capability enables one signed `snapshot_read`
+operation combining snapshot acquisition or an existing token, captured reads,
+and current metadata. Older snapshot operations retain their wire encodings.
+Clients negotiate support once per connection and use the older operations when
+this capability is absent. Capability reuse never caches permission.
+
+The request carries:
+
+- `snapshot`: `open` with resource/nonce, or `existing` with a token.
+- `current`: at most two distinct resources, each with up to eight distinct keys.
+- `points`: up to eight distinct keys from the captured source.
+- Optional `range`: prefix, exclusive continuation, entry limit (1–64) and decoded
+  byte budget (512–32768). Prefixes and keys use the existing 1–32 byte bound.
+- `finish`: validate and release an existing snapshot, without captured reads.
+
+The response distinguishes captured point/range entries from current resource
+metadata/entries. Missing point keys remain explicit null slots. Ranges are
+strictly ordered, contiguous arrays; a non-null `next` equals the last returned
+key. Only a null continuation establishes exhaustion. The range budget counts
+16 bytes of fixed accounting plus key/value lengths per entry; wire encoding
+has additional overhead bounded by the native response limit. These read bounds
+do not change mutation budgets or retained cardinality.
+
+Captured data uses the snapshot root. Before returning, the authority refreshes
+and rechecks principal epoch/key, current grants, associations, resource/dependency
+lifetime, lease and requested metadata against one current authority root.
+The enclosing response position identifies that final root, not the older data
+revision. Concurrent source writes do not alter captured data. An unrelated
+publication during materialization need not reject the read. A final tail race
+retries only current validation, at most three times, retaining the same data cut;
+persistent races fail with `Conflict`. Revocation and expiry still fail closed.
+
+Slot acquisition, renewal and final release occur only after the final authority
+fence. A failed validation cannot acknowledge completion. A lost final response
+is uncertain to the client: it emits no successful completion and may send the
+idempotent `close_snapshot`; it never opens a replacement snapshot. A finish
+requires a live token and is not an idempotent result-recovery operation.
+
+Source policy, schema and requester validation remain in the query library.
+The authority treats their records as opaque, individually authorized keys.
+The query client checks freshly acquired metadata after computation and before
+output, including cached and zero-row results. Document lifecycle validation
+accepts an owned current metadata batch only within this acquisition/validation
+boundary; local batch accessors themselves perform no new authorization.
+
 ## Query lifecycle, cancellation and output
 
 The client compiles the configured declaration locally before opening a snapshot.

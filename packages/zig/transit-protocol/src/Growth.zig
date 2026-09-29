@@ -16,6 +16,7 @@ pub const version_changes = 4;
 pub const snapshot_capacity = 64;
 pub const snapshots_per_principal = 8;
 pub const snapshot_lifetime_ms = 300_000;
+pub const SnapshotRead = @import("SnapshotRead.zig");
 pub const SnapshotId = struct { epoch: [16]u8, serial: u64 };
 pub const Snapshot = struct {
     id: SnapshotId,
@@ -186,6 +187,7 @@ pub const Query = struct {
         open_snapshot: struct { resource: Id, nonce: [16]u8 },
         snapshot_entries: struct { id: SnapshotId, key: ?p.Value = null, after: ?p.Value = null },
         close_snapshot: SnapshotId,
+        snapshot_read: SnapshotRead.Query,
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
@@ -210,6 +212,7 @@ pub const Capabilities = struct {
     resource_read_access: bool = false,
     resource_read_batch: bool = false,
     leased_snapshots: bool = false,
+    snapshot_read: bool = false,
     worker_rotation: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
@@ -249,6 +252,7 @@ pub const Response = struct {
         open_snapshot: Snapshot,
         snapshot_entries: struct { snapshot: Snapshot, page: Batch(Entry, p.Value) },
         close_snapshot: SnapshotId,
+        snapshot_read: SnapshotRead.Result,
     },
 };
 
@@ -319,6 +323,7 @@ pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
     try counters(query);
     switch (query.kind) {
+        .snapshot_read => |q| try SnapshotRead.validate(q),
         .open_snapshot => |q| if (q.resource == 0) return error.InvalidRead,
         .snapshot_entries => |q| {
             if (q.id.serial == 0 or (q.key != null and q.after != null)) return error.InvalidRead;
@@ -370,6 +375,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .snapshot_read => |q| try SnapshotRead.validateResult(response.body.snapshot_read, q),
         .open_snapshot => |q| {
             const snapshot = response.body.open_snapshot;
             try validateSnapshot(snapshot);
@@ -488,7 +494,7 @@ pub fn validateResponse(response: Response, query: Query) !void {
     }
 }
 
-fn validateSnapshot(value: Snapshot) !void {
+pub fn validateSnapshot(value: Snapshot) !void {
     if (value.id.serial == 0 or value.resource.id == 0 or value.resource.phase != .active or
         value.deadline_ms == 0 or value.deadline_ms > value.hard_deadline_ms) return error.InvalidRead;
 }

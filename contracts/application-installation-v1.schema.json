@@ -2464,6 +2464,278 @@
                           "x-transit-defaults": {}
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "snapshot_read"
+                      ],
+                      "properties": {
+                        "snapshot_read": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "x-transit-field-order": [
+                            "snapshot",
+                            "current",
+                            "points",
+                            "range",
+                            "finish"
+                          ],
+                          "properties": {
+                            "snapshot": {
+                              "oneOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "open"
+                                  ],
+                                  "properties": {
+                                    "open": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "resource",
+                                        "nonce"
+                                      ],
+                                      "properties": {
+                                        "resource": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        },
+                                        "nonce": {
+                                          "type": "array",
+                                          "minItems": 16,
+                                          "maxItems": 16,
+                                          "items": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255,
+                                            "x-transit-bits": 8,
+                                            "x-transit-signed": false
+                                          }
+                                        }
+                                      },
+                                      "required": [
+                                        "resource",
+                                        "nonce"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  }
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "existing"
+                                  ],
+                                  "properties": {
+                                    "existing": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "x-transit-field-order": [
+                                        "epoch",
+                                        "serial"
+                                      ],
+                                      "properties": {
+                                        "epoch": {
+                                          "type": "array",
+                                          "minItems": 16,
+                                          "maxItems": 16,
+                                          "items": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 255,
+                                            "x-transit-bits": 8,
+                                            "x-transit-signed": false
+                                          }
+                                        },
+                                        "serial": {
+                                          "type": "integer",
+                                          "minimum": 0,
+                                          "maximum": 9007199254740991,
+                                          "x-transit-bits": 64,
+                                          "x-transit-signed": false
+                                        }
+                                      },
+                                      "required": [
+                                        "epoch",
+                                        "serial"
+                                      ],
+                                      "x-transit-defaults": {}
+                                    }
+                                  }
+                                }
+                              ]
+                            },
+                            "current": {
+                              "type": "array",
+                              "minItems": 2,
+                              "maxItems": 2,
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "x-transit-field-order": [
+                                      "resource",
+                                      "keys"
+                                    ],
+                                    "properties": {
+                                      "resource": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 9007199254740991,
+                                        "x-transit-bits": 64,
+                                        "x-transit-signed": false
+                                      },
+                                      "keys": {
+                                        "type": "array",
+                                        "minItems": 8,
+                                        "maxItems": 8,
+                                        "items": {
+                                          "anyOf": [
+                                            {
+                                              "type": "string",
+                                              "pattern": "^(?:[0-9a-f]{2})*$",
+                                              "maxLength": 512,
+                                              "x-transit-encoding": "lowercase-hex"
+                                            },
+                                            {
+                                              "type": "null"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "required": [
+                                      "resource",
+                                      "keys"
+                                    ],
+                                    "x-transit-defaults": {}
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "points": {
+                              "type": "array",
+                              "minItems": 8,
+                              "maxItems": 8,
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "pattern": "^(?:[0-9a-f]{2})*$",
+                                    "maxLength": 512,
+                                    "x-transit-encoding": "lowercase-hex"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            },
+                            "range": {
+                              "anyOf": [
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "x-transit-field-order": [
+                                    "after",
+                                    "prefix",
+                                    "limit",
+                                    "bytes"
+                                  ],
+                                  "properties": {
+                                    "after": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "pattern": "^(?:[0-9a-f]{2})*$",
+                                          "maxLength": 512,
+                                          "x-transit-encoding": "lowercase-hex"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "prefix": {
+                                      "anyOf": [
+                                        {
+                                          "type": "string",
+                                          "pattern": "^(?:[0-9a-f]{2})*$",
+                                          "maxLength": 512,
+                                          "x-transit-encoding": "lowercase-hex"
+                                        },
+                                        {
+                                          "type": "null"
+                                        }
+                                      ]
+                                    },
+                                    "limit": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 255,
+                                      "x-transit-bits": 8,
+                                      "x-transit-signed": false
+                                    },
+                                    "bytes": {
+                                      "type": "integer",
+                                      "minimum": 0,
+                                      "maximum": 4294967295,
+                                      "x-transit-bits": 32,
+                                      "x-transit-signed": false
+                                    }
+                                  },
+                                  "required": [],
+                                  "x-transit-defaults": {
+                                    "after": null,
+                                    "prefix": null,
+                                    "limit": 64,
+                                    "bytes": 32768
+                                  }
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            },
+                            "finish": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "snapshot"
+                          ],
+                          "x-transit-defaults": {
+                            "current": [
+                              null,
+                              null
+                            ],
+                            "points": [
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null,
+                              null
+                            ],
+                            "range": null,
+                            "finish": false
+                          }
+                        }
+                      }
                     }
                   ]
                 }

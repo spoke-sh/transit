@@ -44,6 +44,8 @@ class Probe:
                     # and protocol operations, never arbitrary request labels.
                     classified = ('update:' if mutation else 'read:') + operation
                     labels.append(classified)
+                    if operation == 'snapshot_read' and envelope['kind'][operation]['finish']:
+                        labels.append('snapshot_finish')
                     labels.append('principal:' + str(envelope['principal']))
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
                 connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)

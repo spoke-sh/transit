@@ -121,7 +121,14 @@ tokens. These limits apply to snapshot bookkeeping, not underlying data retentio
 Client computation stops with the process. A failed release falls back to lease
 expiry. Current grants, principal epoch and source liveness still gate reads.
 
-Console output keeps only bounded Arrow batches and a 64-entry snapshot cache.
+With native `snapshot_read`, acquisition combines source/requester metadata,
+the fresh cut and initial data. Final current validation can release the snapshot
+in the same request. Captured reads and current metadata have explicit separate
+bases; a write during data acquisition does not require recapturing the source.
+Older authorities retain the separate snapshot-operation path.
+
+Console output keeps bounded Arrow batches, a 64-entry point cache and at most
+64 prefetched range entries with a 32 KiB decoded-entry budget.
 Cached bytes are checked against the live lease and current source policy before
 disclosure. A failed, interrupted or denied prefix has no successful completion
 footer. Reconnecting starts new statements; `execution: durable` explicitly

@@ -18,16 +18,40 @@ pub fn open(client: root.ResourceReader, resource: u64, nonce: [16]u8) !Self {
 /// Only immutable protocol support is reused. Every open authenticates afresh,
 /// and a restarted authority can reject an unsupported operation normally.
 pub fn support(client: root.ResourceReader) !Support {
-    if (!(try client.query(.capabilities)).body.capabilities.leased_snapshots) return error.InteractiveQueriesUnavailable;
-    return .{ .client = client };
+    const capabilities = (try client.query(.capabilities)).body.capabilities;
+    if (!capabilities.leased_snapshots) return error.InteractiveQueriesUnavailable;
+    return .{ .client = client, .batched = capabilities.snapshot_read };
 }
 pub const Support = struct {
     client: root.ResourceReader,
+    batched: bool,
     pub fn open(self: Support, resource: u64, nonce: [16]u8) !Self {
         const snapshot = (try self.client.query(.{ .open_snapshot = .{ .resource = resource, .nonce = nonce } })).body.open_snapshot;
         return .{ .client = self.client, .snapshot = snapshot, .view = .{ .resource = resource, .revision = snapshot.resource.revision } };
     }
+    pub fn acquire(self: Support, request: g.SnapshotRead.Query) !struct { reader: Self, result: g.SnapshotRead.Result } {
+        if (!self.batched or request.snapshot != .open) return error.InteractiveQueriesUnavailable;
+        const result = (try self.client.query(.{ .snapshot_read = request })).body.snapshot_read;
+        return .{ .reader = .{ .client = self.client, .snapshot = result.snapshot, .view = .{ .resource = result.snapshot.resource.id, .revision = result.snapshot.resource.revision } }, .result = result };
+    }
 };
+pub fn batch(self: *Self, request: g.SnapshotRead.Query) !g.SnapshotRead.Result {
+    if (self.closed) return error.QueryClosed;
+    if (request.snapshot != .existing or !std.meta.eql(request.snapshot.existing, self.snapshot.id)) return error.InvalidResourceRead;
+    if (self.cancellation) |flag| if (flag.load(.acquire)) return error.Cancelled;
+    if (self.failed) |err| return err;
+    const result = (self.client.query(.{ .snapshot_read = request }) catch |err| {
+        self.failed = err;
+        return err;
+    }).body.snapshot_read;
+    if (!std.meta.eql(result.snapshot.resource, self.snapshot.resource) or result.snapshot.hard_deadline_ms != self.snapshot.hard_deadline_ms) {
+        self.failed = error.InvalidResourceRead;
+        return error.InvalidResourceRead;
+    }
+    self.snapshot = result.snapshot;
+    self.closed = result.finished;
+    return result;
+}
 pub fn close(self: *Self) !void {
     if (self.closed) return;
     _ = try self.client.query(.{ .close_snapshot = self.snapshot.id });

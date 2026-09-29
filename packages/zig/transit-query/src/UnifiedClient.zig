@@ -68,6 +68,39 @@ fn requester(self: *Self) !q.wire.ResourceReader.Reader {
 pub fn describe(self: *Self, definition: q.SourceDefinition) !Description {
     return self.read(describeOnce, .{definition});
 }
+/// Generic keys only: the native authority never interprets source policy,
+/// requester identity, Table descriptors or Document lifecycle records.
+pub fn interactiveMetadata(self: *Self, definition: q.SourceDefinition) ![g.SnapshotRead.current_resources]?g.SnapshotRead.Current {
+    if (definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
+    var keys: g.SnapshotRead.Keys = @splat(null);
+    keys[0] = r.key('p', self.connection.requester, 0);
+    switch (definition.source) {
+        .kv => {},
+        .table => |table| keys[1] = s.Table.descriptorKey(table.id),
+        .document => |document| {
+            const service = try document.reference.identity().service();
+            keys[1] = service.key('h', 0);
+            keys[2] = service.key('v', document.reference.revision);
+        },
+    }
+    var requester_keys: g.SnapshotRead.Keys = @splat(null);
+    requester_keys[0] = r.key('w', 0, 0);
+    return .{ .{ .resource = self.connection.resource, .keys = keys }, .{ .resource = self.connection.requests, .keys = requester_keys } };
+}
+pub fn interactiveBatch(request: g.SnapshotRead.Current, value: g.SnapshotRead.CurrentResult) q.wire.ResourceReader.Batch {
+    return .{ .resource = value.resource, .view = .{ .resource = value.resource.id, .revision = value.resource.revision }, .keys = request.keys, .entries = value.entries };
+}
+pub fn interactiveDescription(self: *Self, definition: q.SourceDefinition, result: g.SnapshotRead.Result) !Description {
+    const requests = try self.interactiveMetadata(definition);
+    const source = interactiveBatch(requests[0].?, result.current[0] orelse return error.InvalidResourceRead);
+    const requester_source = interactiveBatch(requests[1].?, result.current[1] orelse return error.InvalidResourceRead);
+    if (source.resource.writer != self.connection.source or requester_source.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
+    try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requester_source);
+    const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
+    if (!grant.allow or grant.requests != self.connection.requests or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(definition))) return error.QueryDenied;
+    try q.UnifiedSource.checkCurrent(definition, &source);
+    return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = null };
+}
 /// Resolve SQL only against this currently authorized declaration and explicit
 /// budgets. This allocates a finite bundle, performs no admission and takes no
 /// retained pin; the source captures the committed basis when it admits the call.

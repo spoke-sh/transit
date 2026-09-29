@@ -25,14 +25,14 @@ fn sample(engine: anytype) !?core.Time.Sample {
     if (value.unix_ms < engine.head.time_floor_ms) return error.ClockRollback;
     return value;
 }
-fn snapshotTime(engine: anytype) !core.Time.Sample {
+pub fn snapshotTime(engine: anytype) !core.Time.Sample {
     if (engine.snapshot_epoch == null) return error.InvalidRead;
     const now = (try sample(engine)) orelse return error.ClockUnavailable;
     if (now.unix_ms < engine.snapshot_time_floor_ms) return error.ClockRollback;
     engine.snapshot_time_floor_ms = now.unix_ms;
     return now;
 }
-fn snapshotAccess(engine: anytype, principal: growth.Principal, resource: u64, now: core.Time.Sample) !void {
+pub fn snapshotAccess(engine: anytype, principal: growth.Principal, resource: u64, now: core.Time.Sample) !void {
     try resourceScope(engine, principal, resource);
     try state.allowed(engine, resource, principal.grant.subject, p.State.permission(.inspect) | p.State.permission(.read));
     try state.usable(engine, try state.resource(engine, resource), now);
@@ -46,12 +46,12 @@ fn snapshotRecheck(engine: anytype, principal: growth.Principal, resource: u64) 
     try snapshotAccess(engine, current, resource, now);
     return now;
 }
-fn sweepSnapshots(engine: anytype, now: core.Time.Sample) void {
+pub fn sweepSnapshots(engine: anytype, now: core.Time.Sample) void {
     for (&engine.snapshots) |*slot| if (slot.*) |stored| {
         if (now.lower() >= stored.meta.deadline_ms) slot.* = null;
     };
 }
-fn snapshotSlot(engine: anytype, id: g.SnapshotId, principal: growth.Principal, now: core.Time.Sample) !?*?growth.StoredSnapshot {
+pub fn snapshotSlot(engine: anytype, id: g.SnapshotId, principal: growth.Principal, now: core.Time.Sample) !?*?growth.StoredSnapshot {
     if (!std.mem.eql(u8, &id.epoch, &engine.snapshot_epoch.?)) return null;
     sweepSnapshots(engine, now);
     for (&engine.snapshots) |*slot| if (slot.*) |stored| {
@@ -71,11 +71,13 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     const public = p.Ed25519.PublicKey.fromBytes(principal.grant.public_key) catch return error.Unauthorized;
     p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.queryDigest(query), public) catch return error.Unauthorized;
     if (principal.grant.permissions & p.permission(.inspect) == 0) return error.Forbidden;
+    if (query.kind == .snapshot_read) return @import("growing_snapshot_read.zig").read(engine, principal, query.realm, query.kind.snapshot_read);
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
+        .snapshot_read => unreachable,
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .open_snapshot => |q| blk: {
             const now = try snapshotTime(engine);
             try snapshotAccess(engine, principal, q.resource, now);

@@ -115,3 +115,11 @@ permanent Document retirement, `collectRetired` on service and checkpoint jobs
 reclaims their intervals in bounded steps. Durable ledgers/descriptors remain to
 reject delayed reuse. This profile does not run live reachability garbage
 collection or infer permission to delete from a revision number alone.
+
+### Current metadata batches
+
+`Service.open` also accepts a public `ResourceReader.Batch` containing the live
+head and accepted-revision record. These are one owned current observation,
+not a retained grant. A host using such a batch must reacquire current metadata
+after computation and before disclosure. Interactive Fuze performs that final
+validation through the combined native snapshot-read operation.

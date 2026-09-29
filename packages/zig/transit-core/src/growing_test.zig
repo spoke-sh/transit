@@ -10,8 +10,14 @@ const Journal = struct {
     competing_append: ?growing.Entry = null,
     tail_calls: usize = 0,
     race_at: ?usize = null,
+    publish_at: ?usize = null,
+    publish: ?growing.Entry = null,
     pub fn tail(self: *Journal) !u64 {
         self.tail_calls += 1;
+        if (self.publish_at == self.tail_calls) {
+            try self.entries.append(t.allocator, self.publish.?);
+            self.publish = null;
+        }
         return self.entries.items.len + @as(u64, if (self.race_at == self.tail_calls) 1 else 0);
     }
     pub fn read(self: *Journal, at: u64) !?growing.Entry {
@@ -1440,4 +1446,85 @@ test "principal creation recovers exact receipts without replacing existing gran
     _ = try f.root(.{ .revoke = 99 });
     try t.expectError(error.InvalidGrant, f.root(grant));
     try t.expectEqual(@as(u16, 0), (try f.engine.principal(99)).grant.permissions);
+}
+
+test "combined snapshot reads separate retained data from current metadata and release only after validation" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(10) });
+    const key = try core.Value.init("row");
+    var keys: g.SnapshotRead.Keys = @splat(null);
+    keys[0] = key;
+    const current: [2]?g.SnapshotRead.Current = .{ .{ .resource = fixture.resource, .keys = keys }, null };
+    const before = f.engine.head.position;
+    const opened = (try f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .open = .{ .resource = fixture.resource, .nonce = @splat(7) } }, .current = current, .points = keys, .range = .{} } })).body.snapshot_read;
+    try t.expectEqual(before, f.engine.head.position);
+    try t.expectEqual(@as(i64, 10), try opened.points[0].?.value.asInteger());
+    try t.expectEqual(@as(i64, 10), try opened.entries[0].?.value.asInteger());
+    try t.expect(opened.next == null);
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(20) });
+    const next = (try f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .existing = opened.snapshot.id }, .current = current, .points = keys } })).body.snapshot_read;
+    try t.expectEqual(@as(i64, 10), try next.points[0].?.value.asInteger());
+    try t.expectEqual(@as(i64, 20), try next.current[0].?.entries[0].?.value.asInteger());
+    const finished = (try f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .existing = opened.snapshot.id }, .current = current, .finish = true } })).body.snapshot_read;
+    try t.expect(finished.finished);
+    try t.expectError(error.QueryExpired, f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .existing = opened.snapshot.id } } }));
+    _ = try f.query(0, .{ .close_snapshot = opened.snapshot.id });
+}
+
+test "snapshot read final barrier accepts unrelated publication and observes current revocation" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    const opened = (try f.query(65536, .{ .snapshot_read = .{ .snapshot = .{ .open = .{ .resource = fixture.resource, .nonce = @splat(7) } } } })).body.snapshot_read;
+    const before = f.engine.head;
+    _ = try f.root(.{ .spawn = .{} });
+    f.journal.publish = f.journal.entries.pop().?;
+    f.engine.head = before;
+    f.journal.publish_at = f.journal.tail_calls + 2; // During final refresh, after data acquisition.
+    const response = try f.query(65536, .{ .snapshot_read = .{ .snapshot = .{ .existing = opened.snapshot.id }, .range = .{} } });
+    try t.expectEqual(before.position + 1, response.position);
+    const current = f.engine.head;
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = 0 } });
+    f.journal.publish = f.journal.entries.pop().?;
+    f.engine.head = current;
+    f.journal.publish_at = f.journal.tail_calls + 2;
+    try t.expectError(error.Forbidden, f.query(65536, .{ .snapshot_read = .{ .snapshot = .{ .existing = opened.snapshot.id }, .finish = true } }));
+    try t.expect(f.engine.snapshots[0] != null); // Denial did not perform a success-shaped release.
+    _ = try f.query(65536, .{ .close_snapshot = opened.snapshot.id });
+}
+
+test "snapshot ranges obey byte budgets and preserve exact continuation" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    for (0..17) |i| {
+        var proposal = try fixture.proposal(0);
+        var bytes: [8]u8 = undefined;
+        proposal.turn.mutations[0].?.key = try core.Value.init(try std.fmt.bufPrint(&bytes, "r{d:0>3}", .{i}));
+        proposal.turn.mutations[0].?.value = try core.Value.init(&@as([256]u8, @splat(@intCast(i))));
+        _ = try f.root(.{ .turn_with_versions = proposal });
+    }
+    const range: g.SnapshotRead.Range = .{ .prefix = try core.Value.init("r"), .bytes = 512 };
+    var result = (try f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .open = .{ .resource = fixture.resource, .nonce = @splat(7) } }, .range = range } })).body.snapshot_read;
+    var count: usize = 0;
+    while (true) {
+        try t.expect(result.entries[0] != null and result.entries[1] == null);
+        try t.expectEqual(@as(u8, @intCast(count)), result.entries[0].?.value.data[0]);
+        count += 1;
+        const next = result.next orelse break;
+        result = (try f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .existing = result.snapshot.id }, .range = .{ .prefix = range.prefix, .after = next, .bytes = 512 } } })).body.snapshot_read;
+    }
+    try t.expectEqual(@as(usize, 17), count);
+    fixture.now = result.snapshot.deadline_ms;
+    try t.expectError(error.QueryExpired, f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .existing = result.snapshot.id }, .finish = true } }));
 }

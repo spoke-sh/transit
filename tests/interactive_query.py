@@ -42,7 +42,9 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
         blocked = [False]
 
         def before(path, body):
-            if blocked[0] and path == '/v3/query' and 'snapshot_entries' in json.loads(body)['query']['kind']:
+            kind = json.loads(body)['query']['kind'] if path == '/v3/query' else {}
+            retained = 'snapshot_entries' in kind or ('snapshot_read' in kind and 'existing' in kind['snapshot_read']['snapshot'])
+            if blocked[0] and retained:
                 gate.set()
                 assert release.wait(timeout=30), 'fixture did not release snapshot read'
 
@@ -148,7 +150,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 gate.clear()
                 release.clear()
                 blocked[0] = True
-                previous_closes = probe.snapshot()['read:close_snapshot']
+                previous_closes = (probe.snapshot()['read:close_snapshot'] + probe.snapshot()['snapshot_finish'])
                 console = subprocess.Popen([*args, '-c', 'SELECT * FROM items;'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 assert gate.wait(timeout=30)
                 console.send_signal(signal.SIGINT)
@@ -156,7 +158,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 stdout, stderr = console.communicate(timeout=30)
                 assert console.returncode == 130 and not stdout, (stdout, stderr)
                 assert b'query cancelled' in stderr and b'.resume' not in stderr, stderr
-                assert probe.snapshot()['read:close_snapshot'] == previous_closes + 1, 'interrupted query did not release its snapshot'
+                assert (probe.snapshot()['read:close_snapshot'] + probe.snapshot()['snapshot_finish']) == previous_closes + 1, 'interrupted query did not release its snapshot'
                 console = None
                 blocked[0] = False
                 query('SELECT * FROM items LIMIT 3;', min(3, count))
@@ -165,7 +167,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 gate.clear()
                 release.clear()
                 blocked[0] = True
-                previous_closes = probe.snapshot()['read:close_snapshot']
+                previous_closes = (probe.snapshot()['read:close_snapshot'] + probe.snapshot()['snapshot_finish'])
                 console = subprocess.Popen([*args, '-c', 'SELECT * FROM items;'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 assert gate.wait(timeout=30)
                 console.stdout.close()
@@ -173,7 +175,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 release.set()
                 _, stderr = console.communicate(timeout=30)
                 assert console.returncode != 0, stderr
-                assert probe.snapshot()['read:close_snapshot'] == previous_closes + 1, 'failed output did not release its snapshot'
+                assert (probe.snapshot()['read:close_snapshot'] + probe.snapshot()['snapshot_finish']) == previous_closes + 1, 'failed output did not release its snapshot'
                 console = None
                 blocked[0] = False
 

@@ -257,3 +257,9 @@ continuations. Empty filtered catalog pages can legitimately advance. Output IDs
 have their own sequence and are not journal coordinates. These checks reject a
 malformed response; they do not replace an authenticated deployment boundary or
 prove that a compromised authority reports truthful application data.
+
+The additive `snapshot_read` capability combines bounded captured data and
+current metadata with snapshot acquisition or final validation/release. Its
+range budget is independent of the ordinary eight-record page and mutation
+budgets. See [combined snapshot reads](INTERACTIVE_QUERY_V1.md#combined-snapshot-reads)
+for exact bounds, separate source/current bases and final authority validation.

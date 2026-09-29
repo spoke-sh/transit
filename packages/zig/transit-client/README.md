@@ -166,3 +166,10 @@ authorization. Use it within one bounded acquisition and revalidate before
 disclosure; never reuse it as a grant or cache across requests. Serving uses it
 to read configuration, policy and session together while clock/control commits
 continue, then acquires a fresh batch for its final check.
+
+`SnapshotReader.Support` caches negotiated protocol support, never permission.
+With `snapshot_read`, `acquire` combines a fresh cut with bounded captured data
+and current metadata. `batch` preserves that cut while acquiring fresh current
+metadata, reading bounded ranges/points or validating and releasing the token.
+The response distinguishes those bases. See the
+[combined read contract](../../../contracts/INTERACTIVE_QUERY_V1.md#combined-snapshot-reads).

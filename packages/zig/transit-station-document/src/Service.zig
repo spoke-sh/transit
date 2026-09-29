@@ -223,7 +223,7 @@ pub fn acceptedChange(self: Self, turn: anytype, revision: u64) !m.Change {
     return self.readChange(turn, snap.request, descriptor.spec);
 }
 fn requireCurrent(comptime T: type) void {
-    if (T != *Turn and T != *station.client.ResourceReader.Reader) @compileError("Document lifecycle reads require a current turn or public ResourceReader, never a retained source");
+    if (T != *Turn and T != *station.client.ResourceReader.Reader and T != *station.client.ResourceReader.Batch and T != *const station.client.ResourceReader.Batch) @compileError("Document lifecycle reads require a current turn or public ResourceReader, never a retained source");
 }
 pub const Resynchronization = struct {
     document: u64,
