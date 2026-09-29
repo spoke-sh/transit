@@ -3491,3 +3491,12 @@ on ordinary runs. Documentation-only PRs run that same check in the small `docs`
 Nix shell; the aggregate CI gate rejects a skipped/failed selected job. Hosted
 feedback/cost for this addition remains unmeasured. No site was published and
 this work does not constitute a full ordinary `ci-clean` run.
+
+A documentation-only clean clone of committed `20ccdd3` passed the exact CI
+filtered install (`vp install --frozen-lockfile --filter rey --filter @rey/transit-docs`),
+`just transit-docs::check` and all three production browser checks at `/`.
+The separate `/handbook/` build and browser checks also pass, including regular
+file navigation and byte equality for all three specification downloads. The
+clean clone had no inherited `node_modules`, generated documentation or site
+output; it reused the locked package/tool downloads and installed Chromium.
+This is focused site evidence, not the full ordinary `just ci-clean` suite.
