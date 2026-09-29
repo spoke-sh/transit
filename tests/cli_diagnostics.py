@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import shutil
 from pathlib import Path
 import socket
 import subprocess
@@ -10,14 +11,16 @@ import sys
 import tempfile
 
 CLI = str(Path(sys.argv[1]).resolve())
-ENV = {key: value for key, value in os.environ.items() if key != 'TRANSIT_CONSOLE_CONFIG'}
+ENV = {key: value for key, value in os.environ.items() if not key.startswith('TRANSIT_')}
 CASES = 0
+ISOLATED = tempfile.TemporaryDirectory(prefix='transit-cli-environment-')
+ENV['HOME'] = ISOLATED.name
 
 
-def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None):
+def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None):
     global CASES
-    result = subprocess.run([CLI, *map(str, args)], input=data, capture_output=True,
-                            timeout=10, env=ENV if env is None else env)
+    result = subprocess.run([binary or CLI, *map(str, args)], input=data, capture_output=True,
+                            timeout=10, env=ENV if env is None else env, cwd=cwd or ISOLATED.name)
     assert result.returncode == expected, (args, result.returncode, result.stdout, result.stderr)
     if expected:
         assert result.stdout == b'', (args, result.stdout)
@@ -39,7 +42,7 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None):
 
 
 for command in ('server', 'serve'):
-    invoke([command], stderr=f'error: --config is required\n\nUsage: transit {command} --config PATH\n')
+    invoke([command], contains=('cannot find minio beside transit or on PATH',))
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
     invoke([command, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
@@ -47,7 +50,7 @@ for command in ('server', 'serve'):
         invoke([command, flag, flag], stderr=f'error: {flag} can only be specified once\n')
     invoke([command, '--format', 'json'], contains=('--format is not supported', f'transit {command} --help'))
     invoke([command, '--unknown=private-must-not-appear'], contains=('unexpected input at argument 2',))
-    invoke([command, '--help'], 0, ('Server configuration file (required)', '--initialize', '--no-ui', 'Alias: serve'))
+    invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', '--initialize', '--no-ui', 'Alias: serve'))
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
 for args in ([], ['--help'], ['--version'], ['app'], ['app', '--help'], ['console', '--help'], ['query', '--help'], ['query-v2', '--help']):
     invoke(args, 0)
@@ -55,7 +58,7 @@ root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands
 assert b'--initialize' not in root_help and b'--config' not in root_help
 invoke(['private-must-not-appear'], contains=('unknown command', 'argument 1', 'transit --help'))
 invoke(['--help', 'extra'], contains=('argument 1',))
-invoke(['console'], contains=('TRANSIT_CONSOLE_CONFIG', '--config'))
+invoke(['console', '--no-rc'], contains=('cannot read the local installation', 'installation.json'))
 invoke(['console', '--config', 'missing', '--format', 'csv'], stderr='error: --format must be table or json\n')
 invoke(['console', '--format'], stderr='error: --format must be table or json\n')
 invoke(['console', '--config', 'missing', '--no-ui'], contains=('--no-ui is not supported',))
@@ -94,11 +97,11 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     for command in ('server', 'console'):
         invoke([command, '--config', root / 'missing.json'], contains=('configuration file', 'missing.json', 'was not found'))
     invoke(['app', 'status', '--config', root / 'missing.json', '--application', 'test'], contains=('configuration file', 'was not found'))
-    for text, explanation in (('{\n  "version": !\n}', 'invalid JSON'), ('{"version":1,"version":1}', 'duplicate field'), ('{"private-must-not-appear":0}', 'unknown field'), ('{}', 'missing required field')):
+    for text, explanation in (('{\n  "version": !\n}', 'invalid JSON'), ('{"version":1,"version":1}', 'duplicate field'), ('{"private-must-not-appear":0}', 'unknown field')):
         path.write_text(text)
         invoke(['server', '--config', path], contains=(explanation, 'server.json'))
     path.write_text('{}')
-    invoke(['server', '--config', path], contains=('missing required field version',))
+    invoke(['server', '--config', path], contains=('cannot find minio beside transit or on PATH',))
     path.write_text('{\n  "version": !\n}')
     invoke(['server', '--config', path], contains=('server.json":2:14',))
     path.write_bytes(b' ' * 65537)
@@ -111,7 +114,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
               'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host'), sys.executable)}
     missing = copy.deepcopy(config)
     del missing['ports']['gateway']
-    server(missing, ('missing required field ports.gateway',))
+    server(dict(missing, realm=0), ('realm',))  # Missing gateway now inherits its default.
     for key, value, field in (('version', 4, 'version'), ('realm', 0, 'realm'), ('admission_ceiling', 127, 'admission_ceiling'), ('control_reserve', 65537, 'control_reserve'), ('gateway_allowed_hosts', ['private-must-not-appear'], 'gateway_allowed_hosts')):
         invalid = dict(config, **{key: value})
         server(invalid, (field,))
@@ -127,7 +130,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     empty.touch(mode=0o700)
     invalid['executables']['query_host'] = str(empty)
     server(invalid, ('executables.query_host', 'InvalidExecutable'))
-    server(dict(config, version=3), ('executables.board is required',))
+    server(dict(config, version=3, executables=dict(config['executables'], board='absent-board')), ('executables.board',))
     path.write_text(json.dumps(config))
     invoke(['server', '--config', path], contains=('version must be 3 to start Board', '--no-ui'))
     with socket.socket() as listener:
@@ -157,6 +160,112 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['console', '--config', path], contains=('seed_file', 'file not found', 'signing credential'))
     invoke(['console'], contains=('seed_file',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
-    invoke(['server'], contains=('--config is required',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
+    invoke(['server'], contains=('cannot find minio beside transit or on PATH',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
+    # The executable's physical directory precedes PATH, independent of cwd.
+    adjacent, search = root/'bin', root/'search'
+    adjacent.mkdir(); search.mkdir()
+    local_cli = adjacent/'transit'
+    shutil.copy2(CLI, local_cli)
+    names = ('minio', 'ursula', 'transit-node', 'transit-query-host', 'transit-board')
+    for name in names: (adjacent/name).symlink_to(sys.executable)
+    discovery_config = root/'convention.json'
+    reserved = [socket.socket() for _ in range(6)]
+    for listener in reserved: listener.bind(('127.0.0.1', 0))
+    ports = [listener.getsockname()[1] for listener in reserved]
+    for listener in reserved: listener.close()
+    discovery_config.write_text(json.dumps({'installation': str(root/'uninitialized'),
+        'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), ports)),
+        'applications': {'port': ports[5]}}))
+    def convention(**values):
+        return invoke(['server', '--config', discovery_config, '--no-ui'], 1, ('retained installation record',),
+                      env=dict(ENV, PATH=str(search), **values), cwd=root, binary=str(local_cli))
+    convention()  # No manifest or tools on PATH.
+    for name in names: (search/name).touch(mode=0o700)
+    convention()  # Executable but invalid PATH files cannot shadow adjacent binaries.
+    for name in names:
+        (adjacent/name).unlink(); (search/name).unlink(); (search/name).symlink_to(sys.executable)
+    convention()  # PATH fallback.
+    # Explicit executable overrides win over both discovery locations.
+    discovery_config.write_text(json.dumps({'executables': {'node': 'absent-node'}}))
+    invoke(['server', '--config', discovery_config], contains=('executables.node',),
+           env=dict(ENV, PATH=str(search)), cwd=root, binary=str(local_cli))
+
+    # Real file selection, typed overlays, no fallback and rc precedence.
+    home, project = root/'home', root/'project'
+    home.mkdir(); project.mkdir()
+    environment = dict(ENV, HOME=str(home))
+    home_server, project_server = home/'transit.yaml', project/'transit.yaml'
+    home_server.write_text('version: 9\n')
+    invoke(['server'], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
+    project_server.write_text('executables: 1\n')
+    invoke(['server'], env=environment, cwd=project, contains=('executables must be an object', 'project/transit.yaml'))
+    project_server.write_text('ports: !tag invalid\n')
+    invoke(['server'], env=environment, cwd=project, contains=('unsupported YAML',))
+    invoke(['server', '--config', home_server], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
+    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host'))
+    project_server.write_text(yaml_config)
+    invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
+    for setting in ({'TRANSIT_BOGUS': 'private-must-not-appear'}, {'TRANSIT_PORTS__GATEWAY': '"private-must-not-appear"'}):
+        invoke(['server', '--no-ui'], env=dict(environment, **setting), cwd=project,
+               contains=('setting' if 'TRANSIT_BOGUS' in setting else 'ports.gateway',))
+    # Deep leaves beat whole objects, preserve other default ports and validate conflicts.
+    invoke(['server', '--no-ui'], env=dict(environment, TRANSIT_REALM='1', TRANSIT_PORTS='{"gateway":10000}', TRANSIT_PORTS__GATEWAY='19104'), cwd=project,
+           contains=('ports.gateway and ports.node',))
+    for content in ('x: '+ '['*20+'0'+']'*20, '{"x":'+ '['*20+'0'+']'*20+'}', 'ports: &anchor 1', 'realm: 1\nrealm: 2'):
+        project_server.write_text(content)
+        invoke(['server'], env=environment, cwd=project)
+    project_server.unlink()
+    invoke(['server', '--config', project/'absent.yaml'], env=environment, cwd=project, contains=('absent.yaml', 'was not found'))
+
+    connection = project/'console.yaml'
+    (project/'caller.key').write_text('11'*32)
+    connection.write_text('\n'.join(f'{key}: {json.dumps(value)}' for key, value in dict(console, seed_file='caller.key').items()))
+    (home/'.transitrc').write_text('.connect missing.json\n.mode json\n')
+    (project/'.transitrc').write_text('.connect console.yaml\n')
+    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
+    settings = json.loads(shown.stdout)
+    assert settings['connection'] == str(connection) and settings['format'] == 'json'
+    assert settings['format_source'] == str(home/'.transitrc')
+    (project/'.transitrc').write_text('.connect console.yaml\n.mode table\n')
+    settings = json.loads(invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n').stdout)
+    assert settings['format'] == 'table'
+    settings = json.loads(invoke(['console', '--format', 'json'], 0, env=environment, cwd=project, data=b'.show\n').stdout)
+    assert settings['format'] == 'json' and settings['format_source'] == '--format'
+    invoke(['console'], env=dict(environment, TRANSIT_CONSOLE_CONFIG='absent.json'), cwd=project, contains=('absent.json',))
+    shown = invoke(['console', '--config', connection], 0, env=dict(environment, TRANSIT_CONSOLE_CONFIG='absent.json'), cwd=project, data=b'.show\n')
+    assert json.loads(shown.stdout)['connection_source'] == '--config'
+    (project/'.transitrc').write_text('SELECT private-must-not-appear;\n')
+    invoke(['console', '--config', connection], env=environment, cwd=project, contains=('startup command',))
+    invoke(['console', '--no-rc', '--config', connection], 0, env=environment, cwd=project, data=b'.show\n')
+    chosen = home/'custom.rc'; chosen.write_text(f'.connect {connection}\n.mode json\n')
+    invoke(['console', '--init', chosen], 0, env=environment, cwd=project, data=b'.show\n')
+    for arguments in (['-c', 'select 1', '-f', 'x'], ['--init', chosen, '--no-rc'], ['-c'], ['-f'], ['-c', '-f']):
+        invoke(['console', *arguments], env=environment, cwd=project)
+    local = project/'.transit'; local.mkdir()
+    (local/'caller.seed').write_text('11'*32)
+    (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
+    identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
+    record = dict(identity=identity, installation=[0]*16, root_public=[0]*32,
+                  complete=True, genesis_observed=True, provision=list(range(1, 15)))
+    (local/'installation.json').write_text(json.dumps(record))
+    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
+    settings = json.loads(shown.stdout)
+    assert settings['connection'] is None and settings['connection_source'] == 'local installation'
+    assert settings['url'] == 'http://127.0.0.1:19105'
+    assert not (local/'console.json').exists() and not (local/'console.yaml').exists()
+    (home/'.transitrc').write_text('.mode json\n')
+    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
+    assert json.loads(shown.stdout)['format'] == 'json'
+    project_server.write_text('ports:\n  gateway: 29305\n')
+    shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')
+    assert json.loads(shown.stdout)['url'] == 'http://127.0.0.1:29305'
+    shown = invoke(['console'], 0, env=dict(environment, TRANSIT_PORTS__GATEWAY='29306'), cwd=project, data=b'.show\n')
+    assert json.loads(shown.stdout)['url'] == 'http://127.0.0.1:29306'
+    record['complete'] = False
+    (local/'installation.json').write_text(json.dumps(record))
+    invoke(['console'], env=environment, cwd=project, contains=('is not initialized',))
+    # Leading SQL comments are values, not CLI flags.
+    invoke(['console', '--no-rc', '--config', connection, '-c', '-- comment\nSELECT COUNT(*) FROM items'], 1,
+           env=environment, cwd=project, contains=('recovery_file',))
     assert not installation.exists()
 print(f'CLI diagnostics passed: {CASES} real command cases; no configuration or credential disclosure, stdout contamination or provisioning.')

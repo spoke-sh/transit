@@ -82,7 +82,7 @@ def configured_hosts(cli, node, host):
         fixture.ready()
         assert fixture.record()["installation"] == before["installation"]
         gateway_hosts(fixture)
-        fixture.console("/schema\n/quit\n")
+        fixture.console(".schema\n.quit\n")
         success = True
         print("Transit gateway configured hosts: validation before effects, explicit tunnel authority, same-installation restart and policy-drift refusal passed", flush=True)
     finally:
@@ -96,13 +96,13 @@ def configured_hosts(cli, node, host):
 def gateway(fixture):
     # A wrong private key reaches native authentication. The gateway must not
     # replace it with its manager's root or the generated console's caller key.
-    config = json.loads((fixture.installation / "console.json").read_text())
+    config = fixture.console_config()
     (fixture.root / "wrong.seed").write_text(os.urandom(32).hex())
     invalid = dict(config, seed_file=str(fixture.root / "wrong.seed"), recovery_file=None)
     (fixture.root / "wrong.json").write_text(json.dumps(invalid))
     denied = subprocess.run([fixture.cli, "console", "--config", str(fixture.root / "wrong.json"), "--format", "json"],
-        input="/schema\n", capture_output=True, text=True, timeout=10)
-    assert denied.returncode == 1 and json.loads(denied.stdout)["err"] == "AccessDenied", denied
+        input=".schema\n", capture_output=True, text=True, timeout=10)
+    assert denied.returncode == 1 and not denied.stdout and "permission denied" in denied.stderr, denied
     assert response(fixture, "/v3/query", b"{}")[0] == 400
     assert response(fixture, "/v3/query", b"{}") == response(fixture, "/v3/query", b"{}", direct=True)
     for header in ("origin", "authorization", "forwarded", "x-forwarded-for", "x-real-ip"):
@@ -172,7 +172,7 @@ def partial_bootstrap(cli, node, host):
                 assert expected == actual
         status, body = response(fixture, "/v3/command", json.dumps(frozen["signed"], separators=(",", ":")).encode())
         assert status == 200 and json.loads(body)["position"] == after["provision"][frozen["index"]], (status, body)
-        fixture.console("/schema\n/quit\n")
+        fixture.console(".schema\n.quit\n")
         gateway(fixture)
         success = True
         print("Transit bootstrap: killed persisted intent recovers the same installation, accepted identities and exact receipt", flush=True)
@@ -201,7 +201,7 @@ def rollback(cli, node, host):
             shutil.copytree(fixture.installation / name, fixture.root / (name + "-snapshot"))
         fixture.start()
         fixture.ready()
-        fixture.console("/schema\n/quit\n")
+        fixture.console(".schema\n.quit\n")
         fixture.stop()
         assert fixture.record()["position"] > old["position"]
         original_size = owned_node.stat().st_size

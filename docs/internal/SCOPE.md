@@ -172,11 +172,11 @@ explicit publication and recoverable application migrations.
 supervisor/gateway and `transit console` as a psql-like SQL/slash-command shell
 with shared grammar/catalog typeahead. [Local applications M25](roadmap/M25.md)
 adds language-neutral installation/bootstrap and compatible worker replacement,
-qualified first with a separately compiled Zig consumer. [Publication M29](roadmap/M29.md) makes
+qualified first with a separately compiled Zig consumer. [Publication M30](roadmap/M30.md) makes
 tagged Transit artifacts installable through Nix, a shell installer, Homebrew,
 Docker/OCI and Helm, with GitHub release publication and an explicit SDK/library
 inventory. M25 is complete for its trusted local Linux/Zig profile; publication
-remains planned. [M30](roadmap/M30.md) extends their authority and recovery proofs
+remains planned. [M31](roadmap/M31.md) extends their authority and recovery proofs
 across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](roadmap/README.md).

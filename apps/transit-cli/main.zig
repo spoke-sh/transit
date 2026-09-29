@@ -59,11 +59,7 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
             .help => unreachable,
         };
     }
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[2], init.gpa, .limited(8192));
-    defer init.gpa.free(bytes);
-    const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
-    defer parsed.deinit();
-    const config = parsed.value;
+    const config = try @import("Settings.zig").readTyped(Config, init, args[2], diagnostic);
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
@@ -74,11 +70,11 @@ fn dispatch(init: std.process.Init, diagnostic: *Diagnostic) !void {
     var input = std.Io.File.stdin().reader(init.io, &input_buffer);
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try output.interface.writeAll("Transit query — SQL runs on Enter. /help lists commands.\n");
+    try output.interface.writeAll("Transit query — SQL runs on Enter. .help lists commands.\n");
     try output.interface.flush();
     while (try input.interface.takeDelimiter('\n')) |raw| {
         const line = std.mem.trim(u8, raw, " \t\r");
-        if (std.mem.eql(u8, line, "/quit")) break;
+        if (std.mem.eql(u8, line, ".quit")) break;
         if (line.len == 0) continue;
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
@@ -98,17 +94,17 @@ fn json(out: *std.Io.Writer, value: anytype) !void {
 }
 fn command(session: *Session, line: []const u8, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     const client = session.client;
-    if (std.mem.eql(u8, line, "/help")) return out.writeAll("SQL: qualified read-only Table SELECT, one statement per line (4096 bytes).\n/help /tables /schema /info /status /next /resume ID /cancel /retry /format table|json /quit\nA receipt means submitted; /status reports admission and verified completion.\n/next reads one complete-result segment. /quit disconnects without cancelling.\n");
-    if (std.mem.eql(u8, line, "/info")) {
+    if (std.mem.eql(u8, line, ".help")) return out.writeAll("SQL: qualified read-only Table SELECT, one statement per line (4096 bytes).\n.help .tables .schema .info .status .next .resume ID .cancel .retry .format table|json .quit\nA receipt means submitted; .status reports admission and verified completion.\n.next reads one complete-result segment. .quit disconnects without cancelling.\n");
+    if (std.mem.eql(u8, line, ".info")) {
         _ = try client.describe();
         return json(out, .{ .connection = client.connection, .correlation = session.correlation, .uncertain = session.pending != null or session.cancellation != null, .format = session.format });
     }
-    if (std.mem.eql(u8, line, "/tables") or std.mem.eql(u8, line, "/schema")) return json(out, try client.describe());
-    if (std.mem.startsWith(u8, line, "/format ")) {
+    if (std.mem.eql(u8, line, ".tables") or std.mem.eql(u8, line, ".schema")) return json(out, try client.describe());
+    if (std.mem.startsWith(u8, line, ".format ")) {
         session.format = std.meta.stringToEnum(@FieldType(Session, "format"), line[8..]) orelse return error.UnsupportedFormat;
         return json(out, .{ .format = session.format });
     }
-    if (std.mem.startsWith(u8, line, "/resume ")) {
+    if (std.mem.startsWith(u8, line, ".resume ")) {
         const id = try std.fmt.parseInt(u64, line[8..], 10);
         const status = try client.status(id);
         if (session.pending != null or session.cancellation != null) return error.UnresolvedSubmission;
@@ -116,8 +112,8 @@ fn command(session: *Session, line: []const u8, allocator: std.mem.Allocator, ou
         session.ordinal = 0;
         return json(out, status);
     }
-    if (std.mem.eql(u8, line, "/status")) return json(out, try client.status(session.correlation orelse return error.NoQuery));
-    if (std.mem.eql(u8, line, "/next")) {
+    if (std.mem.eql(u8, line, ".status")) return json(out, try client.status(session.correlation orelse return error.NoQuery));
+    if (std.mem.eql(u8, line, ".next")) {
         const page = try client.page(session.correlation orelse return error.NoQuery, session.ordinal, allocator);
         if (session.format == .json) try json(out, page) else {
             try out.print("complete result {d}; source revision {d}; segment {d}/{d}; rows {d}\n", .{ page.manifest.result, page.manifest.basis.revision, page.ordinal + 1, page.manifest.segments, page.manifest.rows });
@@ -139,10 +135,10 @@ fn command(session: *Session, line: []const u8, allocator: std.mem.Allocator, ou
         session.ordinal += 1;
         return;
     }
-    if (std.mem.eql(u8, line, "/cancel")) {
+    if (std.mem.eql(u8, line, ".cancel")) {
         if (session.pending != null or session.cancellation != null) return error.UnresolvedSubmission;
         session.cancellation = try client.prepareCancel(session.correlation orelse return error.NoQuery);
-    } else if (!std.mem.eql(u8, line, "/retry")) {
+    } else if (!std.mem.eql(u8, line, ".retry")) {
         if (line[0] == '/') return error.UnknownCommand;
         if (session.pending != null or session.cancellation != null) return error.UnresolvedSubmission;
         session.pending = try client.prepare(line);

@@ -29,7 +29,7 @@ pub fn run(console: *Console.Console) !void {
         editor.erasePrivate();
         editor.arena.deinit();
     }
-    try output.interface.writeAll("Transit console: /new ID then SQL + semicolon + Enter. Ctrl-Space completes; Tab accepts; Ctrl-Z undoes.\n\x1b[?2004h");
+    try output.interface.writeAll("Transit\nEnd SQL with a semicolon. .help lists commands.\nCtrl-Space completes; Tab accepts; Ctrl-Z undoes.\n\x1b[?2004h");
     try Output.write(console.init, &output.interface, "");
     defer {
         Signals.clear(); // Restore display modes even after the handled signal.
@@ -102,8 +102,8 @@ const Editor = struct {
         self.changed();
     }
     fn remember(self: *Editor, statement: []const u8) void {
-        // Recovery exports/imports and all slash arguments stay out of history.
-        if (statement.len == 0 or statement[0] == '/' or statement.len > max_bytes) return;
+        // Recovery exports/imports and all dot arguments stay out of history.
+        if (statement.len == 0 or statement[0] == '/' or statement[0] == '.' or statement.len > max_bytes) return;
         if (self.history_count == history_limit) {
             for (0..history_limit - 1) |i| {
                 self.history[i] = self.history[i + 1];
@@ -189,11 +189,10 @@ const Editor = struct {
                 break;
             }
             const start = self.length - rest.len;
-            const meta = std.mem.startsWith(u8, rest, "/") and !std.mem.startsWith(u8, rest, "/*");
+            const meta = Console.isMeta(rest);
             const count = if (meta) (std.mem.indexOfScalar(u8, rest, '\n') orelse rest.len) else (try input.terminator(rest) orelse break);
             const statement = rest[0..count];
-            try self.out.writeAll("\r\x1b[2K");
-            try Output.write(self.console.init, self.out, "");
+            try self.echo(statement);
             self.remember(statement);
             if (!try self.console.execute(statement)) return false;
             if (self.console.access_lost) {
@@ -207,6 +206,24 @@ const Editor = struct {
         self.cursor = self.length;
         if (self.length > 0) try self.insert("\n");
         return true;
+    }
+    fn echo(self: *Editor, statement: []const u8) !void {
+        // Commit the full submitted draft to terminal scrollback before output.
+        // Keep stdout exclusively for results, including when it is redirected.
+        var storage: [max_bytes * 10 + 64]u8 = undefined;
+        var transcript: std.Io.Writer = .fixed(&storage);
+        try transcript.writeAll("\r\x1b[2K\x1b[0mtransit> ");
+        var offset: usize = 0;
+        var buffer: [16]u8 = undefined;
+        while (offset < statement.len) {
+            const length = try std.unicode.utf8ByteSequenceLength(statement[offset]);
+            if (statement[offset] == '\n') {
+                try transcript.writeAll("\n   ...> ");
+            } else try transcript.writeAll(try printable(statement[offset..][0..length], &buffer));
+            offset += length;
+        }
+        try transcript.writeByte('\n');
+        try Output.write(self.console.init, self.out, transcript.buffered());
     }
     fn loop(self: *Editor) !void {
         try self.draw();
@@ -345,7 +362,7 @@ const Editor = struct {
         self.columns = self.width();
         try self.out.writeAll("\r\x1b[2K");
         var prefix_buffer: [160]u8 = undefined;
-        const prefix = if (self.assistance) |assistance| if (assistance.items.len == 0) "[no completion] > " else try std.fmt.bufPrint(&prefix_buffer, "[{d}/{d} {s}] > ", .{ self.selected + 1, assistance.items.len, assistance.items[self.selected].text }) else "transit> ";
+        const prefix = if (self.assistance) |assistance| if (assistance.items.len == 0) "[no completion] > " else try std.fmt.bufPrint(&prefix_buffer, "[{d}/{d} {s}] > ", .{ self.selected + 1, assistance.items.len, assistance.items[self.selected].text }) else if (std.mem.indexOfScalar(u8, self.text(), '\n') != null) "   ...> " else "transit> ";
         const prefix_length = @min(prefix.len, self.columns / 2);
         // Suggestions are grammar/catalog identifiers; still escape any control.
         for (prefix[0..prefix_length]) |byte| try self.out.writeByte(if (byte >= 32 and byte < 127) byte else '?');

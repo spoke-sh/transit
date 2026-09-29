@@ -16,8 +16,12 @@ Use the version-3 configuration and executable paths in
 ```
 
 The five service ports, application management port and Board port must differ. Start with
-`transit serve --config server.json --initialize`; subsequent starts omit
-`--initialize`. The ready record includes `management_config`. This is not an
+`transit serve --config transit.yaml --initialize`; subsequent starts omit
+`--initialize`. The ready record includes `management_config`. Management configuration,
+installation declarations and replacements accept YAML by default; explicit
+`.json` inputs remain supported. Connection exports use YAML except when
+`--output` names a `.json` file. The example application consumes the neutral
+JSON connection contract, so its examples request that extension explicitly. This is not an
 in-place conversion of an existing installation: neighborhood configuration and
 Transit/provider artifact hashes remain pinned. Application replacement is a
 separate operation.
@@ -28,9 +32,9 @@ Build the work-item consumer through its own package manifest:
 cd examples/work-items
 zig build -Doptimize=ReleaseSafe
 ./zig-out/bin/work-items manifest "$PWD/zig-out/bin/transit-work-items" > application.json
-transit app install --config /absolute/local-transit/management.json \
+transit app install --config /absolute/local-transit/management.yaml \
   --file application.json --operation install-1
-transit app status --config /absolute/local-transit/management.json --application work-items
+transit app status --config /absolute/local-transit/management.yaml --application work-items
 ```
 
 Run these commands in the pinned Nix development environment. The separately
@@ -55,9 +59,9 @@ without disturbing installed workers.
 ## Export connections and use domain commands
 
 ```sh
-transit app connect --config /absolute/local-transit/management.json \
+transit app connect --config /absolute/local-transit/management.yaml \
   --application work-items --caller writer --output writer.json
-transit app connect --config /absolute/local-transit/management.json \
+transit app connect --config /absolute/local-transit/management.yaml \
   --application work-items --caller inspector --output inspector.json
 ./zig-out/bin/work-items inspector.json inspect
 ./zig-out/bin/work-items writer.json put put-1.json 1 0
@@ -89,9 +93,9 @@ role `revision` from `transit app status`. Write a replacement JSON object with
 `artifact` (`path` and optional `sha256`) and `configuration`, then run:
 
 ```sh
-transit app replace --config /absolute/local-transit/management.json \
+transit app replace --config /absolute/local-transit/management.yaml \
   --file replacement.json --operation replace-1
-transit app status --config /absolute/local-transit/management.json --application work-items
+transit app status --config /absolute/local-transit/management.yaml --application work-items
 ```
 
 The manager atomically fences the old worker before stopping its dependent
@@ -112,7 +116,7 @@ loading, rollback to older data contracts and Transit upgrades are outside v1.
 On a lost management response, run:
 
 ```sh
-transit app retry --config /absolute/local-transit/management.json --operation replace-1
+transit app retry --config /absolute/local-transit/management.yaml --operation replace-1
 ```
 
 This reuses the exact frozen request. A returned status is the current observed

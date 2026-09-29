@@ -16,7 +16,7 @@ ANSI = re.compile(rb'\x1b\[[0-?]*[ -/]*[@-~]')
 
 
 class Terminal(Shell):
-    def __init__(self, binary, config):
+    def __init__(self, binary, config=None, format='json', shared_output=False, cwd=None):
         self.master, self.slave = pty.openpty()
         self.resize(80)
         self.original = termios.tcgetattr(self.slave)
@@ -25,8 +25,8 @@ class Terminal(Shell):
             os.setsid()
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
-        self.process = subprocess.Popen([binary, 'console', '--config', str(config), '--format', 'json'],
-                                        stdin=self.slave, stdout=subprocess.PIPE, stderr=self.slave, preexec_fn=child)
+        self.process = subprocess.Popen([binary, 'console', '--no-rc', *(['--config', str(config)] if config is not None else []), '--format', format],
+                                        stdin=self.slave, stdout=self.slave if shared_output else subprocess.PIPE, stderr=self.slave, preexec_fn=child, cwd=cwd)
         self.buffer = b''
         self.screen = b''
         self.expect('transit> ')
@@ -52,11 +52,11 @@ class Terminal(Shell):
         self.send(text+'\r')
         return self.read()
 
-    def read(self, json_line=True):
+    def read(self, json_line=True, timeout=60):
         # A real terminal consumes its display while waiting for command output.
         # Drain both channels so the PTY's tiny kernel queue is not the test's
         # accidental backpressure fault.
-        until = time.monotonic()+60
+        until = time.monotonic()+timeout
         while b'\n' not in self.buffer:
             assert time.monotonic() < until, ('terminal response deadline', ANSI.sub(b'', self.screen)[-1000:])
             for source in select.select([self.process.stdout, self.master], [], [], .1)[0]:
@@ -73,12 +73,12 @@ class Terminal(Shell):
             self.send('\x03')
             try:
                 self.expect('transit> ')
-                self.send('/quit\r')
+                self.send('.quit\r')
                 assert self.process.wait(timeout=10) == 0
             except AssertionError:
                 if self.process.poll() is None: self.process.kill(); self.process.wait(timeout=10)
         assert termios.tcgetattr(self.slave) == self.original, 'terminal attributes were not restored'
-        self.process.stdout.close()
+        if self.process.stdout is not None: self.process.stdout.close()
         os.close(self.master); os.close(self.slave)
 
 
@@ -108,7 +108,7 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.expect('SELECT * FROM itxx')
         terminal.send('\x03')
         terminal.expect('transit> ')
-        terminal.send('SELECT \'東京🙂; /quit\'')
+        terminal.send('SELECT \'東京🙂; .quit\'')
         terminal.expect('\\u{6771}')
         terminal.send(b'\0')
         terminal.expect('[no completion]')
@@ -139,22 +139,21 @@ def check(binary, path, root, kind, invoke, fault):
         terminal.send('\x03')
         terminal.expect('transit> ')
         assert fault['console_sends'] == sends, 'editing/completion sent a native mutation'
-        assert terminal.call('/tables')['description']['source']['capabilities'][kind]
-        assert terminal.call('/new 4')['status'] is None
+        assert terminal.call('.tables')['description']['source']['capabilities'][kind]
+        terminal.expect('transit> .tables\r\n')
+        terminal.send('SELECT * FROM items\r')
+        terminal.expect('   ...> ')
+        assert fault['console_sends'] == sends, 'unterminated SQL executed'
+        terminal.send('\x03')
+        terminal.expect('transit> ')
         # Bracketed paste keeps embedded newlines/semicolon inert until Enter.
-        pasted = 'SELECT COUNT(*)\n/* ; /quit */ FROM items;'
+        pasted = 'SELECT COUNT(*)\n/* ; .quit */ FROM items;'
         terminal.send('\x1b[200~'+pasted+'\x1b[201~')
         terminal.expect('COUNT')
         assert fault['console_sends'] == sends, 'paste executed before explicit Enter'
         terminal.send('\r')
-        assert 'receipt' in terminal.read()
-        progress = terminal.read()
-        while 'waiting_for_input' in progress: progress = terminal.call('/advance')
-        until = time.monotonic()+180
-        while terminal.call('/status')['status']['phase'] != 'complete':
-            assert time.monotonic() < until
-            time.sleep(.1)
-        page = terminal.call('/next')
+        page = terminal.read(timeout=420)
+        terminal.expect('transit> SELECT COUNT(*)\r\n   ...> /* ; .quit */ FROM items;\r\n')
         assert page['cells'][0][0]['value']['uint64'] in ('12', '41') and page['complete_coverage']
         with open(f'/proc/{terminal.process.pid}/status') as status:
             high_water = int(next(line.split()[1] for line in status if line.startswith('VmHWM:')))*1024
@@ -177,15 +176,30 @@ def check(binary, path, root, kind, invoke, fault):
         # Interrupt a real native read; no durable cancellation or fresh query.
         sends = fault['console_sends']
         fault['console_waiting'].clear(); fault['console_delay'].set()
-        terminal.send('/schema\r')
+        terminal.send('.schema\r')
         assert fault['console_waiting'].wait(10)
         terminal.process.send_signal(signal.SIGINT)
         assert terminal.process.wait(timeout=15) == 130
         assert fault['console_sends'] == sends
         fault['console_delay'].clear()
         record = json.loads((root/'console-recovery.json').read_text())
-        assert record['namespace'] == 4 and record['complete']
+        assert record['namespace'] > 0 and record['complete']
         print(f'Transit terminal {kind}: controlling PTY, editing/undo, safe Unicode, paste, stale/expired/denied completion, resize, history clearing and interrupt passed; cold {cold_ms:.2f} ms / warm {warm_ms:.2f} ms; RSS high-water {high_water} bytes.', flush=True)
     finally:
         fault['console_delay'].clear()
+        terminal.close()
+
+
+def local_transcript(binary, cwd):
+    """An actual shared terminal retains submitted SQL above its human table."""
+    terminal = Terminal(binary, format='table', shared_output=True, cwd=cwd)
+    try:
+        terminal.send('SELECT * FROM items;\r')
+        terminal.expect('transit> SELECT * FROM items;\r\n')
+        terminal.expect('0 rows\r\n', timeout=120)
+        transcript = ANSI.sub(b'', terminal.screen)
+        assert transcript.index(b'transit> SELECT * FROM items;\r\n') < transcript.index(b'| id ')
+        assert b'| value ' in transcript and b'+' in transcript
+        print('Transit console transcript: submitted SELECT and bordered empty result remain in shared terminal scrollback.', flush=True)
+    finally:
         terminal.close()

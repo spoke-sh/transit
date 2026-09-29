@@ -8,8 +8,8 @@ The workspace `assist` request contains `sql` (at most 4096 UTF-8 bytes), `curso
 (a UTF-8 byte boundary), an unsigned 32-bit editor `generation`, and `mode`
 (`sql`, default for native callers, or `console`; generated browser requests
 include it explicitly). It uses the configured source and caller. Current
-native description access is required even for keyword or slash suggestions.
-There is no global catalog lookup. Console mode includes the versioned slash
+native description access is required even for keyword or dot-command suggestions.
+There is no global catalog lookup. Console mode includes the versioned dot-command
 command vocabulary; it does not execute those commands remotely.
 
 The `assistance` response has version 1, the input generation, `unified_v2`
@@ -34,7 +34,7 @@ will compile. Submission always reparses, resolves, validates and authorizes the
 complete statement through the owning compiler/client.
 
 Filtering precedes the eight-item bound. Ordering is deterministic: catalog names
-in declared column order, then parser alternatives; slash commands use their
+in declared column order, then parser alternatives; dot commands use their
 declared stable order. Ranking is a presentation choice, never authority. The
 first profile does not query data values to complete literals or arguments.
 

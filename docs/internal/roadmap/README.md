@@ -36,8 +36,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M26](M26.md) | User documentation and interface reference | Complete: shared public guides/reference for users, developers and agents; internal plans/history separated; generated API references and local onboarding proof |
 | [M27](M27.md) | Board in the local neighborhood | Implemented: separate supervised Board, explicit headless operation and packaged assets; focused proofs pass, clean qualification running |
 | [M28](M28.md) | Concise CLI output | Complete for the selected presentation profile; concise errors, offline command help and preserved recovery/machine output qualified locally |
-| [M29](M29.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
-| [M30](M30.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
+| [M29](M29.md) | Unified CLI and conventional configuration | Interface qualified: automatic SQL, dot commands, YAML/defaults and rc preferences; timing and latency triage in progress |
+| [M30](M30.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
+| [M31](M31.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 
 The historical [pre-Station review](../reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -90,8 +91,9 @@ neighborhood, with scoped worker replacement and application-owned migration.
 [M26](M26.md) presents those implemented interfaces in a user handbook, with
 SQL/CLI references and generated OpenAPI/AsyncAPI documentation.
 [M28](M28.md) simplifies terminal errors and command help while preserving recovery
-and machine output. [M29](M29.md) publishes versioned Transit artifacts through tag-triggered GitHub
-release workflows and qualified installation channels. [M30](M30.md) then
+and machine output. [M29](M29.md) unifies the console and adds server defaults,
+configuration discovery, environment overrides and merged console preferences. [M30](M30.md) publishes versioned Transit artifacts through tag-triggered GitHub
+release workflows and qualified installation channels. [M31](M31.md) then
 qualifies these boundaries across broader authority/runtime topologies. Fuze
 remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
@@ -100,7 +102,7 @@ their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
 M15–M18 now have executed qualification within their declared profiles. The
-M19–M30 plans carry those findings forward; a planned server, watch or cluster
+M19–M31 plans carry those findings forward; a planned server, watch or cluster
 contract is still not an implemented dependency. Provider-specific integrations
 compose the existing components without a new durability model or application
 policy in the kernel.
@@ -111,7 +113,7 @@ as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../../tests/README.md); implementation and operating details
 stay with their [owning components](../ARCHITECTURE.md#planned-monorepo-decomposition).
 
-## M15–M18 handoff to M19–M30
+## M15–M18 handoff to M19–M31
 
 The [query compatibility matrix](../../../packages/zig/transit-query/docs/compatibility.md)
 and [proof ledger](../../../tests/README.md#m18-qualification) are the baseline for
@@ -124,7 +126,7 @@ int64 Table reactive profiles. M21/M22 are complete for their selected Table
 consumer and finite Flight profiles. M23/M24 are complete for their selected
 application, local server and terminal profiles, with focused and clean
 qualification recorded. M28 implements the accepted CLI presentation review;
-M29–M30 remain planned.
+M29 implements the accepted unified CLI direction; M30–M31 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
@@ -137,8 +139,9 @@ M29–M30 remain planned.
 | [M25](M25.md#owners-and-implementation-sequence) | M24 local lifecycle, public growing bootstrap and M23 migration ledger | Neutral declaration, exact provisioning recovery and permission-preserving application replacement |
 | [M26](M26.md#scope-and-owners) | M25 downstream workflow and the existing typed/wire contracts | User journeys, supported interface reference and generated API descriptions from the same owners |
 | [M28](M28.md#scope-and-owners) | Existing diagnostic coordinates, privacy and local recovery | Concise errors, operation-specific help and preserved exit/stream contracts |
-| [M29](M29.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
-| [M30](M30.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
+| [M29](M29.md#scope-and-owners) | Local server lifecycle, exact query recovery and concise CLI output | Automatic SQL, dot commands, defaults, YAML/environment overlays and rc precedence |
+| [M30](M30.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
+| [M31](M31.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
 
 At each entry, run the relevant existing proof unchanged, then extend it at the
 new boundary. Preserve accepted-but-lost receipts, changed-intent rejection,

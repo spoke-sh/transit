@@ -4,7 +4,7 @@
 recovery contract. The [Nix packages](../../../nix/README.md#transit-cli-packages)
 supply the CLI and pinned native neighborhood artifacts.
 
-`transit server --config server.json --initialize` deliberately creates a private
+`transit server --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
 `--initialize`. Version 3 starts and supervises a separate `transit-board` process
 by default. Its frontend assets are bundled inside the Board executable. Add
@@ -14,46 +14,116 @@ proofs pass. Completed evidence belongs in the
 [test guide](../../../tests/README.md). It is a trusted single-user placement,
 with Kubernetes/Substrate remaining the reference isolation profile.
 
-## Explicit configuration
+## Defaults and configuration
 
-```json
-{
-  "version": 3,
-  "installation": "./local-transit",
-  "realm": 73,
-  "gateway_allowed_hosts": [],
-  "admission_ceiling": 65536,
-  "control_reserve": 4096,
-  "ports": {
-    "cold": 19101,
-    "cold_console": 19102,
-    "store": 19103,
-    "node": 19104,
-    "gateway": 19105
-  },
-  "executables": {
-    "minio": "/absolute/path/to/minio",
-    "ursula": "/absolute/path/to/ursula",
-    "node": "/absolute/path/to/transit-node",
-    "query_host": "/absolute/path/to/transit-query-host",
-    "board": "/absolute/path/to/transit-board"
-  }
-}
+The installed local bundle runs without a configuration file. Defaults select
+version 3, realm 1, an installation at `./.transit`, loopback ports 19101–19105
+for cold storage, cold console, store, node and gateway, application management
+on 19106, and Board on 19107. Application quotas are eight applications and 32
+roles. For missing executable settings, lookup prepends the directory containing
+the physical `transit` executable to the inherited `PATH`. The default names are
+`minio`, `ursula`, `transit-node`, `transit-query-host` and `transit-board`.
+For example, `./zig-out/bin/transit server` searches `zig-out/bin` first, then
+`PATH`. Symlink invocation uses the resolved executable directory. A missing
+provider must be installed there or available on `PATH`; lookup reports its
+name. Explicit `executables` paths override lookup. The effective search is
+bounded to a 64 KiB `PATH` and 256 entries.
+
+The local bundle places all dependencies in its `bin` directory, so it needs no
+ambient tools. A manifest is still provided for downstream consumers, but server
+startup does not read it. Resolved absolute executable paths and hashes are
+recorded before starting children; restart retains the same identity checks.
+
+With no `--config`, the server selects the **first existing** file:
+
+1. `./transit.yaml`
+2. `~/transit.yaml`
+3. `/etc/transit/transit.yaml`
+
+It does not merge these files. A selected file's read or validation error stops
+startup. `--config FILE` selects exactly that file and disables discovery. If no
+file exists, built-in defaults apply. The selected file overlays defaults:
+nested mappings merge, scalars and lists replace. Partial customization is enough:
+
+```yaml
+ports:
+  gateway: 10000
+board:
+  port: 10001
 ```
 
-JSON rejects unknown fields and incompatible versions. Paths resolve against
-the explicit configuration file; ports must be distinct and above 1023. All
+Environment values override the selected file and defaults. Names start with
+`TRANSIT_`, use uppercase field names, and separate nested fields with `__`.
+A single underscore stays part of the field name:
+
+```sh
+TRANSIT_PORTS__GATEWAY=10000 transit server --initialize
+TRANSIT_BOARD__PORT=10001 transit server --initialize
+```
+
+These commands illustrate separate new installations; restarts must retain their
+original effective values. `TRANSIT_REALM` sets `realm`, and
+`TRANSIT_APPLICATIONS__MAX_ROLES` sets `applications.max_roles`. Strings and paths
+are literal values; numbers, booleans, lists and objects use JSON syntax. More
+specific nested variables override a whole-object variable regardless of
+environment iteration order. Lists replace as a unit. Unknown settings and
+invalid types reject; values are never printed. `TRANSIT_CONSOLE_CONFIG` is
+reserved for the console and ignored by the server. Explicit invocation flags
+such as `--no-ui` and `--initialize` remain command-line actions, not YAML settings.
+The local profile has no configurable bind host or top-level `port`; its actual
+port fields are under `ports`, `applications` and `board`.
+
+Files are at most 64 KiB. JSON files use the `.json` extension; YAML accepts block
+mappings, scalar sequences, plain/single-quoted strings and JSON-encoded quoted
+strings or flow values. It rejects duplicate/unknown keys, anchors, aliases,
+tags, merge keys and multiline scalars. Nesting is limited to 16 levels; block
+entries and JSON tokens are bounded to 2048 per parsed input. YAML flow values
+must use JSON syntax and have no trailing comment. This is a data-only subset,
+not a general YAML processor. `TRANSIT_` input has a combined 64 KiB limit.
+
+Explicit relative paths resolve against the selected file, or the working
+directory if no file is selected. The default installation always remains
+`./.transit` in the working directory. `--initialize` still deliberately creates
+the installation; an ordinary `transit server` restarts it and never recreates
+missing retained state. Changing effective configuration after initialization
+is refused by the same installation identity checks.
+
+A complete YAML configuration can override these defaults:
+
+```yaml
+version: 3
+installation: "./local-transit"
+realm: 73
+gateway_allowed_hosts: []
+admission_ceiling: 65536
+control_reserve: 4096
+ports:
+  cold: 19101
+  cold_console: 19102
+  store: 19103
+  node: 19104
+  gateway: 19105
+executables:
+  minio: "/absolute/path/to/minio"
+  ursula: "/absolute/path/to/ursula"
+  node: "/absolute/path/to/transit-node"
+  query_host: "/absolute/path/to/transit-query-host"
+  board: "/absolute/path/to/transit-board"
+```
+
+Configuration rejects unknown fields and incompatible versions; ports must be distinct and above 1023. All
 listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
 remote listeners and alternate source definitions remain unsupported.
 
-Version 3 requires `executables.board`. Optional `board` settings default to
+Version 3 requires a resolved `executables.board`, supplied by the bundle by default. Optional `board` settings default to
 `{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for
 multiple installations; omit the origin to derive it from that port, or specify
 the exact matching loopback origin. Other origins reject in this local profile.
 Board retains its exact Host/Origin checks. All configured ports, including
 optional application management, must be distinct. Startup checks occupied
 listeners before effects; `--no-ui` skips only Board's listener preflight.
-Version 3 accepts the same optional `applications` quotas as version 2.
+Versions 2 and 3 default to application management on port 19106. Version 3
+accepts `applications: null` to omit it; version 1 defaults to no management.
 
 The native admission ceiling defaults to 65,536 journal positions, with 4,096
 additional control positions. The selected profile accepts ceilings from 128
@@ -79,24 +149,25 @@ certificate directory, without inheriting the operator's home or credentials.
 Its browser is disabled; the separate cold-console port remains reserved.
 
 When the complete neighborhood is ready, stdout emits one JSON record naming
-`console_config`, optional `management_config`, `gateway_url`, the effective
+`installation`, optional `management_config` (a YAML file), `gateway_url`, the effective
 `allowed_hosts`, `board_url` and `ui`. For example,
 port 19105 reports `gateway_url: "http://127.0.0.1:19105"` and
 `allowed_hosts: ["127.0.0.1:19105", "localhost:19105"]`. The URL is the native
 protocol gateway; use `/health` for a readiness check.
 `ui` is `"ready"` only after authorized Board atlas inspection; headless
 invocations report `"disabled"` and `board_url: null`. Recovery emits a fresh
-ready record after the replacement neighborhood passes its checks. Open an independent terminal with:
+ready record after the replacement neighborhood passes its checks. Open an independent
+terminal in the same working directory with the same topology configuration and
+environment. The console derives its connection from the local installation;
+the server does not generate a console configuration file:
 
 ```sh
-transit console --config local-transit/console.json
+transit console
 ```
 
 The initial authorized source is `items(id int64, value int64)`, with no example
-rows. `/schema` describes it; `/new 1` selects a fresh query namespace, and
-`SELECT COUNT(*) FROM items;` submits a finite
-query. `/advance`, `/status` and `/next` retain the console's admission/result
-distinctions. Creating application data is outside this initial server profile.
+rows. `.schema` describes it. `SELECT COUNT(*) FROM items;` prints the verified
+count automatically; `.resume` recovers the same query after interruption. Creating application data is outside this initial server profile.
 
 ## Local names and SSH tunnels
 
@@ -240,10 +311,10 @@ console or installer signing sequence. Query and operator workspaces remain
 separate opt-in contracts and are not enabled by this server profile.
 
 ```sh
-transit server --config server.json --initialize
+transit server --config transit.yaml --initialize
 # After stopping, resume headlessly, then enable Board again:
-transit serve --config server.json --no-ui
-transit serve --config server.json
+transit serve --config transit.yaml --no-ui
+transit serve --config transit.yaml
 ```
 
 For headless first initialization add `--no-ui --initialize`. The installation
@@ -275,7 +346,7 @@ Default startup never silently falls back to headless operation.
 Versions 1 and 2 remain headless configurations and require `--no-ui` with this
 CLI. They cannot name Board settings or its executable. An installation created
 by an older CLI retains its exact artifact/configuration hashes: neither this
-flag nor changing the JSON version upgrades it. Keep such an installation on its
+flag nor changing the configuration version upgrades it. Keep such an installation on its
 original pinned package/configuration. To adopt this profile, initialize a
 separately named version-3 installation with the matching packaged artifacts;
 there is no in-place history import or runtime upgrade in this profile. Once

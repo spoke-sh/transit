@@ -3390,7 +3390,7 @@ No existing host block device, user installation or reference cluster is changed
 independent schema/SHA-256/Ed25519 fixture checks pass. These new focused/external
 tasks do not expand the ordinary hosted lanes or claim a new M10 budget sample.
 The selected replacement changes configuration with the same compatible binary;
-M29 must additionally qualify changed executable artifacts through installed
+M30 must additionally qualify changed executable artifacts through installed
 release packages. Other SDK hosts, maximum active quotas, local multi-role
 dependency graphs and distributed placement are not qualified by this consumer.
 Interface publication retains its separate M23 proof; worker readiness does not
@@ -3602,3 +3602,82 @@ it covers defaults/toggles, embedded assets, application replacement, revoked
 inspection access and owned failures. Both inspection-principal and application
 lost-reply/manager-death schedules recover the exact saved request and receipt.
 No committed-HEAD `ci-clean` run is claimed for this working-tree qualification.
+
+## Unified CLI and conventional configuration
+
+The unified console removes slash aliases and manual namespace/upload/result
+controls from its primary interface. Real command fixtures exercise `-c`, `-f`,
+streamed stdin and final statements without semicolons, first-error stopping,
+dot-only commands, lossless pages and table rendering. A lost reply persists the
+original signed request before recovery; `.resume` retries that exact request
+and prints the same query's result. Cancellation settles the original pending
+request and sends cancellation without uploading the remaining bundle. A new
+query cannot replace unresolved intent. The PTY and TLS fixtures retain editing,
+completion, current denial, private-CA trust, signal handling and output bounds.
+
+The working-tree checks recorded so far are:
+
+| Check | Executed outcome |
+| --- | --- |
+| `just test::cli-diagnostics` | 160 real command cases passed: partial defaults, project/home selection, explicit file selection and missing-file refusal, malformed YAML/JSON, nesting bounds, typed environment precedence, rc merge/relative paths, flag precedence, adjacent executable lookup before PATH and explicit executable overrides |
+| `just test::console table` | Passed in 301.26 s including 222.10 s of console checks; PTY cold/warm completion 1080.16/344.63 ms; 16,756,736-byte terminal RSS high-water |
+| `just test::console kv` | Passed in 415.14 s including 342.07 s of console checks; PTY cold/warm completion 600.78/590.67 ms; 17,444,864-byte terminal RSS high-water |
+| `just test::console document` | Passed in 827.56 s including 253.45 s of console checks; PTY cold/warm completion 322.35/69.79 ms; 17,195,008-byte terminal RSS high-water |
+| `just test::public-query` | Compatibility Table v1 dot commands, exact retry, cancellation, fenced recovery and current read denial passed |
+| `zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true` | Compatibility unified shell and native recovery passed in 148.18 s |
+| `just test::server-faults` | Core lifecycle 31.05 s; bootstrap/gateway/rollback schedules 18.16 s; independent automatic console query, exact provisioning recovery and identity/rollback refusal passed |
+| `just test::server-capacity` | Accepted automatic query, real ext4 ENOSPC, finite control/shutdown and recovery of the original query passed in 19.62 s |
+| `just check` | Passed core/contracts, 160 CLI cases, frontend checks/tests and the production documentation build |
+| `just doctor` | Passed; the existing absent `~/.cargo/bin` PATH entry was reported by kubectl's plugin listing |
+
+The first offline package build exposed a stale frontend dependency-store hash
+that omitted dependencies already present in the workspace lockfile. Refreshing
+that fixed-output hash allowed the offline Board asset build to pass without
+changing package versions or the lockfile. The initial packaged defaults proof
+passed first creation, bare restart, Board and automatic SQL with an unavailable
+PATH. A subsequent run qualifies adjacent lookup with a copied CLI, neighboring
+provider links and no executable manifest.
+
+Earlier in-progress console runs exposed stale diagnostic expectations and an
+undersized output-pressure fixture after help became shorter. KV and Document runs also
+reached the initial one-minute wait budget. The completion budget is now five
+minutes, accommodating the real finite source workers. Completed result streaming
+now uses finite page/per-request/output bounds separately from the budget for
+waiting on completion. The PTY result wait now follows the longer finite query wait rather than the
+old receipt-response deadline. Those failed runs are not counted as passed evidence.
+The final package run passes with a copied CLI, adjacent executables, no manifest
+and unavailable PATH, including initialization/restart, Board, automatic SQL and
+retained identity. The extended defaults proof also restarts using equivalent
+partial YAML and whole-object/nested environment overrides, preserving the same
+normalized configuration and provisioning identities. The default console now derives its endpoint from server topology and its scoped
+identity from retained installation state, without a generated connection file.
+The diagnostics cover this path, YAML connections, mode-only rc files, changed
+gateway defaults and environment precedence, and incomplete-installation refusal.
+The lifecycle and physical-capacity proofs above were repeated after removing the
+generated console file. Configuration uses YAML while rc files remain dot-command
+scripts. No committed-HEAD `ci-clean` or push is claimed by these checks.
+
+The packaged follow-up passes bare-console automatic SQL without either
+`console.json` or `console.yaml`, along with adjacent executable discovery,
+Board toggles and retained identity. Its ports are now reserved independently
+and supplied through the environment, avoiding interference with a developer's
+running default server. Equivalent YAML and nested environment settings preserve
+the same normalized configuration. The earlier fixed-port run collided with an
+already-running server and is not counted as a pass.
+
+Submitted input now remains in terminal scrollback before results. A shared
+controlling PTY running `SELECT * FROM items;` against the actual local server
+checks the echoed statement, bordered empty result and zero-row count. The
+separate-output PTY checks multiline transcripts and the continuation prompt
+without contaminating JSON stdout.
+
+The final `just test::server` run passes in **49.35 s**, including the shared
+terminal transcript check. `just test::server-applications` passes in **89.067 s**
+with YAML management, declaration and replacement input, equivalent YAML/JSON
+caller exports, retained identities and migration recovery. Its manager RSS
+high-water is 28,164,096 bytes and its largest checkpoint is 2867 bytes. YAML
+initialization frames use the native custom codec through the same token decoder
+as JSON. The earlier value-decoder failure and the run interrupted by rebuilding
+a pinned executable are not counted as passes; the fixture now copies its CLI
+before startup so concurrent builds cannot change retained artifact identity.
+The final diagnostics report 160 passing cases, and `just check` passes.

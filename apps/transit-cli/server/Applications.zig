@@ -94,7 +94,7 @@ pub fn create(init: std.process.Init, installation: *Installation, executable: [
         _ = arena.reset(.retain_capacity);
     }
     const management: A.Management = .{ .url = try std.fmt.allocPrint(arena.allocator(), "http://{s}", .{host}), .realm = installation.config.realm, .installation = installation.record.installation, .principal = Installation.installer, .seed_file = try installation.path("installer.seed"), .recovery_directory = try installation.path("management-recovery") };
-    try Files.json(init.io, init.gpa, try installation.path("management.json"), management);
+    try @import("../Settings.zig").write(init, try installation.path("management.yaml"), management);
     self.future = try std.Io.concurrent(init.io, serve, .{self});
     return self;
 }

@@ -37,11 +37,8 @@ fn json(out: *std.Io.Writer, value: anytype) !void {
     try out.writeByte('\n');
 }
 pub fn run(init: std.process.Init, path: []const u8) !void {
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, path, init.gpa, .limited(32768));
-    defer init.gpa.free(bytes);
-    const parsed = try std.json.parseFromSlice(Config, init.gpa, bytes, .{});
-    defer parsed.deinit();
-    const config = parsed.value;
+    var diagnostic: @import("Diagnostic.zig") = .{};
+    const config = try @import("Settings.zig").readTyped(Config, init, path, &diagnostic);
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
     var wire = q.wire.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
@@ -54,11 +51,11 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
     var input = std.Io.File.stdin().reader(init.io, &input_buffer);
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    try output.interface.writeAll("Transit unified query — /new ID then SQL. /help lists commands.\n");
+    try output.interface.writeAll("Transit unified query — .new ID then SQL. .help lists commands.\n");
     try output.interface.flush();
     while (try input.interface.takeDelimiter('\n')) |raw| {
         const line = std.mem.trim(u8, raw, " \t\r");
-        if (std.mem.eql(u8, line, "/quit")) break;
+        if (std.mem.eql(u8, line, ".quit")) break;
         if (line.len == 0) continue;
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
@@ -70,15 +67,15 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
     }
 }
 pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, line: []const u8, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
-    if (std.mem.eql(u8, line, "/help")) return out.writeAll("/sources /schema /info /new ID /resume ID /status /advance /next /cancel /retire /collect /bundle /restore-bundle HEX /pending /restore TOKEN /retry /quit\nSQL compiles and uploads explicitly. /advance continues committed upload progress.\nA receipt is input admission; /status reports result completion. /next reads one verified page.\nSave /bundle and /pending before disconnecting after uncertainty; restoring both keeps the frozen upload and signed identity.\n/new requires a fresh positive namespace. /quit never cancels durable work.\n");
-    if (std.mem.eql(u8, line, "/sources") or std.mem.eql(u8, line, "/schema")) return json(out, try w.apply(allocator, client, config, .describe));
-    if (std.mem.eql(u8, line, "/info")) {
+    if (std.mem.eql(u8, line, ".help")) return out.writeAll(".sources .schema .info .new ID .resume ID .status .advance .next .cancel .retire .collect .bundle .restore-bundle HEX .pending .restore TOKEN .retry .quit\nSQL compiles and uploads explicitly. .advance continues committed upload progress.\nA receipt is input admission; .status reports result completion. .next reads one verified page.\nSave .bundle and .pending before disconnecting after uncertainty; restoring both keeps the frozen upload and signed identity.\n.new requires a fresh positive namespace. .quit never cancels durable work.\n");
+    if (std.mem.eql(u8, line, ".sources") or std.mem.eql(u8, line, ".schema")) return json(out, try w.apply(allocator, client, config, .describe));
+    if (std.mem.eql(u8, line, ".info")) {
         _ = try client.describe(try config.source.native(allocator));
         return json(out, .{ .connection = client.connection, .namespace = if (session.namespace) |id| try q.document.JsonValues.decimal(allocator, id) else null, .uncertain = session.pending != null, .input = session.input, .complete_coverage = session.complete });
     }
-    if (std.mem.startsWith(u8, line, "/new ") or std.mem.startsWith(u8, line, "/resume ")) {
+    if (std.mem.startsWith(u8, line, ".new ") or std.mem.startsWith(u8, line, ".resume ")) {
         if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
-        const fresh = std.mem.startsWith(u8, line, "/new ");
+        const fresh = std.mem.startsWith(u8, line, ".new ");
         const id = try q.Values.unsigned(line[if (fresh) 5 else 8..]);
         if (id == 0) return error.InvalidQueryIdentity;
         _ = try client.describe(try config.source.native(allocator));
@@ -88,9 +85,9 @@ pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClie
         session.namespace = id;
         return json(out, try w.apply(allocator, client, config, .{ .status = try q.document.JsonValues.decimal(allocator, id) }));
     }
-    if (std.mem.eql(u8, line, "/pending")) return json(out, .{ .token = if (session.pending) |pending| try std.json.Stringify.valueAlloc(allocator, pending, .{}) else null });
-    if (std.mem.eql(u8, line, "/bundle")) return json(out, .{ .bundle = if (session.length != 0) try q.document.JsonValues.hex(allocator, session.bundle[0..session.length]) else null });
-    if (std.mem.startsWith(u8, line, "/restore-bundle ")) {
+    if (std.mem.eql(u8, line, ".pending")) return json(out, .{ .token = if (session.pending) |pending| try std.json.Stringify.valueAlloc(allocator, pending, .{}) else null });
+    if (std.mem.eql(u8, line, ".bundle")) return json(out, .{ .bundle = if (session.length != 0) try q.document.JsonValues.hex(allocator, session.bundle[0..session.length]) else null });
+    if (std.mem.startsWith(u8, line, ".restore-bundle ")) {
         if (session.pending != null or session.input != null or session.length != 0) return error.UnresolvedSubmission;
         const id = session.namespace orelse return error.NamespaceRequired;
         const encoded = line[16..];
@@ -102,24 +99,24 @@ pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClie
         session.length = bytes.len;
         return json(out, .{ .restored_bundle = true });
     }
-    if (std.mem.startsWith(u8, line, "/restore ")) {
+    if (std.mem.startsWith(u8, line, ".restore ")) {
         if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
         const pending = try q.Bridge.prepared(allocator, line[9..]);
         try client.validate(pending);
         session.pending = pending;
         return json(out, .{ .restored = true });
     }
-    if (std.mem.eql(u8, line, "/retry")) {
+    if (std.mem.eql(u8, line, ".retry")) {
         const pending = session.pending orelse return error.NoPendingSubmission;
         const receipt = try submit(session, client, pending);
         try json(out, .{ .receipt = receipt });
         return advance(init, session, client, allocator, out);
     }
-    if (std.mem.eql(u8, line, "/advance")) return advance(init, session, client, allocator, out);
+    if (std.mem.eql(u8, line, ".advance")) return advance(init, session, client, allocator, out);
     const id = session.namespace orelse return error.NamespaceRequired;
     const namespace = try q.document.JsonValues.decimal(allocator, id);
-    if (std.mem.eql(u8, line, "/status")) return json(out, try w.apply(allocator, client, config, .{ .status = namespace }));
-    if (std.mem.eql(u8, line, "/next")) {
+    if (std.mem.eql(u8, line, ".status")) return json(out, try w.apply(allocator, client, config, .{ .status = namespace }));
+    if (std.mem.eql(u8, line, ".next")) {
         if (session.complete) return error.QueryComplete;
         const cursor = if (session.cursor) |value| try std.json.Stringify.valueAlloc(allocator, value, .{}) else null;
         const page = (try w.apply(allocator, client, config, .{ .page = .{ .namespace = namespace, .cursor = cursor } })).page;
@@ -146,13 +143,13 @@ pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClie
         return;
     }
     if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
-    if (std.mem.eql(u8, line, "/cancel") or std.mem.eql(u8, line, "/retire") or std.mem.eql(u8, line, "/collect")) {
+    if (std.mem.eql(u8, line, ".cancel") or std.mem.eql(u8, line, ".retire") or std.mem.eql(u8, line, ".collect")) {
         const operation = std.meta.stringToEnum(@FieldType(@FieldType(w.Request, "prepare_control"), "operation"), line[1..]).?;
         const prepared = (try w.apply(allocator, client, config, .{ .prepare_control = .{ .namespace = namespace, .operation = operation } })).prepared.?;
         session.pending = try q.Bridge.prepared(allocator, prepared.token);
         session.length = 0;
     } else {
-        if (line[0] == '/') return error.UnknownCommand;
+        if (line[0] == '.' or line[0] == '/') return error.UnknownCommand;
         if (session.length != 0 or try client.status(id) != null) return error.QueryUploadIdentityConflict;
         const compiled = (try w.apply(allocator, client, config, .{ .compile = .{ .sql = line } })).compiled;
         const bytes = try q.Values.unhex(allocator, compiled.bundle, q.Bundle.max_bytes);
@@ -173,6 +170,29 @@ fn submit(session: *Session, client: *q.UnifiedClient, pending: q.UnifiedClient.
     try session.checkpoint();
     try session.checkInterrupt();
     return receipt;
+}
+/// Settle only the frozen operation; cancellation must not finish an upload.
+pub fn settle(init: std.process.Init, session: *Session, client: *q.UnifiedClient) !void {
+    if (session.pending) |pending| _ = try submit(session, client, pending);
+    const deadline = std.Io.Clock.boot.now(init.io).toMilliseconds() + 30000;
+    while (session.input) |input| {
+        try session.checkInterrupt();
+        switch (try client.observe(input)) {
+            .pending => {
+                if (std.Io.Clock.boot.now(init.io).toMilliseconds() >= deadline) return error.QueryWaitTimedOut;
+                try init.io.sleep(.fromMilliseconds(20), .awake);
+            },
+            .committed => {
+                session.input = null;
+                try session.checkpoint();
+            },
+            .rejected => {
+                session.input = null;
+                try session.checkpoint();
+                return error.QueryInputRejected;
+            },
+        }
+    }
 }
 fn advance(init: std.process.Init, session: *Session, client: *q.UnifiedClient, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     if (session.pending != null) return error.UnresolvedSubmission;

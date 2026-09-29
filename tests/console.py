@@ -1,4 +1,4 @@
-"""Actual console configuration, framing and exact on-disk recovery."""
+"""Real automatic console execution, exact recovery, bounded results and pipes."""
 import json
 import os
 import signal
@@ -9,120 +9,138 @@ from unified_shell import Shell
 
 
 class Console(Shell):
-    def __init__(self, binary, config):
-        self.process = subprocess.Popen([binary, 'console', '--config', str(config), '--format', 'json'],
-                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    def __init__(self, binary, config=None, cwd=None):
+        self.process = subprocess.Popen([binary, 'console', '--no-rc', *(['--config', str(config)] if config is not None else []), '--format', 'json'],
+                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd)
         self.buffer = b''
 
     def close(self, status=0):
-        self.process.stdin.write(b'/quit\n'); self.process.stdin.flush()
-        self.process.stdin.close()
+        if self.process.poll() is None:
+            self.process.stdin.write(b'.quit\n'); self.process.stdin.flush()
+            self.process.stdin.close()
         assert self.process.wait(timeout=10) == status, self.process.stderr.read()
         self.process.stdout.close(); self.process.stderr.close()
 
 
 def check(binary, root, kind, invoke, expected, fault, config, tls=False):
     started = time.monotonic()
-    for args in (['--help'], ['--version'], ['console', '--help'], ['server', '--help']):
-        result = subprocess.run([binary, *args], capture_output=True, timeout=10)
-        assert result.returncode == 0 and result.stdout and not result.stderr, result
-    for args in (['unknown'], ['console'], ['console', '--config', 'missing', '--config', 'again'],
-                 ['console', '--config', 'missing', '--format', 'csv'], ['server', '--format', 'json']):
-        result = subprocess.run([binary, *args], capture_output=True, timeout=10)
-        assert result.returncode == 2 and not result.stdout, result
     config = dict(config, version=1, profile='unified_v2', transport='loopback', format='table', recovery_file='console-recovery.json')
-    # Relative credential/recovery paths resolve against the config directory.
     config['seed_file'] = os.path.relpath(config['seed_file'], root)
     path = root/'console.json'
     path.write_text(json.dumps(config))
+    recovery = root/'console-recovery.json'
+
+    def run(data=b'', args=(), expected_code=0, selected=path):
+        result = subprocess.run([binary, 'console', '--no-rc', '--config', str(selected), *args], input=data,
+                                capture_output=True, timeout=420)
+        assert result.returncode == expected_code, result
+        if expected_code == 0: assert not result.stderr, result
+        return result
+
     for changes in ({'version': 2}, {'unknown': 'private-must-not-appear'}, {'url': 'http://example.com:1234'},
                     {'url': 'http://user:private-must-not-appear@127.0.0.1:1234'}, {'transport': 'tls_ca'}):
         invalid = root/'console-invalid.json'
         invalid.write_text(json.dumps(dict(config, **changes)))
-        result = subprocess.run([binary, 'console', '--config', str(invalid)], input=b'', capture_output=True, timeout=10)
-        assert result.returncode == 2 and b'private-must-not-appear' not in result.stderr, result
+        result = run(selected=invalid, expected_code=2)
+        assert b'private-must-not-appear' not in result.stderr and not result.stdout
+    for command in (b'.new 3\n', b'.retry\n', b'.advance\n', b'.next\n', b'/help\n'):
+        result = run(command, expected_code=1)
+        assert not result.stdout
+
     shell = Console(binary, path)
     try:
-        assert 'new' in shell.call('/help')['commands']
-        assert shell.call('/tables')['description']['source']['capabilities'][kind]
-        assert shell.call('/new 3')['status'] is None
-        assert shell.call('CREATE KV items (UTF8);')['err'] == 'UnsupportedStatement'
-        assert shell.call('/status')['status'] is None
-        duplicate = subprocess.run([binary, 'console', '--config', str(path)], input=b'/quit\n', capture_output=True, timeout=10)
-        assert duplicate.returncode == 1 and b'another client holds the recovery lock' in duplicate.stderr
+        commands = shell.call('.help')['commands']
+        assert 'resume' in commands and 'cancel' in commands and 'new' not in commands and 'retry' not in commands
+        assert shell.call('.tables')['description']['source']['capabilities'][kind]
+        duplicate = run(b'.quit\n', expected_code=1)
+        assert b'another client holds the recovery lock' in duplicate.stderr
+        shell.close()
+
+        # Unsupported SQL does not allocate an identity or send a mutation.
+        before = fault['console_sends']
+        run(args=('-c', 'CREATE KV items (UTF8);'), expected_code=1)
+        assert fault['console_sends'] == before
         fault['lost'], fault['retry'] = None, False
         sql = 'SELECT *' if kind == 'document' else 'SELECT value'
-        shell.process.stdin.write((sql+'\n/* ; /quit /* nested ; */ */ FROM items\nLIMIT 33;\n').encode()); shell.process.stdin.flush()
-        assert 'receipt' in shell.read()
-        assert shell.read() == {'err': 'InvalidAuthorityResponse', 'uncertain': True}
-        recovery = root/'console-recovery.json'
+        statement = sql+'\n/* ; .quit /* nested ; */ */ FROM items\nLIMIT 33;\n'
+        result = run(statement.encode(), expected_code=1)
+        assert not result.stdout and b'InvalidAuthorityResponse' in result.stderr, result
         record = json.loads(recovery.read_text())
+        query_id = record['namespace']
+        assert query_id and record['bundle']
         assert record['pending']['signed'] == json.loads(fault['lost'][0])
-        assert record['bundle'] and record['namespace'] == 3
         assert stat.S_IMODE(recovery.stat().st_mode) == 0o600
-        shell.process.kill(); shell.process.wait(timeout=10)
-        for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr): stream.close()
-        shell = Console(binary, path)
-        assert shell.call('/info')['uncertain']
-        assert 'receipt' in shell.call('/retry')
-        progress = shell.read()
-        assert fault['retry'], 'console restart replaced its frozen signed request'
-        until = time.monotonic()+300
-        while 'waiting_for_input' in progress:
-            assert time.monotonic() < until, progress
-            progress = shell.call('/advance')
-        assert progress['status']['phase'] in ('admitted', 'complete'), progress
-        while shell.call('/status')['status']['phase'] != 'complete':
-            assert time.monotonic() < until
-            time.sleep(.1)
-        rows = []
-        first_page_rows = None
-        while True:
-            page = shell.call('/next')
-            if first_page_rows is None: first_page_rows = len(page['cells'])
-            assert page['manifest']['basis']['kind'] == kind
-            rows.extend(page['cells'])
-            if page['complete_coverage']: break
+        # Starting new SQL must not replace uncertain work. Opening does not retry.
+        before = fault['console_sends']
+        run(args=('-c', 'SELECT COUNT(*) FROM items'), expected_code=1)
+        assert fault['console_sends'] == before
+        result = run(b'.info\n', args=('--format', 'json'))
+        assert json.loads(result.stdout)['uncertain'] and fault['console_sends'] == before
+        result = run(b'.resume\n', args=('--format', 'json'))
+        assert fault['retry'], 'resume did not retry the original signed request'
+        pages = [json.loads(line) for line in result.stdout.splitlines()]
+        assert pages and pages[-1]['complete_coverage']
+        assert all(page['manifest']['basis']['kind'] == kind for page in pages)
+        rows = [row for page in pages for row in page['cells']]
         assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
-        assert shell.call('/format table') == {'format': 'table'}
-        assert shell.call('/resume 3')['status']['phase'] == 'complete'
-        shell.process.stdin.write(b'/next\n'); shell.process.stdin.flush()
-        assert shell.read(json_line=False).startswith(b'Verified complete result; page evidence: ')
-        assert shell.read(json_line=False).startswith(b'"')
-        # Rendering emits one line per row; consume exactly the first page.
-        for _ in range(first_page_rows):
-            line = shell.read(json_line=False)
-            assert b'\x1b' not in line and b'"utf8"' in line
-        assert shell.call('/format json') == {'format': 'json'}
+        assert json.loads(recovery.read_text())['namespace'] == query_id
+        assert json.loads(recovery.read_text())['complete']
+
+        # Explicit resume rereads the same result under current grants.
         invoke('revoke', direct=True)
-        assert shell.call('/next')['err'] == 'AccessDenied'
-        assert json.loads(recovery.read_text())['cursor'] is None
+        denied = run(b'.resume\n', expected_code=1)
+        assert not denied.stdout and b'permission denied' in denied.stderr, denied
+        assert json.loads(recovery.read_text())['namespace'] == query_id
         invoke('restore', direct=True)
-        assert 'receipt' in shell.call('/retire')
-        progress = shell.read()
-        while 'waiting_for_input' in progress: progress = shell.call('/advance')
-        assert progress['status']['phase'] == 'retired'
-        shell.close(status=1)  # The denied command is a machine-session failure.
-        for text in (b'SELECT value FROM items', b'/* unfinished;', b"SELECT 'unfinished; /quit"):
-            result = subprocess.run([binary, 'console', '--config', str(path), '--format', 'json'], input=text, capture_output=True, timeout=10)
-            assert result.returncode == 1 and not result.stdout and b'IncompleteSqlStatement' in result.stderr, result
+        table = run(b'.resume\n').stdout
+        assert table.startswith(b'+') and b' rows\n' in table and b'\x1b' not in table
+
+        print(f'Transit console {kind}: saved-intent resume, all result pages and current read denial passed.', flush=True)
+        count_sql = 'SELECT COUNT(*) FROM items'
+        result = run(args=('-c', count_sql, '--format', 'json'))
+        assert json.loads(result.stdout)['cells'][0][0]['value']['uint64'] in ('12', '41')
+        next_id = json.loads(recovery.read_text())['namespace']
+        assert next_id != query_id
+        script = root/'queries.sql'
+        script.write_text(count_sql+';\n'+count_sql)
+        result = run(args=('-f', str(script), '--format', 'json'))
+        assert len(result.stdout.splitlines()) == 2
+        result = run(count_sql.encode(), args=('--format', 'json'))
+        assert json.loads(result.stdout)['complete_coverage']
+        # Batch stops after the first invalid statement; no later dispatch.
+        before = fault['console_sends']
+        result = run(('CREATE KV nope (UTF8);'+count_sql+';').encode(), expected_code=1)
+        assert not result.stdout and fault['console_sends'] == before
+        for text in (b'/* unfinished;', b"SELECT 'unfinished; .quit"):
+            result = run(text, expected_code=1)
+            assert not result.stdout
+
+        print(f'Transit console {kind}: command/file/stdin batches and first-error stopping passed.', flush=True)
+        # Cancellation settles the lost begin, then cancels without uploading the rest.
+        fault['lost'], fault['retry'] = None, False
+        run(args=('-c', count_sql), expected_code=1)
+        cancelled_id = json.loads(recovery.read_text())['namespace']
+        before = fault['console_sends']
+        cancelled = json.loads(run(b'.cancel\n', args=('--format', 'json')).stdout)
+        assert fault['retry'] and fault['console_sends'] == before+2
+        assert cancelled['query'] == cancelled_id and cancelled['cancellation_requested']
+        assert cancelled['phase'] == 'cancelled', cancelled
+
         shell = Console(binary, path)
-        assert 'commands' in shell.call('/help')
+        assert 'commands' in shell.call('.help')
         shell.process.send_signal(signal.SIGINT)
         assert shell.process.wait(timeout=10) == 130
         for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr): stream.close()
         from console_terminal import check as terminal
         terminal(binary, path, root, kind, invoke, fault)
-        # A blocked stdout is a local disconnect, never a cancellation. The
-        # bounded output task joins before the session and private buffers die.
         stalled = Console(binary, path)
-        stalled.process.stdin.write(b'/help\n'*300); stalled.process.stdin.flush()
+        stalled.process.stdin.write(b'.help\n'*1000); stalled.process.stdin.flush()
         assert stalled.process.wait(timeout=10) == 1
         assert b'ConsoleOutputTimeout' in stalled.process.stderr.read()
         for stream in (stalled.process.stdin, stalled.process.stdout, stalled.process.stderr): stream.close()
         if tls:
             from console_tls import check as tls_check
             tls_check(binary, root, config, kind)
-        print(f'Transit console {kind}: strict offline options, pipe/multiline framing, locked private recovery, killed-session exact retry, verified bounded results, current denial and signal disconnect passed in {time.monotonic()-started:.2f}s.', flush=True)
+        print(f'Transit console {kind}: automatic command/file/stdin queries, dot commands, stop on error, exact saved resume, bounded results, current denial and signal disconnect passed in {time.monotonic()-started:.2f}s.', flush=True)
     finally:
         if shell.process.poll() is None: shell.process.kill(); shell.process.wait(timeout=10)

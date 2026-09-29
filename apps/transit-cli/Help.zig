@@ -11,8 +11,6 @@ pub const root =
     \\  server    Run a local server
     \\  console   Open an SQL console
     \\  app       Manage installed applications
-    \\  query     Open the single-line Table query shell
-    \\  query-v2  Open the single-line KV/Table/Document query shell
     \\
     \\Options:
     \\  --help     Show this help
@@ -24,14 +22,17 @@ pub const root =
 pub const server =
     \\Run a local Transit server in the foreground.
     \\
-    \\Usage: transit server --config PATH [--initialize] [--no-ui]
+    \\Usage: transit server [--config PATH] [--initialize] [--no-ui]
     \\
     \\Options:
-    \\  --config PATH  Server configuration file (required)
+    \\  --config PATH  Server configuration file (overrides discovery)
     \\  --initialize   Create a new installation; omit when restarting
     \\  --no-ui        Run without Board for this invocation
     \\  --help         Show this help
     \\
+    \\The local bundle supplies defaults without a file. Override with the first transit.yaml found in
+    \\the current directory, home directory or /etc/transit. TRANSIT_ environment
+    \\variables override properties; use __ between nested field names.
     \\Board starts by default with configuration version 3.
     \\Versions 1 and 2 require --no-ui.
     \\Paths in the configuration resolve relative to its file.
@@ -43,16 +44,23 @@ pub const server =
 pub const console =
     \\Open an SQL console.
     \\
-    \\Usage: transit console [--config PATH] [--format table|json]
+    \\Usage: transit console [OPTIONS] [-c SQL | -f FILE]
     \\
     \\Options:
-    \\  --config PATH        Console configuration file
-    \\  --format table|json  Result display (default: configuration, then table)
+    \\  -c SQL               Execute one SQL statement and exit
+    \\  -f FILE              Execute a SQL script and exit
+    \\  --init FILE          Read this startup file instead of automatic rc files
+    \\  --no-rc              Skip automatic rc files
+    \\  --config PATH        Console connection YAML file
+    \\  --format table|json  Result display (overrides rc and connection settings)
     \\  --help               Show this help
     \\
-    \\--config overrides TRANSIT_CONSOLE_CONFIG; one must select a configuration.
+    \\Default: connect to the local installation using transit.yaml or server defaults.
+    \\Merge /etc/transit/transitrc, ~/.transitrc and ./.transitrc settings.
+    \\--config overrides TRANSIT_CONSOLE_CONFIG and rc .connect.
     \\Paths in the configuration resolve relative to its file.
-    \\Submit SQL with a semicolon. /help lists session commands.
+    \\Submit SQL with a semicolon. .help lists dot commands.
+    \\YAML configures connections; .transitrc contains dot commands.
     \\Disconnecting does not cancel accepted work.
     \\
     \\Configuration: apps/transit-cli/docs/console.md
@@ -70,7 +78,7 @@ pub fn query(v2: bool) []const u8 {
         \\Options:
         \\  --help  Show this help
         \\
-        \\SQL runs on Enter. /help lists session commands.
+        \\SQL runs on Enter. .help lists session commands.
         \\Configuration: apps/transit-cli/docs/unified-query.md
         \\
     else
@@ -84,7 +92,7 @@ pub fn query(v2: bool) []const u8 {
         \\Options:
         \\  --help  Show this help
         \\
-        \\SQL runs on Enter. /help lists session commands.
+        \\SQL runs on Enter. .help lists session commands.
         \\Configuration: apps/transit-cli/README.md
         \\
     ;
@@ -111,7 +119,7 @@ pub fn application(io: std.Io, mode: AppOptions.Mode) !void {
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(io, &buffer);
     const out = &writer.interface;
-    try out.print("{s}\n\nUsage: {s}{s}\n\nOptions:\n  --config PATH       Management configuration file (required)\n", .{
+    try out.print("{s}\n\nUsage: {s}{s}\n\nOptions:\n  --config PATH       Management configuration YAML file (required)\n", .{
         switch (mode) {
             .install => "Submit an application installation.",
             .replace => "Submit a conditional role replacement.",

@@ -5,7 +5,12 @@ pub const Format = enum { table, json };
 pub const Options = struct {
     command: enum { help, version, console, server },
     path: ?[]const u8 = null,
+    path_from_environment: bool = false,
     format: ?Format = null,
+    sql: ?[]const u8 = null,
+    script: ?[]const u8 = null,
+    rc: ?[]const u8 = null,
+    no_rc: bool = false,
     initialize: bool = false,
     no_ui: bool = false,
     help: bool = false,
@@ -31,12 +36,12 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        const known = for ([_][]const u8{ "--help", "--initialize", "--no-ui", "--config", "--format" }) |name| {
+        const known = for ([_][]const u8{ "--help", "--initialize", "--no-ui", "--config", "--format", "-c", "-f", "--init", "--no-rc" }) |name| {
             if (std.mem.eql(u8, arg, name)) break name;
         } else null;
         diagnostic.atArgument(i + 1, known);
         const option = known orelse return diagnostic.invalidArgument("unexpected input");
-        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and std.mem.eql(u8, option, "--format"))) {
+        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and (std.mem.eql(u8, option, "--format") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "-f") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc")))) {
             diagnostic.show_help = true;
             return diagnostic.invalidOption("is not supported by this command");
         }
@@ -49,28 +54,33 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
         } else if (std.mem.eql(u8, option, "--no-ui")) {
             if (result.no_ui) return duplicate(diagnostic);
             result.no_ui = true;
+        } else if (std.mem.eql(u8, option, "--no-rc")) {
+            if (result.no_rc) return duplicate(diagnostic);
+            result.no_rc = true;
         } else {
-            const config = std.mem.eql(u8, option, "--config");
-            if ((config and result.path != null) or (!config and result.format != null)) return duplicate(diagnostic);
-            if (i + 1 == args.len or args[i + 1].len == 0 or std.mem.startsWith(u8, args[i + 1], "--"))
-                return diagnostic.invalidOption(if (config) "requires a file path" else "must be table or json");
-            i += 1;
-            if (config) result.path = args[i] else {
-                diagnostic.atArgument(i + 1, "--format");
+            const target: ?*?[]const u8 = if (std.mem.eql(u8, option, "--config")) &result.path else if (std.mem.eql(u8, option, "-c")) &result.sql else if (std.mem.eql(u8, option, "-f")) &result.script else if (std.mem.eql(u8, option, "--init")) &result.rc else blk: {
+                if (result.format != null) return duplicate(diagnostic);
+                if (i + 1 == args.len) return diagnostic.invalidOption("must be table or json");
+                i += 1;
                 result.format = std.meta.stringToEnum(Format, args[i]) orelse return diagnostic.invalidOption("must be table or json");
+                break :blk null;
+            };
+            if (target) |slot| {
+                if (slot.* != null) return duplicate(diagnostic);
+                if (i + 1 == args.len or args[i + 1].len == 0 or (std.mem.startsWith(u8, args[i + 1], "--") and !std.mem.eql(u8, option, "-c")) or std.mem.eql(u8, args[i + 1], "-f") or std.mem.eql(u8, args[i + 1], "-c")) return diagnostic.invalidOption(if (std.mem.eql(u8, option, "-c")) "requires a SQL statement" else "requires a file path");
+                i += 1;
+                slot.* = args[i];
             }
         }
     }
+    if (result.sql != null and result.script != null) return diagnostic.invalidInvocation("-c and -f cannot be combined");
+    if (result.rc != null and result.no_rc) return diagnostic.invalidInvocation("--init and --no-rc cannot be combined");
     if (!server and result.path == null) if (console_config) |path| {
         if (path.len > 0) {
             result.path = path;
+            result.path_from_environment = true;
         }
     };
-    if (!result.help and result.path == null) {
-        diagnostic.atArgument(null, "--config");
-        diagnostic.usage = if (server) (if (std.mem.eql(u8, args[0], "serve")) "transit serve --config PATH" else "transit server --config PATH") else "transit console --config PATH";
-        return if (server) diagnostic.invalidOption("is required") else diagnostic.invalidInvocation("--config or TRANSIT_CONSOLE_CONFIG is required");
-    }
     diagnostic.atArgument(null, null);
     diagnostic.usage = null;
     return result;
@@ -86,16 +96,16 @@ pub fn writeHelp(io: std.Io, options: Options) !void {
     });
 }
 
-test "console defaults are explicit, overridable and never select server configuration" {
-    try std.testing.expectError(error.InvalidInvocation, parse(&.{"console"}));
-    try std.testing.expectError(error.InvalidInvocation, parseWithConsoleConfig(&.{"console"}, ""));
+test "connection options override the environment and server discovery is independent" {
+    try std.testing.expect((try parse(&.{"console"})).path == null);
+    try std.testing.expect((try parseWithConsoleConfig(&.{"console"}, "")).path == null);
     const fallback = try parseWithConsoleConfig(&.{"console"}, "/local/console.json");
     try std.testing.expectEqualStrings("/local/console.json", fallback.path.?);
     const explicit = try parseWithConsoleConfig(&.{ "console", "--config", "other.json" }, "/local/console.json");
     try std.testing.expectEqualStrings("other.json", explicit.path.?);
     try std.testing.expectError(error.InvalidInvocation, parseWithConsoleConfig(&.{ "console", "--config", "one", "--config", "two" }, "/local/console.json"));
-    try std.testing.expectError(error.InvalidInvocation, parseWithConsoleConfig(&.{"server"}, "/local/console.json"));
-    try std.testing.expectError(error.InvalidInvocation, parseWithConsoleConfig(&.{"serve"}, "/local/console.json"));
+    try std.testing.expect((try parseWithConsoleConfig(&.{"server"}, "/local/console.json")).path == null);
+    try std.testing.expect((try parseWithConsoleConfig(&.{"serve"}, "/local/console.json")).path == null);
     const server = try parse(&.{ "serve", "--config", "server.json", "--initialize" });
     try std.testing.expectEqual(.server, server.command);
     try std.testing.expect(server.initialize);

@@ -96,8 +96,8 @@ def run(cli, node, host, worker, operator):
         from server_faults import gateway_hosts
         gateway_hosts(fixture)
         declaration = json.loads(subprocess.check_output([operator, 'manifest', worker], text=True))
-        manifest = fixture.root / 'application.json'
-        manifest.write_text(json.dumps(declaration))
+        manifest = fixture.root / 'application.yaml'
+        manifest.write_text('\n'.join(f'{key}: {json.dumps(value)}' for key, value in declaration.items()))
         initial = fixture.app('install', '--file', manifest, '--operation', 'install-1')
         assert not initial['installed'], initial
         # Interrupt provisioning after an accepted spawn. Resume through public
@@ -137,6 +137,11 @@ def run(cli, node, host, worker, operator):
             path = fixture.root / (name + '-connection.json')
             fixture.app('connect', '--application', 'work-items', '--caller', name, '--output', path)
             connections[name] = path
+        yaml_connection = fixture.root/'inspector.yaml'
+        fixture.app('connect', '--application', 'work-items', '--caller', 'inspector', '--output', yaml_connection)
+        assert yaml_connection.read_text().startswith('version: 1\n')
+        exported = {key: json.loads(value) for key, value in (line.split(': ', 1) for line in yaml_connection.read_text().splitlines())}
+        assert exported == json.loads(connections['inspector'].read_text())
         domain(connections['operator'], 'authorize', 'authorize')
         for i in range(19):
             domain(connections['writer'], 'put', f'put-{i}', i - 9, i % 2)
@@ -148,8 +153,8 @@ def run(cli, node, host, worker, operator):
         # A compatible configuration revision uses an explicit expected revision.
         replacement = {'application': 'work-items', 'role': 'data', 'expected_revision': first['roles'][0]['revision'],
             'contract': 'work-items-v1', 'artifact': {'path': worker}, 'configuration': '{ "application": 9 }'}
-        path = fixture.root / 'replacement.json'
-        path.write_text(json.dumps(replacement))
+        path = fixture.root / 'replacement.yaml'
+        path.write_text('\n'.join(f'{key}: {json.dumps(value)}' for key, value in replacement.items()))
         incompatible = dict(replacement, contract='incompatible-v2')
         refused.write_text(json.dumps(incompatible))
         fixture.app('replace', '--file', refused, '--operation', 'incompatible', expect='IncompatibleApplicationReplacement')

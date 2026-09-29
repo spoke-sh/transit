@@ -83,11 +83,16 @@ pub fn submit(self: *Self, principal: u64, command: g.Command, effect: @FieldTyp
     try self.flush();
 }
 pub fn connection(self: *Self) q.UnifiedClient.Connection {
-    const done = self.record.provision;
-    return .{ .realm = self.config.realm, .principal = caller, .requester = done[0].?, .requests = done[1].?, .source = done[4].?, .resource = done[5].? };
+    return connectionFrom(self.record, self.config.realm);
+}
+pub fn connectionFrom(record: Record, realm: u64) q.UnifiedClient.Connection {
+    const done = record.provision;
+    return .{ .realm = realm, .principal = caller, .requester = done[0].?, .requests = done[1].?, .source = done[4].?, .resource = done[5].? };
 }
 pub fn table(self: *Self) q.TableSource.Configuration {
-    const c = self.connection();
+    return tableFor(self.connection());
+}
+pub fn tableFor(c: q.UnifiedClient.Connection) q.TableSource.Configuration {
     return .{ .peer = c.requester, .initializer = caller, .requests = c.requests, .limits = limits };
 }
 pub fn provision(self: *Self) !void {

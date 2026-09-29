@@ -236,7 +236,7 @@ def run(cli, node_binary, host, worker, operator):
         principal = ready['roles'][0]['principal']
         for caller in ('writer', 'inspector', 'operator'):
             fixture.app('connect', '--application', 'work-items', '--caller', caller, '--output', fixture.root / (caller + '.json'))
-        management_config = json.loads(fixture.management.read_text())
+        management_config = {key: json.loads(value) for key, value in (line.split(': ', 1) for line in fixture.management.read_text().splitlines())}
         installer = ExistingKey(fixture.root, management_config['seed_file'])
         port = fixture.config['applications']['port']
         writer = json.loads((fixture.root / 'writer.json').read_text())

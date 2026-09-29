@@ -2,6 +2,7 @@ const std = @import("std");
 const Files = @import("Files.zig");
 const Self = @This();
 const Diagnostic = @import("../Diagnostic.zig");
+const Settings = @import("../Settings.zig");
 version: u8,
 installation: []const u8,
 realm: u64,
@@ -17,14 +18,57 @@ pub const Applications = struct { port: u16, max_applications: u16 = 8, max_role
 pub const Ports = struct { cold: u16, cold_console: u16, store: u16, node: u16, gateway: u16 };
 pub const Executables = struct { minio: []const u8, ursula: []const u8, node: []const u8, query_host: []const u8, board: ?[]const u8 = null };
 pub const Identity = struct { config: [32]u8, cli: [32]u8, minio: [32]u8, ursula: [32]u8, node: [32]u8, query_host: [32]u8, board: ?[32]u8 = null };
-pub fn load(init: std.process.Init, path: []const u8, diagnostic: *Diagnostic) !Self {
+pub fn load(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic) !Self {
+    return loadWithExecutables(init, requested, diagnostic, true);
+}
+/// Console defaults need topology only, without installed server executables.
+pub fn forConsole(init: std.process.Init, diagnostic: *Diagnostic) !Self {
+    return loadWithExecutables(init, null, diagnostic, false);
+}
+fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnostic: *Diagnostic, resolve_executables: bool) !Self {
     const allocator = init.arena.allocator();
-    diagnostic.atFile(path);
-    const absolute = std.Io.Dir.cwd().realPathFileAlloc(init.io, path, allocator) catch |err| {
+    const selected = requested orelse (Settings.discover(init, "transit.yaml", "transit.yaml", "/etc/transit/transit.yaml", diagnostic) catch |err| {
+        diagnostic.configurationFailure(err);
+        return error.InvalidConfiguration;
+    });
+    const cwd = try std.Io.Dir.cwd().realPathFileAlloc(init.io, ".", allocator);
+    const absolute = if (selected) |name| std.Io.Dir.cwd().realPathFileAlloc(init.io, name, allocator) catch |err| {
+        diagnostic.atFile(name);
         diagnostic.configurationFailure(err);
         return error.InvalidConfigurationPath;
+    } else null;
+    const base = if (absolute) |name| std.fs.path.dirname(name).? else cwd;
+    var overlay = if (absolute) |name| try Settings.read(init, name, diagnostic) else Settings.object(allocator);
+    if (overlay != .object) return diagnostic.invalidField("configuration", "must be an object", null);
+    try Settings.shape(Self, allocator, overlay, "", diagnostic);
+    try Settings.environment(Self, init, &overlay, diagnostic);
+    errdefer Settings.environmentOrigin(init, diagnostic);
+    try Settings.shape(Self, allocator, overlay, "", diagnostic);
+    const version = if (overlay.object.get("version")) |v| (std.json.parseFromValueLeaky(u8, allocator, v, .{}) catch return diagnostic.invalidField("version", "must be 1, 2 or 3", null)) else 3;
+    if (version < 1 or version > 3) return diagnostic.invalidField("version", "must be 1, 2 or 3", null);
+    var defaults = (try std.json.parseFromSlice(std.json.Value, allocator,
+        \\{"version":3,"realm":1,"ports":{"cold":19101,"cold_console":19102,"store":19103,"node":19104,"gateway":19105},"executables":{}}
+    , .{})).value;
+    try defaults.object.put(allocator, "installation", .{ .string = try std.fs.path.join(allocator, &.{ cwd, ".transit" }) });
+    if (version >= 2) try defaults.object.put(allocator, "applications", (try std.json.parseFromSlice(std.json.Value, allocator, "{\"port\":19106}", .{})).value);
+    try Settings.merge(allocator, &defaults, overlay);
+    const exe_value = defaults.object.getPtr("executables").?;
+    if (exe_value.* != .object) return diagnostic.invalidField("executables", "must be an object", null);
+    inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" } }) |entry| {
+        if (!(comptime std.mem.eql(u8, entry[0], "board")) or version == 3) {
+            if (!exe_value.object.contains(entry[0])) {
+                diagnostic.field = "executables." ++ entry[0];
+                const found = if (!resolve_executables) entry[1] else defaultExecutable(init, entry[1]) catch |err| {
+                    return diagnostic.invalidFieldCause(err, "executables." ++ entry[0], "cannot find " ++ entry[1] ++ " beside transit or on PATH", null);
+                };
+                try exe_value.object.put(allocator, entry[0], .{ .string = found });
+            }
+        }
+    }
+    if (absolute) |name| diagnostic.atFile(name) else diagnostic.atFile("built-in server defaults");
+    var self = std.json.parseFromValueLeaky(Self, allocator, defaults, .{}) catch |err| {
+        return diagnostic.invalidFieldCause(err, "configuration", "contains an unknown field or invalid value", null);
     };
-    var self = try diagnostic.readJson(Self, init, absolute, 65536);
     if (self.version < 1 or self.version > 3) return diagnostic.invalidField("version", "must be 1, 2 or 3", "Board requires version 3.");
     if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux x86_64", null);
     if ((self.version == 1 and self.applications != null) or (self.version == 2 and self.applications == null)) return diagnostic.invalidField("applications", "does not match the configuration version", "Version 1 omits applications; version 2 requires applications; version 3 accepts it optionally.");
@@ -57,23 +101,22 @@ pub fn load(init: std.process.Init, path: []const u8, diagnostic: *Diagnostic) !
         if (@field(self.ports, name) < 1024) return diagnostic.invalidField("ports." ++ name, "must be a port from 1024 through 65535", null);
         inline for (fields[0..i]) |previous| if (@field(self.ports, name) == @field(self.ports, previous)) return diagnostic.invalidField("ports." ++ name ++ " and ports." ++ previous, "must be different", null);
     }
-    const base = std.fs.path.dirname(absolute).?;
     self.installation = try std.fs.path.resolve(allocator, &.{ base, self.installation });
     if (std.mem.indexOfAny(u8, self.installation, "\x00\n\r\"\\") != null or std.mem.eql(u8, self.installation, "/")) return diagnostic.invalidField("installation", "must be a non-root directory without NUL, newline, quote or backslash characters", null);
-    inline for (.{ "minio", "ursula", "node", "query_host" }) |name| {
+    if (resolve_executables) inline for (.{ "minio", "ursula", "node", "query_host" }) |name| {
         diagnostic.field = "executables." ++ name;
         @field(self.executables, name) = resolveExecutable(init, base, @field(self.executables, name)) catch |err| {
             diagnostic.setFailure(err, "cannot locate a configured executable", "Correct this executable path relative to the configuration file; use the matching local bundle.");
             return error.InvalidConfiguration;
         };
-    }
-    if (self.executables.board) |board_path| {
+    };
+    if (resolve_executables) if (self.executables.board) |board_path| {
         diagnostic.field = "executables.board";
         self.executables.board = resolveExecutable(init, base, board_path) catch |err| {
             diagnostic.setFailure(err, "cannot locate the Board executable", "Set executables.board to the matching transit-board file, relative to the configuration file.");
             return error.InvalidConfiguration;
         };
-    }
+    };
     diagnostic.field = null;
     return self;
 }
@@ -127,6 +170,35 @@ pub fn preflight(self: Self, io: std.Io, ui: bool, diagnostic: *Diagnostic) !voi
     if (self.applications) |apps| listeners[5] = try listen(io, apps.port, "applications.port", diagnostic);
 }
 
+/// Resolve defaults as if the executable directory were prepended to PATH.
+/// Freeze absolute paths before dependency validation and child activation.
+fn defaultExecutable(init: std.process.Init, name: []const u8) ![]const u8 {
+    const allocator = init.arena.allocator();
+    const binary = try std.process.executablePathAlloc(init.io, allocator);
+    if (try candidate(init, std.fs.path.dirname(binary).?, name)) |found| return found;
+    const search = init.environ_map.get("PATH") orelse return error.ExecutableNotFound;
+    if (search.len > 65536) return error.ExecutableSearchTooLarge;
+    var paths = std.mem.splitScalar(u8, search, ':');
+    var count: usize = 0;
+    while (paths.next()) |directory| {
+        count += 1;
+        if (count > 256) return error.ExecutableSearchTooLarge;
+        if (try candidate(init, if (directory.len == 0) "." else directory, name)) |found| return found;
+    }
+    return error.ExecutableNotFound;
+}
+fn candidate(init: std.process.Init, directory: []const u8, name: []const u8) !?[]const u8 {
+    const allocator = init.arena.allocator();
+    const proposed = try std.fs.path.resolve(allocator, &.{ directory, name });
+    const file = std.Io.Dir.cwd().openFile(init.io, proposed, .{}) catch |err| switch (err) {
+        error.FileNotFound, error.NotDir, error.AccessDenied => return null,
+        else => return err,
+    };
+    defer file.close(init.io);
+    const stat = try file.stat(init.io);
+    if (stat.kind != .file or stat.permissions.toMode() & 0o111 == 0) return null;
+    return try std.Io.Dir.cwd().realPathFileAlloc(init.io, proposed, allocator);
+}
 fn resolveExecutable(init: std.process.Init, base: []const u8, path: []const u8) ![]const u8 {
     if (path.len == 0) return error.InvalidConfiguration;
     return std.Io.Dir.cwd().realPathFileAlloc(init.io, try std.fs.path.resolve(init.arena.allocator(), &.{ base, path }), init.arena.allocator());

@@ -33,7 +33,7 @@ def inside(mount, cli, node, host):
         fixture.start(initialize=True)
         fixture.ready()
         original = fixture.record()
-        config = json.loads((fixture.installation / "console.json").read_text())
+        config = fixture.console_config()
         config["seed_file"] = str(fixture.installation / "caller.seed")
         # Client intent persistence is independent of the provider volume being
         # filled. Both remain explicitly configured private paths.
@@ -41,8 +41,17 @@ def inside(mount, cli, node, host):
         console_path = Path("/proof/console.json")
         console_path.write_text(json.dumps(config))
         shell = Console(fixture.cli, console_path)
-        assert shell.call("/new 1")["status"] is None
-        assert "receipt" in shell.call("SELECT COUNT(*) FROM items;")
+        shell.process.stdin.write(b"SELECT COUNT(*) FROM items;\n"); shell.process.stdin.flush()
+        deadline = time.monotonic() + 30
+        while True:
+            record_path = Path(config["recovery_file"])
+            if record_path.exists():
+                accepted = json.loads(record_path.read_text())
+                if accepted["input"] is not None or accepted["complete"]:
+                    break
+            assert time.monotonic() < deadline, "query receipt was not persisted"
+            time.sleep(.005)
+        os.kill(shell.process.pid, signal.SIGSTOP)
         available = os.statvfs(mount).f_bavail * os.statvfs(mount).f_frsize
         # Match the physical-capacity foundation: retain 4 MiB for bounded
         # control metadata, then prove a real 32 MiB allocation gets ENOSPC.
@@ -58,8 +67,6 @@ def inside(mount, cli, node, host):
             else:
                 raise AssertionError("Expected actual ext4 ENOSPC")
         probe.unlink()
-        progress = shell.read()
-        assert "status" in progress or "waiting_for_input" in progress or "err" in progress, progress
         # Read/control attempts stay finite even while provider writes refuse.
         attempt = time.monotonic()
         try:
@@ -68,13 +75,14 @@ def inside(mount, cli, node, host):
         except (OSError, ConnectionError):
             pass  # A stopped installation is visibly unavailable, not ready.
         assert time.monotonic() - attempt < 7
+        shell.process.send_signal(signal.SIGCONT)
         shell.process.send_signal(signal.SIGTERM)
         shell.process.wait(timeout=10)
         for stream in (shell.process.stdin, shell.process.stdout, shell.process.stderr):
             stream.close()
         shell = None
         recovery = json.loads(Path(config["recovery_file"]).read_text())
-        assert recovery["namespace"] == 1 and recovery["bundle"]
+        assert recovery["namespace"] == accepted["namespace"] and recovery["bundle"]
         fixture.stop()
         filler.unlink()
         reserve.unlink()
@@ -82,19 +90,7 @@ def inside(mount, cli, node, host):
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
         shell = Console(fixture.cli, console_path)
-        if shell.call("/info")["uncertain"]:
-            assert "receipt" in shell.call("/retry")
-            progress = shell.read()
-        else:
-            progress = shell.call("/advance")
-        deadline = time.monotonic() + 90
-        while "waiting_for_input" in progress:
-            assert time.monotonic() < deadline, progress
-            progress = shell.call("/advance")
-        while shell.call("/status")["status"]["phase"] != "complete":
-            assert time.monotonic() < deadline
-            time.sleep(.1)
-        page = shell.call("/next")
+        page = shell.call(".resume")
         assert page["complete_coverage"] and page["cells"][0][0]["value"]["uint64"] == "0", page
         shell.close()
         shell = None

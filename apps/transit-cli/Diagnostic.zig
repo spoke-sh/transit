@@ -109,6 +109,7 @@ pub fn readJson(self: *Self, comptime T: type, init: std.process.Init, path: []c
     };
 }
 fn missingField(comptime T: type, value: std.json.Value, comptime prefix: []const u8, comptime depth: usize) ?[]const u8 {
+    if (T == std.json.Value) return null;
     if (depth == 16) return null;
     switch (@typeInfo(T)) {
         .optional => |info| return missingField(info.child, value, prefix, depth + 1),
@@ -162,8 +163,8 @@ pub fn render(self: Self, out: *std.Io.Writer, err: anyerror) !void {
         error.ConsoleRecoveryIdentityMismatch, error.RecoveryIdentityMismatch => .{ "saved intent belongs to a different configured identity", "Use the original configuration and recovery file together; do not resubmit the operation under a new identity." },
         error.ConsoleRecoveryWriteFailed, error.ConsoleRecoverySyncFailed, error.InstallationSyncFailed => .{ "recovery state could not be persisted", "Check disk space and write permissions. Preserve the recovery files and reconcile the same saved operation after restoring storage." },
         error.ApplicationOutcomeUnknown => .{ "the application operation's outcome is unknown", "Retry the saved request with the same configuration and operation ID:\n  transit app retry --config PATH --operation ID" },
-        error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect /status or reconcile saved intent with /retry." },
-        error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use /retry for pending signed intent; do not resubmit SQL after an uncertain outcome." },
+        error.ConsoleInterrupted => .{ "console wait interrupted; durable work is not cancelled", "Reconnect with the same configuration and inspect .status or recover saved intent with .resume." },
+        error.ConsoleCommandFailed => .{ "one or more console commands failed", "Inspect the preceding command result. Use .resume for pending signed intent; do not resubmit SQL after an uncertain outcome." },
         else => null,
     };
     const cause = self.cause orelse err;
@@ -259,7 +260,7 @@ test "unknown failures retain identifiers and recovery advice retains exact iden
         .{ Self{ .command = "transit server", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
         .{ Self{ .summary = "cannot complete this step", .cause = error.UnmappedCause }, error.UnmappedFailure, &.{ "UnmappedCause", "UnmappedFailure" } },
         .{ Self{ .command = "transit app install" }, error.ApplicationOutcomeUnknown, &.{ "outcome is unknown", "saved request", "same configuration and operation ID", "transit app retry --config PATH --operation ID" } },
-        .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{ "not cancelled", "/status", "/retry" } },
+        .{ Self{ .command = "transit console" }, error.ConsoleInterrupted, &.{ "not cancelled", ".status", ".resume" } },
         // Exhaustion must replace a transient retry message and retain the cause.
         .{ Self{ .summary = "server role failed; retrying the same installation", .next = "Wait for readiness.", .cause = error.ChildExited, .role = "courier" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "child process exited", "role courier", "without --initialize" } },
         .{ Self{ .cause = error.AddressInUse, .port = 8080, .field = "ports.gateway" }, error.RestartBudgetExhausted, &.{ "restart budget exhausted", "address already in use", "ports.gateway", "listener 127.0.0.1:8080" } },

@@ -6,23 +6,51 @@ The local server runs on Linux x86_64.
 
 ## Command and compatibility boundary
 
-`transit server --config PATH [--initialize] [--no-ui]` runs one local installation in the
-foreground; `serve` is an equivalent alias. `transit console --config PATH [--format table|json]` opens an
-explicit-submit terminal session. `--help` and `--version` need no configuration,
+`transit server [--config PATH] [--initialize] [--no-ui]` runs one local installation in the
+foreground; `serve` is an equivalent alias. `transit console [--config PATH] [--format table|json]` opens an
+explicit-submit terminal session; `-c SQL`, `-f FILE` and stdin run batch input. `--help` and `--version` need no configuration,
 credentials, running installation or network. Unknown commands/options, repeated
 options, positional leftovers and incompatible versions fail before effects.
 Version output identifies the executable and command-contract version; it is
 not a promise about remote capabilities or a release tag.
 
-Configuration is a strict versioned JSON file, at most 64 KiB. Explicit command
-options override corresponding file options. When console `--config` is omitted,
-the explicitly exported `TRANSIT_CONSOLE_CONFIG` supplies its path; an unset or
-empty value still requires `--config`. This variable never selects server
-configuration. There is no current-directory, home-directory, launcher-state or
-credential discovery, and no other environment configuration overlay.
-Paths resolve relative to the configuration file. Private keys are referenced by
-files and never accepted as command arguments. Diagnostics name the failing
-field or role without printing configuration, request bodies or credentials.
+Server configuration overlays built-in defaults with one selected file, then
+typed environment values. With no explicit `--config`, the first existing
+`./transit.yaml`, `~/transit.yaml` or `/etc/transit/transit.yaml` is selected.
+Missing all files leaves defaults intact; an unreadable or invalid selected file
+fails without fallback. Objects merge recursively; lists and scalars replace.
+`TRANSIT_` uses uppercase schema names and `__` for nested paths; a single `_`
+is literal. More specific variables win over whole-object JSON. Unknown settings
+and invalid values reject. `TRANSIT_CONSOLE_CONFIG` is reserved for the console.
+The [server guide](../apps/transit-cli/docs/server.md#defaults-and-configuration)
+defines the default profile, data-only YAML subset, JSON and parsing bounds.
+
+The console derives its default connection from the local server's topology
+settings and retained installation record. Server discovery and environment
+precedence select the same installation, realm and gateway; built-in defaults
+use `./.transit` and `http://127.0.0.1:19105`. Allocated IDs and the scoped caller
+credential come from that installation, with a default private recovery record.
+There is no generated console configuration file, and the console never
+initializes or repairs server state. Incomplete installation records reject.
+Console rc settings merge system `/etc/transit/transitrc`, home `~/.transitrc`
+and project `./.transitrc`, in that order. Only `.connect PATH` and `.mode`
+settings are allowed; no startup SQL or durable operations execute. Missing
+files skip; other failures stop. `--init FILE` replaces discovery and `--no-rc`
+disables it. They are mutually exclusive. Rc connection paths resolve against
+the defining rc file; later paths replace the whole connection reference.
+`TRANSIT_CONSOLE_CONFIG` overrides rc selection and explicit `--config` wins.
+`--format` overrides rc mode, then the connection's format, then table mode.
+
+Connection and management files use versioned YAML by default, at most 64 KiB.
+Explicit `.json` files remain supported. Application declarations and replacement
+files accept the same YAML subset; exported connection files use YAML unless
+the output path ends in `.json`. Machine responses, bootstrap and recovery
+records retain their neutral JSON formats. `.transitrc` remains a dot-command
+startup script modeled after `.duckdbrc`, not a YAML configuration.
+Paths within them resolve against their file. Credentials, native IDs and trust
+settings never merge across connections. Private keys are referenced by files,
+never command arguments. Diagnostics name fields or roles without printing
+configuration values, request bodies or credentials.
 The [public CLI reference](../docs/reference/cli.md#output-philosophy-explain-locate-guide)
 owns the human-output conventions: one specific explanation, with a location
 or next step when useful. Known option errors name the option; unknown arguments
@@ -43,7 +71,8 @@ to stdout and diagnostics to stderr; JSON mode has no banner or prompt. Broken
 stdout ends the local session without cancelling accepted work.
 
 `query`, `query-v2`, `rey-cli`, `kubectl-transit` and the existing launcher commands
-retain their separate configuration and behavior. No alias silently changes a
+retain their separate configuration and protocols. The query shells use dot
+commands and are omitted from the primary command list. No alias silently changes a
 single-line shell into a multiline console, adopts a launcher installation or
 converts a v2 authority into the growing profile. These separate commands remain supported.
 
@@ -135,7 +164,7 @@ DNS and never treats arbitrary loopback-resolving names as trusted. This policy
 does not change the listener's bind address, Origin/identity-header checks or
 native authorization. It is covered by the installation's configuration identity.
 The ready JSON record includes `gateway_url` and the effective `allowed_hosts`
-alongside `console_config`, after the complete neighborhood reaches readiness.
+alongside the installation path, after the complete neighborhood reaches readiness.
 
 The console signs under its configured identity and uses the gateway as its
 native authority endpoint. A remote endpoint requires an explicitly selected
@@ -155,32 +184,54 @@ fail without partial lowering. Application definitions retain their independent
 compiler/publication boundary; accepting a declaration as grammar does not make
 it executable at a query endpoint.
 
-SQL submits on a semicolon outside quoted strings/identifiers and nested comments.
-Multiline and pasted input share this scanner. A slash command is recognized
-only at the beginning of an otherwise empty input statement; slashes and
-semicolons in strings/comments stay SQL. EOF with a nonempty unterminated statement
-reports incomplete input and does not submit it. TTY editing supports movement,
-deletion, bounded in-memory history, completion accept/dismiss/undo, resize and
-Ctrl-C draft clearing. No history persists automatically; secret/private literals
-and rows are not written to a history file.
+Interactive SQL submits on Enter after a semicolon outside literals and nested
+comments. `-c SQL` runs one statement with an optional semicolon; `-f FILE` and
+stdin stream semicolon-delimited statements and dot command lines. A complete
+final statement runs at EOF; an unclosed literal/comment fails. `-c` and `-f`
+are mutually exclusive and do not read stdin. Batch execution stops on the first
+error. Dot commands start an empty input statement; slash commands are rejected.
+TTY editing supports movement, deletion, bounded in-memory history, completion
+accept/dismiss/undo, resize and Ctrl-C draft clearing. History is not persisted.
 
-`/help`, `/info`, `/tables` (alias `/sources`), `/schema`, `/status`, `/next`,
-`/resume ID`, `/cancel`, `/retry`, `/format table|json` and `/quit` retain their
-owning query semantics. V2 additionally exposes explicit fresh namespace,
-upload advance and recovery export/import. `/resume` selects an identity without
-resubmitting it. `/retry` resends frozen uncertain bytes; `/cancel` is an explicit
-durable operation. Disconnecting, pausing input or clearing a draft never cancels.
-Unknown commands/arguments reject as a whole. Output escapes terminal controls
-and preserves full-width integers, binary and distinct nested cell states.
+The console exposes `.help`, `.info`, `.tables`, `.sources`, `.schema`, `.status`,
+`.resume [ID]`, `.cancel`, `.mode table|json`, `.show`, `.connect PATH` and `.quit`.
+`.connect` is terminal-only and refuses to abandon unresolved work. Unknown
+commands/arguments reject as a whole. Normal SQL compiles before identity
+allocation, selects a nonzero unused random identity within the exact protocol
+counter range, persists its intent, advances the native upload and prints
+verified complete results one page at a time. It never substitutes new SQL for
+a retry. `.new`, `.retry` and manual upload/result controls are not exposed.
 
-One session retains one prepared request, one finite compiled bundle and one
-result cursor. Result rendering uses complete verified coverage and a current
-visible-page reread; admission, incomplete delivery and verified completion are
-different labels. Loss or change of a source binding cannot remove status,
-exact retry or cancellation for the original operation. Current denial clears
-protected metadata, editor history and results; previously emitted terminal
-bytes cannot be recalled. Explicit recovery files contain no private key and
-are validated against the configured realm/principal/requester before use.
+Automatic SQL requires an explicit `recovery_file` setting; generated local
+connections supply it. The private record stores the query bundle, exact signed
+pending request, admission and cursor, not keys or rows. It binds the configured
+realm/principal/requester/request resource and caller public key. Atomic replacement
+and synchronization precede dispatch and successor preparation. Persistence failure
+stops submission. Locks serialize recovery-file owners and users of the same local
+credential file. This does not coordinate copied credentials in other clients.
+
+Opening a session loads recovery without dispatch. `.resume` reconciles that
+same signed intent and upload, waits and reads results from the beginning;
+previously printed rows may repeat. `.resume ID` selects an existing query only
+when no unresolved operation would be displaced. `.cancel` is an explicit native
+cancellation request; its admission does not promise completed cancellation.
+Disconnecting, clearing a draft, timeout and SIGINT never cancel accepted work.
+
+One session retains one prepared request, finite compiled bundle and result cursor.
+Each result page uses complete verified coverage and a current authorized reread.
+JSON output emits lossless page envelopes; table output escapes controls and
+preserves full-width integers, binary, float bits and distinct cell states.
+Results are not accumulated in memory. Waiting for completion checks a five-minute budget
+between native operations; upload advances and transport attempts retain their
+own finite deadlines and may settle after that budget. Output writes have a
+two-second deadline. Completed results stream under finite page limits and
+per-request deadlines, without the completion-wait budget. Bounds and supported source types belong in the
+[console guide](../apps/transit-cli/docs/console.md).
+
+Admission and verified completion remain distinct. Source-binding changes cannot
+remove inspection or exact recovery for original work. Current denial clears
+protected metadata, editor history and result cursors; previously emitted terminal
+bytes cannot be recalled. Recovery preserves accepted identity through errors.
 
 ## Shared incomplete-input assistance
 

@@ -90,7 +90,7 @@ def run(node, host, cli, proof):
             requester = start("requester", [host, str(fixture.root / "requester.json")])
             source = start("source", [host, str(fixture.root / "source.json")])
             courier = start("courier", [host, str(fixture.root / "courier.json")])
-            inspector = subprocess.run([cli, "query", str(fixture.root / "inspector.json")], input="/schema\n/quit\n", text=True, capture_output=True, timeout=15)
+            inspector = subprocess.run([cli, "query", str(fixture.root / "inspector.json")], input=".schema\n.quit\n", text=True, capture_output=True, timeout=15)
             assert "QueryAccessDenied" in inspector.stdout, inspector.stdout
             shell = subprocess.Popen([cli, "query", str(fixture.root / "cli.json")], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
             processes.append(shell)
@@ -105,24 +105,24 @@ def run(node, host, cli, proof):
                 shell.stdin.flush()
                 return receive()
             assert "Transit query" in receive()
-            assert send("/format json") == {"format": "json"}
-            before = send("/schema")
+            assert send(".format json") == {"format": "json"}
+            before = send(".schema")
             assert before["schema"]["value_type"] == "int64"
             assert str(send("DELETE FROM items")).startswith("error:")
-            assert send("/schema")["sequence"] == before["sequence"], "unsupported SQL submitted work"
+            assert send(".schema")["sequence"] == before["sequence"], "unsupported SQL submitted work"
             fault["pause"].clear()
             assert send("SELECT id, value FROM items") == "error: InvalidAuthorityResponse"
-            submitted = send("/retry")["submitted"]
+            submitted = send(".retry")["submitted"]
             assert fault["retry"], "retry did not retain exact signed admission"
             assert fault["stage"].wait(timeout=30), "source never staged result"
             busy = json.loads(provision("submit-busy").stdout)["submitted"]
             until = time.monotonic() + 20
             while True:
-                status = send(f"/resume {busy}")
+                status = send(f".resume {busy}")
                 if isinstance(status, dict) and status["phase"] == "busy": break
                 assert time.monotonic() < until, status
                 time.sleep(0.05)
-            assert send(f"/resume {submitted}")["phase"] == "capturing"
+            assert send(f".resume {submitted}")["phase"] == "capturing"
             source.kill(); source.wait(timeout=10)
             fault["pause"].set()
             same = subprocess.run([host, str(fixture.root / "source.json")], capture_output=True, timeout=15)
@@ -134,22 +134,22 @@ def run(node, host, cli, proof):
             assert fault["received"].wait(timeout=60), "receiver never sealed a partial segment"
             until = time.monotonic() + 20
             while True:
-                partial = send("/status")
+                partial = send(".status")
                 if isinstance(partial, dict) and partial["received_segments"] >= 1: break
                 assert time.monotonic() < until, partial
                 time.sleep(0.1)
             assert partial["phase"] == "delivering" and partial["manifest"] is None
-            assert send("/next") == "error: IncompleteResult"
+            assert send(".next") == "error: IncompleteResult"
             provision("revoke")
-            assert send("/status") == "error: AccessDenied"
-            assert send("/next") == "error: NoQuery"
+            assert send(".status") == "error: AccessDenied"
+            assert send(".next") == "error: NoQuery"
             provision("restore")
-            assert send(f"/resume {submitted}")["phase"] == "delivering"
+            assert send(f".resume {submitted}")["phase"] == "delivering"
             fault["receive_pause"].set()
             deadline = time.monotonic() + 90
             phases = set()
             while True:
-                status = send("/status")
+                status = send(".status")
                 if isinstance(status, dict):
                     phases.add(status["phase"])
                     if status["phase"] == "complete": break
@@ -160,7 +160,7 @@ def run(node, host, cli, proof):
             assert status["manifest"]["rows"] == 41
             rows = []
             for index in range(status["manifest"]["segments"]):
-                page = send("/next")
+                page = send(".next")
                 assert isinstance(page, dict), page
                 assert page["ordinal"] == index and page["manifest"] == status["manifest"]
                 rows.extend(row for row in page["rows"] if row is not None)
@@ -176,17 +176,17 @@ def run(node, host, cli, proof):
             assert refused.returncode and b'AccessDenied' in refused.stderr, refused.stderr
             provision('restore')
             provision("revoke")
-            denied = send(f"/resume {submitted}")
+            denied = send(f".resume {submitted}")
             assert denied == "error: AccessDenied", denied
-            assert send("/status") == "error: NoQuery"
+            assert send(".status") == "error: NoQuery"
             provision("restore")
-            assert send(f"/resume {submitted}")["phase"] == "complete"
-            assert send("/next")["ordinal"] == 0
+            assert send(f".resume {submitted}")["phase"] == "complete"
+            assert send(".next")["ordinal"] == 0
             # Schema changes are explicit rejections, not a rebound positional plan.
             wrong = json.loads(provision("bad-schema").stdout)["submitted"]
             until = time.monotonic() + 20
             while True:
-                status = send(f"/resume {wrong}")
+                status = send(f".resume {wrong}")
                 if isinstance(status, dict) and status["phase"] == "rejected": break
                 assert time.monotonic() < until, status
                 time.sleep(0.05)
@@ -195,25 +195,25 @@ def run(node, host, cli, proof):
             fault["stage"].clear(); fault["pause"].clear()
             second = send("SELECT value FROM items")["submitted"]
             assert fault["stage"].wait(timeout=30)
-            incomplete = send("/next")
+            incomplete = send(".next")
             assert incomplete == "error: IncompleteResult", incomplete
             provision("revoke")
-            assert send("/status") == "error: AccessDenied"
-            assert send("/next") == "error: NoQuery"
+            assert send(".status") == "error: AccessDenied"
+            assert send(".next") == "error: NoQuery"
             provision("restore")
-            assert send(f"/resume {second}")["phase"] == "capturing"
-            assert "cancellation_submitted" in send("/cancel")
+            assert send(f".resume {second}")["phase"] == "capturing"
+            assert "cancellation_submitted" in send(".cancel")
             until = time.monotonic() + 20
             while True:
-                status = send("/status")
+                status = send(".status")
                 if isinstance(status, dict) and status["phase"] == "cancelled": break
                 assert time.monotonic() < until, status
                 time.sleep(0.05)
             fault["pause"].set()
             provision("retire-source")
-            assert send("/status") == "error: QuerySourceUnavailable"
-            assert send("/next") == "error: NoQuery"
-            shell.stdin.write("/quit\n"); shell.stdin.flush(); shell.wait(timeout=10)
+            assert send(".status") == "error: QuerySourceUnavailable"
+            assert send(".next") == "error: NoQuery"
+            shell.stdin.write(".quit\n"); shell.stdin.flush(); shell.wait(timeout=10)
             print("public query: real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException:
             for log in logs:

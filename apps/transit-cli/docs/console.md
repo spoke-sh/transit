@@ -1,47 +1,99 @@
 # Transit console
 
-`transit console --config console.json [--format table|json]` is the
-explicit-submit interface over the shared v2 KV/Table/Document query session.
-It needs a provisioned native authority, scoped caller and query workers. The
-separate `query` and `query-v2` entry points retain their single-line contracts.
-The [local server](server.md) generates a console configuration; this command
-does not initialize or adopt a launcher installation.
+`transit console` is the query interface for finite, read-only SQL over the
+configured KV, Table or Document source. It compiles SQL, assigns a query identity,
+persists the exact intent, advances the upload and prints verified result pages.
+Bare `transit console` uses the [local server](server.md)'s topology defaults,
+including its `transit.yaml` discovery and `TRANSIT_` overrides. It reads allocated
+resource identities from the existing installation and uses its scoped
+`caller.seed` and private recovery record. No console configuration file is
+generated or required. The default endpoint is `http://127.0.0.1:19105`, and the
+default installation is `./.transit`. The console never initializes the server.
+
+```sh
+transit console
+transit console -c 'SELECT COUNT(*) FROM items'
+transit console --format json -f queries.sql
+```
+
+## Startup preferences
+
+The console merges settings in this order; later assignments win:
+
+1. `/etc/transit/transitrc`
+2. `~/.transitrc`
+3. `./.transitrc`
+
+Missing files are skipped; an unreadable or invalid file stops startup. Each file
+is at most 64 KiB. Blank lines and `#` comment lines are ignored. Only `.mode` and
+`.connect` settings are accepted; SQL and recovery operations cannot run at startup.
+For example, a project `.transitrc` can contain:
+
+```text
+.mode table
+# Optional remote or separate connection:
+# .connect connection.yaml
+```
+
+Paths in `.connect` resolve relative to the rc file that sets them. Quoted paths
+are accepted. A later `.connect` replaces the entire connection-file reference;
+credentials, identities and trust settings are never combined across connections.
+`--init FILE` selects a single startup file instead of the hierarchy; `--no-rc`
+skips all startup files. The two flags cannot be combined.
+
+`TRANSIT_CONSOLE_CONFIG` overrides the rc connection, and `--config` overrides
+that environment variable. An unset or empty variable has no effect. `--format`
+overrides rc `.mode`, which overrides the connection file's `format` (default
+`table`). `.show` prints effective connection and presentation settings and their
+origins. Interactive `.connect PATH` closes the current connection and opens the
+selected file; it refuses to leave unresolved work. It is not available in batch
+input. Without a connection override, run the console in the server working
+directory with the same topology configuration and environment. Missing or
+incomplete installation state stops startup; credentials and allocated IDs
+are never invented. A selected connection file supplies its own credential
+references and does not depend on a local installation.
 
 ## Configuration and trust
 
-Configuration is strict JSON, limited to 64 KiB. Unknown/duplicate fields,
+Connection files use YAML by default; explicit `.json` files remain supported.
+The same [bounded YAML subset](server.md#defaults-and-configuration) applies,
+with a 64 KiB limit. Unknown/duplicate fields,
 unsupported versions and invalid endpoints reject before native operations.
-Paths resolve relative to the configuration file. A shell may explicitly export
-`TRANSIT_CONSOLE_CONFIG=/absolute/path/to/console.json`, allowing `transit console`
-without flags. `--config` overrides that default; an unset/empty variable still
-requires the flag. No current-directory or home-directory credential discovery
-is performed, and no other environment configuration overlay is applied. Explicit
-`--format` overrides the file; other duplicate/unknown options reject.
-`--help`, `--version` and `console --help` work offline.
+Paths resolve relative to this file. Private signing keys stay in referenced
+files. Automatic SQL requires `recovery_file`; the local defaults
+include it. This explicitly retains private query text and signed intent so an
+interrupted query can be recovered. Inspection remains available without it.
 
-```json
-{
-  "version": 1,
-  "profile": "unified_v2",
-  "url": "http://127.0.0.1:8301",
-  "transport": "loopback",
-  "seed_file": "caller.key",
-  "connection": {
-    "realm": 42, "principal": 1234, "source": 1, "resource": 7,
-    "requester": 2, "requests": 8
-  },
-  "workspace": {
-    "name": "items",
-    "source": {
-      "version": 2, "resource": 7,
-      "source": {"table": {"id": 1, "names": ["id", "value"], "value_type": "int64"}}
-    },
-    "limits": {"pages": "1000", "segments": "100", "result_bytes": "1048576"}
-  },
-  "request_timeout_ms": 5000,
-  "format": "table",
-  "recovery_file": "console-recovery.json"
-}
+```yaml
+version: 1
+profile: "unified_v2"
+url: "http://127.0.0.1:8301"
+transport: "loopback"
+seed_file: "caller.key"
+connection:
+  realm: 42
+  principal: 1234
+  source: 1
+  resource: 7
+  requester: 2
+  requests: 8
+workspace:
+  name: "items"
+  source:
+    version: 2
+    resource: 7
+    source:
+      table:
+        id: 1
+        names: ["id", "value"]
+        value_type: "int64"
+  limits:
+    pages: "1000"
+    segments: "100"
+    result_bytes: "1048576"
+request_timeout_ms: 5000
+format: "table"
+recovery_file: "console-recovery.json"
 ```
 
 The example is a configuration shape, not allocated identities or a grant.
@@ -59,42 +111,60 @@ Neither transport selection nor configuration grants native access.
 ## Input, commands and results
 
 ```text
-/tables
-/new 42
+.tables
 SELECT id, value
 FROM items LIMIT 8;
-/status
-/next
+.mode json
+.show
+.quit
 ```
 
-SQL submits on a semicolon outside strings, quoted identifiers and nested
-comments. In a TTY, Enter submits the completed statement; bracketed paste stays
-in the draft until Enter. A slash command starts an otherwise empty statement
-and ends at newline/Enter. Slashes and semicolons inside SQL literals/comments
-remain content. EOF rejects an unfinished SQL statement without submitting it.
-Typing or accepting completion never submits.
+Interactive SQL submits on Enter after a semicolon outside literals and nested
+comments. Bracketed paste stays in the draft until Enter. Dot commands start an
+empty statement and end at newline/Enter. Slash commands are unsupported.
+Submitted statements stay visible in terminal scrollback above their results,
+with continuation prompts for multiline input. The transcript uses stderr so
+redirected stdout contains results only. An unfinished multiline draft uses a
+continuation prompt until its terminating semicolon.
+Typing or accepting completion never submits. Unsupported SQL fails before a
+query identity is allocated or any mutation is sent.
 
-The slash commands are the [shared v2 operations](unified-query.md): `/sources`
-(also `/tables`), `/schema`, `/info`, `/new ID`, `/resume ID`, `/status`, `/advance`,
-`/next`, `/cancel`, `/retire`, `/collect`, `/bundle`, `/restore-bundle HEX`,
-`/pending`, `/restore TOKEN`, `/retry`, `/help`, `/format table|json` and `/quit`.
-Fresh SQL needs an explicit unused namespace. Unsupported SQL and unknown slash
-commands fail before mutations; there are no administrative SQL aliases or Live
-execution in this profile. Recovery commands do not require the current source
-binding to load, while each native operation retains its own authorization.
+`-c SQL` runs one statement and exits; its final semicolon is optional. `-f FILE`
+executes a script, and redirected stdin uses the same streaming script reader.
+Scripts accept dot commands on their own lines and SQL separated by semicolons.
+A final complete statement runs at EOF without a semicolon; an unclosed literal
+or comment fails. `-c` and `-f` are mutually exclusive and never read stdin.
+Batch execution stops at the first failure; interactive execution reports the
+error and returns to the prompt when recovery permits.
 
-JSON output has no prompt/banner on stdout. TTY controls and diagnostics use
-stderr. Table output is one bounded page with manifest/coverage evidence,
-column headings and escaped typed cells. JSON escaping preserves exact decimal
-integers, float bits, hex binary and missing/null/type-error/conflict distinctions;
-Unicode and terminal control characters are escaped in result presentation.
-A receipt is input admission; `/status` distinguishes upload, admission and
-verified completion. `/next` performs the shared complete-coverage verification
-and current page read. It does not accumulate result rows in the session.
+| Command | Purpose |
+| --- | --- |
+| `.help` | Available SQL and console commands |
+| `.tables`, `.sources`, `.schema` | Currently authorized source and schema |
+| `.mode table\|json` | Result presentation |
+| `.show` | Effective console settings and origins |
+| `.connect PATH` | Switch connection in an interactive session |
+| `.status`, `.info` | Saved query status or result evidence |
+| `.resume [ID]` | Recover the saved query, or a selected existing query, and print its results |
+| `.cancel` | Request durable cancellation of the saved query |
+| `.quit`, EOF | Disconnect without cancellation |
+
+There is no `.new`, `.retry`, `.advance` or `.next` in the console. Normal SQL
+performs that bookkeeping. The compatibility `query` and `query-v2` shells keep
+their separate explicit protocols, with dot commands; they are not advertised in
+root help. See the [v2 shell guide](unified-query.md) for that interface.
+
+Table mode prints escaped cells with column headings and a row total. JSON mode
+emits one lossless page envelope per line, including its manifest, ordinal,
+columns, typed cells and complete-coverage evidence. Integers remain decimal
+strings, binary stays hex, floats preserve bits and missing/null/type-error/
+conflict states remain distinct. Pages are verified through the shared query
+client and read under current grants. Rows are released after each page; the
+console never accumulates the whole result. Prompts and diagnostics use stderr.
 
 The Linux terminal supports Left/Right, Home/End (also Ctrl-A/Ctrl-E), Backspace,
 Delete, Ctrl-U, eight-entry SQL history with Up/Down, and Ctrl-C draft clearing.
-Slash commands and recovery arguments never enter history. No history is written
+Dot commands and recovery arguments never enter history. No history is written
 to disk. The horizontally scrolling, highlighted draft renders newline, Unicode
 and control bytes as visible escapes; the underlying SQL remains unchanged.
 The display responds to terminal resize and restores the original terminal
@@ -108,41 +178,49 @@ five seconds. Observed denial clears draft, undo, history, completion and result
 cursor; frozen recovery intent remains separate. Previous terminal output was
 already disclosed and cannot be recalled.
 
-Normal disconnect/help returns 0; invalid invocation/configuration returns 2;
-runtime failure returns 1. A piped session with any failed command returns 1.
-An interrupted native wait disconnects with 130 after its bounded request
-settles; it does not submit cancellation. Broken stdout similarly disconnects.
-Cancellation is the explicit, separately admitted `/cancel` operation.
+Normal disconnect/help exits 0; invalid invocation/configuration exits 2;
+runtime or batch command failure exits 1. An interrupted native wait disconnects
+with 130 after its bounded request settles. Broken stdout also disconnects.
+Neither action cancels accepted work; `.cancel` is a separate native operation
+and its outcome must be observed. Cancellation cannot undo already completed work.
 
 ## Exact recovery and bounds
 
-`recovery_file` is optional and explicitly opts into retaining private query
-literals and signed intent, never private keys or result rows. A companion lock
-refuses simultaneous managers of that file. The 128 KiB versioned record binds
-realm, principal, requester, request resource and caller public key. Changes to
-the source binding do not silently replace an already accepted operation.
+The recovery record is at most 128 KiB and binds the realm, principal, requester,
+request resource and caller public key. It contains query literals and signed
+intent, never private keys or result rows. Companion locks serialize managers of
+the recovery file and of the same local credential file; copied credentials used
+by other clients are outside that local lock boundary.
 
 The console writes a 0600 temporary file, synchronizes it, atomically replaces
 the record and synchronizes the parent directory before sending a frozen
-request. It records a received receipt before preparing a successor. Recovery
-loads the exact bundle, pending request or admitted input; it never reconstructs
-SQL or submits automatically. `/retry` and `/advance` reconcile that original
-work. A failed persistence step stops further submission. Without the file,
-explicit `/bundle` and `/pending` exports remain the recovery mechanism.
+request. It records a received receipt before preparing a successor. A failed
+persistence step stops submission. Opening a session only loads saved state;
+it does not retry. New SQL refuses to replace unresolved work.
+
+After interruption, reconnect with the same configuration and use `.resume`.
+It reconciles the original signed request and upload, waits for completion and
+rereads the result from its beginning. It never creates a new query as a retry.
+This can repeat rows already displayed before the interruption. `.resume ID`
+selects an existing query only when the session has no unresolved work. Native
+reads and cancellation retain current authorization, including after source
+binding changes. Previously emitted output cannot be recalled after revocation.
 
 One session retains one 16 KiB bundle, one signed request and one result cursor.
-SQL and TTY drafts are at most 4096 UTF-8 bytes. Piped slash recovery commands
-are limited to 64 KiB. TTY history holds at most eight 4096-byte statements and
-one undo draft. Completion retains at most eight candidates, one current read
-and one result. One command has a fixed 1 MiB presentation buffer, released after
-writing; no background poll or unbounded output queue exists.
-Display/stdout writes have a two-second deadline and join on failure, preserving
-accepted work even when a local pipe stops reading. Each upload
-advance has a 30-second progress deadline and at most 132 steps in addition to
-per-attempt transport deadlines. These are resident/operation bounds, not
-retention limits or an external cancellation promise.
+SQL and TTY drafts are at most 4096 UTF-8 bytes; script input is streamed.
+Dot command lines are limited to 64 KiB. TTY history holds at most eight
+4096-byte statements and one undo draft. Completion retains at most eight
+candidates, one current read and one result. Each result page uses a fixed 1 MiB
+presentation buffer released after writing. There is no background query queue.
 
-`just test::console table` exercises the real command over disk Ursula and query
-workers, with pipe, controlling-PTY and explicit TLS trust fixtures. `kv` and
-`document` select other source profiles. The [proof ledger](../../../tests/README.md)
-records console and server lifecycle tests separately.
+Waiting for query completion checks a five-minute budget between native operations. Each upload
+advance has its own 30-second deadline and at most 132 steps; a current native
+operation may settle after the outer budget expires. Transport attempts use
+`request_timeout_ms`. Completed results stream under the finite result-page limits and per-request
+deadlines; the completion-wait budget does not cut off their presentation.
+Output writes have a two-second deadline and join on failure. Timeout preserves the saved query for `.resume`; none of these local
+bounds expires accepted work or promises external cancellation.
+
+`just test::console table`, `kv` and `document` exercise real query workers and
+disk Ursula, pipes, a controlling PTY and explicit TLS trust. Executed outcomes
+belong in the [proof ledger](../../../tests/README.md).

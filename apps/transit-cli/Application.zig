@@ -18,7 +18,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
         report.configurationFailure(err);
         return error.InvalidConfigurationPath;
     };
-    var config = try report.readJson(A.Management, init, absolute, 65536);
+    var config = try @import("Settings.zig").readTyped(A.Management, init, absolute, report);
     if (config.version != 1) return report.invalidField("version", "must be 1", "Use the management configuration emitted by the server.");
     config.seed_file = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.seed_file });
     config.recovery_directory = try std.fs.path.resolve(allocator, &.{ std.fs.path.dirname(absolute).?, config.recovery_directory });
@@ -53,7 +53,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
             .install => {
                 report.atFile(flags.file.?);
                 const path = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.file.?, allocator);
-                var declaration = try Files.read(A.Declaration, init.io, allocator, path);
+                var declaration = try @import("Settings.zig").readTyped(A.Declaration, init, path, report);
                 const roles = try allocator.dupe(A.Role, declaration.roles);
                 for (roles) |*role| try resolveArtifact(init, &role.artifact, std.fs.path.dirname(path).?);
                 declaration.roles = roles;
@@ -63,7 +63,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
             .replace => {
                 report.atFile(flags.file.?);
                 const path = try std.Io.Dir.cwd().realPathFileAlloc(init.io, flags.file.?, allocator);
-                var replacement = try Files.read(A.Replacement, init.io, allocator, path);
+                var replacement = try @import("Settings.zig").readTyped(A.Replacement, init, path, report);
                 try resolveArtifact(init, &replacement.artifact, std.fs.path.dirname(path).?);
                 request.command = .{ .replace = replacement };
             },
@@ -93,7 +93,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, report: *Diagnostic
         defer response.deinit();
         if (flags.output) |destination| {
             report.atFile(destination);
-            return Files.json(init.io, allocator, destination, response.value);
+            return @import("Settings.zig").write(init, destination, response.value);
         }
         try output(init, response.value);
     } else {

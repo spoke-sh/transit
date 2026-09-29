@@ -16,7 +16,7 @@ In a second Nix development shell, from the repository root:
 
 ```sh
 export PATH="$PWD/.cache/transit-local/bin:$PATH"
-export TRANSIT_MANAGEMENT="$PWD/.cache/docs-start/installation/management.json"
+export TRANSIT_MANAGEMENT="$PWD/.cache/docs-start/.transit/management.yaml"
 (cd examples/work-items && zig build -Doptimize=ReleaseSafe)
 export WORK_ITEMS="$PWD/examples/work-items/zig-out/bin"
 cd .cache/docs-start

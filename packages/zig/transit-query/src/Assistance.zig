@@ -27,7 +27,7 @@ pub const Response = struct {
     items: []const Item,
 };
 /// Shared console vocabulary; dispatchers must reject unimplemented operations.
-pub const Meta = enum { help, info, tables, sources, schema, status, next, @"resume", cancel, retry, format, quit, new, advance, retire, collect, bundle, pending, restore, @"restore-bundle" };
+pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show };
 const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,
@@ -59,7 +59,7 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
     try schema.validate();
     _ = try input.Scan.init(request.sql);
     if (request.cursor > request.sql.len or !std.unicode.utf8ValidateSlice(request.sql[0..request.cursor])) return error.InvalidSqlCursor;
-    if (request.mode == .console and std.mem.startsWith(u8, request.sql, "/")) return meta(allocator, request);
+    if (request.mode == .console and std.mem.startsWith(u8, request.sql, ".")) return meta(allocator, request);
     const range = try input.replacement(request.sql, request.cursor);
     var builder: Builder = .{ .allocator = allocator, .prefix = "", .quoted = false };
     errdefer builder.clear();
@@ -154,13 +154,13 @@ fn meta(allocator: std.mem.Allocator, request: Request) !Completion {
     var builder: Builder = .{ .allocator = allocator, .prefix = request.sql[0..request.cursor], .quoted = false };
     errdefer builder.clear();
     if (request.cursor <= end) {
-        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add("/" ++ command, .meta, "Local console command");
+        inline for (@typeInfo(Meta).@"enum".field_names) |command| try builder.add("." ++ command, .meta, "Local console command");
         return builder.finish(.{ .start = 0, .end = @intCast(end) });
     }
     var start = end;
     while (start < request.cursor and std.mem.indexOfScalar(u8, " \t", request.sql[start]) != null) start += 1;
     builder.prefix = request.sql[start..request.cursor];
-    if (std.mem.eql(u8, request.sql[0..end], "/format")) {
+    if (std.mem.eql(u8, request.sql[1..end], "mode")) {
         try builder.add("table", .meta, "Human rendering");
         try builder.add("json", .meta, "Machine rendering");
     }

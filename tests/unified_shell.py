@@ -30,7 +30,7 @@ class Shell:
         return self.read()
 
     def close(self):
-        self.process.stdin.write(b'/quit\n'); self.process.stdin.flush()
+        self.process.stdin.write(b'.quit\n'); self.process.stdin.flush()
         self.process.stdin.close()
         assert self.process.wait(timeout=10) == 0, self.process.stderr.read()
         self.process.stdout.close(); self.process.stderr.close()
@@ -39,48 +39,48 @@ class Shell:
 def check(binary, root, kind, invoke, expected, fault):
     shell = Shell(binary, root)
     try:
-        description = shell.call('/sources')['description']
+        description = shell.call('.sources')['description']
         assert description['source']['capabilities'][kind]
         assert description['sql']['version'] == 2 and not description['sql']['continuous']
         assert kind in description['source']['source']['source']
-        assert shell.call('/resume 1')['status']['phase'] == 'complete'
-        first = shell.call('/next')
+        assert shell.call('.resume 1')['status']['phase'] == 'complete'
+        first = shell.call('.next')
         assert first['cells'] and not first['complete_coverage']
         assert first['manifest']['basis']['kind'] == kind
         invoke('revoke', direct=True)
-        assert shell.call('/next')['err'] == 'AccessDenied'
-        assert shell.call('/next')['err'] == 'NamespaceRequired'
+        assert shell.call('.next')['err'] == 'AccessDenied'
+        assert shell.call('.next')['err'] == 'NamespaceRequired'
         invoke('restore', direct=True)
-        assert shell.call('/new 2')['status'] is None
+        assert shell.call('.new 2')['status'] is None
         assert shell.call('CREATE KV items (UTF8)')['err'] == 'UnsupportedStatement'
-        assert shell.call('/status')['status'] is None
+        assert shell.call('.status')['status'] is None
         sql = 'SELECT * FROM items LIMIT 33' if kind == 'document' else 'SELECT value FROM items LIMIT 33'
         fault['lost'], fault['retry'] = None, False
         assert 'receipt' in shell.call(sql)
         progress = shell.read()
         assert progress == {'err': 'InvalidAuthorityResponse', 'uncertain': True}, progress
-        bundle = shell.call('/bundle')['bundle']
-        pending = shell.call('/pending')['token']
+        bundle = shell.call('.bundle')['bundle']
+        pending = shell.call('.pending')['token']
         assert bundle and pending
         shell.close()
         shell = Shell(binary, root)
-        assert shell.call('/resume 2')['status']['phase'] == 'uploading'
-        assert shell.call('/restore-bundle '+bundle) == {'restored_bundle': True}
-        assert shell.call('/restore '+pending) == {'restored': True}
-        assert 'receipt' in shell.call('/retry')
+        assert shell.call('.resume 2')['status']['phase'] == 'uploading'
+        assert shell.call('.restore-bundle '+bundle) == {'restored_bundle': True}
+        assert shell.call('.restore '+pending) == {'restored': True}
+        assert 'receipt' in shell.call('.retry')
         progress = shell.read()
         assert fault['retry'], 'shell restart replaced the frozen signed request'
         until = time.monotonic()+300
         while 'waiting_for_input' in progress:
             assert time.monotonic() < until, progress
-            progress = shell.call('/advance')
+            progress = shell.call('.advance')
         assert progress['status']['phase'] in ('admitted', 'complete'), progress
-        while shell.call('/status')['status']['phase'] != 'complete':
+        while shell.call('.status')['status']['phase'] != 'complete':
             assert time.monotonic() < until
             time.sleep(0.1)
         rows = []
         while True:
-            page = shell.call('/next')
+            page = shell.call('.next')
             assert page['manifest']['basis']['kind'] == kind
             rows.extend(page['cells'])
             if page['complete_coverage']: break
@@ -88,16 +88,16 @@ def check(binary, root, kind, invoke, expected, fault):
         assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
         if kind == 'document':
             assert all(row[3] == {'missing': {}} for row in rows), rows[:1]
-        assert shell.call('/next')['err'] == 'QueryComplete'
-        assert 'receipt' in shell.call('/retire')
+        assert shell.call('.next')['err'] == 'QueryComplete'
+        assert 'receipt' in shell.call('.retire')
         progress = shell.read()
-        while 'waiting_for_input' in progress: progress = shell.call('/advance')
+        while 'waiting_for_input' in progress: progress = shell.call('.advance')
         assert progress['status']['phase'] == 'retired'
-        assert 'receipt' in shell.call('/collect')
+        assert 'receipt' in shell.call('.collect')
         progress = shell.read()
-        while 'waiting_for_input' in progress: progress = shell.call('/advance')
+        while 'waiting_for_input' in progress: progress = shell.call('.advance')
         assert progress['status']['collected'], progress
-        assert shell.call('/new 2')['err'] == 'QueryUploadIdentityConflict'
+        assert shell.call('.new 2')['err'] == 'QueryUploadIdentityConflict'
         print(f'Unified {kind} SQL shell: truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial, '
               'owned nested rows, complete coverage and permanent retirement/collection passed.', flush=True)
     finally:

@@ -21,34 +21,24 @@ link while using the installation: startup requires the same artifact hashes.
 Published versioned downloads and general Transit upgrades are not available; see
 [deployment limits](../reference/deployment.md).
 
-## Create explicit configuration
+## Start with defaults
 
-The following writes configuration only; it does not start a service or create
-authority. `mkdir` refuses an existing directory so a repeated walkthrough cannot
-overwrite a running installation's configuration.
+The local bundle supplies executable paths and default ports. With no
+configuration file, the server uses `./.transit` for private state. Create a
+working directory and deliberately initialize it:
 
 ```sh
 mkdir .cache/docs-start
-python3 - <<'PY'
-import json
-from pathlib import Path
-bundle = Path('.cache/transit-local').resolve()
-configuration = {
-    'version': 3,
-    'installation': './installation',
-    'realm': 73,
-    'ports': {'cold': 19101, 'cold_console': 19102, 'store': 19103,
-              'node': 19104, 'gateway': 19105},
-    'executables': json.loads((bundle / 'share/transit/local-executables.json').read_text()),
-    'applications': {'port': 19106, 'max_applications': 8, 'max_roles': 32},
-    'board': {'port': 19107},
-}
-Path('.cache/docs-start/server.json').write_text(json.dumps(configuration, indent=2) + '\n')
-PY
-.cache/transit-local/bin/transit serve --config .cache/docs-start/server.json --initialize
+cd .cache/docs-start
+../transit-local/bin/transit server --initialize
 ```
 
-Wait for the JSON ready record. It names the generated `console_config`,
+Optional `transit.yaml` settings overlay these defaults. Discovery selects the
+first file in the working directory, home directory or `/etc/transit`; see the
+[configuration hierarchy](../../apps/transit-cli/docs/server.md#defaults-and-configuration).
+For this walkthrough, use the defaults and keep ports 19101–19107 available.
+
+Wait for the JSON ready record. It names the installation,
 `management_config` and `board_url`. Open `board_url` to inspect the installation.
 All listeners bind loopback; this is a trusted single-user
 installation, not an OS sandbox. Credentials and data stay in the installation
@@ -65,37 +55,40 @@ explicit [inspection declaration](../../apps/transit-cli/docs/applications.md#bo
 From the repository root:
 
 ```sh
-.cache/transit-local/bin/transit console \
-  --config .cache/docs-start/installation/console.json
+cd .cache/docs-start
+../transit-local/bin/transit console
 ```
 
 In the console:
 
 ```text
-/schema
-/new 1
+.schema
 SELECT COUNT(*) FROM items;
-/status
 ```
 
 The initial Table has `id` and `value` int64 columns and no application rows.
-If upload is waiting for admitted input, use `/advance`. Repeat `/status` until
-it reports verified completion, then use `/next` to read the result: count zero.
-A receipt alone does not mean the query finished. Enter `/quit` to disconnect.
+The console assigns an identity, advances the upload and prints the verified
+result: count zero. Enter `.quit` to disconnect. To run one query and exit:
+
+```sh
+../transit-local/bin/transit console -c 'SELECT COUNT(*) FROM items'
+```
+
 See the [console guide](../../apps/transit-cli/docs/console.md) for output and
 recovery details, and the [SQL reference](../reference/sql.md) for admitted syntax.
 
 ## Stop and resume
 
 Ctrl-C in the server terminal stops its owned children and preserves disk state.
-Resume with the same configuration and artifacts:
+In the server terminal, still in `.cache/docs-start`, resume with the same
+configuration and artifacts:
 
 ```sh
-.cache/transit-local/bin/transit serve --config .cache/docs-start/server.json
+../transit-local/bin/transit server
 ```
 
 Do not add `--initialize` on restart. For a previously submitted query, use
-`/resume 1`; choose a new unused namespace only for intentionally new work.
+`.resume`; it recovers the original query and prints its result.
 If state or an artifact is missing, startup refuses to recreate its history.
 Inspect the error and follow [server recovery](../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 

@@ -70,7 +70,9 @@ def joined(pids):
 class Fixture:
     def __init__(self, cli, node, host, parent="/var/tmp"):
         self.root = Path(tempfile.mkdtemp(prefix="transit-server-proof-", dir=parent))
-        self.cli = str(Path(cli).resolve())
+        # Keep retained artifact identity stable if another build updates zig-out.
+        self.cli = str(self.root / "transit")
+        shutil.copy2(Path(cli).resolve(), self.cli)
         ports = []
         while len(ports) < 5:
             port = free_port()
@@ -80,7 +82,7 @@ class Fixture:
             "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports)),
             "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
                 "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve())}}
-        self.path = self.root / "server.json"
+        self.path = self.root / "transit.yaml"
         self.path.write_text(json.dumps(self.config))
         self.no_ui = True
         self.alias = "server"
@@ -162,9 +164,21 @@ class Fixture:
         assert result.returncode != 0 and message in result.stderr, result
         assert not result.stdout, result
 
+    def console_config(self):
+        # Explicit remote-connection fixture from the observed allocation receipts.
+        done = self.record()['provision']
+        return dict(version=1, profile='unified_v2', transport='loopback', url=self.url,
+                    seed_file=str(self.installation/'caller.seed'),
+                    recovery_file=str(self.installation/'console-recovery.json'),
+                    connection=dict(realm=self.config['realm'], principal=10, requester=done[0],
+                                    requests=done[1], source=done[4], resource=done[5]),
+                    workspace=dict(name='items', source=dict(version=2, resource=done[5],
+                        source=dict(table=dict(id=1, names=['id', 'value'], value_type='int64'))),
+                        limits=dict(pages='1000', segments='128', result_bytes='1048576')))
+
     def console(self, text):
-        result = subprocess.run([self.cli, "console", "--config", str(self.installation / "console.json"), "--format", "json"],
-            input=text, text=True, capture_output=True, timeout=80, env={"PATH": "/unavailable"})
+        result = subprocess.run([self.cli, "console", "--no-rc", "--format", "json"],
+            input=text, text=True, capture_output=True, timeout=80, cwd=self.root, env={"PATH": "/unavailable"})
         assert result.returncode == 0, result
         return [json.loads(line) for line in result.stdout.splitlines()]
 
@@ -193,23 +207,15 @@ def run(cli, node, host):
         fixture.ready()
         from server_faults import gateway_hosts
         gateway_hosts(fixture)
+        from console_terminal import local_transcript
+        local_transcript(fixture.cli, fixture.root)
         original = fixture.record()
         fixture.refusal("another server manages this installation")
         from console import Console
-        shell = Console(fixture.cli, fixture.installation / "console.json")
+        shell = Console(fixture.cli, cwd=fixture.root)
         try:
-            assert shell.call('/schema')['description']['source']['capabilities']['table']
-            assert shell.call('/new 1')['status'] is None
-            assert 'receipt' in shell.call('SELECT COUNT(*) FROM items;')
-            progress = shell.read()
-            deadline = time.monotonic() + 90
-            while 'waiting_for_input' in progress:
-                assert time.monotonic() < deadline, progress
-                progress = shell.call('/advance')
-            while shell.call('/status')['status']['phase'] != 'complete':
-                assert time.monotonic() < deadline
-                time.sleep(.1)
-            page = shell.call('/next')
+            assert shell.call('.schema')['description']['source']['capabilities']['table']
+            page = shell.call('SELECT COUNT(*) FROM items;')
             assert page['complete_coverage'] and page['manifest']['rows'] == '1', page
             assert page['cells'][0][0]['value']['uint64'] == '0', page
             shell.close()
@@ -222,7 +228,7 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        assert fixture.console("/resume 1\n/next\n/quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
+        assert fixture.console(".resume\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
@@ -231,8 +237,8 @@ def run(cli, node, host):
             fixture.kill_role(role)
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
-            fixture.console("/schema\n/quit\n")
-            assert fixture.console("/resume 1\n/next\n/quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
+            fixture.console(".schema\n.quit\n")
+            assert fixture.console(".resume\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]
@@ -254,7 +260,7 @@ def run(cli, node, host):
             fixture.refusal("address already in use")
         fixture.start()
         fixture.ready()
-        fixture.console("/schema\n/quit\n")
+        fixture.console(".schema\n.quit\n")
         # A stopped child cannot process SIGTERM. Force the supervisor's timed
         # SIGKILL path and join its pipe drainers before closing their handles.
         source = next(pid for pid in children(fixture.process.pid) if "table_source" in command(pid))

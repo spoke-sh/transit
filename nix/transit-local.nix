@@ -47,6 +47,12 @@ runCommand "transit-local-0.1.0"
   ''
     mkdir -p "$out/bin" "$out/share/transit"
     ln -s ${transit}/bin/* "$out/bin/"
+    # A real executable keeps adjacent dependency discovery tied to this bundle,
+    # including invocations through PATH and symlinks outside the Nix store.
+    rm "$out/bin/transit"
+    cp ${transit}/bin/transit "$out/bin/transit"
+    ln -s ${minio}/bin/minio "$out/bin/minio"
+    ln -s ${ursula}/bin/ursula "$out/bin/ursula"
     cat > "$out/share/transit/local-executables.json" <<EOF
     ${builtins.toJSON {
       minio = "${minio}/bin/minio";

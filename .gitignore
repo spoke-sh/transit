@@ -13,6 +13,9 @@ coverage/
 /result-*
 
 # Local configuration and runtime data.
+.transit/
+.transit.lock
+.transit.creating-*/
 .env
 .env.*
 !.env.example

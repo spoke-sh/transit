@@ -10,9 +10,9 @@ pinned development shell, or use the [Nix local bundle](../guides/quickstart.md)
 ```text
 transit --help
 transit --version
-transit serve --config FILE [--initialize] [--no-ui]
-transit server --config FILE [--initialize] [--no-ui]
-transit console [--config FILE] [--format table|json]
+transit serve [--config FILE] [--initialize] [--no-ui]
+transit server [--config FILE] [--initialize] [--no-ui]
+transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
 transit query-v2 FILE
 transit app install --config FILE --file DECLARATION --operation ID
@@ -25,33 +25,37 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | Command | Input and outcome |
 | --- | --- |
 | `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
-| `console` | Versioned configuration; multiline, explicit-submit unified v2 SQL with terminal assistance and optional durable recovery file |
-| `query` | Original single-line Table v1 shell and positional configuration |
-| `query-v2` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
+| `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
+| `query` | Compatibility: original single-line Table v1 shell and positional configuration |
+| `query-v2` | Compatibility: single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
 | `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
 | `app retry` | Retry the original frozen management request after uncertainty |
 | `app status` | Read sampled deployment state and bounded receipt pages; pass the prior `next` as `--after` |
 | `app connect` | Export a named caller connection, with a seed-file reference rather than an installer/root key |
 
-There is no implicit current-directory credential discovery. `console` accepts
-an explicit `TRANSIT_CONSOLE_CONFIG` environment default; `--config` overrides
-it. Server and management configuration stay explicit. Configurations reject
-unknown/duplicate fields and unsupported versions.
+The installed server starts from defaults and overlays the first existing
+`./transit.yaml`, `~/transit.yaml` or `/etc/transit/transit.yaml`; `--config`
+selects exactly one file instead. `TRANSIT_` variables override typed properties,
+using `__` for nesting. No matching file means defaults; a bad selected file
+fails without fallback. Initialization remains explicit.
+
+The console derives its connection from the local server topology and retained
+installation; no generated console configuration file is needed. Defaults use
+`./.transit` and `http://127.0.0.1:19105`.
+It merges `/etc/transit/transitrc`, `~/.transitrc` and `./.transitrc`.
+Only `.connect PATH` and `.mode table|json` settings are allowed there.
+`--init FILE` replaces that hierarchy; `--no-rc` skips it.
+`TRANSIT_CONSOLE_CONFIG` overrides the rc connection and `--config` overrides
+that variable. `--format` overrides rc presentation settings. Connection files
+use YAML by default, with explicit JSON compatibility; credentials and identities
+are never merged between them. The rc files remain DuckDB-style dot-command scripts.
 
 ## Output philosophy: explain, locate, guide
 
 Errors name the problem once. A location or next step appears when it helps
 resolve that problem. Routine option errors usually take one line; missing
 required input can add the minimum invocation. Full option lists belong in help.
-
-Running `transit server` without configuration reports:
-
-```text
-error: --config is required
-
-Usage: transit server --config PATH
-```
 
 A correction that fits in the error needs no additional guidance:
 
@@ -74,9 +78,8 @@ repeat attempt. Restart-budget exhaustion remains distinct from the underlying
 role failure. Routine errors omit redundant implementation codes and labeled
 `at`, `cause`, `next` and `help` fields.
 
-`PATH` denotes the configuration file you select. Configuration remains explicit:
-a diagnostic does not create files, select credentials, initialize an installation
-or submit an operation.
+`PATH` denotes a file path. A diagnostic never initializes an installation
+or submits an operation.
 
 ### Help hierarchy
 
@@ -136,9 +139,7 @@ restarts omit it.
 Top-level failures write diagnostics to stderr and leave stdout available for
 machine records. Help/version write to stdout and exit 0. Invocation and
 server/console/management configuration errors exit 2; runtime failures exit 1;
-an interrupted console wait exits 130. Console command result records, including
-structured `err`/`uncertain` outcomes, remain on stdout under their existing
-contract. Prompts and human diagnostic prose stay off machine stdout.
+an interrupted console wait exits 130. Console results use stdout; console errors, including query failures, use stderr. Prompts and human diagnostic prose stay off machine stdout.
 
 Diagnostics show coordinates without dumping command arguments, configuration
 bodies, credentials, SQL or result payloads. Displayed file paths are limited to
@@ -150,28 +151,29 @@ reference, not permission to disclose its contents.
 
 ## Console commands
 
-The console requires a semicolon outside SQL literals/comments before submission.
-Slash commands start an empty draft and end at newline. Completion never submits.
+The interactive console submits a statement on Enter after its semicolon.
+`-c` accepts one statement without a final semicolon; `-f` and stdin stream a
+script and accept a complete final statement at EOF. Batch execution stops on
+the first error. Dot commands start an empty draft and end at newline; slash
+commands are unsupported. Completion never submits.
 
 | Command | Meaning |
 | --- | --- |
-| `/help` | Show available commands |
-| `/sources`, `/tables`, `/schema` | Inspect the authorized source and schema |
-| `/new ID` | Select an unused positive u64 query namespace |
-| `/resume ID` | Observe an existing query without submitting SQL again |
-| `/status`, `/info` | Durable query status or local session information |
-| `/advance` | Continue the same admitted finite upload |
-| `/next` | Read one result segment after complete-coverage verification |
-| `/bundle`, `/restore-bundle HEX` | Export/import the canonical query bundle |
-| `/pending`, `/restore TOKEN`, `/retry` | Export/import/retry an exact pending signed operation |
-| `/cancel` | Explicit durable cancellation, separately admitted |
-| `/retire`, `/collect` | Withdraw a terminal request and reclaim it in bounded steps |
-| `/format table`, `/format json` | Select escaped display; no semantic change |
-| `/quit` / EOF | Disconnect; accepted work persists |
+| `.help` | Show available commands |
+| `.sources`, `.tables`, `.schema` | Inspect the authorized source and schema |
+| `.mode table\|json` | Select result presentation |
+| `.connect PATH` | Switch connection in a terminal, after resolving outstanding work |
+| `.show` | Effective settings and their origins |
+| `.status`, `.info` | Saved query status or evidence |
+| `.resume [ID]` | Recover the saved or selected existing query and print results |
+| `.cancel` | Request durable cancellation of the saved query |
+| `.quit`, EOF | Disconnect; accepted work persists |
 
-`query-v2` shares these operations except the console's `/tables` alias and TTY
-editing. The [v1 shell](../../apps/transit-cli/README.md) uses its own smaller
-command set and correlation model; it has no `/new`, upload or collection commands.
+SQL automatically chooses a fresh identity, records exact intent, advances its
+upload and prints verified results. `.new`, `.retry`, `.advance`, `.next` and
+manual recovery exports are not console commands. `query` and `query-v2` remain
+callable compatibility shells with their own explicit protocols and dot commands;
+root help advertises `console` as the query interface.
 
 ## Configuration, output and recovery
 
@@ -183,11 +185,14 @@ fields, paths and bounds. Configuration alone never creates a grant.
 
 Console JSON output keeps prompts and diagnostics off stdout. Full-width
 integers remain decimal strings; binary stays hex and cell-state distinctions
-are explicit. Each command reads a bounded page; the console does not accumulate
+are explicit. Each result page is bounded; the console does not accumulate
 all rows. Previously displayed output cannot be recalled after revocation.
 
 For `console`, normal disconnect/help exits 0, invalid invocation/configuration
 exits 2, runtime or any piped-command failure exits 1, and an interrupted native
 wait exits 130 after bounded settlement. Disconnect and SIGINT do not submit
-cancellation. Recovery files explicitly opt into persisting private query intent;
-use `/retry` and `/advance` to reconcile it, never fresh SQL as a timeout retry.
+cancellation. Automatic queries require a configured recovery file, explicitly retaining private
+query text and exact intent. Server-generated connections supply this setting.
+Use `.resume` after interruption; it reconciles the same operation and prints its
+result from the beginning, possibly repeating previously displayed rows. New SQL
+refuses to replace unresolved work.

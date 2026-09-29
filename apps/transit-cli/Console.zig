@@ -5,6 +5,7 @@ const u = @import("Unified.zig");
 const Options = @import("Options.zig");
 const Diagnostic = @import("Diagnostic.zig");
 const Recovery = @import("Recovery.zig");
+const Preferences = @import("Preferences.zig");
 const Signals = @import("Signals.zig");
 const sql_input = q.fuze.SqlInput;
 pub const Config = struct {
@@ -20,6 +21,31 @@ pub const Config = struct {
     format: Options.Format = .table,
     recovery_file: ?[]const u8 = null,
 };
+fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), diagnostic: *Diagnostic) !Config {
+    const Installation = @import("server/Installation.zig");
+    const allocator = init.arena.allocator();
+    const record_path = try std.fs.path.join(allocator, &.{ topology.installation, "installation.json" });
+    diagnostic.atFile(record_path);
+    const record = @import("server/Files.zig").read(Installation.Record, init.io, allocator, record_path) catch |err| {
+        return diagnostic.fail(error.InvalidConfiguration, "cannot read the local installation", if (err == error.FileNotFound)
+            "Start transit server --initialize for a new installation, or use --config with a connection YAML file."
+        else
+            "Check the retained installation record; the console never creates or repairs server state.");
+    };
+    if (record.version != 1 or !record.complete or !record.genesis_observed) return diagnostic.invalidField("installation", "is not initialized", "Wait for transit server to finish starting.");
+    inline for (.{ 0, 1, 4, 5 }) |index| if (record.provision[index] == null or record.provision[index].? == 0) return diagnostic.invalidField("installation", "has incomplete resource identities", null);
+    const c = Installation.connectionFrom(record, topology.realm);
+    return .{
+        .version = 1,
+        .profile = .unified_v2,
+        .url = try @import("server/Provider.zig").url(allocator, topology.ports.gateway),
+        .transport = .loopback,
+        .seed_file = "caller.seed",
+        .connection = c,
+        .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, try Installation.tableFor(c).definition(c.resource)), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) },
+        .recovery_file = "console-recovery.json",
+    };
+}
 fn path(allocator: std.mem.Allocator, base: []const u8, relative: []const u8) ![]const u8 {
     if (relative.len == 0 or std.mem.indexOfScalar(u8, relative, 0) != null) return error.InvalidConfiguration;
     return std.fs.path.resolve(allocator, &.{ base, relative });
@@ -54,16 +80,33 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
     diagnostic.field = null;
 }
 pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
+    var preferences = try Preferences.load(init, options, diagnostic);
+    while (try connection(init, options, preferences, diagnostic)) |next| {
+        preferences.connection = next.path;
+        preferences.connection_source = ".connect";
+        preferences.format = next.format;
+        preferences.format_source = ".mode";
+    }
+}
+const NextConnection = struct { path: []const u8, format: Options.Format };
+fn connection(init: std.process.Init, options: Options.Options, preferences: Preferences, diagnostic: *Diagnostic) !?NextConnection {
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();
     const allocator = arena.allocator();
-    diagnostic.atFile(options.path.?);
-    const config_path = std.Io.Dir.cwd().realPathFileAlloc(init.io, options.path.?, init.arena.allocator()) catch |err| {
-        diagnostic.configurationFailure(err);
-        return error.InvalidConfigurationPath;
+    var base: []const u8 = undefined;
+    const config = if (preferences.connection) |selected| explicit: {
+        diagnostic.atFile(selected);
+        const config_path = std.Io.Dir.cwd().realPathFileAlloc(init.io, selected, allocator) catch |err| {
+            diagnostic.configurationFailure(err);
+            return error.InvalidConfigurationPath;
+        };
+        base = std.fs.path.dirname(config_path).?;
+        break :explicit try @import("Settings.zig").readTyped(Config, init, config_path, diagnostic);
+    } else local: {
+        const topology = try @import("server/Config.zig").forConsole(init, diagnostic);
+        base = topology.installation;
+        break :local try localConfig(init, topology, diagnostic);
     };
-    const base = std.fs.path.dirname(config_path).?;
-    const config = try diagnostic.readJson(Config, init, config_path, 65536);
     validate(config, allocator, diagnostic) catch |err| {
         return switch (err) {
             error.UnsupportedConsoleVersion => diagnostic.invalidField("version", "must be 1", null),
@@ -94,7 +137,7 @@ pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagno
     } };
     diagnostic.field = "recovery_file";
     defer std.crypto.secureZero(u8, std.mem.asBytes(&client.key));
-    var session: u.Session = .{ .format = if ((options.format orelse config.format) == .json) .json else .table, .interrupted = Signals.interrupted };
+    var session: u.Session = .{ .format = if ((preferences.format orelse config.format) == .json) .json else .table, .interrupted = Signals.interrupted };
     defer session.clear();
     var recovery: ?Recovery = if (config.recovery_file) |file| try Recovery.open(init, try path(allocator, base, file), &client, &session) else null;
     defer if (recovery) |*file| file.close();
@@ -103,16 +146,39 @@ pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagno
         session.checkpoint_fn = Recovery.checkpoint;
         try session.checkpoint();
     }
+    // One local signing owner per credential file, even across recovery paths.
+    const caller_lock_path = try std.fmt.allocPrint(allocator, "{s}.console.lock", .{try path(allocator, base, config.seed_file)});
+    const caller_lock = try std.Io.Dir.cwd().createFile(init.io, caller_lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
+    defer caller_lock.close(init.io);
+    if (!try caller_lock.tryLock(init.io, .exclusive)) return error.ConsoleRecoveryInUse;
     diagnostic.field = null;
     const signals = try Signals.install();
     defer signals.close();
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
-    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null };
-    if (try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io)) {
-        try @import("Terminal.zig").run(&console);
-    } else try console.pipe();
+    const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
+    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic };
+    if (options.sql) |sql| {
+        if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
+        _ = try console.execute(sql);
+    } else if (options.script) |file_name| {
+        const file = std.Io.Dir.cwd().openFile(init.io, file_name, .{}) catch |err| {
+            diagnostic.atFile(file_name);
+            diagnostic.configurationFailure(err);
+            return error.InvalidConfiguration;
+        };
+        defer file.close(init.io);
+        var buffer: [8192]u8 = undefined;
+        var reader = file.reader(init.io, &buffer);
+        try console.pipe(&reader.interface);
+    } else if (terminal) try @import("Terminal.zig").run(&console) else try console.pipe(null);
+    if (console.next_connection) |next| return .{ .path = next, .format = if (session.format == .json) .json else .table };
+    return null;
 }
+pub fn isMeta(text: []const u8) bool {
+    return std.mem.startsWith(u8, text, ".");
+}
+
 pub const Console = struct {
     init: std.process.Init,
     session: *u.Session,
@@ -120,17 +186,32 @@ pub const Console = struct {
     config: q.Workspace.Config,
     out: *std.Io.Writer,
     recovery: ?*Recovery,
+    batch: bool,
+    preferences: Preferences,
+    diagnostic: *Diagnostic,
+    next_connection: ?[]const u8 = null,
     had_error: bool = false,
     access_lost: bool = false,
     pub fn execute(self: *Console, raw: []const u8) !bool {
         const text = std.mem.trim(u8, raw, " \t\r\n");
         if (text.len == 0) return true;
-        if (std.mem.eql(u8, text, "/quit")) return false;
+        if (std.mem.eql(u8, text, ".quit")) return false;
+        self.perform(text) catch |err| {
+            const failure = self.queryFailure(if (self.recovery != null and self.recovery.?.failed) error.ConsoleRecoveryWriteFailed else err);
+            if (self.batch or err == error.ConsoleInterrupted or failure == error.ConsoleRecoveryWriteFailed or err == error.ConsoleOutputTimeout) return failure;
+            self.diagnostic.emit(self.init.io, failure);
+        };
+        return self.next_connection == null;
+    }
+    fn perform(self: *Console, text: []const u8) !void {
+        const execution = @import("Execute.zig");
+        if (!isMeta(text)) return execution.sql(self, text);
+        if (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ")) {
+            const id: ?u64 = if (text.len == 7) null else try q.Values.unsigned(std.mem.trim(u8, text[8..], " \t"));
+            return execution.recover(self, id);
+        }
         var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
         defer arena.deinit();
-        // Keep one command's bounded presentation private until interruption
-        // and persistence checks finish. Native receipts are checkpointed at
-        // acceptance independently of whether this stdout write succeeds.
         const bytes = try self.init.gpa.alloc(u8, 1048576);
         defer {
             std.crypto.secureZero(u8, bytes);
@@ -140,52 +221,93 @@ pub const Console = struct {
         const destination = self.out;
         self.out = &buffered;
         defer self.out = destination;
-        self.dispatch(text, arena.allocator()) catch |err| {
-            if (err == error.ConsoleInterrupted) return err;
-            if (self.recovery) |file| if (file.failed) return error.ConsoleRecoveryWriteFailed;
-            if (Signals.interrupted()) return error.ConsoleInterrupted;
-            self.had_error = true;
-            // Pending intent is recovery state. It survives denial; rows and
-            // metadata are command-local and have no retained offline cache.
-            if (denied(err)) {
-                self.access_lost = true;
-                self.session.cursor = null;
-                self.session.complete = false;
-            }
-            try self.json(.{ .err = @errorName(err), .uncertain = self.session.pending != null });
-        };
+        try self.dispatch(text, arena.allocator());
         if (Signals.interrupted()) return error.ConsoleInterrupted;
-        try self.session.checkpoint();
         try @import("Output.zig").write(self.init, destination, buffered.buffered());
-        return true;
     }
     fn json(self: *Console, value: anytype) !void {
-        try std.json.Stringify.value(value, .{}, self.out);
+        try std.json.Stringify.value(value, .{ .escape_unicode = true }, self.out);
         try self.out.writeByte('\n');
     }
-    fn dispatch(self: *Console, text: []const u8, allocator: std.mem.Allocator) !void {
-        if (std.mem.eql(u8, text, "/help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT; /new ID then SQL terminated by semicolon. /next reads one verified page. Disconnect never cancels." });
-        if (std.mem.startsWith(u8, text, "/format ")) {
-            const format = std.meta.stringToEnum(Options.Format, text[8..]) orelse return error.UnsupportedFormat;
-            self.session.format = if (format == .json) .json else .table;
-            return self.json(.{ .format = format });
+    fn queryFailure(self: *Console, err: anyerror) anyerror {
+        self.had_error = true;
+        if (denied(err)) {
+            self.access_lost = true;
+            self.session.cursor = null;
+            self.session.complete = false;
         }
-        return u.command(self.init, self.session, self.client, self.config, if (std.mem.eql(u8, text, "/tables")) "/sources" else text, allocator, self.out);
+        self.diagnostic.atArgument(null, null);
+        self.diagnostic.file = null;
+        self.diagnostic.field = null;
+        if (err == error.ConsoleRecoveryRequired) return self.diagnostic.fail(err, "automatic queries require a recovery_file in the console configuration", "This private file retains the query and exact signed intent for recovery.");
+        const hint = if (self.session.namespace != null and !self.session.complete) std.fmt.allocPrint(self.init.arena.allocator(), "Query {d} remains saved. Reconnect with the same configuration; use .resume to recover its result or .cancel to request cancellation. Disconnecting does not cancel it.", .{self.session.namespace.?}) catch null else null;
+        return self.diagnostic.fail(err, "query could not complete", hint);
     }
-    fn pipe(self: *Console) !void {
+    fn dispatch(self: *Console, text: []const u8, allocator: std.mem.Allocator) !void {
+        if (std.mem.eql(u8, text, ".help") and self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .connect PATH .show .info .quit\nRecovery: .status .resume [ID] .cancel\nDisconnecting does not cancel accepted work.\n");
+        if (std.mem.eql(u8, text, ".help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT. SQL prints verified results; .resume recovers the saved query." });
+        if (std.mem.startsWith(u8, text, ".connect ")) {
+            if (self.batch) return error.ConnectionSwitchRequiresTerminal;
+            if (self.session.pending != null or self.session.input != null or (self.session.namespace != null and !self.session.complete)) return error.UnresolvedSubmission;
+            const file = try Preferences.argument(allocator, text[9..]);
+            self.next_connection = try self.init.arena.allocator().dupe(u8, file);
+            return;
+        }
+        if (std.mem.eql(u8, text, ".show")) return self.json(.{ .connection = self.preferences.connection, .connection_source = self.preferences.connection_source, .url = self.client.wire.url, .format = self.session.format, .format_source = self.preferences.format_source });
+        if (std.mem.eql(u8, text, ".tables")) {
+            const description = try q.Workspace.apply(allocator, self.client, self.config, .describe);
+            if (self.session.format == .json) return self.json(description);
+            return self.out.print("{s}\n", .{self.config.name});
+        }
+        if (std.mem.startsWith(u8, text, ".mode ")) {
+            const format = std.meta.stringToEnum(Options.Format, std.mem.trim(u8, text[6..], " \t")) orelse return error.UnsupportedFormat;
+            self.session.format = if (format == .json) .json else .table;
+            self.preferences.format_source = ".mode";
+            return;
+        }
+        if (std.mem.eql(u8, text, ".cancel")) {
+            if (self.recovery == null) return error.ConsoleRecoveryRequired;
+            const id = self.session.namespace orelse return error.NoQuery;
+            try u.settle(self.init, self.session, self.client);
+            self.session.pending = try self.client.prepare(.{ .cancel = id });
+            self.session.length = 0;
+            try u.settle(self.init, self.session, self.client);
+            const status = (try self.client.status(id)) orelse return error.QueryUploadNotFound;
+            if (self.session.format == .json) return self.json(.{ .query = id, .cancellation_requested = true, .phase = status.phase });
+            return self.out.print("Query {d}: cancellation requested (status: {s}).\n", .{ id, @tagName(status.phase) });
+        }
+        if (std.mem.eql(u8, text, ".info")) {
+            const id = self.session.namespace;
+            const status = if (id) |value| try self.client.status(value) else null;
+            if (status != null and status.?.phase == .complete) {
+                const page = (try q.Workspace.apply(allocator, self.client, self.config, .{ .page = .{ .namespace = try q.document.JsonValues.decimal(allocator, id.?), .cursor = null } })).page;
+                return self.json(.{ .namespace = id, .uncertain = self.session.pending != null, .manifest = page.evidence.manifest });
+            }
+            return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
+        }
+        if (std.mem.eql(u8, text, ".schema") or std.mem.eql(u8, text, ".sources") or std.mem.eql(u8, text, ".status")) return u.command(self.init, self.session, self.client, self.config, text, allocator, self.out);
+        return error.UnknownConsoleCommand;
+    }
+
+    fn pipe(self: *Console, source: ?*std.Io.Reader) !void {
         var buffer: [65536]u8 = undefined;
         defer std.crypto.secureZero(u8, &buffer);
         var length: usize = 0;
-        while (try Signals.readByte()) |byte| {
+        while (if (source) |reader| reader.takeByte() catch |err| switch (err) {
+            error.EndOfStream => null,
+            else => return err,
+        } else try Signals.readByte()) |byte| {
+            if (Signals.interrupted()) return error.ConsoleInterrupted;
             if (length == buffer.len) return error.ConsoleInputTooLarge;
             buffer[length] = byte;
             length += 1;
             const text = std.mem.trimStart(u8, buffer[0..length], " \t\r\n");
-            const meta = std.mem.startsWith(u8, text, "/") and !std.mem.startsWith(u8, text, "/*");
+            const meta = isMeta(text);
             if (!meta and text.len > q.fuze.Sql.max_statement_bytes) return error.StatementTooLarge;
             if ((meta and byte == '\n') or (!meta and byte == ';' and try sql_input.terminator(text) != null)) {
-                if (!try self.execute(text)) break;
+                const more = try self.execute(text);
                 length = 0;
+                if (!more) break;
             } else if (byte == '\n' and !meta and !try sql_input.significant(text)) {
                 var scan = try sql_input.Scan.init(text);
                 var closed = true;
@@ -196,11 +318,14 @@ pub const Console = struct {
             }
         }
         const rest = std.mem.trim(u8, buffer[0..length], " \t\r\n");
-        if (std.mem.startsWith(u8, rest, "/") and !std.mem.startsWith(u8, rest, "/*")) {
-            _ = try self.execute(rest);
-        } else if (rest.len > 0) {
+        if (!isMeta(rest)) {
             var scan = try sql_input.Scan.init(rest);
-            while (try scan.next()) |token| if (token.kind != .space and (token.kind != .comment or (!token.closed and std.mem.startsWith(u8, rest[token.start..], "/*")))) return error.IncompleteSqlStatement;
+            while (try scan.next()) |token| if (!token.closed) return error.IncompleteSqlStatement;
+        }
+        if (isMeta(rest)) {
+            _ = try self.execute(rest);
+        } else if (rest.len > 0 and try sql_input.significant(rest)) {
+            _ = try self.execute(rest);
         }
         if (self.had_error) return error.ConsoleCommandFailed;
     }

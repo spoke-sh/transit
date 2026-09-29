@@ -20,7 +20,7 @@ config_path: []const u8,
 processes: [9]Process = @splat(.{}),
 active_role: Role = .cold,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
-    const config = try Config.load(init, options.path.?, diagnostic);
+    const config = try Config.load(init, options.path, diagnostic);
     if (!options.no_ui and config.board == null) return diagnostic.invalidField("version", "must be 3 to start Board", "Use --no-ui for headless versions 1/2. Retained installations require their recorded configuration.");
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const identity = try config.identities(init, executable, diagnostic);
@@ -54,7 +54,7 @@ pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, d
     try installation.checkStorage();
     const self = try init.gpa.create(Self);
     defer init.gpa.destroy(self);
-    self.* = .{ .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path.?, .ui = !options.no_ui };
+    self.* = .{ .init = init, .installation = &installation, .executable = executable, .diagnostic = diagnostic, .config_path = options.path orelse "transit.yaml / server defaults", .ui = !options.no_ui };
     defer self.stop();
     var restarts: u8 = 0;
     while (!Signals.interrupted()) {
@@ -183,13 +183,11 @@ fn cycle(self: *Self) !void {
             break;
         }
     }
-    const console_path = try installation.path("console.json");
-    try Files.json(self.init.io, allocator, console_path, @import("../Console.zig").Config{ .version = 1, .profile = .unified_v2, .url = try Provider.url(allocator, config.ports.gateway), .transport = .loopback, .seed_file = "caller.seed", .connection = connection, .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) }, .recovery_file = "console-recovery.json" });
     const report = try std.json.Stringify.valueAlloc(allocator, .{
         .ready = true,
         .profile = if (applications != null) "local_applications_v1" else "local_table_v1",
-        .console_config = console_path,
-        .management_config = if (applications != null) try installation.path("management.json") else null,
+        .installation = config.installation,
+        .management_config = if (applications != null) try installation.path("management.yaml") else null,
         .gateway_url = try Provider.url(allocator, config.ports.gateway),
         .allowed_hosts = try @import("Hosts.zig").list(allocator, config.ports.gateway, config.gateway_allowed_hosts),
         .board_url = if (self.ui) config.board.?.public_origin else null,

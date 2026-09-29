@@ -83,7 +83,7 @@ let
     version = "0.1.0";
     inherit src;
     fetcherVersion = 3;
-    hash = "sha256-SIPo1z9uYY2IG9v4VXhuZO9ACIummcHtXAnu/uOWIdo=";
+    hash = "sha256-8uXXulDPPWyGPMbPg/6O2qRDVEPmScYEYxVKGUCMgfc=";
   };
   boardAssets = stdenvNoCC.mkDerivation {
     pname = "transit-board-assets";
