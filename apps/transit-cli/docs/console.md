@@ -229,13 +229,18 @@ five seconds. Observed denial clears draft, undo, history, completion and result
 cursor; frozen recovery intent remains separate. Previous terminal output was
 already disclosed and cannot be recalled.
 
-Ctrl-C during SQL or `.resume` stops result presentation and requests cancellation
-of that query. The console reconciles any frozen signed request before sending
+Ctrl-C during SQL stops result presentation, reports cancellation on stderr and
+returns to an empty prompt where another query can run. Remaining statements in
+the submitted draft are discarded. Ctrl-C at the prompt clears only the draft.
+In the default interactive execution mode, it stops local evaluation and attempts
+to release the leased snapshot; failed cleanup falls back to lease expiry.
+
+In durable execution mode, Ctrl-C during SQL or `.resume` requests recorded
+cancellation of that query. The console reconciles any frozen signed request before sending
 the cancellation; it does not finish uploading the remaining plan. It observes
 the requester disposition and release of its active upload slot before clearing
 the saved query. It reports the outcome on stderr and returns to an empty prompt,
-where another query can run. Remaining statements in the submitted draft are
-discarded. Ctrl-C at the prompt still clears only the draft.
+where another query can run.
 
 Repeated Ctrl-C during cancellation is coalesced; SIGTERM still disconnects.
 If execution already completed, the message says so and stops any remaining result

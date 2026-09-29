@@ -170,10 +170,12 @@ commands are unsupported. Completion never submits.
 | `.status`, `.info` | Saved query status or evidence |
 | `.resume [ID]` | Recover the saved or selected existing query and print results |
 | `.cancel` | Request durable cancellation of the saved query |
-| `.quit`, EOF | Disconnect; accepted work persists |
+| `.quit`, EOF | Disconnect; durable accepted work persists |
 
-SQL automatically chooses a fresh identity, records exact intent, advances its
-upload and prints verified results. `.new`, `.retry`, `.advance`, `.next` and
+SQL uses a fresh leased snapshot by default and executes locally without durable
+query state. In `execution: durable` mode, SQL chooses a fresh identity, records
+exact intent, advances its upload and prints verified results. Recovery commands
+apply to durable mode. `.new`, `.retry`, `.advance`, `.next` and
 manual recovery exports are not console commands. `query` and `query-v2` remain
 callable compatibility shells with their own explicit protocols and dot commands;
 root help advertises `console` as the query interface.
@@ -193,14 +195,18 @@ all rows. Previously displayed output cannot be recalled after revocation.
 
 For `console`, normal disconnect/help exits 0, invalid invocation/configuration
 exits 2, and runtime or any piped-command failure exits 1. Ctrl-C during SQL or
-`.resume` requests cancellation using the original query identity and returns to
-the interactive prompt after bounded settlement and cleanup. Repeated Ctrl-C is
+`.resume` returns to an empty terminal prompt after cancellation. Default
+interactive execution stops local evaluation and releases its leased snapshot,
+falling back to lease expiry if cleanup fails. Durable execution requests
+cancellation using the original query identity and waits for bounded settlement
+and cleanup. Repeated Ctrl-C is
 coalesced. Batch input exits 130 on a resolved outcome, or 1 if cancellation fails.
-Completed execution is reported separately from interrupted result display;
-unconfirmed cancellation retains saved intent for `.status` and `.cancel`.
+In durable mode, completed execution is reported separately from interrupted
+result display; unconfirmed cancellation retains saved intent for `.status` and `.cancel`.
 Ordinary disconnect, SIGTERM and metadata interruption do not submit cancellation;
 metadata or idle batch interruption exits 130. The [console guide](../../apps/transit-cli/docs/console.md#input-commands-and-results)
-defines completion races, cleanup bounds and recovery. Automatic queries require a configured recovery file, explicitly retaining private
+defines completion races, cleanup bounds and recovery. Durable automatic queries
+require a configured recovery file, explicitly retaining private
 query text and exact intent. Server-generated connections supply this setting.
 Use `.resume` after a disconnect with saved work; it reconciles the same operation and prints its
 result from the beginning, possibly repeating previously displayed rows. New SQL

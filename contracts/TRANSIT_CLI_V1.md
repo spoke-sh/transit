@@ -65,12 +65,14 @@ never treats uncertainty as proof of rejection.
 
 Successful help, version, ordinary disconnect and joined server shutdown return
 0; invalid invocation/configuration returns 2; runtime failure returns 1. A
-console interrupted during SQL or `.resume` attempts recorded query cancellation
-and returns to the interactive prompt. Batch interruption exits 130 after a
+console interrupted during SQL or `.resume` cancels execution and returns to an
+empty terminal prompt. Interactive execution stops local evaluation and releases
+its leased snapshot; durable execution requests recorded query cancellation. Batch interruption exits 130 after a
 resolved outcome, or 1 if cancellation fails. Interrupting metadata or idle batch
 input disconnects with 130 without cancellation. Server SIGINT/SIGTERM initiate joined shutdown. Machine records go
 to stdout and diagnostics to stderr; JSON mode has no banner or prompt. Broken
-stdout ends the local session without cancelling accepted work.
+stdout ends the local session and releases an interactive snapshot; durable
+accepted work remains recoverable.
 
 `query`, `query-v2`, `rey-cli`, `kubectl-transit` and the existing launcher commands
 retain their separate configuration and protocols. The query shells use dot
@@ -203,7 +205,10 @@ Automatic connection selection is `(automatic)`; boolean settings use `on`/`off`
 It reports effective settings and their origins without changing settings,
 submitting queries or retrying saved work.
 `.connect` is terminal-only and refuses to abandon unresolved work. Unknown
-commands/arguments reject as a whole. Normal SQL compiles before identity
+commands/arguments reject as a whole. Default interactive SQL uses a fresh leased
+snapshot and local evaluation, as defined by [interactive queries](INTERACTIVE_QUERY_V1.md).
+The upload and recovery behavior below applies to `execution: durable`.
+Durable SQL compiles before identity
 allocation, selects a nonzero unused random identity within the exact protocol
 counter range, persists its intent, advances the native upload and prints
 verified complete results one page at a time. It never substitutes new SQL for

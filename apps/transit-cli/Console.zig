@@ -227,7 +227,7 @@ pub const Console = struct {
                 if (self.batch or Signals.terminating() or failure == error.ConsoleRecoveryWriteFailed) return failure;
                 self.diagnostic.emit(self.init.io, failure);
             };
-            if (self.batch) return self.diagnostic.fail(error.ConsoleQueryInterrupted, "console query interrupted", null);
+            if (self.batch) return if (self.interactive) self.queryFailure(error.ConsoleInterrupted) else self.diagnostic.fail(error.ConsoleQueryInterrupted, "console query interrupted", null);
             return true;
         }
         if (result) |err| {
