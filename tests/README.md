@@ -3827,6 +3827,18 @@ after keeping timing-argument errors out of query-recovery diagnostics.
 
 ### Native query latency: whole-node attribution
 
+The console latency runner also supports `--repeat`, `--age-queries` and
+`--instrument`. On 2026-09-29, the owned instrumented empty-Table run completed
+in 71.303 s, first output 71.295 s, sampled console RSS 14,241,792 bytes.
+It observed 1,800 native attempts (including background workers), 51 command
+attempts and 50,366 provider attempts. A separate three-second idle window had
+101 native attempts. The Python proxies materially increase cost and polling;
+these numbers are attribution/control evidence, not a speed comparison with
+the earlier uninstrumented baseline. Failed proxy experiments and a concurrent
+build race are excluded. The script retains failed fixtures and cleans up only
+its own processes. Populated-source and restart/cache matrix coverage remains
+to be added with interactive-session qualification.
+
 A subsequent isolated disk-backed profile counts all native callers, including
 source/requester workers and the courier. ReleaseSafe builds of the same node and
 query host are held fixed; the profiling node adds per-request page counter deltas

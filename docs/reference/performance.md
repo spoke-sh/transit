@@ -146,7 +146,22 @@ nix develop
 just test::console-latency --single
 just test::console-latency --single --resident-pages 64
 just test::console-latency --single --worker-interval-ms 200
+just test::console-latency --single --repeat 3 --age-queries 5
+just test::console-latency --single --instrument
 ```
+
+The runner reports first stdout byte, completion, sampled console RSS (20 ms
+sampling), node CPU and executable hashes. Repetitions share an installation;
+`--age-queries` adds completed query history before measurement. A first query
+is post-bootstrap, not a cold OS or provider cache. `--resident-pages 0` disables
+the native immutable-page cache without flushing the operating system.
+
+`--instrument` inserts owned loopback proxies and counts native attempts by
+operation and principal, plus provider methods and request/response body bytes.
+It reports a separate three-second idle interval. These are transport attempts,
+not unique durable commits or retained disk bytes. Proxy overhead can alter
+polling and retries substantially: compare these runs separately from ordinary
+elapsed-time measurements. No payloads or credentials are logged.
 
 The task builds ReleaseSafe binaries into its own cache directory, freezes their
 hashes, creates an owned local fixture, checks the empty result and joins its
