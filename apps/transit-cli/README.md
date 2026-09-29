@@ -1,6 +1,6 @@
 # transit-cli
 
-[M27](../../docs/roadmap/M27.md) starts and supervises a separate `transit-board`
+The local server starts and supervises a separate `transit-board`
 process by default in version-3 local installations, with `--no-ui` for headless operation. See the
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 

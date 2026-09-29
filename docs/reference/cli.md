@@ -10,8 +10,8 @@ pinned development shell, or use the [Nix local bundle](../guides/quickstart.md)
 ```text
 transit --help
 transit --version
-transit serve --config FILE [--initialize]
-transit server --config FILE [--initialize]
+transit serve --config FILE [--initialize] [--no-ui]
+transit server --config FILE [--initialize] [--no-ui]
 transit console [--config FILE] [--format table|json]
 transit query FILE
 transit query-v2 FILE
@@ -24,7 +24,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 
 | Command | Input and outcome |
 | --- | --- |
-| `serve`, `server` | Aliases. Run the same local supervisor in the foreground; `--initialize` deliberately creates a new installation |
+| `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
 | `console` | Versioned configuration; multiline, explicit-submit unified v2 SQL with terminal assistance and optional durable recovery file |
 | `query` | Original single-line Table v1 shell and positional configuration |
 | `query-v2` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |

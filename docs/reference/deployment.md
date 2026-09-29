@@ -7,7 +7,7 @@ worker isolation. Distributed recovery across authorities is unsupported.
 
 | Entry point | Intended use | Guide |
 | --- | --- | --- |
-| `transit server` | Trusted local service neighborhood and version-2 application manager | [Server](../../apps/transit-cli/docs/server.md), [applications](../../apps/transit-cli/docs/applications.md) |
+| `transit server` | Trusted local service neighborhood, application manager and supervised Board | [Server](../../apps/transit-cli/docs/server.md), [applications](../../apps/transit-cli/docs/applications.md) |
 | Local launcher | Persistent native development stack with Board and example workload | [Launchers](../../launchers/README.md) |
 | Compose launcher | Containerized development and integration testing | [Launchers](../../launchers/README.md) |
 | Reference launcher/chart | Kubernetes/Substrate infrastructure and persistent application | [Reference runbook](../../deploy/reference/README.md), [Helm chart](../../charts/transit/README.md) |
@@ -27,8 +27,11 @@ Default native gateway authorities include numeric loopback and `localhost`
 at the configured port. Explicit aliases support alternate tunnel ports without
 changing the listener or browser policy; configure them before initialization.
 
-The initial version-1 neighborhood and version-2 application manager are explicit
-profiles. Compatible application-worker replacement is separate from changing
+Version 3 starts Board by default; `--no-ui` disables it for one invocation.
+Versions 1 and 2 retain their headless configuration and require `--no-ui` with
+the current CLI. Use existing pinned installations with their original artifacts;
+changing the configuration version does not upgrade retained history.
+Compatible application-worker replacement is separate from changing
 pinned neighborhood binaries. Stop/start, build/update and destructive reset have
 different meanings. Follow the owning guide; a package upgrade alone cannot
 initialize authority or migrate data.

@@ -1,8 +1,9 @@
 # Inspect with Board
 
 Board displays evidence obtained through Transit's public read APIs. Open the
-URL printed by the [development launcher](../../launchers/README.md), or configure
-the [standalone service](../../apps/transit-board/docs/configuration.md).
+`board_url` printed by the [local server](quickstart.md), use the
+[development launcher](../../launchers/README.md), or configure the
+[standalone service](../../apps/transit-board/docs/configuration.md).
 Use it to follow process history, state resources, ownership and retained work.
 
 ## Start from an identity and an observed cut

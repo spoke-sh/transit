@@ -42,7 +42,7 @@ The initial service neighborhood is a growing authority over disk-backed Ursula,
 bounded maintenance, a delivery courier, a separately activated query source and
 requester, and a public native-protocol gateway. The initial source is an empty
 declared int64 Table; a functioning installation need not contain example data.
-M27 version-3 server configuration enables Board by default with its own retained
+Version-3 server configuration enables Board by default with its own retained
 inspection-only key and explicit resource grants. `--no-ui` disables its process
 and listener for one invocation without changing configuration or history. Older
 configuration versions require this headless option; pinned artifact identities

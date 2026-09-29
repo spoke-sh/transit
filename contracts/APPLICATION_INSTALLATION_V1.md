@@ -46,7 +46,7 @@ that application computation is compatible or honest.
 
 ## Board inspection extension
 
-M27 adds declaration version 2 with at most sixteen explicit `inspection`
+Declaration version 2 supports at most sixteen explicit `inspection`
 entries, each naming a declared resource and metadata/read permissions (1–3).
 Only bits 1 and 2 are allowed; zero, duplicates and undeclared resources reject.
 These entries authorize the local manager to provision its dedicated Board

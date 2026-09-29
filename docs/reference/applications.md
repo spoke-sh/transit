@@ -26,12 +26,18 @@ than preparing a new installation with fresh identities.
 | Data epoch | Active domain/schema state |
 | Published interface revision | Conditional active UI/service definition |
 
-The version-2 local server supports separate installed applications, scoped
+The local server supports separate installed applications, scoped
 caller exports, compatible replacement and exact recovery on Linux x86_64.
 The supervisor hosts independently compiled Zig workers. Worker adapters for
 other SDK languages are not available. Pinned neighborhood upgrades,
 arbitrary incompatible executable replacement and automatic history migration
 remain outside the profile.
+
+Version-3 server configuration includes Board inspection. Applications declare
+resource access explicitly through the version-2 installation declaration's
+`inspection` list. These grants belong to Board's separate identity; restarting
+or replacing a worker does not restore revoked access. See
+[application inspection](../../apps/transit-cli/docs/applications.md#board-inspection).
 
 ## Declarative application interfaces
 

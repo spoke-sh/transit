@@ -8,17 +8,17 @@ for executed evidence.
 
 ## Start and install
 
-Use the executable paths and five ports in [server configuration](server.md).
-For a **new** application-capable installation, set `version` to `2` and add:
+Use the version-3 configuration and executable paths in
+[server configuration](server.md). For a new application-capable installation, add:
 
 ```json
 "applications": { "port": 19106, "max_applications": 8, "max_roles": 32 }
 ```
 
-All six ports must differ. Start with
+The five service ports, application management port and Board port must differ. Start with
 `transit serve --config server.json --initialize`; subsequent starts omit
 `--initialize`. The ready record includes `management_config`. This is not an
-in-place conversion of a version-1 installation: neighborhood configuration and
+in-place conversion of an existing installation: neighborhood configuration and
 Transit/provider artifact hashes remain pinned. Application replacement is a
 separate operation.
 

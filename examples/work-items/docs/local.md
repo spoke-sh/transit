@@ -3,7 +3,7 @@
 The package's own `build.zig` compiles `transit-work-items` (the data worker) and
 `work-items` (the domain operator) against public Transit package dependencies.
 Follow [local application installation](../../../apps/transit-cli/docs/applications.md)
-to start a version-2 neighborhood and export writer, inspector and operator
+to start an application-enabled neighborhood and export writer, inspector and operator
 connections. No application command uses the realm root key or edits manager
 records.
 

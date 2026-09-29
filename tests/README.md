@@ -3542,3 +3542,13 @@ three browser checks pass after updating the homepage and shared footer. Source
 validation passes 3,900 links across 415 Markdown files. A separate built-output
 audit checks every HTML page and all 56 search entries for the removed maturity
 wording. No runtime integration or deployment proof was rerun for this prose change.
+
+After rebasing the handbook onto `7f08401`, the quickstart and application guides
+use version-3 server configuration with supervised Board, matching the local
+bundle's executable manifest. The CLI reference includes `--no-ui`, and public
+guides describe Board's separate identity and explicit application inspection
+grants. `just check` passes after the locked workspace install; the final focused
+site check and all three production browser checks at `/` also pass. Source
+validation passes 3,915 links across 416 Markdown files. These checks cover
+documentation integration; the revised version-3 onboarding commands, runtime
+deployment proofs and full ordinary clean CI suite were not rerun in this pass.

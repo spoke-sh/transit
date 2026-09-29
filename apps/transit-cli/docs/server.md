@@ -278,7 +278,7 @@ by an older CLI retains its exact artifact/configuration hashes: neither this
 flag nor changing the JSON version upgrades it. Keep such an installation on its
 original pinned package/configuration. To adopt this profile, initialize a
 separately named version-3 installation with the matching packaged artifacts;
-there is no in-place history import or runtime upgrade in this milestone. Once
+there is no in-place history import or runtime upgrade in this profile. Once
 created under version 3, all UI toggles use the same configuration and history.
 
 Retain the `transit-local` Nix output with a profile or GC-rooted build link for

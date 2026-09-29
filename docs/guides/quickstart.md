@@ -2,10 +2,10 @@
 
 This starts an isolated, application-capable local installation and queries an
 empty Table. Use Linux x86_64 with Nix flakes enabled and this repository checked
-out. The complete local bundle includes pinned Transit, Ursula and MinIO;
+out. The complete local bundle includes pinned Transit, Board, Ursula and MinIO;
 Docker is not required for this path.
 
-Run from the repository root. Choose unused ports 19101–19106 and a new
+Run from the repository root. Choose unused ports 19101–19107 and a new
 `.cache/docs-start` directory. Keep that directory to resume the installation.
 
 ## Build the local bundle
@@ -34,24 +34,31 @@ import json
 from pathlib import Path
 bundle = Path('.cache/transit-local').resolve()
 configuration = {
-    'version': 2,
+    'version': 3,
     'installation': './installation',
     'realm': 73,
     'ports': {'cold': 19101, 'cold_console': 19102, 'store': 19103,
               'node': 19104, 'gateway': 19105},
     'executables': json.loads((bundle / 'share/transit/local-executables.json').read_text()),
     'applications': {'port': 19106, 'max_applications': 8, 'max_roles': 32},
+    'board': {'port': 19107},
 }
 Path('.cache/docs-start/server.json').write_text(json.dumps(configuration, indent=2) + '\n')
 PY
 .cache/transit-local/bin/transit serve --config .cache/docs-start/server.json --initialize
 ```
 
-Wait for the JSON ready record. It names the generated `console_config` and
-`management_config`. All listeners bind loopback; this is a trusted single-user
+Wait for the JSON ready record. It names the generated `console_config`,
+`management_config` and `board_url`. Open `board_url` to inspect the installation.
+All listeners bind loopback; this is a trusted single-user
 installation, not an OS sandbox. Credentials and data stay in the installation
 directory. The [server guide](../../apps/transit-cli/docs/server.md) explains
 quotas, required free disk space and configuration compatibility.
+
+Add `--no-ui` to run headlessly. This stops Board for that invocation while
+preserving its identity and grants; restart without the flag to enable it again.
+Board provides shared inspection only. Application resource access requires an
+explicit [inspection declaration](../../apps/transit-cli/docs/applications.md#board-inspection).
 
 ## Query from a second terminal
 
@@ -92,5 +99,5 @@ Do not add `--initialize` on restart. For a previously submitted query, use
 If state or an artifact is missing, startup refuses to recreate its history.
 Inspect the error and follow [server recovery](../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 
-Next, [install a separately compiled application](applications.md). The local
-server does not include Board or Flight; those have separately configured hosts.
+Next, [install a separately compiled application](applications.md). Flight and
+Board's query/operator workspaces require separate configuration.
