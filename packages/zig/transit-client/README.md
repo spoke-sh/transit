@@ -149,6 +149,15 @@ Station Document uses this shared adapter for public accepted-state reads.
 entry revision. The serving Table watch uses that revision for its application
 progress marker; it never compares entry positions from unrelated resources.
 
+`SnapshotReader.open` acquires a fresh leased resource cut through the
+`leased_snapshots` capability. Its point/page methods keep that revision across
+source writes while the authority checks current permissions and lifetimes.
+Call `close` on success, cancellation and failure; abnormal client loss falls
+back to the finite lease. The reader preserves failures, supports a cancellation
+flag between fetches and cannot resume after authority restart. See
+[leased snapshots](../../../contracts/INTERACTIVE_QUERY_V1.md#generic-leased-snapshots)
+for active quotas, clock requirements and retained-byte limits.
+
 With the native `resource_read_batch` capability, `ResourceReader.readBatch`
 acquires up to eight distinct keys in one current authorized cut. The returned
 owned `Batch` exposes only those keys and their exact absence/entry revisions;

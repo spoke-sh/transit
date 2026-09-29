@@ -48,6 +48,13 @@ pub const Principal = struct { grant: g.Grant, revision: u64, epoch: u64, sequen
 pub const Receipt = struct { position: u64, digest: [32]u8 };
 pub const StoredView = struct { meta: g.View, snapshot: catalog.Snapshot };
 pub const StoredReadVersion = struct { meta: g.ReadVersion, snapshot: catalog.Snapshot };
+pub const StoredSnapshot = struct {
+    meta: g.Snapshot,
+    snapshot: catalog.Snapshot,
+    principal: u64,
+    principal_epoch: u64,
+    nonce: [16]u8,
+};
 pub const ResourceGrant = struct { principal_epoch: u64, permissions: u8 };
 pub const Maintenance = @import("growing_maintenance.zig");
 
@@ -82,6 +89,12 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         genesis: Genesis,
         head: Head,
         clock: ?core.Time.Source = null,
+        /// Inject a fresh secure epoch at service startup. Volatile read pins
+        /// cannot survive restart or replace retained durable read versions.
+        snapshot_epoch: ?[16]u8 = null,
+        snapshot_serial: u64 = 0,
+        snapshot_time_floor_ms: u64 = 0,
+        snapshots: [g.snapshot_capacity]?StoredSnapshot = @splat(null),
 
         pub fn bootstrap(journal: *Journal, page_store: *PageStore, genesis: Genesis) !Self {
             const fingerprint = try genesisHash(genesis);

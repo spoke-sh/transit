@@ -53,6 +53,9 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     var clock_context: u8 = 0;
     if (config.genesis.max_clock_error_ms != null) engine.clock = .{ .context = &clock_context, .read = @import("Clock.zig").read };
     if (mode.maintain) return Maintenance.run(init, &engine, config.maintenance orelse return error.MissingMaintenanceConfig, diagnostics);
+    var snapshot_epoch: [16]u8 = undefined;
+    try init.io.randomSecure(&snapshot_epoch);
+    engine.snapshot_epoch = snapshot_epoch;
     var server: Server = .{ .io = init.io, .allocator = init.gpa, .engine = &engine, .accept_trace_parent = config.accept_trace_parent };
     return serve(init, &server, config.listen, config.port, config.request_timeout_ms, diagnostics);
 }

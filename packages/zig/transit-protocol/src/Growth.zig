@@ -13,6 +13,16 @@ pub const turn_outputs = 4;
 pub const key_bytes = 32;
 pub const view_lifetime_ms = 60_000;
 pub const version_changes = 4;
+pub const snapshot_capacity = 64;
+pub const snapshots_per_principal = 8;
+pub const snapshot_lifetime_ms = 300_000;
+pub const SnapshotId = struct { epoch: [16]u8, serial: u64 };
+pub const Snapshot = struct {
+    id: SnapshotId,
+    resource: Resource,
+    deadline_ms: u64,
+    hard_deadline_ms: u64,
+};
 
 /// Durable identity known before the containing input commits. Not a capability.
 pub const ReadVersionId = struct { pid: Id, input: Id, index: u8 };
@@ -173,6 +183,9 @@ pub const Query = struct {
         identity: void,
         read_access: Id,
         read_entries: struct { resource: Id, revision: ?u64 = null, keys: [page_size]?p.Value },
+        open_snapshot: struct { resource: Id, nonce: [16]u8 },
+        snapshot_entries: struct { id: SnapshotId, key: ?p.Value = null, after: ?p.Value = null },
+        close_snapshot: SnapshotId,
     },
 };
 pub const Identity = struct { principal: Id, permissions: u16, pid: ?Id, policy_revision: u64 };
@@ -196,6 +209,7 @@ pub const Capabilities = struct {
     retained_read_versions: bool = false,
     resource_read_access: bool = false,
     resource_read_batch: bool = false,
+    leased_snapshots: bool = false,
     worker_rotation: bool = false,
     version_change_budget: u16 = version_changes,
     // Unsupported lifecycle/provider/cleanup extensions must remain explicit.
@@ -232,6 +246,9 @@ pub const Response = struct {
         identity: Identity,
         read_access: Resource,
         read_entries: struct { resource: Resource, entries: [page_size]?Entry },
+        open_snapshot: Snapshot,
+        snapshot_entries: struct { snapshot: Snapshot, page: Batch(Entry, p.Value) },
+        close_snapshot: SnapshotId,
     },
 };
 
@@ -302,6 +319,13 @@ pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
     try counters(query);
     switch (query.kind) {
+        .open_snapshot => |q| if (q.resource == 0) return error.InvalidRead,
+        .snapshot_entries => |q| {
+            if (q.id.serial == 0 or (q.key != null and q.after != null)) return error.InvalidRead;
+            if (q.key) |key| try validateKey(key);
+            if (q.after) |key| try validateKey(key);
+        },
+        .close_snapshot => |id| if (id.serial == 0) return error.InvalidRead,
         .association => |c| try validateKey(c.name),
         .read_entries => |c| {
             if (c.resource == 0 or c.keys[0] == null) return error.InvalidRead;
@@ -346,6 +370,18 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .open_snapshot => |q| {
+            const snapshot = response.body.open_snapshot;
+            try validateSnapshot(snapshot);
+            if (snapshot.resource.id != q.resource) return error.InvalidRead;
+        },
+        .snapshot_entries => |q| {
+            const value = response.body.snapshot_entries;
+            try validateSnapshot(value.snapshot);
+            if (!std.meta.eql(q.id, value.snapshot.id)) return error.InvalidRead;
+            try validateEntries(value.page, q.key, q.after, value.snapshot.resource.revision);
+        },
+        .close_snapshot => |id| if (!std.meta.eql(id, response.body.close_snapshot)) return error.InvalidRead,
         .identity => {
             const identity = response.body.identity;
             if (identity.principal != query.principal or identity.permissions & ~p.all_permissions != 0 or
@@ -452,6 +488,42 @@ pub fn validateResponse(response: Response, query: Query) !void {
     }
 }
 
+fn validateSnapshot(value: Snapshot) !void {
+    if (value.id.serial == 0 or value.resource.id == 0 or value.resource.phase != .active or
+        value.deadline_ms == 0 or value.deadline_ms > value.hard_deadline_ms) return error.InvalidRead;
+}
+
+test "leased snapshot signing matches independent canonical JSON fixtures" {
+    const Fixture = struct { query: Query, digest: []const u8 };
+    const parsed = try std.json.parseFromSlice([]Fixture, std.testing.allocator, @embedFile("fixtures/leased-snapshots.json"), .{});
+    defer parsed.deinit();
+    for (parsed.value) |fixture| {
+        const actual = try queryDigest(fixture.query);
+        var expected: [32]u8 = undefined;
+        _ = try std.fmt.hexToBytes(&expected, fixture.digest);
+        try std.testing.expectEqualSlices(u8, &expected, &actual);
+    }
+}
+
+test "leased snapshot responses reject wrong tokens, cuts and malformed coverage" {
+    const t = std.testing;
+    const id: SnapshotId = .{ .epoch = @splat(7), .serial = 1 };
+    const query: Query = .{ .realm = 42, .principal = 2, .kind = .{ .snapshot_entries = .{ .id = id } } };
+    const valid: Response = .{ .realm = 42, .position = 20, .principal_sequence = 0, .body = .{ .snapshot_entries = .{ .snapshot = .{ .id = id, .resource = .{ .id = 3, .writer = 2, .owner = null, .revision = 7, .deadline_ms = null }, .deadline_ms = 100, .hard_deadline_ms = 200 }, .page = .{} } } };
+    try validateResponse(valid, query);
+    var bad = valid;
+    bad.body.snapshot_entries.snapshot.id.epoch[0] = 8;
+    try t.expectError(error.InvalidRead, validateResponse(bad, query));
+    bad = valid;
+    bad.body.snapshot_entries.snapshot.deadline_ms = 201;
+    try t.expectError(error.InvalidRead, validateResponse(bad, query));
+    bad = valid;
+    bad.body.snapshot_entries.page.next = try p.Value.init("a");
+    try t.expectError(error.InvalidRead, validateResponse(bad, query));
+    bad = valid;
+    bad.body.snapshot_entries.page.entries[0] = .{ .key = try p.Value.init("a"), .value = .{}, .revision = 8 };
+    try t.expectError(error.InvalidRead, validateResponse(bad, query));
+}
 fn validateVersion(value: ReadVersion, position: Id) !void {
     try validateVersionId(value.id);
     if (value.resource == 0 or value.revision < value.resource or value.revision >= value.created_at or

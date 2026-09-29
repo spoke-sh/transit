@@ -973,6 +973,84 @@ const VersionFixture = struct {
     }
 };
 
+test "leased snapshots retain one cut without durable updates and cannot survive restart" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(10) });
+    const before = f.engine.head.position;
+    const query: @FieldType(g.Query, "kind") = .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(7) } };
+    const snapshot = (try f.query(0, query)).body.open_snapshot;
+    try t.expect(std.meta.eql(snapshot, (try f.query(0, query)).body.open_snapshot));
+    try t.expectEqual(before, f.engine.head.position);
+    _ = try f.root(.{ .turn_with_versions = try fixture.proposal(20) });
+    const read: @FieldType(g.Query, "kind") = .{ .snapshot_entries = .{ .id = snapshot.id, .key = try core.Value.init("row") } };
+    const result = (try f.query(0, read)).body.snapshot_entries;
+    try t.expectEqual(@as(i64, 10), try result.page.entries[0].?.value.asInteger());
+    const fresh = (try f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(8) } })).body.open_snapshot;
+    try t.expect(fresh.resource.revision > snapshot.resource.revision);
+    try t.expectEqual(@as(i64, 20), try (try f.query(0, .{ .snapshot_entries = .{ .id = fresh.id, .key = try core.Value.init("row") } })).body.snapshot_entries.page.entries[0].?.value.asInteger());
+    _ = try f.query(0, .{ .close_snapshot = snapshot.id });
+    _ = try f.query(0, .{ .close_snapshot = snapshot.id });
+    try t.expectError(error.QueryExpired, f.query(0, read));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &fixture, .read = VersionFixture.clock };
+    f.engine.snapshot_epoch = @splat(2);
+    try t.expectError(error.QueryExpired, f.query(0, .{ .snapshot_entries = .{ .id = fresh.id } }));
+}
+
+test "leased snapshots enforce current grants, principal epochs and source retirement" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.permission(.inspect) | core.protocol.State.permission(.read) } });
+    const snapshot = (try f.query(65536, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(7) } })).body.open_snapshot;
+    const read: @FieldType(g.Query, "kind") = .{ .snapshot_entries = .{ .id = snapshot.id } };
+    _ = try f.query(65536, read);
+    try t.expectError(error.Forbidden, f.query(0, read));
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = 0 } });
+    try t.expectError(error.Forbidden, f.query(65536, read));
+    _ = try f.root(.{ .grant_resource = .{ .resource = fixture.resource, .subject = 65536, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.query(65536, read);
+    _ = try f.root(.{ .revoke = 65536 });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect) } });
+    try t.expectError(error.Forbidden, f.query(65536, read));
+    const own = (try f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(7) } })).body.open_snapshot;
+    _ = try f.root(.{ .retire_resource = fixture.resource });
+    try t.expectError(error.StateResourceExpired, f.query(0, .{ .snapshot_entries = .{ .id = own.id } }));
+}
+
+test "leased snapshot admission, renewal and hard expiry remain bounded" {
+    var fixture: VersionFixture = .{};
+    defer fixture.f.deinit();
+    try fixture.init(false);
+    const f = &fixture.f;
+    f.engine.snapshot_epoch = @splat(1);
+    var first: g.Snapshot = undefined;
+    for (0..g.snapshots_per_principal) |i| {
+        const opened = (try f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(@intCast(i)) } })).body.open_snapshot;
+        if (i == 0) first = opened;
+    }
+    try t.expectError(error.StateViewCapacity, f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(99) } }));
+    fixture.now += 30_000;
+    const renewed = (try f.query(0, .{ .snapshot_entries = .{ .id = first.id } })).body.snapshot_entries.snapshot;
+    try t.expect(renewed.deadline_ms > first.deadline_ms);
+    fixture.now = first.deadline_ms;
+    _ = try f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(99) } });
+    while (fixture.now < first.hard_deadline_ms) : (fixture.now += 30_000) {
+        const result = (try f.query(0, .{ .snapshot_entries = .{ .id = first.id } })).body.snapshot_entries;
+        try t.expect(result.snapshot.deadline_ms <= first.hard_deadline_ms);
+    }
+    try t.expectError(error.QueryExpired, f.query(0, .{ .snapshot_entries = .{ .id = first.id } }));
+    f.engine.clock = null;
+    try t.expectError(error.ClockUnavailable, f.query(0, .{ .open_snapshot = .{ .resource = fixture.resource, .nonce = @splat(4) } }));
+}
+
 test "growing retained versions atomically publish old roots and survive replacement and checkpoint recovery" {
     var fixture: VersionFixture = .{};
     defer fixture.f.deinit();

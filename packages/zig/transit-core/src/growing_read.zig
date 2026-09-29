@@ -25,6 +25,43 @@ fn sample(engine: anytype) !?core.Time.Sample {
     if (value.unix_ms < engine.head.time_floor_ms) return error.ClockRollback;
     return value;
 }
+fn snapshotTime(engine: anytype) !core.Time.Sample {
+    if (engine.snapshot_epoch == null) return error.InvalidRead;
+    const now = (try sample(engine)) orelse return error.ClockUnavailable;
+    if (now.unix_ms < engine.snapshot_time_floor_ms) return error.ClockRollback;
+    engine.snapshot_time_floor_ms = now.unix_ms;
+    return now;
+}
+fn snapshotAccess(engine: anytype, principal: growth.Principal, resource: u64, now: core.Time.Sample) !void {
+    try resourceScope(engine, principal, resource);
+    try state.allowed(engine, resource, principal.grant.subject, p.State.permission(.inspect) | p.State.permission(.read));
+    try state.usable(engine, try state.resource(engine, resource), now);
+}
+fn snapshotRecheck(engine: anytype, principal: growth.Principal, resource: u64) !core.Time.Sample {
+    try engine.refresh();
+    const current = try engine.principal(principal.grant.subject);
+    if (current.epoch != principal.epoch or current.grant.permissions & p.permission(.inspect) == 0 or
+        !std.mem.eql(u8, &current.grant.public_key, &principal.grant.public_key)) return error.Forbidden;
+    const now = try snapshotTime(engine);
+    try snapshotAccess(engine, current, resource, now);
+    return now;
+}
+fn sweepSnapshots(engine: anytype, now: core.Time.Sample) void {
+    for (&engine.snapshots) |*slot| if (slot.*) |stored| {
+        if (now.lower() >= stored.meta.deadline_ms) slot.* = null;
+    };
+}
+fn snapshotSlot(engine: anytype, id: g.SnapshotId, principal: growth.Principal, now: core.Time.Sample) !?*?growth.StoredSnapshot {
+    if (!std.mem.eql(u8, &id.epoch, &engine.snapshot_epoch.?)) return null;
+    sweepSnapshots(engine, now);
+    for (&engine.snapshots) |*slot| if (slot.*) |stored| {
+        if (stored.meta.id.serial != id.serial) continue;
+        if (stored.principal != principal.grant.subject or stored.principal_epoch != principal.epoch) return error.Forbidden;
+        try now.before(stored.meta.deadline_ms);
+        return slot;
+    };
+    return null;
+}
 pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     try g.validateQuery(signed.query);
     if (signed.query.realm != engine.genesis.realm) return error.WrongProtocolRealm;
@@ -38,7 +75,54 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .worker_rotation = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .open_snapshot => |q| blk: {
+            const now = try snapshotTime(engine);
+            try snapshotAccess(engine, principal, q.resource, now);
+            sweepSnapshots(engine, now);
+            var free: ?*?growth.StoredSnapshot = null;
+            var owned: usize = 0;
+            for (&engine.snapshots) |*slot| {
+                if (slot.*) |stored| {
+                    if (stored.principal != query.principal) continue;
+                    owned += 1;
+                    if (stored.principal_epoch == principal.epoch and stored.meta.resource.id == q.resource and
+                        std.mem.eql(u8, &stored.nonce, &q.nonce))
+                    {
+                        try now.before(stored.meta.deadline_ms);
+                        break :blk .{ .open_snapshot = stored.meta };
+                    }
+                } else if (free == null) free = slot;
+            }
+            if (free == null or owned >= g.snapshots_per_principal) return error.StateViewCapacity;
+            if (engine.snapshot_serial >= p.max_counter) return error.StateViewCapacity;
+            const captured = try state.resource(engine, q.resource);
+            const basis = engine.head.catalog;
+            const after = try snapshotRecheck(engine, principal, q.resource);
+            if (after.lower() > p.max_counter - g.snapshot_lifetime_ms) return error.UntrustedTime;
+            engine.snapshot_serial += 1;
+            const meta: g.Snapshot = .{ .id = .{ .epoch = engine.snapshot_epoch.?, .serial = engine.snapshot_serial }, .resource = captured, .deadline_ms = try std.math.add(u64, after.lower(), g.view_lifetime_ms), .hard_deadline_ms = try std.math.add(u64, after.lower(), g.snapshot_lifetime_ms) };
+            try after.before(meta.deadline_ms);
+            free.?.* = .{ .meta = meta, .snapshot = basis, .principal = query.principal, .principal_epoch = principal.epoch, .nonce = q.nonce };
+            break :blk .{ .open_snapshot = meta };
+        },
+        .snapshot_entries => |q| blk: {
+            const now = try snapshotTime(engine);
+            const slot = (try snapshotSlot(engine, q.id, principal, now)) orelse return error.QueryExpired;
+            const stored = slot.*.?;
+            try snapshotAccess(engine, principal, stored.meta.resource.id, now);
+            var basis = try @TypeOf(current).open(engine.page_store, stored.snapshot);
+            const result = try entries(&basis, stored.meta.resource.id, q.key, q.after);
+            const after = try snapshotRecheck(engine, principal, stored.meta.resource.id);
+            try after.before(stored.meta.deadline_ms);
+            slot.*.?.meta.deadline_ms = @min(stored.meta.hard_deadline_ms, try std.math.add(u64, after.lower(), g.view_lifetime_ms));
+            break :blk .{ .snapshot_entries = .{ .snapshot = slot.*.?.meta, .page = result } };
+        },
+        .close_snapshot => |id| blk: {
+            const now = try snapshotTime(engine);
+            if (try snapshotSlot(engine, id, principal, now)) |slot| slot.* = null;
+            break :blk .{ .close_snapshot = id };
+        },
         .process => |pid| blk: {
             try scope(principal, pid);
             const process = try engine.process(pid);

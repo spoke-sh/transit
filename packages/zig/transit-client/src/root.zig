@@ -1,6 +1,7 @@
 //! Bounded protocol HTTP client. No storage or provider credentials.
 const std = @import("std");
 pub const ResourceReader = @import("ResourceReader.zig");
+pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
 pub const Session = @import("Session.zig");

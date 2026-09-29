@@ -3827,6 +3827,14 @@ after keeping timing-argument errors out of query-recovery diagnostics.
 
 ### Native query latency: whole-node attribution
 
+Leased snapshot foundation: `nix develop --command zig build test` and
+`zig build transit-node` pass with independent signing vectors, malformed response
+coverage, stable old reads across writes, fresh cuts, zero journal advancement,
+repeated close, restart invalidation, current resource revocation, principal
+replacement, retirement, per-principal admission, lease renewal and hard expiry.
+These deterministic tests do not establish the console integration or physical
+page reclamation safety; append-only pages remain required.
+
 The console latency runner also supports `--repeat`, `--age-queries` and
 `--instrument`. On 2026-09-29, the owned instrumented empty-Table run completed
 in 71.303 s, first output 71.295 s, sampled console RSS 14,241,792 bytes.

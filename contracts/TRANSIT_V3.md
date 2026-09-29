@@ -132,6 +132,12 @@ execution eligibility before releasing its next mailbox input. Required dependen
 expiry may fence execution before background work materializes terminal metadata;
 these two observations must not be presented as equivalent readiness claims.
 
+With `leased_snapshots`, `open_snapshot`, `snapshot_entries` and `close_snapshot`
+provide bounded, volatile read snapshots independently of worker ownership and
+durable retained versions. Current authorization still gates every read. The
+[interactive query contract](INTERACTIVE_QUERY_V1.md#generic-leased-snapshots)
+specifies tokens, leases, admission quotas, restart and cancellation semantics.
+
 With `scoped_retry`, a current PID-scoped administrator can retry a blocked input
 using `retry: {pid, expected_generation, failure_input}`. `Process.failure`
 identifies the failed input in this profile; the generation distinguishes repeated

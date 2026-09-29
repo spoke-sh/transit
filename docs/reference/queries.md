@@ -80,6 +80,9 @@ Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
 
 ## Planned interactive sessions
 
+The [interactive query contract](../../contracts/INTERACTIVE_QUERY_V1.md) defines
+the proposed leased snapshot, cancellation and bounded output boundary.
+
 The selected console design opens a fresh query session and source snapshot for
 each SELECT. Completion releases that session; console exit cancels its active
 query. Reconnecting does not resume a previous interactive SELECT. This changes

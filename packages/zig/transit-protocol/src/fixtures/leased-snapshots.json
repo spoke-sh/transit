@@ -1,0 +1,99 @@
+[
+  {
+    "query": {
+      "version": 3,
+      "realm": 42,
+      "principal": 65536,
+      "kind": {
+        "open_snapshot": {
+          "resource": 17,
+          "nonce": [
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7,
+            7
+          ]
+        }
+      }
+    },
+    "digest": "9a3afbaaa4216d87e0667840370bbcd24a640d50ac6689a1472ba829ca6dd072"
+  },
+  {
+    "query": {
+      "version": 3,
+      "realm": 42,
+      "principal": 65536,
+      "kind": {
+        "snapshot_entries": {
+          "id": {
+            "epoch": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14,
+              15
+            ],
+            "serial": 23
+          },
+          "key": "726f77",
+          "after": null
+        }
+      }
+    },
+    "digest": "915ba0f4ff178403a5fef67a104a6c3a584106fbd4cf33228e6a786991dffefa"
+  },
+  {
+    "query": {
+      "version": 3,
+      "realm": 42,
+      "principal": 65536,
+      "kind": {
+        "close_snapshot": {
+          "epoch": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "serial": 23
+        }
+      }
+    },
+    "digest": "1cde9e525f9fe201436a5c46c7cad590912f911f6bbf2d8adb6517aa3351a72a"
+  }
+]
