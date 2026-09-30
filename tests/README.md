@@ -4417,7 +4417,7 @@ is not run.
 
 The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
 separates types, functions/operators and streaming/effect boundaries. The
-[M35 gap inventory](../docs/roadmap/M35.md) records proposed contracts and proof
+[M36 gap inventory](../docs/roadmap/M36.md) records proposed contracts and proof
 gates; it does not establish executable mutation or continuous SQL support.
 
 Working-tree validation with the pinned Nix development shell:

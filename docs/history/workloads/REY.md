@@ -97,7 +97,7 @@ Choose PIDs for independent sequencing, recovery and ownership. A record does
 not need its own PID, nor does a PID inherently need a dedicated OS process or
 pod. Measure retained PIDs separately from active handlers and worker pools.
 The reference currently maps a PID to a Substrate Actor;
-[M34](../../roadmap/M34.md) must qualify any multiplexing or alternative mapping.
+[M35](../../roadmap/M35.md) must qualify any multiplexing or alternative mapping.
 
 At one million events/s, 10 microseconds of CPU per event consumes ten fully busy
 CPU cores in ideal arithmetic, before I/O, contention or spare capacity. Giving
@@ -172,7 +172,7 @@ remote outcomes remain unknown until valid reconciliation.
 
 The current realm-wide journal serializes publication. More HTTP replicas do not
 remove that bottleneck. M10 must measure the single-authority limit;
-[M34](../../roadmap/M34.md) owns authority partitioning, routing, fencing and
+[M35](../../roadmap/M35.md) owns authority partitioning, routing, fencing and
 cross-partition delivery. Per-feed and per-PID order do not imply a global market
 order. Splitting physical streams alone does not solve authorization or atomicity.
 

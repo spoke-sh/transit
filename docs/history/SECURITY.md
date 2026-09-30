@@ -395,4 +395,4 @@ grants. Recovery cannot restore a revoked grant by reissuing a broad grant.
 Replacement is a trusted physical operation, not proof of honest or compatible
 application computation. All local components share one OS user; exported seed
 references and separate keys do not sandbox that user's filesystem. Cluster
-isolation and authority movement remain [M34](../roadmap/M34.md).
+isolation and authority movement remain [M35](../roadmap/M35.md).

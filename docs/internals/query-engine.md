@@ -49,6 +49,75 @@ seek may reduce visited rows, while predicate evaluation still determines matche
 The current [Table access paths](../reference/tables.md) do not establish generic
 columnar storage merely because output is Arrow.
 
+## Relational correctness and data movement
+
+This section analyzes constraints of the implemented single-source contract at
+source revision `2c1a9d2d`. It does not describe implemented joins, grouped
+aggregation, maintained relations or distributed query execution. Those
+capabilities remain outside the [current query boundary](../reference/queries.md#relational-boundary).
+
+The relevant question is whether changing data placement could change a query's
+meaning. In a conceptual multi-source model, let Q denote a typed logical query
+and B a vector of exact source revisions. An attributable result would need to
+identify both Q and B. Independently sampled source snapshots establish a vector
+of observations; they do not establish a common instant or a cross-resource
+transaction. A snapshot alone also says nothing about future input completeness.
+
+There are two different movements. An **exchange** routes records by the key
+needed by an operator, for example from source partitions to join-key partitions.
+A **rebalance** changes which worker handles a logical partition. Either can
+change arrival order, batch boundaries and retry schedules. Existing durable
+PIDs and source identities separate logical work from a worker; they do not
+specify relational equivalence across those physical changes.
+
+### Counterexamples that constrain an extension
+
+| Situation | Consequence for a declarative guarantee |
+| --- | --- |
+| Two left and three right rows share a matching value | A bag join has six row pairs; deduplication by projected value would change the answer |
+| No right row has arrived yet | A left-join unmatched row needs evidence that the right input is complete at the stated basis |
+| One source changes between two snapshot acquisitions | A reproducible vector can still describe a combination that never existed at one instant |
+| A retry contributes one row twice | Counts and sums change even if transport eventually delivers every packet |
+| A materialized source grant is revoked | A derived result's storage reference cannot replace current source disclosure authority |
+
+Checked arithmetic adds an existing, concrete constraint. Fuze's int64 sum folds
+in source order and fails on an overflowing prefix. For `[MAX_I64, 1, -1]`, the
+second addition fails; `[MAX_I64, -1, 1]` succeeds. Summing the final mathematical
+total with a wider accumulator or combining arbitrary partial sums changes that
+observable failure behavior. Thus a relational specification has to include
+order and errors as well as successful row values. The current implementation
+is [UnifiedStream.step](../../packages/zig/transit-fuze/src/UnifiedStream.zig);
+the [rewrite proof scope](../../contracts/sql/README.md#lean-scope) explicitly
+excludes general reassociation of checked sums.
+
+A maintained relation introduces another observation boundary. If a source
+update removes one value and inserts another, publishing only half the update
+exposes a result for a source state that was never committed. Operator state,
+consumed input coverage and published output therefore need a shared visibility
+decision. The existing native one-resource turn and immutable publication provide
+building blocks; they do not already define this multi-source maintenance ledger.
+Similarly, coalesced Table invalidations cannot reconstruct every intermediate
+row change. Finite refresh and complete change maintenance have different
+observable histories.
+
+### Resource costs and limits of the argument
+
+Hash placement can colocate equal keys, but it cannot remove join fanout: L left
+rows and R right rows for one key can produce L × R pairs. More workers also do
+not make an order-sensitive hot group freely reducible. Resident memory must be
+bounded separately from retained operator state, output and recovery evidence.
+Spill, backpressure or explicit quota failure preserve the possibility of an
+exact answer; silently evicting live join state changes its meaning. Default
+unlimited [retention](../reference/retention.md) supplies no implicit state TTL.
+
+These are deductions and small counterexamples, not runtime proofs or measured
+performance claims. They assume exact source identities and declared relational
+semantics; they establish neither a distributed snapshot nor liveness under
+partition. Reproduction of the arithmetic counterexample follows the checked
+fold above; independent page/order/failure fixtures are needed before any new
+operator or rewrite can claim equivalence. Existing
+[verification limits](../reference/verification.md) still apply.
+
 ## Tradeoffs and evidence
 
 Materializing an entire result simplifies presentation but makes memory scale
