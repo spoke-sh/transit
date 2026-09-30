@@ -88,11 +88,15 @@ class System:
     def available_post(self, path, signed):
         deadline = time.monotonic() + 10
         while True:
-            status, body = self.post(path, signed, status=None)
-            if status == 200: return body
-            assert (status == 503 and body.get("err") in
-                    ("AuthorityUnavailable", "AuthorityTimeout", "HttpCapacity") and
-                    time.monotonic() < deadline), (status, body)
+            try:
+                status, body = self.post(path, signed, status=None)
+            except (ConnectionError, TimeoutError):
+                if time.monotonic() >= deadline: raise
+            else:
+                if status == 200: return body
+                assert (status == 503 and body.get("err") in
+                        ("AuthorityUnavailable", "AuthorityTimeout", "HttpCapacity") and
+                        time.monotonic() < deadline), (status, body)
             time.sleep(.05)
 
     def native_query(self, kind, principal=0, seed=None, status=200):

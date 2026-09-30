@@ -8,7 +8,7 @@ from station import frame
 
 
 def run(node, cli, worker, courier, controller):
-    with System(node, cli, clock_error_ms=10000) as s:
+    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000) as s:
         configs = {}
         resources = {}
         serial = 0

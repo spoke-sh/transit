@@ -9,7 +9,7 @@ from storage import wait_ready
 
 
 def run(node, cli, worker):
-    with System(node, cli, clock_error_ms=10000) as s:
+    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000) as s:
         deadline = int(time.time() * 1000) + 120000
         pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
         resource = s.command({"create_resource": {"writer": pid, "deadline_ms": deadline, "history_ms": 0}})
