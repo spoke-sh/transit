@@ -1123,8 +1123,12 @@ Final native binary hashes (the growth run uses the preceding helper hash
 | CLI | `f373d7886a3d0b696723441a974376834f6e0e86703ac76b6b74b618b98eea42` |
 
 Full `just check` passes at `/tmp/transit-sql-catalog-metadata-batch-full-check.log`,
-including unchanged generated contracts and 4625 documentation links. Committed
-clean validation and the post-batching mutation qualification remain separate.
+including unchanged generated contracts and 4625 documentation links. All nine
+compiling component mutants are detected again at committed `8e728de3`, including
+inspection authorization and cursor revision defects after batching. The log and
+copied report are `/tmp/transit-sql-catalog-metadata-batch-mutants.log` and
+`/tmp/transit-sql-catalog-metadata-batch-mutants.json`. Committed clean validation
+remains separate.
 
 ### Neutral catalog metadata values
 
