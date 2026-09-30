@@ -87,6 +87,10 @@ pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagno
 fn connection(init: std.process.Init, options: Options.Options, preferences: Preferences, diagnostic: *Diagnostic) !?Preferences {
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();
+    // Diagnostics are rendered by main after this connection arena is gone.
+    errdefer if (diagnostic.file) |file| {
+        diagnostic.file = init.arena.allocator().dupe(u8, file) catch null;
+    };
     const allocator = arena.allocator();
     var base: []const u8 = undefined;
     const config = if (preferences.connection) |selected| explicit: {

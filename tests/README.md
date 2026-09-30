@@ -1661,6 +1661,230 @@ The real disk schedule `just test::vortex --seed 19 --rounds 12` passes in
 `/tmp/transit-sql-pr27-vortex-acceptance.log`. Production admission, timeouts and
 recovery assertions are unchanged. Neither prior failed clean attempt is a pass.
 
+### Catalog growth attribution
+
+`just test::catalog-growth` runs the disk-backed schedule with 65 additional
+Tables; `just test::catalog --grow 257` selects the larger investigation. The
+report at `.cache/verification/catalog/native.json` retains source revision,
+dirty status, runner and native binary hashes, growth progress and failure state.
+Copy it before another run overwrites it. No timeout, cache, turn or value limit
+changes with this instrumentation.
+
+The report separates `compile`, `prepare`, `admit` and `await_application` wall
+time, calls, failures and caller reads. A failed phase retains its zero-based
+growth index; a successful application clears it. An admitted send is not an
+applied Table, and a failed status read does not establish rejection. A baseline
+immediately before growth and cumulative samples every sixteen Tables (plus the
+last Table) allow subtraction of setup work and comparison of successive blocks.
+Cursor checks during growth remain outside the four timed phases.
+
+The owned proxy groups upstream attempts by fixed caller/owner/administrator/
+other roles and native operation. It records transport failures, HTTP errors,
+cumulative elapsed nanoseconds and the maximum observed duration. Durations end
+after the upstream body is read; they include queue/provider work and proxy
+overhead, overlap across requests, and are not independent CPU measurements.
+Deliberately blocked requests never reach upstream; lost-reply attempts count
+even when the caller cannot observe the result. Counts describe attempts, not
+unique durable commits. Metrics contain no request bodies or credential values.
+Compare native request counts and phase costs at equivalent workload boundaries;
+shared-host durations do not establish percentiles or throughput guarantees.
+After stopping the node, the report also retains at most 64 distinct node/storage
+error groups, with occurrence counts, first timestamps and maximum observed
+durations. Further groups increment a dropped counter. These summaries preserve
+errors that can fall outside the printed log tail, without retaining payloads,
+credentials or user labels; they do not establish operation outcomes.
+
+The first instrumented disk runs use runner SHA-256
+`63fa35689262d5fce12b5a303fcf390f3812931cf9a64a6375e7e76e3eb47fbe`
+and the same six native binaries, with eight resident authority pages. The
+65-additional-Table run at committed `d681181d` passes in **233.028 s**, lists
+70 named definitions in nine pages, and repeats the metadata checks after
+node/store restart. Cleanup joins. Growth itself takes **112.669 s**:
+
+| Phase | Calls | Seconds | Caller reads |
+| --- | ---: | ---: | ---: |
+| Compile | 65 | 0.010 | 0 |
+| Prepare | 65 | 1.923 | 130 |
+| Admit | 65 | 10.595 | 0 |
+| Await application | 65 | 99.922 | 1089 |
+
+Growth-only upstream observations include 65 owner turns (**41.125 s**), 845
+owner entry reads (**38.810 s**) and 1170 caller entry reads (**89.375 s**).
+These overlapping durations include serialized authority/provider work and
+contention; they are not additive phase costs. Validation runs share the host.
+
+The 257-additional-Table attempt at committed `05454efd` fails in **508.687 s**
+after **138** additions apply. The next send is admitted, then index 138 remains
+in `await_application` at the unchanged twenty-second progress deadline. Owner
+turns repeatedly report `AuthorityUnavailable`. Cleanup joins, but the final
+listing/restart checks are not reached and the pending operation's outcome is
+not established. This attempt supplies failure attribution, not a larger-growth
+pass. Both reports retain complete binary hashes and source identities; later
+rebases preserve the runner's content.
+
+Committed-head clean experience runs at `1c4d91e1` (source tree `3d38f5a7`,
+matching the merged implementation) and `0dc49100` (tree `6216f338`, matching
+the rebased attribution increment `c79c4307`) each pass six of seven tasks.
+Board query inspection passes in **103.43 s** and **101.79 s** respectively.
+Both fail `launchers::local::test-station` waiting for the requester Arrow reply,
+after **275.54 s** and **277.76 s**. Private fixture logs and WALs are retained
+for diagnosis. Neither is a clean experience pass; these runs do not supersede
+the separate full `just check` passes or establish all clean-suite gates.
+
+The corrected clean core run at `4927ba38` passes nineteen tasks, including
+Vortex, Station and all disk storage phases. It then fails `test::callers` in
+**17.63 s** when the courier-progress observation sees `AuthorityUnavailable`;
+the last two core tasks are not reached. Node observations show a two-second
+request deadline interrupting page staging and a queued observation. This is
+not a clean-core pass or a demonstrated root cause of the earlier catalog failure.
+
+### Balanced batch splits and larger catalog growth
+
+The original binaries repeat the failure after exactly 138 applied additions
+in **564.408 s** with the diagnostic runner. Cleanup joins and no storage-error
+group is recorded; sixteen native attempts report `AuthorityUnavailable`.
+The independent descending-key page regression fails with `PageDepthExceeded`:
+batch splits pack one sibling full, so descending inserts repeatedly split the
+left spine and reach the 32-level guard before 257 keys. Evenly distributing
+entries and children across split pages fixes that insertion pattern without
+changing page encodings, mutation budgets, resident limits or deadlines.
+
+At committed `1483b330`, all **60** standalone core tests and full `just check`
+pass. The new regression checks 257 descending keys in batches of one, four and
+eight, retained roots, ordered scans and at most nine page loads per lookup.
+`just test::resource-simulation --seeds 8` passes **798 traces / 15,496 events**
+with identical replay in **437.762 s**. All six negative controls are detected.
+Its binary SHA-256 is
+`82db89402f28ae6b1d28b999392600c912870c2f67bae7f8d220ef659bfacda6`;
+the two-page in-memory fault store does not establish physical disk durability.
+
+`just test::catalog --grow 257` then passes in **397.642 s**, including **262
+named definitions / 33 pages**, repeated metadata after node/store restart,
+current denial, original lost-reply recovery and joined cleanup. It uses eight
+resident authority pages, at most four turn mutations and 132-byte values.
+Only the node binary differs from the original runs; its SHA-256 is
+`214b0646e187cd12676c995d4b2badd0e4962631988df0946440039b32dfcd04`.
+The five caller/host binary hashes remain equal. The report retains all hashes
+and the diagnostic runner identity.
+
+The 257 growth additions take **254.420 s**: compile **0.041 s**, prepare
+**3.488 s**, admission **30.433 s**, application waiting **220.260 s**.
+All growth phases succeed. There are 257 owner-turn attempts and 3341 owner-entry
+reads (thirteen per Table), with no growth transport/HTTP errors. These shared-host
+instrumented samples establish the completed workload, not a throughput ratio.
+The existing roots of previously deep catalogs are not rebuilt; continuation
+from an already exhausted height guard remains a separate recovery qualification.
+Committed-head `just ci-clean --lane core` at `1483b330` passes all **22 tasks**
+in **947.49 s**, including the caller-progress test that failed in the earlier
+attempt. Its completion/timing records are retained under
+`.cache/ci/clean/1483b330d7b9-transit-ci-lwcj_yf3/`. Subsequent changes only record
+evidence in this ledger and the roadmap; their documentation links pass. This
+is a clean core-lane pass, not an experience/bindings/complete-suite or hosted
+CI pass. The earlier experience failures are not reclassified as successes.
+
+### Resuming a depth-exhausted catalog
+
+The optional `test::catalog --grow 257 --initial-node PATH` schedule starts
+with an explicitly supplied pre-fix node binary. Its digest is recorded alongside
+the target binary. At the known zero-based growth index 138, it requires two
+`AuthorityUnavailable` responses to the exact same owner turn, then replaces
+only the node binary across disk-store restart. The worker and its frozen turn
+stay alive. Success requires that same turn's receipt and the originally admitted
+SQL input, followed by continued growth and the normal metadata/restart/denial
+checks. The SQL send is not resubmitted. No operation deadline is increased.
+
+Failure joins owned services and retains the private fixture under
+`.cache/verification/catalog/recovery-failures/`; it contains credentials and
+must not be published. `node_recovery` records the initial digest, original turn
+digest, input, observed failures, replacement and receipt state. Retained
+configurations still name their original temporary paths; the fixture is
+diagnostic evidence, not an automatically restorable launcher installation.
+
+With source based on `ef2cc97d` and the recovery runner under development, the
+original node digest `1039c8de…328d6e07e` stalls after 138 additions. Replacing it
+with the split-only node `214b0646…2dfcd04` still fails the unchanged progress
+deadline in **416.073 s** total. Input **538** remains without an observed turn
+receipt. The private fixture is retained; this is not successful recovery.
+A separate current-v1 page fixture with a full spine and sparse siblings at
+height 32 also fails `PageDepthExceeded` before local sibling merging. After
+merging, all **61** core component tests pass, including 64 further inserts,
+old-root preservation and refusal/lost-acknowledgement at every staging boundary
+of the first repaired mutation. Disk qualification of that repair follows.
+
+At `85009af5`, the repaired node `89e7f544…d65f0a19` resumes the exact original
+turn: input **538** produces receipt **540**, with the worker and signed turn
+unchanged across replacement. The full run still fails after **145** additions
+in **477.296 s**. Ursula reports `ColdBackpressure` at its **64 MiB** hot-store
+limit; this fixture has no cold tier. The node records 161 `page.stage`
+`ServiceUnavailable` failures. Joined cleanup succeeds and the private fixture
+is retained. This establishes receipt recovery, not full growth qualification.
+
+`--cold` selects the existing owned S3 fixture with an **8 MiB** hot-store
+limit and **8 MiB** cold cache. It requires actual persisted cold chunks and
+records object count and file bytes. Use it with `--initial-node` for continued
+growth beyond the hot-only fixture's capacity; operation deadlines, eight
+authority cache pages and four application mutations remain unchanged. Failed
+upgrade runs retain the stopped cold-store files with their private disk fixture.
+The first cold run at `1f6dd4ee` fails on `AuthorityTimeout` before node
+replacement. Its proxy-drain cleanup then fails, so the last report contains
+only an earlier **112-addition / 263.393 s** sample; final progress and fixture
+retention are not established. `b97406fe` makes cleanup continue through
+authority/proxy shutdown and final reporting after a drain error, and retains
+failed upgrade fixtures even when cleanup itself fails.
+
+The retry at committed `b97406fe` passes in **1438.997 s**. It recovers original
+input **538** as receipt **540** after two failures of the same signed turn,
+then applies all **257** additions. All **262 definitions / 33 pages** pass
+Zig, ABI, port and CLI metadata checks, a further node/store restart, current
+denial and joined cleanup. The worker and original SQL input are preserved;
+no send is resubmitted. The run retains eight authority cache pages, four
+mutations and the unchanged operation deadlines. Its S3 fixture uses an **8 MiB**
+hot limit and **8 MiB** cold cache, and holds **1125 persisted cold chunks** and
+**142,532,884 filesystem bytes** including object-store metadata.
+
+Growth takes **823.220 s**: compile **0.040 s**, prepare **15.111 s**, admit
+**78.784 s**, and await application **729.043 s**. There are **4890** measured
+metadata calls across the complete schedule. The only `AuthorityUnavailable`
+responses recorded by the node are the two expected pre-replacement failures;
+cleanup reports no failures. These shared-host durations are not a throughput
+comparison with the fresh balanced-tree schedule. Earlier failed runs remain
+failed, and their causes are not inferred from this retry's success.
+
+The target node digest is `89e7f544…d65f0a19`, the initial node is
+`1039c8de…328d6e07e`, and the runner is `f9329712…67ac8b82a`.
+The full hashes, source identity and measurements are retained in
+`/tmp/transit-sql-deep-catalog-recovery-cold-retry.json`; its matching `.log`
+contains the executed command and completion output.
+
+The same `85009af5` passes full `just check` and the eight-seed resource
+simulation: **798 traces**, **15,496 events**, **1598 executions**, identical
+replay and all six negative controls in **431.120 s**. Its committed-head clean
+core attempt fails in the first task's CLI terminal cleanup after **81.49 s**;
+the remaining 21 tasks do not run. Strict cleanup diagnostics expose exit 130
+when cleanup sends Ctrl-C during command output. The fixture now queues editor
+draft clearing and ordinary `.quit`, preserving explicit interrupt tests and
+rethrowing unexpected exits/timeouts. The focused 399-case CLI diagnostic suite
+passes with queued quit. Full `just check` also passes after the terminal cleanup
+and diagnostic-path lifetime fixes.
+
+Committed `1f6dd4ee` then passes all **22 clean-core tasks** in **1154.37 s**
+and all **seven clean-experience tasks** in **501.07 s**. Core includes the
+399-case CLI diagnostic suite, simulations, disk WAL/recovery, callers,
+inspection and state. Station's disk readiness write takes **307.79 s** and the
+complete storage task **481.35 s**; the experience Station replacement/restart
+task takes **283.96 s**. Evidence is retained in
+`.cache/ci/clean/1f6dd4eec3fd-transit-ci-58qo5jmn/` and
+`.cache/ci/clean/1f6dd4eec3fd-transit-ci-mr8_g_9s/`. These are two lane passes,
+not the complete CI inventory. The later catalog cleanup change affects only
+the proof runner and remains under focused disk qualification.
+
+The clean experience run at rebased `ef2cc97d` passes all **seven tasks** in
+**433.89 s**, including Station's Arrow exchange, replacements and persistent
+restart in **220.67 s**. This revision includes main's type/schema-discovery
+documentation, with unchanged split-only runtime code. Evidence is retained in
+`.cache/ci/clean/ef2cc97dc6b0-transit-ci-dl5e5q05/`. It does not retroactively pass
+the earlier failures or qualify the subsequent sibling-merging change.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

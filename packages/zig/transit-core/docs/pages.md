@@ -39,6 +39,17 @@ separate integration obligation. The tree does not interpret application values.
 Single writes copy the search path, splitting pages as needed. `mutate` validates
 at most eight distinct keys before staging and rewrites each affected path once.
 It preserves unaffected child references and avoids staging no-op updates.
+Batch splits distribute entries and children evenly across the new pages. This
+leaves space on both sides for subsequent inserts, including descending keys;
+filling one sibling first can otherwise grow a nearly full spine on every split.
+Existing immutable roots keep their original shape and remain readable. Balancing
+new splits does not rebuild old roots or change their encoding.
+When a mutation adds child pages, the tree first merges adjacent siblings whose
+combined contents fit one page. It reads two siblings at a time, only within
+the bounded child list of the affected branch. This can absorb growth into
+sparse neighbors before splitting a parent, including a formerly full spine
+at the height guard. Merging stages new immutable pages and preserves retained
+roots; staging failure or lost acknowledgement does not publish a candidate.
 When the provider supports `stageMany`, sibling pages are staged as a bounded
 group; otherwise the same tree uses individual staging calls. Every returned
 reference is checked against its expected digest before becoming a candidate. Deletion removes
