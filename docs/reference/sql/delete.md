@@ -1,28 +1,31 @@
 # DELETE
 
-**Unsupported: absent from the SQL grammar and runtime.** Transit SQL cannot
-remove rows. `DELETE FROM`, predicates on a delete, `USING` and `RETURNING` have
-no accepted syntax or execution contract. `TRUNCATE` is also unsupported.
+Deletion by primary-key equality is available through the Zig application writer
+helper `station.TableMutation.applySql`. The console, Board query workspace,
+Flight SQL and language SDK query clients do not admit SQL mutations.
 
-## Remove state through an application
+```sql
+DELETE FROM items WHERE id = 7;
+```
 
-Use the application's command API and authorized resource writer. The owning
-application defines which records can be removed and commits the change through
-the [state boundary](../state.md#read-and-commit). SQL supplies no affected-row
-count, missing-row policy or multi-row deletion transaction.
+The predicate must compare the supplied Table's int64 primary key with an int64
+literal. An optional qualifier must match the Table name. General predicates,
+`USING`, `RETURNING` and unqualified whole-Table deletion are unsupported.
+`TRUNCATE` is also unsupported.
 
-A selected row is not a deletion permit. Current grants, fenced writer ownership
-and commit validation still apply when the application processes the command.
-Use the original command identity to [recover an uncertain response](../callers.md).
+The helper returns one affected row when the key exists and zero when absent.
+It changes only the private Station proposal. The result becomes durable when
+the enclosing turn commits its input progress, row removal and outputs together.
+Any error restores the complete prior proposal; underlying read failure still
+prevents commit. The application must authorize the caller and route the command
+to its current fenced writer. Query access does not confer write permission.
 
-## Rows, resources and history
+The [mutation contract](../../../contracts/TABLE_MUTATION_V1.md) defines exact
+semantics and bounds. Preserve the original admitted identity when recovering an
+uncertain response under the [caller contract](../callers.md).
 
-Removing a current row, retiring a resource and physically cleaning retained
-history are separate operations. A row change does not erase accepted input,
-receipts or earlier outcomes. Retention defaults to unlimited and requires
-application opt-in; capacity pressure does not authorize deletion or expiry.
-See [retention and capacity](../retention.md).
-
-A deletion also cannot retract a completed external effect. Connector outcomes
-retain their own identity and recovery evidence. See [streaming and effects](streaming.md),
-[UPDATE](update.md) and [INSERT](insert.md).
+Removing a current row does not retire the resource or erase retained history,
+accepted input or receipts. Retention defaults to unlimited and requires
+application opt-in; quota pressure does not authorize expiry. Deletion cannot
+retract a completed external effect. See [retention](../retention.md),
+[streaming and effects](streaming.md), [INSERT](insert.md) and [UPDATE](update.md).

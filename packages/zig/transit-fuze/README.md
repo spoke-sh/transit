@@ -22,6 +22,12 @@ The contract fixes workspace, segment and encoding budgets.
 errors. `Sql` owns the shared parser and cursor assistance. All callers execute
 through `Unified.Plan` and `Unified.Stream`, including Station Table delivery.
 
+`Sql.parseMutation` and `TableMutation.compile/lower` produce owned, exactly
+typed plans for literal INSERT, UPDATE and DELETE against one declared Table.
+These plans are separate from read queries. The application invokes Station's
+private-turn helper under its own command authorization; public query transports
+reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
+
 `Sql.hints` uses the production parser up to a token-boundary cursor and returns
 bounded grammar expectations. `SqlInput` frames semicolon termination and
 whole-token replacement while respecting quotes, nested comments and UTF-8.

@@ -5,6 +5,7 @@ pub const Frame = @import("Frame.zig");
 pub const Turn = @import("Turn.zig");
 pub const GenServer = @import("GenServer.zig");
 pub const Table = @import("Table.zig");
+pub const TableMutation = @import("TableMutation.zig");
 pub const Publication = @import("Publication.zig");
 pub const PublicationReference = @import("PublicationReference.zig");
 pub const ImmutableIndex = @import("ImmutableIndex.zig");
@@ -27,6 +28,7 @@ test {
     _ = Turn;
     _ = GenServer;
     _ = Table;
+    _ = @import("table_mutation_test.zig");
     _ = Query;
     _ = Registry;
     _ = Waiting;

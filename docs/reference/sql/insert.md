@@ -1,33 +1,43 @@
 # INSERT
 
-**Unsupported: absent from the SQL grammar and runtime.** Transit SQL cannot
-insert rows into a Table or send values to a sink. The console, Board query
-workspace and Flight SQL do not execute `INSERT`.
+Bounded literal inserts are available through the Zig application writer helper
+`station.TableMutation.applySql`. The console, Board query workspace, Flight SQL
+and language SDK query clients do not admit SQL mutations.
 
-## Write rows through an application
+## Syntax and values
 
-Use the application's command API and its fenced Station Table writer. The
-writer validates the row and proposes state changes with input progress and
-outputs in one accepted turn. Current grants and writer ownership apply
-independently; permission to query a Table does not authorize changing it.
+```sql
+INSERT INTO items (id, value) VALUES (7, 12), (8, NULL);
+INSERT INTO items (value, id) VALUES (13, 9);
+```
 
-The [application guide](../../guides/applications.md) shows a complete command
-path. [Table mutation](../tables.md#mutation-and-visibility) and
-[state commits](../state.md#read-and-commit) define the visibility boundary.
-After an uncertain command response, reconcile the original operation through
-the [caller recovery contract](../callers.md), preserving its identity.
+Supply both distinct columns of the declared Table, in either order, and one to
+three rows. The primary key is a non-null int64. The value is a nullable int64,
+boolean, UTF-8 or binary literal matching the Table descriptor; text/binary values
+are at most 220 bytes. There are no implicit conversions or omitted/default
+columns. Repeated keys within the statement reject before application.
 
-## SQL boundary
+## Application and result
 
-There is no accepted `INSERT ... VALUES`, `INSERT ... SELECT`, `DEFAULT VALUES`,
-`ON CONFLICT` or `RETURNING` form. SQL defines no insert result, affected-row
-count, default-value policy or duplicate-key behavior. Native Table helpers do
-not establish those SQL semantics.
+The application explicitly authorizes the caller and routes the statement to
+its fenced writer. A query source declaration or read grant does not authorize
+writes. The helper inserts into the supplied private Station turn and returns a
+provisional affected-row count. Any existing key rejects the whole statement;
+there is no upsert or implicit overwrite.
 
-[CREATE TABLE](create-table.md) recognizes a declaration but cannot provision a
-write target. [CREATE SINK](create-sink.md) describes an external effect target;
-inserting state and dispatching external work have separate commit and recovery
-contracts. See [streaming and effects](streaming.md).
+An accepted enclosing turn commits all rows, input progress and its outputs
+atomically. The helper restores the entire prior proposal on error, including
+budget exhaustion. The three-row bound leaves one of a fresh turn's four
+mutation slots for an application-owned outcome; the helper does not reserve or
+write that outcome itself. Current writer ownership, grants and source revision
+remain native acceptance conditions.
 
-See also [UPDATE](update.md), [DELETE](delete.md) and the
-[statement index](../sql.md#statement-forms).
+The [mutation contract](../../../contracts/TABLE_MUTATION_V1.md) defines the typed
+plan, errors and recovery. Reconcile an uncertain application command with its
+original identity under the [caller contract](../callers.md).
+
+`INSERT ... SELECT`, `DEFAULT VALUES`, `ON CONFLICT` and `RETURNING` are unsupported.
+[CREATE TABLE](create-table.md) does not provision a SQL target, and inserting
+rows does not dispatch a [sink effect](create-sink.md).
+
+See also [UPDATE](update.md), [DELETE](delete.md) and [Table mutation](../tables.md).

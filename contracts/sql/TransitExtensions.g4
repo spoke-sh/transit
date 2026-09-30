@@ -1,9 +1,9 @@
-// Read-only Table SQL plus grammar-only administrative extensions.
+// Finite queries, bounded Table mutations and administrative extensions.
 // See README.md for exact lexical, compilation and compatibility boundaries.
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | extensionStatement) SEMI? EOF;
+statement: (selectStatement | mutationStatement | extensionStatement) SEMI? EOF;
 asOfFragment: asOfClause EOF;
 
 // A single predicate and a projection bounded by the declared schema at compile time.
@@ -26,6 +26,16 @@ comparison: EQ | NE | LT | LE | GT | GE;
 literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?;
 signedInteger: (PLUS | MINUS)? INTEGER;
 limitClause: LIMIT INTEGER;
+
+// Execution requires an explicitly integrated application writer. Query
+// transports reject these forms; this grammar conveys no write permission.
+mutationStatement
+    : INSERT INTO identifier LPAREN identifier COMMA identifier RPAREN
+      VALUES mutationRow (COMMA mutationRow)*
+    | UPDATE identifier SET columnReference EQ literal WHERE columnReference EQ literal
+    | DELETE FROM identifier WHERE columnReference EQ literal
+    ;
+mutationRow: LPAREN literal COMMA literal RPAREN;
 
 
 // ---- Parser rules -----------------------------------------------------
@@ -174,6 +184,7 @@ asOfClause
 
 identifier
     : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
+    | INSERT | UPDATE | DELETE | SET | VALUES
     ;
 
 // ---- Lexer rules --------------------------------------------------------
@@ -195,6 +206,11 @@ CONFLICT: 'CONFLICT';
 UINT64: 'UINT64';
 FLOAT64: 'FLOAT64';
 EXPLAIN: 'EXPLAIN';
+INSERT: 'INSERT';
+UPDATE: 'UPDATE';
+DELETE: 'DELETE';
+SET: 'SET';
+VALUES: 'VALUES';
 CREATE: 'CREATE';
 CONNECTION: 'CONNECTION';
 CONNECTIONS: 'CONNECTIONS';

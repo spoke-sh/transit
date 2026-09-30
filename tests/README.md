@@ -4851,8 +4851,11 @@ as errors. `zig build test-unified-query -Doptimize=ReleaseSafe
 native/port/SDK callers agree on the same metadata and predicate cases, reject
 revoked and retired disclosure, and preserve the full signed recovery schedule.
 The Java test adapter now treats an omitted cursor as no cursor, allowing the
-existing final retirement probe to reach the public SDK. Document is still
-running and is not included in this completed evidence.
+existing final retirement probe to reach the public SDK. The Document continuation
+also passes: 12 rows, two segments, 64 resident authority pages, an 8 MiB hot
+store and the same four-caller inspection/denial/recovery checks. Provisioning
+takes 1409.61 s and the complete Document fixture takes 1562.99 s under concurrent
+host load. These are fixture costs, not query latency or improvement claims.
 
 ### C and C++ SQL inspection
 
@@ -4877,3 +4880,36 @@ callers. The same description/list/plan, redaction, state/limit, current denial,
 retirement and signed disk recovery checks pass. Atom conversion uses fixed
 allowlists. The controller now handles omitted page cursors for the final
 retirement probe. KV/Document installed coverage remains outstanding.
+
+### Bounded application-owned Table mutations
+
+The shared lexer/parser and typed Fuze compiler accept literal INSERT and
+primary-key UPDATE/DELETE. Station applies the validated plan within an explicitly
+supplied private writer turn. This increment does not add public admission or a
+query-client mutation route. Typed validation and SQL use the same three-row,
+exact-type and duplicate-key rules; no native/storage definition changes.
+
+`just test::unit` passes, including atomic proposal rollback after a later duplicate
+or exhausted budget, missing/same-value affected counts, full-width keys, all four
+Table value types, cross-resource/schema rejection and sticky read failure after
+an earlier row change. `just test::sql` passes its existing 104 SELECT ASTs,
+86 current plans and 24 unified results across three bases/eight page widths.
+The new corpus adds 24 ANTLR/Postgres mutation AST comparisons and 31 independent
+storage-byte/outcome or rejection cases. All 49 public SQL examples parse. These
+private-turn fixtures do not establish native mutation admission, disk recovery,
+current revocation or language-SDK mutation coverage; those remain required.
+
+The ReleaseSafe performance probe now includes 10,000 compilations each of a
+three-row insert, key update and key delete, with five independent process samples.
+Their median costs are 1.081, 0.627 and 0.447 microseconds respectively. The
+independent outcome probe observes at most nine private point reads for three-row
+insertion and five for an existing-row update. This is a baseline for compiler
+and helper work, excluding authority, network and disk. Raw samples, executable
+hash, dirty-source flag and compiler identity remain in the generated report;
+no end-to-end performance improvement is inferred.
+
+`just check` passes, including the production documentation build; a further
+`just test::unit` passes after the 220-byte literal boundary cases are added.
+The first broad check exposes a catalog omission in the rebased CI consolidation:
+`bindings::test` remains an invariant owner but was removed from lane membership.
+It is now listed as an external aggregate, preserving the once-per-lane SDK run.

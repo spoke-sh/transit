@@ -31,6 +31,21 @@ pub fn main(init: std.process.Init) !void {
         try std.json.Stringify.value(.{ .phase = "compile", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
+    const mutation_target: f.TableMutation.Target = .{ .name = try f.model.Name.init("items"), .schema = .{ .names = .{ try f.model.Name.init("id"), try f.model.Name.init("value") }, .value_type = .int64 } };
+    for ([_][]const u8{
+        "INSERT INTO items (id,value) VALUES(1,2),(2,NULL),(3,-9223372036854775808)",
+        "UPDATE items SET value=12 WHERE id=9223372036854775807",
+        "DELETE FROM items WHERE id=7",
+    }, 0..) |sql, case| {
+        const start = std.Io.Clock.awake.now(init.io);
+        for (0..iterations) |_| {
+            const plan = try f.TableMutation.compile(sql, mutation_target);
+            std.mem.doNotOptimizeAway(plan);
+        }
+        const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+        try std.json.Stringify.value(.{ .phase = "compile_mutation", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
+        try stdout.interface.writeByte('\n');
+    }
     const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
     var output: [m.Arrow.segment_bytes]u8 = undefined;
     var cells: [m.max_rows][2]m.Cell = undefined;

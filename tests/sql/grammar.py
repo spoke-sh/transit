@@ -26,7 +26,7 @@ def documentation_examples():
 
     grammar = (ROOT / 'contracts/sql/TransitExtensions.g4').read_text()
     extensions = re.search(r'extensionStatement\s*:(.*?);', grammar, re.S).group(1)
-    required = set(re.findall(r'\b[a-z]\w*\b', extensions)) | {'selectStatement', 'asOfClause'}
+    required = set(re.findall(r'\b[a-z]\w*\b', extensions)) | {'selectStatement', 'mutationStatement', 'asOfClause'}
     covered = set()
     count = 0
 

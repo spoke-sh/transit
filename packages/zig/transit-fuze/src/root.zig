@@ -7,12 +7,14 @@ pub const execution = @import("execute.zig");
 pub const Unified = @import("Unified.zig");
 pub const Sql = @import("Sql.zig");
 pub const SqlInput = @import("SqlInput.zig");
+pub const TableMutation = @import("TableMutation.zig");
 test {
     _ = SqlInput;
     _ = Unified;
     _ = @import("sql_test.zig");
     _ = @import("stream_test.zig");
     _ = @import("inspect_test.zig");
+    _ = @import("mutation_test.zig");
 }
 
 /// Serialize a complete, finite result into a caller-owned bounded buffer.

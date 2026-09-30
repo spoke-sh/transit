@@ -34,6 +34,16 @@ pub const Ast = struct {
 };
 pub const Catalog = enum { tables, sources, sinks, connections };
 pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
+pub const max_mutation_rows = 3;
+pub const KeyEquality = struct { column: Column, literal: Literal };
+pub const Mutation = struct {
+    source: m.Name,
+    operation: union(enum) {
+        insert: struct { columns: [2]m.Name, rows: [max_mutation_rows]?[2]Literal = @splat(null) },
+        update: struct { column: Column, literal: Literal, key: KeyEquality },
+        delete: KeyEquality,
+    },
+};
 
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
@@ -44,6 +54,50 @@ pub fn parse(text: []const u8) !Ast {
 fn validateText(text: []const u8) !void {
     if (text.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
+}
+/// Parse only bounded, literal Table mutations. This supplies no write authority;
+/// the application must explicitly route the plan through its fenced writer.
+pub fn parseMutation(text: []const u8) !?Mutation {
+    try validateText(text);
+    var parser: Parser = .{ .lexer = .{ .text = text } };
+    try parser.advance();
+    const insert = parser.word("INSERT");
+    const update = parser.word("UPDATE");
+    const delete = parser.word("DELETE");
+    if (!insert and !update and !delete) return null;
+    try parser.advance();
+    if (insert) try parser.requireWord("INTO");
+    if (delete) try parser.requireWord("FROM");
+    const source = try parser.name();
+    const operation: @FieldType(Mutation, "operation") = if (insert) blk: {
+        try parser.require(.left);
+        const first = try parser.name();
+        try parser.require(.comma);
+        const second = try parser.name();
+        try parser.require(.right);
+        try parser.requireWord("VALUES");
+        var values: @FieldType(@FieldType(Mutation, "operation"), "insert") = .{ .columns = .{ first, second } };
+        var index: usize = 0;
+        while (true) : (index += 1) {
+            if (index == max_mutation_rows) return error.MutationBatchTooLarge;
+            try parser.require(.left);
+            const key = try parser.literal();
+            try parser.require(.comma);
+            const value = try parser.literal();
+            try parser.require(.right);
+            values.rows[index] = .{ key, value };
+            if (!try parser.take(.comma)) break;
+        }
+        break :blk .{ .insert = values };
+    } else if (update) blk: {
+        try parser.requireWord("SET");
+        const column = try parser.column();
+        try parser.require(.eq);
+        const literal = try parser.literal();
+        break :blk .{ .update = .{ .column = column, .literal = literal, .key = try parser.keyEquality() } };
+    } else .{ .delete = try parser.keyEquality() };
+    try parser.end();
+    return .{ .source = source, .operation = operation };
 }
 /// Recognize inspection without making it an executable SELECT. A null result
 /// leaves other statements to their owner; recognized forms consume all input.
@@ -109,6 +163,10 @@ fn statement(parser: *Parser) !Ast {
 
 /// Shared checked SQL literal decoding; the returned value owns its bytes.
 pub fn literalCell(literal: Literal) !m.Cell {
+    switch (literal) {
+        .utf8, .binary => |value| if (value.len > value.bytes.len) return error.LiteralTooLarge,
+        else => {},
+    }
     return switch (literal) {
         .null => .null,
         .int64 => |value| .{ .int64 = value },
@@ -330,6 +388,12 @@ const Parser = struct {
             h.predicate_column = null;
         }
         return .{ .compare = .{ .column = col, .op = op, .literal = value } };
+    }
+    fn keyEquality(self: *Parser) !KeyEquality {
+        try self.requireWord("WHERE");
+        const column_value = try self.column();
+        try self.require(.eq);
+        return .{ .column = column_value, .literal = try self.literal() };
     }
     fn literal(self: *Parser) !Literal {
         if (self.word("NULL")) {

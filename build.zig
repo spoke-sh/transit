@@ -73,6 +73,13 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     sql_test.addArtifactArg(unified_sql);
+    const mutation_sql = b.addExecutable(.{ .name = "transit-mutation-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_mutation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    sql_test.addArtifactArg(mutation_sql);
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);

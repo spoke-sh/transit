@@ -337,6 +337,20 @@
       "expression": "64 * 1024",
       "classification": "operation",
       "meaning": "General nested Arrow segment ceiling. Station Table delivery imposes its separate 8192-byte operation bound."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "symbol": "max_mutation_rows",
+      "expression": "3",
+      "classification": "operation",
+      "meaning": "Literal rows in one atomic Table statement; leaves one fresh-turn mutation slot for an application outcome and does not bound stored Table size."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/TableMutation.zig",
+      "symbol": "max_rows",
+      "expression": "sql.max_mutation_rows",
+      "classification": "operation",
+      "meaning": "Typed mutation batch shares the SQL operation bound; retained collection cardinality remains independent."
     }
   ],
   "identities": [

@@ -21,7 +21,7 @@ explains future language targets without expanding the supported interface.
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
 | Find a function or operator | [Functions and operators](sql/expressions.md) |
-| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md): unsupported in SQL; application APIs are available |
+| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly integrated Zig application writer |
 | Inspect definitions and plans | [DESCRIBE](sql/describe.md), [SHOW TABLES](sql/show.md), [EXPLAIN](sql/explain.md) within the configured source scope |
 | Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
 | Define an application interface | [Application declarations](sql/application.md) |
@@ -70,9 +70,9 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | Statement | Support | Reference |
 | --- | --- | --- |
 | `SELECT` | Executable finite read in the profiles above | [Projection, filtering, limits and aggregates](sql/select.md) |
-| `INSERT` | Unsupported; absent from grammar and runtime | [Row insertion and current application APIs](sql/insert.md) |
-| `UPDATE` | Unsupported; absent from grammar and runtime | [State changes and commit boundaries](sql/update.md) |
-| `DELETE` | Unsupported; absent from grammar and runtime | [Row removal and retained history](sql/delete.md) |
+| `INSERT` | Bounded Zig application writer helper; query transports reject | [Row insertion and current application APIs](sql/insert.md) |
+| `UPDATE` | Primary-key equality in the Zig application writer helper | [State changes and commit boundaries](sql/update.md) |
+| `DELETE` | Primary-key equality in the Zig application writer helper | [Row removal and retained history](sql/delete.md) |
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
 | `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
@@ -159,7 +159,9 @@ trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
 Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
-`COUNT(column)`, general casts, writes and continuous queries are unsupported.
+`COUNT(column)`, general casts and continuous queries are unsupported.
+Public query transports reject writes. Applications can explicitly integrate
+the [bounded Table mutation helper](sql/insert.md) in their fenced writer.
 `CREATE`, `GRANT`, `REVOKE` and connector forms of `SHOW` in the
 [reference grammar](../../contracts/sql/README.md) are grammar-only.
 They do not execute in the console, Board query workspace or Flight SQL.
