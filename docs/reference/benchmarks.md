@@ -84,6 +84,43 @@ about native primary-key seeking. KV and Document adapters, catalog publication,
 CLI, SDK, Board and Flight calls are outside these component timings. Sharing
 Fuze does not make those execution paths equally fast or equally capable.
 
+## Recorded component measurements
+
+A local run on 2026-09-30 at clean source `8446688a` passes all 28 components.
+The [complete raw report](../../tests/benchmarks/results/2026-09-30.json) retains
+all 52 timed phases, five samples, output cells and segment digests, provenance
+and full-workload blockers. It uses the default 8192 rows, seed 42, eight-row
+pages, ten executions and 2000 compilations/proposals per sample. The executable
+uses Zig `0.17.0-dev.2267+48abf1a34` in ReleaseSafe (`safe` in compiler metadata).
+
+| Family | SELECT component | Median execution per iteration (ms) |
+| --- | --- | ---: |
+| TPC-C | Stock quantity point filter | 0.944 |
+| TPC-C | Low-stock count | 0.937 |
+| TPC-C | Quantity sum | 0.866 |
+| TPC-E | Trade quantity point filter | 0.960 |
+| TPC-E | Filtered quantity sum | 0.945 |
+| TPC-E | Limited projection | 0.033 |
+| TPC-H | Line-item quantity sum | 0.860 |
+| TPC-H | Filtered count | 0.948 |
+| TPC-H | Limited-input sum | 0.011 |
+| TPC-DS | Inventory quantity sum | 0.878 |
+| TPC-DS | Null count | 0.871 |
+| TPC-DS | Limited projection | 0.016 |
+
+Across the 28 compilation components, per-component medians range from
+0.363 to 1.077 microseconds. The twelve private mutation-proposal components
+range from 1.927 to 5.503 microseconds. These are ranges of component medians,
+not request percentiles. Min/max sample values and individual phases remain in
+the report. Limited queries consume fewer rows than full scans.
+
+The host is Linux x86_64 with an AMD Ryzen Threadripper 3960X, 48 logical CPUs
+and an initial one-minute load average of 8.25. The run uses the reported CPU
+affinity without an exclusive CPU or controlled background load. Other activity
+on this shared host can affect timings. This is an unpaired observation, not a
+speedup claim. Fuze uses a 4 MiB Arrow workspace, a 64 KiB output buffer and at
+most eight generated rows; those budgets are not measured process RSS.
+
 ## Intended declarative surface and blockers
 
 The [grammar inventory](sql/grammar-surface.md) owns implemented/planned labels.

@@ -24,9 +24,27 @@ Executed in the pinned development shell, using locked frontend dependencies:
   86 plan/Arrow cases, 24 unified results, 31 mutation cases and 182 declaration
   cases. These remain component/grammar proofs, not complete TPC execution.
 
-Full repository checks and the committed-source measurement/clean runs are
-recorded separately when complete. Native authority, disk durability and public
-transport latency are outside this harness's measured boundary.
+Full `just check` passes, including the unit/protocol checks, 346 CLI diagnostic
+cases, generated contracts, frontend tests/types and production handbook build.
+The final report tests and a 17-row/three-row-page smoke pass after report
+validation was tightened to reject missing timings and retain decoded outputs.
+Logs: `/tmp/transit-benchmark-check.log`, `/tmp/transit-benchmark-sql.log`,
+`/tmp/transit-benchmark-smoke.log` and `/tmp/transit-benchmark-final-smoke.log`.
+
+At clean committed source `8446688afda8d0662bea1503ec8151fd3a6ac942`,
+`just test::declarative-benchmark` passes all 28 components and nine blocker probes
+with five samples, 8192 synthetic rows, eight-row pages, seed 42, ten query
+executions and 2000 compilations/proposals. The
+[retained report](benchmarks/results/2026-09-30.json) has `dirty: false`, all 52
+timed phases, independently verified query outputs and mutation proposals,
+fixture/build/source hashes and host metadata. Binary SHA-256 is
+`4b8457964e12931d1058c2149d6483676e54618890863bb45959d600e2023e19`.
+The [public summary](../docs/reference/benchmarks.md#recorded-component-measurements)
+reports the exact scope and shared-host limits. Measurement log:
+`/tmp/transit-benchmark-measurement.log`. These are unpaired component timings;
+all 151 complete-workload units remain blocked. Native authority, disk durability
+and public transport latency are outside this harness's measured boundary.
+Committed-HEAD clean validation is recorded in the draft PR after its run.
 
 ## Handbook grammar inventory and implementation plan
 

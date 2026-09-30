@@ -1,0 +1,6112 @@
+{
+  "definition": "transit.declarative-benchmarks.v1",
+  "status": "components_passed_full_workloads_blocked",
+  "summary": [
+    {
+      "id": "tpc-c.lookup",
+      "phase": "compile",
+      "median_ns": 606.764,
+      "min_ns": 590.8435,
+      "max_ns": 609.039
+    },
+    {
+      "id": "tpc-c.lookup",
+      "phase": "execute",
+      "median_ns": 944073.3,
+      "min_ns": 943337.9,
+      "max_ns": 947457.9
+    },
+    {
+      "id": "tpc-c.low_stock",
+      "phase": "compile",
+      "median_ns": 549.1235,
+      "min_ns": 543.778,
+      "max_ns": 557.3795
+    },
+    {
+      "id": "tpc-c.low_stock",
+      "phase": "execute",
+      "median_ns": 937189.1,
+      "min_ns": 929961.1,
+      "max_ns": 944747.7
+    },
+    {
+      "id": "tpc-c.quantity_sum",
+      "phase": "compile",
+      "median_ns": 475.4215,
+      "min_ns": 466.068,
+      "max_ns": 479.97
+    },
+    {
+      "id": "tpc-c.quantity_sum",
+      "phase": "execute",
+      "median_ns": 866297.5,
+      "min_ns": 862758.6,
+      "max_ns": 899562.6
+    },
+    {
+      "id": "tpc-c.declaration",
+      "phase": "compile",
+      "median_ns": 363.8915,
+      "min_ns": 362.9645,
+      "max_ns": 372.463
+    },
+    {
+      "id": "tpc-c.insert",
+      "phase": "compile",
+      "median_ns": 1052.5035,
+      "min_ns": 1042.354,
+      "max_ns": 1057.2925
+    },
+    {
+      "id": "tpc-c.insert",
+      "phase": "propose_mutation",
+      "median_ns": 5495.23,
+      "min_ns": 5452.6735,
+      "max_ns": 5830.0755
+    },
+    {
+      "id": "tpc-c.update",
+      "phase": "compile",
+      "median_ns": 621.9035,
+      "min_ns": 616.1875,
+      "max_ns": 690.5005
+    },
+    {
+      "id": "tpc-c.update",
+      "phase": "propose_mutation",
+      "median_ns": 2171.78,
+      "min_ns": 2147.614,
+      "max_ns": 2188.1865
+    },
+    {
+      "id": "tpc-c.delete",
+      "phase": "compile",
+      "median_ns": 500.825,
+      "min_ns": 489.964,
+      "max_ns": 540.3415
+    },
+    {
+      "id": "tpc-c.delete",
+      "phase": "propose_mutation",
+      "median_ns": 1939.0865,
+      "min_ns": 1922.6505,
+      "max_ns": 2039.866
+    },
+    {
+      "id": "tpc-e.lookup",
+      "phase": "compile",
+      "median_ns": 625.05,
+      "min_ns": 587.7425,
+      "max_ns": 671.6345
+    },
+    {
+      "id": "tpc-e.lookup",
+      "phase": "execute",
+      "median_ns": 960542.1,
+      "min_ns": 943101.5,
+      "max_ns": 974085.2
+    },
+    {
+      "id": "tpc-e.large_quantity",
+      "phase": "compile",
+      "median_ns": 596.8605,
+      "min_ns": 586.515,
+      "max_ns": 623.4315
+    },
+    {
+      "id": "tpc-e.large_quantity",
+      "phase": "execute",
+      "median_ns": 945268.7,
+      "min_ns": 934404.7,
+      "max_ns": 951915.4
+    },
+    {
+      "id": "tpc-e.recent",
+      "phase": "compile",
+      "median_ns": 691.9535,
+      "min_ns": 665.803,
+      "max_ns": 703.9715
+    },
+    {
+      "id": "tpc-e.recent",
+      "phase": "execute",
+      "median_ns": 32735.1,
+      "min_ns": 31840.4,
+      "max_ns": 33022.6
+    },
+    {
+      "id": "tpc-e.declaration",
+      "phase": "compile",
+      "median_ns": 362.6385,
+      "min_ns": 357.6195,
+      "max_ns": 389.706
+    },
+    {
+      "id": "tpc-e.insert",
+      "phase": "compile",
+      "median_ns": 1044.9335,
+      "min_ns": 1040.826,
+      "max_ns": 1056.6715
+    },
+    {
+      "id": "tpc-e.insert",
+      "phase": "propose_mutation",
+      "median_ns": 5456.8165,
+      "min_ns": 5437.629,
+      "max_ns": 5537.3915
+    },
+    {
+      "id": "tpc-e.update",
+      "phase": "compile",
+      "median_ns": 622.0035,
+      "min_ns": 616.1725,
+      "max_ns": 632.193
+    },
+    {
+      "id": "tpc-e.update",
+      "phase": "propose_mutation",
+      "median_ns": 2172.5665,
+      "min_ns": 2150.2035,
+      "max_ns": 2583.4035
+    },
+    {
+      "id": "tpc-e.delete",
+      "phase": "compile",
+      "median_ns": 494.147,
+      "min_ns": 492.835,
+      "max_ns": 503.786
+    },
+    {
+      "id": "tpc-e.delete",
+      "phase": "propose_mutation",
+      "median_ns": 1934.7285,
+      "min_ns": 1924.649,
+      "max_ns": 1968.769
+    },
+    {
+      "id": "tpc-h.quantity_sum",
+      "phase": "compile",
+      "median_ns": 455.9035,
+      "min_ns": 442.959,
+      "max_ns": 458.268
+    },
+    {
+      "id": "tpc-h.quantity_sum",
+      "phase": "execute",
+      "median_ns": 859951.3,
+      "min_ns": 858307.1,
+      "max_ns": 903032.2
+    },
+    {
+      "id": "tpc-h.selected_count",
+      "phase": "compile",
+      "median_ns": 540.692,
+      "min_ns": 531.0835,
+      "max_ns": 545.862
+    },
+    {
+      "id": "tpc-h.selected_count",
+      "phase": "execute",
+      "median_ns": 948274.5,
+      "min_ns": 927878.2,
+      "max_ns": 955459.3
+    },
+    {
+      "id": "tpc-h.limited_sum",
+      "phase": "compile",
+      "median_ns": 885.1905,
+      "min_ns": 866.049,
+      "max_ns": 898.106
+    },
+    {
+      "id": "tpc-h.limited_sum",
+      "phase": "execute",
+      "median_ns": 10720.6,
+      "min_ns": 10680.5,
+      "max_ns": 13068.2
+    },
+    {
+      "id": "tpc-h.declaration",
+      "phase": "compile",
+      "median_ns": 374.8975,
+      "min_ns": 365.5395,
+      "max_ns": 411.4325
+    },
+    {
+      "id": "tpc-h.insert",
+      "phase": "compile",
+      "median_ns": 1065.0775,
+      "min_ns": 1061.22,
+      "max_ns": 1083.558
+    },
+    {
+      "id": "tpc-h.insert",
+      "phase": "propose_mutation",
+      "median_ns": 5502.5445,
+      "min_ns": 5450.9745,
+      "max_ns": 5794.602
+    },
+    {
+      "id": "tpc-h.update",
+      "phase": "compile",
+      "median_ns": 634.2875,
+      "min_ns": 632.3085,
+      "max_ns": 665.237
+    },
+    {
+      "id": "tpc-h.update",
+      "phase": "propose_mutation",
+      "median_ns": 2179.926,
+      "min_ns": 2159.5265,
+      "max_ns": 2249.3845
+    },
+    {
+      "id": "tpc-h.delete",
+      "phase": "compile",
+      "median_ns": 485.806,
+      "min_ns": 481.748,
+      "max_ns": 516.1545
+    },
+    {
+      "id": "tpc-h.delete",
+      "phase": "propose_mutation",
+      "median_ns": 1941.2365,
+      "min_ns": 1921.503,
+      "max_ns": 1963.2985
+    },
+    {
+      "id": "tpc-ds.quantity_sum",
+      "phase": "compile",
+      "median_ns": 456.765,
+      "min_ns": 449.0655,
+      "max_ns": 465.828
+    },
+    {
+      "id": "tpc-ds.quantity_sum",
+      "phase": "execute",
+      "median_ns": 878349.7,
+      "min_ns": 872938.3,
+      "max_ns": 885385.3
+    },
+    {
+      "id": "tpc-ds.null_count",
+      "phase": "compile",
+      "median_ns": 511.2955,
+      "min_ns": 507.1825,
+      "max_ns": 528.5685
+    },
+    {
+      "id": "tpc-ds.null_count",
+      "phase": "execute",
+      "median_ns": 871183.9,
+      "min_ns": 867785.4,
+      "max_ns": 906783.5
+    },
+    {
+      "id": "tpc-ds.sample",
+      "phase": "compile",
+      "median_ns": 562.549,
+      "min_ns": 549.4035,
+      "max_ns": 632.4885
+    },
+    {
+      "id": "tpc-ds.sample",
+      "phase": "execute",
+      "median_ns": 15724.3,
+      "min_ns": 15688.3,
+      "max_ns": 21438.3
+    },
+    {
+      "id": "tpc-ds.declaration",
+      "phase": "compile",
+      "median_ns": 373.8055,
+      "min_ns": 371.6815,
+      "max_ns": 386.5855
+    },
+    {
+      "id": "tpc-ds.insert",
+      "phase": "compile",
+      "median_ns": 1077.4615,
+      "min_ns": 1070.122,
+      "max_ns": 1122.864
+    },
+    {
+      "id": "tpc-ds.insert",
+      "phase": "propose_mutation",
+      "median_ns": 5478.608,
+      "min_ns": 5448.3145,
+      "max_ns": 5501.0015
+    },
+    {
+      "id": "tpc-ds.update",
+      "phase": "compile",
+      "median_ns": 642.914,
+      "min_ns": 638.5405,
+      "max_ns": 651.445
+    },
+    {
+      "id": "tpc-ds.update",
+      "phase": "propose_mutation",
+      "median_ns": 2175.0065,
+      "min_ns": 2170.573,
+      "max_ns": 2180.968
+    },
+    {
+      "id": "tpc-ds.delete",
+      "phase": "compile",
+      "median_ns": 494.4175,
+      "min_ns": 490.866,
+      "max_ns": 504.763
+    },
+    {
+      "id": "tpc-ds.delete",
+      "phase": "propose_mutation",
+      "median_ns": 1927.2795,
+      "min_ns": 1925.145,
+      "max_ns": 1982.0945
+    }
+  ],
+  "samples": [
+    [
+      {
+        "id": "tpc-c.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1196485
+      },
+      {
+        "id": "tpc-c.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9436034,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1114759
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9351391,
+        "scanned": 8192,
+        "selected": 1498,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 939901
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8662975,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 725929
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"stock\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2114585
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10905347
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1232375
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4295228
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1041437
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4079732
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1343269
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9740852,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1193049
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9344047,
+        "scanned": 8192,
+        "selected": 3742,
+        "rows": 1,
+        "segments": 1,
+        "sum": 282499,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1382464
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 318975,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 8,
+        "segments": 2,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 715239
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"trade\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2081652
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10875258
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1236543
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4345133
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 985670
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3855411
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 911807
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8629310,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1062167
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9278782,
+        "scanned": 8192,
+        "selected": 5689,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1732098
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 107206,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 1,
+        "segments": 1,
+        "sum": 328,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 747080
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"lineitem\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2136717
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10966334
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1265800
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4319053
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 971612
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3843006
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 931656
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8830267,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1026348
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9067835,
+        "scanned": 8192,
+        "selected": 631,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1103126
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 156883,
+        "scanned": 8,
+        "selected": 8,
+        "rows": 8,
+        "segments": 1,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 743363
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"inventory\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2154923
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10939302
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1285828
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4361936
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1009526
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3964189
+      },
+      {
+        "id": "join",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "group",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "order",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "arithmetic",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "compound",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "transaction",
+        "phase": "blocker_probe",
+        "err": "UnsupportedStatement"
+      },
+      {
+        "id": "decimal",
+        "phase": "blocker_probe",
+        "err": "UnsupportedDeclarationType"
+      },
+      {
+        "id": "wide_publication",
+        "phase": "blocker_probe",
+        "err": "UnsupportedTableColumnCount"
+      },
+      {
+        "id": "bulk_insert",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      }
+    ],
+    [
+      {
+        "id": "tpc-c.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1218078
+      },
+      {
+        "id": "tpc-c.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9474579,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1099378
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9447477,
+        "scanned": 8192,
+        "selected": 1498,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 958016
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8627586,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 727783
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"stock\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2084708
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11660151
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1381001
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4337349
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 979928
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3900697
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1212587
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9431015,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1173030
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9452687,
+        "scanned": 8192,
+        "selected": 3742,
+        "rows": 1,
+        "segments": 1,
+        "sum": 282499,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1391622
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 329575,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 8,
+        "segments": 2,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 723605
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"trade\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2113343
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10913633
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1244989
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4328372
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 988294
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3849298
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 885918
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8583071,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1070803
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9380809,
+        "scanned": 8192,
+        "selected": 5689,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1772917
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 106805,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 1,
+        "segments": 1,
+        "sum": 328,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 749795
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"lineitem\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2130155
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10901949
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1264617
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4325366
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 963496
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3867643
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 898131
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8729383,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1022591
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8703814,
+        "scanned": 8192,
+        "selected": 631,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1125098
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 157243,
+        "scanned": 8,
+        "selected": 8,
+        "rows": 8,
+        "segments": 1,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 747120
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"inventory\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2140244
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10980451
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1277081
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4344773
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 982463
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3918001
+      },
+      {
+        "id": "join",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "group",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "order",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "arithmetic",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "compound",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "transaction",
+        "phase": "blocker_probe",
+        "err": "UnsupportedStatement"
+      },
+      {
+        "id": "decimal",
+        "phase": "blocker_probe",
+        "err": "UnsupportedDeclarationType"
+      },
+      {
+        "id": "wide_publication",
+        "phase": "blocker_probe",
+        "err": "UnsupportedTableColumnCount"
+      },
+      {
+        "id": "bulk_insert",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      }
+    ],
+    [
+      {
+        "id": "tpc-c.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1213528
+      },
+      {
+        "id": "tpc-c.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9433379,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1095632
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9299611,
+        "scanned": 8192,
+        "selected": 1498,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 950843
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8995626,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 744926
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"stock\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2106930
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10916868
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1238397
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4343560
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1001650
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3878173
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1175485
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9462667,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1212486
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9347404,
+        "scanned": 8192,
+        "selected": 3742,
+        "rows": 1,
+        "segments": 1,
+        "sum": 282499,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1407943
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 330226,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 8,
+        "segments": 2,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 725277
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"trade\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2112671
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10882883
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1264386
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4300407
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 986171
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3937538
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 912108
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8596346,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1081384
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9493335,
+        "scanned": 8192,
+        "selected": 5689,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1770381
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 107116,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 1,
+        "segments": 1,
+        "sum": 328,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 731079
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"lineitem\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2127540
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11005089
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1268575
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4359852
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 966522
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3882473
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 913530
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8853853,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1057137
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8677854,
+        "scanned": 8192,
+        "selected": 631,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1264977
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 214383,
+        "scanned": 8,
+        "selected": 8,
+        "rows": 8,
+        "segments": 1,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 773171
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"inventory\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2191192
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10957216
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1293774
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4352789
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 988835
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3854559
+      },
+      {
+        "id": "join",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "group",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "order",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "arithmetic",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "compound",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "transaction",
+        "phase": "blocker_probe",
+        "err": "UnsupportedStatement"
+      },
+      {
+        "id": "decimal",
+        "phase": "blocker_probe",
+        "err": "UnsupportedDeclarationType"
+      },
+      {
+        "id": "wide_publication",
+        "phase": "blocker_probe",
+        "err": "UnsupportedTableColumnCount"
+      },
+      {
+        "id": "bulk_insert",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      }
+    ],
+    [
+      {
+        "id": "tpc-c.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1217346
+      },
+      {
+        "id": "tpc-c.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9474148,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1098247
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9371891,
+        "scanned": 8192,
+        "selected": 1498,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 932136
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8635772,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 726199
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"stock\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2101930
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10990460
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1243807
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4358630
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 997071
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3845301
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1250100
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9605421,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1193721
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9504466,
+        "scanned": 8192,
+        "selected": 3742,
+        "rows": 1,
+        "segments": 1,
+        "sum": 282499,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1383907
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 327351,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 8,
+        "segments": 2,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 730738
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"trade\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2089867
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11074783
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1244007
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4351716
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1007572
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3869828
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 910264
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8599513,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1091724
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9482745,
+        "scanned": 8192,
+        "selected": 5689,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1756906
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 107437,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 1,
+        "segments": 1,
+        "sum": 328,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 754193
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"lineitem\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2122440
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11076566
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1289325
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4377697
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1032309
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3889957
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 901247
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8766043,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1014365
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8711839,
+        "scanned": 8192,
+        "selected": 631,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1098807
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 157153,
+        "scanned": 8,
+        "selected": 8,
+        "rows": 8,
+        "segments": 1,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 747611
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"inventory\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2141317
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10896629
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1284135
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4341146
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 989207
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3852534
+      },
+      {
+        "id": "join",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "group",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "order",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "arithmetic",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "compound",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "transaction",
+        "phase": "blocker_probe",
+        "err": "UnsupportedStatement"
+      },
+      {
+        "id": "decimal",
+        "phase": "blocker_probe",
+        "err": "UnsupportedDeclarationType"
+      },
+      {
+        "id": "wide_publication",
+        "phase": "blocker_probe",
+        "err": "UnsupportedTableColumnCount"
+      },
+      {
+        "id": "bulk_insert",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      }
+    ],
+    [
+      {
+        "id": "tpc-c.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1181687
+      },
+      {
+        "id": "tpc-c.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9440733,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1087556
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9415525,
+        "scanned": 8192,
+        "selected": 1498,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 959940
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8925711,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 738824
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"stock\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2105007
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11436439
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1256542
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4376373
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1080683
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3872784
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1318150
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9619628,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1246863
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9519154,
+        "scanned": 8192,
+        "selected": 3742,
+        "rows": 1,
+        "segments": 1,
+        "sum": 282499,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1331606
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 318404,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 8,
+        "segments": 2,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 779412
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"trade\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2086330
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11064564
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1232345
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 5166807
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1004255
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3869457
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 916536
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9030322,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1091403
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9554593,
+        "scanned": 8192,
+        "selected": 5689,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1796212
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 130682,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 1,
+        "segments": 1,
+        "sum": 328,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 822865
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"lineitem\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2167116
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11589204
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1330474
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4498769
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 974107
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3926597
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 926325
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8783497,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1017111
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8849013,
+        "scanned": 8192,
+        "selected": 631,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1128855
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 157884,
+        "scanned": 8,
+        "selected": 8,
+        "rows": 8,
+        "segments": 1,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 762960
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"inventory\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2245728
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11002003
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1302890
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4350013
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 981732
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3850290
+      },
+      {
+        "id": "join",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "group",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "order",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "arithmetic",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "compound",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "transaction",
+        "phase": "blocker_probe",
+        "err": "UnsupportedStatement"
+      },
+      {
+        "id": "decimal",
+        "phase": "blocker_probe",
+        "err": "UnsupportedDeclarationType"
+      },
+      {
+        "id": "wide_publication",
+        "phase": "blocker_probe",
+        "err": "UnsupportedTableColumnCount"
+      },
+      {
+        "id": "bulk_insert",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      }
+    ]
+  ],
+  "timestamp": "2026-09-30T18:55:55.798183+00:00",
+  "revision": "8446688afda8d0662bea1503ec8151fd3a6ac942",
+  "dirty": false,
+  "manifest_sha256": "3316ed2509bdf3c3b3ad51cb208017c38e649e45085a723ee3f50aea11897676",
+  "binary_sha256": "4b8457964e12931d1058c2149d6483676e54618890863bb45959d600e2023e19",
+  "harness_sha256": "24fb3dea9beb30060cf43cffa7142950a14ce010581a982fe86d12883043d1d4",
+  "lock_sha256": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+  "driver_sha256": "c9a350f4d424be53e14e76cadb906a193f7c4b732a059286021c4e1ec8ba53f6",
+  "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+  "machine": "x86_64",
+  "cpu_count": 48,
+  "cpu_model": "AMD Ryzen Threadripper 3960X 24-Core Processor",
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47
+  ],
+  "load_average": [
+    8.25,
+    7.0869140625,
+    6.83154296875
+  ],
+  "python": "3.13.15",
+  "pyarrow": "23.0.0",
+  "sqlite": "3.51.2",
+  "features": {
+    "schema": {
+      "status": "blocked",
+      "owner": "docs/reference/sql/create-table.md",
+      "reason": "Full benchmark schemas, keys and constraints exceed the two-column published Table profile."
+    },
+    "transactions": {
+      "status": "blocked",
+      "owner": "docs/reference/sql.md",
+      "reason": "No declarative multi-statement transaction session; separate resources have no implicit atomic commit."
+    },
+    "relational": {
+      "status": "blocked",
+      "owner": "docs/reference/queries.md",
+      "reason": "No joins, grouping, sorting or general subqueries; each finite plan reads one source."
+    },
+    "expressions": {
+      "status": "blocked",
+      "owner": "docs/reference/sql/expressions.md",
+      "reason": "No decimal/date arithmetic, general expressions or compound predicates."
+    },
+    "bulk": {
+      "status": "blocked",
+      "owner": "docs/reference/sql.md",
+      "reason": "No declarative COPY or query-driven INSERT/DELETE; literal inserts have at most three rows."
+    },
+    "suite_driver": {
+      "status": "not_implemented",
+      "owner": "tests/benchmarks/README.md",
+      "reason": "Standard generators, scales, mixes, concurrency, timing rules and complete workload oracles are not implemented."
+    }
+  },
+  "suites": [
+    {
+      "id": "TPC-C",
+      "specification": "5.11.0",
+      "source": "https://www.tpc.org/TPC_Documents_Current_Versions/pdf/tpc-c_v5.11.0.pdf",
+      "full_workload_status": "blocked",
+      "completed": 0,
+      "total": 5,
+      "operations": [
+        {
+          "id": "New-Order",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Payment",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Order-Status",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Delivery",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Stock-Level",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        }
+      ],
+      "additional_suite_requirements": [
+        "transactions",
+        "expressions"
+      ]
+    },
+    {
+      "id": "TPC-E",
+      "specification": "1.14.0",
+      "source": "https://www.tpc.org/TPC_Documents_Current_Versions/pdf/TPC-E_v1.14.0.pdf",
+      "full_workload_status": "blocked",
+      "completed": 0,
+      "total": 12,
+      "operations": [
+        {
+          "id": "Broker-Volume",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Customer-Position",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Market-Feed",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Market-Watch",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Security-Detail",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Trade-Lookup",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Trade-Order",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Trade-Result",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Trade-Status",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Trade-Update",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Data-Maintenance",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Trade-Cleanup",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        }
+      ],
+      "additional_suite_requirements": [
+        "transactions",
+        "relational",
+        "expressions"
+      ]
+    },
+    {
+      "id": "TPC-H",
+      "specification": "3.0.1",
+      "source": "https://www.tpc.org/TPC_Documents_Current_Versions/pdf/TPC-H_v3.0.1.pdf",
+      "full_workload_status": "blocked",
+      "completed": 0,
+      "total": 24,
+      "operations": [
+        {
+          "id": "Q01",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q02",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q03",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q04",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q05",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q06",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q07",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q08",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q09",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q10",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q11",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q12",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q13",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q14",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q15",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q16",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q17",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q18",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q19",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q20",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q21",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q22",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "RF1",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "RF2",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        }
+      ],
+      "additional_suite_requirements": [
+        "relational",
+        "expressions",
+        "bulk"
+      ]
+    },
+    {
+      "id": "TPC-DS",
+      "specification": "4.0.0",
+      "source": "https://www.tpc.org/TPC_Documents_Current_Versions/pdf/TPC-DS_v4.0.0.pdf",
+      "full_workload_status": "blocked",
+      "completed": 0,
+      "total": 110,
+      "operations": [
+        {
+          "id": "Q01",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q02",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q03",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q04",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q05",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q06",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q07",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q08",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q09",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q10",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q11",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q12",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q13",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q14",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q15",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q16",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q17",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q18",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q19",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q20",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q21",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q22",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q23",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q24",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q25",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q26",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q27",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q28",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q29",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q30",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q31",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q32",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q33",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q34",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q35",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q36",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q37",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q38",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q39",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q40",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q41",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q42",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q43",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q44",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q45",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q46",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q47",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q48",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q49",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q50",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q51",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q52",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q53",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q54",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q55",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q56",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q57",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q58",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q59",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q60",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q61",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q62",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q63",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q64",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q65",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q66",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q67",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q68",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q69",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q70",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q71",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q72",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q73",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q74",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q75",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q76",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q77",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q78",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q79",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q80",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q81",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q82",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q83",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q84",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q85",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q86",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q87",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q88",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q89",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q90",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q91",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q92",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q93",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q94",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q95",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q96",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q97",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q98",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "Q99",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_CR",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_CS",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_I",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_SR",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_SS",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_WR",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "LF_WS",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "DF_CS",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "DF_SS",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "DF_WS",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        },
+        {
+          "id": "DF_I",
+          "status": "blocked",
+          "blockers": [
+            "schema",
+            "suite_driver"
+          ]
+        }
+      ],
+      "additional_suite_requirements": [
+        "relational",
+        "expressions",
+        "bulk"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "tpc-c.lookup",
+      "suite": "TPC-C",
+      "kind": "select",
+      "source": "stock",
+      "sql": "SELECT quantity FROM stock WHERE id = 7"
+    },
+    {
+      "id": "tpc-c.low_stock",
+      "suite": "TPC-C",
+      "kind": "select",
+      "source": "stock",
+      "sql": "SELECT COUNT(*) FROM stock WHERE quantity < 20"
+    },
+    {
+      "id": "tpc-c.quantity_sum",
+      "suite": "TPC-C",
+      "kind": "select",
+      "source": "stock",
+      "sql": "SELECT SUM(quantity) FROM stock"
+    },
+    {
+      "id": "tpc-c.declaration",
+      "suite": "TPC-C",
+      "kind": "declaration",
+      "source": "stock",
+      "sql": "CREATE TABLE stock (id INT64 NOT NULL, quantity INT64 NULL)"
+    },
+    {
+      "id": "tpc-c.insert",
+      "suite": "TPC-C",
+      "kind": "mutation",
+      "source": "stock",
+      "sql": "INSERT INTO stock (id, quantity) VALUES (3, 12), (4, NULL), (5, 31)"
+    },
+    {
+      "id": "tpc-c.update",
+      "suite": "TPC-C",
+      "kind": "mutation",
+      "source": "stock",
+      "sql": "UPDATE stock SET quantity = 42 WHERE id = 1"
+    },
+    {
+      "id": "tpc-c.delete",
+      "suite": "TPC-C",
+      "kind": "mutation",
+      "source": "stock",
+      "sql": "DELETE FROM stock WHERE id = 2"
+    },
+    {
+      "id": "tpc-e.lookup",
+      "suite": "TPC-E",
+      "kind": "select",
+      "source": "trade",
+      "sql": "SELECT quantity FROM trade WHERE id = 7"
+    },
+    {
+      "id": "tpc-e.large_quantity",
+      "suite": "TPC-E",
+      "kind": "select",
+      "source": "trade",
+      "sql": "SELECT SUM(quantity) FROM trade WHERE quantity > 50"
+    },
+    {
+      "id": "tpc-e.recent",
+      "suite": "TPC-E",
+      "kind": "select",
+      "source": "trade",
+      "sql": "SELECT id, quantity FROM trade WHERE id >= 11 LIMIT 8"
+    },
+    {
+      "id": "tpc-e.declaration",
+      "suite": "TPC-E",
+      "kind": "declaration",
+      "source": "trade",
+      "sql": "CREATE TABLE trade (id INT64 NOT NULL, quantity INT64 NULL)"
+    },
+    {
+      "id": "tpc-e.insert",
+      "suite": "TPC-E",
+      "kind": "mutation",
+      "source": "trade",
+      "sql": "INSERT INTO trade (id, quantity) VALUES (3, 12), (4, NULL), (5, 31)"
+    },
+    {
+      "id": "tpc-e.update",
+      "suite": "TPC-E",
+      "kind": "mutation",
+      "source": "trade",
+      "sql": "UPDATE trade SET quantity = 42 WHERE id = 1"
+    },
+    {
+      "id": "tpc-e.delete",
+      "suite": "TPC-E",
+      "kind": "mutation",
+      "source": "trade",
+      "sql": "DELETE FROM trade WHERE id = 2"
+    },
+    {
+      "id": "tpc-h.quantity_sum",
+      "suite": "TPC-H",
+      "kind": "select",
+      "source": "lineitem",
+      "sql": "SELECT SUM(quantity) FROM lineitem"
+    },
+    {
+      "id": "tpc-h.selected_count",
+      "suite": "TPC-H",
+      "kind": "select",
+      "source": "lineitem",
+      "sql": "SELECT COUNT(*) FROM lineitem WHERE quantity >= 25"
+    },
+    {
+      "id": "tpc-h.limited_sum",
+      "suite": "TPC-H",
+      "kind": "select",
+      "source": "lineitem",
+      "sql": "SELECT SUM(chosen.quantity) FROM (SELECT quantity FROM lineitem WHERE id >= 11 LIMIT 8) AS chosen"
+    },
+    {
+      "id": "tpc-h.declaration",
+      "suite": "TPC-H",
+      "kind": "declaration",
+      "source": "lineitem",
+      "sql": "CREATE TABLE lineitem (id INT64 NOT NULL, quantity INT64 NULL)"
+    },
+    {
+      "id": "tpc-h.insert",
+      "suite": "TPC-H",
+      "kind": "mutation",
+      "source": "lineitem",
+      "sql": "INSERT INTO lineitem (id, quantity) VALUES (3, 12), (4, NULL), (5, 31)"
+    },
+    {
+      "id": "tpc-h.update",
+      "suite": "TPC-H",
+      "kind": "mutation",
+      "source": "lineitem",
+      "sql": "UPDATE lineitem SET quantity = 42 WHERE id = 1"
+    },
+    {
+      "id": "tpc-h.delete",
+      "suite": "TPC-H",
+      "kind": "mutation",
+      "source": "lineitem",
+      "sql": "DELETE FROM lineitem WHERE id = 2"
+    },
+    {
+      "id": "tpc-ds.quantity_sum",
+      "suite": "TPC-DS",
+      "kind": "select",
+      "source": "inventory",
+      "sql": "SELECT SUM(quantity) FROM inventory"
+    },
+    {
+      "id": "tpc-ds.null_count",
+      "suite": "TPC-DS",
+      "kind": "select",
+      "source": "inventory",
+      "sql": "SELECT COUNT(*) FROM inventory WHERE quantity IS NULL"
+    },
+    {
+      "id": "tpc-ds.sample",
+      "suite": "TPC-DS",
+      "kind": "select",
+      "source": "inventory",
+      "sql": "SELECT id, quantity FROM inventory LIMIT 8"
+    },
+    {
+      "id": "tpc-ds.declaration",
+      "suite": "TPC-DS",
+      "kind": "declaration",
+      "source": "inventory",
+      "sql": "CREATE TABLE inventory (id INT64 NOT NULL, quantity INT64 NULL)"
+    },
+    {
+      "id": "tpc-ds.insert",
+      "suite": "TPC-DS",
+      "kind": "mutation",
+      "source": "inventory",
+      "sql": "INSERT INTO inventory (id, quantity) VALUES (3, 12), (4, NULL), (5, 31)"
+    },
+    {
+      "id": "tpc-ds.update",
+      "suite": "TPC-DS",
+      "kind": "mutation",
+      "source": "inventory",
+      "sql": "UPDATE inventory SET quantity = 42 WHERE id = 1"
+    },
+    {
+      "id": "tpc-ds.delete",
+      "suite": "TPC-DS",
+      "kind": "mutation",
+      "source": "inventory",
+      "sql": "DELETE FROM inventory WHERE id = 2"
+    }
+  ],
+  "probes": [
+    {
+      "id": "join",
+      "kind": "select",
+      "sql": "SELECT stock.id FROM stock JOIN trade ON stock.id = trade.id",
+      "expected_error": "UnsupportedConstruct"
+    },
+    {
+      "id": "group",
+      "kind": "select",
+      "sql": "SELECT quantity, COUNT(*) FROM stock GROUP BY quantity",
+      "expected_error": "InvalidSqlSyntax"
+    },
+    {
+      "id": "order",
+      "kind": "select",
+      "sql": "SELECT id FROM stock ORDER BY id",
+      "expected_error": "UnsupportedConstruct"
+    },
+    {
+      "id": "arithmetic",
+      "kind": "select",
+      "sql": "SELECT SUM(quantity * 2) FROM stock",
+      "expected_error": "InvalidSqlSyntax"
+    },
+    {
+      "id": "compound",
+      "kind": "select",
+      "sql": "SELECT id FROM stock WHERE id > 0 AND quantity < 20",
+      "expected_error": "UnsupportedConstruct"
+    },
+    {
+      "id": "transaction",
+      "kind": "select",
+      "sql": "BEGIN",
+      "expected_error": "UnsupportedStatement"
+    },
+    {
+      "id": "decimal",
+      "kind": "declaration",
+      "sql": "CREATE TABLE stock (id INT64 NOT NULL, quantity DECIMAL(12,2) NULL)",
+      "expected_error": "UnsupportedDeclarationType"
+    },
+    {
+      "id": "wide_publication",
+      "kind": "table_schema",
+      "sql": "CREATE TABLE stock (id INT64 NOT NULL, quantity INT64 NULL, extra INT64 NULL)",
+      "expected_error": "UnsupportedTableColumnCount"
+    },
+    {
+      "id": "bulk_insert",
+      "kind": "mutation",
+      "sql": "INSERT INTO stock SELECT id, quantity FROM trade",
+      "expected_error": "InvalidSqlSyntax"
+    }
+  ],
+  "scope": "synthetic paged Fuze and private Station proposals; no storage, authorization, network, commit, catalog publication or SDK/CLI latency",
+  "fixture": {
+    "generator": "id=0..rows-1; quantity=NULL when id%13=0 else (id*17+seed)%101",
+    "rows": 8192,
+    "seed": 42,
+    "page_rows": 8,
+    "sha256": "99564fd11b41474b31d18c9be7f10c913f535a746dcb444c9f86f47f4344d8ee",
+    "scale_factor": null
+  },
+  "repetitions": {
+    "samples": 5,
+    "iterations": 10,
+    "compile_iterations": 2000
+  },
+  "build": {
+    "kind": "metadata",
+    "optimization": "safe",
+    "compiler": "0.17.0-dev.2267+48abf1a34",
+    "workspace_bytes": 4194304,
+    "segment_bytes": 65536
+  },
+  "verification": {
+    "status": "passed",
+    "records": [
+      {
+        "id": "tpc-c.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1184041
+      },
+      {
+        "id": "tpc-c.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9374316,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1091904
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9395045,
+        "scanned": 8192,
+        "selected": 1498,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 958948
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8538274,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 732050
+      },
+      {
+        "id": "tpc-c.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"stock\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2191042
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10985220
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1390519
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4598131
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1005558
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-c.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4110481
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1510411
+      },
+      {
+        "id": "tpc-e.lookup",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9482093,
+        "scanned": 8192,
+        "selected": 1,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1218859
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9483886,
+        "scanned": 8192,
+        "selected": 3742,
+        "rows": 1,
+        "segments": 1,
+        "sum": 282499,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1384889
+      },
+      {
+        "id": "tpc-e.recent",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 333212,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 8,
+        "segments": 2,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 748012
+      },
+      {
+        "id": "tpc-e.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"trade\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2094417
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11002854
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1248927
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4359161
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 997072
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-e.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3880909
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 900916
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8673165,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1080482
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 9363485,
+        "scanned": 8192,
+        "selected": 5689,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1798906
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 107988,
+        "scanned": 19,
+        "selected": 8,
+        "rows": 1,
+        "segments": 1,
+        "sum": 328,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 742311
+      },
+      {
+        "id": "tpc-h.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"lineitem\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2110698
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 11620245
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1312670
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4447320
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 985529
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-h.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3967816
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 931244
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8769120,
+        "scanned": 8192,
+        "selected": 8192,
+        "rows": 1,
+        "segments": 1,
+        "sum": 377942,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1013954
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 8683204,
+        "scanned": 8192,
+        "selected": 631,
+        "rows": 1,
+        "segments": 1,
+        "sum": null,
+        "finished": "source_end"
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1122103
+      },
+      {
+        "id": "tpc-ds.sample",
+        "phase": "execute",
+        "iterations": 10,
+        "elapsed_ns": 158335,
+        "scanned": 8,
+        "selected": 8,
+        "rows": 8,
+        "segments": 1,
+        "sum": null,
+        "finished": "limit"
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 757029
+      },
+      {
+        "id": "tpc-ds.declaration",
+        "phase": "verify_declaration",
+        "formatted": "CREATE TABLE \"inventory\" (\"id\" INT64 NOT NULL, \"quantity\" INT64 NULL);"
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 2185431
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "verify_mutation",
+        "affected": 3,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000003",
+            "value": "01010c00000000000000"
+          },
+          {
+            "key": "0072010000008000000000000004",
+            "value": "0100"
+          },
+          {
+            "key": "0072010000008000000000000005",
+            "value": "01011f00000000000000"
+          },
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.insert",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 10953539
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 1266079
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000001",
+            "value": "01012a00000000000000"
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.update",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 4307231
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "compile",
+        "iterations": 2000,
+        "elapsed_ns": 987974
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "verify_mutation",
+        "affected": 1,
+        "mutations": [
+          {
+            "key": "0072010000008000000000000002",
+            "value": null
+          },
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "id": "tpc-ds.delete",
+        "phase": "propose_mutation",
+        "iterations": 2000,
+        "elapsed_ns": 3846272
+      },
+      {
+        "id": "join",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "group",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "order",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "arithmetic",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      },
+      {
+        "id": "compound",
+        "phase": "blocker_probe",
+        "err": "UnsupportedConstruct"
+      },
+      {
+        "id": "transaction",
+        "phase": "blocker_probe",
+        "err": "UnsupportedStatement"
+      },
+      {
+        "id": "decimal",
+        "phase": "blocker_probe",
+        "err": "UnsupportedDeclarationType"
+      },
+      {
+        "id": "wide_publication",
+        "phase": "blocker_probe",
+        "err": "UnsupportedTableColumnCount"
+      },
+      {
+        "id": "bulk_insert",
+        "phase": "blocker_probe",
+        "err": "InvalidSqlSyntax"
+      }
+    ],
+    "query_outputs": [
+      {
+        "id": "tpc-c.lookup",
+        "columns": [
+          "quantity"
+        ],
+        "rows": [
+          [
+            60
+          ]
+        ],
+        "segment_sha256": [
+          "cc8abd31aae578eecddd4dd7b08f7b0609e2ec7bb3d7e75479279ff0c8a8fce1"
+        ]
+      },
+      {
+        "id": "tpc-c.low_stock",
+        "columns": [
+          "count"
+        ],
+        "rows": [
+          [
+            1498
+          ]
+        ],
+        "segment_sha256": [
+          "690507d11eb6cca7c18d971c6766e11f44f5b233134b12929ebfa2aadf279a4d"
+        ]
+      },
+      {
+        "id": "tpc-c.quantity_sum",
+        "columns": [
+          "sum"
+        ],
+        "rows": [
+          [
+            377942
+          ]
+        ],
+        "segment_sha256": [
+          "2d80cb863f1bee68c7df87238dcca841599d27f7bd4048c596ae9e923093722d"
+        ]
+      },
+      {
+        "id": "tpc-e.lookup",
+        "columns": [
+          "quantity"
+        ],
+        "rows": [
+          [
+            60
+          ]
+        ],
+        "segment_sha256": [
+          "cc8abd31aae578eecddd4dd7b08f7b0609e2ec7bb3d7e75479279ff0c8a8fce1"
+        ]
+      },
+      {
+        "id": "tpc-e.large_quantity",
+        "columns": [
+          "sum"
+        ],
+        "rows": [
+          [
+            282499
+          ]
+        ],
+        "segment_sha256": [
+          "3abebe5cb9ae5b30e32764f0dc5d004f687dcc03c1afa2c74c3fc71010502de3"
+        ]
+      },
+      {
+        "id": "tpc-e.recent",
+        "columns": [
+          "id",
+          "quantity"
+        ],
+        "rows": [
+          [
+            11,
+            27
+          ],
+          [
+            12,
+            44
+          ],
+          [
+            13,
+            null
+          ],
+          [
+            14,
+            78
+          ],
+          [
+            15,
+            95
+          ],
+          [
+            16,
+            11
+          ],
+          [
+            17,
+            28
+          ],
+          [
+            18,
+            45
+          ]
+        ],
+        "segment_sha256": [
+          "480bc25b4861bf0e56e66ea38788d56f10ad4ef31a35d34ec19c762e68bbdca4",
+          "3e7d2ed5260c673fa1f3895f2a7515fccd948c9228c30a3418203d246b27307b"
+        ]
+      },
+      {
+        "id": "tpc-h.quantity_sum",
+        "columns": [
+          "sum"
+        ],
+        "rows": [
+          [
+            377942
+          ]
+        ],
+        "segment_sha256": [
+          "2d80cb863f1bee68c7df87238dcca841599d27f7bd4048c596ae9e923093722d"
+        ]
+      },
+      {
+        "id": "tpc-h.selected_count",
+        "columns": [
+          "count"
+        ],
+        "rows": [
+          [
+            5689
+          ]
+        ],
+        "segment_sha256": [
+          "2bd305a28f7383736c581f63e93caab81a50bf6cd8291e8f7ceb3832c9e7f475"
+        ]
+      },
+      {
+        "id": "tpc-h.limited_sum",
+        "columns": [
+          "sum"
+        ],
+        "rows": [
+          [
+            328
+          ]
+        ],
+        "segment_sha256": [
+          "28a4a570996d313fce0c11ced3207d8071a8769dc8dbee2326dcc1a098d8abfc"
+        ]
+      },
+      {
+        "id": "tpc-ds.quantity_sum",
+        "columns": [
+          "sum"
+        ],
+        "rows": [
+          [
+            377942
+          ]
+        ],
+        "segment_sha256": [
+          "2d80cb863f1bee68c7df87238dcca841599d27f7bd4048c596ae9e923093722d"
+        ]
+      },
+      {
+        "id": "tpc-ds.null_count",
+        "columns": [
+          "count"
+        ],
+        "rows": [
+          [
+            631
+          ]
+        ],
+        "segment_sha256": [
+          "7cb232a0d695e4e1360a0b210afe554bf6f84a53df7d822d5e1adc45fe14bc6e"
+        ]
+      },
+      {
+        "id": "tpc-ds.sample",
+        "columns": [
+          "id",
+          "quantity"
+        ],
+        "rows": [
+          [
+            0,
+            null
+          ],
+          [
+            1,
+            59
+          ],
+          [
+            2,
+            76
+          ],
+          [
+            3,
+            93
+          ],
+          [
+            4,
+            9
+          ],
+          [
+            5,
+            26
+          ],
+          [
+            6,
+            43
+          ],
+          [
+            7,
+            60
+          ]
+        ],
+        "segment_sha256": [
+          "03a86eb17baf71fc7cd79bcbbc4c1773f10c9f5c945deeb951da7ef2cdf86782"
+        ]
+      }
+    ],
+    "oracle": "SQLite query results and PyArrow IPC; independent Table key/cell bytes"
+  },
+  "elapsed_seconds": 1.6570529619930312
+}
