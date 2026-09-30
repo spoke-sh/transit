@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tarfile
 import tomllib
+import zipfile
 from sdk_unified import Consumer, CConsumer
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,9 @@ def install(root, languages):
     root.mkdir()
     factories = []
     for language in languages:
+        if language == 'java':
+            factories.append(install_java(root / language))
+            continue
         if language in ('c', 'cpp'):
             factories.append(install_c(root / language, language))
             continue
@@ -208,3 +212,38 @@ def install_c(target, language):
         arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog'])]
         return CatalogCConsumer(arguments, environment, target)
     return language, create
+
+
+def install_java(target):
+    target.mkdir()
+    library = target / 'lib'
+    library.mkdir()
+    artifacts = {}
+    for name in ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station', 'gson'):
+        filename = f'{name}-{"2.12.1" if name == "gson" else "0.2.0"}.jar'
+        destination = library / filename
+        shutil.copy2(ROOT / '.cache/bindings/java' / filename, destination)
+        artifacts[filename] = hashlib.sha256(destination.read_bytes()).hexdigest()
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    environment = {k:v for k,v in os.environ.items() if k not in ('CLASSPATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
+    sources = [target / name for name in ('JavaCatalogSdk.java', 'JavaCatalogValues.java')]
+    for source in sources: shutil.copy2(ROOT / 'tests' / source.name, source)
+    classes = target / 'classes'
+    classes.mkdir()
+    subprocess.run(['javac', '--release', '21', '-Xlint:all', '-Werror', '-cp', str(library / '*'), '-d', str(classes), *map(str, sources)], cwd=target, env=environment, check=True)
+    for source in sources: source.unlink()
+    faults = target / 'faults'
+    faults.mkdir()
+    with zipfile.ZipFile(library / 'transit-native-station-0.2.0.jar') as archive:
+        (faults / 'native-host').write_bytes(archive.read('io/transit/nativestation/transit-station-host'))
+    (faults / 'native-host').chmod(0o700)
+    shutil.copy2(ROOT / 'tests/catalog_java_host.py', faults / 'host')
+    (faults / 'host').chmod(0o700)
+    classpath = str(classes) + os.pathsep + str(library / '*')
+    subprocess.run(['java', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=environment, check=True, timeout=90)
+    shutil.rmtree(faults)
+    def create(url, connection, state):
+        config = target / 'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
+        return Consumer(['java', '-cp', classpath, 'JavaCatalogSdk', str(config)], environment, target)
+    return 'java', create

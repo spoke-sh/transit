@@ -46,7 +46,7 @@ and no preceding private mutations to refuse orphan Table rows at the captured c
 conditional administrator controls and durable input dispositions. The
 [`transit-query-host` catalog role](../../../apps/transit-query-host/README.md)
 hosts it with explicit configuration and fresh fenced ownership. Explicit catalog methods
-are available in the CLI and Python, TypeScript, Rust, Ruby, C and C++ SDKs through the
+are available in the CLI and Python, TypeScript, Rust, Ruby, C, C++ and Java SDKs through the
 shared caller. The query console continues to reject CREATE.
 KV/Document creation, connector declarations,
 dependency-bearing objects, replacement and removal are not implemented here.

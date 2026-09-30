@@ -515,6 +515,6 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     for binary in ('node', 'proof', 'catalog_host', 'port_host', 'library', 'cli'): parser.add_argument(binary)
-    parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'c', 'cpp'], action='append', default=[])
+    parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'c', 'cpp', 'java'], action='append', default=[])
     args = parser.parse_args()
     run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk)

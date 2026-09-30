@@ -15,7 +15,8 @@ TypeScript exposes [typed promise methods](../../../packages/ts/transit-station-
 Rust exposes [typed blocking methods](../../../packages/rust/transit-station-sdk/docs/CATALOG.md);
 Ruby exposes [typed synchronous methods](../../../packages/ruby/transit-station/docs/CATALOG.md);
 C exposes [owned typed handles](../../../packages/c/transit-station/docs/CATALOG.md);
-C++ exposes [typed move-only callers](../../../packages/cpp/transit-station-sdk/docs/CATALOG.md).
+C++ exposes [typed move-only callers](../../../packages/cpp/transit-station-sdk/docs/CATALOG.md);
+Java exposes [typed futures](../../../packages/java/transit-station-sdk/docs/CATALOG.md).
 Query interfaces reject the statement. Board and other language SDKs have no
 administrative route for it. Neither compilation nor the
 helper provisions a native resource, chooses a writer, grants access or registers

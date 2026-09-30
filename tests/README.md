@@ -725,6 +725,83 @@ focused installed catalog/mutation proofs, not the full clean suite. The four
 Java/.NET/Erlang/Elixir catalog callers remain. No catalog-specific host
 cancellation or allocator-fault injection is claimed by these C/C++ fixtures.
 
+### Java catalog caller
+
+`io.transit.sdk.station.Catalog` exposes immutable typed values and bounded
+futures through the existing Java worker/native port. Positive `BigInteger`
+identities retain the full uint64 range; copied lists/`Bytes` retain ownership.
+The generated host request/response schemas and strict adapter result fields
+validate boundaries. Signing, policy and exact recovery stay in shared Zig.
+Successful receipt decoding failures remain `UNKNOWN_OUTCOME`; original prepared
+commands stay immutable. Definite native error categories/status/codes remain.
+
+Executed on development source based on `4ecef2ff`, with the evidence-only
+`cb23fd69` published during the final run, in the pinned bindings shell:
+
+- `just bindings::java-build` compiles Java 21 JARs/examples with all warnings
+  treated as errors. The installed catalog proof copies and hashes four Transit
+  JARs plus pinned Gson, compiles outside the checkout and removes Java sources
+  before execution. The normal recovery consumer uses its packaged native host.
+- Installed value checks cover maximum-width identities, immutable/copied
+  declarations and recovery data, malformed/extra-field successful receipts,
+  original-request matching, noncanonical decimal values and an injected result
+  allocation error. Definite access denial preserves the original exception.
+- A separate actual port wrapper uses the installed native artifact for
+  handshakes, joins that helper, then injects child loss, malformed replies,
+  definite denial and a blocked successful submission. Cancelling its Java
+  future preserves `BUSY`; close waits until the explicit release and joins the
+  port and worker threads. This checks the owned process and host scheduling,
+  not remote cancellation or recovery under general heap exhaustion.
+- Focused `just test::catalog --sdk java` passes in **17.126 s**, including
+  **2.470 s** installation, 1459 reads, 39 accepted turn responses, six lost
+  caller receipts and three lost owner receipts.
+- The final **seven-language** schedule (`just test::catalog --sdk python --sdk
+  node --sdk rust --sdk ruby --sdk c --sdk cpp --sdk java`) passes in **73.578 s**,
+  including **33.900 s** installation. It records **2655 reads, 60 accepted turn
+  responses, thirteen lost caller receipts and three lost owner receipts**.
+  Every selected caller recovers the original operation after caller/node/store
+  replacement and preserves current catalog/native denial. Python includes both
+  synchronous and asynchronous callers. Fifteen Tables across two resources do
+  not establish native catalog growth. Bounds remain four mutations, 134-byte
+  observed values and eight resident authority pages. Timings include package
+  installation and recovery; they are not cross-language latency comparisons.
+- Full `just check` passes: unit/generated-contract/CLI checks, frontend checks
+  and documentation build. Final direct checks pass 4603 links across 483 files,
+  56 invariants, 53 bounds and 13 SDK scenarios.
+- The existing `just test::table-mutation --sdk java` regression passes in
+  **22.624 s**, including **0.856 s** installation, 1879 reads, 52 turn responses
+  and six lost receipts. Installed Java retains exact UPDATE recovery through
+  the same bridge; native/port/CLI mutation cases also pass. The log is
+  `/tmp/transit-sql-catalog-java-mutation-regression.log`.
+
+The initial fixture compilation exposed deprecated Gson construction and missing
+optional annotation metadata under `-Werror`; it now uses the existing supported
+Gson entry point and the real submission conversion helper for injected failure.
+A subsequent port-fixture cleanup assertion failed because its handshake
+subprocess had not been joined before the wrapper could be killed. Joining that
+helper before admitting faults fixes the fixture. Neither failed attempt counts
+as executed recovery proof. Logs are
+`/tmp/transit-sql-catalog-java-native.log`,
+`/tmp/transit-sql-catalog-java-native-fixed.log`,
+`/tmp/transit-sql-catalog-java-native-joined.log`,
+`/tmp/transit-sql-catalog-java-all-native.log` and
+`/tmp/transit-sql-catalog-java-full-check.log`. Reports are copied to
+`/tmp/transit-sql-catalog-java-native.json` and
+`/tmp/transit-sql-catalog-java-all-native.json`; both retain exact SDK/native
+hashes. Native binary hashes match the rebased report below. Final Java artifacts:
+
+| JAR | SHA-256 |
+| --- | --- |
+| `transit-client-0.2.0.jar` | `8775ebc5cdb52de401f426f03d7d9496c15307089be60884685e078edd5ed89f` |
+| `transit-native-client-0.2.0.jar` | `66132be7fb9bec1018bdc867a1165593db00b0f41fae70330f8025c8489c52ae` |
+| `transit-station-sdk-0.2.0.jar` | `b966c9f485827ce4e1d19046b26031a9c2813d98381d11361e21120a4595fb26` |
+| `transit-native-station-0.2.0.jar` | `70c1cc5e8f6612fb84c89cd64eedb5e024932a4588d3ed76627d902f9687b7d6` |
+| `gson-2.12.1.jar` | `ebee13d5fb7477cd7f1cc010e0c356df8ca80709715248da97f79e35ccb4fbec` |
+
+`bindings::catalog-java` owns the focused installed schedule; the regular Java
+SDK regression also includes it. These are development and focused passes.
+Committed-HEAD clean validation and .NET/Erlang/Elixir catalog callers remain.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

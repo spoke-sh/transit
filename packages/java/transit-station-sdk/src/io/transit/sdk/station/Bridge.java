@@ -21,6 +21,10 @@ final class Bridge implements Worker.State<Void> {
         return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
             "mutation_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
     }
+    static Bridge catalog(ClientConfig client, Credential credential, Catalog.Connection connection) {
+        return new Bridge(obj("url", client.endpoint().toString(), "seed_file", credential.seedFile().toString(), "timeout_ms", client.timeoutMillis(),
+            "catalog_client", obj("connection", connection.wire(credential), "timeout_ms", client.timeoutMillis())), client.nativeHost());
+    }
     static Bridge open(ServiceConfig config, FailurePolicy failure) {
         Activation activation = config.activation(); ClientConfig client = config.client();
         Bridge bridge = new Bridge(obj("url", client.endpoint().toString(), "seed_file", activation.credential().seedFile().toString(), "timeout_ms", client.timeoutMillis(),
@@ -89,6 +93,9 @@ final class Bridge implements Worker.State<Void> {
     }
     JsonObject tableMutation(JsonObject action) {
         return object(port.request(obj("table_mutation", action), "table-mutation", action.has("submit"), "TableMutationResult"));
+    }
+    JsonObject catalog(JsonObject action) {
+        return object(port.request(obj("catalog", action), "catalog", action.has("submit"), "CatalogResult"));
     }
     JsonObject prepare() { return object(port.request(obj("growing_prepare", System.currentTimeMillis() + 30_000), "prepare-turn", false, "GrowingEvent")); }
     JsonObject apply(long scope, JsonObject action) {
