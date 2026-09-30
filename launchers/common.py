@@ -361,7 +361,7 @@ backend = "inline"
                 return json.loads(result.stdout)
             # Concurrent workers can occupy the authority's finite read slots.
             # Retry only a read with a classified transient transport result.
-            transient = result.stderr.rstrip().endswith(("error: AuthorityUnavailable", "error: AuthorityTimeout"))
+            transient = result.stderr.rstrip().endswith(("error: AuthorityUnavailable", "error: AuthorityTimeout", "error: HttpConnectionClosing"))
             if not transient or time.monotonic() >= deadline:
                 print(result.stderr, file=sys.stderr, end="")
                 result.check_returncode()
