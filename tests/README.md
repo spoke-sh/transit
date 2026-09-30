@@ -1665,6 +1665,50 @@ the last two core tasks are not reached. Node observations show a two-second
 request deadline interrupting page staging and a queued observation. This is
 not a clean-core pass or a demonstrated root cause of the earlier catalog failure.
 
+### Balanced batch splits and larger catalog growth
+
+The original binaries repeat the failure after exactly 138 applied additions
+in **564.408 s** with the diagnostic runner. Cleanup joins and no storage-error
+group is recorded; sixteen native attempts report `AuthorityUnavailable`.
+The independent descending-key page regression fails with `PageDepthExceeded`:
+batch splits pack one sibling full, so descending inserts repeatedly split the
+left spine and reach the 32-level guard before 257 keys. Evenly distributing
+entries and children across split pages fixes that insertion pattern without
+changing page encodings, mutation budgets, resident limits or deadlines.
+
+At committed `1483b330`, all **60** standalone core tests and full `just check`
+pass. The new regression checks 257 descending keys in batches of one, four and
+eight, retained roots, ordered scans and at most nine page loads per lookup.
+`just test::resource-simulation --seeds 8` passes **798 traces / 15,496 events**
+with identical replay in **437.762 s**. All six negative controls are detected.
+Its binary SHA-256 is
+`82db89402f28ae6b1d28b999392600c912870c2f67bae7f8d220ef659bfacda6`;
+the two-page in-memory fault store does not establish physical disk durability.
+
+`just test::catalog --grow 257` then passes in **397.642 s**, including **262
+named definitions / 33 pages**, repeated metadata after node/store restart,
+current denial, original lost-reply recovery and joined cleanup. It uses eight
+resident authority pages, at most four turn mutations and 132-byte values.
+Only the node binary differs from the original runs; its SHA-256 is
+`214b0646e187cd12676c995d4b2badd0e4962631988df0946440039b32dfcd04`.
+The five caller/host binary hashes remain equal. The report retains all hashes
+and the diagnostic runner identity.
+
+The 257 growth additions take **254.420 s**: compile **0.041 s**, prepare
+**3.488 s**, admission **30.433 s**, application waiting **220.260 s**.
+All growth phases succeed. There are 257 owner-turn attempts and 3341 owner-entry
+reads (thirteen per Table), with no growth transport/HTTP errors. These shared-host
+instrumented samples establish the completed workload, not a throughput ratio.
+The existing roots of previously deep catalogs are not rebuilt; continuation
+from an already exhausted height guard remains a separate recovery qualification.
+Committed-head `just ci-clean --lane core` at `1483b330` passes all **22 tasks**
+in **947.49 s**, including the caller-progress test that failed in the earlier
+attempt. Its completion/timing records are retained under
+`.cache/ci/clean/1483b330d7b9-transit-ci-lwcj_yf3/`. Subsequent changes only record
+evidence in this ledger and the roadmap; their documentation links pass. This
+is a clean core-lane pass, not an experience/bindings/complete-suite or hosted
+CI pass. The earlier experience failures are not reclassified as successes.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
