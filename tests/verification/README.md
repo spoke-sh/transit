@@ -8,9 +8,9 @@ disk, native scheduling, browser, launcher and provider proofs remain necessary.
 ## Component simulation
 
 `just test::domain-simulation` runs two seeds over real Document, Exchange,
-query/refresh and core runtime implementations. `--seed N --seeds N` selects a
+query/refresh, core runtime and catalog implementations. `--seed N --seeds N` selects a
 bounded range (at most 64 seeds). Each package runs twice; structured event
-records must agree and all five domains must appear. Each run has a 120-second
+records must agree and all six domains must appear. Each run has a 120-second
 deadline. The ordinary suite owns two seeds; scheduled discovery owns sixteen.
 
 Artifacts in `.cache/verification/domain-simulation/` retain actual choices and
@@ -21,11 +21,23 @@ editing or minimization. Errors, timeouts and missing domains cannot pass.
 
 `just test::domain-simulation-mutations` uses committed source clones to omit
 Document conflict retention, checkpoint floor advancement, Exchange replay holds,
-refresh generation fencing and runtime readiness. Only executed contract assertion
+refresh generation fencing, runtime readiness, current catalog create policy and
+original catalog receipt positions. Only executed contract assertion
 failures count as detection; compilation and infrastructure failures do not.
 The private-turn stores model atomic publication and current-reader failure;
 actual WAL durability and application installation remain separate integration
 checks. No connector transport runs or dispatches during these replay tests.
+
+Each catalog seed runs 64 requests: sixteen fresh Tables and sixteen conflicts
+for each of name, object and physical Table identity. Seeded choices select
+existing conflicting objects, policy revocations, point/page read failures,
+discarded proposals and caller/owner replacement after lost replies. An independent
+accepted-request ledger checks original receipts, visible definitions, sorted
+bounded pages and the exact committed key count. Changed page cuts reject.
+The fixture uses a dynamic map and models atomic commit; it injects read faults,
+not allocator or physical journal failures. The catalog native/installed SDK
+schedules separately qualify signed transport, current native grants and disk
+restart. This component profile does not qualify native catalog growth.
 
 ## External fault testing
 
@@ -48,12 +60,12 @@ seed files remain only in the disposable fixture and are never copied to artifac
 
 `just test::vortex-profile PROFILE` selects an independent experiment:
 
-| Profile | Owned checks | Environment / boundary |
-| --- | --- | --- |
-| `sdk` | Installed Python wheels and Node tarballs: frozen bytes, dropped reply, seedless host recovery, await cancellation, disposal and revoked retry | Native Linux public SDKs; package/build hashes and per-host histories |
-| `application` | Lost provisioning/rotation/migration/activation replies, current revocation and runtime upgrade | Local application manager and provider adapter fixture; no Kubernetes claim |
-| `query` | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial | Distinct durable and leased query lifetimes; Docker cold-store fixture for interactive reads |
-| `reactive` | Real browser refresh replacement, pause, revocation and lifecycle recovery | Owning TLS/browser rig; installed Chromium required |
+| Profile       | Owned checks                                                                                                                                   | Environment / boundary                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `sdk`         | Installed Python wheels and Node tarballs: frozen bytes, dropped reply, seedless host recovery, await cancellation, disposal and revoked retry | Native Linux public SDKs; package/build hashes and per-host histories                        |
+| `application` | Lost provisioning/rotation/migration/activation replies, current revocation and runtime upgrade                                                | Local application manager and provider adapter fixture; no Kubernetes claim                  |
+| `query`       | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial                                                | Distinct durable and leased query lifetimes; Docker cold-store fixture for interactive reads |
+| `reactive`    | Real browser refresh replacement, pause, revocation and lifecycle recovery                                                                     | Owning TLS/browser rig; installed Chromium required                                          |
 
 The profile runner retains commands, logs, source/compiler identity and per-stage
 completion in `.cache/verification/external/`; every stage has a 900-second cap.
@@ -142,11 +154,11 @@ took 622/626s, experience/launchers 696/712s and bindings 540s. Feedback improve
 and the user accepted that result as close enough to defer further optimization.
 Three ordinary warm samples now meet the 15-minute / 60-runner-minute budgets:
 
-| Run | Revision | Feedback | Aggregate runner time | Restored |
-| --- | --- | --- | --- | --- |
-| [36194234944](https://github.com/rupurt/rey/actions/runs/36194234944) | `97f3b7e` | 12m37s | 53m27s | 10.69 GiB |
-| [36197767974](https://github.com/rupurt/rey/actions/runs/36197767974) | `22aa6f0` | 14m35s | 58m08s | 10.69 GiB |
-| [36199109839](https://github.com/rupurt/rey/actions/runs/36199109839) | `22aa6f0` | 13m31s | 51m53s | 10.69 GiB |
+| Run                                                                   | Revision  | Feedback | Aggregate runner time | Restored  |
+| --------------------------------------------------------------------- | --------- | -------- | --------------------- | --------- |
+| [36194234944](https://github.com/rupurt/rey/actions/runs/36194234944) | `97f3b7e` | 12m37s   | 53m27s                | 10.69 GiB |
+| [36197767974](https://github.com/rupurt/rey/actions/runs/36197767974) | `22aa6f0` | 14m35s   | 58m08s                | 10.69 GiB |
+| [36199109839](https://github.com/rupurt/rey/actions/runs/36199109839) | `22aa6f0` | 13m31s   | 51m53s                | 10.69 GiB |
 
 All three ran the same 33 required tasks on five 2-vCPU Linux x86_64 runners.
 These samples establish the bounded calibration, not a percentile or future

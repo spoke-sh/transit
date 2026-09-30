@@ -501,7 +501,7 @@ scheduler-simulation *args:
 scheduler-simulation-mutations:
     python3 -B tests/verification/mutations.py --scheduler
 
-# Seeded checks over real Document, Exchange, query/reactive and runtime code.
+# Seeded checks over real Document, Exchange, query/reactive, runtime and catalog code.
 domain-simulation *args:
     zig build test-domain-simulation -- {{args}}
 

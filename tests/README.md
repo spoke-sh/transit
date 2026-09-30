@@ -58,9 +58,9 @@ includes provisioning/recovery and is not a service latency or throughput result
 The report `.cache/verification/catalog/native.json` records source/dirty status,
 counts and frozen binary hashes:
 
-| Binary | SHA-256 |
-| --- | --- |
-| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Binary        | SHA-256                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Node          | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
 | Catalog proof | `ac649f3e3410924cb1e03c58da4e1c975f8e209b6e3907f21fc280955be1f7a9` |
 
 Logs are `/tmp/transit-sql-catalog-orphan-components.log`,
@@ -168,9 +168,9 @@ latency comparison or a native catalog growth/power-loss proof. The catalog role
 allocates neither the query host's 4 MiB Arrow workspace nor its 1 MiB source
 adapter. ReleaseSafe binary hashes are:
 
-| Binary | SHA-256 |
-| --- | --- |
-| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Binary        | SHA-256                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Node          | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
 | Catalog proof | `7a1070c7f73412109396917041bfb136c0cde0b99a6c154dc496f78194db810e` |
 | Supplied host | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
 
@@ -193,7 +193,6 @@ policy controls (`/tmp/transit-sql-catalog-host-poison-final.log`).
 No existing native/ABI definition or
 stored record layout changes; commands/dispositions and the explicit source are
 additive, and existing creation requests keep their exact bytes.
-
 
 At committed `fefb42c3`, **`just ci-clean --lane core` passes all 18 tasks**
 for the supplied host and explicit committed source in **727.49 seconds**.
@@ -321,13 +320,13 @@ polling count do not establish an equivalent-workload speedup, catalog growth or
 power-loss guarantee. The report remains `.cache/verification/catalog/native.json`;
 the log is `/tmp/transit-sql-catalog-abi-native.log`. ReleaseSafe binary hashes:
 
-| Binary | SHA-256 |
-| --- | --- |
-| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Binary        | SHA-256                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Node          | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
 | Catalog proof | `3d7ac8adf5b9a0d4d782b40c48bfbd3d26529f3c6bf882595cca550dfa3c798e` |
-| Catalog host | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
-| Native port | `37b44139c09058e863d63c07a3cc78aa7edb803fb48b4ed2eafe384a8df68091` |
-| Station ABI | `98c76da16161abae1ab0fb1f91a9d2613f720b6acabb8e81c729fc9b3c7585f1` |
+| Catalog host  | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
+| Native port   | `37b44139c09058e863d63c07a3cc78aa7edb803fb48b4ed2eafe384a8df68091` |
+| Station ABI   | `98c76da16161abae1ab0fb1f91a9d2613f720b6acabb8e81c729fc9b3c7585f1` |
 
 `just bindings::native` also passes the existing native/port local-codec,
 gated-control, scoped-page, capture, exact host/disk recovery, current-policy,
@@ -376,11 +375,11 @@ dirty status and frozen executable hashes. The log is
 `/tmp/transit-sql-catalog-cli-native.log`. ReleaseSafe node, proof and catalog-host
 hashes match the preceding ABI schedule. Updated caller hashes are:
 
-| Artifact | SHA-256 |
-| --- | --- |
-| Native port | `4bc5ed8c56b5302379c6c597ecd55d7bfecf89c86ffb4e03c63e864edf754622` |
+| Artifact        | SHA-256                                                            |
+| --------------- | ------------------------------------------------------------------ |
+| Native port     | `4bc5ed8c56b5302379c6c597ecd55d7bfecf89c86ffb4e03c63e864edf754622` |
 | Station library | `3d668634629fe306a9628ea11b50ebd790783686a333e8e87a37980eb9083b93` |
-| CLI | `2a53d92f5383f3a3b9002531262272437fc6eaff900a1b145a9c02a6d4222572` |
+| CLI             | `2a53d92f5383f3a3b9002531262272437fc6eaff900a1b145a9c02a6d4222572` |
 
 The real CLI diagnostics now cover **346 cases**, including JSON/YAML offline
 compilation, full-width IDs, file privacy/non-replacement, malformed and foreign
@@ -433,12 +432,12 @@ equivalent-workload speedups, native catalog growth or host power-loss recovery.
 All six frozen executable hashes match the preceding CLI schedule. The package
 hashes in `.cache/verification/catalog/native.json` are:
 
-| Wheel | SHA-256 |
-| --- | --- |
-| `transit-station` | `7bd67ecab612be7df8204b181d2c1a5cdb37288c09d0da3fab6b3fbed3e23da5` |
+| Wheel                    | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station`        | `7bd67ecab612be7df8204b181d2c1a5cdb37288c09d0da3fab6b3fbed3e23da5` |
 | `transit-native-station` | `5380949f2c664d9418734f2f348fe37a304763fda1de9b4b341fe975d95ef022` |
-| `transit-client` | `be974f85e6ba910846dad633b5cdbb390e619a88bccbbefea72a83f865a48cc7` |
-| `transit-native-client` | `72ee6e0924bb4f9479fe630450dcefddd5f6d450d9489429f38a9b45b1252ba3` |
+| `transit-client`         | `be974f85e6ba910846dad633b5cdbb390e619a88bccbbefea72a83f865a48cc7` |
+| `transit-native-client`  | `72ee6e0924bb4f9479fe630450dcefddd5f6d450d9489429f38a9b45b1252ba3` |
 
 The installed value test independently checks byte/name ownership, canonical
 full-width response strings and numeric types, malformed success responses and
@@ -499,12 +498,12 @@ native growth proof or host power-loss guarantee. The six frozen executable hash
 and four Python wheel hashes match the preceding Python schedule. TypeScript
 package hashes in `.cache/verification/catalog/native.json` are:
 
-| Tarball | SHA-256 |
-| --- | --- |
-| `transit-station` | `1ddd05e7a8da2f506c658dc3b72dfac2ebfee377e5effcbed6a9fe98fb63aa56` |
+| Tarball                  | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station`        | `1ddd05e7a8da2f506c658dc3b72dfac2ebfee377e5effcbed6a9fe98fb63aa56` |
 | `transit-native-station` | `f738de57b1c4912b0787c37a0e42303fb4230f41c80db1a88ce16ae0145171b5` |
-| `transit-client` | `263043a2da762afd3771dbfd8d6c411a8195ba017ba877ffeca0dae385bb901e` |
-| `transit-native-client` | `815e315a33426f171954cd5763d87e1c39fe0e7001889ea1d8d859f96cd25f0d` |
+| `transit-client`         | `263043a2da762afd3771dbfd8d6c411a8195ba017ba877ffeca0dae385bb901e` |
+| `transit-native-client`  | `815e315a33426f171954cd5763d87e1c39fe0e7001889ea1d8d859f96cd25f0d` |
 
 The packaged catalog guide and README also match the working sources. Logs are
 `/tmp/transit-sql-catalog-node-check.log`,
@@ -572,12 +571,12 @@ Executed on development source based on `c904ae08` in the pinned bindings shell:
 
 Final Rust crate SHA-256 values:
 
-| Artifact | SHA-256 |
-| --- | --- |
-| `transit-station-sdk` | `cdfb35189dc89b59893380339d3f0efd05708ddee04444812c156d05252ee600` |
+| Artifact                 | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station-sdk`    | `cdfb35189dc89b59893380339d3f0efd05708ddee04444812c156d05252ee600` |
 | `transit-native-station` | `8c26d46b678cc8714e6444b84052ac502a54a03c2d552d5bd819f6a42f8cb34d` |
-| `transit-client` | `5f546a83afe1eba98b7c8504d4fca550ccb383a4c2bfa4df0affd2bd3399a57f` |
-| `transit-native-client` | `6d83bab01c95822a9daf8db22bf59c46a88e55c31a56b1560a69792e55275c42` |
+| `transit-client`         | `5f546a83afe1eba98b7c8504d4fca550ccb383a4c2bfa4df0affd2bd3399a57f` |
+| `transit-native-client`  | `6d83bab01c95822a9daf8db22bf59c46a88e55c31a56b1560a69792e55275c42` |
 
 All six executables/libraries, four Python wheels and four TypeScript tarballs
 match the preceding TypeScript schedule. Packaged Rust sources, README and catalog
@@ -638,12 +637,12 @@ Executed on development source based on `f77fcc29` in the pinned bindings shell:
 
 Final Ruby gem SHA-256 values:
 
-| Artifact | SHA-256 |
-| --- | --- |
-| `transit-station` | `2e43bc199d383643280deb893d0101b6d6abd7c88bcd1072bc145d9dd5181424` |
+| Artifact                 | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station`        | `2e43bc199d383643280deb893d0101b6d6abd7c88bcd1072bc145d9dd5181424` |
 | `transit-native-station` | `4653bccd2758a788ec99f0df17407ca772942b3e1a8513d84eb41306ef1a2570` |
-| `transit-client` | `e627518b495c150e8661d233e4b8856c806b9bc239b13d6396b6fc6b82953725` |
-| `transit-native-client` | `71894ce4dba5fe70942c1b8ad2fb5bdf36c3c72cb8e5d0133fb888b38d8f52fc` |
+| `transit-client`         | `e627518b495c150e8661d233e4b8856c806b9bc239b13d6396b6fc6b82953725` |
+| `transit-native-client`  | `71894ce4dba5fe70942c1b8ad2fb5bdf36c3c72cb8e5d0133fb888b38d8f52fc` |
 
 All six native executables/libraries and the Python, TypeScript and Rust artifacts
 match the preceding Rust schedule. The packaged Ruby README, catalog guide and
@@ -651,9 +650,49 @@ sources match the working files. Logs are
 `/tmp/transit-sql-catalog-ruby-full-check.log`,
 `/tmp/transit-sql-catalog-ruby-final-native.log` and
 `/tmp/transit-sql-catalog-ruby-syntax.log`. `bindings::catalog-ruby` and regular
-`bindings::ruby-sdk-test` include the installed schedule. These are development
-and focused passes; committed-HEAD clean validation and the other six catalog
-SDKs remain.
+`bindings::ruby-sdk-test` include the installed schedule. Committed-HEAD
+`just ci-clean --lane core` subsequently passes all 18 tasks at `eb25b6fd` in
+707.48 s. Evidence is `.cache/ci/clean/eb25b6fd4a66-transit-ci-t_rx2nl0/` and
+`/tmp/transit-sql-catalog-ruby-ci-clean.log`. This predates the PR #33 rebase and
+does not qualify its expanded 22-task core lane. The other six catalog SDKs remain.
+
+## SQL branch integration of seeded simulations
+
+The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
+resource, shared Session/courier, component and external fault suites. The
+consolidated query and protocol owners remain in use. All 75 rebased commits
+retain their author dates and use matching committer dates. Conflict resolution
+preserves both task/invariant inventories and roadmap scope; Session and courier
+production files match main exactly.
+
+On development source based on `9140972c`, pinned Zig
+`0.17.0-dev.2267+48abf1a34` and the bindings shell:
+
+- Full `just check` passes, including unit tests, generated contracts, CLI
+  diagnostics, frontend checks and the documentation build. Final direct checks
+  pass 4581 links across 480 files and 56 invariants/53 bounds/13 SDK scenarios.
+- `just test::domain-simulation --seeds 8` passes **40 package schedules with
+  identical replay in 13.302 s**. The new catalog domain runs 512 requests over
+  eight seeds: 128 fresh Tables and 128 conflicts of each kind. Every round
+  injects a point/page failure and compares committed state with an independent
+  accepted-request ledger; seeded choices also cover revocation, discarded
+  proposals and replacement after lost replies. Each seed ends with 115 keys,
+  sixteen created Tables and all 64 original receipts. Sorted bounded pages and
+  changed-cut rejection are checked throughout.
+- The catalog test binary SHA-256 is
+  `8d69a473d37ba62b800965f8f0f372c11b58f20aab3ff522c421062fecc53a05`;
+  runner SHA-256 is
+  `2b157b687d1c9f12e87efc56f7277e7b0605e802099da974846d694a3c361a06`.
+  `.cache/verification/domain-simulation.json` records all five binary hashes,
+  source/dirty status and per-seed trace hashes; its adjacent directory retains
+  original and replay events/logs.
+
+Logs are `/tmp/transit-sql-pr33-full-check.log` and
+`/tmp/transit-sql-pr33-domain.log`. These private-turn stores model atomic
+publication; they do not qualify physical journal faults, native catalog growth,
+signed transports or installed SDKs. Compiling catalog policy/receipt mutants
+are registered for the committed-source checker; registration alone is not a
+passed mutation proof. Separate execution results follow their completed runs.
 
 ## Offline state declaration compiler
 
@@ -682,17 +721,17 @@ Executed in the pinned bindings shell on the development source based on
   fingerprints. Other cases reject at syntax, structural or capability boundaries.
   Existing SELECT/Arrow, unified-source and mutation oracles also pass.
 - `just test::sql-benchmark --samples 7 --output
-  .cache/verification/sql/state-declaration-benchmark.json` records seven warmed
+.cache/verification/sql/state-declaration-benchmark.json` records seven warmed
   ReleaseSafe processes with 10,000 compilations per case. The pinned compiler
   is `0.17.0-dev.2267+48abf1a34`; the probe SHA-256 is
   `83e09098bd4ac3877a8dec229b22936d70ac8fe0bcad9b2ee464799f77948ad9`.
 
 | Offline declaration | Median ns/compile | Observed min–max |
-| --- | ---: | ---: |
-| Two-column Table | 296.92 | 284.35–317.55 |
-| KV | 133.13 | 130.98–136.94 |
-| Document | 119.28 | 114.54–120.86 |
-| Eight-column Table | 632.59 | 612.16–636.75 |
+| ------------------- | ----------------: | ---------------: |
+| Two-column Table    |            296.92 |    284.35–317.55 |
+| KV                  |            133.13 |    130.98–136.94 |
+| Document            |            119.28 |    114.54–120.86 |
+| Eight-column Table  |            632.59 |    612.16–636.75 |
 
 The raw report identifies dirty source, platform and binary. This is a local
 compiler baseline with no allocation, source I/O, authorization, publication or
@@ -718,17 +757,17 @@ revision is `b0462904`; subsequent ledger changes contain documentation/evidence
 Passing profiles below retain their actual source identity. They do not combine
 into a complete ordinary-suite pass.
 
-| Executed profile | Result and scope |
-| --- | --- |
-| Repository checks | `just check` passed at committed `fb912908`, including units/contracts, ownership inventory, frontend checks and the public Docusaurus build |
-| Expanded resource simulation | At committed `5b267061`, 204 traces / 3,958 events replayed identically in 111.250 s; staging/read/publication/trim faults and independent atomicity/view checks |
-| Clean ordinary simulations | At `e92087ff`, 14 authority traces / 749 events, six resource traces / 112 events, eight Session/courier traces / 542 events and eight component package schedules passed with identical replay |
-| Compiling mutations | At committed `5b267061`, all nine new resource, scheduler and component mutants were detected by executed contract checks; build failures/timeouts did not count |
-| External supervisor | At `f7d0361f`, seed 19 / twelve rounds passed in a fresh checkout in 19.588 s; the later clean core run also passed four rounds, with requested faults observed and cleanup joined |
-| Installed SDKs | Python/Node package builds and independent installed consumers passed in 30.343 s total; signed histories, cancellation/disposal and exactly two admissions retained |
-| Application/provider fixture | Lost provisioning, rotation, migration and activation replies plus runtime upgrade passed in 28.531 s total |
-| Query lifetimes | Durable lifecycle, durable expiry and interactive Table cancellation/current denial passed in 385.887 s total |
-| Browser/reactive lifecycle | The real TLS/browser owner passed refresh replacement, pause, revocation, stream loss/resume, pagehide/expiry and reset/resnapshot in 169.381 s total |
+| Executed profile             | Result and scope                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository checks            | `just check` passed at committed `fb912908`, including units/contracts, ownership inventory, frontend checks and the public Docusaurus build                                                    |
+| Expanded resource simulation | At committed `5b267061`, 204 traces / 3,958 events replayed identically in 111.250 s; staging/read/publication/trim faults and independent atomicity/view checks                                |
+| Clean ordinary simulations   | At `e92087ff`, 14 authority traces / 749 events, six resource traces / 112 events, eight Session/courier traces / 542 events and eight component package schedules passed with identical replay |
+| Compiling mutations          | At committed `5b267061`, all nine new resource, scheduler and component mutants were detected by executed contract checks; build failures/timeouts did not count                                |
+| External supervisor          | At `f7d0361f`, seed 19 / twelve rounds passed in a fresh checkout in 19.588 s; the later clean core run also passed four rounds, with requested faults observed and cleanup joined              |
+| Installed SDKs               | Python/Node package builds and independent installed consumers passed in 30.343 s total; signed histories, cancellation/disposal and exactly two admissions retained                            |
+| Application/provider fixture | Lost provisioning, rotation, migration and activation replies plus runtime upgrade passed in 28.531 s total                                                                                     |
+| Query lifetimes              | Durable lifecycle, durable expiry and interactive Table cancellation/current denial passed in 385.887 s total                                                                                   |
+| Browser/reactive lifecycle   | The real TLS/browser owner passed refresh replacement, pause, revocation, stream loss/resume, pagehide/expiry and reset/resnapshot in 169.381 s total                                           |
 
 `just ci-clean --lane core` passed all 22 tasks at `e92087ff` in 1,186.95 s.
 `just ci-clean --lane experience` passed all seven tasks at `b0462904` in
@@ -886,9 +925,6 @@ input progress in 2.079 seconds, including bounded minimization. These in-memory
 establish actual WAL durability, physical page reclamation, full CI completion
 or hosted cost. Compiling core mutation qualification is a separate command.
 
-
-
-
 ## Authority and delivery simulation
 
 The multi-process simulator executes real signed authority/outbox transitions for
@@ -952,24 +988,24 @@ are historical executions and do not qualify the replacement automatically.
 Executed against the cutover workspace with the pinned Linux x86_64 Nix/Zig
 toolchain:
 
-| Check | Observed result |
-| --- | --- |
-| `just check` | Passed pinned tooling checks, generated contracts, native units/fixtures, CLI diagnostics, documentation links, frontend lint/types/unit tests and the production documentation build |
-| Native unit/independent fixture suite | Passed, including current-definition rejection and owner-lifetime read/required-dependency gates |
-| `zig build test-storage` | Passed all four disk/restart phases of the nine storage, kernel, effects, lifetime, outbox, runtime, deletion, state and readiness executables |
-| `zig build test-service` | Passed actual signed HTTP counter/state recovery, bootstrap/fencing, background expiry/checkpointing, blocked storage deadlines, real effect uncertainty and payload deletion |
-| `zig build test-station` | Passed two-resource application recovery, registry routing, timed waits, supervision, paged child discovery and lifetime cleanup |
-| Native state HTTP proof | Passed resource grants, captured views, paging/cuts, exact retry, counter worker and disk recovery |
-| `zig build test-flight -Dflight-faults=true` in the Flight shell | Passed independent Arrow clients, bounded concurrent/control behavior, ticket/current-rights checks and worker/gateway/node/store recovery |
-| `just bindings::native` and `just bindings::node-sdk-test` in the bindings shell | Passed native/port ownership and installed Node client/Station/query/HTTP/gRPC scenarios |
-| `zig build test-public-query` | Passed actual shell/hosts, 41 exact int64/null rows, frozen retry, fencing/recovery, busy admission, schema rejection, cancellation and terminal resource refusal |
-| `just bindings::python-test` in the bindings shell | Passed clean installed client/Station packages, durable continuation, query pages, HTTP and gRPC scenarios |
-| `zig build test-transit-board` | Passed embedded assets, current inspection/resource grants, framework views, history gaps, outage handling and bounded-load control progress |
-| `zig build test-board-query` | Passed separate query identity, current typed result schema, exact retry, malformed admission, incomplete-result refusal, cancellation and current grants/cuts |
-| `zig build test-observability` | Passed correlated spans, exact receipt retries, revoked reads, secret exclusion and progress with a blocked diagnostic pipe |
-| `zig build test-inspection` | Passed bounded scoped discovery, signed query rejection, old-route refusal, changed cuts, revocation and disk recovery |
-| `zig build test-server -Dserver-faults=true` | Passed local lifecycle, exact bootstrap recovery, definition mismatch without record mutation, private gateway/Host checks, process/storage recovery, executable drift and authority rollback refusal |
-| `just examples::run counter` | Passed the actual counter binary over independently granted resource state |
+| Check                                                                            | Observed result                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just check`                                                                     | Passed pinned tooling checks, generated contracts, native units/fixtures, CLI diagnostics, documentation links, frontend lint/types/unit tests and the production documentation build                 |
+| Native unit/independent fixture suite                                            | Passed, including current-definition rejection and owner-lifetime read/required-dependency gates                                                                                                      |
+| `zig build test-storage`                                                         | Passed all four disk/restart phases of the nine storage, kernel, effects, lifetime, outbox, runtime, deletion, state and readiness executables                                                        |
+| `zig build test-service`                                                         | Passed actual signed HTTP counter/state recovery, bootstrap/fencing, background expiry/checkpointing, blocked storage deadlines, real effect uncertainty and payload deletion                         |
+| `zig build test-station`                                                         | Passed two-resource application recovery, registry routing, timed waits, supervision, paged child discovery and lifetime cleanup                                                                      |
+| Native state HTTP proof                                                          | Passed resource grants, captured views, paging/cuts, exact retry, counter worker and disk recovery                                                                                                    |
+| `zig build test-flight -Dflight-faults=true` in the Flight shell                 | Passed independent Arrow clients, bounded concurrent/control behavior, ticket/current-rights checks and worker/gateway/node/store recovery                                                            |
+| `just bindings::native` and `just bindings::node-sdk-test` in the bindings shell | Passed native/port ownership and installed Node client/Station/query/HTTP/gRPC scenarios                                                                                                              |
+| `zig build test-public-query`                                                    | Passed actual shell/hosts, 41 exact int64/null rows, frozen retry, fencing/recovery, busy admission, schema rejection, cancellation and terminal resource refusal                                     |
+| `just bindings::python-test` in the bindings shell                               | Passed clean installed client/Station packages, durable continuation, query pages, HTTP and gRPC scenarios                                                                                            |
+| `zig build test-transit-board`                                                   | Passed embedded assets, current inspection/resource grants, framework views, history gaps, outage handling and bounded-load control progress                                                          |
+| `zig build test-board-query`                                                     | Passed separate query identity, current typed result schema, exact retry, malformed admission, incomplete-result refusal, cancellation and current grants/cuts                                        |
+| `zig build test-observability`                                                   | Passed correlated spans, exact receipt retries, revoked reads, secret exclusion and progress with a blocked diagnostic pipe                                                                           |
+| `zig build test-inspection`                                                      | Passed bounded scoped discovery, signed query rejection, old-route refusal, changed cuts, revocation and disk recovery                                                                                |
+| `zig build test-server -Dserver-faults=true`                                     | Passed local lifecycle, exact bootstrap recovery, definition mismatch without record mutation, private gateway/Host checks, process/storage recovery, executable drift and authority rollback refusal |
+| `just examples::run counter`                                                     | Passed the actual counter binary over independently granted resource state                                                                                                                            |
 
 Limits at this checkpoint: the remaining installed-language matrix stopped at
 Rust formatting;
@@ -1001,40 +1037,40 @@ links, rather than as current specifications.
 The following executions use the pinned Linux x86_64 toolchain. Rows describe
 finite schedules, not a complete cutover qualification or performance guarantee.
 
-| Check | Observed result |
-| --- | --- |
-| `just check` | Passed native units and independent fixtures, generated contracts, verification inventory, 174 CLI diagnostic cases, documentation links, frontend checks and production documentation build |
-| `zig build test-query -Doptimize=ReleaseSafe` | Passed staging, sealing, publication and partial-consumption recovery over real disk Ursula: 41 rows, six current nested IPC segments, 21,296 bytes, exact retries and receiver credit |
-| `zig build test-arrow` | Independent PyArrow validated current scalar/state encoding, 13 malformed schema/state cases, all eight page widths, exact aggregates and 167-byte checkpoints; a 70-row text result occupied 38,296 bytes over 11 segments |
-| SQL grammar/compiler proofs | Three parsers agreed on 103 SELECT cases; 86 current plans matched the independent encoding/result oracle. Unified results covered three source bases and all eight page widths |
-| Unified Table shell/Board/browser/lifecycle | Passed frozen upload/restart, same signed retries, current grants, explicit cancellation, released-version refusal, finite draft budgets, complete coverage and retirement: 41 rows, six segments, 251.59 seconds |
-| Interactive Table/KV/Document queries | Passed fresh cuts, bounded frames, zero durable updates, cancellation and current denial: 3.60 / 3.07 / 314.63 seconds |
-| Serving lifecycle | Passed two-gateway exact retry, ordered cancel/timeout, late replies after restart, process/wait/resource limits and current revocation: 23.59 seconds |
-| Reactive browser view lifecycle | Passed shared-principal tabs, transport reconnection without replacing logical sessions, pagehide/expiry, explicit watch-generation reset/resnapshot and retirement: 61.61 seconds |
-| Local installation and replacement faults | Passed exact recovery after five lost replies: spawn, worker rotation, copy admission, worker copy and activation admission; fault schedule 22.252 seconds |
-| Native client ABI and `just bindings::native` | Passed canonical signatures, foreign/missing-definition rejection, saved-operation recovery, disk/host restart, revoked retry, scoped Station callbacks and independent decoding of six current query segments |
-| `just bindings::python-test` | Passed clean installed client/Station/example artifacts, scope/lifetime ownership, retained query segments and HTTP/gRPC capture/replay/disposal; HTTP 65.05 seconds, gRPC 68.94 seconds |
-| Installed Node and Rust SDKs | Passed raw clients, Station callbacks/recovery, current nested Arrow ownership and HTTP/gRPC capture, disposal and follow-up rejection. Node HTTP/gRPC: 76.28 / 76.20 seconds; Rust: 106.17 / 107.77 seconds |
-| Installed Ruby, C/C++, Java, .NET and BEAM SDKs | Passed raw clients, Station scope/fencing/recovery, independent decoding and retained ownership of six current nested IPC segments, and HTTP/gRPC capture/replay/disposal. HTTP/gRPC seconds: Ruby 69.62 / 69.36; C 73.06 / 76.84; C++ 79.49 / 85.10; Java 83.89 / 83.29; .NET 72.01 / 73.90; Erlang 32.27 / 30.48; Elixir 35.72 / 32.15 |
-| Unified KV and Document shell/Board/browser | Passed frozen retries, disk/worker recovery, scoped denial, complete nested results and retirement. KV: 41 rows, six segments, 170.91 seconds; Document: 12 rows, two segments, 509.39 seconds |
-| Transition properties, codecs and bounded models | Passed 40 saved/generated authority traces (1,687 steps), codec corpus/allocation failures, the authority model with negative controls, and the delivery safety model |
-| Runtime upgrade and reference workload | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown |
-| Local and Compose counter launchers | Passed persistent restart, exact retry, artifact replacement, incompatible-definition refusal, courier recovery, Board evidence and foreground signal cleanup |
-| `just test::growing-capacity` | Real owned ext4 ENOSPC, physical control-reserve release and disk restart passed with 40 retained rows and one 8,544-byte resident page. Recovery created zero pages and issued only GET/HEAD requests |
-| Unified KV and Document lifecycle/expiry | Current-definition lifecycle schedules passed caller/source denial, cancellation, released-version refusal and bounded cleanup (76.70 / 364.63 seconds). Real-clock expiry denied prefix/complete reads, released pins and survived node/store restart (194.16 / 503.58 seconds) |
-| Current reactive limits/client/refresh/view lifecycle | Passed finite sessions/streams, reserved renewal and health, signed cursors, malformed frames, reconnects, observer absence, expiry and retirement. Two gateways used 51,281,920 bytes RSS under the 256 MiB ceiling; health took 0.005 seconds. Shared client, durable refresh and browser lifecycle passed in 4.44 / 71.16 / 54.47 seconds |
-| Current Flight faults | Passed independent Arrow consumers, concurrent/control reads, one-byte HTTP/2 credit stalls, malformed framing, current ticket rights, worker/gateway/node/store restart and retirement. Sampled gateway RSS was 72,007,680 bytes |
-| Local and Compose Station launchers | Passed registry routing, calls, current Arrow exchange, three-worker recovery/upgrades, Board provenance and persistent stop/start |
-| Committed-source mutation controls | All four disabled guards—generation, resource revision, permission and view deadline—produced minimized engine counterexamples at `3ea81aaa`. Compilation failures were not counted as detections |
-| Current Station | Passed calls, two-resource turns, exact recovery, captured authorized nested Arrow, fencing and blocked-handler control; registry, supervision, late timeout closure and real-clock lifetime/reclamation survived disk restart |
-| Current public-query startup and Work Items | Injected first-read 503 responses for both query hosts recovered before readiness; full public-query retry, recovery and denial passed. Native Work Items passed 19 rows, two fresh-key fenced replacements, disk restart and exact operator/worker retries in 15.36 seconds |
-| Current Work Items browser | Passed complete pages, publication/schema changes, gateway replacement, saved upload recovery/cancellation, fresh query generation, current denial and responsive keyboard/axe checks in 93.48 seconds. Largest sampled gateway RSS was 28,954,624 bytes |
-| Reference Station and counter launchers | Passed registry/calls/current Arrow, real pod loss with same-PID fresh activation, worker upgrades, Board provenance, authority restart and persistent stop/start. Counter also passed queued work through image replacement, logical suspension/provider stop and courier recovery |
-| Immutable page proof | Current v1 roots/checkpoints, page writes, read-only recovery and trimming passed with 64 keys, 17,088 cache bytes and zero recovery writes |
-| Current SDK unified matrix | All ten installed targets passed KV, Table and Document codecs and complete source schedules: frozen upload retry, worker/node/store recovery, current prefix denial and retired-source refusal. KV: 41 rows / six segments / 13,584 bytes / 231.00 seconds; Table: 41 / six / 13,584 / 248.59 seconds; Document: 12 / two / 9,880 / 1,742.66 seconds. These runs used disk-backed temporary storage and eight/eight/64 resident authority pages |
-| Current core service/caller follow-up | Passed signed service recovery, background expiry/checkpointing, effect uncertainty without replay dispatch, runtime upgrade fencing, runnable counter/byte-log examples, inspection and state APIs |
-| Physical-disk phase measurements | Standalone readiness write/recover/checkpoint/trim recovery passed in 348.45 / 6.88 / 5.48 / 4.97 seconds. Kernel write/recover/checkpoint/trim recovery passed in 27.47 / 79.40 / 1.87 / 3.32 seconds. The shared-store schedule exceeded its previous 120-second phase budget; each phase now has a finite 600-second test limit and prints its actual cost |
-| Complete current disk schedule | All nine executables passed write, SIGKILL/recovery, checkpoint and trim recovery against one shared disk store. Readiness write took 395.33 seconds and kernel recovery took 100.96 seconds; every phase completed within the finite 600-second fixture budget |
+| Check                                                 | Observed result                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `just check`                                          | Passed native units and independent fixtures, generated contracts, verification inventory, 174 CLI diagnostic cases, documentation links, frontend checks and production documentation build                                                                                                                                                                                                                                                     |
+| `zig build test-query -Doptimize=ReleaseSafe`         | Passed staging, sealing, publication and partial-consumption recovery over real disk Ursula: 41 rows, six current nested IPC segments, 21,296 bytes, exact retries and receiver credit                                                                                                                                                                                                                                                           |
+| `zig build test-arrow`                                | Independent PyArrow validated current scalar/state encoding, 13 malformed schema/state cases, all eight page widths, exact aggregates and 167-byte checkpoints; a 70-row text result occupied 38,296 bytes over 11 segments                                                                                                                                                                                                                      |
+| SQL grammar/compiler proofs                           | Three parsers agreed on 103 SELECT cases; 86 current plans matched the independent encoding/result oracle. Unified results covered three source bases and all eight page widths                                                                                                                                                                                                                                                                  |
+| Unified Table shell/Board/browser/lifecycle           | Passed frozen upload/restart, same signed retries, current grants, explicit cancellation, released-version refusal, finite draft budgets, complete coverage and retirement: 41 rows, six segments, 251.59 seconds                                                                                                                                                                                                                                |
+| Interactive Table/KV/Document queries                 | Passed fresh cuts, bounded frames, zero durable updates, cancellation and current denial: 3.60 / 3.07 / 314.63 seconds                                                                                                                                                                                                                                                                                                                           |
+| Serving lifecycle                                     | Passed two-gateway exact retry, ordered cancel/timeout, late replies after restart, process/wait/resource limits and current revocation: 23.59 seconds                                                                                                                                                                                                                                                                                           |
+| Reactive browser view lifecycle                       | Passed shared-principal tabs, transport reconnection without replacing logical sessions, pagehide/expiry, explicit watch-generation reset/resnapshot and retirement: 61.61 seconds                                                                                                                                                                                                                                                               |
+| Local installation and replacement faults             | Passed exact recovery after five lost replies: spawn, worker rotation, copy admission, worker copy and activation admission; fault schedule 22.252 seconds                                                                                                                                                                                                                                                                                       |
+| Native client ABI and `just bindings::native`         | Passed canonical signatures, foreign/missing-definition rejection, saved-operation recovery, disk/host restart, revoked retry, scoped Station callbacks and independent decoding of six current query segments                                                                                                                                                                                                                                   |
+| `just bindings::python-test`                          | Passed clean installed client/Station/example artifacts, scope/lifetime ownership, retained query segments and HTTP/gRPC capture/replay/disposal; HTTP 65.05 seconds, gRPC 68.94 seconds                                                                                                                                                                                                                                                         |
+| Installed Node and Rust SDKs                          | Passed raw clients, Station callbacks/recovery, current nested Arrow ownership and HTTP/gRPC capture, disposal and follow-up rejection. Node HTTP/gRPC: 76.28 / 76.20 seconds; Rust: 106.17 / 107.77 seconds                                                                                                                                                                                                                                     |
+| Installed Ruby, C/C++, Java, .NET and BEAM SDKs       | Passed raw clients, Station scope/fencing/recovery, independent decoding and retained ownership of six current nested IPC segments, and HTTP/gRPC capture/replay/disposal. HTTP/gRPC seconds: Ruby 69.62 / 69.36; C 73.06 / 76.84; C++ 79.49 / 85.10; Java 83.89 / 83.29; .NET 72.01 / 73.90; Erlang 32.27 / 30.48; Elixir 35.72 / 32.15                                                                                                         |
+| Unified KV and Document shell/Board/browser           | Passed frozen retries, disk/worker recovery, scoped denial, complete nested results and retirement. KV: 41 rows, six segments, 170.91 seconds; Document: 12 rows, two segments, 509.39 seconds                                                                                                                                                                                                                                                   |
+| Transition properties, codecs and bounded models      | Passed 40 saved/generated authority traces (1,687 steps), codec corpus/allocation failures, the authority model with negative controls, and the delivery safety model                                                                                                                                                                                                                                                                            |
+| Runtime upgrade and reference workload                | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown                                                                                                                                                                                                                            |
+| Local and Compose counter launchers                   | Passed persistent restart, exact retry, artifact replacement, incompatible-definition refusal, courier recovery, Board evidence and foreground signal cleanup                                                                                                                                                                                                                                                                                    |
+| `just test::growing-capacity`                         | Real owned ext4 ENOSPC, physical control-reserve release and disk restart passed with 40 retained rows and one 8,544-byte resident page. Recovery created zero pages and issued only GET/HEAD requests                                                                                                                                                                                                                                           |
+| Unified KV and Document lifecycle/expiry              | Current-definition lifecycle schedules passed caller/source denial, cancellation, released-version refusal and bounded cleanup (76.70 / 364.63 seconds). Real-clock expiry denied prefix/complete reads, released pins and survived node/store restart (194.16 / 503.58 seconds)                                                                                                                                                                 |
+| Current reactive limits/client/refresh/view lifecycle | Passed finite sessions/streams, reserved renewal and health, signed cursors, malformed frames, reconnects, observer absence, expiry and retirement. Two gateways used 51,281,920 bytes RSS under the 256 MiB ceiling; health took 0.005 seconds. Shared client, durable refresh and browser lifecycle passed in 4.44 / 71.16 / 54.47 seconds                                                                                                     |
+| Current Flight faults                                 | Passed independent Arrow consumers, concurrent/control reads, one-byte HTTP/2 credit stalls, malformed framing, current ticket rights, worker/gateway/node/store restart and retirement. Sampled gateway RSS was 72,007,680 bytes                                                                                                                                                                                                                |
+| Local and Compose Station launchers                   | Passed registry routing, calls, current Arrow exchange, three-worker recovery/upgrades, Board provenance and persistent stop/start                                                                                                                                                                                                                                                                                                               |
+| Committed-source mutation controls                    | All four disabled guards—generation, resource revision, permission and view deadline—produced minimized engine counterexamples at `3ea81aaa`. Compilation failures were not counted as detections                                                                                                                                                                                                                                                |
+| Current Station                                       | Passed calls, two-resource turns, exact recovery, captured authorized nested Arrow, fencing and blocked-handler control; registry, supervision, late timeout closure and real-clock lifetime/reclamation survived disk restart                                                                                                                                                                                                                   |
+| Current public-query startup and Work Items           | Injected first-read 503 responses for both query hosts recovered before readiness; full public-query retry, recovery and denial passed. Native Work Items passed 19 rows, two fresh-key fenced replacements, disk restart and exact operator/worker retries in 15.36 seconds                                                                                                                                                                     |
+| Current Work Items browser                            | Passed complete pages, publication/schema changes, gateway replacement, saved upload recovery/cancellation, fresh query generation, current denial and responsive keyboard/axe checks in 93.48 seconds. Largest sampled gateway RSS was 28,954,624 bytes                                                                                                                                                                                         |
+| Reference Station and counter launchers               | Passed registry/calls/current Arrow, real pod loss with same-PID fresh activation, worker upgrades, Board provenance, authority restart and persistent stop/start. Counter also passed queued work through image replacement, logical suspension/provider stop and courier recovery                                                                                                                                                              |
+| Immutable page proof                                  | Current v1 roots/checkpoints, page writes, read-only recovery and trimming passed with 64 keys, 17,088 cache bytes and zero recovery writes                                                                                                                                                                                                                                                                                                      |
+| Current SDK unified matrix                            | All ten installed targets passed KV, Table and Document codecs and complete source schedules: frozen upload retry, worker/node/store recovery, current prefix denial and retired-source refusal. KV: 41 rows / six segments / 13,584 bytes / 231.00 seconds; Table: 41 / six / 13,584 / 248.59 seconds; Document: 12 / two / 9,880 / 1,742.66 seconds. These runs used disk-backed temporary storage and eight/eight/64 resident authority pages |
+| Current core service/caller follow-up                 | Passed signed service recovery, background expiry/checkpointing, effect uncertainty without replay dispatch, runtime upgrade fencing, runnable counter/byte-log examples, inspection and state APIs                                                                                                                                                                                                                                              |
+| Physical-disk phase measurements                      | Standalone readiness write/recover/checkpoint/trim recovery passed in 348.45 / 6.88 / 5.48 / 4.97 seconds. Kernel write/recover/checkpoint/trim recovery passed in 27.47 / 79.40 / 1.87 / 3.32 seconds. The shared-store schedule exceeded its previous 120-second phase budget; each phase now has a finite 600-second test limit and prints its actual cost                                                                                    |
+| Complete current disk schedule                        | All nine executables passed write, SIGKILL/recovery, checkpoint and trim recovery against one shared disk store. Readiness write took 395.33 seconds and kernel recovery took 100.96 seconds; every phase completed within the finite 600-second fixture budget                                                                                                                                                                                  |
 
 The earlier Table, interactive, serving, reactive and installation executions
 precede the later Station-format/definition change. The rows explicitly marked
@@ -1058,18 +1094,18 @@ Board keeps private shared viewer admission and its separate query identity.
 The [compatibility matrix](../packages/zig/transit-serving/docs/compatibility.md)
 separates consumers, placements and unsupported protocols.
 
-| Proof | Executed evidence and measured cost |
-| --- | --- |
-| `just test::serving-http` and standalone HTTP tests | Real socket framing/chunking, duplicate/ambiguous headers, slow uploads, two blocked 8 MiB response writes, 413/503, reserved health, header/request deadlines and joined parent shutdown. Injected scheduling failure joins the already-started timer |
-| Board unit/service proof | Existing inspection flooding, revocation, trimming, storage outage and diagnostics pass; four stalled uploads exhaust data capacity while reserved health remains responsive (0.007s maximum control latency in that run) |
-| `just test::unified-ingress table` | Two actual Board instances, shell, generated client and Chromium; competing principal sequences, exact retries, durable active-upload quota, current prefix denial, nested Arrow/JSON pages and worker/node/store recovery. Final run: 290.33s; 331 cold objects / 31,238,036 bytes |
-| `just test::serving-capacity` | Real nginx 1.30.5 TLS, two gateways, per-caller fairness, eight stalled authorized reads, excess caller 429/data 503 and health 0.003s. Lost native admission, worker commits, destination delivery and reply-delivery receipts recover exact bytes. Accepted mutation exceeds the gateway deadline, then recovers. Final run: 15.74s |
-| `just test::serving-lifetimes` | Explicit cancel, authenticated timeout, duplicate observation, late replies after restart, finite process/wait bounds and hard resource expiry without observer delivery. Final run: 30.05s including real-clock waits |
-| `just test::serving-growth` | 128 additional retained operations, old point reads and exact original results with only 8 resident authority pages. Final run with explicit native ceiling/reserve: 501.27s |
-| `just examples::serving-compose` | Two TLS gateways, immutable results, current denial, physical worker/gateway/node/disk recovery and fresh ownership. Final cached-image run: 16.73s; 17 cold objects / 880,092 bytes |
-| `just examples::serving-reference` | Operator-attributed fresh Substrate worker keys and exact generations; private gateway Secrets, real egress-denial probes, two TLS gateways and physical recovery. Final cached-image run: 89.49s; 14 cold objects / 890,245 bytes |
-| `just launchers::compose::test` / `just launchers::reference::test-launcher` | Board and persistent launcher regressions pass in separately owned installations: isolated updates, same-PID replacement, queued outbox/reply evidence, authority/store restart, stop/start and missing-store refusal |
-| `just test::growing-quota` | Explicit quota exhaustion retains pending Station work/backlog, uses the control reserve and recovers from disk |
+| Proof                                                                        | Executed evidence and measured cost                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::serving-http` and standalone HTTP tests                          | Real socket framing/chunking, duplicate/ambiguous headers, slow uploads, two blocked 8 MiB response writes, 413/503, reserved health, header/request deadlines and joined parent shutdown. Injected scheduling failure joins the already-started timer                                                                                |
+| Board unit/service proof                                                     | Existing inspection flooding, revocation, trimming, storage outage and diagnostics pass; four stalled uploads exhaust data capacity while reserved health remains responsive (0.007s maximum control latency in that run)                                                                                                             |
+| `just test::unified-ingress table`                                           | Two actual Board instances, shell, generated client and Chromium; competing principal sequences, exact retries, durable active-upload quota, current prefix denial, nested Arrow/JSON pages and worker/node/store recovery. Final run: 290.33s; 331 cold objects / 31,238,036 bytes                                                   |
+| `just test::serving-capacity`                                                | Real nginx 1.30.5 TLS, two gateways, per-caller fairness, eight stalled authorized reads, excess caller 429/data 503 and health 0.003s. Lost native admission, worker commits, destination delivery and reply-delivery receipts recover exact bytes. Accepted mutation exceeds the gateway deadline, then recovers. Final run: 15.74s |
+| `just test::serving-lifetimes`                                               | Explicit cancel, authenticated timeout, duplicate observation, late replies after restart, finite process/wait bounds and hard resource expiry without observer delivery. Final run: 30.05s including real-clock waits                                                                                                                |
+| `just test::serving-growth`                                                  | 128 additional retained operations, old point reads and exact original results with only 8 resident authority pages. Final run with explicit native ceiling/reserve: 501.27s                                                                                                                                                          |
+| `just examples::serving-compose`                                             | Two TLS gateways, immutable results, current denial, physical worker/gateway/node/disk recovery and fresh ownership. Final cached-image run: 16.73s; 17 cold objects / 880,092 bytes                                                                                                                                                  |
+| `just examples::serving-reference`                                           | Operator-attributed fresh Substrate worker keys and exact generations; private gateway Secrets, real egress-denial probes, two TLS gateways and physical recovery. Final cached-image run: 89.49s; 14 cold objects / 890,245 bytes                                                                                                    |
+| `just launchers::compose::test` / `just launchers::reference::test-launcher` | Board and persistent launcher regressions pass in separately owned installations: isolated updates, same-PID replacement, queued outbox/reply evidence, authority/store restart, stop/start and missing-store refusal                                                                                                                 |
+| `just test::growing-quota`                                                   | Explicit quota exhaustion retains pending Station work/backlog, uses the control reserve and recovers from disk                                                                                                                                                                                                                       |
 
 Native timings exclude compilation. Placement timings include image preparation,
 deployment and the scenario, excluding final cleanup; first-use downloads/builds
@@ -1128,14 +1164,14 @@ introduced. The detailed evidence below preserves each workload, configuration,
 failed attempt and scope; earlier component results do not imply later service
 coverage. Expanded hosted CI cost remains deferred under the agreed CI policy.
 
-| Final recovery schedule | Seconds | Cold objects / bytes | Resident authority pages |
-| --- | ---: | ---: | ---: |
-| KV shell, Board API/Chromium, lifecycle and example | 595.25 | 781 / 83,591,053 | 8 |
-| Table example with injected host read timeout | 193.33 | 210 / 19,269,554 | 8 |
-| Document shell, Board API/Chromium and lifecycle | 875.94 | 1,612 / 174,056,281 | 64 |
-| Document example and permanent source retirement | 670.95 | 1,327 / 122,898,144 | 64 |
-| Table Compose recovery/isolation | 100.76 | 136 / 11,572,217 | 8 |
-| Table Substrate recovery/isolation | 253.55 | 120 / 11,626,265 | 8 |
+| Final recovery schedule                             | Seconds | Cold objects / bytes | Resident authority pages |
+| --------------------------------------------------- | ------: | -------------------: | -----------------------: |
+| KV shell, Board API/Chromium, lifecycle and example |  595.25 |     781 / 83,591,053 |                        8 |
+| Table example with injected host read timeout       |  193.33 |     210 / 19,269,554 |                        8 |
+| Document shell, Board API/Chromium and lifecycle    |  875.94 |  1,612 / 174,056,281 |                       64 |
+| Document example and permanent source retirement    |  670.95 |  1,327 / 122,898,144 |                       64 |
+| Table Compose recovery/isolation                    |  100.76 |     136 / 11,572,217 |                        8 |
+| Table Substrate recovery/isolation                  |  253.55 |     120 / 11,626,265 |                        8 |
 
 All use 8 MiB hot Ursula storage with cold offload and ReleaseSafe executables.
 Native times include provisioning and exclude compilation. Placement times include
@@ -1304,7 +1340,6 @@ in **547.72 seconds** (91 cold objects / 9,160,106 bytes), Rust in **570.84 seco
 three source codec fixtures. Rust additionally rejects overlapping mutable client
 borrows at compile time. All owned consumers close and join before these runs
 are counted; an earlier TypeScript run with a shutdown failure is excluded.
-
 
 The signed accepted-Document schedule also passes in **ReleaseSafe**, including
 installed Python sync/async callers, in **581.90 seconds** (478.34 seconds for
@@ -2418,16 +2453,16 @@ All artifacts below are version 0.2.0 on Linux x86_64 with their pinned Nix nati
 closure; the [runtime table](../bindings/README.md#build-and-verification) owns exact
 compiler/runtime versions.
 
-| Public target | Installed artifact | Optional host Arrow adapter |
-| --- | --- | --- |
-| Python | Separate client/Station/native wheels and examples wheel | PyArrow 23 |
-| Node.js/TypeScript | Separate public/native npm tarballs and examples package | Arrow JavaScript 21.2 |
-| Rust | Versioned crates with separate embedded-native crates and examples | Arrow Rust 59 |
-| Ruby | Separate client/Station/native gems and examples gem | None |
-| C/C++ | Independent pkg-config prefixes, headers/libraries and C11/C++17 binaries | None |
-| Java | Independent client/Station/native/example JARs and POM manifests | None |
-| .NET | Independent client/Station/native/example NuGet packages | None |
-| Erlang/Elixir | Separate compiled OTP core/wrapper/native/example applications | None |
+| Public target      | Installed artifact                                                        | Optional host Arrow adapter |
+| ------------------ | ------------------------------------------------------------------------- | --------------------------- |
+| Python             | Separate client/Station/native wheels and examples wheel                  | PyArrow 23                  |
+| Node.js/TypeScript | Separate public/native npm tarballs and examples package                  | Arrow JavaScript 21.2       |
+| Rust               | Versioned crates with separate embedded-native crates and examples        | Arrow Rust 59               |
+| Ruby               | Separate client/Station/native gems and examples gem                      | None                        |
+| C/C++              | Independent pkg-config prefixes, headers/libraries and C11/C++17 binaries | None                        |
+| Java               | Independent client/Station/native/example JARs and POM manifests          | None                        |
+| .NET               | Independent client/Station/native/example NuGet packages                  | None                        |
+| Erlang/Elixir      | Separate compiled OTP core/wrapper/native/example applications            | None                        |
 
 Public registry publication, Java Maven resolution, BEAM Hex/Rebar/Mix registry
 resolution, portable native distributions and foreign Substrate workers are
@@ -2483,17 +2518,17 @@ only runs library/protocol tests; `just test::build` separately compiles the
 application and probe entry points formerly hidden in that unit target. Core CI
 runs both and retains standalone package checks.
 
-| Evidence | What it proves |
-| --- | --- |
-| `just check`, `just test::packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
-| `just test::callers`, `just contract::check` | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
-| `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
-| `just test::state` | Signed KV/association reads, current independent grants, immutable read views, exact retry, two Zig caller activations, disk recovery, and clock-independent opted-in background reclamation |
-| `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
-| `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
-| `just test::deployments` | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment |
-| `just launchers::reference::infra-up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
-| `just test::runtime-upgrade`, `just launchers::reference::test-launcher` | Fenced same-PID workload changes, provider response loss, complete persistent reference startup, isolated service updates and state-preserving stop/start |
+| Evidence                                                                                                      | What it proves                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just check`, `just test::packages`                                                                           | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding                                           |
+| `just test::callers`, `just contract::check`                                                                  | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types                                                                                  |
+| `just test::storage`                                                                                          | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation                     |
+| `just test::state`                                                                                            | Signed KV/association reads, current independent grants, immutable read views, exact retry, two Zig caller activations, disk recovery, and clock-independent opted-in background reclamation                                                                                                                               |
+| `just test::service`                                                                                          | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
+| `just test::capacity`                                                                                         | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations                                                                                       |
+| `just test::deployments`                                                                                      | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment                                                                                                                             |
+| `just launchers::reference::infra-up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials                                                                                       |
+| `just test::runtime-upgrade`, `just launchers::reference::test-launcher`                                      | Fenced same-PID workload changes, provider response loss, complete persistent reference startup, isolated service updates and state-preserving stop/start                                                                                                                                                                  |
 
 The capacity proof uses a finite allocation and a measured physical reserve;
 online expansion and arbitrary write amplification are not promised. Retention
@@ -3066,18 +3101,18 @@ Its contracts are
 [catalog collection](../contracts/CATALOG_V1.md) and
 [lifecycle controls](../contracts/LIFECYCLE_V1.md).
 
-| Proof | Evidence and command |
-| --- | --- |
-| Authenticated origin | Core checks authority-derived external/process/effect envelopes, replay mutation rejection and retained origin after collection. Shared `inputs-v1.json` and canonical signed command fixtures are validated by `just check`. |
-| Actual caller exchange | `just test::callers` runs the counter and byte-log executables with `transit-delivery`, drops/malforms acknowledgements, checks exact retries and restarts the courier. Scoped delivery reads expose counts/sequence, not application payload. Core tests cover destination scope, revocation and terminal denial. Delayed counter activation stays within the bootstrap log bound even at debug verbosity. |
-| Sustained working catalogs | Unit and disk proofs allocate 257 outputs/effects and 65 process/resource identities while collecting eligible entries, exceeding the previous lifetime ceilings. Pending outputs, uncertain attempts, live dependencies and default unlimited retention remain protected; old IDs/results/owners cannot revive. |
-| Lifecycle recovery | Core tests cover lost creation/resource acknowledgements, missing required associations, scoped administration, exact failed-input retry, stale generations, suspension bounds and provider-stop/activation fencing. `tests/readiness.zig` restarts during initialization, completes it after recovery, checkpoints a blocked input, retries that head and expires a suspended process after trim/recovery. |
-| Disk/capacity | `just test::storage` runs readiness with disk Ursula, SIGKILL, checkpoint and prefix trim. `just test::capacity` fills an owned ext4 image: at admission ceiling 256, the reserve bound is **4385 records**, with control progress and restart verified. This replaces the pre-M8 reserve estimate for the current binary. |
-| Deployment | `tests/readiness_client.zig` imports the public client only. Local, Compose and reference launcher tests run it against real services: queue an output while delivery is stopped, restart courier and node, reject an identical externally submitted forged reply, accept the process-origin reply and inspect generic Board evidence. The harness never delivers that output. Reference qualification also queues input
-during a bounded logical suspension, confirms provider stop, replaces worker
-capacity and resumes the same PID/Actor with a fresh activation. Automatic pool
-recycling is outside the controller's current rights and this proof. |
-| Inspection | Core history queries preserve retained events for collected PIDs without inventing mailbox disposition. Board exposes lifecycle actions, initialization/suspension bounds and a collection warning. Generated OpenAPI/validators, API tests and the real browser suite check the shared surface. |
+| Proof                                                                           | Evidence and command                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Authenticated origin                                                            | Core checks authority-derived external/process/effect envelopes, replay mutation rejection and retained origin after collection. Shared `inputs-v1.json` and canonical signed command fixtures are validated by `just check`.                                                                                                                                                                                            |
+| Actual caller exchange                                                          | `just test::callers` runs the counter and byte-log executables with `transit-delivery`, drops/malforms acknowledgements, checks exact retries and restarts the courier. Scoped delivery reads expose counts/sequence, not application payload. Core tests cover destination scope, revocation and terminal denial. Delayed counter activation stays within the bootstrap log bound even at debug verbosity.              |
+| Sustained working catalogs                                                      | Unit and disk proofs allocate 257 outputs/effects and 65 process/resource identities while collecting eligible entries, exceeding the previous lifetime ceilings. Pending outputs, uncertain attempts, live dependencies and default unlimited retention remain protected; old IDs/results/owners cannot revive.                                                                                                         |
+| Lifecycle recovery                                                              | Core tests cover lost creation/resource acknowledgements, missing required associations, scoped administration, exact failed-input retry, stale generations, suspension bounds and provider-stop/activation fencing. `tests/readiness.zig` restarts during initialization, completes it after recovery, checkpoints a blocked input, retries that head and expires a suspended process after trim/recovery.              |
+| Disk/capacity                                                                   | `just test::storage` runs readiness with disk Ursula, SIGKILL, checkpoint and prefix trim. `just test::capacity` fills an owned ext4 image: at admission ceiling 256, the reserve bound is **4385 records**, with control progress and restart verified. This replaces the pre-M8 reserve estimate for the current binary.                                                                                               |
+| Deployment                                                                      | `tests/readiness_client.zig` imports the public client only. Local, Compose and reference launcher tests run it against real services: queue an output while delivery is stopped, restart courier and node, reject an identical externally submitted forged reply, accept the process-origin reply and inspect generic Board evidence. The harness never delivers that output. Reference qualification also queues input |
+| during a bounded logical suspension, confirms provider stop, replaces worker    |
+| capacity and resumes the same PID/Actor with a fresh activation. Automatic pool |
+| recycling is outside the controller's current rights and this proof.            |
+| Inspection                                                                      | Core history queries preserve retained events for collected PIDs without inventing mailbox disposition. Board exposes lifecycle actions, initialization/suspension bounds and a collection warning. Generated OpenAPI/validators, API tests and the real browser suite check the shared surface.                                                                                                                         |
 
 Run `just ci`, `just transit-board::browser`, `just test::capacity`,
 `just launchers::compose::test` and `just launchers::reference::test-launcher`.
@@ -3116,16 +3151,16 @@ The Linux x86_64 profile uses the locked Zig 0.17 compiler, the pinned
 authority/courier. Framework logic remains in Zig; no language-specific server
 route or second authoritative task/state store is introduced.
 
-| Proof | Evidence |
-| --- | --- |
-| `just test::station` | Three behavior roles, two-Table atomic turns, exact retry after receipt loss, worker/store restart, source-authenticated calls/replies, captured Arrow publication/consumer restart, service-policy revocation, registry rebind with the original PID retained, timed waits/late-result closure, poison-head supervision and independent lifecycle control |
-| `just test::station` lifetime schedule | Required PID-owned Table state survives recovery; suspension beyond a dependency is rejected; opted-in expiry permanently rejects activation and permits background reclamation, including after authority restart |
-| `just bindings::native` | C/C++/Python real callers; shared ABI exact frozen request recovery after every handle is lost; failed-turn rollback, stale/revoked/retired callers, wide correlations, malformed native-port input, asynchronous cancellation and owned cleanup |
-| `just bindings::native` materialization schedule | Duplicate source admission/commit, update/delete, physical checkpoint/trim, reinsertion in the tail, disk/node restart and an independent Arrow aggregate over only current rows |
-| `nix develop .#bindings --command just bindings::test` | C, C++, Rust, Python, Node, Java, .NET, Erlang and Elixir each run service and requester roles across language pairs; fresh hosts resume captured results; exact `9007199254740993` values survive Arrow; managed/port tests cover bounded input, busy handles, host/caller loss, responsive schedulers and cancellation/cleanup |
-| `just test::unit`, `just test::packages`, `just test::arrow` | Private batch rollback, capacity and schema checks, all admitted Arrow types/null/empty/overflow behavior, C Data/C Stream release ownership, exact source basis and no enabled rewrites, cancelled queries, maximum 672-byte captured reply, malformed/duplicate/missing fragments and no prefix completion |
-| `just transit-board::test`, `just transit-board::browser` | Versioned framework metadata with source PID/resource/key/revisions; unknown versions fall back safely; no application-state decoder |
-| `just launchers::local::test-station`, `just launchers::compose::test-station`, `just launchers::reference::test-station` | Same three-process scenario, scoped service roles, registry/call/Arrow exchange, Board provenance, worker recovery, compatible upgrades of all three workers with PIDs/state retained, no-op updates and persistent stop/start |
+| Proof                                                                                                                     | Evidence                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::station`                                                                                                      | Three behavior roles, two-Table atomic turns, exact retry after receipt loss, worker/store restart, source-authenticated calls/replies, captured Arrow publication/consumer restart, service-policy revocation, registry rebind with the original PID retained, timed waits/late-result closure, poison-head supervision and independent lifecycle control |
+| `just test::station` lifetime schedule                                                                                    | Required PID-owned Table state survives recovery; suspension beyond a dependency is rejected; opted-in expiry permanently rejects activation and permits background reclamation, including after authority restart                                                                                                                                         |
+| `just bindings::native`                                                                                                   | C/C++/Python real callers; shared ABI exact frozen request recovery after every handle is lost; failed-turn rollback, stale/revoked/retired callers, wide correlations, malformed native-port input, asynchronous cancellation and owned cleanup                                                                                                           |
+| `just bindings::native` materialization schedule                                                                          | Duplicate source admission/commit, update/delete, physical checkpoint/trim, reinsertion in the tail, disk/node restart and an independent Arrow aggregate over only current rows                                                                                                                                                                           |
+| `nix develop .#bindings --command just bindings::test`                                                                    | C, C++, Rust, Python, Node, Java, .NET, Erlang and Elixir each run service and requester roles across language pairs; fresh hosts resume captured results; exact `9007199254740993` values survive Arrow; managed/port tests cover bounded input, busy handles, host/caller loss, responsive schedulers and cancellation/cleanup                           |
+| `just test::unit`, `just test::packages`, `just test::arrow`                                                              | Private batch rollback, capacity and schema checks, all admitted Arrow types/null/empty/overflow behavior, C Data/C Stream release ownership, exact source basis and no enabled rewrites, cancelled queries, maximum 672-byte captured reply, malformed/duplicate/missing fragments and no prefix completion                                               |
+| `just transit-board::test`, `just transit-board::browser`                                                                 | Versioned framework metadata with source PID/resource/key/revisions; unknown versions fall back safely; no application-state decoder                                                                                                                                                                                                                       |
+| `just launchers::local::test-station`, `just launchers::compose::test-station`, `just launchers::reference::test-station` | Same three-process scenario, scoped service roles, registry/call/Arrow exchange, Board provenance, worker recovery, compatible upgrades of all three workers with PIDs/state retained, no-op updates and persistent stop/start                                                                                                                             |
 
 The reference proof additionally kills an actual Substrate worker pod, verifies
 a fresh activation/key while retaining the Actor UID, and upgrades versioned
@@ -3169,12 +3204,12 @@ binary hashes, revision/dirty state and timing boundaries. Six cases ran through
 the executable matrix. These are shared-host observations, not production SLOs.
 
 | Rows / cache pages / retained views | Write plus verification, seconds | Turn p99, ms | Full recovery verification, seconds | Maximum authority-driver RSS, KiB |
-| --- | ---: | ---: | ---: | ---: |
-| 64 / 1 / 1 | 54.86–57.31 | 952–978 | 4.21–4.58 | 12,596 |
-| 256 / 1 / 1 | 109.01–113.49 | 984–1,013 | 14.33–15.19 | 12,596 |
-| 1,024 / 1 / 1 | 366.91–366.94 | 1,166–1,315 | 61.64–62.37 | 12,660 |
-| 256 / 16 / 1 | 85.31–86.17 | 825–839 | 11.77–12.05 | 12,720 |
-| 256 / 16 / 8 | 91.08–92.72 | 780–1,792 | 15.66–15.89 | 12,744 |
+| ----------------------------------- | -------------------------------: | -----------: | ----------------------------------: | --------------------------------: |
+| 64 / 1 / 1                          |                      54.86–57.31 |      952–978 |                           4.21–4.58 |                            12,596 |
+| 256 / 1 / 1                         |                    109.01–113.49 |    984–1,013 |                         14.33–15.19 |                            12,596 |
+| 1,024 / 1 / 1                       |                    366.91–366.94 |  1,166–1,315 |                         61.64–62.37 |                            12,660 |
+| 256 / 16 / 1                        |                      85.31–86.17 |      825–839 |                         11.77–12.05 |                            12,720 |
+| 256 / 16 / 8                        |                      91.08–92.72 |    780–1,792 |                         15.66–15.89 |                            12,744 |
 
 The one-page cache remains **8,532 bytes** while retained application values grow
 from 16 to 256 KiB, alongside 70 PIDs, 21 principals, six resources and 69
@@ -3368,7 +3403,6 @@ mechanism and its observability. The additional
 [physical-capacity and service/Station proofs](#growing-physical-capacity)
 qualify the finite deployment profile separately.
 
-
 `just test::growing` runs the growing core against real Ursula and a single-page
 Transit cache. It crosses legacy process/principal/resource/row bounds, stages
 private candidates, rejects stale publication after revocation, injects failure
@@ -3379,7 +3413,6 @@ removes page storage in its disposable fixture to prove recovery fails closed.
 The [adapter guide](../packages/zig/transit-backend-ursula/docs/growing.md) owns
 measurement details and compatibility limits. This is authority/provider
 qualification, not node/client/Station support or a scale SLO.
-
 
 `just test::growing-service` runs an independent Zig caller using only
 `transit-client` against the real v3 node, with disk Ursula on one CPU. It uses a
@@ -3697,14 +3730,14 @@ proofs, not additions to M10's hosted PR lanes or evidence of a new hosted cost
 budget. The [compatibility matrix](../packages/zig/transit-serving/docs/compatibility.md)
 separates source, transport, client and placement; unavailable rows stay unavailable.
 
-| Proof | Executed evidence | Observed local cost |
-| --- | --- | --- |
-| `just test::reactive` | Independent Python/OpenSSL HTTP/SSE/RFC 6455 peers through real nginx TLS and two gateways; empty snapshot, Table progress/outcome, lost WebSocket reply with exact HTTP retry, signed resume, fences, challenge reuse, fragmented bootstrap/ping, declined compression, idle native/service revocation and full worker/gateway/node/store recovery | Expanded native trace 18.60 s |
-| `just test::reactive-browser` | Actual Chromium WebCrypto, same-origin WSS bootstrap without custom auth headers, exact HTTP fallback, incremental fetch SSE/event IDs, authenticated description digests and lossless minimum-i64 keys/maximum-i64 values | Browser plus native trace 28.47 s |
-| `just test::reactive-limits` | Four durable sessions and four held SSE responses, fifth data request refused, reserved health/renewal, idle grant revocation, validly signed future/foreign/incompatible cursors, malformed frames and close, escaped JSON member names, twelve reconnects, lease expiry without observer, and hard source expiry while the logical session lease remains valid | 106.75 s including native recovery; limits portion 87.54 s; health 0.003 s; two-gateway RSS 34,902,016 bytes against 256 MiB ceiling |
-| `just test::reactive-placement compose` | Two TLS gateways, WS command with lost acknowledgement and exact HTTP recovery, SSE replacement fence/cursor resume, physical workers/gateways/node/store recovery and publication retirement | 95.81 s; 21 cold objects / 1,438,542 bytes |
-| `just test::reactive-placement reference` | Same owned private placement with fresh worker keys/exact ownership, source/session history recovery and explicit new session after the lease elapsed during downtime | 168.88 s; 22 cold objects / 1,994,383 bytes |
-| `just test::reactive-descriptions` | Generated OpenAPI 3.2.1/schema-base and AsyncAPI 3.0, pinned official offline validators, shared schema parity, independent full-width fixtures and drift | No network schema resolution |
+| Proof                                     | Executed evidence                                                                                                                                                                                                                                                                                                                                                | Observed local cost                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `just test::reactive`                     | Independent Python/OpenSSL HTTP/SSE/RFC 6455 peers through real nginx TLS and two gateways; empty snapshot, Table progress/outcome, lost WebSocket reply with exact HTTP retry, signed resume, fences, challenge reuse, fragmented bootstrap/ping, declined compression, idle native/service revocation and full worker/gateway/node/store recovery              | Expanded native trace 18.60 s                                                                                                        |
+| `just test::reactive-browser`             | Actual Chromium WebCrypto, same-origin WSS bootstrap without custom auth headers, exact HTTP fallback, incremental fetch SSE/event IDs, authenticated description digests and lossless minimum-i64 keys/maximum-i64 values                                                                                                                                       | Browser plus native trace 28.47 s                                                                                                    |
+| `just test::reactive-limits`              | Four durable sessions and four held SSE responses, fifth data request refused, reserved health/renewal, idle grant revocation, validly signed future/foreign/incompatible cursors, malformed frames and close, escaped JSON member names, twelve reconnects, lease expiry without observer, and hard source expiry while the logical session lease remains valid | 106.75 s including native recovery; limits portion 87.54 s; health 0.003 s; two-gateway RSS 34,902,016 bytes against 256 MiB ceiling |
+| `just test::reactive-placement compose`   | Two TLS gateways, WS command with lost acknowledgement and exact HTTP recovery, SSE replacement fence/cursor resume, physical workers/gateways/node/store recovery and publication retirement                                                                                                                                                                    | 95.81 s; 21 cold objects / 1,438,542 bytes                                                                                           |
+| `just test::reactive-placement reference` | Same owned private placement with fresh worker keys/exact ownership, source/session history recovery and explicit new session after the lease elapsed during downtime                                                                                                                                                                                            | 168.88 s; 22 cold objects / 1,994,383 bytes                                                                                          |
+| `just test::reactive-descriptions`        | Generated OpenAPI 3.2.1/schema-base and AsyncAPI 3.0, pinned official offline validators, shared schema parity, independent full-width fixtures and drift                                                                                                                                                                                                        | No network schema resolution                                                                                                         |
 
 The placement rows use eight resident authority pages and an 8 MiB hot store;
 their times include their local image/preparation path. They create and remove
@@ -3755,15 +3788,15 @@ runtime-validated TypeScript transport and `LiveView`; Board's inspection,
 watch-control and query identities remain separate. KV/Document watches and
 continuous SQL are not qualified.
 
-| Executed proof | Evidence |
-| --- | --- |
-| `just test::reactive-client` | Actual TLS/disk hosts, frozen lost-reply recovery, scoped descriptions/clock, private Origin, reserved close, metadata-only reads, denial and 40 schema-validated envelopes; 7.52 s for the clock-policy extension |
-| `just test::reactive-refresh` | Two sessions sharing one requester, round-robin progress, lost follow reply, stopped source and replacement activations, exact accepted identity, full-width namespace and entry-read-only revocation; 224.56 s initial run, 153.08 s repeated regression |
-| Requester/component and frontend checks | Four-mutation copy turns, writes during capture, dirty successors, quiescence without self-triggering, start budgets, late-candidate fencing, queued pause, startup uncertainty, independent renewal and terminal control rejection |
-| `just test::reactive-views` | Real Chromium counter/Board over TLS, lost accepted upload, failing atlas plus route remount, exact recovery, complete 20-row verification with one eight-row resident page, distinct finite refresh and read-only revocation; 327.65 s |
-| `just test::reactive-views-lifecycle` | Shared-principal tabs, actual broken SSE/resume with unchanged sessions, pagehide/expiry, watch reset, explicit resnapshot and source retirement after displayed state; final run 89.03 s |
-| `just test::reactive-views-placement compose` | Full consumer schedule plus worker/gateway/node/disk restart, same-result recovery and denial between complete verification and visible-page reread; 389.04 s browser / 402.90 s including packaging |
-| `just test::reactive-views-placement reference` | Same extended schedule with fresh Substrate worker activations and confined gateways; 518.32 s browser / 663.06 s including packaging |
+| Executed proof                                  | Evidence                                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::reactive-client`                    | Actual TLS/disk hosts, frozen lost-reply recovery, scoped descriptions/clock, private Origin, reserved close, metadata-only reads, denial and 40 schema-validated envelopes; 7.52 s for the clock-policy extension                                        |
+| `just test::reactive-refresh`                   | Two sessions sharing one requester, round-robin progress, lost follow reply, stopped source and replacement activations, exact accepted identity, full-width namespace and entry-read-only revocation; 224.56 s initial run, 153.08 s repeated regression |
+| Requester/component and frontend checks         | Four-mutation copy turns, writes during capture, dirty successors, quiescence without self-triggering, start budgets, late-candidate fencing, queued pause, startup uncertainty, independent renewal and terminal control rejection                       |
+| `just test::reactive-views`                     | Real Chromium counter/Board over TLS, lost accepted upload, failing atlas plus route remount, exact recovery, complete 20-row verification with one eight-row resident page, distinct finite refresh and read-only revocation; 327.65 s                   |
+| `just test::reactive-views-lifecycle`           | Shared-principal tabs, actual broken SSE/resume with unchanged sessions, pagehide/expiry, watch reset, explicit resnapshot and source retirement after displayed state; final run 89.03 s                                                                 |
+| `just test::reactive-views-placement compose`   | Full consumer schedule plus worker/gateway/node/disk restart, same-result recovery and denial between complete verification and visible-page reread; 389.04 s browser / 402.90 s including packaging                                                      |
+| `just test::reactive-views-placement reference` | Same extended schedule with fresh Substrate worker activations and confined gateways; 518.32 s browser / 663.06 s including packaging                                                                                                                     |
 
 The final placement runs measured the following single observations, including
 client scheduling, source observation and full verification. They are not peak
@@ -3771,13 +3804,13 @@ memory, latency percentiles or sustainable-rate guarantees. The visibility
 measurement starts at the mutation trigger, so it includes admission before the
 source commit; it is an upper bound on commit-to-visible delay in that run.
 
-| Measurement | Compose | Reference |
-| --- | ---: | ---: |
-| Counter trigger to visible snapshot | 7,563 ms | 6,223 ms |
-| Finite 20-row verified refresh | 126,895 ms | 155,111 ms |
-| Physical restart to authorized same-result read | 6,289 ms | 18,338 ms |
-| Observed Board / counter JS heap | 9,433,188 / 4,794,296 bytes | 10,397,376 / 4,637,604 bytes |
-| Retained cold objects / bytes | 493 / 49,035,893 | 504 / 57,849,285 |
+| Measurement                                     |                     Compose |                    Reference |
+| ----------------------------------------------- | --------------------------: | ---------------------------: |
+| Counter trigger to visible snapshot             |                    7,563 ms |                     6,223 ms |
+| Finite 20-row verified refresh                  |                  126,895 ms |                   155,111 ms |
+| Physical restart to authorized same-result read |                    6,289 ms |                    18,338 ms |
+| Observed Board / counter JS heap                | 9,433,188 / 4,794,296 bytes | 10,397,376 / 4,637,604 bytes |
+| Retained cold objects / bytes                   |            493 / 49,035,893 |             504 / 57,849,285 |
 
 The fixture checks a 128 MiB per-page heap ceiling. The implementation retains one
 visible page, one bounded candidate/verification page and one newest dirty
@@ -3939,7 +3972,6 @@ reject mixing full-body and half-chunk upload paths and prove that unsupported
 program bytes cannot become an active interface. Allocation/read failures do not
 become terminal caller rejections. Independent fixtures cover every command tag.
 
-
 `just test::application-browser` starts owned disk Ursula, an actual application
 worker and the embedded Board binary. It checks the disabled operator endpoint,
 exact Origin, invalid signatures, disallowed principals and complete-program
@@ -3959,7 +3991,6 @@ The shared native signing helper also agrees with independent Python Station/v3
 fixtures. Browser tests preserve one outstanding signature through export/import
 and refuse altered scopes before signing. Host compiler replies use the existing
 Station publication commitment; they do not invent a second digest format.
-
 
 M23's declared shell now passes the real native application browser proof with
 published custom routes and deep-link reload, old-client navigation replacement,
@@ -4251,10 +4282,10 @@ counted as passed.
 The same actual-command, PTY and explicit TLS proof also passes for KV and
 Document with their distinct source adapters:
 
-| Source | Combined native proof | Added console checks | Cold / warm completion | Terminal RSS high-water |
-| --- | --- | --- | --- | --- |
-| KV | 195.32 s | 123.43 s | 792.42 / 276.61 ms | 16,261,120 bytes |
-| Document | 738.32 s | 141.55 s | 356.81 / 57.08 ms | 16,265,216 bytes |
+| Source   | Combined native proof | Added console checks | Cold / warm completion | Terminal RSS high-water |
+| -------- | --------------------- | -------------------- | ---------------------- | ----------------------- |
+| KV       | 195.32 s              | 123.43 s             | 792.42 / 276.61 ms     | 16,261,120 bytes        |
+| Document | 738.32 s              | 141.55 s             | 356.81 / 57.08 ms      | 16,265,216 bytes        |
 
 Document provisioning accounts for 493.70 seconds of its total; the fixture
 retains twelve rows across two segments, 64 resident authority pages and
@@ -4313,7 +4344,6 @@ capacity fault schedule, not a storage throughput or zero-free-byte guarantee.
 M23/M24 committed-HEAD clean gate also passes, as recorded below. These focused
 tasks do not change M10's hosted CI budgets.
 
-
 ### Local gateway host alias checks
 
 [Issue #11](https://github.com/rupurt/rey/issues/11) adds the local host policy
@@ -4352,13 +4382,13 @@ against its committed `suite.json`. All five invocations exited successfully.
 The [retained report](verification/results/m23-m24-clean-2026-09-28.json) includes
 task timings, machine information and the original local evidence directories.
 
-| Lane | Tasks | Local lane task time |
-| --- | ---: | ---: |
-| Core | 17 | 385.38 s |
-| Growth | 18 | 1,970.07 s |
-| Experience | 6 | 341.32 s |
-| Launchers | 2 | 312.88 s |
-| Bindings | 16 | 3,943.77 s |
+| Lane       | Tasks | Local lane task time |
+| ---------- | ----: | -------------------: |
+| Core       |    17 |             385.38 s |
+| Growth     |    18 |           1,970.07 s |
+| Experience |     6 |             341.32 s |
+| Launchers  |     2 |             312.88 s |
+| Bindings   |    16 |           3,943.77 s |
 
 Lanes ran concurrently on one local machine, with tasks sequential within each
 lane. Times exclude clone/dependency installation; their 6,953.42-second sum is
@@ -4387,13 +4417,13 @@ with an empty `PATH`. Installation and domain operations use public CLI commands
 and exported connections; ordinary workflow steps never edit private manager
 records or use realm-root credentials.
 
-| Executed proof | Result |
-| --- | --- |
-| `test::server-applications` | 98.521 s; two applications, 19 migrated rows, three Table pages, 21 paged native provisioning/activation receipts, final worker generation 9 |
-| `test::server-application-faults` | 29.221 s; exact lost spawn/rotation/send/turn/activation replies, current revocation and denied/malformed management; reserved health 1 ms |
-| `test::server-application-capacity` | 16.40 s after fixture setup; accepted input across actual ext4 ENOSPC, same receipt/PID/resource after restart |
-| Existing `test::server-faults` | Core lifecycle 30.18 s, bootstrap/gateway/rollback faults 13.04 s; reserved health 5.20 ms |
-| Existing `test::server-capacity` | 17.28 s; accepted console query recovered after real ENOSPC |
+| Executed proof                      | Result                                                                                                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test::server-applications`         | 98.521 s; two applications, 19 migrated rows, three Table pages, 21 paged native provisioning/activation receipts, final worker generation 9 |
+| `test::server-application-faults`   | 29.221 s; exact lost spawn/rotation/send/turn/activation replies, current revocation and denied/malformed management; reserved health 1 ms   |
+| `test::server-application-capacity` | 16.40 s after fixture setup; accepted input across actual ext4 ENOSPC, same receipt/PID/resource after restart                               |
+| Existing `test::server-faults`      | Core lifecycle 30.18 s, bootstrap/gateway/rollback faults 13.04 s; reserved health 5.20 ms                                                   |
+| Existing `test::server-capacity`    | 17.28 s; accepted console query recovered after real ENOSPC                                                                                  |
 
 The application lifecycle proof interrupts provisioning, attaches twice without
 new identities, refuses conflicting intent/declarations, incompatible replacement,
@@ -4452,7 +4482,6 @@ built-in activation, and old worker readiness being displayed with a new fence
 generation. A generic JSON tuple needed its original array wire shape preserved.
 The capacity fixture initially paused before domain initialization; it now waits
 for public domain evidence. Failed schedules are not counted as passes.
-
 
 ## M27 local Board qualification
 
@@ -4748,18 +4777,18 @@ completion, current denial, private-CA trust, signal handling and output bounds.
 
 The working-tree checks recorded so far are:
 
-| Check | Executed outcome |
-| --- | --- |
-| `just test::cli-diagnostics` | 160 real command cases passed: partial defaults, project/home selection, explicit file selection and missing-file refusal, malformed YAML/JSON, nesting bounds, typed environment precedence, rc merge/relative paths, flag precedence, adjacent executable lookup before PATH and explicit executable overrides |
-| `just test::console table` | Passed in 301.26 s including 222.10 s of console checks; PTY cold/warm completion 1080.16/344.63 ms; 16,756,736-byte terminal RSS high-water |
-| `just test::console kv` | Passed in 415.14 s including 342.07 s of console checks; PTY cold/warm completion 600.78/590.67 ms; 17,444,864-byte terminal RSS high-water |
-| `just test::console document` | Passed in 827.56 s including 253.45 s of console checks; PTY cold/warm completion 322.35/69.79 ms; 17,195,008-byte terminal RSS high-water |
-| `just test::public-query` | Compatibility Table v1 dot commands, exact retry, cancellation, fenced recovery and current read denial passed |
-| `zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true` | Compatibility unified shell and native recovery passed in 148.18 s |
-| `just test::server-faults` | Core lifecycle 31.05 s; bootstrap/gateway/rollback schedules 18.16 s; independent automatic console query, exact provisioning recovery and identity/rollback refusal passed |
-| `just test::server-capacity` | Accepted automatic query, real ext4 ENOSPC, finite control/shutdown and recovery of the original query passed in 19.62 s |
-| `just check` | Passed core/contracts, 160 CLI cases, frontend checks/tests and the production documentation build |
-| `just doctor` | Passed; the existing absent `~/.cargo/bin` PATH entry was reported by kubectl's plugin listing |
+| Check                                                                                             | Executed outcome                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::cli-diagnostics`                                                                      | 160 real command cases passed: partial defaults, project/home selection, explicit file selection and missing-file refusal, malformed YAML/JSON, nesting bounds, typed environment precedence, rc merge/relative paths, flag precedence, adjacent executable lookup before PATH and explicit executable overrides |
+| `just test::console table`                                                                        | Passed in 301.26 s including 222.10 s of console checks; PTY cold/warm completion 1080.16/344.63 ms; 16,756,736-byte terminal RSS high-water                                                                                                                                                                     |
+| `just test::console kv`                                                                           | Passed in 415.14 s including 342.07 s of console checks; PTY cold/warm completion 600.78/590.67 ms; 17,444,864-byte terminal RSS high-water                                                                                                                                                                      |
+| `just test::console document`                                                                     | Passed in 827.56 s including 253.45 s of console checks; PTY cold/warm completion 322.35/69.79 ms; 17,195,008-byte terminal RSS high-water                                                                                                                                                                       |
+| `just test::public-query`                                                                         | Compatibility Table v1 dot commands, exact retry, cancellation, fenced recovery and current read denial passed                                                                                                                                                                                                   |
+| `zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true` | Compatibility unified shell and native recovery passed in 148.18 s                                                                                                                                                                                                                                               |
+| `just test::server-faults`                                                                        | Core lifecycle 31.05 s; bootstrap/gateway/rollback schedules 18.16 s; independent automatic console query, exact provisioning recovery and identity/rollback refusal passed                                                                                                                                      |
+| `just test::server-capacity`                                                                      | Accepted automatic query, real ext4 ENOSPC, finite control/shutdown and recovery of the original query passed in 19.62 s                                                                                                                                                                                         |
+| `just check`                                                                                      | Passed core/contracts, 160 CLI cases, frontend checks/tests and the production documentation build                                                                                                                                                                                                               |
+| `just doctor`                                                                                     | Passed; the existing absent `~/.cargo/bin` PATH entry was reported by kubectl's plugin listing                                                                                                                                                                                                                   |
 
 The first offline package build exposed a stale frontend dependency-store hash
 that omitted dependencies already present in the workspace lockfile. Refreshing
@@ -5004,14 +5033,14 @@ trace, not a new benchmark or a predicted speedup from removing an operation.
 
 Controlled first-query experiments, each on a fresh installation:
 
-| Page cache | Worker/courier idle interval | Diagnostic change | Elapsed | Page misses |
-| ---: | ---: | --- | ---: | ---: |
-| 8 | 100 ms | Baseline | 12.96 s | 31,466 |
-| 8 | 20 ms | Faster polling | 15.52 s | 36,604 |
-| 64 | 20 ms | Larger cache | 5.50 s | 624 |
-| 8 | 200 ms | Slower polling | 15.67 s | 31,642 |
-| 8 | 100 ms | LRU replacement | 12.50 s | 27,397 |
-| 8 | 100 ms | Stop scans at the catalog range boundary | 11.99 s | 24,548 |
+| Page cache | Worker/courier idle interval | Diagnostic change                        | Elapsed | Page misses |
+| ---------: | ---------------------------: | ---------------------------------------- | ------: | ----------: |
+|          8 |                       100 ms | Baseline                                 | 12.96 s |      31,466 |
+|          8 |                        20 ms | Faster polling                           | 15.52 s |      36,604 |
+|         64 |                        20 ms | Larger cache                             |  5.50 s |         624 |
+|          8 |                       200 ms | Slower polling                           | 15.67 s |      31,642 |
+|          8 |                       100 ms | LRU replacement                          | 12.50 s |      27,397 |
+|          8 |                       100 ms | Stop scans at the catalog range boundary | 11.99 s |      24,548 |
 
 LRU and range-bounded scans reduce reads but do not resolve multi-second empty
 queries. These single elapsed samples are subject to host variance and do not
@@ -5093,7 +5122,6 @@ Physical reclamation remains unsupported. Deterministic snapshot tests cover
 lease expiry/restart/epoch and concurrent source changes; these console proofs
 do not establish a multi-node session service or host power-loss behavior.
 
-
 ### Bounded tree mutations and immutable page batches
 
 On 2026-09-29, the unit suite passes bounded range termination, an independent
@@ -5142,7 +5170,6 @@ durable recovery, controlling-PTY input/editing/interrupt behavior, command/file
 stdin stopping rules and private-CA/hostname checks. The complete run took about
 290 seconds including provisioning and query worker/node/store restart.
 
-
 ### Interactive Table access paths
 
 The unit suite compares every primary-key and value-column comparison against
@@ -5155,7 +5182,6 @@ directions, COUNT with equality, maximum-key exhaustion, empty LIMIT, distinct
 sessions, interrupted reads, closed output and denial after a prefix.
 Full scans make 174 native attempts; each selected key/range query makes 14 and
 no durable updates. The elapsed samples overlap qualification and are not SLOs.
-
 
 ### Final interactive performance qualification
 
@@ -5369,6 +5395,7 @@ Executed for this documentation change:
 
 These checks validate documentation and rendering. They do not rerun bundle
 builds, application installation, provider recovery or deployment qualification.
+
 ## SQL performance iteration
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
@@ -5686,7 +5713,6 @@ counts and foreign publication records. The maximum-size fixture occupies
 exactly 799 bytes and a one-byte-short output rejects. The ownership/bound
 catalog and `just transit-docs::check` also pass. Public mutation admission,
 revocation and durable outcome recovery remain subsequent proof boundaries.
-
 
 ### Remaining KV callers and browser
 
@@ -6471,14 +6497,14 @@ values and eight resident pages remain the bounds. SDK installation takes
 throughput. The log is `/tmp/transit-sql-publication-domains-mutations.log`.
 The proof freezes and hashes its ReleaseSafe artifacts before the schedule:
 
-| Artifact | SHA-256 |
-| --- | --- |
-| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Artifact       | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| Node           | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
 | Mutation proof | `0c78c1dbf03eec1f793f6dfb89ed9bd53b719e1cca3efcc4a93ce505c1a4f264` |
-| Supplied host | `dcc9d8410d9e42d896c54561b589353079a177c7fdf37f2976a4827481e9ebef` |
-| Native port | `e27d4229e22812c09e74bfcec9224231cee323d7d596f04ea1d44e7752551196` |
+| Supplied host  | `dcc9d8410d9e42d896c54561b589353079a177c7fdf37f2976a4827481e9ebef` |
+| Native port    | `e27d4229e22812c09e74bfcec9224231cee323d7d596f04ea1d44e7752551196` |
 | Shared library | `946c36f43c9736e6905309bf21ed1374bdb858f740360c866f87b1e012753992` |
-| CLI | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
+| CLI            | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
 
 The domain prerequisite does not enable a combined query/writer host. Separate
 read/write policies, bounded initialization and interleaved snapshot/mutation
@@ -6520,11 +6546,11 @@ upload, restarts both workers, node and disk store after segment staging, reads
 verified results, enforces prefix revocation and checks released source pins.
 Each installed SDK also runs independent Arrow/schema/cell-state codec cases.
 
-| Source | Rows / segments / IPC bytes | Resident pages | Schedule seconds |
-| --- | --- | --- | --- |
-| KV | 41 / 6 / 13584 | 8 | 139.07 |
-| Table | 41 / 6 / 13584 | 8 | 147.78 |
-| Document | 12 / 2 / 9880 | 64 | 431.70 |
+| Source   | Rows / segments / IPC bytes | Resident pages | Schedule seconds |
+| -------- | --------------------------- | -------------- | ---------------- |
+| KV       | 41 / 6 / 13584              | 8              | 139.07           |
+| Table    | 41 / 6 / 13584              | 8              | 147.78           |
+| Document | 12 / 2 / 9880               | 64             | 431.70           |
 
 The source intervals include isolated SDK installation and provisioning; they
 are not query-latency or cross-source performance comparisons. Every schedule
@@ -6658,13 +6684,13 @@ It uses an 8 MiB hot store with disk-backed cold storage. Read counts include
 this is not a query latency or operator throughput benchmark. The log is
 `/tmp/transit-sql-combined-table-cli-leases.log`. ReleaseSafe binary SHA-256 values:
 
-| Binary | SHA-256 |
-| --- | --- |
-| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
-| Query host | `12abd330c24290badb25df477fe5133613a726c46394e702b6525ce7d872c1a6` |
-| Proof | `f59d9965cc31aa9aeddeaf14ce3052a600a5b1fa99c3ab8bcf286075c5524380` |
+| Binary                 | SHA-256                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| Node                   | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Query host             | `12abd330c24290badb25df477fe5133613a726c46394e702b6525ce7d872c1a6` |
+| Proof                  | `f59d9965cc31aa9aeddeaf14ce3052a600a5b1fa99c3ab8bcf286075c5524380` |
 | Shared Station library | `946c36f43c9736e6905309bf21ed1374bdb858f740360c866f87b1e012753992` |
-| CLI | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
+| CLI                    | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
 
 Earlier attempts exposed fixture defects: its delivery scan failed to reacquire
 an expired read, its first result assertion expected flat values instead of the

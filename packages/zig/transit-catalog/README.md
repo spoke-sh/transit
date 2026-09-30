@@ -45,8 +45,9 @@ and no preceding private mutations to refuse orphan Table rows at the captured c
 `Behavior` supplies a GenServer handler/guard, with atomic initialization,
 conditional administrator controls and durable input dispositions. The
 [`transit-query-host` catalog role](../../../apps/transit-query-host/README.md)
-hosts it with explicit configuration and fresh fenced ownership. There is no
-CLI or idiomatic SDK administrative method. The query console continues to reject CREATE.
+hosts it with explicit configuration and fresh fenced ownership. Explicit catalog methods
+are available in the CLI and Python, TypeScript, Rust and Ruby SDKs through the
+shared caller. The query console continues to reject CREATE.
 KV/Document creation, connector declarations,
 dependency-bearing objects, replacement and removal are not implemented here.
 The [catalog v1 contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) owns exact policies,

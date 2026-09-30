@@ -13,4 +13,5 @@ test {
     _ = @import("client_test.zig");
     _ = @import("behavior_test.zig");
     _ = @import("bridge_test.zig");
+    _ = @import("simulation_test.zig");
 }

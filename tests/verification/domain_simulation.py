@@ -12,7 +12,7 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-DOMAINS = ({'document', 'checkpoint'}, {'exchange'}, {'refresh'}, {'runtime'})
+DOMAINS = ({'document', 'checkpoint'}, {'exchange'}, {'refresh'}, {'runtime'}, {'catalog'})
 
 
 def execute(binary, seed, expected, log):
@@ -33,7 +33,7 @@ def execute(binary, seed, expected, log):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('binaries', nargs=4, type=Path)
+    parser.add_argument('binaries', nargs=len(DOMAINS), type=Path)
     parser.add_argument('--seeds', type=int, default=2)
     parser.add_argument('--seed', type=int, default=1)
     args = parser.parse_args()
