@@ -1446,7 +1446,7 @@
         "Explicit supplied writer configuration and authorized initialization",
         "Fresh-fenced host restart during upload and retained input rejection without replacing request status"
       ],
-      "limits": "Explicit test application and public Station composition APIs; no supplied host/CLI/SDK mutation route yet. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
+      "limits": "Explicit supplied writer host and shared Zig caller; CLI/language SDK mutation routes remain. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
       "model": null,
       "qualification": "See tests/README.md for executed shared Zig client, native and private-turn schedules; supplied host/CLI/SDK integration remains a separate boundary."
     }

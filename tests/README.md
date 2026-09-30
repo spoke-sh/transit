@@ -5231,3 +5231,14 @@ and the host SHA256 is `2e620499a4df9b472cc8f52b90e8a9e0855cff8b062430e14515a1f1
 These totals add host polling and rejection/recovery work; they are not a paired
 performance comparison. CLI/language SDK mutation entry points and a combined
 query-source/writer host remain outstanding.
+
+### Main relational and verification integration
+
+The SQL branch is rebased onto `5e0efd19`, retaining the new delivery simulation,
+SDK administrative exact retries, disk-backed language-ring storage and actual
+CPU-affinity reporting. Storage conflicts retain main's no-page-request/no-page-
+creation gates and add direct current Store-read rejection. The service proof
+requires Station/runtime support plus batching, retained versions and rotation.
+The pre-rebase supplied-writer tree passes full `just check`, independent mutation
+bytes, documentation and the verification catalog. Rebased committed-HEAD clean
+qualification is a separate run; no unexecuted lane is reported as passed.
