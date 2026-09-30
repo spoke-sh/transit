@@ -123,7 +123,7 @@ For prerequisites, proof boundaries, and troubleshooting, use the
 `just test::inspection` exercises the signed, bounded public read surface against
 isolated disk-backed Ursula.
 
-## User documentation
+## Public documentation
 
 `just transit-docs::install` installs locked workspace dependencies; the existing
 Board install recipe also includes the site. `just transit-docs::dev` starts the
@@ -134,7 +134,7 @@ anchors; it is included in `just check` and the experience lane.
 
 `just transit-docs::browser-install` installs Chromium. Then run
 `just transit-docs::browser` to exercise desktop/mobile navigation, generated
-API downloads, local search, diagrams and accessibility. Use
+API downloads, local search, Internals, diagrams and accessibility. Use
 `TRANSIT_DOCS_BASE_URL=/handbook/` to qualify hosting below a path. See the
 [site guide](../apps/transit-docs/README.md) for source ownership and hosting.
 

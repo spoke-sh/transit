@@ -35,8 +35,8 @@ cannot recover or retarget the old command merely by reusing the number. Native
 signatures and scoped reads bind the ingress explicitly.
 
 Run `zig build test` in the pinned Nix environment. Full HTTP/TLS/deployment and
-reactive API qualification are separate gates in [M19](../../../docs/internal/roadmap/M19.md)
-and [M20](../../../docs/internal/roadmap/M20.md); this package's unit checks do not prove them.
+reactive API qualification are separate gates in [M19](../../../docs/roadmap/M19.md)
+and [M20](../../../docs/roadmap/M20.md); this package's unit checks do not prove them.
 
 The [compatibility matrix](docs/compatibility.md) lists executed consumers,
 placements and limits. Run the [application example](../../../examples/serving/README.md)

@@ -1,6 +1,6 @@
 # transit-docs
 
-Docusaurus renders Transit's user documentation from the owning repository
+Docusaurus renders Transit's user and Internals documentation from the owning repository
 Markdown files. Start with [the introduction](../../docs/guides/introduction.md).
 The site is a static frontend; it does not connect to Transit or hold credentials.
 
@@ -23,29 +23,37 @@ There is no dependency on Board's runtime or a running Transit installation.
 
 ## Sources and navigation
 
-`catalog.ts` maps each owned Markdown file to a readable route and sidebar label.
+`catalog.ts` and `internals-catalog.ts` map each owned Markdown file to a readable route and sidebar label.
 Top-level sections follow the homepage's interface entry points: CLI, SQL, SDKs,
 HTTP APIs/OpenAPI, reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol.
 Usage guides and wire contracts sit with their interface; shared concepts,
 application state and operation have their own sections. Existing page routes
-stay stable when their navigation location changes.
+stay stable when their navigation location changes. Internals has a navbar entry
+beside CLI, SQL and SDKs and its own compact sidebar for nine scientific
+accounts, the overview, standard and template. All sections share the same site and search index.
 
 The [SQL reference](../../docs/reference/sql.md) indexes every statement in the
 checked query/extension grammar, its historical-read fragment and the separate
 application declaration language. Statement pages live in `docs/reference/sql/`
 and distinguish executable queries, offline definitions and grammar-only syntax.
 
-Every page in `docs/guides/` and `docs/reference/` must appear in the catalog.
-These are the shared current documentation for users, developers and agents;
-component guides stay beside their implementation. Engineering history and
-planning live in `docs/internal/` and are excluded from the catalog and search.
-Public guides/reference cannot depend on internal links. Every cataloged page,
-including component guides and generated API content/downloads, plus every wire
-contract in `contracts/`, is checked for milestone labels and roadmap references. Write these pages as a
-snapshot of supported capabilities, retaining real wire/profile versions and
-stating unsupported cases without delivery promises. Public workload priorities
-and performance improvement plans distinguish selected direction from implemented
-behavior and link their measured evidence. See
+Every page in `docs/guides/`, `docs/reference/` and `docs/internals/` must appear
+in the catalog. Usage guides and references explain current capabilities;
+Internals consolidates mechanisms and rationale under the
+[scientific standard](../../docs/internals/standard.md). Roadmap (`docs/roadmap/`),
+UI/UX design (`docs/design/`) and historical source accounts (`docs/history/`)
+remain separate repository owners, linked without publishing their individual
+records in the catalog or search. Component guides stay beside their
+implementation. Search labels results as Internals or guides/reference so their
+purpose remains visible before opening a page.
+
+Usage/reference pages, included component guides, generated API content/downloads
+and every wire contract in `contracts/` are checked for milestone labels and
+roadmap references. The contributor ownership index may describe those separate
+source sections. Internals can cite scoped proof records as evidence; it contains
+no delivery plans or design-review series.
+Optional links to technical reasoning are allowed; operating an interface must
+not require reconstructing its semantics from an engineering record. See
 [documentation ownership](../../docs/README.md#where-documentation-lives).
 
 Use direct interface language in the homepage and documentation. Describe
@@ -95,6 +103,9 @@ The browser proof builds and serves real output, checking desktop/mobile navigat
 search, generated references, exact spec downloads, diagrams and accessibility.
 It follows the top-level interface sections into executable SELECT, grammar-only
 DDL and application declarations, and finds a statement through search.
+It opens Internals from desktop/mobile navigation, finds its scientific standard
+through labeled search results, follows the template and technical accounts,
+renders their diagrams, and verifies Roadmap/Design links target source indexes.
 It also follows the workload gallery into performance evidence and planned
 session semantics, checking highlighted language blocks and search discovery.
 It uses a private loopback port (4179 by default, `TRANSIT_DOCS_TEST_PORT` to change).

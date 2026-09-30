@@ -4,7 +4,7 @@
 coordinator exchange durable calls, use associated Tables, and capture finite
 Arrow replies. The coordinator supplies a scoped registry and bounded supervisor.
 Each role is a separate Transit process and worker. This is the runnable
-[M9](../../docs/internal/roadmap/M9.md) example.
+[M9](../../docs/roadmap/M9.md) example.
 
 For an interactive installation with Board:
 

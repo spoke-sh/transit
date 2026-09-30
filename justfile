@@ -6,7 +6,7 @@ mod build 'tasks/build.just'
 # Embedded inspection API, UI and generated browser client.
 mod transit-board 'tasks/transit-board.just'
 
-# User documentation and generated interface reference.
+# Public guides, Internals and generated interface reference.
 mod transit-docs 'tasks/transit-docs.just'
 
 # Persistent development environments and the deployment reference.

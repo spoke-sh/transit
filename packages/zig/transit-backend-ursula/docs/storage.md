@@ -111,7 +111,7 @@ S3-compatible cold storage, backup/restore, and retention need explicit design
 and tests before broader use. Unread mailbox data must survive authorized
 suspension within its accepted lifetime; expiry must make recovery terminal.
 Benchmark realistic process backlogs and exchange groups rather than inheriting
-upstream throughput claims. M1's completed outcomes and limits live in [M1](../../../../docs/internal/roadmap/M1.md).
+upstream throughput claims. M1's completed outcomes and limits live in [M1](../../../../docs/roadmap/M1.md).
 
 ## Immutable payload deletion
 

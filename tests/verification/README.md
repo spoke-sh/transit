@@ -1,6 +1,6 @@
 # Verification foundation
 
-[Strategy](../../docs/reference/verification.md) · [M10](../../docs/internal/roadmap/M10.md)
+[Strategy](../../docs/reference/verification.md) · [M10](../../docs/roadmap/M10.md)
 
 This is executable test infrastructure, not an alternate authority. The existing
 disk, native scheduling, browser, launcher and provider proofs remain necessary.

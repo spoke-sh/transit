@@ -1,6 +1,6 @@
 # transit-station-http
 
-The first HTTP connector, under implementation in [M15](../../../docs/internal/roadmap/M15.md).
+The first HTTP connector, under implementation in [M15](../../../docs/roadmap/M15.md).
 This package owns HTTP-specific request construction, framing and capture kinds;
 [transit-exchange](../transit-exchange/README.md) owns durable capture and coverage.
 The pure API does not dispatch effects. `Transport.execute` performs one finite

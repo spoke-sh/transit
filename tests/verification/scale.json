@@ -2,7 +2,7 @@
   "version": 1,
   "status": "measurement-plan; not qualified capacity",
   "profile": "single authority, disk Ursula, fixed resident budget",
-  "application_workload": "docs/internal/workloads/REY.md",
+  "application_workload": "docs/history/workloads/REY.md",
   "execution_latency_class": "milliseconds from market-event receipt to order send; exact SLO unqualified",
   "service_slo": null,
   "dimensions": {

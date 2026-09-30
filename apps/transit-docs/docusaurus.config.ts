@@ -89,6 +89,7 @@ const config: Config = {
         { to: "/reference/cli", label: "CLI", position: "left" },
         { to: "/reference/sql", label: "SQL", position: "left" },
         { to: "/reference/sdks", label: "SDKs", position: "left" },
+        { to: "/internals", label: "Internals", position: "left" },
         { to: "/search", label: "Search", position: "right" },
         { href: repository, label: "GitHub", position: "right" },
       ],

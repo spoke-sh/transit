@@ -16,8 +16,8 @@ bounded supervision, including the separate controller trust boundary.
 The separate [binding package](../transit-station-bindings/README.md) owns the
 shared C ABI and its generated declarations. Its [binding guide](../transit-station-bindings/docs/bindings.md) covers the detached
 poll/finish interface used by foreign-language handlers.
-[M9](../../../docs/internal/roadmap/M9.md) records qualification and the bounded profile.
-[M10](../../../docs/internal/roadmap/M10.md) addresses its structural collection limits
+[M9](../../../docs/roadmap/M9.md) records qualification and the bounded profile.
+[M10](../../../docs/roadmap/M10.md) addresses its structural collection limits
 before public SDKs. The current 32-entry resource and complete turn snapshots
 are hard implementation constraints; they are not tunable memory caches or the
 intended maximum size of application state.

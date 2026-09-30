@@ -100,7 +100,7 @@ from the journal/checkpoint. The [proof guide](../../../tests/README.md#m7-state
 records serialized/layout limits, stack findings and disk-recovery evidence.
 
 These are compiled total-capacity constraints, not configurable cache sizes.
-[M10](../../../docs/internal/roadmap/M10.md) selects paged growing state and bounded
+[M10](../../../docs/roadmap/M10.md) selects paged growing state and bounded
 working memory before public SDKs. Its future profile must preserve this
 package's authority and recovery guarantees; raising the arrays alone is not
 the target design.
