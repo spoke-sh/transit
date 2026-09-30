@@ -13,8 +13,9 @@ An application must explicitly expose the operation and authorize its caller.
 The helper does not discover a writer, grant access, submit work or commit.
 The console, Board, Flight SQL and language SDK query clients do not yet admit
 SQL mutations. A query source declaration or read permission is insufficient.
-This definition supplies no serialized request or standalone transaction session.
-It does not change existing Table storage or the native contract definition.
+The canonical request below supports immutable transport; it does not create a
+public admission route or standalone transaction session. Existing Table storage
+and the native contract definition are unchanged.
 
 ## Syntax and types
 
@@ -102,3 +103,49 @@ be offered by a console or SDK convenience API.
 Deleting a current row does not retire its resource or erase retained history,
 accepted inputs or receipts. Retention remains unlimited by default. Mutation
 results do not dispatch external effects.
+
+## Canonical request
+
+`transit-query.TableMutationRequest` owns the realm, writer PID, resource, Table
+ID and validated plan. `fromSql` compiles against the explicitly supplied Table;
+`encode/decode` share its exact schema and value codecs with Station. Decoding
+copies all names and values. No pointers into an input buffer survive the call.
+
+The following fields are contiguous, with no padding. Integers are little-endian.
+
+| Field | Encoding |
+| --- | --- |
+| Magic | Four bytes `TMR1` |
+| Contract definition | 32 bytes decoded from the native current definition's hexadecimal identifier |
+| Realm, writer PID, resource | Three u64 identities in that order; each 1 through the native safe-integer maximum |
+| Table | Nonzero u32 |
+| Descriptor length | u8 |
+| Descriptor | Exactly that many bytes of the current Station `TBL1` schema descriptor |
+| Operation | u8: insert=1, update=2, delete=3 |
+| Row count | u8: insert=1–3; update/delete=1 |
+| Rows | Each has an i64 key; insert/update additionally carry a u8 value length and that many current Table value bytes |
+
+A Table value is version byte 1, non-null byte 0 or 1, and its schema-typed body.
+NULL has no body. An int64 body occupies eight bytes; boolean is one byte 0 or 1;
+UTF-8 and binary use at most 220 bytes. There is no separate value-type tag:
+the exact descriptor supplies the type. The shared Table decoder rejects wrong
+widths, malformed UTF-8, unsupported versions and invalid boolean/null framing.
+
+The complete request occupies at most 799 bytes: the maximum descriptor and
+three maximum-size Table values. Oversized inputs, truncated fields, trailing
+bytes, invalid identities, invalid operation/count and repeated keys reject.
+The definition field is mandatory. A foreign definition rejects before operation
+decoding; missing fields never default to the current definition. The SQL source
+alias and original text are not retained in this normalized typed request.
+
+`reference(namespace)` produces the existing immutable publication reference,
+with the target resource, record 1 and format `0x31524d54` (`TMR1`). Its digest
+binds the complete encoded request using Station's publication commitment.
+`checkReference` validates the record, format and byte budget. Publication
+reference validation alone does not prove that the bytes decode or that their
+target matches the current writer. An admitting owner must validate both, check
+current command authorization and record the result at the row-commit boundary.
+
+A request/reference is neither an admitted operation nor a saved signed native
+command. Exact recovery still requires the original native identity and signature.
+No read-query bundle or query upload is reinterpreted as a mutation request.

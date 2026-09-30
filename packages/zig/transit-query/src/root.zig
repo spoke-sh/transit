@@ -23,6 +23,7 @@ test {
     _ = @import("unified_capture_test.zig");
     _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
+    _ = @import("table_mutation_request_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -32,6 +33,7 @@ pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
 pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
+pub const TableMutationRequest = @import("TableMutationRequest.zig");
 
 /// Test-only reference transactions; never a production authority or backend.
 pub const testing = if (@import("builtin").is_test) struct {

@@ -4957,3 +4957,20 @@ Two Board result readers peak at 41,209,856 combined RSS bytes in the API probe;
 that measurement excludes Chromium. The run uses 41 rows, six segments, eight
 resident authority pages and an 8 MiB hot store. These are whole-fixture costs,
 not comparative inspection latency. KV/Document browser coverage remains open.
+
+### Canonical Table mutation requests
+
+`TableMutationRequest` binds the current native definition, realm, writer,
+resource, Table descriptor and typed operation in at most 799 owned bytes.
+It reuses Station's Table value codecs and immutable publication commitments;
+it does not admit work or add a query-client write route.
+
+`just test::unit` passes with five independently encoded fixtures across four
+Table value types, full-width signed keys and nullable/Unicode/binary values.
+The Zig checks compare canonical bytes, release the input buffer before using
+the decoded value, reject every truncated fixture and reject missing/foreign
+definitions, query-bundle magic, trailing input, invalid identities/operation
+counts and foreign publication records. The maximum-size fixture occupies
+exactly 799 bytes and a one-byte-short output rejects. The ownership/bound
+catalog and `just transit-docs::check` also pass. Public mutation admission,
+revocation and durable outcome recovery remain subsequent proof boundaries.

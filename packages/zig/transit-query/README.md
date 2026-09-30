@@ -19,6 +19,12 @@ hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
+`TableMutationRequest` encodes owned, definition-bound requests over the shared
+Table mutation plan and Station Table codecs. It can produce an immutable
+publication reference without admission or execution. Applications still own
+writer authorization and result recording; public query clients reject writes.
+See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
+
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; [tests](../../../tests/README.md) record evidence.
 

@@ -159,6 +159,11 @@ pub fn build(b: *std.Build) void {
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
+    const mutation_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    mutation_contract_test.addFileArg(b.path("tests/table_mutation_contract.py"));
+    mutation_contract_test.has_side_effects = true;
+    mutation_contract_test.stdio = .inherit;
+    test_step.dependOn(&mutation_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
