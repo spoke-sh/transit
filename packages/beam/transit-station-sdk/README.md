@@ -29,3 +29,6 @@ M17 adds [Document changes, scoped jobs and owned accepted reads](docs/documents
 
 M18 adds [typed unified state queries](docs/unified-query.md), with owned nested
 Arrow values, current source checks and explicit signed retry tokens.
+
+[Table mutation callers](docs/mutations.md) provide immutable records, explicit
+SQL mutation staging and exact saved recovery through an owned native worker.

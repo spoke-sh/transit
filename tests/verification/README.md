@@ -541,6 +541,13 @@ calls over the existing native worker. Its installed NuGet consumer uses namespa
 saved command, rejects changed request commitments and enforces current status
 denial. `bindings::mutation-dotnet` selects that schedule independently.
 
+`bindings::beam-sdk-test` adds immutable Table mutation records and structs over
+the existing owned worker and generated-schema port. Installed Erlang/Elixir
+consumers use namespaces `9223372036854775831` and `9223372036854775832`, retain
+the original prepared value in uncertain results, replace the caller, recover
+the exact admitted command, reject changed commitments and enforce current
+status denial. `bindings::mutation-beam` selects these schedules independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

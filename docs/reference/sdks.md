@@ -50,8 +50,10 @@ Read-query clients do not confer mutation access.
 | C++ | [Move-only clients and saved commands](../../packages/cpp/transit-station-sdk/docs/TABLE_MUTATIONS.md) |
 | Java | [Immutable values and bounded asynchronous calls](../../packages/java/transit-station-sdk/docs/MUTATIONS.md) |
 | .NET | [Immutable values, asynchronous calls and joined disposal](../../packages/dotnet/transit-station-sdk/docs/MUTATIONS.md) |
+| Erlang | [Immutable records and an owned native-port worker](../../packages/beam/transit-station-sdk/docs/mutations.md) |
+| Elixir | [Immutable structs and tagged recovery results](../../packages/beam/transit-station-elixir/docs/mutations.md) |
 
-Other language SDKs do not yet expose typed Table mutation clients. The
+The
 [native ABI/port](../../packages/zig/transit-station-bindings/docs/table-mutations.md)
 exposes the same neutral operation independently of those public adapters.
 

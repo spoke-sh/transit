@@ -29,6 +29,9 @@ def install(root, languages):
         if language == 'dotnet':
             factories.append(install_dotnet(root/'dotnet'))
             continue
+        if language in ('erlang','elixir'):
+            factories.append(install_beam(root/language,language))
+            continue
         if language in ('c','cpp'):
             factories.append(install_c(root/language,language))
             continue
@@ -220,3 +223,27 @@ def install_dotnet(target):
         config.write_text(json.dumps(dict(url=url,connection=connection,seed_file=str(state/'caller.seed'))))
         return Consumer(['dotnet',str(app/'Consumer.dll'),str(config)],environment,target)
     return 'dotnet',create
+
+
+def install_beam(target,language):
+    target.mkdir(); library=target/'lib'; library.mkdir(); classes=target/'classes'; classes.mkdir()
+    names=['transit_native_client','transit_client','transit_native_station','transit_station_sdk']
+    if language == 'elixir': names += ['transit_client_elixir','transit_station_elixir']
+    for name in names:
+        with tarfile.open(ROOT/'.cache/bindings/beam'/f'{name}-0.2.0.tar.gz') as archive:
+            archive.extractall(library,filter='data')
+    environment={k:v for k,v in os.environ.items() if k not in ('ERL_LIBS','ERL_FLAGS','TRANSIT_HOST','TRANSIT_LIBRARY_DIR')}
+    environment.update(ERL_LIBS=str(library),ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
+    source=target/'beam_mutation_controller.erl'; shutil.copy2(ROOT/'tests'/source.name,source)
+    subprocess.run(['erlc','-Werror','-o',classes,source],cwd=target,env=environment,check=True); source.unlink()
+    if language == 'elixir':
+        source=target/'elixir_mutation_adapter.ex'; shutil.copy2(ROOT/'tests'/source.name,source)
+        subprocess.run(['elixirc','--warnings-as-errors','-pa',classes,'-o',classes,source],cwd=target,env=environment,check=True); source.unlink()
+        command=['elixir','-pa',str(classes),'-e',':beam_mutation_controller.main(ElixirMutationAdapter, System.argv())','--']
+    else:
+        command=['erl','-noshell','-pa',str(classes),'-eval','beam_mutation_controller:main(transit_mutations, init:get_plain_arguments()), halt().','-extra']
+    def create(url,connection,state):
+        config=target/'client.json'
+        config.write_text(json.dumps(dict(url=url,connection=connection,seed_file=str(state/'caller.seed'))))
+        return Consumer([*command,str(config)],environment,target)
+    return language,create

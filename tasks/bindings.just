@@ -174,6 +174,7 @@ beam-sdk-test: beam-build
     python3 -B tests/beam_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
+    just test::table-mutation --sdk erlang --sdk elixir
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
@@ -269,6 +270,11 @@ mutation-java: java-build
 # Installed .NET mutation caller with immutable values and joined async ownership.
 mutation-dotnet: dotnet-build
     just test::table-mutation --sdk dotnet
+
+# Installed Erlang/Elixir callers over the shared owned BEAM worker and native port.
+mutation-beam: beam-build
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station-elixir/lib/mutations.ex tests/elixir_mutation_adapter.ex
+    just test::table-mutation --sdk erlang --sdk elixir
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

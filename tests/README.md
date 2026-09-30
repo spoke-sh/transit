@@ -5586,3 +5586,36 @@ mutation callers remain outstanding.
 The .NET increment passes full `just check`, including generated-contract drift,
 native unit/CLI checks, the verification catalog, frontend checks and the
 documentation build.
+
+### Installed Erlang and Elixir Table mutation callers
+
+`just bindings::mutation-beam` builds separate public/native OTP applications,
+checks Elixir formatting and compiles external consumers with warnings as errors.
+The callers run after their source is removed, without a checkout native-host
+override. Erlang records and Elixir structs preserve immutable binaries and
+full-width namespaces **9223372036854775831** and **9223372036854775832**.
+Both reject changed request commitments, retain the original prepared value in
+uncertain results, replace their caller after receipt loss, recover the exact
+admitted send and observe the one-row result. Saved values remain readable after
+close; current read revocation denies status disclosure. Generated validation
+and the existing bounded worker/port own every crossing.
+
+The focused schedule passes in **23.190 s**, including **2.151 s** for installed
+consumer compilation and **2.462 / 2.610 s** for the Erlang/Elixir caller intervals.
+It records **1790 reads**, **51 send responses**, **50 turn responses**, five lost
+caller receipts and one lost writer receipt. Four mutations, 256-byte stored
+values, eight resident authority pages and all five native digests match the
+ABI/port record. The command ran on allowed CPUs 2–47. These unpaired shared-host
+measurements do not establish comparative throughput. Installed extensions
+exercise UPDATE; native cases cover INSERT/UPDATE/DELETE and rollback.
+
+The ordinary BEAM SDK task includes both schedules. No full BEAM runner/connector
+regression rerun or new process-death injection is claimed for these adapters;
+they reuse the existing worker's ownership and joined cleanup. Ten language SDKs
+now expose the bounded mutation profile. CLI composition, broader SQL operations
+and post-cutover inspection qualification remain outstanding.
+
+The BEAM increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build. The installed consumers pass Erlang and Elixir compilation
+with warnings as errors.

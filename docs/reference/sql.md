@@ -21,7 +21,7 @@ explains future language targets without expanding the supported interface.
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
 | Find a function or operator | [Functions and operators](sql/expressions.md) |
-| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer and shared Zig/native ABI/port callers |
+| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer, shared Zig/native ABI/port and [typed SDK callers](sdks.md#table-mutation-callers) |
 | Inspect definitions and plans | [DESCRIBE](sql/describe.md), [SHOW TABLES](sql/show.md), [EXPLAIN](sql/explain.md) within the configured source scope |
 | Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
 | Define an application interface | [Application declarations](sql/application.md) |
@@ -70,7 +70,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | Statement | Support | Reference |
 | --- | --- | --- |
 | `SELECT` | Executable finite read in the profiles above | [Projection, filtering, limits and aggregates](sql/select.md) |
-| `INSERT` | Bounded explicit writer with Zig/native ABI/port callers; query transports reject | [Row insertion and current application APIs](sql/insert.md) |
+| `INSERT` | Bounded explicit writer with Zig/native ABI/port and typed SDK callers; query transports reject | [Row insertion and current application APIs](sql/insert.md) |
 | `UPDATE` | Primary-key equality through the explicit mutation writer | [State changes and commit boundaries](sql/update.md) |
 | `DELETE` | Primary-key equality through the explicit mutation writer | [Row removal and retained history](sql/delete.md) |
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
