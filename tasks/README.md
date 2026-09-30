@@ -37,6 +37,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
 | `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all five lane reports at the same committed revision |
+| `just bindings::node-check` | Builds the raw Node client declarations/runtime exports, then checks Station types and host scope/runner units; no pre-existing SDK build is required |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |
 | `just build::debug`, `just build::release-safe`, `just build::release-fast`, `just build::release-small` | Builds platform executables and embedded Board with the selected optimization profile; accepts Zig steps/options |
@@ -73,6 +74,12 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
+| `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
+| `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh and runtime contract schedules and qualify their assertions with real-code mutations |
+| `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and disk Ursula; preserve histories and cleanup evidence |
+| `just test::vortex-profile sdk\|application\|query\|reactive` | Qualify installed Python/Node hosts, local installation/migration, distinct query lifetimes or browser refresh through existing owned rigs |
+| `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |
+| `just test::resource-simulation-mutations` | Detect omitted resource writes and input progress in isolated committed core mutants |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
 | `just test::simulation [--seeds N --steps N]` | Runs multi-process authority/delivery schedules, independent recovery comparisons and bounded progress with identical replay |
 | `just test::simulation-mutations` | Checks committed-source delivery-order/provenance mutants in isolated clones |

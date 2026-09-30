@@ -48,6 +48,44 @@ An explicit finite schedule checks that remaining eligible input and pending
 outputs resolve once permissions and storage are available. That result does not
 establish fairness of an automatic worker/courier scheduler or external effects.
 
+The resource simulation injects numbered failures before/after immutable page
+staging, unavailable page reads, conditional publication and prefix trimming.
+An independent oracle checks resource values, input progress, outputs and captured
+view roots. A two-page test cache and explicit eviction exercise cold reads;
+recovery must preserve the same logical state without staging pages. Its journal
+is atomic and its pages remain in memory. These checks do not establish physical
+storage durability or authorize page garbage collection.
+
+The shared-client simulation schedules actual Session preparation/submission and
+courier steps over an in-process signed transport. It distinguishes lost requests
+from lost responses, retains exact uncertain operations, replaces activations and
+checks current permission. A finite-lifetime profile exercises recorded turn
+permits, settlement, expiry maintenance and clock refusal. Independent input,
+output and provenance checks run after each event. Network framing, operating
+system scheduling and host await-cancellation require the external suites.
+
+Component schedules exercise accepted Document edit sets and checkpoint floors,
+Exchange capture/closure and replay holds, query source cuts and refresh generation
+replacement, and provider readiness/activation fencing. They reuse the real
+component implementations with private-turn stores and independent contract
+assertions. Seeded replay compares their event records; these stores establish
+logical publication boundaries, not disk or remote-effect durability.
+
+The external fault supervisor runs the compiled node, counter worker and courier
+against disk-backed Ursula. It injects request/reply delay and loss, interrupts
+connections, pauses the courier, and kills/restarts processes against current
+history. Public reads check resource/input/output agreement, original delivery
+provenance, current permission, stale activation and bounded eligible progress.
+Histories distinguish requested faults from observed execution and retain exact
+signed attempts and receipts for the synthetic workload. A seed selects workload
+intent; operating-system scheduling remains nondeterministic.
+
+Separate external profiles install the Python and Node SDKs outside the checkout
+and exercise lost replies, seedless recovery, host cancellation/disposal and
+revoked retry. Application, query and reactive profiles use their owning local
+integration rigs. These results apply to the executed host/placement; they do not
+expand Kubernetes, browser, TLS or other-language support implicitly.
+
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
 current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,

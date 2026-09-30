@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "profile": "scheduler",
+  "actions": [
+    {
+      "kind": "send",
+      "value": 21
+    },
+    {
+      "kind": "worker",
+      "fault": "before_query",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "worker",
+      "fault": "after_query",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "worker",
+      "fault": "before_submit",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "courier",
+      "fault": "before_query",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "courier",
+      "fault": "after_query",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "courier",
+      "fault": "before_submit",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "courier",
+      "fault": "after_submit",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "courier"
+    },
+    {
+      "kind": "assert_drained"
+    }
+  ]
+}

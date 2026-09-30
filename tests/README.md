@@ -1,5 +1,182 @@
 # Validation and milestone evidence
 
+## Expanded fault-verification qualification — 2026-09-30
+
+The [local experiment record](verification/results/m37-local-2026-09-30.json)
+binds the source revisions, dirty development runs, compiler/binary/runner hashes,
+counts, fault coverage, negative controls and elapsed times. The last implementation
+revision is `b0462904`; subsequent ledger changes contain documentation/evidence.
+Passing profiles below retain their actual source identity. They do not combine
+into a complete ordinary-suite pass.
+
+| Executed profile | Result and scope |
+| --- | --- |
+| Repository checks | `just check` passed at committed `fb912908`, including units/contracts, ownership inventory, frontend checks and the public Docusaurus build |
+| Expanded resource simulation | At committed `5b267061`, 204 traces / 3,958 events replayed identically in 111.250 s; staging/read/publication/trim faults and independent atomicity/view checks |
+| Clean ordinary simulations | At `e92087ff`, 14 authority traces / 749 events, six resource traces / 112 events, eight Session/courier traces / 542 events and eight component package schedules passed with identical replay |
+| Compiling mutations | At committed `5b267061`, all nine new resource, scheduler and component mutants were detected by executed contract checks; build failures/timeouts did not count |
+| External supervisor | At `f7d0361f`, seed 19 / twelve rounds passed in a fresh checkout in 19.588 s; the later clean core run also passed four rounds, with requested faults observed and cleanup joined |
+| Installed SDKs | Python/Node package builds and independent installed consumers passed in 30.343 s total; signed histories, cancellation/disposal and exactly two admissions retained |
+| Application/provider fixture | Lost provisioning, rotation, migration and activation replies plus runtime upgrade passed in 28.531 s total |
+| Query lifetimes | Durable lifecycle, durable expiry and interactive Table cancellation/current denial passed in 385.887 s total |
+| Browser/reactive lifecycle | The real TLS/browser owner passed refresh replacement, pause, revocation, stream loss/resume, pagehide/expiry and reset/resnapshot in 169.381 s total |
+
+`just ci-clean --lane core` passed all 22 tasks at `e92087ff` in 1,186.95 s.
+`just ci-clean --lane experience` passed all seven tasks at `b0462904` in
+443.77 s, including the real local Station launcher and clean Node dependency
+build. The clean launchers lane passed both tasks at `4df41ba5` (57.56 s for
+artifact builds and 283.36 s for local lifecycle, replacement and cleanup).
+These are distinct committed revisions; only this final evidence update follows
+the last launcher qualification.
+
+Repository-wide qualification remains incomplete:
+
+- At `5b267061`, 27 tasks passed before the publication expiry assertion failed;
+  37 tasks were unrun. The clock-bound fixture correction subsequently passed
+  the complete publication proof in the `fb912908` clean run.
+- At `fb912908`, 37 tasks passed before HTTP cancellation follow-up admission
+  failed; 27 tasks were unrun. The corrected fixture chooses its finite
+  reconciliation window before initial acceptance and checks that every follow-up
+  preserves it; production deadlines are unchanged. The corrected complete HTTP
+  proof passed at `b0462904` in 492.21 s excluding compilation: sixteen remote
+  sends, eight applications, two cancellations and 1,153 cold objects.
+- The parallel `e92087ff` growth lane passed three tasks, then exceeded the
+  existing 180-second query delivery deadline. No deadline was relaxed.
+- The `e92087ff` bindings lane passed native bindings and the full installed
+  Python/Node SDK tasks, then its Rust Station consumer terminated with SIGSEGV
+  in `decode-block`. Eleven later tasks were unrun. A focused full Rust
+  Station/HTTP rerun and 32 additional fresh malformed-input blocking cases
+  passed with the same implementation; the original crash remains unexplained.
+
+The earlier clean Node check failed because it checked Station before emitting
+its client's package exports. The corrected dependency ordering passed the
+complete clean experience lane above. None of these corrections relabels a
+failed or incomplete run as successful.
+
+The installed/service/browser runs are separate selected local profiles, with their
+original revision/dirty flags retained in the record. They do not certify other
+hosts or Kubernetes placement. Vortex checks quiescent public correspondence,
+not arbitrary concurrent-read linearizability; process SIGKILL is not power loss.
+Simulation assumes atomic journal append and does not qualify physical page GC.
+Component schedules replay seeds with pinned binaries; only the JSON-trace profiles
+provide edited-trace replay and bounded minimization.
+
+Hosted run [36678421267](https://github.com/rupurt/rey/actions/runs/36678421267)
+produced no test execution: GitHub refused job startup because of account
+payments/spending limits. The local observations do not requalify hosted feedback,
+aggregate runner time or cache budgets. Hosted ordinary/discovery runs and cost
+measurement remain tracked by [issue #26](https://github.com/rupurt/rey/issues/26).
+
+## Publication clock-bound correction
+
+The committed clean run at `5b267061` passed 27 ordinary tasks, then stopped at
+`test::publication`: a fixed 3.1-second sleep observed `DeadlineUncertain` instead
+of definite expiry. That run is incomplete; its remaining 37 tasks did not run.
+The fixture now passes its configured maximum clock error to the public caller.
+The caller opens a view beyond that bound and waits until the deadline plus the
+same bound before requiring the exact `StateViewExpired` rejection. Unavailable
+or uncertain authority is still a failure, not accepted expiry evidence.
+
+## External fault supervisor and installed hosts
+
+The [external harness](verification/README.md#external-fault-testing) runs real
+node/counter/courier binaries and disk Ursula, retaining requested/observed faults,
+public request/reply histories, independent quiescent state checks and joined
+cleanup. At dirty source based on `a59e0d9c`, four rounds passed in 7.219 seconds.
+The expanded seed-19 run passed twelve rounds in 18.711 seconds, including output
+pagination beyond the native eight-entry page. Both runs recorded cleanup success.
+An earlier expanded run exposed a fixture omission of the fixed pagination position;
+its incomplete report remains retained and is not passing evidence.
+
+At dirty source based on `157469a4`, the installed SDK profile passed Python and
+Node independent consumers. Build stages took 20.952 and 2.018 seconds; the Python
+and Node fault schedules took 3.120 and 4.023 seconds. They checked byte-identical
+uncertainty, seedless host recovery, cancellation/join/disposal and current denial,
+with exactly two accepted inputs. Per-host histories and exact wheel/tarball/native
+hashes are retained. This covers those installed Linux hosts, not all SDKs.
+
+The local application fault scenario initially stopped on a transient
+`AuthorityUnavailable` during an ordinary public operation. Its driver now uses
+the same bounded, byte-preserving recovery-file retry as the owning application
+proof; intentionally faulted calls still return immediately for explicit checks.
+The rerun passed dropped spawn, worker rotation, migration send/turn and activation
+send replies in 21.551 seconds, including current revocation and management bounds.
+The separate provider-upgrade stage also passed; the consolidated record below
+binds both stages to their executed source revision.
+
+`just check` and the selected application, query and browser/reactive profiles
+passed during development. Complete committed-HEAD clean qualification and hosted
+cost remain separate gates in the consolidated record. SIGKILL is not host power loss; local durations
+do not establish hosted feedback budgets or a runtime performance target.
+
+## Stored-definition recovery correction
+
+The former `LegacyAcceptedGrowthHistory` assertion instantiated the current
+`adapter.Store` under a legacy variable name and incorrectly required it to reject
+current history. The replacement writes separate foreign-definition and
+missing-definition records to disposable disk journals, then requires exact
+decoding errors before recovery can write pages or append authority. The checks
+repeat after provider restart and checkpoint/trim of the valid journal.
+At dirty source based on `a59e0d9c`, `just test::growing` passed write, recovery,
+checkpoint and trimmed recovery (54.098, 3.859, 6.668 and 3.776 seconds). This fixes
+that focused proof; a complete clean CI run remains separately required.
+
+## Component simulation
+
+At dirty source based on `d3562a07`, `just test::domain-simulation --seeds 8`
+passed 32 package schedules, each replayed identically, in 9.586 seconds with
+pinned Zig `0.17.0-dev.2267+48abf1a34`. Five domains cover concurrent Document
+assignments and dependencies, checkpoint discard/final floors, Exchange closure
+and replay holds, query refresh ownership/source cuts, and provider activation.
+These are real component operations over private-turn stores. They do not qualify
+physical storage, application installation, transport or remote dispatch. See the
+[harness guide](verification/README.md#component-simulation) for exact bounds,
+artifacts, seed replay and separate mutation qualification.
+
+At committed `a59e0d9c`, all five real-code mutations were detected by executed
+contract assertions (1.245–1.508 seconds each). Trace logging is enabled only by
+the component runner; ordinary package tests execute the same assertions quietly.
+The two-seed replay after that logging change passed in 2.377 seconds.
+
+## Shared-client scheduling simulation
+
+The shared Session/courier driver runs production preparation, frozen retry,
+activation checks and courier selection against controlled signed transport.
+Its [guide](verification/README.md#shared-client-scheduling-simulation) defines
+faults, invariants and limits. At dirty source based on `b6626cae`, the ordinary
+run passed four saved and four generated schedules: eight traces / 542 events,
+each replayed identically, in 15.876 seconds. The finite case exercised recorded
+permits through settlement, expiry maintenance, trim/recovery, clock rollback and
+untrusted time. The standalone client package tests and `just test::callers`
+also passed, including real counter/byte-log programs, automatic courier delivery,
+exact retries, stale activation and disk recovery. The proxy printed a broken-pipe
+diagnostic during its interruption scenario; the complete caller task exited zero.
+These are shared-host development observations, not hosted cost or OS scheduling
+qualification. Compiler/binary/oracle identities are retained in the artifacts.
+
+The shared-client ABI proof passed at `982b85b0`. At `d3562a07`, both compiling
+shared-client mutants were detected: discarded courier uncertainty (2.646 seconds)
+and omitted Session activation validation (1.739 seconds). The earlier checker
+missed uncertainty created and lost within the first courier step; the corrected
+oracle explicitly requires that submission's digest to remain pending. Its full
+eight-trace / 542-event run passed in 16.730 seconds before mutation qualification.
+
+## Resource publication simulation
+
+The resource profile adds numbered page staging/read faults, a two-page cache,
+resource/input/output correspondence, captured view roots and checkpoint/trim
+recovery. The [harness guide](verification/README.md#resource-publication-simulation)
+owns commands and model limits. On the shared Linux host with pinned Zig
+`0.17.0-dev.2267+48abf1a34`, the first development sweep based on `38ac8781`
+passed 99 traces / 1,923 events, each replayed identically, in 53.290 seconds.
+After adding the saved corpus, `just test::resource-simulation-smoke` passed
+six traces / 112 events in 3.409 seconds. Both were dirty development runs;
+metadata records binary/oracle identity. At committed `b6626cae`, both actual
+core mutants were detected: omitted resource writes in 2.128 seconds and omitted
+input progress in 2.079 seconds, including bounded minimization. These in-memory observations do not
+establish actual WAL durability, physical page reclamation, full CI completion
+or hosted cost. Compiling core mutation qualification is a separate command.
+
 ## Authority and delivery simulation
 
 The multi-process simulator executes real signed authority/outbox transitions for

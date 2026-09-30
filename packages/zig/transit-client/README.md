@@ -81,6 +81,21 @@ finite operator placement with a fixed expected generation and ephemeral key.
 It fixes an operator-selected generation. Provider-bound workers use
 `awaitActivation` and the runtime controller instead.
 
+## Deterministic transport composition
+
+`SessionWithTransport(Transport)` instantiates the same activation, private
+proposal and frozen-request logic as `Session`. `Session` selects the real HTTP
+`Client`. A substituted transport supplies `query(selector, key)` and
+`submit(signed)` with the same validated response, receipt and uncertainty
+semantics. The type factory introduces no alternate authority or retry policy.
+
+`delivery.step(client, query, key, pending)` owns one courier observation/submission
+step; the executable uses this same function. The query must select delivery.
+The caller owns the optional exact signed pending operation, polling and lifetime.
+A failed exchange preserves that operation; only a receipt or the existing
+resolved-output disposition clears it. Deterministic tests replace transport
+outcomes while exercising these production Session and courier functions.
+
 ## Instrumentation
 
 An embedding service can set `Client.observer` to its borrowed telemetry runtime

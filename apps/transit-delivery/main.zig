@@ -52,7 +52,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         observation.event.realm = config.realm;
         client.parent_context = observation.span.context;
         defer client.parent_context = null;
-        const progressed = step(&client, query, key, &pending) catch |err| {
+        const progressed = wire.delivery.step(&client, query, key, &pending) catch |err| {
             observation.fail(err);
             observation.finish();
             // Access loss cannot be repaired by resubmitting with a different
@@ -67,23 +67,4 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (once) return;
         try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
     }
-}
-fn step(client: *wire.Client, query: g.Query, key: p.Ed25519.KeyPair, pending: *?g.SignedRequest) !bool {
-    if (pending.* == null) {
-        const status = try client.query(query, key);
-        if (status.version != 1 or status.realm != query.realm) return error.InvalidAuthorityResponse;
-        const output = status.body.delivery.next orelse return false;
-        pending.* = try g.sign(.{ .realm = query.realm, .principal = query.principal, .sequence = try std.math.add(u64, status.principal_sequence, 1), .command = .{ .deliver = output } }, key);
-    }
-    _ = client.submit(pending.*.?) catch |err| {
-        if (client.last_rejection == .OutputAlreadyResolved) {
-            // Another identical courier may already have drained/advanced this
-            // dedicated principal. No request-specific application data is lost.
-            pending.* = null;
-            return false;
-        }
-        return err;
-    };
-    pending.* = null;
-    return true;
 }

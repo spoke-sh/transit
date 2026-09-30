@@ -1,0 +1,41 @@
+name: External fault qualification
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Independent external profile (outside ordinary PR cost samples)'
+        type: choice
+        options: [sdk, application, query, reactive]
+        default: sdk
+permissions:
+  contents: read
+concurrency:
+  group: transit-faults-${{ github.ref }}-${{ inputs.profile }}
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ${{ vars.TRANSIT_CI_RUNNER || 'ubuntu-24.04' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+      - name: Install locked dependencies
+        run: nix develop .#serving --command just transit-board::install
+      - name: Install owned browser dependencies
+        if: inputs.profile == 'reactive'
+        run: nix develop .#serving --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
+      - name: Run selected qualification
+        env:
+          PROFILE: ${{ inputs.profile }}
+        run: nix develop .#serving --command just test::vortex-profile "$PROFILE"
+      - name: Preserve complete and incomplete experiment records
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: external-${{ inputs.profile }}-${{ github.run_attempt }}
+          path: .cache/verification/external/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

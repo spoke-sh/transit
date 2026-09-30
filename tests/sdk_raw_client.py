@@ -2,12 +2,26 @@
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import hashlib
 from pathlib import Path
 import tempfile
 import threading
 import time
 
-def run(node, cli, raw_library, install, label):
+def run(node, cli, raw_library, install, label, evidence=None):
+    report = dict(completed=False, label=label, history=[], started=time.monotonic())
+    try:
+        _run(node, cli, raw_library, install, label, report)
+        report['completed'] = True
+    finally:
+        report['seconds'] = round(time.monotonic() - report.pop('started'), 3)
+        if evidence is not None:
+            path = Path(evidence)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(report, indent=2) + '\n')
+
+
+def _run(node, cli, raw_library, install, label, report):
     from client_abi_growing import GrowingSystem
     from client_abi import Native
     from sdk_scenarios import check
@@ -47,6 +61,11 @@ def run(node, cli, raw_library, install, label):
                     connection.request('POST', target, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
+                    report['history'].append(dict(elapsed=time.monotonic()-report['started'],
+                        path=self.path, sha256=hashlib.sha256(body).hexdigest(),
+                        signed=json.loads(body), status=response.status, response=json.loads(data),
+                        drop=fault['drop'] and self.path == '/v1/command' and response.status == 200,
+                        delay=fault['delay']))
                     if self.path == '/v1/command':
                         fault['bodies'].append(body)
                     if self.path == '/v1/command' and fault['drop'] and response.status == 200:
@@ -79,6 +98,7 @@ def run(node, cli, raw_library, install, label):
             key.write_bytes(original_seed)
             fault['delay'] = True
             ownership = json.loads(invoke('async'))
+            report['ownership'] = ownership
             if 'scenario' in ownership:
                 check(ownership['scenario'], ownership['observations'])
             else:
@@ -91,6 +111,8 @@ def run(node, cli, raw_library, install, label):
                 state = native.call(admin, read)['body']['process']
                 assert state['process']['admitted'] == 2 and state['process']['consumed'] == 0
                 assert bytes.fromhex(state['input']['value']) == b'wide'
+                report['state'] = state
+                report['receipt'] = receipt
             finally:
                 native.lib.transit_operation_destroy(read)
             print(f'{label} public client: clean independent artifacts, typed bounds, owned bytes, lost receipt, seedless restart, native classification, owned I/O/disposal and revoked retry passed.')

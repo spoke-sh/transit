@@ -49,6 +49,19 @@ simulation *args:
 simulation-mutations:
     python3 -B tests/verification/mutations.py --simulation
 
+# Small saved storage fault regression corpus.
+resource-simulation-smoke:
+    zig build test-resource-simulation -- --smoke
+
+# Compiling core mutations for atomic resource/input publication.
+resource-simulation-mutations:
+    python3 -B tests/verification/mutations.py --resource
+
+# Numbered page/journal faults, captured roots and checkpoint recovery.
+resource-simulation *args:
+    zig build test-resource-simulation -- {{args}}
+
+
 # Run finite codec regressions; optional Zig fuzz iteration budget.
 codecs *args:
     zig build test-codecs {{args}}
@@ -457,3 +470,27 @@ server-board:
 server-board-package:
     nix build .#transit-local --out-link .cache/transit-board-package
     python3 -B tests/server_board_package.py .cache/transit-board-package
+
+# Deterministic shared-client and courier schedules.
+scheduler-simulation *args:
+    zig build test-scheduler-simulation -- {{args}}
+
+# Defects in the actual shared Session and courier code must be observed.
+scheduler-simulation-mutations:
+    python3 -B tests/verification/mutations.py --scheduler
+
+# Seeded checks over real Document, Exchange, query/reactive and runtime code.
+domain-simulation *args:
+    zig build test-domain-simulation -- {{args}}
+
+# Qualify each component oracle using a compiling defect in its real owner.
+domain-simulation-mutations:
+    python3 -B tests/verification/mutations.py --domain
+
+# External OS/network faults over owned binaries and actual disk Ursula.
+vortex *args:
+    zig build test-vortex -- {{args}}
+
+# Installed Python/Node, local application, query or browser/reactive faults.
+vortex-profile profile:
+    python3 -B tests/verification/external_profiles.py --profile {{quote(profile)}}

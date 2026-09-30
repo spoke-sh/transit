@@ -5,6 +5,10 @@
       "check-core",
       "test::properties",
       "test::simulation",
+      "test::resource-simulation-smoke",
+      "test::scheduler-simulation",
+      "test::domain-simulation",
+      "test::vortex",
       "test::codecs",
       "test::dev-environment",
       "test::kubectl-transit",
@@ -128,8 +132,12 @@
       "test::server-application-capacity"
     ],
     "discovery": [
+      "test::vortex-profile",
       "test::mutations",
-      "test::simulation-mutations"
+      "test::simulation-mutations",
+      "test::resource-simulation-mutations",
+      "test::scheduler-simulation-mutations",
+      "test::domain-simulation-mutations"
     ],
     "focused": [
       "test::packages",
@@ -187,7 +195,8 @@
       "test::server-application-faults",
       "test::server-board",
       "test::server-board-package",
-      "transit-docs::browser"
+      "transit-docs::browser",
+      "test::resource-simulation"
     ]
   },
   "nested_tasks": {

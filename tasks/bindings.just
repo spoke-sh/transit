@@ -28,7 +28,8 @@ test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test ja
 # Validate the current Node adapters and their asynchronous port transport.
 node-check:
     cd packages/ts/transit-client && vp check
-    vp exec --filter @transit/client tsc --noEmit
+    # Station imports the package's emitted declarations and runtime exports.
+    vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts

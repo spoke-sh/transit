@@ -202,6 +202,55 @@ const Rig = struct {
     }
 };
 
+test "simulation: refresh source cuts survive replacement, interruption and in-flight mutation" {
+    var random = std.Random.DefaultPrng.init(t.random_seed);
+    for (0..4) |round| {
+        var rig: Rig = .{};
+        defer rig.deinit();
+        try rig.init();
+        const identity = try rig.session(1);
+        const selected = try rig.follow(identity, 0, 2);
+        try rig.mutate();
+        try rig.apply(.{ .invalidate = selected });
+        try t.expect(try rig.drive());
+        const interrupted = random.random().uintLessThan(u8, 4);
+        for (0..interrupted) |_| {
+            var turn = try rig.requests.capture();
+            const before = turn.decision;
+            var reader = rig.reader();
+            reader.unavailable = true;
+            try t.expectError(error.AuthorityUnavailable, owner.drive(&turn, reader, 1000));
+            try t.expectEqualDeep(before, turn.decision);
+        }
+        const replace = random.random().boolean();
+        const current = if (replace) try rig.follow(identity, selected.generation, 1) else selected;
+        if (replace) try rig.apply(.{ .pause = current });
+        try rig.drain();
+        const admitted = try rig.view(selected);
+        try t.expectEqual(.admitted, admitted.phase);
+        const changed = random.random().boolean();
+        try rig.finish(admitted.namespace.value, changed);
+        try rig.drain();
+        try t.expectEqual(.ready, (try rig.view(selected)).phase);
+        var turn = try rig.requests.capture();
+        const status = (try q.UnifiedUpload.status(&turn, admitted.namespace.value)).?;
+        try t.expectEqual(.complete, status.phase);
+        const basis = try rig.reader().result(&turn, admitted.namespace.value, rig.declaration);
+        try t.expectEqual(rig.source.resource, basis.resource);
+        if (replace) {
+            try t.expectError(error.RefreshGenerationConflict, rig.apply(.{ .acknowledged = .{ .selection = selected, .namespace = admitted.namespace } }));
+            try t.expectEqual(.paused, (try rig.view(current)).phase);
+        } else {
+            try rig.apply(.{ .acknowledged = .{ .selection = selected, .namespace = admitted.namespace } });
+            const view = try rig.view(selected);
+            if (changed) try t.expect(view.dirty > view.covered) else try t.expect(view.covered >= view.dirty);
+        }
+        rig.source.denied = true;
+        try t.expectError(error.AccessDenied, rig.reader().result(&turn, admitted.namespace.value, rig.declaration));
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"refresh\",\"round\":{d},\"interruptions\":{d},\"replaced\":{},\"mutated\":{}}}\n", .{ round, interrupted, replace, changed });
+    }
+}
+
 test "fair requester refresh recovers each cut and converges after a mutation during real capture" {
     var rig: Rig = .{};
     defer rig.deinit();

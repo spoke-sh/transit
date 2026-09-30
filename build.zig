@@ -292,6 +292,19 @@ pub fn build(b: *std.Build) void {
     simulation.has_side_effects = true;
     simulation.stdio = .inherit;
     b.step("test-simulation", "Simulate competing workers, ordered delivery and bounded recovery progress").dependOn(&simulation.step);
+    const resource_simulation_driver = b.addExecutable(.{ .name = "transit-resource-simulation", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/resource_simulation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
+    }) });
+    const resource_simulation = b.addSystemCommand(&.{ "python3", "-B" });
+    resource_simulation.addFileArg(b.path("tests/verification/resource_simulation.py"));
+    resource_simulation.addArtifactArg(resource_simulation_driver);
+    resource_simulation.addPassthruArgs();
+    resource_simulation.has_side_effects = true;
+    resource_simulation.stdio = .inherit;
+    b.step("test-resource-simulation", "Simulate page I/O faults and atomic resource publication").dependOn(&resource_simulation.step);
     const formal = b.addSystemCommand(&.{ "python3", "-B" });
     formal.addFileArg(b.path("tests/verification/model.py"));
     formal.addArtifactArg(transition_driver);
@@ -321,6 +334,28 @@ pub fn build(b: *std.Build) void {
     const board_contract = b.addExecutable(.{ .name = "transit-board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") }} }) });
     b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
+    const scheduler_driver = b.addExecutable(.{ .name = "transit-scheduler-simulation", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/scheduler_simulation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_client", .module = client.module("transit_client") } },
+    }) });
+    const scheduler = b.addSystemCommand(&.{ "python3", "-B" });
+    scheduler.addFileArg(b.path("tests/verification/scheduler_simulation.py"));
+    scheduler.addArtifactArg(scheduler_driver);
+    scheduler.addPassthruArgs();
+    scheduler.has_side_effects = true;
+    scheduler.stdio = .inherit;
+    b.step("test-scheduler-simulation", "Schedule shared Sessions/courier with faults, clocks and maintenance").dependOn(&scheduler.step);
+    const domains = b.addSystemCommand(&.{ "python3", "-B" });
+    domains.addFileArg(b.path("tests/verification/domain_simulation.py"));
+    inline for (.{ document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core") }) |module| {
+        domains.addArtifactArg(b.addTest(.{ .root_module = module, .filters = &.{"simulation:"} }));
+    }
+    domains.addPassthruArgs();
+    domains.has_side_effects = true;
+    domains.stdio = .inherit;
+    b.step("test-domain-simulation", "Replay seeded Document, Exchange, refresh and provider schedules").dependOn(&domains.step);
     const installation_fixture = b.addRunArtifact(client.artifact("transit-application-installation-contract"));
     installation_fixture.addArg("--fixture");
     b.step("application-installation-fixture", "Export a shared application signing fixture").dependOn(&installation_fixture.step);
@@ -988,6 +1023,13 @@ pub fn build(b: *std.Build) void {
     callers.has_side_effects = true;
     callers.stdio = .inherit;
     b.step("test-callers", "Prove two independent Zig applications against one generic node").dependOn(&callers.step);
+    const vortex = b.addSystemCommand(&.{ "python3", "-B" });
+    vortex.addFileArg(b.path("tests/verification/vortex.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, example_artifacts[0], delivery_artifact }) |artifact| vortex.addArtifactArg(artifact);
+    vortex.addPassthruArgs();
+    vortex.has_side_effects = true;
+    vortex.stdio = .inherit;
+    b.step("test-vortex", "Supervise real workers/courier/node and disk Ursula through external faults").dependOn(&vortex.step);
     const capacity = b.addExecutable(.{ .name = "transit-capacity-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/capacity.zig"),
         .target = target,

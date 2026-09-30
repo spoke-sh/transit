@@ -174,8 +174,8 @@ def run(node, provision, worker, library, board=None, browser=False):
             def admin(operation):
                 extra = [str(config)] if operation in ("call", "publish-followup") else []
                 return json.loads(subprocess.check_output([provision, url, operation, str(state), *extra], timeout=60))
-            def configure(saved, path, mode):
-                configuration = {"url": proxy_url, "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer.server_port, "tls": True, "ca_file": str(tls_cert), "timeout_ms": 120000}, "mode": mode, "request": {"method": "POST", "target": [{"literal": path}], "body_bytes": 4, "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "api", "version": 7}}]}]}, "credentials": [{"binding": "api", "version": 7, "header": "Authorization", "file": str(credential)}], "body_file": str(body_file), "reconcile_before_ms": int(time.time() * 1000) + 240000}
+            def configure(saved, path, mode, *, reconciliation_ms=240000):
+                configuration = {"url": proxy_url, "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": 1, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer.server_port, "tls": True, "ca_file": str(tls_cert), "timeout_ms": 120000}, "mode": mode, "request": {"method": "POST", "target": [{"literal": path}], "body_bytes": 4, "headers": [{"name": "Authorization", "value": [{"literal": "Bearer "}, {"secret": {"binding": "api", "version": 7}}]}]}, "credentials": [{"binding": "api", "version": 7, "header": "Authorization", "file": str(credential)}], "body_file": str(body_file), "reconcile_before_ms": int(time.time() * 1000) + reconciliation_ms}
                 configuration.update(max_attempts=4, retry_policy={"id": 77, "revision": 1, "key_header": "Idempotency-Key"}, redirect_policy={"id": 78, "revision": 1}, reconcile_policy={"id": 79, "revision": 1, "method": "GET", "target": "/status/kill"}, cancel_policy={"id": 80, "revision": 1, "method": "DELETE", "target": "/operations/kill"})
                 configuration["endpoint"]["response_headers"] = ["content-type", "content-length", "transfer-encoding", "trailer", "location"]
                 configuration["request"]["headers"].append({"name": "Idempotency-Key", "value": [{"literal": path}]})
@@ -540,8 +540,12 @@ def run(node, provision, worker, library, board=None, browser=False):
             # The original caller explicitly retries through its own durable
             # call. Admission validates the frozen policy before spending a slot.
             saved = admin("provision-public")
-            configure(saved, "/public-retry", "accept")
+            # This composite schedule includes rejected attempts, two cold
+            # restarts, retry, status and cancellation. Give it a finite budget
+            # up front; later activations must never renew accepted deadlines.
+            configure(saved, "/public-retry", "accept", reconciliation_ms=15 * 60 * 1000)
             saved = admin("call")
+            original_deadline = saved["caller"]["deadline"]
             root_correlation = saved["caller"]["correlation"]
             admission(saved, "/public-retry", "accept")
             assert invoke()["phase"] == "ready"
@@ -634,6 +638,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             for exchange, reason in ((3, "reconcile"), (4, "cancel")):
                 followup(saved, exchange, "accept", reason, "/public-retry")
                 saved = admin("publish-followup")
+                assert saved["caller"]["deadline"] == original_deadline, "Follow-up renewed the original deadline"
                 assert saved["caller"]["correlation"] not in correlations
                 correlations.add(saved["caller"]["correlation"])
                 saved = admin("own")

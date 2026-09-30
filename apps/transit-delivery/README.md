@@ -18,6 +18,7 @@ Provision a **dedicated principal** with delivery (128) and send (4) capabilitie
 optionally scoped to one destination PID. Do not share its mutation sequence with
 other kinds of operation. General inspection, execution and admin are unnecessary.
 
+The executable calls the shared `transit-client.delivery.step` function.
 Each step reads `kind: { delivery: {} }` through `/v1/query`, then submits
 `command: { deliver: OUTPUT_ID }` through `/v1/command`. The read selects the
 lowest pending output in the caller's destination scope without disclosing its

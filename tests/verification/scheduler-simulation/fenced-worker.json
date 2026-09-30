@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "profile": "scheduler",
+  "finite": false,
+  "actions": [
+    {
+      "kind": "send",
+      "value": 18
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "own"
+    },
+    {
+      "kind": "worker",
+      "expected_error": "Rejected",
+      "expected_rejection": "StaleGeneration"
+    },
+    {
+      "kind": "crash_worker"
+    },
+    {
+      "kind": "worker",
+      "expected_error": "StaleActivation"
+    },
+    {
+      "kind": "adopt"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "policy",
+      "permissions": 0
+    },
+    {
+      "kind": "worker",
+      "expected_error": "AccessDenied"
+    },
+    {
+      "kind": "policy"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "courier"
+    },
+    {
+      "kind": "assert_drained"
+    }
+  ]
+}

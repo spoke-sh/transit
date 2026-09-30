@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "profile": "scheduler",
+  "finite": false,
+  "actions": [
+    {
+      "kind": "send",
+      "value": 17
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "worker",
+      "fault": "after_submit",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "courier",
+      "fault": "after_submit",
+      "require_fault": true,
+      "expected_error": "AuthorityUnavailable"
+    },
+    {
+      "kind": "crash_courier"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "courier"
+    },
+    {
+      "kind": "assert_drained"
+    }
+  ]
+}

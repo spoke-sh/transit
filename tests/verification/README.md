@@ -5,6 +5,71 @@
 This is executable test infrastructure, not an alternate authority. The existing
 disk, native scheduling, browser, launcher and provider proofs remain necessary.
 
+## Component simulation
+
+`just test::domain-simulation` runs two seeds over real Document, Exchange,
+query/refresh and core runtime implementations. `--seed N --seeds N` selects a
+bounded range (at most 64 seeds). Each package runs twice; structured event
+records must agree and all five domains must appear. Each run has a 120-second
+deadline. The ordinary suite owns two seeds; scheduled discovery owns sixteen.
+
+Artifacts in `.cache/verification/domain-simulation/` retain actual choices and
+test logs; the adjacent JSON report records source/dirty status, compiler, binary
+hashes, generator, seed range, trace hashes, elapsed time and completion. Replay
+uses the same binary/seed. This package profile does not support arbitrary trace
+editing or minimization. Errors, timeouts and missing domains cannot pass.
+
+`just test::domain-simulation-mutations` uses committed source clones to omit
+Document conflict retention, checkpoint floor advancement, Exchange replay holds,
+refresh generation fencing and runtime readiness. Only executed contract assertion
+failures count as detection; compilation and infrastructure failures do not.
+The private-turn stores model atomic publication and current-reader failure;
+actual WAL durability and application installation remain separate integration
+checks. No connector transport runs or dispatches during these replay tests.
+
+## External fault testing
+
+`just test::vortex` owns a disposable node, counter worker, courier and disk Ursula.
+Four rounds cover request loss/delay and response loss/delay, dropped connections,
+worker/node/provider SIGKILL, courier stop/continue and restart against current
+history. `--seed 19 --rounds 12` changes workload intent; rounds are bounded to
+4–32. Public calls, readiness, fault observation and eligible progress have finite
+deadlines. It never edits provider files or private installation checkpoints.
+
+The peer records synthetic signed requests, actual replies and monotonic event
+times. Each requested fault must fire; courier reply loss must produce an exact
+retry. A consumed source prefix has the independently expected cumulative value
+and original outputs, and each destination admission preserves its output/turn
+origin. Current denial/stale activation and three corrupted-observation controls
+challenge the checker. Full JSONL histories, process/provider logs and report JSON
+are retained per run in `.cache/verification/vortex/`, with source, toolchain,
+binary hashes, topology, seed, configuration, duration and cleanup status. Private
+seed files remain only in the disposable fixture and are never copied to artifacts.
+
+`just test::vortex-profile PROFILE` selects an independent experiment:
+
+| Profile | Owned checks | Environment / boundary |
+| --- | --- | --- |
+| `sdk` | Installed Python wheels and Node tarballs: frozen bytes, dropped reply, seedless host recovery, await cancellation, disposal and revoked retry | Native Linux public SDKs; package/build hashes and per-host histories |
+| `application` | Lost provisioning/rotation/migration/activation replies, current revocation and runtime upgrade | Local application manager and provider adapter fixture; no Kubernetes claim |
+| `query` | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial | Distinct durable and leased query lifetimes; Docker cold-store fixture for interactive reads |
+| `reactive` | Real browser refresh replacement, pause, revocation and lifecycle recovery | Owning TLS/browser rig; installed Chromium required |
+
+The profile runner retains commands, logs, source/compiler identity and per-stage
+completion in `.cache/verification/external/`; every stage has a 900-second cap.
+SDK histories record actual signed attempts, receipts and host-ownership checks.
+The original owning tasks remain runnable independently. A seed does not fix OS
+scheduling. External failures are retained; automatic schedule minimization is
+limited to the in-process JSON trace profiles. Real reference placement, physical
+ENOSPC, arbitrary corruption and host power loss retain separate proof owners.
+
+The ordinary core lane owns the four-round external regression; weekly discovery
+runs sixteen rounds. The manual [external workflow](../../.github/workflows/fault-verification.yml)
+selects one additional profile and preserves incomplete artifacts. Stage deadlines
+are failure limits, not measured feedback targets. Local and hosted timing evidence
+must remain separate; the existing hosted budgets are not requalified by adding
+these tasks or by one local passing sample.
+
 ## Inventory
 
 [suite.json](suite.json) is the task inventory used by local and hosted CI.
@@ -438,3 +503,68 @@ M25 registers `test::server-applications`, `test::server-application-faults` and
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps
 native loss/revocation, consumer lifecycle and physical capacity separate.
 The ordinary hosted lanes and accepted M10 budgets remain unchanged.
+
+## Resource publication simulation
+
+`just test::resource-simulation-smoke` replays six saved storage-fault schedules.
+`just test::resource-simulation --seeds 2` also explores first/middle/last I/O
+boundaries of generated two-turn control schedules. `--exhaustive` enumerates
+every observed I/O call; select it explicitly because page reads multiply runs.
+`--trace PATH` replays concrete events independently of generator changes.
+`just test::resource-simulation-mutations` uses committed isolated clones to omit
+resource writes or input progress and requires actual correspondence failures.
+
+The Zig driver uses the real core, four frozen decision slots, one resource/key,
+captured views, a self-directed outbox, and a two-page provider cache. Stage faults
+apply inside the real tree's individual/batch path; an after-stage fault may leave
+orphan bytes without publishing a root. Read unavailability, pre/post-append
+faults, explicit cache eviction and interrupted prefix trimming have distinct
+trace events. Atomic conditional append and durable immutable pages are premises.
+There is no disk, physical page deletion, provider rollback or corruption model.
+
+The logical oracle checks state/input/output atomicity, captured values, exact
+retry and accepted history floors. Recovery must stage no pages and match the
+live engine. Generated healthy suffixes restore required permissions/time,
+consume eligible input and check recovery after checkpoint/trim; pending outputs
+remain recorded rather than implicitly delivered. The trace cap is 512 events
+and 1 MiB, with 1..64 seeds and a 90-second per-driver deadline. Failures that did
+not exercise their requested fault cannot pass. Every trace runs twice; checker
+controls alter resource state, input progress, outputs and view evidence, omit
+observations and leave input undrained.
+
+`.cache/verification/resource-simulation.json` records completion, source/dirty
+status, compiler/binary/oracle hashes, generator/configuration, fault counts,
+trace hashes and duration. Failure details, concrete replay and bounded minimized
+counterexamples live in `.cache/verification/resource-simulation/`. Numbered I/O
+coordinates can change with implementation changes; a fault that no longer fires
+requires an explicit corpus review, not silently accepting the run.
+
+## Shared-client scheduling simulation
+
+`just test::scheduler-simulation [--seeds N --steps N]` runs four saved cases and
+four generated schedules by default. `--trace PATH` replays concrete events.
+`just test::scheduler-simulation-mutations` requires committed HEAD and detects
+omitted Session activation validation or discarded uncertain courier requests.
+
+Real shared Session/courier functions use a test transport that signs native
+queries and invokes the core, preserving response validation and modeled error
+classes. Worker events separate preparation from submission. Four fault kinds
+cover request versus response loss at query and submit boundaries. Saved cases
+require the selected fault to fire. Host-loss events discard volatile pending
+state; durable input/output progress remains observable. A finite profile tests
+recorded permits, settlement, maintenance-driven expiry, checkpoint/trim and
+clock rollback/uncertainty. This does not test HTTP framing or host task joining.
+
+The independent checker conserves original admitted values, consumed prefixes,
+outputs, destination admissions and provenance, plus ownership and current
+permissions. It checks frozen pending digests and terminal dispositions. The
+finite fair suffix admits no further input and gives two Sessions and the courier
+twenty rounds to drain four inputs per producer. At most 512 events, 1 MiB input,
+1..64 seeds, 1..256 random steps and 90 seconds per driver run are admitted.
+Replay must be identical. Incomplete/invalid/time-limited runs cannot pass.
+
+Evidence and replay/minimized failures live under
+`.cache/verification/scheduler-simulation{.json,/}` with source, compiler,
+binary/oracle, generator/configuration, exercised faults and completion identity.
+The provider is the modeled atomic journal, not a real disk. Real caller and
+courier integration remains `just test::callers`.

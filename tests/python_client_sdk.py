@@ -147,7 +147,7 @@ def consumer(mode, config_file):
     assert 'transit_station' not in sys.modules
 
 
-def run(node, cli, raw_library, wheels):
+def run(node, cli, raw_library, wheels, evidence=None):
     from sdk_raw_client import run as schedule
     wheels = Path(wheels).resolve()
     def install(target):
@@ -163,7 +163,7 @@ def run(node, cli, raw_library, wheels):
         def invoke(mode, config):
             return subprocess.check_output([python, '-B', script, '--consumer', mode, config], cwd=target, env=environment, timeout=30)
         return invoke
-    schedule(node, cli, raw_library, install, 'Python')
+    schedule(node, cli, raw_library, install, 'Python', evidence)
 
 
 if __name__ == '__main__':

@@ -348,6 +348,59 @@ const Fixture = struct {
     }
 };
 
+test "simulation: provider schedules fence old activations and retain accepted backlog" {
+    var random = std.Random.DefaultPrng.init(t.random_seed);
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .send = .{ .pid = pid, .value = core.Value.integer(73) } });
+    const rights = core.permission(.execute) | core.permission(.inspect);
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = rights, .pid = pid } });
+    const epoch = (try f.engine.principal(65536)).epoch;
+    for (0..8) |round| {
+        const revision = round + 1;
+        const generation = round * 2 + 1;
+        const operation = try f.root(.{ .runtime_intent = .{ .pid = pid, .expected_revision = round, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) } });
+        const fresh = try core.Ed25519.KeyPair.generateDeterministic(@splat(@as(u8, @intCast(round + 40))));
+        const activation: g.Command = .{ .activate = .{ .pid = pid, .revision = revision, .expected_generation = generation, .worker = 65536, .public_key = fresh.public_key.toBytes(), .worker_incarnation = @splat(@as(u8, @intCast(revision))) } };
+        try t.expectEqual(@as(?u64, null), (try f.engine.process(pid)).owner);
+        try t.expectError(error.ProviderNotReady, f.root(activation));
+        const unknowns = random.random().uintLessThan(u8, 4);
+        for (0..unknowns) |_| {
+            _ = try f.root(.{ .runtime_observe = .{ .pid = pid, .revision = revision, .operation = operation, .incarnation = null, .outcome = .unknown } });
+            f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+            try t.expectEqual(@as(?u64, null), (try f.engine.process(pid)).owner);
+        }
+        try t.expectError(error.StaleBinding, f.root(.{ .runtime_observe = .{ .pid = pid, .revision = revision, .operation = operation - 1, .incarnation = @splat(4), .outcome = .ready } }));
+        _ = try f.root(.{ .runtime_observe = .{ .pid = pid, .revision = revision, .operation = operation, .incarnation = @splat(4), .outcome = .ready } });
+        try t.expectEqual(@as(?u64, null), (try f.engine.process(pid)).owner);
+        const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = activation }, f.root_key);
+        const lost = random.random().boolean();
+        if (lost) {
+            f.journal.fail = .after;
+            try t.expectError(error.LostAcknowledgement, f.engine.submit(signed));
+            f.journal.fail = .none;
+            f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+        }
+        _ = try f.engine.submit(signed);
+        f.root_sequence += 1;
+        const process = try f.engine.process(pid);
+        try t.expectEqual(generation + 1, process.generation);
+        try t.expectEqual(@as(?u64, 65536), process.owner);
+        try t.expectEqual(@as(u64, 1), process.admitted);
+        try t.expectEqual(@as(u64, 0), process.consumed);
+        try t.expectEqual(epoch, (try f.engine.principal(65536)).epoch);
+        try t.expectError(error.AlreadyActivated, f.root(activation));
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"runtime\",\"round\":{d},\"unknowns\":{d},\"lost_reply\":{},\"generation\":{d}}}\n", .{ round, unknowns, lost, process.generation });
+    }
+    _ = try f.root(.{ .terminate = pid });
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectEqual(.terminated, (try f.engine.process(pid)).lifecycle);
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).cancelled);
+    try t.expectError(error.RetiredProcess, f.root(.{ .runtime_intent = .{ .pid = pid, .expected_revision = 8, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) } }));
+}
+
 test "growing authority retains wide principals and processes beyond legacy catalogs" {
     var fixture: Fixture = .{};
     defer fixture.deinit();

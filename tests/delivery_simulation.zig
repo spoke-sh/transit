@@ -53,7 +53,7 @@ const Saved = struct { signed: core.SignedRequest, prepared: Engine.Prepared };
 const Process = struct { pid: u64, owner: ?u64, generation: u64, revision: u64, admitted: u64, consumed: u64, cancelled: u64, lifecycle: @FieldType(g.Process, "lifecycle") };
 const Output = struct { id: u64, source: u64, destination: u64, turn: u64, value: i64, phase: @FieldType(g.Outbox, "phase"), resolved_at: ?u64 };
 const Input = struct { position: u64, ordinal: u64, value: i64, source: u64, turn: u64, output: u64 };
-const Observation = struct { position: u64, processes: [3]Process, sequences: [4]u64, permissions: [4]u16, outputs: []Output, received: []Input };
+pub const Observation = struct { position: u64, processes: [3]Process, sequences: [4]u64, permissions: [4]u16, outputs: []Output, received: []Input };
 
 fn key(principal: u64) !p.Ed25519.KeyPair {
     return p.Ed25519.KeyPair.generateDeterministic(@splat(@as(u8, @intCast(principal)) + 7));
@@ -114,7 +114,7 @@ fn act(engine: *Engine, saved: *[8]?Saved, action: Action) !?u64 {
     }
     return null;
 }
-fn observe(engine: *Engine, allocator: std.mem.Allocator) !Observation {
+pub fn observe(engine: anytype, allocator: std.mem.Allocator) !Observation {
     var result: Observation = undefined;
     result.position = engine.head.position;
     for (&result.processes, 4..) |*target, pid| {

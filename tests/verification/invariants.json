@@ -1315,6 +1315,109 @@
       "limits": "Eight pending decision slots; at most 4096 actions. No actual client/worker/courier scheduler, HTTP, finite clock/lifetime, resource mutation, page fault or physical provider. Progress is conditional on the explicit finite schedule; atomic conditional append is assumed.",
       "model": null,
       "qualification": "See tests/README.md#authority-and-delivery-simulation for executed current-revision evidence; tracking issue #26 covers broader simulation and real-binary work."
+    },
+    {
+      "id": "SIM-02",
+      "claim": "Faulted immutable staging cannot partially publish resource state, input progress or outputs; captured roots and accepted work survive authorized prefix trim",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing_state.zig",
+        "packages/zig/transit-core/src/pages.zig",
+        "tests/resource_simulation.zig"
+      ],
+      "profile": "one resource writer, one key, captured roots, a two-page test cache and atomic journal",
+      "tasks": [
+        "test::resource-simulation",
+        "test::resource-simulation-smoke",
+        "test::resource-simulation-mutations"
+      ],
+      "scenarios": [
+        "Numbered failures before/after individual and batched staging, unavailable page reads and cache eviction",
+        "Conditional append refusal and lost acknowledgement with exact frozen retries",
+        "Checkpoint publication, interrupted prefix trimming and cold recovery without staging",
+        "Independent resource/input/output/view oracle, identical replay and bounded failure minimization"
+      ],
+      "limits": "At most 512 events per trace. In-memory provider with atomic append and retained immutable pages; no physical WAL, deletion/GC, corruption or disk capacity claim. Ordinary exploration samples first/middle/last I/O boundaries; exhaustive enumeration is explicit.",
+      "model": null,
+      "qualification": "See tests/README.md and .cache/verification/resource-simulation.json for executed scope and completeness."
+    },
+    {
+      "id": "SIM-03",
+      "claim": "Shared Sessions and the courier retain uncertain operation identity, fence stale activations, preserve input/output provenance and respect recorded settlement and retirement under controlled scheduling",
+      "owner": "docs/reference/callers.md",
+      "implementation": [
+        "packages/zig/transit-client/src/Session.zig",
+        "packages/zig/transit-client/src/delivery.zig",
+        "tests/scheduler_simulation.zig"
+      ],
+      "profile": "two producer Sessions and a courier with signed in-process transport; finite settlement profile and explicit trusted time",
+      "tasks": [
+        "test::scheduler-simulation",
+        "test::scheduler-simulation-mutations"
+      ],
+      "scenarios": [
+        "Request loss versus response loss across preparation/submission scheduling boundaries",
+        "Session ownership replacement, current permission denial and volatile host loss",
+        "Recorded turn permit through ordinary-work cutoff, expiry maintenance, checkpoint/trim, rollback and untrusted clock refusal",
+        "Independent accepted-input/output/provenance conservation and identical replay",
+        "Finite healthy round-robin schedule drains eligible accepted work"
+      ],
+      "limits": "At most 512 events. Transport calls are synchronous deterministic boundaries; HTTP/TLS, OS scheduling and host await-cancellation are separate external tests. Fairness is a supplied finite schedule, not a theorem.",
+      "model": null,
+      "qualification": "Execution and remaining external limits are recorded in tests/README.md and scheduler-simulation artifacts."
+    },
+    {
+      "id": "SIM-04",
+      "claim": "Component schedules preserve Document accepted sets/floors, Exchange uncertainty/holds, query source and refresh ownership, and provider activation gates",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "packages/zig/transit-station-document/src/merge_test.zig",
+        "packages/zig/transit-station-document/src/service_test.zig",
+        "packages/zig/transit-exchange/src/exchange_test.zig",
+        "packages/zig/transit-serving/src/refresh_test.zig",
+        "packages/zig/transit-core/src/growing_test.zig",
+        "tests/verification/domain_simulation.py"
+      ],
+      "profile": "Seeded real-component tests with atomic private-turn stores",
+      "tasks": [
+        "test::domain-simulation",
+        "test::domain-simulation-mutations"
+      ],
+      "scenarios": [
+        "Reordered concurrent edits, missing dependencies, duplicate requests and interrupted page staging",
+        "Checkpoint candidate discard, final floor/epoch publication and stale-replica rejection",
+        "Captured completion versus unknown outcome; outstanding replay holds fence retirement",
+        "Refresh replacement, current source denial, retained basis and in-flight mutation",
+        "Provider unknown/stale evidence, exact activation retry and retained backlog"
+      ],
+      "limits": "Twelve four-edit Document rounds, one bounded checkpoint, sixteen Exchange rounds, four refresh rounds and eight activations per seed; at most 64 seeds. No physical provider, connector dispatch, arbitrary edited-trace replay or automated minimization.",
+      "model": null,
+      "qualification": "Executed results and compiling mutation outcomes belong in tests/README.md; artifacts preserve incomplete status."
+    },
+    {
+      "id": "SIM-05",
+      "claim": "External faults preserve accepted counter work, original delivery and exact retry across current disk history; installed hosts preserve uncertainty and owned I/O",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "tests/verification/vortex.py",
+        "tests/verification/external_profiles.py",
+        "tests/sdk_raw_client.py"
+      ],
+      "profile": "Owned native Linux binaries with disk Ursula, plus independently selected installed-host and local service rigs",
+      "tasks": [
+        "test::vortex",
+        "test::vortex-profile"
+      ],
+      "scenarios": [
+        "Requested/observed request and response loss/delay, connection interruption, SIGKILL/restart and courier pause/resume",
+        "Quiescent resource/input/output conservation and exact original destination admission provenance",
+        "Current denial, stale activation and finite eligible progress",
+        "Installed Python/Node uncertainty, seedless recovery, cancellation/disposal and revoked retry",
+        "Separately selected application installation/migration, query lifetimes and browser/reactive ownership"
+      ],
+      "limits": "4..32 external rounds. OS timing is nondeterministic; quiescent observations are not an arbitrary concurrent-read linearizability proof. Each selected profile has its own host/provider assumptions. No hardware power-loss or Kubernetes placement claim.",
+      "model": null,
+      "qualification": "Retain each run report and history; failed/incomplete profiles do not count as executed qualification. See tests/README.md."
     }
   ]
 }

@@ -247,7 +247,8 @@ pub fn main(init: std.process.Init) !void {
         try std.json.Stringify.value(root_key.public_key.toBytes(), .{}, &output.interface);
         return output.interface.flush();
     }
-    if (args.len != 4) return error.Usage;
+    if (args.len != 5) return error.Usage;
+    const max_clock_error_ms = try std.fmt.parseInt(u32, args[4], 10);
     var wire = client.Client.init(init.gpa, init.io, args[1]);
     defer wire.deinit();
     wire.timeout_ms = 10000;
@@ -338,9 +339,15 @@ pub fn main(init: std.process.Init) !void {
         try drive(init.io, &server, &handler, false);
         // A deadline cannot be extended by keeping a cursor or retrying its read.
         try admin.send(saved.pid, 3);
-        try prepare(init.io, &server, now(init.io) + 3000);
+        const deadline = now(init.io) + max_clock_error_ms + 3000;
+        try prepare(init.io, &server, deadline);
         const cursor = try pubn.open(&server.ready.?, 1);
-        try init.io.sleep(.fromMilliseconds(3100), .awake);
+        // Use the fixture's admitted clock bound: wall time past the deadline
+        // alone may still yield DeadlineUncertain, which poisons this turn.
+        // Wait until every admitted sample must have its lower bound expired.
+        const definitely_expired = deadline + max_clock_error_ms + 1;
+        while (now(init.io) < definitely_expired)
+            try init.io.sleep(.fromMilliseconds(@intCast(definitely_expired -| now(init.io))), .awake);
         try t.expectError(error.Rejected, pubn.read(&server.ready.?, cursor));
         try t.expectEqual(.StateViewExpired, wire.last_rejection.?);
         try reown(&admin, &saved);

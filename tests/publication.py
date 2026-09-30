@@ -124,7 +124,8 @@ def run(node, caller):
             authority = start()
             for phase in ("stage", "seal", "publish", "cleanup", "finish"):
                 began = time.monotonic()
-                child = subprocess.Popen([caller, proxy_url, phase, str(manifest)])
+                child = subprocess.Popen([caller, proxy_url, phase, str(manifest),
+                                          str(configuration["genesis"]["max_clock_error_ms"])])
                 if phase == "finish":
                     if child.wait(timeout=360) != 0:
                         raise RuntimeError("Publication finish failed")
