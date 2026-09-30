@@ -27,7 +27,11 @@ def run():
         return result.stdout
 
     def observe(value):
-        return launcher.await_process(lambda p: installation.counter_value() == value, "counter state " + str(value))
+        return launcher.await_process(lambda p: p["consumed"] == p["admitted"] and installation.counter_value() == value, "counter state " + str(value))
+
+    def state_revision():
+        resource = json.loads((installation.path / "state-resource.json").read_text())
+        return installation.native_query({"resource": resource})["body"]["resource"]["revision"]
 
     def pods():
         return {p["metadata"]["labels"].get("app.kubernetes.io/component"): p["metadata"]["uid"]
@@ -74,14 +78,21 @@ def run():
         assert "no changes" in invoke("update", "counter", "--no-build")
         invoke("send", "4", "--request-id", "after-upgrade")
         settled = observe(19)
+        revision = state_revision()
         invoke("restart", "node")
-        assert observe(19)["revision"] == settled["revision"]
+        restarted = observe(19)
+        assert restarted["consumed"] == settled["consumed"] and restarted["admitted"] == settled["admitted"]
+        assert state_revision() == revision
         invoke("down")
         assert not launcher.services()
         assert "Counter template settings retained" in invoke("up", settings={"REY_COUNTER_LOG_LEVEL": "debug"})
         assert installation.load()["observability"]["counter"]["level"] == "info"
         recovered = observe(19)
-        assert recovered["pid"] == first["pid"] and recovered["revision"] == settled["revision"]
+        # Runtime stop/start records control history and fences ownership. The
+        # application resource and input progress must remain unchanged.
+        assert recovered["pid"] == first["pid"] and recovered["generation"] > settled["generation"]
+        assert recovered["consumed"] == settled["consumed"] and recovered["admitted"] == settled["admitted"]
+        assert state_revision() == revision
         assert recovered["binding"]["incarnation"] == first["binding"]["incarnation"]
         assert recovered["binding"]["workload"] == upgraded["binding"]["workload"]
         assert recovered["binding"]["activation"]["worker_incarnation"] != upgraded["binding"]["activation"]["worker_incarnation"]
