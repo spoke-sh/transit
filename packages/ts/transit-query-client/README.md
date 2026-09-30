@@ -7,11 +7,13 @@ the same owning definitions. This package does not compile SQL or confer authori
 
 `httpTransport(path, timeoutMs)` calls one configured same-origin host. It bounds
 requests to 48 KiB and decoded replies to 1 MiB before parsing, validates response
-structure and semantic cell/budget bounds. At most three retries, 250 ms apart,
+structure and semantic cell/budget bounds. At most three retries
 use the identical request for pre-dispatch 429s or explicit 409 read conflicts
 (`QueryReadConflict` / Board's `QueryExpired`) or classified 503 authority failures
 (`AuthorityUnavailable` / `AuthorityTimeout`) on an allowlisted read/preparation
-operation. Signed `submit` never retries a conflict or 503 automatically. Denial, changed
+operation. Throttling and read conflicts wait 250 ms between attempts; classified
+503 reads back off for 500 ms, one second and two seconds so occupied native
+request slots can drain. Signed `submit` never retries a conflict or 503 automatically. Denial, changed
 contracts and unknown failures do not acquire this retry policy. Keep frozen
 prepared tokens through every uncertain submission. Choose the timeout above the host's bounded request deadline; the
 default six seconds matches Board's five-second host profile.

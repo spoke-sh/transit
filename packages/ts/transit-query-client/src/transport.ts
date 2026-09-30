@@ -99,7 +99,11 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
           attempt < 3 &&
           !signal?.aborted
         ) {
-          await new Promise((resolve) => setTimeout(resolve, 250));
+          // Let requests already occupying the authority's finite slots drain.
+          // A capacity response is immediate; fixed rapid retries can exhaust
+          // the entire budget before one native request deadline elapses.
+          const delay = response.status === 503 ? 500 * 2 ** attempt : 250;
+          await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
         throw new QueryError(response.status, code);

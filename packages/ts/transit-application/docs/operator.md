@@ -42,6 +42,9 @@ SQL compilation, Form/Canvas edits and upload planning cannot admit commands.
 `readInterface` returns either the explicitly labeled built-in artifact or one
 fully verified published revision acquired through current public reads. Hosts
 must not replace a denied published read with a stale or built-in definition.
+Interface reads retry throttling and explicitly classified authority
+unavailability/timeouts at most four times, with 250 ms delays and the caller's
+abort signal. Denied, retired, unknown and malformed responses remain failures.
 
 `abandonPublication` explicitly closes an unpublished reviewed operation and then
 uses the shared Zig continuation to collect at most two staged chunks per native
