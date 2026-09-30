@@ -13,6 +13,7 @@ import { unhex } from "./framing.ts";
 import { wide, nativeWide } from "./values.ts";
 import type { CellType } from "./table.ts";
 import type { CatalogAction, CatalogResult } from "./wire.ts";
+import contract from "./contract.json" with { type: "json" };
 
 type NativeRequest = Extract<CatalogAction, { prepare_create: unknown }>["prepare_create"];
 type NativeScope = NativeRequest["scope"];
@@ -21,6 +22,8 @@ type NativeConfiguration = Extract<
   { prepare_initialize: unknown }
 >["prepare_initialize"];
 type NativePolicy = Extract<CatalogAction, { prepare_policy: unknown }>["prepare_policy"]["policy"];
+type NativeCursor = NonNullable<Extract<CatalogAction, { list: unknown }>["list"]>;
+type NativeDefinition = NonNullable<Extract<CatalogResult, { definition: unknown }>["definition"]>;
 type Tags<T> = T extends unknown ? keyof T : never;
 function field<K extends Tags<CatalogResult>>(
   value: CatalogResult,
@@ -40,6 +43,19 @@ function decoded<T>(decode: () => T): T {
   } catch {
     throw new IncompatibleNative("Invalid native catalog value");
   }
+}
+function catalogName(value: string): string {
+  const result = text(value, 16);
+  if (!/^[A-Za-z_][A-Za-z_0-9]*$/.test(result))
+    throw new TypeError("Expected an ASCII catalog name");
+  return result;
+}
+function sameScope(a: Scope, b: Scope): boolean {
+  return (
+    a.catalog === b.catalog &&
+    a.resource.realm === b.resource.realm &&
+    a.resource.resource === b.resource.resource
+  );
 }
 
 export class Scope {
@@ -206,6 +222,97 @@ export interface Description {
   readonly policy: Policy;
   readonly resourceRevision: number;
 }
+export class TableSource {
+  readonly table: number;
+  readonly schema: Schema;
+  constructor(table: number, schema: Schema) {
+    if (!(schema instanceof Schema)) throw new TypeError("Expected Table schema");
+    this.table = integer(table, "table", 1, 0xffffffff);
+    this.schema = schema;
+    Object.freeze(this);
+  }
+}
+export class Definition {
+  readonly scope: Scope;
+  readonly objectId: bigint;
+  readonly revision: bigint;
+  readonly name: string;
+  readonly source: TableSource;
+  readonly principal: number;
+  readonly operation: bigint;
+  readonly input: number;
+  constructor(
+    scope: Scope,
+    objectId: bigint,
+    revision: bigint,
+    name: string,
+    source: TableSource,
+    principal: number,
+    operation: bigint,
+    input: number,
+  ) {
+    if (!(scope instanceof Scope) || !(source instanceof TableSource))
+      throw new TypeError("Expected catalog scope and Table source");
+    this.scope = scope;
+    this.objectId = positive(objectId);
+    this.revision = positive(revision);
+    this.name = catalogName(name);
+    this.source = source;
+    this.principal = integer(principal, "principal", 0);
+    this.operation = positive(operation);
+    this.input = integer(input, "input");
+    Object.freeze(this);
+  }
+}
+/** Exact continuation; compatibility and scope never default when restoring it. */
+export class Cursor {
+  readonly definition: string;
+  readonly scope: Scope;
+  readonly resourceRevision: number;
+  readonly after: string;
+  constructor(definition: string, scope: Scope, resourceRevision: number, after: string) {
+    if (definition !== contract.definition)
+      throw new IncompatibleNative("Foreign catalog cursor definition");
+    if (!(scope instanceof Scope)) throw new TypeError("Expected catalog scope");
+    this.definition = definition;
+    this.scope = scope;
+    this.resourceRevision = integer(resourceRevision, "resource revision");
+    this.after = catalogName(after);
+    Object.freeze(this);
+  }
+}
+export class Page {
+  readonly resourceRevision: number;
+  readonly entries: readonly Definition[];
+  readonly next: Cursor | undefined;
+  constructor(resourceRevision: number, entries: readonly Definition[], next: Cursor | undefined) {
+    this.resourceRevision = integer(resourceRevision, "resource revision");
+    if (
+      !Array.isArray(entries) ||
+      entries.length > 8 ||
+      !entries.every((entry) => entry instanceof Definition)
+    )
+      throw new TypeError("Expected at most eight definitions");
+    this.entries = Object.freeze([...entries]);
+    let previous: Definition | undefined;
+    for (const entry of this.entries) {
+      if (previous && (!sameScope(previous.scope, entry.scope) || previous.name >= entry.name))
+        throw new TypeError("Expected ordered definitions in one scope");
+      previous = entry;
+    }
+    if (
+      next !== undefined &&
+      (!(next instanceof Cursor) ||
+        !previous ||
+        !sameScope(next.scope, previous.scope) ||
+        next.after !== previous.name ||
+        next.resourceRevision !== this.resourceRevision)
+    )
+      throw new TypeError("Continuation does not match the page");
+    this.next = next;
+    Object.freeze(this);
+  }
+}
 export type Observation = "pending" | "processed";
 export type Outcome = "applied" | "name_conflict" | "object_conflict" | "table_conflict";
 export interface Receipt {
@@ -239,6 +346,40 @@ function scope(value: Scope): NativeScope {
 }
 function fromScope(value: NativeScope): Scope {
   return new Scope(new ResourceRef(value.realm, value.resource), nativeWide(value.catalog));
+}
+function cursor(value: Cursor): NativeCursor {
+  if (!(value instanceof Cursor)) throw new TypeError("Expected catalog cursor");
+  return {
+    definition: value.definition as NativeCursor["definition"],
+    scope: scope(value.scope),
+    resource_revision: value.resourceRevision,
+    after: value.after,
+  };
+}
+function fromDefinition(value: NativeDefinition): Definition {
+  const table = value.source.table;
+  const names = table.schema.names;
+  if (
+    names.length !== 2 ||
+    names[0] === undefined ||
+    names[1] === undefined ||
+    names[0] === names[1]
+  )
+    throw new IncompatibleNative("Expected two distinct column names");
+  const schema = new Schema(
+    [catalogName(names[0]), catalogName(names[1])],
+    table.schema.value_type,
+  );
+  return new Definition(
+    fromScope(value.scope),
+    nativeWide(value.object),
+    nativeWide(value.revision),
+    value.name,
+    new TableSource(table.id, schema),
+    value.principal,
+    nativeWide(value.operation),
+    value.input,
+  );
 }
 function request(value: CreateTable): NativeRequest {
   if (!(value instanceof CreateTable)) throw new TypeError("Expected creation request");
@@ -352,6 +493,72 @@ export class Client {
         resourceRevision: integer(value.resource_revision, "revision", 0),
       }),
     );
+  }
+  async lookup(name: string): Promise<Definition | undefined> {
+    const value = field(await this.#bridge.call({ lookup: catalogName(name) }), "definition");
+    if (value === null) return undefined;
+    return decoded(() => {
+      const result = fromDefinition(value);
+      if (!sameScope(result.scope, this.connection.scope) || result.name !== name)
+        throw new IncompatibleNative("Definition does not match its requested name");
+      return result;
+    });
+  }
+  async definition(objectId: bigint, revision: bigint): Promise<Definition | undefined> {
+    const value = field(
+      await this.#bridge.call({
+        definition: {
+          object: positive(objectId).toString(),
+          revision: positive(revision).toString(),
+        },
+      }),
+      "definition",
+    );
+    if (value === null) return undefined;
+    return decoded(() => {
+      const result = fromDefinition(value);
+      if (
+        !sameScope(result.scope, this.connection.scope) ||
+        result.objectId !== objectId ||
+        result.revision !== revision
+      )
+        throw new IncompatibleNative("Definition does not match its requested identity");
+      return result;
+    });
+  }
+  async list(previous?: Cursor): Promise<Page> {
+    const value = field(
+      await this.#bridge.call({ list: previous === undefined ? null : cursor(previous) }),
+      "page",
+    );
+    return decoded(() => {
+      const entries: Definition[] = [];
+      let ended = false;
+      for (const slot of value.entries) {
+        if (slot === null) ended = true;
+        else {
+          const entry = fromDefinition(slot);
+          if (ended || !sameScope(entry.scope, this.connection.scope))
+            throw new IncompatibleNative("Page has a hole or foreign scope");
+          entries.push(entry);
+        }
+      }
+      const next = value.next;
+      const page = new Page(
+        value.resource_revision,
+        entries,
+        next === null
+          ? undefined
+          : new Cursor(next.definition, fromScope(next.scope), next.resource_revision, next.after),
+      );
+      if (
+        previous !== undefined &&
+        (page.resourceRevision !== previous.resourceRevision ||
+          (page.entries[0] !== undefined && page.entries[0].name <= previous.after))
+      )
+        throw new IncompatibleNative("Response does not continue the requested page");
+      return page;
+    });
   }
   async compileSql(
     sql: string,

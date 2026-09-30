@@ -1247,6 +1247,33 @@ The native report and installed-wheel hashes are
 on `8c375486`; all six native binary hashes match the ABI/CLI metadata checkpoint.
 This proves Python metadata mappings, not the remaining nine SDKs.
 
+### TypeScript catalog metadata
+
+TypeScript adds frozen definitions, Table sources, cursors and dense page arrays
+over its existing native port. Generated schemas reject malformed wire shapes;
+the public adapter checks requested identity, scope, ordering and continuation.
+`vp check`, TypeScript compilation and **22 catalog tests** pass at
+`/tmp/transit-sql-catalog-node-metadata-values.log`, including altered identities,
+missing/foreign definitions, holes, duplicate order, changed cuts, unknown sources,
+wide bigint values and owned collections. The earlier type check also passes at
+`/tmp/transit-sql-catalog-node-metadata-types.log`.
+
+Rebuilt TypeScript and Python installed packages pass the combined
+`just test::catalog --sdk python --sdk node --grow 17` schedule in **89.568 s**,
+including **7.015 s** installation. All six callers agree on **25 definitions
+over four pages**, every point read and absence before/after node/store restart.
+Original stale cursors and current catalog/native revocation reject. Eight lost
+caller receipts and three lost owner receipts preserve creation/control recovery.
+There are 6956 reads, 3634 caller reads and 62 turn responses, bounded to four
+mutations, 133-byte values and eight resident pages. All nine successful TypeScript
+list calls cost four signed reads with already negotiated batch support.
+
+Report/package hashes and log are
+`/tmp/transit-sql-catalog-python-node-metadata-native.json` and
+`/tmp/transit-sql-catalog-python-node-metadata-native.log`. This is development
+source based on `2ec18f51`, with unchanged native binary hashes. Other eight
+language metadata mappings remain outside this evidence.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

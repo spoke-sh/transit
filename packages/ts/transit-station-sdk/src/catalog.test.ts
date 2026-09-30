@@ -19,6 +19,8 @@ import {
   Compiled,
   Prepared,
   Policy,
+  Cursor,
+  Page,
   Uncertain,
 } from "./catalog.ts";
 import contract from "./contract.json" with { type: "json" };
@@ -96,6 +98,99 @@ for (const definition of [null, "0".repeat(64)]) {
       withHost({}, async () => assert.fail("Incompatible catalog opened"), definition),
       IncompatibleNative,
     );
+  });
+}
+const metadata = {
+  scope: { realm: 1, resource: 3, catalog: maximum.toString() },
+  object: maximum.toString(),
+  revision: maximum.toString(),
+  name: "items",
+  source: { table: { id: 0xffffffff, schema: { names: ["id", "value"], value_type: "utf8" } } },
+  principal: 9,
+  operation: maximum.toString(),
+  input: 2,
+};
+const page = {
+  resource_revision: 3,
+  entries: [metadata, ...Array(7).fill(null)],
+  next: {
+    definition: contract.definition,
+    scope: metadata.scope,
+    resource_revision: 3,
+    after: "items",
+  },
+};
+test("metadata has owned full-width values and exact requested identity", async () => {
+  await withHost({ definition: metadata }, async (client) => {
+    const value = await client.lookup("items");
+    assert.ok(value);
+    assert.equal(value.objectId, maximum);
+    assert.equal(value.revision, maximum);
+    assert.equal(value.source.table, 0xffffffff);
+    assert.ok(Object.isFrozen(value) && Object.isFrozen(value.source.schema.names));
+    assert.deepEqual(await client.definition(maximum, maximum), value);
+    await assert.rejects(client.lookup("other"), IncompatibleNative);
+    await assert.rejects(client.definition(1n, 1n), IncompatibleNative);
+  });
+  await withHost({ definition: null }, async (client) => {
+    assert.equal(await client.lookup("absent"), undefined);
+    assert.equal(await client.definition(1n, 1n), undefined);
+  });
+});
+test("metadata pages own dense entries and bind continuation", async () => {
+  await withHost({ page }, async (client) => {
+    const value = await client.list();
+    assert.equal(value.entries.length, 1);
+    assert.equal(value.next?.after, "items");
+    assert.ok(Object.isFrozen(value.entries) && Object.isFrozen(value.next));
+    const entries = [...value.entries];
+    const copy = new Page(value.resourceRevision, entries, value.next);
+    entries.length = 0;
+    assert.equal(copy.entries.length, 1);
+    await assert.rejects(client.list(value.next), IncompatibleNative);
+  });
+  await withHost(
+    { page: { resource_revision: 3, entries: Array(8).fill(null), next: null } },
+    async (client) => {
+      assert.deepEqual(
+        (await client.list(new Cursor(contract.definition, scope, 3, "items"))).entries,
+        [],
+      );
+      await assert.rejects(
+        client.list(new Cursor(contract.definition, scope, 2, "items")),
+        IncompatibleNative,
+      );
+    },
+  );
+});
+for (const defect of [
+  "hole",
+  "order",
+  "scope",
+  "cut",
+  "next_name",
+  "missing_definition",
+  "foreign_definition",
+  "numeric_object",
+  "unknown_source",
+]) {
+  test(`metadata rejects malformed page ${defect}`, async () => {
+    const bad = structuredClone(page);
+    if (defect === "hole") [bad.entries[1], bad.entries[0]] = [bad.entries[0], null];
+    else if (defect === "order") bad.entries[1] = structuredClone(metadata);
+    else if (defect === "scope") bad.entries[0].scope.catalog = "1";
+    else if (defect === "cut") bad.next.resource_revision++;
+    else if (defect === "next_name") bad.next.after = "other";
+    else if (defect === "missing_definition") Reflect.deleteProperty(bad.next, "definition");
+    else if (defect === "foreign_definition") bad.next.definition = "0".repeat(64);
+    else if (defect === "numeric_object") bad.entries[0].object = 1;
+    else bad.entries[0].source = { document: {} };
+    await withHost({ page: bad }, async (client) => {
+      await assert.rejects(
+        client.list(),
+        (error) => error instanceof IncompatibleNative || error instanceof ReadFailed,
+      );
+    });
   });
 }
 async function withHost(

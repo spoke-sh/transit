@@ -79,6 +79,29 @@ time; overlap rejects with `Busy`. There is no retry queue, provisioning loop or
 principal sequence coordinator. `close()` joins active work and the child before
 releasing ownership. Keep recovery material independently of host promises.
 
+## Definition reads and pages
+
+`lookup(name)` returns a `Definition` or `undefined`, validating the exact name
+binding and live Table schema. `definition(objectId, revision)` takes two positive
+uint64 `bigint` values and reads immutable definition metadata. `Definition`
+owns the scope, object/revision/name, `TableSource` (physical `table` and schema)
+and original principal/operation/input attribution. Exact revision reads do not
+require the current Table to match that historical definition.
+
+`list()` returns a frozen `Page` with `resourceRevision`, a dense frozen array of
+at most eight ordered `entries` and optional `next`. Continue with
+`list(page.next)` only when the cursor is present; an empty final page is possible.
+Restore `Cursor` with all original fields: `definition`, `scope`,
+`resourceRevision` and `after`. Missing or foreign definitions reject; never
+substitute the current definition for a missing saved field.
+
+Each call rechecks current catalog inspection policy and native grants. Cursors
+retain no snapshot and confer no authority. Changed scope/revision returns a
+conflict; discard the old partial result before starting a fresh listing.
+Generated schemas and the public decoder check exact identities, ordering,
+scope and continuation. Metadata reads submit no command and retry nothing
+implicitly. Returned definitions and pages outlive the native child.
+
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns atomic
 publication, authority and recovery semantics. The [proof ledger](../../../../tests/README.md)
 records installed-package recovery and injected malformed-host cases separately.

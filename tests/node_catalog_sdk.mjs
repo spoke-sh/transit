@@ -17,6 +17,10 @@ const request = v => new m.CreateTable(scope(v.scope), BigInt(v.operation), BigI
 const requestJson = v => ({ scope:scopeJson(v.scope), operation:v.operation.toString(), object:v.objectId.toString(), table:v.table, name:v.name, schema:{ names:v.schema.names, value_type:v.schema.valueType } });
 const prepared = v => new m.Prepared(v);
 const hex = v => Buffer.from(v).toString('hex');
+const cursor = v => v === null ? undefined : new m.Cursor(v.definition, scope(v.scope), v.resource_revision, v.after);
+const cursorJson = v => v === undefined ? null : ({ definition:v.definition, scope:scopeJson(v.scope), resource_revision:v.resourceRevision, after:v.after });
+const definitionJson = v => v === undefined ? null : ({ scope:scopeJson(v.scope), object:v.objectId.toString(), revision:v.revision.toString(), name:v.name,
+  source:{ table:{ id:v.source.table, schema:{ names:v.source.schema.names, value_type:v.source.schema.valueType } } }, principal:v.principal, operation:v.operation.toString(), input:v.input });
 const connection = new m.Connection(new ProcessRef(c.scope.realm, c.owner), scope(c.scope));
 const client = await m.Client.open({ url:config.url, profile:'native_v1', timeoutMs:10000 }, new Credential(c.scope.realm, c.principal, config.seed_file), connection);
 async function call(action) {
@@ -28,6 +32,12 @@ async function call(action) {
   if (name === 'describe') {
     const r = await client.describe();
     return { description:{ configuration:configurationJson(r.configuration), policy:policyJson(r.policy), resource_revision:r.resourceRevision } };
+  }
+  if (name === 'lookup') return { definition:definitionJson(await client.lookup(v)) };
+  if (name === 'definition') return { definition:definitionJson(await client.definition(BigInt(v.object), BigInt(v.revision))) };
+  if (name === 'list') {
+    const r = await client.list(cursor(v));
+    return { page:{ resource_revision:r.resourceRevision, entries:[...r.entries.map(definitionJson), ...Array(8-r.entries.length).fill(null)], next:cursorJson(r.next) } };
   }
   if (name === 'compile') {
     const r = await client.compileSql(v.sql, BigInt(v.operation), BigInt(v.object), v.table);
