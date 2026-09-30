@@ -4685,3 +4685,17 @@ build. Five local performance samples put compilation at 0.393–0.897 µs per
 statement across the four cases and 8,192-row count/sum at 0.772/0.788 ms.
 A documentation build overlapped this sample, so it is not a controlled speedup
 claim; the raw report is `.cache/verification/sql/projection.json`.
+
+The typed-filter iteration passes `just test::sql` (24 unified results across
+three source bases and eight page widths) and `just test::unit`. New unit cases
+check exact state tags, canonical plan agreement, full uint64 range, signed zero
+through the plan codec, malformed/non-finite literals and type mismatches. Cursor
+fixtures cover numeric operators, typed literals and all five state suggestions.
+`just check` and `just test::interactive-query --source table` pass. The real
+console selects 41 values and zero missing/type-error/conflict keys with eight
+native read attempts per full scan and no durable updates; the same fixture
+checks cancellation, fresh cuts, complete framing and current denial. Individual
+new-predicate samples took 32–39 ms with sampled console RSS of 16.2–16.4 MiB;
+these are local observations, not latency percentiles. An initial optimized build
+failed on duplicate Arrow C objects; reusing the root Fuze dependency in the
+benchmark build fixed it before the successful fixture run.

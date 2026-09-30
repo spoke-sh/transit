@@ -61,12 +61,14 @@ is accepted, full execution equivalence, or a formal superset theorem. In
 particular, Fuze's checked int64 sum differs from PostgreSQL's widened numeric
 sum, and Fuze supplies deterministic primary-key order without a SQL `ORDER BY`.
 DDL and connector extensions are additive syntax, not PostgreSQL compatibility
-cases. Broader regression suites, fuzz discovery and server execution comparison
+cases. The Transit-specific state predicates use independent ANTLR/Arrow
+fixtures; uint64/float64 type suffixes have parser agreement without claiming
+PostgreSQL has those builtin types. Broader regression suites, fuzz discovery and server execution comparison
 remain outside this evidence.
 
 ## Grammar coverage
 
-The read grammar permits one Table, one optional typed comparison or `IS NULL`,
+The read grammar permits one Table, one optional typed comparison or exact cell-state test,
 one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; table aliases
 are admitted only on the single restricted aggregate input subquery. Strings
@@ -79,7 +81,7 @@ comment nesting; grammar acceptance alone does not validate those budgets.
 spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
 `LIMIT` is syntactically recognized but cannot be lowered as an input limit.
 No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
-compound predicates, expression arithmetic, writes, casts other than bytea,
+compound predicates, expression arithmetic, writes, general casts,
 `COUNT(column)`, aliases on output columns and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 

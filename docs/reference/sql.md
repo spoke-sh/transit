@@ -54,7 +54,7 @@ Arrow int64 columns.
 | Sources | One declared KV, Table or accepted Document projection |
 | `SELECT *` | All one to eight declared columns |
 | Explicit projection | One to eight distinct column names in the requested order |
-| Predicate | One comparison or `IS NULL` |
+| Predicate | One comparison or exact cell-state test |
 | Ordering | Defined source order |
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |
 | `COUNT(*)` | uint64, counting every cell state; Flight checks conversion to int64 |
@@ -144,9 +144,10 @@ are literal. There are no implicit casts, E strings or dollar quotes.
 
 Queries accept `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=` under their type
 rules. Operands are exactly typed,
-including byte ordering for text/binary. Uint64 and float64 columns can be
-projected, but comparison literals for them require typed plans.
-`IS NULL` selects explicit null, not a missing Document field.
+including byte ordering for text/binary. Uint64 and float64 comparisons use explicit string literals such as
+`'18446744073709551615'::uint64` and `'1.25e2'::float64`.
+`IS NULL` selects explicit null, not a missing Document field. `IS MISSING`,
+`IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select those exact states.
 
 ## Bounds and unsupported operations
 

@@ -190,19 +190,23 @@ One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
 star (all declared columns), one to eight ordered named columns, one typed comparison
-or `IS NULL`, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
+or an exact cell-state test, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
 V1 limits use the plan's full u64 range; an absent limit stays unlimited, subject
 to explicit execution budgets. An aggregate's outer LIMIT still rejects.
-`IS NULL` selects explicit null only. Missing values do not become null;
+`IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select
+exactly the named state. Missing values do not become null;
 comparisons skip missing/null and fail on type errors or unresolved conflicts.
-Comparisons require an exact literal type. The current grammar has int64,
-boolean, UTF-8 and binary literals; uint64/float64 values can be projected but
-have no SQL comparison literal in this profile. `column = NULL` and other null
+Comparisons require an exact literal type. The grammar has int64, boolean,
+UTF-8 and binary literals, plus string literals with `::uint64` or `::float64`.
+Uint64 accepts decimal digits through 18446744073709551615; float64 accepts
+finite decimal notation with optional sign and exponent, rounded to binary64.
+It preserves negative zero. Non-finite values, overflow, whitespace, underscores
+and hexadecimal floating point reject. `column = NULL` and other null
 comparisons reject as `UnsupportedNullComparison` because the v1 plan has no
-null comparison scalar. The typed API separately exposes all five state tests.
-No implicit integer conversion, collation, new syntax or rewrite is introduced.
+null comparison scalar. SQL lowers to the existing typed scalar and state operators.
+No implicit integer conversion, collation or rewrite is introduced.
 UTF-8/binary comparisons use the plan's lexicographic byte order.
 
 Parser bounds remain 4096 statement bytes, 16-byte identifiers, eight explicit

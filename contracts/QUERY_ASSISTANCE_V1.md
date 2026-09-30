@@ -24,7 +24,8 @@ are independent of retained data cardinality.
 Fuze's production parser supplies keyword, punctuation and name-context
 expectations. The query owner supplies authorized names/types and filters against
 its executable v1 capabilities. Checked SUM offers int64 columns only; typed
-literal suggestions exclude unsupported uint64/float64 comparisons. General DDL,
+literal suggestions use explicit `'0'::uint64` and `'0'::float64` forms for
+those column types. Exact cell-state tests retain all five states. General DDL,
 joins, windows and continuous queries cannot appear as executable candidates.
 The existing SQL AST limits named identifiers to sixteen bytes, even where the
 v1 schema can describe thirty-two-byte names. Those wider names do not become

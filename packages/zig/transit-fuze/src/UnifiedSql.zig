@@ -39,7 +39,7 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     var result: m.Plan = .{ .projection = owned_projection, .aggregate = aggregate, .limit = if (ast.input) |value| value.limit else ast.limit };
     result.predicate = switch (ast.predicate) {
         .all => .all,
-        .is_null => |column| .{ .state = .{ .column = try resolve(column, source.name, source.schema), .value = .null } },
+        .state => |state| .{ .state = .{ .column = try resolve(state.column, source.name, source.schema), .value = state.value } },
         .compare => |value| .{ .compare = .{
             .column = try resolve(value.column, source.name, source.schema),
             .op = switch (value.op) {
@@ -89,6 +89,11 @@ fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output
     return output[0..count];
 }
 fn scalar(allocator: std.mem.Allocator, literal: sql.Literal) !m.Scalar {
+    switch (literal) {
+        .uint64 => |value| return .{ .uint64 = value },
+        .float64 => |value| return .{ .float64 = value },
+        else => {},
+    }
     const value = try sql.literalCell(literal);
     return switch (value) {
         .null => error.UnsupportedNullComparison,

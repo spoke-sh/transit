@@ -34,8 +34,9 @@ def expected(ast):
     pred = ast['predicate']
     if pred:
         index = NAMES.index(pred['column'][1])
-        if pred['op'] == 'is_null':
-            rows = [r for r in rows if r[index]['state'] == 1]
+        if pred['op'].startswith('is_'):
+            state = ['missing', 'null', 'type_error', 'value', 'conflict'].index(pred['op'][3:])
+            rows = [r for r in rows if r[index]['state'] == state]
         else:
             value = pred['literal']['value']
             if pred['literal']['kind'] == 'binary':
@@ -59,6 +60,14 @@ def expected(ast):
 
 def check(driver):
     statements = [
+        'SELECT optional FROM items WHERE optional IS MISSING',
+        'SELECT optional FROM items WHERE optional IS TYPE_ERROR',
+        'SELECT optional FROM items WHERE optional IS CONFLICT',
+        'SELECT value FROM items WHERE value IS VALUE',
+        'SELECT count(*) FROM items WHERE optional IS TYPE_ERROR',
+        "SELECT counter FROM items WHERE counter >= '18446744073709551614'::uint64",
+        "SELECT fraction FROM items WHERE fraction = '-0.0'::float64",
+        "SELECT fraction FROM items WHERE fraction > '1.5e0'::float64 LIMIT 9",
         'SELECT optional, missing, raw, value, flag, fraction, counter, id FROM items',
         'SELECT id, counter, fraction FROM items LIMIT 33',
         'SELECT sum(chosen.id) FROM (SELECT raw, id, optional FROM items LIMIT 37) AS chosen',
@@ -86,7 +95,8 @@ def check(driver):
     cases = [dict(sql=s) for s in statements] + [dict(sql=s, expected_error=e) for s, e in failures]
     asts = [antlr_ast(c['sql']) for c in cases]
     for case, ast in zip(cases, asts, strict=True):
-        assert ast == pg_ast(case['sql'])
+        if ast['predicate'] is None or ast['predicate']['op'] in ('is_null', 'eq', 'ne', 'lt', 'le', 'gt', 'ge'):
+            assert ast == pg_ast(case['sql'])
     with tempfile.TemporaryDirectory(prefix='transit-unified-sql-') as temp:
         root = Path(temp)
         (root/'cases.json').write_text(json.dumps(cases))
@@ -113,7 +123,7 @@ def check(driver):
                 for row, (observed, expected_cell) in enumerate(zip(actual[name], want[name], strict=True)):
                     assert observed == expected_cell, (case, response, name, row, observed, expected_cell)
             if 'fraction' in actual and actual['fraction']:
-                assert math.copysign(1, actual['fraction'][0]['value']) == -1
+                assert math.copysign(1, actual['fraction'][0]['value']) == math.copysign(1, want['fraction'][0]['value'])
             seen.add((i, response['kind'], response['width']))
         for i, case in enumerate(cases):
             if 'expected_error' in case and case['expected_error'] != 'QueryTypeError':

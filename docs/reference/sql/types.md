@@ -9,8 +9,8 @@ syntax and grammar-only declaration types have different coverage.
 | Query v1 type | Read a declared column | SQL comparison literal | Grammar-only DDL token |
 | --- | --- | --- | --- |
 | int64 | Yes | Signed decimal integer, such as `-42` | `INT64` |
-| uint64 | Yes | None; use a typed plan | None |
-| float64 | Yes | None; use a typed plan | None |
+| uint64 | Yes | `'18446744073709551615'::uint64` | None |
+| float64 | Yes | `'1.25e2'::float64` | None |
 | boolean | Yes | `TRUE`, `FALSE` | `BOOL` |
 | UTF-8 | Yes | Single-quoted text, such as `'ready'` | `UTF8` |
 | binary | Yes | Hex bytes, such as `'\x00ff'::bytea` | `BINARY` |
@@ -35,11 +35,11 @@ Nested query cells retain a state as well as a scalar type:
 
 | State | Meaning | SQL behavior |
 | --- | --- | --- |
-| Value | A value of the declared scalar type | Projected as that value; comparisons require exactly typed operands |
+| Value | A value of the declared scalar type | `IS VALUE` selects it; comparisons require exactly typed operands |
 | Null | Explicit absence of a value | `IS NULL` selects it |
-| Missing | No value at the declared Document projection | Remains distinct from null; `IS NULL` does not select it |
-| Type error | The source cannot supply the declared type | Preserved in row results; not coerced to null |
-| Conflict | The source carries an unresolved conflict | Preserved in row results; not coerced to null |
+| Missing | No value at the declared Document projection | `IS MISSING` selects it; distinct from null |
+| Type error | The source cannot supply the declared type | `IS TYPE_ERROR` selects it; preserved in row results |
+| Conflict | The source carries an unresolved conflict | `IS CONFLICT` selects it; alternatives remain intact |
 
 `COUNT(*)` counts rows in every cell state and returns uint64, including zero
 for empty input. `SUM(column)` accepts int64 values, skips null/missing, fails on

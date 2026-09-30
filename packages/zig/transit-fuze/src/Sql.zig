@@ -18,10 +18,10 @@ pub const Text = struct {
         return self.bytes[0..self.len];
     }
 };
-pub const Literal = union(enum) { null, int64: i64, boolean: bool, utf8: Text, binary: Text };
+pub const Literal = union(enum) { null, int64: i64, uint64: u64, float64: f64, boolean: bool, utf8: Text, binary: Text };
 pub const Predicate = union(enum) {
     all,
-    is_null: Column,
+    state: struct { column: Column, value: f.Unified.State },
     compare: struct { column: Column, op: f.Unified.Plan.Comparison, literal: Literal },
 };
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
@@ -80,6 +80,7 @@ pub fn literalCell(literal: Literal) !m.Cell {
     return switch (literal) {
         .null => .null,
         .int64 => |value| .{ .int64 = value },
+        .uint64, .float64 => error.UnsupportedLiteral,
         .boolean => |value| .{ .boolean = value },
         .utf8 => |value| .{ .utf8 = try m.Bytes.init(value.slice()) },
         .binary => |value| blk: {
@@ -272,9 +273,10 @@ const Parser = struct {
         if (self.assistance) |h| h.predicate_column = col;
         if (self.word("IS")) {
             try self.advance();
-            try self.requireWord("NULL");
+            const value: f.Unified.State = if (self.word("NULL")) .null else if (self.word("MISSING")) .missing else if (self.word("TYPE_ERROR")) .type_error else if (self.word("VALUE")) .value else if (self.word("CONFLICT")) .conflict else return error.UnsupportedConstruct;
+            try self.advance();
             if (self.assistance) |h| h.predicate_column = null;
-            return .{ .is_null = col };
+            return .{ .state = .{ .column = col, .value = value } };
         }
         if (self.token.tag == .cursor) if (self.assistance) |h| {
             for ([_]Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| h.symbol(tag);
@@ -319,8 +321,20 @@ const Parser = struct {
             }
             try self.advance();
             if (try self.take(.cast)) {
-                try self.requireWord("BYTEA");
-                return .{ .binary = value };
+                const result: Literal = if (self.word("BYTEA")) .{ .binary = value } else if (self.word("UINT64")) blk: {
+                    const bytes = value.slice();
+                    if (bytes.len == 0) return error.InvalidNumericLiteral;
+                    for (bytes) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidNumericLiteral;
+                    break :blk .{ .uint64 = std.fmt.parseInt(u64, bytes, 10) catch return error.LiteralOutOfRange };
+                } else if (self.word("FLOAT64")) blk: {
+                    const bytes = value.slice();
+                    for (bytes) |byte| if (std.mem.indexOfScalar(u8, "0123456789+-.eE", byte) == null) return error.InvalidNumericLiteral;
+                    const number = std.fmt.parseFloat(f64, bytes) catch return error.InvalidNumericLiteral;
+                    if (!std.math.isFinite(number)) return error.LiteralOutOfRange;
+                    break :blk .{ .float64 = number };
+                } else return error.UnsupportedConstruct;
+                try self.advance();
+                return result;
             }
             return .{ .utf8 = value };
         }

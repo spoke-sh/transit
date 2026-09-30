@@ -112,6 +112,9 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 query('SELECT * FROM items LIMIT 0;', 0, request_budget=3)
                 query('SELECT * FROM items;', count, 'table', request_budget=scan_budget)
                 if kind == 'table':
+                    query('SELECT * FROM items WHERE id IS VALUE;', count, request_budget=scan_budget)
+                    for state in ('MISSING', 'TYPE_ERROR', 'CONFLICT'):
+                        query(f'SELECT * FROM items WHERE id IS {state};', 0, request_budget=scan_budget)
                     point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count), request_budget=3)
                     if count:
                         assert point[0]['cells'][0][0] == {'value': {'int64': str(count - 1)}}

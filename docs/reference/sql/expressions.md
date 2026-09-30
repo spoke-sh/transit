@@ -18,9 +18,9 @@ aliases and scalar function calls are unsupported.
 | --- | --- | --- |
 | `=`, `<>`, `!=` | Column and exactly typed literal | Equality or inequality |
 | `<`, `<=`, `>`, `>=` | Column and exactly typed literal | Comparison; text and binary use byte ordering |
-| `IS NULL` | Column | Selects explicit null only |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Column | Selects exactly the named cell state |
 
-The literal forms cover int64, boolean, UTF-8 and binary. Comparisons to `NULL`
+The literal forms cover int64, uint64, finite float64, boolean, UTF-8 and binary. Comparisons to `NULL`
 reject; there is no implicit cast to another column type. The syntax allows one
 predicate, with no `AND`, `OR`, `NOT`, `IS NOT NULL`, `IN`, `LIKE`, `BETWEEN` or
 column-to-column comparison. General precedence and boolean-expression rules
@@ -43,8 +43,9 @@ use the [restricted derived-table form](select.md#aggregate-a-limited-input).
 
 ## Conversion and external work
 
-`'\x00ff'::bytea` is a binary literal form, not a general cast facility. SQL
-supports neither `CAST` nor arbitrary `::type` conversion. Secret references in
+String literals accept `::bytea`, `::uint64` and `::float64` type suffixes.
+They decode binary hex, unsigned decimal integers and finite decimal floating
+point respectively. SQL supports neither `CAST` nor arbitrary `::type` conversion. Secret references in
 [connection options](create-connection.md) are separate grammar-only syntax;
 they are not query functions.
 

@@ -19,8 +19,8 @@
     {"sql":"SELECT sel FROM items","cursor":10,"start":7,"end":10,"items":["\"select\""]},
     {"sql":"SELECT * FROM it","cursor":16,"start":14,"end":16,"items":["\"items\""]},
     {"sql":"SELECT * FROM other WHERE ","cursor":26,"start":26,"end":26,"items":[]},
-    {"sql":"SELECT * FROM items WHERE wide ","cursor":31,"start":31,"end":31,"items":["IS"]},
-    {"sql":"SELECT * FROM items WHERE wide = ","cursor":33,"start":33,"end":33,"items":[]},
+    {"sql":"SELECT * FROM items WHERE wide ","cursor":31,"start":31,"end":31,"items":["IS","=","<>","<","<=",">",">="]},
+    {"sql":"SELECT * FROM items WHERE wide = ","cursor":33,"start":33,"end":33,"items":["'0'::uint64"]},
     {"sql":"SELECT * FROM items WHERE label = ","cursor":34,"start":34,"end":34,"items":["''"]},
     {"sql":"SELECT SUM(","cursor":11,"start":11,"end":11,"items":["\"id\"","\"Value\"","\"select\"","\"items\""]},
     {"sql":"SELECT COUNT(*) FROM items L","cursor":28,"start":27,"end":28,"items":[]},
@@ -29,6 +29,9 @@
     {"sql":".mode jsoSuffix","cursor":9,"start":6,"end":15,"mode":"console","items":["json"]},
     {"sql":".ti","cursor":3,"start":0,"end":3,"mode":"console","items":[".timing"]},
     {"sql":".timing o","cursor":9,"start":8,"end":9,"mode":"console","items":["on","off"]},
-    {"sql":"/for","cursor":4,"start":1,"end":4,"items":[]}
+    {"sql":"/for","cursor":4,"start":1,"end":4,"items":[]},
+    {"sql":"SELECT id, wide, la","cursor":19,"start":17,"end":19,"items":["\"label\""]},
+    {"sql":"SELECT * FROM items WHERE wide IS ","cursor":34,"start":34,"end":34,"items":["NULL","MISSING","TYPE_ERROR","VALUE","CONFLICT"]},
+    {"sql":"SELECT * FROM items WHERE decimal = ","cursor":36,"start":36,"end":36,"items":["'0'::float64"]}
   ]
 }

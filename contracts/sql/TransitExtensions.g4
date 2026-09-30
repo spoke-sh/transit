@@ -20,9 +20,10 @@ aggregateSelection: COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN
 projection: STAR | columnReference (COMMA columnReference)*;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
-predicate: columnReference (IS NULL_ | comparison literal);
+predicate: columnReference (IS cellState | comparison literal);
+cellState: NULL_ | MISSING | TYPE_ERROR | VALUE | CONFLICT;
 comparison: EQ | NE | LT | LE | GT | GE;
-literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST BYTEA)?;
+literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?;
 signedInteger: (PLUS | MINUS)? INTEGER;
 limitClause: LIMIT INTEGER;
 
@@ -167,7 +168,7 @@ asOfClause
     ;
 
 identifier
-    : IDENTIFIER | QUOTED_IDENTIFIER
+    : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64
     ;
 
 // ---- Lexer rules --------------------------------------------------------
@@ -181,6 +182,13 @@ IS: 'IS';
 TRUE: 'TRUE';
 FALSE: 'FALSE';
 BYTEA: 'BYTEA';
+// Contextual keywords remain usable as existing unquoted source/column names.
+MISSING: 'MISSING';
+TYPE_ERROR: 'TYPE_ERROR';
+VALUE: 'VALUE';
+CONFLICT: 'CONFLICT';
+UINT64: 'UINT64';
+FLOAT64: 'FLOAT64';
 CREATE: 'CREATE';
 CONNECTION: 'CONNECTION';
 CONNECTIONS: 'CONNECTIONS';

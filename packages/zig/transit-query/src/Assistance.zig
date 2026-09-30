@@ -113,7 +113,9 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
             .int64 => try builder.add("0", .literal, "int64 literal"),
             .utf8 => try builder.add("''", .literal, "UTF-8 literal"),
             .binary => try builder.add("'\\x'::bytea", .literal, "Binary literal"),
-            .boolean, .uint64, .float64 => {},
+            .uint64 => try builder.add("'0'::uint64", .literal, "uint64 literal"),
+            .float64 => try builder.add("'0'::float64", .literal, "finite float64 literal"),
+            .boolean => {},
         }
     }
     for (hints.words) |word| if (word) |value| {
@@ -126,7 +128,9 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
         try builder.add(value, .keyword, "SQL grammar");
     };
     for (hints.symbols) |symbol| if (symbol) |tag| {
-        if (predicate_type == .uint64 or predicate_type == .float64) continue;
+        if (tag == .dot) if (hints.predicate_column) |column| {
+            if (!std.mem.eql(u8, column.name.slice(), name.slice())) continue;
+        };
         if (literal_type != null) continue; // Typed literals above; no invalid numeric/sign suggestions.
         const value: ?[]const u8 = switch (tag) {
             .left => "(",

@@ -23,6 +23,9 @@ retains a source version or grants access. The caller supplies current authority
 and the exact source basis before execution. `Unified.Codec` is the canonical
 plan codec.
 
+The compiler supports exact cell-state tests and full-width uint64/finite
+float64 literal suffixes. See [typed SQL](unified-sql.md) for their semantics.
+
 ## Syntax and escaping
 
 Every query has exactly one `FROM` source and at most one predicate. Unquoted

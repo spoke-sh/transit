@@ -43,10 +43,10 @@ client support for primitive Arrow alone is insufficient.
 The typed plan supports one comparison or a cell-state test, ordered projection,
 limit, count and checked int64 sum. SQL uses the existing parser and exposes only
 its supported subset: star or one to eight named columns, one exact-type comparison or
-`IS NULL`, row output, `COUNT(*)`, and int64 `SUM`. Uint64/float64 comparisons and
-all five state tests are available through typed plans; SQL has no corresponding
-numeric literals or general state-test syntax yet. `IS NULL` selects only explicit
-null, and comparison to a NULL literal rejects. There are no casts, joins, sort,
+an exact cell-state test, row output, `COUNT(*)`, and int64 `SUM`. Uint64/float64
+comparisons use explicit string literals with `::uint64`/`::float64`. `IS NULL`
+selects only explicit null, and comparison to a NULL literal rejects. There are
+no general casts, joins, sort,
 general pushdown, rewrites, continuous queries or implicit application decoders.
 
 The engine advances eight rows per page with at most eight columns. Scalars are
