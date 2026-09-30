@@ -6769,6 +6769,42 @@ Executed for this documentation change:
 These checks validate documentation and rendering. They do not rerun bundle
 builds, application installation, provider recovery or deployment qualification.
 
+### Explicit source aliases
+
+The `feat/sql-source-aliases` continuation implements explicit `FROM source AS
+alias` through the shared Zig parser, compiler and scoped completion owner.
+Fuze and query package tests pass. Equivalent aliased/unaliased queries produce
+identical canonical plans for row, state-test, count, sum and restricted-derived
+forms. Checks reject hidden original qualifiers, escaped inner aliases, unknown
+actual sources and duplicate columns. Completion fixtures keep the declared
+source authority separate from alias spelling, including quoted case and typed
+literal hints.
+
+`just test::sql` passes **113** Zig/ANTLR/PostgreSQL SELECT AST comparisons,
+**92** real plans and independent paged Arrow checks, and **19** grammar
+exclusions. The unified fixture checks **28** independent results at three source
+kind bases and eight page widths, plus nine explicit failure cases. Mutation and
+declaration fixtures also pass unchanged. The log is
+`/tmp/transit-sql-source-aliases-sql.log`. These are compiler/engine proofs;
+installed native/port/ten-SDK inspection and SQL-shell recovery checks are
+separate and remain pending, as does committed-head clean qualification.
+
+Full `just check` passes on this source tree. The first installed proof attempt
+stops before provisioning because this fresh worktree has no built Python wheel;
+no caller case ran. Package artifacts must be built locally before the rerun.
+The failed log is `/tmp/transit-sql-source-aliases-installed.log`.
+
+The declarative benchmark adds an aliased selected-count component beside its
+unaliased equivalent; all **29 components** and nine rejection probes pass with
+257 rows, three rows per page and five samples. Compile medians are **0.582 /
+0.707 microseconds** for unaliased/aliased SQL; execution medians are **76.816 /
+75.703 microseconds**. The canonical plans and independently checked outputs
+agree. These samples overlap other qualification and do not establish an
+execution speedup or native latency. Full workloads remain blocked. The report
+is `/tmp/transit-sql-source-aliases-benchmark.json`, with dirty source based on
+`d5541301` and exact manifest/harness/binary provenance. The benchmark runner's
+negative controls, documentation links and verification inventory checks pass.
+
 ## SQL performance iteration
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
