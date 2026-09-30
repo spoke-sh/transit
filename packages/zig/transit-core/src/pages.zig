@@ -178,7 +178,9 @@ pub fn Tree(comptime Store: type) type {
             var batch: [(leaf_entries + mutation_batch + leaf_entries - 1) / leaf_entries]Page = undefined;
             const count = std.math.divCeil(usize, entries.len, leaf_entries) catch unreachable;
             for (batch[0..count], 0..) |*page, i| {
-                const group = entries[i * leaf_entries .. @min((i + 1) * leaf_entries, entries.len)];
+                // Leave room on both sides of a split. Packing the first page
+                // full repeatedly splits the left spine on descending inserts.
+                const group = entries[i * entries.len / count .. (i + 1) * entries.len / count];
                 page.* = .{ .count = @intCast(group.len), .body = .{ .leaf = @splat(null) } };
                 for (group, 0..) |entry, j| page.body.leaf[j] = entry;
             }
@@ -189,7 +191,7 @@ pub fn Tree(comptime Store: type) type {
             var batch: [(branch_children + mutation_batch + branch_children - 1) / branch_children]Page = undefined;
             const count = std.math.divCeil(usize, children.len, branch_children) catch unreachable;
             for (batch[0..count], 0..) |*page, i| {
-                const group = children[i * branch_children .. @min((i + 1) * branch_children, children.len)];
+                const group = children[i * children.len / count .. (i + 1) * children.len / count];
                 page.* = .{ .height = output.height, .count = @intCast(group.len), .body = .{ .branch = @splat(null) } };
                 for (group, 0..) |child, j| page.body.branch[j] = child;
             }

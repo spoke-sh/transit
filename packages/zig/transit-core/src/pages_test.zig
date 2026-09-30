@@ -46,6 +46,49 @@ fn value(index: usize) p.Value {
     return p.Value.init(&buffer) catch unreachable;
 }
 
+test "descending bounded mutations retain shallow lookup paths and old roots" {
+    for ([_]usize{ 1, 4, 8 }) |batch_size| {
+        var store: Store = .{};
+        defer store.deinit();
+        const tree: p.Tree(Store) = .{ .store = &store };
+        var root: ?p.Reference = null;
+        var remaining: usize = 257;
+        while (remaining > 0) {
+            const count = @min(batch_size, remaining);
+            var changes: [p.mutation_batch]p.Mutation = undefined;
+            for (changes[0..count], 0..) |*change, i| {
+                const index = remaining - i - 1;
+                change.* = .{ .key = key(index), .value = value(index) };
+            }
+            const previous = root;
+            root = try tree.mutate(root, changes[0..count]);
+            try t.expect((try tree.get(previous, key(remaining - 1))) == null);
+            remaining -= count;
+        }
+        // A 257-key insertion-only tree must not approach the 32-level address
+        // guard. This generous bound permits half-full binary branching.
+        for (0..257) |i| {
+            store.reads = 0;
+            const found = (try tree.get(root, key(i))).?;
+            try t.expectEqualSlices(u8, value(i).slice(), found.slice());
+            try t.expect(store.reads <= 9);
+        }
+        var cursor: ?p.Key = null;
+        var expected: usize = 0;
+        while (true) {
+            const batch = try tree.scan(root, cursor);
+            for (batch.entries) |slot| if (slot) |entry| {
+                try t.expectEqualSlices(u8, key(expected).slice(), entry.key.slice());
+                try t.expectEqualSlices(u8, value(expected).slice(), entry.value.slice());
+                expected += 1;
+            };
+            cursor = batch.next;
+            if (cursor == null) break;
+        }
+        try t.expectEqual(257, expected);
+    }
+}
+
 test "bounded tree ranges stop at the exclusive end and avoid unrelated leaves" {
     var store: Store = .{};
     defer store.deinit();
