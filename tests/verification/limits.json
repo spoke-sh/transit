@@ -365,6 +365,13 @@
       "expression": "@import(\"Unified.zig\").max_columns",
       "classification": "operation",
       "meaning": "At most eight columns in one offline state definition; not a bound on total catalog objects or durable history."
+    },
+    {
+      "source": "packages/zig/transit-catalog/src/Client.zig",
+      "symbol": "max_saved_bytes",
+      "expression": "8192",
+      "classification": "encoding",
+      "meaning": "Complete owned canonical saved catalog command; bounds one recovery artifact, not retained operation receipts or catalog cardinality."
     }
   ],
   "identities": [

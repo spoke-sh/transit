@@ -1560,6 +1560,7 @@
         "packages/zig/transit-catalog/src/Catalog.zig",
         "packages/zig/transit-catalog/src/Model.zig",
         "packages/zig/transit-catalog/src/Records.zig",
+        "packages/zig/transit-catalog/src/Client.zig",
         "tests/catalog_contract.py"
       ],
       "profile": "declarative-catalog-v1/native-v1",
@@ -1574,9 +1575,10 @@
         "Orphan Table row refusal, unchanged incoming proposals and sticky read poison at each point/page read",
         "257 definitions over 33 bounded metadata pages, fixed source revision, malformed pages and live Table schema validation",
         "Independent four-record bytes at one native revision; caller-send and owner-commit receipt loss with exact recovery after disk restart",
-        "No-write application duplicate, terminal name conflict, conflicting native retry, stale ownership and current native write/read denial"
+        "No-write application duplicate, terminal name conflict, conflicting native retry, stale ownership and current native write/read denial",
+        "Owned canonical signed caller restore, pre-transport scope/signature rejection, separate pending/processed status and current create/inspect policy revocation"
       ],
-      "limits": "Explicit Zig integration and test application only; no supplied catalog host, signed catalog client or administrative CLI/SDK route. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule has two applied Tables and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit Zig integration, signed caller and test application only; no supplied catalog host, neutral ABI or administrative CLI/SDK route. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule has two applied Tables and is not a native catalog growth or host power-loss proof.",
       "model": null,
       "qualification": "See tests/README.md#conditional-declarative-catalog for executed component and disk recovery evidence; supplied host and installed caller proofs remain."
     }

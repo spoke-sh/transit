@@ -57,6 +57,11 @@ and attributed receipt. Exact retries recover the original outcome; changed inte
 under the same operation ID rejects. A private result is not committed until the
 native turn succeeds. The [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md)
 defines policies, conflict outcomes, bounded inspection and recovery responsibilities.
+The shared Zig `Client` can prepare and submit that request to an explicitly
+integrated catalog application, preserve its exact signed send across caller
+replacement, and inspect its attributed outcome under current rights. A send
+receipt establishes admission; publication requires an applied catalog receipt.
+This client does not supply the application host or enable the query console.
 
 The form is a relational spelling of typed Table creation. Actual
 [Tables](../tables.md) are Station state over a resource, with explicit writer

@@ -11,9 +11,10 @@ results do not qualify the changed stored layout by inheritance.
 The additive `transit-catalog` package composes Fuze's declaration compiler with
 Station's existing two-column Table and four-mutation turn. It publishes the
 Table descriptor, immutable definition, name binding and attributed receipt at
-one commit. It is an explicit Zig integration API; the test application does not
-establish a supplied catalog host, signed catalog client, SQL administrative
-endpoint or CLI/SDK route. Native/ABI definitions and existing stored formats
+one commit. It is an explicit Zig integration API; the initial helper proofs do
+not establish a supplied catalog host, signed caller, SQL administrative endpoint
+or CLI/SDK route. The signed caller's separate evidence is recorded below.
+Native/ABI definitions and existing stored formats
 are unchanged. The [contract](../contracts/DECLARATIVE_CATALOG_V1.md) owns the
 current profile; `SQL-CATALOG-01` maps its proof obligations.
 
@@ -81,6 +82,41 @@ and per-task results are retained under
 `/tmp/transit-sql-catalog-ci-clean.log`. The following evidence-only commit changes
 no production code. This is a clean core-lane pass plus the focused native/SQL
 proofs above, not a complete clean-suite or administrative-surface qualification.
+
+### Shared signed catalog caller
+
+The additive `transit-catalog.Client` now prepares owned signed creation commands,
+restores exact saved bytes, submits explicitly and separates admission/input
+processing from original-request status. Description and status use bounded
+current native metadata batches; they retain no snapshot or permission cache.
+This does not enable a supplied host, neutral ABI, CLI or language SDK route.
+
+On development source based on `97378a8e`, both new caller component tests pass
+alongside the ten helper tests. They verify full-width identities, owned restored
+bytes, canonical complete input, missing/foreign nested definitions and local
+connection/signature rejection before transport. Full `just check` passes,
+including 52 invariants, 53 classified bounds, 12 SDK scenarios, 4509 local links,
+frontend checks/tests and the production documentation build.
+
+The expanded `just test::catalog` schedule uses the shared caller for preparation,
+saved-command restore, submission, observation and status. It preserves the exact
+prepared bytes after caller/node/store replacement, returns pending/null before
+application and processed/applied afterward, retains the original attributed
+receipt on an application duplicate and rejects changed operation intent. Current
+catalog inspection revocation hides old status while native reads still work;
+revoked create policy blocks preparation while inspection remains available.
+Native read revocation also prevents status disclosure. The earlier atomicity,
+conflict, owner fencing and lost native receipt cases remain in the schedule.
+
+The run passes in **3.310 seconds**, with **227 reads**, **9 accepted turn
+responses**, eight resident pages, four mutations and 127-byte maximum fixture
+values. It adds policy and observation operations, so its duration is not an
+equivalent-workload comparison with the helper-only run. The proof binary SHA-256
+is `a81fbd9cb9662196c91df512d4a6740e334e0dd7b7a85730ba9ac28c9ba6a82d`;
+the node hash is unchanged. Logs are `/tmp/transit-sql-catalog-client-components.log`,
+`/tmp/transit-sql-catalog-client-native.log` and
+`/tmp/transit-sql-catalog-client-check.log`. This development evidence does not
+extend the preceding committed clean checkpoint to the caller changes.
 
 ## Offline state declaration compiler
 

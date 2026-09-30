@@ -4,8 +4,8 @@
 helper creates an empty Table and publishes its definition, name binding and
 operation receipt in one resource turn. Native authority still validates current
 grants, ownership, fencing and atomic commit. This is an explicit application
-integration API; no supplied catalog host, SQL administrative transport, CLI or
-language SDK route is enabled by this contract.
+integration API with a shared signed Zig caller; no supplied catalog host, SQL
+administrative transport, CLI or language SDK route is enabled by this contract.
 
 The implementation supports the two-column Table profile. KV/Document definitions
 compile [offline](STATE_DECLARATION_V1.md) but have no catalog creation operation.
@@ -104,8 +104,54 @@ Infrastructure errors do not become successful or terminal conflict receipts.
 
 The receipt reflects application by the owner, not transport admission. Before
 commit it is only a private proposal. Native callers must preserve exact signed
-send/commit identity across uncertain responses. This helper alone does not
-implement a signed caller, worker dispatch or native receipt reconciliation.
+send/commit identity across uncertain responses. The private helper alone does
+not implement worker dispatch or native receipt reconciliation; the shared caller
+below owns signed sends.
+
+## Signed Zig caller
+
+`Client` borrows the public native transport and owns a connection and signing
+key. The connection binds realm/resource/catalog scope, owner PID and caller
+principal. Configure an application that dispatches the `q` request record to
+`Catalog.createTable`; the caller does not provision or start that application.
+
+`describe()` reads configuration and the caller's policy in one current native
+batch. It checks the active resource's writer and exact scope before returning
+metadata. At least one catalog right is required. `prepareCreate(request)` adds
+the original operation receipt to that same bounded batch, requires current
+create policy and refuses changed intent under an existing operation ID. It then
+reads the principal sequence and signs one Station cast without submitting it.
+Concurrent handles sharing a principal must coordinate their native sequences.
+The owner independently rechecks current create policy when applying the input.
+
+`Prepared` owns version one, the mandatory current contract definition, the
+complete connection and signed native send. `save` writes canonical JSON;
+`restore` accepts complete canonical input of at most 8192 bytes, validates both
+required definitions, frame/request structure and scope, and returns owned
+fields. Missing/foreign definitions, altered connection binding, unknown fields
+and noncanonical bytes reject. The record contains no private key. Saved bytes
+remain opaque recovery material to foreign languages; full-width application
+identities must not pass through an inexact JSON-number conversion.
+
+`submit(prepared)` validates the connection, complete request and signature
+before transport access, then attempts the exact signed send once. It performs
+no metadata acquisition, re-signing or automatic retry. Preserve the original
+prepared value across uncertainty and caller replacement. A native receipt
+establishes admission only. `observe(prepared, input)` checks current native
+process inspection and the exact pending input where present; `processed` does
+not promise that the catalog object was published. Supply the input position
+from that exact send's receipt.
+
+`status(original_request)` reads configuration, current inspect policy and the
+operation receipt in one native batch. It checks all original request fields and
+principal before disclosing an outcome. Missing status remains `null`, including
+before application; it is not a successful or rejected publication. Create and
+inspect rights are independent. Native resource grants apply to every batch, and
+application inspection denial prevents this API from returning earlier receipts.
+These application checks do not remove rights granted directly by native policy.
+Only protocol feature support is cached; permissions and resource revisions are
+never reused across acquisitions. No retained snapshot or implicit input is
+created by metadata or status reads.
 
 ## Inspection and bounded pages
 

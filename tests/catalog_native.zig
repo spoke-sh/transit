@@ -65,6 +65,9 @@ fn prepare(init: std.process.Init, wire: *s.client.Client, config: Config) !s.cl
     const catalog = owner(config);
     if (std.mem.eql(u8, payload.slice(), "catalog.initialize")) {
         try catalog.initialize(&turn);
+    } else if (std.mem.startsWith(u8, payload.slice(), "TCA1p")) {
+        const policy = try c.Records.decode(c.Model.Policy, 'p', payload);
+        try catalog.setPolicy(&turn, policy.revision - 1, policy);
     } else {
         _ = try catalog.createTable(&turn, try c.Records.decode(c.Model.CreateTable, 'q', payload));
     }
@@ -74,6 +77,11 @@ fn prepare(init: std.process.Init, wire: *s.client.Client, config: Config) !s.cl
 fn request(init: std.process.Init, directory: []const u8) !c.Model.CreateTable {
     const saved = try load(Frozen, init, directory, "send.json");
     return c.Records.decode(c.Model.CreateTable, 'q', (try s.Frame.decode(saved.signed.request.command.send.value)).payload);
+}
+fn restored(init: std.process.Init, directory: []const u8) !c.Client.Prepared {
+    const a = init.arena.allocator();
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try std.fmt.allocPrint(a, "{s}/prepared.json", .{directory}), a, .limited(c.Client.Prepared.max_saved_bytes));
+    return c.Client.Prepared.restore(a, bytes);
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
@@ -97,16 +105,28 @@ pub fn main(init: std.process.Init) !void {
         return print(init, config);
     }
     var config = try load(Config, init, directory, "catalog.json");
+    var caller: c.Client = .{ .transport = &wire, .connection = .{ .scope = owner(config).configuration.scope, .owner = config.writer.pid, .principal = 1234 }, .key = try key(10) };
     if (std.mem.eql(u8, mode, "prepare-send")) {
         if (args.len != 8) return error.Usage;
         const operation = try std.fmt.parseInt(u64, args[4], 10);
         const object = try std.fmt.parseInt(u64, args[5], 10);
         const table = try std.fmt.parseInt(u32, args[6], 10);
         const req = try c.Model.CreateTable.compile(owner(config).configuration.scope, operation, object, table, args[7]);
-        try save(init, directory, "send.json", Frozen{ .definition = g.current_definition, .signed = try send(&wire, config, try c.Records.encode('q', req)) });
+        const prepared = try caller.prepareCreate(req);
+        try save(init, directory, "prepared.json", prepared);
+        try save(init, directory, "send.json", Frozen{ .definition = g.current_definition, .signed = prepared.signed });
         return print(init, .{ .prepared = operation });
     }
-    if (std.mem.eql(u8, mode, "submit-send")) return print(init, try wire.submit((try load(Frozen, init, directory, "send.json")).signed));
+    if (std.mem.eql(u8, mode, "submit-send")) return print(init, try caller.submit(try restored(init, directory)));
+    if (std.mem.eql(u8, mode, "status")) return print(init, try caller.status(try request(init, directory)));
+    if (std.mem.eql(u8, mode, "observe")) return print(init, try caller.observe(try restored(init, directory), try std.fmt.parseInt(u64, args[4], 10)));
+    if (std.mem.eql(u8, mode, "policy")) {
+        if (args.len != 7) return error.Usage;
+        const policy: c.Model.Policy = .{ .scope = caller.connection.scope, .principal = 1234, .revision = try std.fmt.parseInt(u64, args[4], 10), .create = std.mem.eql(u8, args[5], "true"), .inspect = std.mem.eql(u8, args[6], "true") };
+        _ = try wire.submit(try send(&wire, config, try c.Records.encode('p', policy)));
+        _ = try (try prepare(init, &wire, config)).submit(&wire);
+        return print(init, .{ .changed = true });
+    }
     if (std.mem.eql(u8, mode, "prepare-commit")) {
         const pending = try prepare(init, &wire, config);
         try save(init, directory, "commit.json", Frozen{ .definition = g.current_definition, .signed = pending.signed });

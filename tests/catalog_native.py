@@ -119,6 +119,7 @@ def run(node, proof):
             provision = invoke('provision')
             invoke('prepare-send', maximum, maximum, 9, statement)
             frozen_send = (root / 'send.json').read_bytes()
+            frozen_prepared = (root / 'prepared.json').read_bytes()
             faults['send']['lose'] = True
             invoke('submit-send', error='InvalidAuthorityResponse')
             assert faults['send']['receipt'] is not None
@@ -126,6 +127,9 @@ def run(node, proof):
             admitted = invoke('submit-send')
             assert admitted == json.loads(faults['send']['receipt']) and faults['send']['recovered']
             assert (root / 'send.json').read_bytes() == frozen_send
+            assert (root / 'prepared.json').read_bytes() == frozen_prepared
+            assert invoke('observe', admitted['position']) == 'pending'
+            assert invoke('status') is None
             before = absent()
             prepared = invoke('prepare-commit')
             assert prepared['mutations'] == 4 and absent() == before
@@ -149,16 +153,24 @@ def run(node, proof):
             receipt = b'TCA1o' + definition + body + struct.pack('<QQB', 1234, prepared['input'], 1)
             assert [bytes.fromhex(e['value']) for e in entries] == [schema, immutable, binding, receipt]
             assert invoke('progress')['pending'] is None
+            original_status = invoke('status')
+            assert original_status['outcome'] == 'applied'
+            assert original_status['request']['operation'] == maximum
+            assert original_status['input'] == prepared['input']
+            assert invoke('observe', admitted['position']) == 'processed'
             restart()
             recovered = invoke('commit')
             assert recovered == json.loads(faults['turn']['receipt']) and faults['turn']['recovered']
             assert (root / 'commit.json').read_bytes() == frozen_commit and invoke('snapshot') == after
+            assert invoke('status') == original_status
             invoke('changed-retry', error='ConflictingRetry')
             invoke('prepare-send', maximum, maximum, 9, statement)
             invoke('submit-send')
             assert invoke('prepare-commit')['mutations'] == 0
             invoke('commit')
             assert invoke('snapshot') == after
+            assert invoke('status') == original_status
+            invoke('prepare-send', maximum, 1, 10, statement, error='CatalogIdentityConflict')
             # Name conflict is one durable receipt, with no new object or Table.
             invoke('prepare-send', 1, 1, 10, statement)
             invoke('submit-send')
@@ -167,6 +179,7 @@ def run(node, proof):
             conflict = invoke('snapshot')['entries']
             assert conflict[:2] == [None, None] and conflict[2] == entries[2]
             assert bytes.fromhex(conflict[3]['value'])[-1] == 2
+            assert invoke('status')['outcome'] == 'name_conflict'
             # A frozen but unaccepted creation loses authority on replacement.
             invoke('prepare-send', 2, 2, 10, statement.replace('items', 'other'))
             invoke('submit-send')
@@ -184,8 +197,18 @@ def run(node, proof):
             invoke('commit')
             assert (root / 'commit.json').read_bytes() == frozen
             assert all(invoke('snapshot')['entries'])
+            # Current application inspection policy gates old receipts independently
+            # of create rights and the caller's native resource read permission.
+            invoke('policy', 2, 'true', 'false')
+            invoke('status', error='CatalogDenied')
+            assert all(invoke('snapshot')['entries'])
+            invoke('policy', 3, 'false', 'true')
+            assert invoke('status')['outcome'] == 'applied'
+            invoke('prepare-send', 3, 3, 11, statement.replace('items', 'denied'), error='CatalogDenied')
+            invoke('policy', 4, 'true', 'true')
             invoke('revoke-reader')
             invoke('snapshot', error='AccessDenied')
+            invoke('status', error='AccessDenied')
             assert not failures and all(f['recovered'] for f in faults.values())
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256
             report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
