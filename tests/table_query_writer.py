@@ -18,10 +18,17 @@ from table_mutation_abi import Native as Mutation
 from table_mutation_cli import Cli
 
 
-def run(node, host, proof, library, cli):
+def run(node, host, proof, library, cli, *, sdks=()):
     started = time.monotonic()
     with ColdStore() as cold, Fixture(cold.config()) as fixture:
         root = fixture.root
+        install_started = time.monotonic()
+        if sdks:
+            from sdk_mutations import install
+            installed = install(root/'installed', sdks)
+        else:
+            installed = []
+        sdk_install_seconds = round(time.monotonic()-install_started, 3)
         binaries = {}
         for name, original in dict(node=node, host=host, proof=proof, library=library, cli=cli).items():
             target = root/name
@@ -35,6 +42,7 @@ def run(node, host, proof, library, cli):
         config = root/'node.json'
         config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='combined-table', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
         fault = dict(phase=1, seen=threading.Event(), release=threading.Event(), frozen=None, receipt=None)
+        send_fault = dict(lose=False, frozen=None, receipt=None, recovered=False)
         counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0, recovered_initialization_receipts=0)
         errors, processes, logs, clients = [], [], [], []
         snapshot_seen, snapshot_release = threading.Event(), threading.Event()
@@ -57,6 +65,13 @@ def run(node, host, proof, library, cli):
                     response = upstream.getresponse()
                     data = response.read()
                     command = message.get('request', {}).get('command', {})
+                    if response.status == 200 and message.get('request', {}).get('principal') == 1234 and 'send' in command:
+                        if send_fault['lose']:
+                            send_fault.update(lose=False, frozen=body, receipt=json.loads(data))
+                            data = b'{}'
+                        elif body == send_fault['frozen']:
+                            assert json.loads(data)['position'] == send_fault['receipt']['position']
+                            send_fault['recovered'] = True
                     turn = command.get('turn', command.get('turn_with_versions', {}).get('turn'))
                     if response.status == 200 and turn:
                         mutations = [entry for entry in turn['mutations'] if entry]
@@ -122,9 +137,9 @@ def run(node, host, proof, library, cli):
             state = invoke('combined-state')
             return state['pending'] is None or state['pending'] > position
 
-        def mutation(sql, namespace, caller=None):
+        def mutation(sql, namespace, caller=None, compiled=None):
             caller = caller or mutations
-            compiled = caller.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
+            compiled = compiled or caller.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
             for _ in range(32):
                 prepared = caller.call({'next': compiled})['prepared']
                 if prepared is None:
@@ -252,6 +267,31 @@ def run(node, host, proof, library, cli):
             latest = subprocess.run(console_args, env=fixture.env, capture_output=True, text=True, timeout=30)
             assert latest.returncode == 0, latest.stderr
             assert console_rows(latest.stdout) == current
+            sdk_results = []
+            mutation_connection = dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)
+            for index, (label, factory) in enumerate(installed):
+                caller_started = time.monotonic()
+                owner = factory(endpoint, mutation_connection, root); clients.append(owner)
+                sql = f"UPDATE items SET value='{label}' WHERE id=2"
+                sdk_namespace = (1 << 63)+10000+index
+                compiled = owner.call({'compile': dict(name='items', sql=sql, namespace=str(sdk_namespace))})['compiled']
+                prepared = owner.call({'next': compiled})['prepared']
+                saved = root/f'{label}-frozen.txt'; saved.write_text(prepared)
+                send_fault.update(lose=True, recovered=False)
+                try:
+                    owner.call({'submit': prepared})
+                    raise AssertionError('lost receipt reported as success')
+                except Failure as failure:
+                    assert failure.status == 6, failure
+                owner.close(); clients.remove(owner)
+                owner = factory(endpoint, mutation_connection, root); clients.append(owner)
+                assert saved.read_text() == prepared
+                receipt = owner.call({'submit': saved.read_text()})['receipt']
+                assert send_fault['recovered'] and receipt['position'] == send_fault['receipt']['position']
+                until(lambda: owner.call({'observe': dict(prepared=prepared, input=receipt['position'])})['observation'] == 'processed')
+                result = mutation(sql, sdk_namespace, owner, compiled)
+                assert result['affected_rows'] == 1, result
+                sdk_results.append((label, owner, compiled['reference'], round(time.monotonic()-caller_started, 3)))
             position = invoke('combined-query-revoke')['position']
             until(lambda: processed(position))
             denied(lambda: rows(1), 'QueryDenied')
@@ -265,9 +305,11 @@ def run(node, host, proof, library, cli):
             assert rows(3) == [dict(id=1, value='new'), dict(id=2, value='after-revocation')]
             invoke('revoke')
             denied(lambda: rows(3), 'AccessDenied')
+            for _, owner, reference, _ in sdk_results:
+                denied(lambda: owner.call({'status': reference}), 'AccessDenied')
             assert source.poll() is None and requester.poll() is None
             assert not errors, errors
-            print(json.dumps(dict(proof='combined Table query/writer', elapsed_seconds=round(time.monotonic()-started, 3), **counts, resident_pages=8, mutation_namespace=str(namespace), binaries={name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in binaries.items()})), flush=True)
+            print(json.dumps(dict(proof='combined Table query/writer', elapsed_seconds=round(time.monotonic()-started, 3), **counts, resident_pages=8, mutation_namespace=str(namespace), installed_sdks=list(sdks), sdk_install_seconds=sdk_install_seconds, sdk_callers=[dict(caller=label, seconds=seconds) for label, _, _, seconds in sdk_results], binaries={name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in binaries.items()})), flush=True)
             print('Combined Table host: both initialization commits survive lost receipts, fresh fencing and node/store restart; durable and interactive query snapshots survive interleaved same-namespace CLI mutations; independent policy and current native disclosure gates pass.', flush=True)
         except BaseException:
             for log in logs:
@@ -287,4 +329,10 @@ def run(node, host, proof, library, cli):
             for log in logs: log.close()
 
 
-if __name__ == '__main__': run(*sys.argv[1:])
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('node', 'host', 'proof', 'library', 'cli'): parser.add_argument(name)
+    parser.add_argument('--sdk', action='append', default=[])
+    args = parser.parse_args()
+    run(args.node, args.host, args.proof, args.library, args.cli, sdks=args.sdk)

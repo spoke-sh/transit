@@ -43,6 +43,8 @@ configure supported state. A query source remains an explicit separate declarati
 Primary keys, defaults, uniqueness, foreign keys, generated columns, `IF NOT EXISTS`
 and `CREATE TABLE AS SELECT` are outside this grammar. It does not detect
 duplicate column names or impose the production model's schema bounds.
-`ALTER TABLE`, `DROP TABLE`, `INSERT`, `UPDATE` and `DELETE` are also absent.
+`ALTER TABLE` and `DROP TABLE` are also absent. Bounded [INSERT](insert.md),
+[UPDATE](update.md) and [DELETE](delete.md) use an explicitly configured Table
+writer; their availability does not make this creation statement executable.
 
 Source: [`createTable`, `columnDef`, `dataType`, `nullability`](../../../contracts/sql/TransitExtensions.g4).

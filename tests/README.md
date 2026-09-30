@@ -5971,3 +5971,22 @@ not change the combined owner's implementation or relax its bounds. Full
 site build (`/tmp/transit-sql-combined-table-full-check.log`). The new native
 schedule is registered in the growth lane; it is separate from a committed-HEAD
 clean run and from the installed SDK matrix.
+
+The optional combined-host mutation SDK matrix also passes:
+`just test::table-query-writer --sdk python --sdk node --sdk rust --sdk ruby
+--sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir`.
+All ten installed SDKs (eleven caller variants with Python sync/async) resume
+the exact saved command after losing an admitted send receipt and replacing the
+caller, then observe one applied full-width-namespace UPDATE. Current native
+read revocation prevents each caller from disclosing its earlier status. The
+same run includes the initialization and durable/interactive CLI snapshot cases
+above. Query result reads here use the public native ABI and console; installed
+query SDK source coverage is recorded in the preceding query matrix.
+
+This larger schedule takes **132.498 s**, including **29.646 s** isolated SDK
+installation, **8736 reads**, **114 accepted turn responses** and eleven lost
+SDK admission receipts in addition to the two initialization receipts. Caller
+intervals span **2.894–4.279 s** and include upload, deliberate failure, caller
+replacement and status checks; they are not statement execution timings. The
+four-mutation, 256-byte and eight-page bounds hold. Frozen native binary hashes
+match the table above. The log is `/tmp/transit-sql-combined-table-sdks.log`.

@@ -1520,9 +1520,10 @@
         "Whole-proposal rollback and sticky read poison; early ingress cannot execute query or mutation work",
         "Lost receipts at both initialization commits, worker fencing and node/disk-store restart",
         "Retained durable and interactive console queries before an interleaved CLI mutation and current queries afterwards; identical numeric publication namespaces remain independent",
-        "Query-policy revocation permits separately authorized mutations; mutation-policy revocation permits separately authorized queries; native read revocation prevents disclosure"
+        "Query-policy revocation permits separately authorized mutations; mutation-policy revocation permits separately authorized queries; native read revocation prevents disclosure",
+        "Optional ten-language installed mutation callers: full-width UPDATE, exact saved retry after lost admitted send and caller replacement, and current status denial"
       ],
-      "limits": "One explicitly configured Table, finite query peer and request resource. The native schedule uses public Zig-backed ABI/CLI callers, eight resident pages and explicit one-output delivery steps. It does not establish power-loss, maintained-view or all-SDK composition evidence.",
+      "limits": "One explicitly configured Table, finite query peer and request resource. Native schedules use public Zig-backed ABI/CLI and optional installed mutation SDK callers, eight resident pages and explicit one-output delivery steps. Query reads in this composition proof use native ABI/console. It does not establish power-loss or maintained-view guarantees.",
       "model": null,
       "qualification": "See tests/README.md#combined-table-owner-component-checks for executed evidence; native schedule results are recorded separately from in-memory tests."
     }

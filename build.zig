@@ -893,6 +893,7 @@ pub fn build(b: *std.Build) void {
     combined_table_test.addArtifactArg(unified_query);
     combined_table_test.addArtifactArg(station_bindings.artifact("transit_station"));
     combined_table_test.addArtifactArg(query_shell);
+    combined_table_test.addPassthruArgs();
     combined_table_test.has_side_effects = true;
     combined_table_test.stdio = .inherit;
     b.step("test-table-query-writer", "Prove combined Table initialization and interleaved query/mutation recovery").dependOn(&combined_table_test.step);

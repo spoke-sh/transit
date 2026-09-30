@@ -290,8 +290,9 @@ table-mutation *args:
     zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
 
 # Combined Table initialization, retained reads and independently authorized writes.
-table-query-writer:
-    zig build test-table-query-writer -Doptimize=ReleaseSafe
+[positional-arguments]
+table-query-writer *args:
+    zig build test-table-query-writer -Doptimize=ReleaseSafe -- "$@"
 
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:

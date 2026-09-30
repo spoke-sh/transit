@@ -72,7 +72,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
 | `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
 | `just test::table-mutation` | Prove atomic Table rows/results, frozen receipt recovery after disk restart, stale views/writers and current grants through an explicit native application, native ABI/port and saved-file CLI |
-| `just test::table-query-writer` | Exercise the combined Table host's two initialization commits, lost receipts and disk recovery, retained query cuts across same-namespace mutations, and independent query/write policies |
+| `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise the combined Table host's two initialization commits, lost receipts and disk recovery, retained query cuts across same-namespace mutations, and independent query/write policies; optionally use installed mutation SDKs |
 | `just bindings::mutation-python` | Build and install Python wheels outside the checkout; prove sync/async mutation caller replacement, exact retry and current denial through the shared native schedule |
 | `just bindings::mutation-rust` | Install Rust crates outside the checkout; verify exclusive caller borrows, full-width mutation identity and exact saved recovery |
 | `just bindings::mutation-c` | Build and install C11/C++17 consumers; prove copied buffers, saved-command lifetime, full-width namespaces and exact recovery |
