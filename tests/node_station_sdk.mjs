@@ -247,6 +247,7 @@ async function main() {
     }
     const input = createInterface({ input: process.stdin });
     for await (const action of input) {
+      if (action === 'ready') { report({ ready: true }); continue; }
       if (action === 'close') { await runner.close(); if (handler.saveOwned) await handler.saveOwned(); report({ closed: true }); return; }
       assert.ok(['one', 'reconcile'].includes(action));
       let event;

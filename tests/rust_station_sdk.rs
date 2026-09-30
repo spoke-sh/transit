@@ -465,6 +465,10 @@ fn drive<M: 'static, H: Handler<M>>(
     } else {
         for line in io::stdin().lock().lines() {
             let line = line.map_err(io_error)?;
+            if line == "ready" {
+                report(json!({"ready":true}));
+                continue;
+            }
             if line == "close" {
                 runner.close().map_err(|error| error.error)?;
                 save_owned(&shared, &path(&cfg, "output"))?;

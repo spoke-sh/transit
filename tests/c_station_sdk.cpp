@@ -317,6 +317,7 @@ static void drive(const Config &cfg) {
     } else {
         std::string line;
         while (std::getline(std::cin, line)) {
+            if (line == "ready") { report("{\"ready\":true}"); continue; }
             if (line == "close") { runner->close(); runner.reset(); check_expired(shared); save_owned(shared, cfg); report("{\"closed\":true}"); return; }
             assert(line == "one" || line == "reconcile"); bool observed = false;
             for (size_t i = 0; i < 32; ++i) {

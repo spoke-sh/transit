@@ -554,6 +554,7 @@ public final class JavaStationSdk {
             } else {
                 BufferedReader input = new BufferedReader(new InputStreamReader(System.in, java.nio.charset.StandardCharsets.UTF_8));
                 for (String line; (line = input.readLine()) != null;) {
+                    if (line.equals("ready")) { report(Values.obj("ready", true)); continue; }
                     if (line.equals("close")) {
                         runner.closeSnapshot();
                         if (handler instanceof QueryProof query) query.saveOwned();

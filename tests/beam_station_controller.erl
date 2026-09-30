@@ -90,6 +90,7 @@ failure(A, R, Mode, N) ->
     end.
 worker(A, R, S) ->
     case unicode:characters_to_binary(io:get_line("")) of
+        <<"ready\n">> -> report(#{ready => true}), worker(A, R, S);
         Action when Action =:= <<"one\n">>; Action =:= <<"reconcile\n">> ->
             First = case Action of <<"reconcile\n">> -> ok(A, A:reconcile(R)); _ -> next(A, R) end,
             E = case kind(A, First) of progress -> until_event(A, R, 31); _ -> First end,

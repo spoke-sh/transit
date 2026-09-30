@@ -131,6 +131,9 @@ def run(node, cli, library, artifacts, report_path=None):
             child = subprocess.Popen(consumer.command('worker', config(client, cfg)), cwd=client[1], env=consumer.environment,
                                      stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
             children.append(child)
+            child.stdin.write('ready\n'); child.stdin.flush()
+            assert select.select([child.stdout], [], [], 90)[0], 'Public worker did not open'
+            assert json.loads(child.stdout.readline()) == {'ready': True}
             return child
         def one(child):
             nonlocal reconciliations

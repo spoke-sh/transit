@@ -416,6 +416,7 @@ static class Proof
             Expect(expected, () => { for (int count = 0; count < 8; count++) runner.NextAsync().GetAwaiter().GetResult(); }); Report(new() { ["denied"] = true });
         } else {
             for (string? line; (line = Console.ReadLine()) is not null;) {
+                if (line == "ready") { Report(new() { ["ready"] = true }); continue; }
                 if (line == "close") { await runner.CloseAsync(); if (handler is QueryProof query) query.SaveOwned(); if (handler is TableProof table) table.Expired(); Report(new() { ["closed"] = true }); break; }
                 Check(line is "one" or "reconcile"); RunnerEvent? ev = null; for (int count = 0; count < 32; count++) { ev = await (line == "reconcile" && count == 0 ? runner.ReconcileAsync() : runner.NextAsync()); if (ev is not Progress) break; }
                 if (ev is NeedsRecovery paused) Check(paused.Mutation.Export().AsSpan().SequenceEqual(File.ReadAllBytes(store.Pending)));

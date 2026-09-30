@@ -759,6 +759,10 @@ begin
     report(denied: true)
   else
     STDIN.each_line do |line|
+      if line.chomp == 'ready'
+        report(ready: true)
+        next
+      end
       if line.chomp == 'close'
         runner.close
         handler.save_owned if handler.respond_to?(:save_owned)

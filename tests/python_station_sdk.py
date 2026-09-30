@@ -329,6 +329,9 @@ def consumer(mode, config_path):
             return
         for line in sys.stdin:
             action = line.strip()
+            if action == 'ready':
+                print(json.dumps({'ready': True}), flush=True)
+                continue
             if action == 'close':
                 print(json.dumps({'closed': True}), flush=True)
                 return
