@@ -55,8 +55,10 @@ def diagnostic_errors(log):
     return dict(groups=list(errors.values()), dropped=dropped)
 
 
-def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth=0):
+def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth=0, initial_node=None):
     if growth < 0: raise ValueError('Catalog growth count must be nonnegative')
+    if initial_node and (languages or growth < 139):
+        raise ValueError('The page-depth recovery schedule requires at least 139 additions and no optional SDKs')
     started = time.monotonic()
     counts = dict(reads=0, caller_reads=0, turns=0, max_mutations=0, max_value_bytes=0)
     upstream = {}
@@ -65,6 +67,11 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                      for name in ('compile', 'prepare', 'admit', 'await_application')}
     growth_current = None
     growth_baseline = None
+    recovery_ready = threading.Event()
+    recovery_finished = threading.Event()
+    recovery_body = None
+    recovery = dict(enabled=initial_node is not None, failed_attempts=0,
+                    restarted=False, original_turn_sha256=None, receipt=None)
     def metrics():
         with metrics_lock:
             return copy.deepcopy(upstream)
@@ -93,7 +100,13 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
         install_seconds = round(time.monotonic() - installation_started, 3)
         for name, binary in [('node', node), ('proof', proof), ('host', catalog_host), ('port', port_host), ('library.so', library), ('cli', cli)]:
             shutil.copy2(binary, root / name)
+        if initial_node:
+            shutil.copy2(initial_node, root / 'initial-node')
+            recovery['initial_sha256'] = hashlib.sha256((root / 'initial-node').read_bytes()).hexdigest()
         node, proof = str(root / 'node'), str(root / 'proof')
+        target_node = node
+        if initial_node:
+            node = str(root / 'initial-node')
         catalog_host = str(root / 'host')
         port_host, library = str(root / 'port'), str(root / 'library.so')
         cli = str(root / 'cli')
@@ -126,7 +139,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 pass
 
             def do_POST(self):
-                nonlocal active
+                nonlocal active, recovery_body
                 with active_lock:
                     active += 1
                 body = self.rfile.read(int(self.headers['Content-Length']))
@@ -149,6 +162,13 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                         self.end_headers()
                         self.wfile.write(b'{}')
                         return
+                    if recovery_ready.is_set() and not recovery_finished.is_set() and body == recovery_body:
+                        self.send_response(503)
+                        data = b'{"err":"AuthorityUnavailable"}'
+                        self.send_header('Content-Length', str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
                     request = envelope['query'] if self.path == '/v1/query' else envelope['request']
                     operation = request['kind'] if self.path == '/v1/query' else request['command']
                     operation = operation if isinstance(operation, str) else next(iter(operation))
@@ -170,6 +190,20 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                             metric['http_errors'] += status is not None and status != 200
                             metric['elapsed_ns'] += duration
                             metric['max_ns'] = max(metric['max_ns'], duration)
+                    if initial_node and label == 'owner:turn' and growth_current == dict(index=138, phase='await_application'):
+                        if not recovery_ready.is_set() and status == 503 and json.loads(data) == {'err': 'AuthorityUnavailable'}:
+                            if recovery_body is None:
+                                recovery_body = body
+                                recovery['original_turn_sha256'] = hashlib.sha256(body).hexdigest()
+                            assert body == recovery_body, 'Worker replaced its uncertain turn before recovery'
+                            recovery['failed_attempts'] += 1
+                            if recovery['failed_attempts'] == 2:
+                                recovery_ready.set()
+                        if recovery_finished.is_set() and status == 200:
+                            assert body == recovery_body, 'Node replacement changed the original turn'
+                            receipt = json.loads(data)
+                            assert recovery['receipt'] in (None, receipt), 'Original turn receipt changed'
+                            recovery['receipt'] = receipt
                     if self.path == '/v1/command' and response.status == 200:
                         command = envelope['request']['command']
                         turn = command.get('turn')
@@ -296,6 +330,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 growth_current=growth_current, growth_baseline=growth_baseline,
                 growth_phases=copy.deepcopy(growth_phases),
                 upstream_operations=metrics(),
+                node_recovery=copy.deepcopy(recovery),
                 metadata_measurements=metadata_measurements)
             destination.write_text(json.dumps(report, indent=2) + '\n')
         record()
@@ -625,8 +660,24 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 compiled = growth_phase(index, 'compile', lambda: growing.call({'compile': dict(operation=str(identity), object=str(identity), table=1000 + index, sql=statement.replace('items', name))})['compiled'])
                 command = growth_phase(index, 'prepare', lambda: growing.call({'prepare_create': compiled['request']})['prepared'])
                 position = growth_phase(index, 'admit', lambda: growing.call({'submit': command})['receipt']['position'])
-                result = growth_phase(index, 'await_application', lambda: await_value(lambda: growing.call({'status': compiled['request']})['status']))
+                def growth_status():
+                    nonlocal node
+                    if initial_node and index == 138 and recovery_ready.is_set() and not recovery_finished.is_set():
+                        # Keep the worker and its exact uncertain turn alive.
+                        # Only the authority binary changes across disk restart;
+                        # the admitted SQL input is never submitted again.
+                        sends = metrics()['caller:send']['attempts']
+                        recovery.update(input=position, index=index)
+                        node = target_node
+                        restart()
+                        recovery['restarted'] = True
+                        recovery_finished.set()
+                        assert metrics()['caller:send']['attempts'] == sends
+                    return growing.call({'status': compiled['request']})['status']
+                result = growth_phase(index, 'await_application', lambda: await_value(growth_status))
                 assert result['outcome'] == 'applied' and result['input'] == position
+                if initial_node and index == 138:
+                    assert recovery_finished.is_set() and recovery['receipt'] is not None
                 grown_names.append(name)
                 growth_current = None
                 if (index + 1) % 16 == 0 or index + 1 == growth:
@@ -769,6 +820,15 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 sys.stderr.write(worker_log.read()[-12000:])
             log.close()
             worker_log.close()
+            if initial_node and failure is not None:
+                # Retain the private failed fixture for accepted-work diagnosis,
+                # after joining every owned process. This is not a passed proof.
+                fixture.stop()
+                retained = destination.parent / 'recovery-failures' / str(time.time_ns())
+                retained.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                recovery['original_fixture'] = str(root)
+                shutil.move(root, retained)
+                recovery['retained_fixture'] = str(retained)
             report['cleanup_failures'] = [str(error) + ": " + ", ".join(error.__notes__) for error in cleanup_errors]
             record(failure is None and not cleanup_errors,
                    type(failure).__name__ if failure is not None else 'Cleanup' if cleanup_errors else None)
@@ -782,5 +842,7 @@ if __name__ == '__main__':
     for binary in ('node', 'proof', 'catalog_host', 'port_host', 'library', 'cli'): parser.add_argument(binary)
     parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'], action='append', default=[])
     parser.add_argument('--grow', type=int, default=0)
+    parser.add_argument('--initial-node', type=Path,
+                        help='start with an explicit pre-fix node; recover its repeated depth failure using the built node')
     args = parser.parse_args()
-    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk, args.grow)
+    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk, args.grow, args.initial_node)

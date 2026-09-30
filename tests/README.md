@@ -1709,6 +1709,42 @@ evidence in this ledger and the roadmap; their documentation links pass. This
 is a clean core-lane pass, not an experience/bindings/complete-suite or hosted
 CI pass. The earlier experience failures are not reclassified as successes.
 
+### Resuming a depth-exhausted catalog
+
+The optional `test::catalog --grow 257 --initial-node PATH` schedule starts
+with an explicitly supplied pre-fix node binary. Its digest is recorded alongside
+the target binary. At the known zero-based growth index 138, it requires two
+`AuthorityUnavailable` responses to the exact same owner turn, then replaces
+only the node binary across disk-store restart. The worker and its frozen turn
+stay alive. Success requires that same turn's receipt and the originally admitted
+SQL input, followed by continued growth and the normal metadata/restart/denial
+checks. The SQL send is not resubmitted. No operation deadline is increased.
+
+Failure joins owned services and retains the private fixture under
+`.cache/verification/catalog/recovery-failures/`; it contains credentials and
+must not be published. `node_recovery` records the initial digest, original turn
+digest, input, observed failures, replacement and receipt state. Retained
+configurations still name their original temporary paths; the fixture is
+diagnostic evidence, not an automatically restorable launcher installation.
+
+With source based on `ef2cc97d` and the recovery runner under development, the
+original node digest `1039c8de…328d6e07e` stalls after 138 additions. Replacing it
+with the split-only node `214b0646…2dfcd04` still fails the unchanged progress
+deadline in **416.073 s** total. Input **538** remains without an observed turn
+receipt. The private fixture is retained; this is not successful recovery.
+A separate current-v1 page fixture with a full spine and sparse siblings at
+height 32 also fails `PageDepthExceeded` before local sibling merging. After
+merging, all **61** core component tests pass, including 64 further inserts,
+old-root preservation and refusal/lost-acknowledgement at every staging boundary
+of the first repaired mutation. Disk qualification of that repair follows.
+
+The clean experience run at rebased `ef2cc97d` passes all **seven tasks** in
+**433.89 s**, including Station's Arrow exchange, replacements and persistent
+restart in **220.67 s**. This revision includes main's type/schema-discovery
+documentation, with unchanged split-only runtime code. Evidence is retained in
+`.cache/ci/clean/ef2cc97dc6b0-transit-ci-dl5e5q05/`. It does not retroactively pass
+the earlier failures or qualify the subsequent sibling-merging change.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
