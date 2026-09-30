@@ -5,7 +5,7 @@ protocol operations; Station adds detached handler turns, associated state,
 Table queries and durable framework messages. Host adapters own allocation,
 exceptions and runtime scheduling. They do not reimplement those protocols.
 
-These are M9's qualified low-level bindings. [M11](../docs/internal/roadmap/M11.md)
+These are M9's qualified low-level bindings. [M11](../docs/roadmap/M11.md)
 provides qualified language-native public SDKs with typed operations, managed handler runners
 and installable artifacts. The current manual turn/action APIs remain available;
 the [caller design](../docs/reference/callers.md) defines the public
@@ -13,7 +13,7 @@ layer above them.
 
 All target public SDKs are implemented separately from these low-level adapters.
 Their package guides and installation/recovery proofs are linked from
-[M11](../docs/internal/roadmap/M11.md). The [public language ring](../tests/README.md#public-sdk-interoperability)
+[M11](../docs/roadmap/M11.md). The [public language ring](../tests/README.md#public-sdk-interoperability)
 qualifies every target in both roles with installed artifacts.
 
 Independent public [C](../packages/c/transit-client/README.md) and
@@ -52,7 +52,7 @@ M11 adds **Ruby** through the shared native port, with value objects and
 block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
 its raw/Station packages have separate public SDK proofs. The historical M9
 matrix retains its original scope. See the
-[M11 language conventions](../docs/internal/roadmap/M11.md#language-conventions).
+[M11 language conventions](../docs/roadmap/M11.md#language-conventions).
 
 `just bindings::generate` reflects the native exports and updates adapter
 resources. `just bindings::check` rejects drift. The

@@ -8,8 +8,9 @@ users, contributors and agents. Start with [What is Transit?](guides/introductio
 ## Guides and reference
 
 The site navigation starts with the interfaces: CLI, SQL, SDKs, HTTP APIs/OpenAPI,
-reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol. Each section
-groups its usage guides and exact contracts. Core concepts, application state
+reactive APIs/AsyncAPI, Flight SQL/ADBC and the native protocol. Internals sits
+alongside these entry points for architecture, mechanisms and technical evidence. Each
+interface section groups its usage guides and exact contracts. Core concepts, application state
 and operations remain shared references below those entry points.
 
 | Interface | Start here |
@@ -28,6 +29,7 @@ its support boundary before giving examples.
 
 | Topic | Public documentation |
 | --- | --- |
+| Internals | [System models, mechanisms and evidence](internals/README.md), [scientific standard](internals/standard.md) |
 | Model and components | [Architecture and scope](reference/architecture.md), [component directory](reference/components.md), [glossary](reference/glossary.md) |
 | Compatibility policy | [Versioning and hard cutovers](reference/versioning.md) |
 | Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [examples across languages](guides/workload-examples.md) |
@@ -47,9 +49,9 @@ source revision, using interface versions and explicit supported/unsupported
 profiles. Public architectural priorities and performance improvement plans live
 beside their evidence, explicitly distinguished from implemented interfaces and
 without promised dates or speedups. Keep delivery-plan labels and scheduling in
-internal records, including when a component guide or wire contract is published
-in the handbook. Public documentation does not require an internal specification
-to understand the real contract.
+the separate planning and historical records. Usage guides, component guides and
+wire contracts describe capabilities without delivery-plan labels. A reader
+can understand the interface contract without reconstructing an engineering history.
 
 Write interfaces in the present tense: what they do, how to use them, supported
 types and platforms, version compatibility and failure behavior. Avoid maturity
@@ -62,28 +64,43 @@ preserve the actual support boundary.
 | Location | Ownership |
 | --- | --- |
 | `docs/guides/` | Runnable user and contributor workflows |
-| `docs/reference/` | Current concepts, architecture, guarantees, interface semantics, limits and compatibility; explicitly labeled workload priorities and performance improvement plans |
+| `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled workload priorities and performance improvement plans |
 | Package/app READMEs and `docs/` | Exact component APIs, configuration and substantial integration/recovery guides; linked directly from the handbook |
 | [contracts/](../contracts) | Versioned wire/ABI formats, neutral schemas and shared fixtures; generated descriptions keep their implementation owners |
 | [examples/](../examples/README.md) | Complete applications and commands that exercise the public APIs |
 | [tests/](../tests/README.md) | Executable proof commands, failure schedules, measurements and qualification results |
 | [apps/transit-docs/](../apps/transit-docs/README.md) | Docusaurus navigation, rendering, search, generated API presentation and browser verification |
-| [docs/internal/](internal/README.md) | Planning, dated reviews, historical design rationale and unimplemented proposals; optional background for a scoped change |
+| [docs/internals/](internals/README.md) | Consolidated scientific accounts of system models, mechanisms, invariants, tradeoffs and evidence |
+| [docs/roadmap/](roadmap/README.md) | Delivery scope, sequencing, acceptance criteria and milestone status |
+| [docs/design/](design/README.md) | UI/UX proposals, visual studies and recorded review outcomes |
+| [docs/history/](history/README.md) | Earlier topic accounts, language sketches, workload assumptions and qualification reviews; preserved as source material |
+| [docs/decisions/](decisions/README.md) | Reserved decision guidance and template; no separate ADR process |
 | [AGENTS.md](../AGENTS.md) | Contributor/agent workflow and implementation rules; starts from the public handbook |
 
-Keep one current explanation of a behavior. Put user-relevant reasoning, trust
-assumptions, unsupported cases and failure semantics in public guides/reference,
-then link exact component and wire owners. Internal plans may explain how we got
-here or what we might build next; they must not be prerequisites to use the system.
-When internal work establishes a current rule, promote it into the public owner
-with the implementation and proof. Do not maintain a competing internal contract.
+Keep one current explanation of a behavior. Guides and reference teach users how
+to build with and operate Transit, including the assumptions, supported cases,
+limits and failure semantics needed for those tasks. Internals explains the
+mechanisms and reasoning in greater depth for readers evaluating or changing the
+system. Link between these owners instead of duplicating contracts.
 
-Every Markdown page in `docs/guides/` and `docs/reference/` belongs in the site
-catalog. Internal pages are excluded from published navigation and search.
-Public pages must not link into internal records for required explanations;
-use public references and exact contracts instead. Site checks enforce that
-boundary. The internal index remains reachable from this repository index for
-contributors who need planning history.
+Internals and architecture explanations must meet the
+[scientific standard](internals/standard.md): explicit scope and assumptions,
+precise claims, traceable sources, reproducible evidence, alternatives and limits.
+New and substantively revised technical accounts follow that standard. Consolidate
+overlapping explanations around a clear model or mechanism; link exact contracts,
+implementation and evidence instead of creating parallel specifications.
+
+Every Markdown page in `docs/guides/`, `docs/reference/` and `docs/internals/`
+belongs in the site catalog and search. Internals has its own top-level navigation
+and a compact sidebar. Usage documentation can link there for deeper reasoning,
+but remains sufficient to use and operate the documented interface.
+
+Roadmap, Design and History are separate repository sections, linked from their
+owners without adding their individual records to the site's reading path or
+search. Keep delivery-plan labels and sequencing there. Usage/reference pages,
+component guides and wire contracts continue to describe capabilities directly;
+scientific accounts may cite dated proof records without inheriting broader claims.
+Historical outcomes and proposal status remain intact in their owning records.
 
 Repository Markdown must remain readable without Docusaurus. Render generated
 OpenAPI/AsyncAPI descriptions from the owning files; do not hand-maintain endpoint

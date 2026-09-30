@@ -43,7 +43,7 @@ mutation gates, cleanup, errors, Tables and Arrow ownership. The
 publication, correlated outcomes and synchronous/asynchronous capture readers.
 These experimental M15 APIs use shared Zig validation and current-grant reads;
 the full connector milestone remains in progress. The
-[Python API design](../../../docs/internal/sdk/PYTHON.md) provides fuller typed examples;
+[Python API design](../../../docs/history/sdk/PYTHON.md) provides fuller typed examples;
 the [shared ABI guide](../../zig/transit-station-bindings/docs/bindings.md) owns native bounds.
 
 M9's generic `Client` and `GenServer` remain under `transit_station.raw`, with

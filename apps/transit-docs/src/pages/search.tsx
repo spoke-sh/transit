@@ -50,11 +50,15 @@ export default function Search(): ReactElement {
         .slice(0, 20)
     : [];
   return (
-    <Layout title="Search" description="Search Transit guides and interface references locally.">
+    <Layout
+      title="Search"
+      description="Search Transit guides, interface references and Internals locally."
+    >
       <main className="container search-page">
         <h1>Search documentation</h1>
         <p>
-          Search guides, concepts, commands and generated API fields. Searches stay in your browser.
+          Search guides, concepts, commands, generated API fields and Internals. Searches stay in
+          your browser.
         </p>
         <label htmlFor="docs-search">Words or an interface name</label>
         <input
@@ -79,6 +83,11 @@ export default function Search(): ReactElement {
                 <h2>
                   <Link to={`/${entry.route}`}>{entry.title}</Link>
                 </h2>
+                <p>
+                  {entry.route === "internals" || entry.route.startsWith("internals/")
+                    ? "Internals"
+                    : "Guides and reference"}
+                </p>
                 <p>
                   {start ? "…" : ""}
                   {entry.text.slice(start, start + 240)}…

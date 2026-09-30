@@ -57,6 +57,53 @@ test("production navigation, search, generated references and exact downloads", 
   await expect(
     page.getByRole("heading", { name: "Flight SQL and ADBC", exact: true }),
   ).toBeVisible();
+  await page.locator(".navbar").getByRole("link", { name: "Internals", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Internals", exact: true })).toBeVisible();
+  await page
+    .locator("main")
+    .getByRole("link", { name: "scientific standard", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Scientific standard for Internals", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByLabel("Words or an interface name").fill("Scientific standard for Internals");
+  const internalsResult = page.locator(".search-results li").filter({
+    has: page.getByRole("link", { name: "Scientific standard for Internals", exact: true }),
+  });
+  await expect(internalsResult.getByText("Internals", { exact: true })).toBeVisible();
+  await internalsResult.getByRole("link").click();
+  await page
+    .locator("main")
+    .getByRole("link", { name: "technical account template", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Technical account template", exact: true }),
+  ).toBeVisible();
+  await page.goto(new URL("internals/system-model", baseURL).href);
+  await expect(
+    page.getByRole("heading", { name: "System model and authority boundaries", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".docusaurus-mermaid-container svg")).toBeVisible();
+  await page.locator("main").getByRole("link", { name: "execution account", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Execution, authorization and recovery", exact: true }),
+  ).toBeVisible();
+  await page.goto(new URL("internals", baseURL).href);
+  await expect(
+    page.locator("main").getByRole("link", { name: "Roadmap", exact: true }),
+  ).toHaveAttribute("href", "https://github.com/rupurt/rey/blob/main/docs/roadmap/README.md");
+  await expect(
+    page.locator("main").getByRole("link", { name: "Design", exact: true }),
+  ).toHaveAttribute("href", "https://github.com/rupurt/rey/blob/main/docs/design/README.md");
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByLabel("Words or an interface name").fill("System model and authority boundaries");
+  await expect(
+    page
+      .locator(".search-results")
+      .getByRole("link", { name: "System model and authority boundaries", exact: true }),
+  ).toBeVisible();
   for (const entry of specifications) {
     const route = pages.find((entryPage) => entryPage.source === entry.page)!.route;
     await page.goto(new URL(route, baseURL).href);
@@ -100,6 +147,17 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
     .getByRole("link", { name: "Documentation", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "What is Transit?", exact: true })).toBeVisible();
+  await page.goto(baseURL!);
+  await page.getByRole("button", { name: "Toggle navigation bar" }).click();
+  await page
+    .locator(".navbar-sidebar")
+    .getByRole("link", { name: "Internals", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { name: "Internals", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.goto(new URL("reference/cli", baseURL).href);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,

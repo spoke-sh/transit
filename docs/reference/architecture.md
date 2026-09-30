@@ -110,3 +110,9 @@ Use the [component directory](components.md) for package interfaces and the
 specifications stay in [contracts](../../contracts); each package owns its
 configuration, APIs and bounds. Public documentation owns the explanation of
 current behavior, including limitations and tradeoffs, for every audience.
+
+For deeper mechanisms, design rationale and evidence, see
+[Internals](../internals/README.md). Architecture explanations follow its
+[scientific standard](../internals/standard.md): claims identify their assumptions,
+implementation owners, evidence and limits. Historical proposals keep their
+recorded status and do not expand the interfaces described here.

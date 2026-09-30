@@ -37,6 +37,7 @@ Start with [What is Transit?](docs/guides/introduction.md),
 | Analytical clients | [Flight SQL and ADBC](docs/reference/flight.md) |
 | Application clients | [Language SDKs](docs/reference/sdks.md), [native protocol](docs/reference/native.md) |
 | Workload design | [Architectural priorities](docs/reference/workloads.md), [performance and improvement plan](docs/reference/performance.md) |
+| System internals | [Architecture, rationale and evidence](docs/internals/README.md), [scientific standard](docs/internals/standard.md) |
 | Example recipes | [SQL, Python, TypeScript, Rust and Zig](docs/guides/workload-examples.md) |
 
 Preview the Docusaurus site with `nix develop`, `just transit-docs::install` and

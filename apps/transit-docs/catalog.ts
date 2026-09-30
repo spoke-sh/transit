@@ -1,5 +1,6 @@
-// Public concepts have one source for users, developers and agents. Internal
-// planning/history is deliberately absent from published navigation and search.
+import { internalsSections } from "./internals-catalog";
+
+// Usage documentation and Internals share sources, routes and search.
 export type Page = { source: string; route: string; label: string };
 export type Section = { label: string; pages: Page[] };
 const page = (source: string, route: string, label: string): Page => ({ source, route, label });
@@ -175,5 +176,7 @@ export const sections: Section[] = [
     ],
   },
 ];
-export const pages = sections.flatMap((section) => section.pages);
+export const handbookPages = sections.flatMap((section) => section.pages);
+export const internalsPages = internalsSections.flatMap((section) => section.pages);
+export const pages = [...handbookPages, ...internalsPages];
 export const docId = (entry: Page): string => entry.source.replace(/\.md$/, "");

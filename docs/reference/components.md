@@ -52,7 +52,7 @@ The [architecture](architecture.md) explains dependency direction and authority.
 | [transit-client-host](../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
 | [transit-query-host](../../apps/transit-query-host/README.md) | Runnable growing v1/v2 source/requester workers and scoped courier |
 | [transit-cli](../../apps/transit-cli/README.md) (`transit`) | Local server/application lifecycle, explicit-submit console and signed v1 Table/v2 unified SQL shells |
-| [transit-docs](../../apps/transit-docs/README.md) | Static handbook over public guides/reference, component guides and generated interface descriptions |
+| [transit-docs](../../apps/transit-docs/README.md) | Static documentation over guides/reference, Internals, component guides and generated interface descriptions |
 | [transit-board](../../apps/transit-board/README.md) | Inspection API plus optional separate v1 Table or v2 unified query capability with embedded [TanStack Router frontend](../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |

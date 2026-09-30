@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vite-plus/test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { pages } from "../catalog";
+import { pages, handbookPages } from "../catalog";
 import { pageContent, resolveLink } from "./content";
 import { object, readSpecification, renderSpecification, specifications } from "./specs";
 
 const root = path.resolve(import.meta.dirname, "../../..");
 
 describe("documentation ownership and navigation", () => {
-  it("describes capabilities without delivery-plan references across every published source", () => {
+  it("describes capabilities without delivery-plan references across usage and interface sources", () => {
     const deliveryReference = /\b(?:m\d+|milestones?|roadmap)\b/i;
-    for (const entry of pages) {
+    for (const entry of handbookPages) {
+      // The contributor index names source owners, including the separate roadmap.
+      if (entry.source === "docs/README.md") continue;
       expect(
         `${entry.label}\n${entry.route}\n${pageContent(root, entry.source)}`,
         entry.source,
@@ -28,8 +30,8 @@ describe("documentation ownership and navigation", () => {
         deliveryReference,
       );
   });
-  it("publishes every public page without internal prerequisites or route collisions", () => {
-    for (const directory of ["guides", "reference"]) {
+  it("publishes every guide, reference and Internals page without route collisions", () => {
+    for (const directory of ["guides", "reference", "internals"]) {
       const sources = readdirSync(path.join(root, "docs", directory), { recursive: true }).filter(
         (name): name is string => typeof name === "string" && name.endsWith(".md"),
       );
@@ -39,18 +41,14 @@ describe("documentation ownership and navigation", () => {
           pages.some((entry) => entry.source === source),
           source,
         ).toBe(true);
-        const content = readFileSync(path.join(root, source), "utf8");
-        for (const match of content.matchAll(/\]\(([^)\s]+)\)|^\[[^\]]+\]:\s+(\S+)/gm)) {
-          const url = match[1] ?? match[2]!;
-          expect(resolveLink(root, source, url, "/"), `${source}: ${url}`).not.toContain(
-            "/docs/internal/",
-          );
-        }
       }
     }
     for (const entry of pages) {
       expect(existsSync(path.join(root, entry.source)), entry.source).toBe(true);
-      expect(entry.source.startsWith("docs/internal/"), entry.source).toBe(false);
+      expect(
+        entry.source,
+        "Planning and archived records stay with their repository owners",
+      ).not.toMatch(/^docs\/(?:roadmap|design|history|decisions)\//);
     }
     expect(new Set(pages.map((entry) => entry.route)).size).toBe(pages.length);
     expect(new Set(pages.map((entry) => entry.source)).size).toBe(pages.length);
@@ -76,8 +74,17 @@ describe("documentation ownership and navigation", () => {
     expect(resolveLink(root, "docs/README.md", "#where-documentation-lives", "/")).toBe(
       "#where-documentation-lives",
     );
-    expect(resolveLink(root, "docs/README.md", "internal/README.md", "/")).toBe(
-      "https://github.com/rupurt/rey/blob/main/docs/internal/README.md",
+    expect(resolveLink(root, "docs/README.md", "internals/README.md", "/handbook/")).toBe(
+      "/handbook/internals",
+    );
+    expect(
+      resolveLink(root, "docs/internals/system-model.md", "execution-model.md", "/handbook/"),
+    ).toBe("/handbook/internals/execution-model");
+    expect(
+      resolveLink(root, "docs/internals/README.md", "../roadmap/README.md", "/handbook/"),
+    ).toBe("https://github.com/rupurt/rey/blob/main/docs/roadmap/README.md");
+    expect(resolveLink(root, "docs/internals/README.md", "../design/README.md", "/handbook/")).toBe(
+      "https://github.com/rupurt/rey/blob/main/docs/design/README.md",
     );
     expect(() => resolveLink(root, "docs/README.md", "missing-guide.md", "/")).toThrow(
       "missing link",

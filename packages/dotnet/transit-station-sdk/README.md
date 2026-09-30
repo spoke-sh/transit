@@ -6,7 +6,7 @@ Zig implementation. The independent [raw client](../transit-client/README.md)
 owns the shared worker/packaging helpers; it does not depend on Station. Generated
 ABI delegates and contract resources remain separate from public types.
 
-The public runner is qualified under [M11](../../../docs/internal/roadmap/M11.md) through
+The public runner is qualified under [M11](../../../docs/roadmap/M11.md) through
 `just bindings::dotnet-sdk-test`: clean NuGet consumers, all mutation gates, exact
 host-loss recovery, cancellation/join, retained Tables and original query IPC.
 Build from `nix develop .#bindings` with `just bindings::dotnet-build`. The package targets .NET 8/Linux x86_64 and

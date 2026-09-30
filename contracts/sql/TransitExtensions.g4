@@ -86,7 +86,7 @@ secretRef
 
 // CREATE TABLE orders (id INT64 NOT NULL, sym UTF8);
 // A relational spelling of Table.create/table_create; see
-// docs/internal/QUERY_LANGUAGE.md's noted prerequisite (today's Table is fixed at
+// docs/history/QUERY_LANGUAGE.md's noted prerequisite (today's Table is fixed at
 // exactly two columns, so a real multi-column CREATE TABLE needs that
 // model to grow first — this rule states the target shape, not current
 // support).
@@ -137,7 +137,7 @@ privilege
 
 // SHOW TABLES; SHOW SOURCES; SHOW SINKS; SHOW CONNECTIONS;
 // The relational-surface answer to `transit-cli`'s planned `/tables`-style
-// meta-commands (docs/internal/roadmap/M13.md) — same catalog, two frontends.
+// meta-commands (docs/roadmap/M13.md) — same catalog, two frontends.
 showStatement
     : SHOW catalogKind
     ;
@@ -157,7 +157,7 @@ describeStatement
 // deliberately excluded from the executable SELECT profile here — `orders FOR SYSTEM_TIME AS OF 240`.
 // Deliberately the SQL:2011 system-versioned-table clause name (forensic
 // point-in-time reconstruction, not a windowing/event-time concept: see
-// docs/internal/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
+// docs/history/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
 // Transit revision — an integer journal position — not the standard's
 // wall-clock TIMESTAMP literal. Names existing retained-read-version
 // machinery (contracts/READ_VERSIONS_V1.md, GROWTH-10) rather than inventing

@@ -1060,7 +1060,7 @@ These checks passed locally on Linux x86_64 with the pinned compiler. They do no
 yet qualify general public multi-call/followup APIs, managed secret providers,
 every cross-service lifetime combination, all launchers
 or hosted CI cost. Those remain explicit
-[M15](../docs/internal/roadmap/M15.md) exit obligations. The shared capture
+[M15](../docs/roadmap/M15.md) exit obligations. The shared capture
 [contract](../contracts/STATION_EXCHANGE_V1.md) distinguishes library coverage
 from protocol completeness and effect-result acceptance.
 
@@ -1513,7 +1513,7 @@ namespace/release selection, useful empty-selection diagnostics, and rejection
 of control characters or oversized human-table fields without partial output.
 
 The plugin's [runbook](../apps/kubectl-transit/README.md) and
-[full plan](../docs/internal/roadmap/M5.md) define its inspection-only scope.
+[full plan](../docs/roadmap/M5.md) define its inspection-only scope.
 Toolchain smoke checks verify Kind and both kubectl plugins offline.
 
 `just launchers::reference::test-plugin` passed on Linux x86_64 against the
@@ -2220,7 +2220,7 @@ a regressing or forged grant is rejected rather than tolerated.
 `query_growing_test.zig` qualifies this in-memory — a forged-peer grant is
 rejected, a regressing grant errors, a repeated or post-completion grant is
 inert, and the two-sided delivery proof asserts exactly one grant per sealed
-segment (six, for six segments). [`Delivery.tla`](../tests/verification/models/Delivery.tla)
+segment (six, for six segments). [`Delivery.tla`](verification/models/Delivery.tla)
 checks the same shape abstractly via `just test::model-delivery`; it is not
 yet wired to a Zig trace replay the way `test::model` is for `Authority.tla`.
 `just test::growing-query --finish-pages 1` retains one resident page through
@@ -3390,7 +3390,7 @@ No existing host block device, user installation or reference cluster is changed
 independent schema/SHA-256/Ed25519 fixture checks pass. These new focused/external
 tasks do not expand the ordinary hosted lanes or claim a new M10 budget sample.
 The selected replacement changes configuration with the same compatible binary;
-M32 must additionally qualify changed executable artifacts through installed
+M33 must additionally qualify changed executable artifacts through installed
 release packages. Other SDK hosts, maximum active quotas, local multi-role
 dependency graphs and distributed placement are not qualified by this consumer.
 Interface publication retains its separate M23 proof; worker readiness does not
@@ -3461,12 +3461,15 @@ no expanded hosted CI budget is claimed.
 `just transit-docs::check` checks the real Docusaurus package: Vite+ formatting
 and lint, strict TypeScript, six source/reference tests and production static
 rendering with broken links/anchors treated as errors. The initial site included
-all 31 foundational Markdown files. The current catalog includes every public
-guide/reference and selected owning component/wire guides. Its ownership test
-excludes internal records from published navigation/search and rejects internal
-links in public guides/reference. A separate snapshot check rejects milestone IDs,
-milestone wording and roadmap references in all cataloged page labels, routes and
-raw content, including link targets and component guides. It also checks every
+all 31 foundational Markdown files. The catalog includes every public guide/reference and Internals page, with
+selected owning component/wire guides. Its ownership test checks full coverage
+and unique routes/sources. Internals has a separate sidebar and participates in
+search. A separate snapshot check rejects milestone IDs, milestone wording and
+roadmap references in usage/reference page labels, routes and raw content,
+including link targets and component guides. The contributor index may name
+separate source sections; scientific accounts can cite scoped proof records.
+Roadmap, Design and History retain separate repository indexes and stay outside
+the primary catalog/search. It also checks every
 Markdown wire contract, generated API reference content and exact downloadable
 description source.
 Those references share current concepts, guarantees and failure semantics with
@@ -3478,7 +3481,9 @@ reactive AsyncAPI; downloaded descriptions retain their original bytes.
 Four checks cover desktop navigation/search/API anchors, exact downloads,
 mobile menu and overflow, light/dark accessibility, and every published Mermaid
 diagram, plus workload-to-performance/session navigation, code languages and
-search discovery. `TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser` runs the same
+search discovery. Internals coverage includes desktop/mobile navbar entry, its
+scientific standard and template, labeled search results, linked technical
+accounts/diagrams and source links to the separate Roadmap/Design indexes. `TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser` runs the same
 proof below a path prefix. Screenshots and failures stay in
 `.cache/verification/docs-browser`; the server belongs to that proof and starts
 no Transit processes. Accessibility checks exercise selected pages; they are not
@@ -3595,6 +3600,39 @@ application program through the independent parser and real offline compiler,
 then checks its canonical model round-trip alongside the existing rejection
 and schema cases. These changes add no runtime SQL capability or new recovery
 guarantee; those remain under their owning service proofs.
+
+### Public Internals and separated engineering records
+
+The documentation reorganization based on `b79a8a8` publishes 12 Internals pages:
+nine consolidated technical accounts, an overview, the scientific standard and a
+writing template. The complete site has 86 pages. Delivery plans live in
+`docs/roadmap/`, UI/UX reviews in `docs/design/`, earlier technical records in
+`docs/history/` and reserved decision guidance in `docs/decisions/`. These source
+records remain linked without becoming individual catalog/search entries.
+
+Executed locally on Linux x86_64 with the pinned Nix development shell and frozen
+workspace installation:
+
+- `just check` passed after consolidation: core/contract checks, Zig units,
+  177 CLI diagnostic cases, frontend checks and the documentation production build.
+- `just transit-docs::check` passed for the final structure as part of `just check`:
+  formatting/lint, strict types, six content tests and broken-link/anchor checking.
+- `nix develop --command bash -c 'cd apps/transit-docs && vp exec playwright test'`
+  passed all four checks against the production root build in 14.4 seconds.
+  Coverage includes Internals desktop/mobile navigation, labeled search results,
+  standard/template and technical-account links, separate Roadmap/Design source
+  links, every published Mermaid diagram and the existing interface checks.
+- `python3 -B tests/docs.py` resolved 4,359 local links across 455 Markdown files.
+  A source-path audit found retained destinations for all 249 original engineering
+  files. All 114 review images resolve and retain their original bytes.
+- `TRANSIT_DOCS_BASE_URL=/handbook/ just transit-docs::browser` rebuilt the
+  consolidated site and passed the same four browser checks in 13.6 seconds.
+
+The scientific accounts cite existing runtime evidence and add no runtime
+qualification. The checks above establish documentation structure and selected
+rendering/interaction behavior, not scientific correctness of every claim.
+No deployment proof, hosted-cost measurement, live publication or `just ci-clean`
+run is claimed for this uncommitted worktree.
 
 ## CLI diagnostic qualification
 

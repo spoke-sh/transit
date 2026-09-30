@@ -36,9 +36,9 @@ Read [guarantees and verification limits](docs/reference/verification.md) and
 [executed proof evidence](tests/README.md). Preserve the proved authority,
 readiness and recovery gates before extending a profile. Distinguish planned
 checks from executable evidence; never treat a skipped or incomplete proof as passed.
-Tie work to the [roadmap](docs/internal/roadmap/README.md), consulting only the
-relevant milestone or historical review for scope and rationale. Internal records
-must not be required to discover current user-facing semantics. Promote newly
+Tie work to the [roadmap](docs/roadmap/README.md), consulting only the
+relevant milestone or historical review for scope and rationale. Planning and
+historical records must not be required to discover current user-facing semantics. Promote newly
 established behavior, limits and reasoning into the public owner with the change.
 
 ## Implementation rules
@@ -86,7 +86,7 @@ established behavior, limits and reasoning into the public owner with the change
   propose missing contracts explicitly instead of inventing runnable SQL or
   treating parser acceptance as execution support. Edits may schedule qualified
   read queries in a visible, scoped Live worksheet session, as proposed in
-  [Board console D4](docs/internal/design/board-console/D4.md#live-execution-snapshot-and-stream).
+  [Board console D4](docs/design/board-console/D4.md#live-execution-snapshot-and-stream).
   Keep exact, speculative and earlier-draft results distinct; bind work to its
   draft, query, source basis and budget. Probability may guide scheduling, never
   authorization or result truth. Editing does not implicitly apply administrative
@@ -152,18 +152,36 @@ When rewriting history, preserve the original author date and use
 operations, set `GIT_COMMITTER_DATE` to that commit's author date.
 
 Follow the [documentation ownership guide](docs/README.md#where-documentation-lives).
-Keep current scope, concepts, architecture, guarantees and user-relevant rationale
-in `docs/guides/` and `docs/reference/`. Minimize reliance on `docs/internal/`;
-reserve it for plans, historical reviews and proposals. Do not create a competing
-internal product specification. Keep exact wire specifications in `contracts/`,
-component implementation/usage beside their package/app, and proof details in
-`tests/README.md`. Public guides/reference must explain current behavior without
-links into internal records. Public documentation describes a snapshot of
-capabilities at its source revision. Never use milestone IDs, milestone headings,
-roadmap links or delivery sequencing in published prose, examples, link targets
-or generated descriptions. Use named capabilities, actual interface versions and
-supported/unsupported profiles instead. This also applies to component guides
-included by the site and every wire contract; checks cover these public sources.
+Keep current scope, concepts, guarantees and user-facing semantics in
+`docs/guides/` and `docs/reference/`. Publish consolidated scientific explanations
+of how the system works in `docs/internals/`: models, mechanisms, invariants,
+architecture rationale, tradeoffs and evidence. Internals is public, navigable
+and searchable. Merge overlapping explanations around clear technical subjects;
+do not publish every source record as a separate Internals page.
+
+Keep delivery planning and milestone status in `docs/roadmap/`, UI/UX proposals
+and reviews in `docs/design/`, and superseded topic accounts and historical
+qualification reviews in `docs/history/`. Preserve their outcomes and source
+links; these records stay outside the site's primary reading path and search.
+Internals and architecture documentation must follow the
+[scientific standard](docs/internals/standard.md): explicit questions, scope,
+models and assumptions; precise claims and reasoning; traceable primary evidence;
+reproducible methods; alternatives, uncertainty and limits. Apply it to new and
+substantively revised accounts. Do not retroactively certify historical records.
+
+Keep exact wire specifications in `contracts/`, component implementation/usage
+beside their package/app, and proof details in `tests/README.md`. User guides and
+interface references must explain current behavior without requiring an Internals
+record; optional links can supply deeper reasoning. They describe a snapshot of
+capabilities at their source revision. Keep milestone IDs, headings, roadmap links
+and delivery sequencing in planning/history, outside user-facing prose, examples,
+link targets and generated descriptions. Use named capabilities, actual interface
+versions and supported/unsupported profiles in usage documentation. This also
+applies to component guides included by the site and every wire contract.
+Scientific accounts may cite scoped proof/history records as evidence; those
+citations do not expand supported behavior. The documentation ownership index
+may describe and link all repository sections.
+
 Describe interfaces directly in the present tense. State supported operations,
 types, platforms, version compatibility, configuration and failure behavior.
 Avoid maturity labels and generic qualification or production-readiness caveats.
@@ -173,12 +191,12 @@ Keep component READMEs navigable; place substantial configuration, recovery, or
 integration guides in that component's `docs/` and link them from its README.
 Update the owning document with meaningful changes and distinguish implemented,
 proposed, and unverified behavior. Keep rationale with its topic. Do not add ADRs
-yet; preserve `docs/internal/decisions/README.md` and `TEMPLATE.md` for future use.
+yet; preserve `docs/decisions/README.md` and `TEMPLATE.md` for future use.
 
-Reserve `docs/internal/design/` for UI/UX reviews. Document system architecture in its
+Reserve `docs/design/` for UI/UX reviews. Document system architecture in its
 owning topic documents and scope, decisions and qualification in roadmap milestones.
-Register UI/UX design items in the [design index](docs/internal/design/README.md). Keep one
-linear review sequence and summary table per item in `docs/internal/design/<item>/README.md`,
+Register UI/UX design items in the [design index](docs/design/README.md). Keep one
+linear review sequence and summary table per item in `docs/design/<item>/README.md`,
 with one `D<number>.md` per review in that directory. Use the shared template,
 preserve recorded outcomes, and distinguish accepted design from implemented behavior.
 Use black-and-white wireframes for structure and interaction reviews. Introduce
@@ -187,7 +205,7 @@ labels, geometry and line styles.
 
 Keep the roadmap linear: give additional work its own numbered milestone and
 renumber upcoming milestones and references, following the
-[sequencing rule](docs/internal/roadmap/README.md#maintaining-the-sequence).
+[sequencing rule](docs/roadmap/README.md#maintaining-the-sequence).
 
 Enter `nix develop` and use [just tasks](tasks/README.md). Use the pinned Zig 0.17
 compiler and standard library, not examples from older releases. Install locked
