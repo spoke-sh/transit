@@ -1205,8 +1205,19 @@ Full `just check` passes at
 `/tmp/transit-sql-catalog-metadata-abi-cli-full-check.log`; final documentation
 and verification inventory checks pass 4625 links across 486 files, 56
 invariants, 53 bounds and 13 SDK scenarios at
-`/tmp/transit-sql-catalog-metadata-abi-cli-docs.log`. Installed all-SDK regression
-and committed clean validation remain separate executions.
+`/tmp/transit-sql-catalog-metadata-abi-cli-docs.log`.
+
+All ten rebuilt, installed SDKs pass their existing catalog creation/control and
+recovery schedule against these additive schemas/actions: **126.508 s**, including
+**47.718 s** installation, 4558 reads, 69 turn responses, sixteen lost caller
+receipts and three lost owner receipts. It retains eighteen Tables across the two
+resources, sixteen listed definitions, four mutations, 134-byte observed values
+and eight resident pages. ABI/port/CLI also compare all sixteen definitions and
+two pages in this run; language SDK metadata methods are not exercised by this
+checkpoint. Source revision is `7fc92b33`; report/package hashes and log are
+`/tmp/transit-sql-catalog-metadata-all-ten-regression.json` and
+`/tmp/transit-sql-catalog-metadata-all-ten-regression.log`. Committed clean
+validation remains a separate execution.
 
 ## SQL branch integration of seeded simulations
 
