@@ -4,6 +4,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <cstring>
+#include "unified_inspection_fixture.h"
 using namespace transit::sdk;
 using namespace transit::sdk::station;
 namespace q = transit::sdk::station::unified;
@@ -11,6 +13,30 @@ static Bytes read(const std::string &path) { std::ifstream in(path,std::ios::bin
 static std::string hex(const Bytes &v) { const char *digits="0123456789abcdef"; std::string out; for(uint8_t b:v) { out+=digits[b>>4]; out+=digits[b&15]; } return out; }
 static Bytes unhex(const std::string &s) { if(s=="-")return {}; assert(s.size()%2==0); Bytes out; for(size_t i=0;i<s.size();i+=2)out.push_back(static_cast<uint8_t>(std::stoul(s.substr(i,2),nullptr,16))); return out; }
 static std::string maybe_hex(const std::optional<q::Prepared> &v) { return v?"\""+hex(v->data())+"\"":"null"; }
+static void inspection(const q::Inspection &value) {
+    transit_station_unified_inspection out{};
+    auto name=[](char (&dst)[33],const std::string &src){assert(src.size()<=32);std::memcpy(dst,src.c_str(),src.size()+1);};
+    auto columns=[&](const std::vector<q::Column> &values){transit_station_unified_source_description result{};assert(values.size()<=8);result.column_count=values.size();for(size_t i=0;i<values.size();++i){name(result.columns[i].name,values[i].name);result.columns[i].type=static_cast<transit_station_unified_type>(values[i].type);}return result;};
+    name(out.name,value.name);out.resource=value.resource.native();out.source_kind=static_cast<transit_station_unified_source_kind>(value.source_kind);
+    std::copy(value.source_digest.begin(),value.source_digest.end(),out.source_digest);std::copy(value.schema_digest.begin(),value.schema_digest.end(),out.schema_digest);
+    out.resource_revision=value.resource_revision;out.policy_revision=value.policy_revision;
+    std::visit([&](const auto &d){using T=std::decay_t<decltype(d)>;
+        if constexpr(std::is_same_v<T,q::SourceDescription>){out.kind=TRANSIT_UNIFIED_DESCRIPTION;out.details.description=columns(d.columns);}
+        else if constexpr(std::is_same_v<T,q::TableListing>){out.kind=TRANSIT_UNIFIED_TABLES;assert(d.names.size()<=1);out.details.tables.count=d.names.size();for(size_t i=0;i<d.names.size();++i)name(out.details.tables.names[i],d.names[i]);}
+        else {
+            out.kind=TRANSIT_UNIFIED_EXPLANATION;auto &plan=out.details.explanation;assert(d.operators.size()<=4&&d.projection.size()<=8);
+            plan.operator_count=d.operators.size();for(size_t i=0;i<d.operators.size();++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(d.operators[i]);
+            plan.projection_count=d.projection.size();for(size_t i=0;i<d.projection.size();++i)name(plan.projection[i],d.projection[i]);
+            plan.output=columns(d.columns);plan.has_limit=d.limit.has_value();plan.limit=d.limit.value_or(0);plan.aggregate=static_cast<transit_station_aggregate>(d.aggregate);plan.budgets={d.budgets.pages,d.budgets.segments,d.budgets.result_bytes};
+            std::visit([&](const auto &p){using P=std::decay_t<decltype(p)>;
+                if constexpr(std::is_same_v<P,q::InspectedState>){plan.predicate=TRANSIT_UNIFIED_IS_STATE;name(plan.column,p.column);plan.state=static_cast<transit_station_unified_state>(p.state);}
+                else if constexpr(std::is_same_v<P,q::InspectedComparison>){plan.predicate=TRANSIT_UNIFIED_COMPARE;name(plan.column,p.column);plan.comparison=static_cast<transit_station_comparison>(p.comparison);plan.type=static_cast<transit_station_unified_type>(p.type);}
+                else plan.predicate=TRANSIT_UNIFIED_ALL;
+            },d.predicate);
+        }
+    },value.details);
+    print_inspection(&out);
+}
 static q::Source source(ResourceRef resource,int kind,bool golden) {
     if(kind==0)return q::KvSource{resource,golden?Bytes{'d','a','t','a','/'}:Bytes{'k'},{q::Type::Binary},{golden?q::Type::UInt64:q::Type::Utf8}};
     if(kind==1)return q::TableSource{resource,static_cast<uint32_t>(golden?9:1),{"id",golden?"label":"value"},q::Type::Utf8};
@@ -54,7 +80,13 @@ static void serve(char **args) {
         if(command=="close")break;
         try {
             std::string result;
-            if(command=="next")result="{\"prepared_hex\":"+maybe_hex(client.prepare_next(std::stoull(arg),q::Bundle::recover(unhex(token))))+"}";
+            if(command=="inspect"){
+                q::Budgets budgets{};input>>budgets.pages>>budgets.segments>>budgets.result_bytes;assert(input);
+                const auto bytes=unhex(token);const auto value=client.inspect_sql(definition,arg,std::string(bytes.begin(),bytes.end()),budgets);
+                assert(value.resource.resource()==resource.resource()&&static_cast<int>(value.source_kind)==kind);
+                std::cout<<"{\"status\":0,\"value\":";inspection(value);std::cout<<"}"<<std::endl;continue;
+            }
+            else if(command=="next")result="{\"prepared_hex\":"+maybe_hex(client.prepare_next(std::stoull(arg),q::Bundle::recover(unhex(token))))+"}";
             else if(command=="submit") {
                 const auto bytes=unhex(arg); auto prepared=q::Prepared::recover(bytes);
                 try { result="{\"receipt\":{\"position\":"+std::to_string(client.submit(prepared).position)+"}}"; }

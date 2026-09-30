@@ -49,6 +49,7 @@ pub fn stage(turn: *x.station.Turn, reference: Reference, metadata: []const u8, 
     try reference.validate();
     if (reference.resource != turn.view.resource or metadata.len != reference.metadata_bytes or body.len != reference.body_bytes) return error.InvalidHttpRequestReference;
     return x.station.PublicationUpload.step(turn, .{
+        .domain = .application,
         .namespace = reference.namespace,
         .identity_key = key(reference.namespace),
         .identity = try reference.encode(),
@@ -88,7 +89,7 @@ pub fn read(client: *x.Client, reference: Reference, id: u64, buffer: []u8) ![]c
         else => return error.InvalidHttpRequestReference,
     };
     if (buffer.len < spec.length) return error.HttpRequestTooLarge;
-    const publication: Pub = .{ .resource = reference.resource, .namespace = reference.namespace };
+    const publication: Pub = .{ .domain = .application, .resource = reference.resource, .namespace = reference.namespace };
     var previous: ?Pub.Cursor = null;
     var count: usize = 0;
     while (true) {

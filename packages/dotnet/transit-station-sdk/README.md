@@ -44,3 +44,11 @@ with scoped jobs, full-width identities and joined cancellation/disposal.
 
 M18 adds [typed unified state queries](docs/UNIFIED_QUERY.md), with owned nested
 Arrow values, current source checks and explicit signed retry tokens.
+
+[Table mutation callers](docs/MUTATIONS.md) expose bounded SQL compilation,
+immutable recovery values, explicit admission and current status through an
+owned asynchronous client.
+
+[Catalog callers](docs/CATALOG.md) expose typed initialization, conditional
+policy changes, named Table creation and exact saved-command recovery through
+the shared native ABI and an owned asynchronous worker.

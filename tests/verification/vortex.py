@@ -100,12 +100,23 @@ class Handler(BaseHTTPRequestHandler):
                     if previous != (digest, data):
                         raise AssertionError('accepted identity or receipt changed')
             if rule and rule['fault'] in ('drop_response', 'delay_response'):
-                peer.record('fault_observed', **rule)
-                peer.seen.set()
-                if rule['fault'] == 'drop_response':
-                    self.close_connection = True
-                    return
-                time.sleep(rule['delay'])
+                if response.status != 200:
+                    # These schedules kill/recover after a lost acceptance
+                    # receipt. A timeout or rejection is not that premise.
+                    # Forward it normally and keep the fault armed for an
+                    # accepted attempt within the existing supervisor budget.
+                    with peer.mutex:
+                        assert peer.rule is None, 'response fault replaced while in flight'
+                        peer.rule = rule
+                    peer.record('fault_deferred', **rule, status=response.status)
+                    rule = None
+                else:
+                    peer.record('fault_observed', **rule)
+                    peer.seen.set()
+                    if rule['fault'] == 'drop_response':
+                        self.close_connection = True
+                        return
+                    time.sleep(rule['delay'])
             self.send_response(response.status)
             self.send_header('Content-Length', str(len(data)))
             self.end_headers()

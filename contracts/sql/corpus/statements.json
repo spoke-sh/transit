@@ -1397,6 +1397,11 @@
         ],
         "type": "int64"
       }
+    },
+    {
+      "id": "duplicate-projection-after-width-expansion",
+      "sql": "SELECT id, value, id FROM items",
+      "compile_error": "DuplicateProjection"
     }
   ],
   "reject": [
@@ -1413,11 +1418,6 @@
     {
       "id": "excluded-2",
       "sql": "SELECT * FROM items; SELECT * FROM items",
-      "postgres": true
-    },
-    {
-      "id": "excluded-3",
-      "sql": "SELECT id, value, id FROM items",
       "postgres": true
     },
     {
@@ -1499,6 +1499,7 @@
     "SHOW SOURCES;",
     "SHOW SINKS;",
     "SHOW CONNECTIONS;",
-    "DESCRIBE orders;"
+    "DESCRIBE orders;",
+    "EXPLAIN SELECT value FROM items WHERE id > 0 LIMIT 2;"
   ]
 }

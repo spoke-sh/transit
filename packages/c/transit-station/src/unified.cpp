@@ -83,6 +83,15 @@ size_t array_size(const Raw &raw,const Bytes &bytes,const std::string &path,size
 void fixed_bytes(const Raw &raw,const Bytes &bytes,const std::string &path,uint8_t *out,size_t count) {
     const auto value=unhex(raw.field(bytes,path,true),count);require(value.size()==count,"query-reference-width");std::copy(value.begin(),value.end(),out);
 }
+void inspected_name(const Raw &raw,const Bytes &bytes,const std::string &path,char (&out)[33]) {
+    const auto value=raw.field(bytes,path,true);require(value.size()<=32 && value.find('\0')==std::string::npos,"inspection-name");
+    std::copy(value.begin(),value.end(),out);out[value.size()]='\0';
+}
+transit_station_unified_source_description inspected_columns(const Raw &raw,const Bytes &bytes,const std::string &path) {
+    transit_station_unified_source_description out{};out.column_count=array_size(raw,bytes,path,8);require(out.column_count>0,"inspection-columns");
+    for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);out.columns[i].type=static_cast<transit_station_unified_type>(select_name(raw.field(bytes,column+"/type",true),types,6));}
+    return out;
+}
 struct NativeQuery {
     Local local;
     std::unique_ptr<station_query_client,decltype(&::station_unified_query_destroy)> handle;
@@ -149,7 +158,7 @@ std::unique_ptr<transit_station_unified_prepared> prepared(const Raw &raw,const 
 }
 std::unique_ptr<transit_station_unified_page> page_parse(const Raw &raw,const Bytes &v,uint64_t realm) {
     auto out=std::make_unique<transit_station_unified_page>();auto &m=out->info.manifest;const std::string p="page/manifest/",b=p+"basis/";
-    m.job=raw.number(v,p+"job");m.source=read_version(raw,v,p+"source");m.requester={realm,raw.number(v,p+"requester")};m.correlation=wide(raw,v,p+"correlation");m.policy_revision=wide(raw,v,p+"policy_revision");fixed_bytes(raw,v,p+"request",m.request,68);
+    m.job=raw.number(v,p+"job");m.source=read_version(raw,v,p+"source");m.requester={realm,raw.number(v,p+"requester")};m.correlation=wide(raw,v,p+"correlation");m.policy_revision=wide(raw,v,p+"policy_revision");fixed_bytes(raw,v,p+"request",m.request,72);
     const char *kinds[]={"kv","table","document"};m.source_kind=static_cast<transit_station_unified_source_kind>(select_name(raw.field(v,b+"kind",true),kinds,3));m.resource={realm,raw.number(v,b+"resource")};m.revision=raw.number(v,b+"revision",true);
     digest(raw,v,b+"contract",m.source_digest);digest(raw,v,b+"schema",m.schema_digest);digest(raw,v,p+"plan",m.plan_digest);digest(raw,v,p+"chain",m.chain);
     m.pages=wide(raw,v,p+"pages");m.scanned=wide(raw,v,p+"scanned");m.selected=wide(raw,v,p+"selected");m.segments=wide(raw,v,p+"segments");m.rows=wide(raw,v,p+"rows");m.byte_count=wide(raw,v,p+"bytes");
@@ -184,6 +193,31 @@ transit_sdk_error transit_station_unified_describe(transit_station_unified_clien
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(source&&out,"query-description");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");const auto v=n.call("{\"describe\":"+source_wire(*source)+"}");const auto &r=n.local.raw;const std::string p="description/";transit_station_unified_description result{};
         result.resource_revision=r.number(v,p+"resource_revision",true);result.policy_revision=wide(r,v,p+"policy_revision");result.budgets={wide(r,v,p+"limits/pages"),wide(r,v,p+"limits/segments"),wide(r,v,p+"limits/result_bytes")};result.has_active=r.field(v,p+"active")!="null";if(result.has_active)result.active=wide(r,v,p+"active");result.bundle_bytes=r.number(v,p+"capabilities/bundle_bytes");result.segment_bytes=r.number(v,p+"capabilities/segment_bytes");result.batch_rows=r.number(v,p+"capabilities/batch_rows");*out=result;});
 }
+transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection *out){
+    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){
+        require(source&&out,"query-inspection");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");
+        const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(text(name,32))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+"}}");
+        const auto &r=n.local.raw;const std::string p="inspection/",d=p+"details/";transit_station_unified_inspection result{};
+        require(r.number(v,p+"version")==1&&r.field(v,p+"scope",true)=="configured_source"&&r.number(v,p+"resource")==source->resource.resource,"inspection-scope");
+        inspected_name(r,v,p+"name",result.name);result.resource=source->resource;const char *kinds[]={"kv","table","document"};
+        result.source_kind=static_cast<transit_station_unified_source_kind>(select_name(r.field(v,p+"source_kind",true),kinds,3));
+        digest(r,v,p+"contract",result.source_digest);digest(r,v,p+"schema",result.schema_digest);
+        result.resource_revision=r.number(v,p+"resource_revision",true);result.policy_revision=wide(r,v,p+"policy_revision");
+        if(exists(r,v,d+"description")){result.kind=TRANSIT_UNIFIED_DESCRIPTION;result.details.description=inspected_columns(r,v,d+"description/columns");}
+        else if(exists(r,v,d+"tables")){result.kind=TRANSIT_UNIFIED_TABLES;auto &list=result.details.tables;list.count=array_size(r,v,d+"tables",1);for(size_t i=0;i<list.count;++i)inspected_name(r,v,d+"tables/"+decimal(i),list.names[i]);}
+        else {result.kind=TRANSIT_UNIFIED_EXPLANATION;const auto e=d+"explanation/";auto &plan=result.details.explanation;
+            const char *operators[]={"scan","filter","limit","project","count","sum"};plan.operator_count=array_size(r,v,e+"operators",4);require(plan.operator_count>=2,"inspection-operators");
+            for(size_t i=0;i<plan.operator_count;++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(select_name(r.field(v,e+"operators/"+decimal(i),true),operators,6));
+            if(exists(r,v,e+"predicate/all"))plan.predicate=TRANSIT_UNIFIED_ALL;
+            else if(exists(r,v,e+"predicate/state")){plan.predicate=TRANSIT_UNIFIED_IS_STATE;inspected_name(r,v,e+"predicate/state/column",plan.column);plan.state=static_cast<transit_station_unified_state>(select_name(r.field(v,e+"predicate/state/value",true),states,5));}
+            else {plan.predicate=TRANSIT_UNIFIED_COMPARE;const char *comparisons[]={"eq","ne","lt","le","gt","ge"};inspected_name(r,v,e+"predicate/compare/column",plan.column);plan.comparison=static_cast<transit_station_comparison>(select_name(r.field(v,e+"predicate/compare/op",true),comparisons,6));plan.type=static_cast<transit_station_unified_type>(select_name(r.field(v,e+"predicate/compare/type",true),types,6));}
+            plan.projection_count=array_size(r,v,e+"projection",8);for(size_t i=0;i<plan.projection_count;++i)inspected_name(r,v,e+"projection/"+decimal(i),plan.projection[i]);
+            plan.has_limit=r.field(v,e+"limit")!="null";if(plan.has_limit)plan.limit=wide(r,v,e+"limit");const char *aggregates[]={"rows","count","sum"};plan.aggregate=static_cast<transit_station_aggregate>(select_name(r.field(v,e+"aggregate",true),aggregates,3));
+            plan.output=inspected_columns(r,v,e+"columns");plan.budgets={wide(r,v,e+"budgets/pages"),wide(r,v,e+"budgets/segments"),wide(r,v,e+"budgets/result_bytes")};
+        }
+        *out=result;
+    });
+}
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&bundle&&out,"query-next");auto value=prepared(n.local.raw,n.call("{\"next\":{\"namespace\":"+quote(decimal(ns))+",\"bundle\":"+quote(hex(bundle->bytes))+"}}"));*out=value.release();});
 }
@@ -197,7 +231,7 @@ transit_sdk_error transit_station_unified_observe(transit_station_unified_client
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(out,"query-observe");counter(input);const auto v=n.call("{\"observe\":"+decimal(input)+"}");transit_station_unified_observation result{};if(exists(n.local.raw,v,"observation/pending"))result.state=TRANSIT_UNIFIED_PENDING;else if(exists(n.local.raw,v,"observation/committed"))result.state=TRANSIT_UNIFIED_COMMITTED;else{result.state=TRANSIT_UNIFIED_REJECTED;const auto reason=unhex(n.local.raw.field(v,"observation/rejected",true),256);std::copy(reason.begin(),reason.end(),result.reason);}*out=result;});
 }
 transit_sdk_error transit_station_unified_status_read(transit_station_unified_client *client,uint64_t ns,transit_station_unified_status *out){
-    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(ns&&out,"query-status");const auto v=n.call("{\"status\":"+quote(decimal(ns))+"}");const auto &r=n.local.raw;if(r.field(v,"status")=="null")return;transit_station_unified_status result{};result.found=true;result.phase=static_cast<transit_station_unified_phase>(select_name(r.field(v,"status/phase",true),phases,8));result.correlation=wide(r,v,"status/correlation");fixed_bytes(r,v,"status/reference",result.reference,68);result.has_manifest=r.field(v,"status/manifest")!="null";if(result.has_manifest)fixed_bytes(r,v,"status/manifest",result.manifest,68);result.collected=r.boolean(v,"status/collected");*out=result;});
+    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(ns&&out,"query-status");const auto v=n.call("{\"status\":"+quote(decimal(ns))+"}");const auto &r=n.local.raw;if(r.field(v,"status")=="null")return;transit_station_unified_status result{};result.found=true;result.phase=static_cast<transit_station_unified_phase>(select_name(r.field(v,"status/phase",true),phases,8));result.correlation=wide(r,v,"status/correlation");fixed_bytes(r,v,"status/reference",result.reference,72);result.has_manifest=r.field(v,"status/manifest")!="null";if(result.has_manifest)fixed_bytes(r,v,"status/manifest",result.manifest,72);result.collected=r.boolean(v,"status/collected");*out=result;});
 }
 transit_sdk_error transit_station_unified_page_read(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_cursor *cursor,transit_station_unified_page **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&out,"query-page");const auto v=n.call("{\"page\":{\"namespace\":"+quote(decimal(ns))+",\"cursor\":"+(cursor?quote(string_bytes(view(cursor->bytes),4096)):"null")+"}}");auto result=page_parse(n.local.raw,v,client->connection.source.realm);*out=result.release();});

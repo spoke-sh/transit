@@ -40,8 +40,8 @@ pub fn begin(turn: *Turn, reference: Ref) !void {
         return;
     }
     if (try active(turn) != null) return error.QueryBusy;
-    if (try turn.read(Pub.key(reference.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
-    const publication = try Pub.create(turn, reference.namespace, .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 });
+    if (try turn.read(Pub.key(reference.domain, reference.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
+    const publication = try Pub.create(turn, .query_request, reference.namespace, .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 });
     _ = try publication.begin(turn, reference.record, reference.spec);
     try store(turn, .{ .reference = reference });
     try turn.write(r.key('a', 0, 0), q.UnifiedRecords.identityValue(reference.namespace));
@@ -207,7 +207,7 @@ pub fn copyNext(turn: *Turn, template: u64, namespace: u64) !bool {
         try seal(turn, namespace);
         return false;
     }
-    const bytes = (try turn.read(Pub.key(template, 'c', reference.record, target.written))) orelse return error.MissingPublicationChunk;
+    const bytes = (try turn.read(Pub.key(.query_request, template, 'c', reference.record, target.written))) orelse return error.MissingPublicationChunk;
     _ = try reference.publication().append(turn, reference.record, target.written, bytes.slice());
     // Sealing independently verifies the full original commitment. No partial
     // or unverified copied bundle can become an executable source request.

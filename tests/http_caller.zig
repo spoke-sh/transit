@@ -26,10 +26,10 @@ const Caller = struct {
     outcome: ?http.Service.Outcome = null,
     fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Caller = @ptrCast(@alignCast(raw.?));
-        const publication: Pub = .{ .resource = turn.view.resource, .namespace = self.namespace };
+        const publication: Pub = .{ .domain = .application, .resource = turn.view.resource, .namespace = self.namespace };
         switch (self.action) {
             .create => {
-                _ = try Pub.create(turn, publication.namespace, .{ .record_bytes = 65536, .staging_bytes = 73728, .staging_records = 2 });
+                _ = try Pub.create(turn, .application, publication.namespace, .{ .record_bytes = 65536, .staging_bytes = 73728, .staging_records = 2 });
             },
             .begin => |a| {
                 _ = try publication.begin(turn, a.id, a.spec);

@@ -337,6 +337,41 @@
       "expression": "64 * 1024",
       "classification": "operation",
       "meaning": "General nested Arrow segment ceiling. Station Table delivery imposes its separate 8192-byte operation bound."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Sql.zig",
+      "symbol": "max_mutation_rows",
+      "expression": "3",
+      "classification": "operation",
+      "meaning": "Literal rows in one atomic Table statement; leaves one fresh-turn mutation slot for an application outcome and does not bound stored Table size."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/TableMutation.zig",
+      "symbol": "max_rows",
+      "expression": "sql.max_mutation_rows",
+      "classification": "operation",
+      "meaning": "Typed mutation batch shares the SQL operation bound; retained collection cardinality remains independent."
+    },
+    {
+      "source": "packages/zig/transit-query/src/TableMutationRequest.zig",
+      "symbol": "max_bytes",
+      "expression": "4 + 32 + 8 * 3 + 4 + 1 + 39 + 2 + f.TableMutation.max_rows * (8 + 1 + f.model.max_cell_bytes + 2)",
+      "classification": "operation",
+      "meaning": "799-byte maximum canonical request for three full-width Table rows and exact target/schema; immutable publication stages larger-than-envelope requests without enlarging a native turn."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Declaration.zig",
+      "symbol": "max_columns",
+      "expression": "@import(\"Unified.zig\").max_columns",
+      "classification": "operation",
+      "meaning": "At most eight columns in one offline state definition; not a bound on total catalog objects or durable history."
+    },
+    {
+      "source": "packages/zig/transit-catalog/src/Client.zig",
+      "symbol": "max_saved_bytes",
+      "expression": "8192",
+      "classification": "encoding",
+      "meaning": "Complete owned canonical saved catalog command; bounds one recovery artifact, not retained operation receipts or catalog cardinality."
     }
   ],
   "identities": [

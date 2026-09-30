@@ -41,6 +41,17 @@ again. A rejected observation reports the durable behavior rejection. When
 preparation returns undefined, inspect `status(namespace)` for the terminal or
 admitted state.
 
+`client.inspectSql(source, name, sql, budgets)` accepts `DESCRIBE name`,
+`SHOW TABLES` and `EXPLAIN SELECT ...`. It returns an `Inspection` with current
+resource/policy revisions, owned declaration/schema digests and typed details
+whose `kind` is `description`, `tables` or `explanation`. Full-width quantities
+use `bigint`; collections are frozen. An explanation preserves operator order,
+the predicate's column/state or comparison/type, output columns and budgets,
+without literal values. `undefined` means an absent input limit or unfiltered
+plan. Inspection operates on the supplied source alias under current access;
+it acquires no snapshot and submits no query. See the
+[inspection contract](../../../../contracts/SQL_INSPECTION_V1.md).
+
 `q.Uncertain` carries the identical `prepared` value after unconfirmed dispatch.
 Retain it across process loss and resubmit unchanged on a new client. Do not parse
 and re-encode signed material: embedded full-width numbers must remain opaque.

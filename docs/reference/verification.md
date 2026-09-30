@@ -7,20 +7,20 @@ test suites exercise them.
 
 ## Guarantees by boundary
 
-| Boundary | Required behavior under failure | Public contract |
-| --- | --- | --- |
-| Authority | One conditional successor; stale owners cannot commit; recovery preserves fencing and retirement | [Processes](processes.md) |
-| Permissions | Current native/resource policy gates writes, receipts, replay and bounded disclosure | [Security](security.md) |
-| State | Mutations, input progress and outputs share one visibility decision; rejected proposals publish nothing partial | [State](state.md) |
-| Retry | Lost acknowledgements retain one original identity/outcome; conflicting content rejects; unknown stays distinct from rejection | [Callers](callers.md) |
-| Delivery | Committed destinations/provenance survive retries; no source-turn rollback or invented cross-process atomicity | [Streams](streams.md) |
-| Lifetime | Expiry/closure cannot be reopened by late evidence or an old snapshot; pressure does not authorize deletion | [Retention](retention.md) |
-| Growth | Retained collections exceed resident caches with bounded page/work budgets and explicit quotas | [Storage](storage.md) |
-| Effects | Complete captures and known outcomes require evidence; no hidden retry or dispatch during replay | [Connectors](connectors.md) |
-| Documents | Convergence under declared rules, explicit conflicts/dependencies and no resurrection across deletion/compaction | [Documents](documents.md) |
-| Queries | Exact source basis, typed cells, bounded complete-result verification and explicit unsupported syntax | [Queries](queries.md), [SQL](sql.md) |
-| Reactive views | No-gap snapshot/watch handoff or reset; current permission and generation fence disclosure/replacement | [Reactive](reactive.md) |
-| Installation/migration | Frozen provisioning/step recovery, independent revisions and explicit activation; no permission renewal through worker replacement | [Applications](applications.md) |
+| Boundary               | Required behavior under failure                                                                                                    | Public contract                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Authority              | One conditional successor; stale owners cannot commit; recovery preserves fencing and retirement                                   | [Processes](processes.md)            |
+| Permissions            | Current native/resource policy gates writes, receipts, replay and bounded disclosure                                               | [Security](security.md)              |
+| State                  | Mutations, input progress and outputs share one visibility decision; rejected proposals publish nothing partial                    | [State](state.md)                    |
+| Retry                  | Lost acknowledgements retain one original identity/outcome; conflicting content rejects; unknown stays distinct from rejection     | [Callers](callers.md)                |
+| Delivery               | Committed destinations/provenance survive retries; no source-turn rollback or invented cross-process atomicity                     | [Streams](streams.md)                |
+| Lifetime               | Expiry/closure cannot be reopened by late evidence or an old snapshot; pressure does not authorize deletion                        | [Retention](retention.md)            |
+| Growth                 | Retained collections exceed resident caches with bounded page/work budgets and explicit quotas                                     | [Storage](storage.md)                |
+| Effects                | Complete captures and known outcomes require evidence; no hidden retry or dispatch during replay                                   | [Connectors](connectors.md)          |
+| Documents              | Convergence under declared rules, explicit conflicts/dependencies and no resurrection across deletion/compaction                   | [Documents](documents.md)            |
+| Queries                | Exact source basis, typed cells, bounded complete-result verification and explicit unsupported syntax                              | [Queries](queries.md), [SQL](sql.md) |
+| Reactive views         | No-gap snapshot/watch handoff or reset; current permission and generation fence disclosure/replacement                             | [Reactive](reactive.md)              |
+| Installation/migration | Frozen provisioning/step recovery, independent revisions and explicit activation; no permission renewal through worker replacement | [Applications](applications.md)      |
 
 The machine-readable [invariant inventory](../../tests/verification/invariants.json)
 maps these claims to owning implementation, tasks, scenarios and limits.
@@ -66,7 +66,10 @@ system scheduling and host await-cancellation require the external suites.
 
 Component schedules exercise accepted Document edit sets and checkpoint floors,
 Exchange capture/closure and replay holds, query source cuts and refresh generation
-replacement, and provider readiness/activation fencing. They reuse the real
+replacement, provider readiness/activation fencing, and conditional catalog
+publication. Catalog schedules check discarded proposals, point/page read faults,
+terminal conflicts, original receipts after replacement, current create/inspect
+policy and metadata page cuts. They reuse the real
 component implementations with private-turn stores and independent contract
 assertions. Seeded replay compares their event records; these stores establish
 logical publication boundaries, not disk or remote-effect durability.

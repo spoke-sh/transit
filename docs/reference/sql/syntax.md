@@ -44,13 +44,24 @@ aliases are unsupported; `AS alias` exists only in the restricted
 | Boolean | `TRUE`, `FALSE` | Boolean value |
 | Null | `NULL` | Explicit null; use `IS NULL` |
 | String | `'it''s ready'` | UTF-8 text; doubled single quotes encode a quote |
-| Binary | `'\x00ff'::bytea` | Hexadecimal bytes; `::bytea` is the only cast form |
+| Binary | `'\x00ff'::bytea` | Hexadecimal bytes |
+| Unsigned integer | `'18446744073709551615'::uint64` | Decimal digits; 0 through 18446744073709551615 |
+| Floating point | `'-0.0'::float64`, `'1.25e2'::float64` | Finite IEEE 754 double; negative zero is preserved |
 
 Backslashes are literal, including the `\x` prefix decoded by the binary literal
-handler. E strings, dollar quoting, adjacent-string concatenation, floating-point
-literals, implicit casts and general expressions are unsupported. Uint64 and
-float64 columns can be projected by query v1; comparison literals of those
-types require typed plans.
+handler. Numeric type suffixes apply only to string literals: uint64 accepts
+decimal digits without signs; float64 accepts decimal notation with an optional
+sign, decimal point and exponent. Non-finite values, overflow, whitespace and
+underscores reject. Float conversion rounds to binary64. E strings, dollar
+quoting, adjacent-string concatenation, bare fractional literals, implicit casts
+and general expressions are unsupported.
+
+For declared uint64 `counter` and float64 `fraction` columns:
+
+```sql
+SELECT counter FROM items WHERE counter = '18446744073709551615'::uint64;
+SELECT fraction FROM items WHERE fraction >= '-0.0'::float64;
+```
 
 `LIMIT` accepts unsigned decimal digits without a sign. Its allowed value is
 0–18446744073709551615. No limit means no
@@ -79,7 +90,7 @@ not imply SQL provisioning support or encode every type in a unified query schem
 The production parser accepts at most 4096 UTF-8 bytes, 16-byte identifiers,
 16 levels of block comments and 220 bytes per decoded literal cell. It rejects
 NUL, malformed UTF-8, unterminated tokens and out-of-range integers. The AST holds
-at most two explicit projected columns and one predicate. Durable queries have finite plan upload and execution budgets.
+at most eight explicit projected columns and one predicate. Durable queries have finite plan upload and execution budgets.
 
 These are per-operation bounds, independent of source cardinality. A syntactically
 valid query may still fail name/type checking, authorization or execution. See

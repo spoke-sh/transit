@@ -17,9 +17,10 @@ SELECT aggregate FROM (
   SELECT projection FROM source [WHERE predicate] [LIMIT count]
 ) AS alias;
 
-projection := * | column [, column]
+projection := * | column [, column ...]
 aggregate  := COUNT(*) | SUM(column)
-predicate  := column IS NULL | column comparison literal
+predicate  := column IS state | column comparison literal
+state      := NULL | MISSING | VALUE | TYPE_ERROR | CONFLICT
 comparison := = | <> | != | < | <= | > | >=
 column     := name | qualifier.name
 ```
@@ -38,8 +39,8 @@ SELECT value FROM items;
 SELECT items.value, items.id FROM items;
 ```
 
-Explicit lists preserve the requested order and contain one or two different
-column names. Star selects all one to eight declared columns. Wider explicit lists require typed plans. Output aliases,
+Explicit lists preserve the requested order and contain one to eight different
+column names. Star selects all declared columns. Output aliases,
 expressions and `DISTINCT` are unsupported.
 
 Results follow defined source order, including primary-key order for Tables.
@@ -52,6 +53,9 @@ paths, expansion and text materialization belong to its declaration, not SQL.
 SELECT id, value FROM items WHERE id >= 0;
 SELECT value FROM items WHERE value IS NULL;
 SELECT id FROM items WHERE value != 7;
+SELECT value FROM items WHERE value IS MISSING;
+SELECT value FROM items WHERE value IS TYPE_ERROR;
+SELECT value FROM items WHERE value IS CONFLICT;
 ```
 
 There is one optional predicate. `AND`, `OR`, `NOT`, `IS NOT NULL`, `IN`, `LIKE`,
@@ -63,12 +67,13 @@ source.
 | --- | --- |
 | `=`, `<>`, `!=` | Exactly typed equality/inequality |
 | `<`, `<=`, `>`, `>=` | Exactly typed comparison, including byte ordering for UTF-8/binary |
-| `IS NULL` | Explicit null; missing remains distinct |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Selects exactly the named cell state |
 | Comparison with `NULL` | Rejected with `UnsupportedNullComparison` |
 
 There are no implicit casts. Query v1 carries value, null, missing, type error
-and conflict as distinct cells. SQL does not provide tests for all those states;
-use the typed API where required. Do not treat an error or conflict as null.
+and conflict as distinct cells. State tests inspect the tag without evaluating
+the value, so errors and conflicts can be selected without coercion or choosing
+a conflict winner.
 
 ## Limit output
 

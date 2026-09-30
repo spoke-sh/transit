@@ -32,6 +32,9 @@
       "test::growing-service",
       "test::public-query",
       "test::publication",
+      "test::table-mutation",
+      "test::table-query-writer",
+      "test::catalog",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",
@@ -196,7 +199,16 @@
       "test::server-board",
       "test::server-board-package",
       "transit-docs::browser",
-      "test::resource-simulation"
+      "test::resource-simulation",
+      "bindings::catalog-python",
+      "bindings::catalog-node",
+      "bindings::catalog-rust",
+      "bindings::catalog-ruby",
+      "bindings::catalog-c",
+      "bindings::catalog-java",
+      "bindings::catalog-dotnet",
+      "bindings::catalog-beam",
+      "test::catalog-growth"
     ]
   },
   "nested_tasks": {

@@ -46,14 +46,8 @@ pub fn complete(self: *const Self) bool {
     return self.progress.finished != null;
 }
 pub fn schema(self: *const Self, columns: *[m.max_columns]m.Column) !m.Schema {
-    if (self.bundle.plan.aggregate != .rows) {
-        columns[0] = .{ .name = try .init(@tagName(self.bundle.plan.aggregate)), .type = if (self.bundle.plan.aggregate == .count) .uint64 else .int64 };
-        return .{ .columns = columns[0..1] };
-    }
     var source_columns: [m.max_columns]m.Column = undefined;
-    const source = try self.bundle.source.schema(&source_columns);
-    for (self.bundle.plan.projection, 0..) |index, i| columns[i] = source.columns[index];
-    return .{ .columns = columns[0..self.bundle.plan.projection.len] };
+    return self.bundle.plan.outputSchema(try self.bundle.source.schema(&source_columns), columns);
 }
 /// Returned bytes borrow output; decoded source memory belongs to this page's
 /// allocator. The caller must discard that arena before requesting another page.

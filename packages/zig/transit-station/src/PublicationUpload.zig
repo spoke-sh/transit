@@ -6,12 +6,21 @@ const Turn = @import("Turn.zig");
 const Publication = @import("Publication.zig");
 pub const Record = struct { id: u64, bytes: []const u8, spec: Publication.Spec };
 pub const Input = struct {
+    domain: Publication.Domain,
     namespace: u64,
     identity_key: p.Value,
     identity: p.Value,
     limits: Publication.Limits,
     records: []const Record,
 };
+fn identity(input: Input) !p.Value {
+    var bytes: [48]u8 = undefined;
+    bytes[0..4].* = "SPU1".*;
+    std.mem.writeInt(u32, bytes[4..8], @backingInt(input.domain), .little);
+    std.mem.writeInt(u64, bytes[8..16], input.namespace, .little);
+    std.crypto.hash.sha2.Sha256.hash(input.identity.slice(), bytes[16..48], .{});
+    return p.Value.init(&bytes);
+}
 /// Stage at most one operation per turn. True means every record was already
 /// published before this turn, so admission can share the remaining turn budget.
 /// This is not atomic multi-record visibility: the adapter publishes its reference
@@ -20,7 +29,9 @@ pub fn step(turn: *Turn, input: Input) !bool {
     const before = turn.decision;
     errdefer turn.decision = before;
     try input.limits.validate();
-    if (input.namespace == 0 or input.records.len == 0 or input.records.len > 2 or input.identity_key.len == 0 or input.identity.len == 0) return error.InvalidPublicationUpload;
+    try input.identity.validate();
+    try input.identity_key.validate();
+    if (@backingInt(input.domain) == 0 or input.namespace == 0 or input.records.len == 0 or input.records.len > 2 or input.identity_key.len == 0 or input.identity.len == 0) return error.InvalidPublicationUpload;
     var total: u64 = 0;
     for (input.records, 0..) |record, index| {
         try record.spec.validate();
@@ -29,13 +40,14 @@ pub fn step(turn: *Turn, input: Input) !bool {
         total += record.bytes.len;
     }
     if (total > input.limits.staging_bytes or input.records.len > input.limits.staging_records) return error.InvalidPublicationUpload;
-    const publication: Publication = .{ .resource = turn.view.resource, .namespace = input.namespace };
+    const publication: Publication = .{ .resource = turn.view.resource, .domain = input.domain, .namespace = input.namespace };
+    const frozen = try identity(input);
     if (try turn.read(input.identity_key)) |previous| {
-        if (!previous.eql(input.identity)) return error.PublicationUploadIdentityConflict;
+        if (!previous.eql(frozen)) return error.PublicationUploadIdentityConflict;
     } else {
-        if (try turn.read(Publication.key(input.namespace, 'b', 0, 0)) != null) return error.PublicationUploadNamespaceInUse;
-        _ = try Publication.create(turn, input.namespace, input.limits);
-        try turn.write(input.identity_key, input.identity);
+        if (try turn.read(Publication.key(input.domain, input.namespace, 'b', 0, 0)) != null) return error.PublicationUploadNamespaceInUse;
+        _ = try Publication.create(turn, input.domain, input.namespace, input.limits);
+        try turn.write(input.identity_key, frozen);
         return false;
     }
     for (input.records) |record| {

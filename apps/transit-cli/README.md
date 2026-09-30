@@ -4,8 +4,9 @@ The local server starts and supervises a separate `transit-board`
 process by default in version-1 local installations, with `--no-ui` for headless operation. See the
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
-The `transit` executable provides the local `server`, interactive/batch `console`
-and compatibility signed query shells. Existing `rey-cli` administration commands remain separate.
+The `transit` executable provides the local `server`, interactive/batch `console`,
+explicit signed query shell, saved Table mutation commands and catalog operations. Existing `rey-cli`
+administration commands remain separate.
 
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
 configuration and recovery. Shared parser and
@@ -13,7 +14,7 @@ cursor assistance lives in Fuze/query packages. The [console guide](docs/console
 covers versioned configuration, terminal editing, trust and exact recovery.
 The [local server guide](docs/server.md) describes the implemented supervisor,
 private native gateway and selected dependency/credential profile. Focused recovery,
-gateway pressure, physical capacity and clean-checkout qualification are recorded in the [proof ledger](../../tests/README.md). Compatibility query entry points retain their explicit protocols using dot commands.
+gateway pressure, physical capacity and clean-checkout qualification are recorded in the [proof ledger](../../tests/README.md). The explicit query shell uses dot commands.
 The local gateway supports [localhost and explicit tunnel aliases](docs/server.md#local-names-and-ssh-tunnels)
 and reports its URL and accepted authorities in the ready record.
 
@@ -34,6 +35,21 @@ SQL with automatic query progress and verified results. Its `.transitrc` hierarc
 configures `.connect` and `.mode`; server `transit.yaml` settings overlay the
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.
+
+## Explicit catalog operations
+
+`transit catalog` compiles `CREATE TABLE` offline, saves signed initialization,
+creation and conditional policy commands, and explicitly submits and observes
+them. The [catalog guide](docs/catalog.md) defines typed inputs, private artifacts,
+current authority and exact saved recovery through the shared catalog caller.
+
+## Explicit Table mutations
+
+`transit mutate` compiles bounded SQL, saves exact prepared commands to new
+private files, and explicitly submits and observes them through an authorized
+Table writer. Only `submit` dispatches. The [mutation guide](docs/mutations.md)
+defines connection fields, commands, bounds and recovery after unknown outcomes.
+This uses the same mutation owner as the Zig client and ten language SDKs.
 
 ## Explicit durable queries
 

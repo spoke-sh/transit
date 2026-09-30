@@ -23,6 +23,9 @@ retains a source version or grants access. The caller supplies current authority
 and the exact source basis before execution. `Unified.Codec` is the canonical
 plan codec.
 
+The compiler supports exact cell-state tests and full-width uint64/finite
+float64 literal suffixes. See [typed SQL](unified-sql.md) for their semantics.
+
 ## Syntax and escaping
 
 Every query has exactly one `FROM` source and at most one predicate. Unquoted
@@ -63,7 +66,7 @@ identifier bytes. Block comments nest at most 16 levels. SQL literal decoding
 admits at most 220 value bytes with 442 bytes of hex scratch storage. Typed plans
 have their own larger cell and name bounds. These limits bound one operation,
 not retained source cardinality. Parsing is a linear scan with no recursive
-parser stack. The AST holds up to two explicit projection names and one predicate;
+parser stack. The AST holds up to eight explicit projection names and one predicate;
 `SELECT *` expands to every declared column during compilation.
 
 Malformed encoding, NUL, unterminated strings/comments, oversized input,

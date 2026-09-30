@@ -1,12 +1,12 @@
-// Read-only Table SQL plus grammar-only administrative extensions.
+// Finite queries, bounded Table mutations and administrative extensions.
 // See README.md for exact lexical, compilation and compatibility boundaries.
 grammar TransitExtensions;
 options { caseInsensitive = true; }
 
-statement: (selectStatement | extensionStatement) SEMI? EOF;
+statement: (selectStatement | mutationStatement | extensionStatement) SEMI? EOF;
 asOfFragment: asOfClause EOF;
 
-// A single predicate and at most two columns, matching Fuze's existing model.
+// A single predicate and a projection bounded by the declared schema at compile time.
 // The one derived-table form spells filter -> limit -> aggregate without
 // misinterpreting SQL's outer LIMIT as an aggregate input limit.
 selectStatement
@@ -17,14 +17,25 @@ selectStatement
     ;
 selection: projection | aggregateSelection;
 aggregateSelection: COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN;
-projection: STAR | columnReference (COMMA columnReference)?;
+projection: STAR | columnReference (COMMA columnReference)*;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
-predicate: columnReference (IS NULL_ | comparison literal);
+predicate: columnReference (IS cellState | comparison literal);
+cellState: NULL_ | MISSING | TYPE_ERROR | VALUE | CONFLICT;
 comparison: EQ | NE | LT | LE | GT | GE;
-literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST BYTEA)?;
+literal: signedInteger | TRUE | FALSE | NULL_ | STRING (TYPECAST (BYTEA | UINT64 | FLOAT64))?;
 signedInteger: (PLUS | MINUS)? INTEGER;
 limitClause: LIMIT INTEGER;
+
+// Execution requires an explicitly integrated application writer. Query
+// transports reject these forms; this grammar conveys no write permission.
+mutationStatement
+    : INSERT INTO identifier LPAREN identifier COMMA identifier RPAREN
+      VALUES mutationRow (COMMA mutationRow)*
+    | UPDATE identifier SET columnReference EQ literal WHERE columnReference EQ literal
+    | DELETE FROM identifier WHERE columnReference EQ literal
+    ;
+mutationRow: LPAREN literal COMMA literal RPAREN;
 
 
 // ---- Parser rules -----------------------------------------------------
@@ -40,6 +51,7 @@ extensionStatement
     | revokeStatement
     | showStatement
     | describeStatement
+    | explainStatement
     ;
 
 // CREATE CONNECTION kafka_conn TO HTTP (endpoint = 'https://...', token = SECRET('...'));
@@ -153,21 +165,23 @@ describeStatement
     : DESCRIBE identifier
     ;
 
-// A fragment only: reserved for a future SELECT table-reference extension,
-// deliberately excluded from the executable SELECT profile here — `orders FOR SYSTEM_TIME AS OF 240`.
-// Deliberately the SQL:2011 system-versioned-table clause name (forensic
-// point-in-time reconstruction, not a windowing/event-time concept: see
-// docs/history/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
-// Transit revision — an integer journal position — not the standard's
-// wall-clock TIMESTAMP literal. Names existing retained-read-version
-// machinery (contracts/READ_VERSIONS_V1.md, GROWTH-10) rather than inventing
-// new historical-read semantics.
+explainStatement
+    : EXPLAIN selectStatement
+    ;
+
+// Isolated fragment only; no production operation interprets this integer.
+// Keep the rule unchanged until a deliberate grammar/contract cutover.
+// The intended language reserves FOR SYSTEM_TIME for SQL temporal semantics
+// and uses separate typed Transit snapshot/branch/tag and resource selectors.
+// See docs/reference/sql/as-of.md; this rule enables neither historical queries
+// nor a mapping from a system-time expression to a resource journal revision.
 asOfClause
     : FOR SYSTEM_TIME AS OF INTEGER
     ;
 
 identifier
-    : IDENTIFIER | QUOTED_IDENTIFIER
+    : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
+    | INSERT | UPDATE | DELETE | SET | VALUES
     ;
 
 // ---- Lexer rules --------------------------------------------------------
@@ -181,6 +195,19 @@ IS: 'IS';
 TRUE: 'TRUE';
 FALSE: 'FALSE';
 BYTEA: 'BYTEA';
+// Contextual keywords remain usable as existing unquoted source/column names.
+MISSING: 'MISSING';
+TYPE_ERROR: 'TYPE_ERROR';
+VALUE: 'VALUE';
+CONFLICT: 'CONFLICT';
+UINT64: 'UINT64';
+FLOAT64: 'FLOAT64';
+EXPLAIN: 'EXPLAIN';
+INSERT: 'INSERT';
+UPDATE: 'UPDATE';
+DELETE: 'DELETE';
+SET: 'SET';
+VALUES: 'VALUES';
 CREATE: 'CREATE';
 CONNECTION: 'CONNECTION';
 CONNECTIONS: 'CONNECTIONS';

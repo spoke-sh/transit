@@ -204,6 +204,31 @@ fn codecs(config: &Value) -> AnyResult<()> {
     );
     Ok(())
 }
+fn inspection(value: q::Inspection) -> Value {
+    fn columns(values: Vec<q::Column>) -> Value {
+        json!(values.into_iter().map(|v| json!({"name":v.name,"type":format!("{:?}",v.value_type).to_lowercase()})).collect::<Vec<_>>())
+    }
+    let details = match value.details {
+        q::InspectionDetails::Description { columns: values } => json!({"description":{"columns":columns(values)}}),
+        q::InspectionDetails::Tables { names } => json!({"tables":names}),
+        q::InspectionDetails::Explanation { operators, predicate, projection, limit, aggregate, columns: values, budgets } => {
+            let predicate = match predicate {
+                q::InspectedPredicate::All => json!({"all":{}}),
+                q::InspectedPredicate::State { column, state } => json!({"state":{"column":column,"value":match state {
+                    q::State::TypeError => "type_error".to_owned(), _ => format!("{state:?}").to_lowercase(),
+                }}}),
+                q::InspectedPredicate::Compare { column, comparison, value_type } => json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}}),
+            };
+            json!({"explanation":{"operators":operators.iter().map(|v|format!("{v:?}").to_lowercase()).collect::<Vec<_>>(),
+                "predicate":predicate,"projection":projection,"limit":limit.map(|v|v.to_string()),"aggregate":format!("{aggregate:?}").to_lowercase(),
+                "columns":columns(values),"budgets":{"pages":budgets.pages.to_string(),"segments":budgets.segments.to_string(),"result_bytes":budgets.result_bytes.to_string()}}})
+        },
+    };
+    json!({"inspection":{"version":1,"scope":"configured_source","name":value.name,"resource":value.resource.resource(),
+        "source_kind":format!("{:?}",value.source_kind).to_lowercase(),"contract":value.source_digest,"schema":value.schema_digest,
+        "resource_revision":value.resource_revision,"policy_revision":value.policy_revision.to_string(),"details":details}})
+}
+
 fn serve(config: &Value) -> AnyResult<()> {
     let v = &config["connection"];
     let realm = number(v, "realm");
@@ -306,7 +331,16 @@ fn serve(config: &Value) -> AnyResult<()> {
             break;
         }
         let result = (|| -> transit_client::Result<Value> {
-            Ok(if let Some(v) = action.get("next") {
+            Ok(if let Some(v) = action.get("inspect") {
+                let scope = &v["scope"];
+                let limits = &scope["limits"];
+                let value = client.inspect_sql(&source, text(scope, "name"), text(v, "sql"), q::Budgets {
+                    pages: text(limits, "pages").parse().unwrap(), segments: text(limits, "segments").parse().unwrap(),
+                    result_bytes: text(limits, "result_bytes").parse().unwrap(),
+                })?;
+                assert_eq!(value.resource, resource);
+                inspection(value)
+            } else if let Some(v) = action.get("next") {
                 let bundle = q::Bundle::from_bytes(unhex(text(v, "bundle")))?;
                 json!({"prepared":client.prepare_next(text(v,"namespace").parse().unwrap(),&bundle)?.as_ref().map(q::Prepared::data)})
             } else if let Some(v) = action.get("submit") {

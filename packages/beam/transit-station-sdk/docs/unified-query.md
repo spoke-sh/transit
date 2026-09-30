@@ -23,6 +23,16 @@ prepare a replacement. Other failures return `{error, #transit_error{}}`.
 A receipt is admission; `observe/2` checks behavior disposition and `status/2`
 checks result completion. An undefined next command means inspect status.
 
+`inspect_sql(Client, Source, Name, Sql, Budgets)` executes scoped `DESCRIBE name`,
+`SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig inspection owner.
+It returns `{ok, #transit_unified_inspection{}}` with owned names, source/schema
+digests, current revisions and description/list/explanation records. Explanation
+predicates are `all`, `{state, ColumnName, State}` or
+`{compare, ColumnName, Op, Type}`; literal values are excluded. Operator atoms
+come from a fixed allowlist, and wide integers retain all 64 bits. Inspection
+rechecks current authorization, creates no snapshot and admits no query. The
+Table listing covers only the configured source.
+
 `page/2,3` checks current source grants/lifecycle and complete ordered manifest
 coverage before returning owned IPC, typed provenance and an opaque cursor.
 Undefined continuation means verified complete coverage; cursors grant nothing.

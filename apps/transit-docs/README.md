@@ -39,6 +39,10 @@ and distinguish executable queries, offline definitions, grammar-only syntax and
 absent operations. Types, functions/operators and streaming/effect boundaries
 have dedicated pages. Unsupported command entries remain searchable alongside
 implemented statements and explain the available application API alternatives.
+The [grammar surface inventory](../../docs/reference/sql/grammar-surface.md)
+also publishes planned language targets with explicit checked/proposed/undecided
+syntax labels. Illustrative proposed forms use text blocks; `sql` examples remain
+inputs to the existing grammar check. Publishing a target adds no parser support.
 
 Every page in `docs/guides/`, `docs/reference/` and `docs/internals/` must appear
 in the catalog. Usage guides and references explain current capabilities;

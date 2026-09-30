@@ -75,10 +75,48 @@ stdout ends the local session and releases an interactive snapshot; durable
 accepted work remains recoverable.
 
 `query`, `rey-cli`, `kubectl-transit` and the existing launcher commands
-retain their separate configuration and protocols. The query shells use dot
+retain their separate configuration and protocols. The query shell uses dot
 commands and are omitted from the primary command list. No alias silently changes a
 single-line shell into a multiline console, adopts a launcher installation or
 changes a connection's authority or installs an application. These separate commands remain supported.
+
+## Explicit catalog commands
+
+`transit catalog` composes the shared [catalog caller](DECLARATIVE_CATALOG_V1.md).
+`capabilities` and scoped `compile` are offline. `describe` reads current metadata;
+`prepare-initialize`, `prepare-create` and `prepare-policy` save signed commands
+without dispatch. `submit` alone sends the exact saved command. `observe` reads
+its input processing, `disposition` reads control/rejected-input outcomes, and
+`status` reads the original creation receipt. Admission and processing do not
+establish Table publication. Current native and catalog rights remain independent.
+
+Compilation/preparation require new private output files with file/directory sync
+and no replacement. Later calls validate typed compiled fields against their
+canonical bytes. Prepared input restores the original signed string under the
+current definition. Unknown outcomes retain the same artifact for exact retry;
+no replacement preparation, automatic dispatch or implicit provisioning occurs.
+The [catalog guide](../apps/transit-cli/docs/catalog.md) owns configuration,
+command syntax, input envelopes, numeric bounds and recovery examples.
+
+## Explicit mutation commands
+
+`transit mutate` uses the shared [Table mutation contract](TABLE_MUTATION_V1.md).
+`capabilities` is offline; `describe` reads currently authorized metadata.
+`compile` saves a request/reference, `next` prepares one upload stage and
+`prepare --control apply|cancel` prepares an explicit control. These operations
+do not send native commands. `submit` sends an exact saved command; `observe`
+and `rejection` inspect its admitted input, while `status` reads the durable
+request outcome. Admission and application remain distinct.
+
+Compilation and preparation require a new private output file. Atomic creation,
+file synchronization and directory synchronization precede successful output;
+existing paths are refused. Submission validates the saved definition, target
+and signature through the shared client. An unknown outcome retains the original
+file for exact retry; there is no automatic retry or sequence coordination.
+Current grants and writer policy still apply. Terminal cancellation cannot undo
+an applied result. The [mutation guide](../apps/transit-cli/docs/mutations.md)
+owns exact flags, configuration and artifact bounds. Console/query connections
+do not implicitly select or authorize a writer.
 
 ## Local server and recovery
 

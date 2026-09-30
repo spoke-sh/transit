@@ -73,7 +73,7 @@ def run(node, caller):
                                 observations["max_value_bytes"] = max(observations["max_value_bytes"], len(bytes.fromhex(item["value"])))
                         descriptors = [(bytes.fromhex(item["key"]), bytes.fromhex(item["value"]))
                                        for item in mutations if item["value"] and bytes.fromhex(item["value"]).startswith(b"SPR1")]
-                        first = next((value for key, value in descriptors if int.from_bytes(key[11:19], "big") == 1), None)
+                        first = next((value for key, value in descriptors if int.from_bytes(key[15:23], "big") == 1), None)
                         selected = None
                         if first:
                             written, collected = struct.unpack_from("<II", first, 16)
@@ -161,8 +161,8 @@ def run(node, caller):
             assert observations["max_value_bytes"] == 256
             assert observations["max_mutations"] == 4
             print("Publication evidence:", json.dumps({"record_bytes": 65536, "retained_records": 42,
-                  "record_key_value_bytes": 65536 + 23 * 256 + 127,
-                  "namespace_key_value_bytes": 55, "recovery_resident_pages": 1,
+                  "record_key_value_bytes": 65536 + 27 * 256 + 131,
+                  "namespace_key_value_bytes": 59, "recovery_resident_pages": 1,
                   "killed_workers": 4, "exact_retries": sorted(retries),
                   "phase_seconds": timings, **observations}, sort_keys=True), flush=True)
         except BaseException:

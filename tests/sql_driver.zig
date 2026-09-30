@@ -44,12 +44,18 @@ const AstView = struct {
         try out.objectField("predicate");
         switch (ast.predicate) {
             .all => try out.write(null),
-            .is_null => |*column| {
+            .state => |*state| {
                 try out.beginObject();
                 try out.objectField("column");
-                try writeColumn(out, column);
+                try writeColumn(out, &state.column);
                 try out.objectField("op");
-                try out.write("is_null");
+                try out.write(switch (state.value) {
+                    .null => "is_null",
+                    .missing => "is_missing",
+                    .type_error => "is_type_error",
+                    .value => "is_value",
+                    .conflict => "is_conflict",
+                });
                 try out.endObject();
             },
             .compare => |*comparison| {
@@ -65,7 +71,7 @@ const AstView = struct {
                 try out.objectField("value");
                 switch (comparison.literal) {
                     .null => try out.write(null),
-                    .int64 => |value| try out.write(value),
+                    inline .int64, .uint64, .float64 => |value| try out.write(value),
                     .boolean => |value| try out.write(value),
                     .utf8, .binary => |*value| try out.write(value.slice()),
                 }

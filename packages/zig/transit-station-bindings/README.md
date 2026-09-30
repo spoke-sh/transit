@@ -1,7 +1,8 @@
 # transit-station-bindings
 
 The shared native SDK bridge composes [Station](../transit-station/README.md),
-the [client ABI](../transit-client/docs/bindings.md) and
+the [client ABI](../transit-client/docs/bindings.md),
+[catalog callers](../transit-catalog/README.md), and
 [HTTP](../transit-station-http/README.md) and [RPC](../transit-station-grpc/README.md). It owns detached handler
 operations, native handle/buffer lifetime, generated C declarations and the schemas
 used by every language adapter and the [native port](../../../apps/transit-station-host/README.md).
@@ -43,3 +44,15 @@ transports; this alone does not qualify a language SDK or signed query lifecycle
 The query caller handle and `query_client` port profile now share signed
 preparation, admission observation and current-policy verified pages. The [proof ledger](../../../tests/README.md) records executed source and
 installed-language recovery schedules.
+
+The explicit [Table mutation caller](docs/table-mutations.md) exports signed
+preparation, frozen recovery and separate durable result/input-rejection reads
+through its own native handle and port profile. It delegates to the shared
+query package; read-query handles do not acquire mutation capability.
+
+The [catalog caller](docs/catalog.md) exposes initialization, compatible Table
+creation, conditional policy controls and separate operation/input outcomes.
+Its C ABI and native port use `transit-catalog`'s shared neutral values and signed
+client. Catalog identities retain their full width; preparation, admission and
+application remain distinct. Generated resources do not imply idiomatic SDK
+administrative methods.

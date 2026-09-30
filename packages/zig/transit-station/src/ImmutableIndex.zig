@@ -297,6 +297,7 @@ pub const Cache = struct {
     pub const capacity = 8;
     const CachedNode = struct { id: u64 = 0, spec: Pub.Spec = undefined, bytes: [node_bytes]u8 = undefined };
     basis: ?Pub.Basis = null,
+    domain: Pub.Domain = @fromBackingInt(0),
     namespace: u64 = 0,
     next: usize = 0,
     entries: [capacity]CachedNode = @splat(.{}),
@@ -305,9 +306,10 @@ pub const Cache = struct {
         if (ref.spec.length > buffer.len) return error.IndexNodeTooLarge;
         var cursor = try publication.open(source, ref.id);
         if (!std.meta.eql(cursor.spec, ref.spec)) return error.InvalidIndexReference;
-        if (self.basis == null or !std.meta.eql(self.basis.?, cursor.basis) or self.namespace != publication.namespace) {
+        if (self.basis == null or !std.meta.eql(self.basis.?, cursor.basis) or self.domain != publication.domain or self.namespace != publication.namespace) {
             for (&self.entries) |*entry| entry.id = 0;
             self.basis = cursor.basis;
+            self.domain = publication.domain;
             self.namespace = publication.namespace;
             self.next = 0;
         }
@@ -326,7 +328,7 @@ pub const Cache = struct {
                 if (cursor.index % p.Growth.page_size == 0) {
                     var keys: [p.Growth.page_size]p.Value = undefined;
                     const count = @min(p.Growth.page_size, cursor.spec.chunks() - cursor.index);
-                    for (keys[0..count], 0..) |*key, i| key.* = Pub.key(publication.namespace, 'c', cursor.id, cursor.index + @as(u32, @intCast(i)));
+                    for (keys[0..count], 0..) |*key, i| key.* = Pub.key(publication.domain, publication.namespace, 'c', cursor.id, cursor.index + @as(u32, @intCast(i)));
                     try source.prefetch(keys[0..count]);
                 }
             }

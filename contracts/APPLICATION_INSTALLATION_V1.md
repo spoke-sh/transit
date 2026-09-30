@@ -21,7 +21,7 @@ PIDs and resource IDs. Installer, worker and application caller identities remai
 separate. Role contract, artifact/configuration revision, ownership generation,
 application data epoch and interface revision are distinct coordinates.
 
-A declaration has version 1 or 2, application, roles, resources, callers and optional
+A declaration has version 1, application, roles, resources, callers and optional
 initialization messages. It contains at most eight roles, sixteen resources,
 eight callers and sixteen initialization messages. Role order is dependency order;
 unknown, duplicate or forward dependencies reject before effects. Each role names

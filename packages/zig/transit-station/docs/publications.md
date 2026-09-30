@@ -1,7 +1,6 @@
 # Larger immutable publications
 
-`Publication` is the explicit growing Zig primitive introduced by
-[M14](../../../../docs/roadmap/M14.md). It stores opaque application-versioned
+`Publication` stores opaque application-versioned
 records over existing KV without changing the 256-byte value, four-mutation or
 single-resource turn limits. The [v1 layout](../../../../contracts/STATION_PUBLICATION_V1.md)
 owns exact encoding, commitment, lifecycle and capacity accounting.
@@ -11,14 +10,15 @@ owns exact encoding, commitment, lifecycle and capacity accounting.
 Create a namespace once with explicit deployment limits:
 
 ```zig
-const publications = try station.Publication.create(turn, 1, .{
+const publications = try station.Publication.create(turn, .application, 1, .{
     .record_bytes = 65536,
     .staging_bytes = 131072,
     .staging_records = 2,
 });
 ```
 
-Later handlers reconstruct `{ .resource = turn.view.resource, .namespace = 1 }`.
+Later handlers reconstruct `{ .resource = turn.view.resource, .domain = .application,
+.namespace = 1 }`.
 Limits cannot silently change on restart. Resource grants and the fenced writer
 remain necessary. A namespace or record ID is not an authorization token.
 Application schemas/replica identity are outside this opaque storage layer.
@@ -65,7 +65,7 @@ under the old activation. Stale owners cannot publish or clean up. Resource
 revocation, expiry, view expiry and retained-version release are explicit errors;
 no helper opens a fresh source automatically.
 
-`PublicationReference` supplies a canonical 68-byte `SPF1` identity for one
+`PublicationReference` supplies a canonical 72-byte `SPF1` identity for one
 published record. Its `read(resource_reader, output)` helper materializes a finite
 record into a caller-sized buffer, reopening current access and the exact published
 spec for every bounded chunk group and after completion. Public readers with
@@ -80,7 +80,7 @@ application needs bounded streaming at an explicitly captured or retained cut.
 ## Resumable finite uploads
 
 `PublicationUpload.step` stages one or two finite records, one operation per turn,
-using the same namespace, immutable specs and caller-owned source bytes on every
+using the same domain, namespace, immutable specs and caller-owned source bytes on every
 resume. It returns `true` only when all records were already published before
 that turn; the adapter may then admit the reference using the remaining budget.
 It restores the private decision on failure, including failures after namespace
@@ -88,7 +88,9 @@ creation. Published records are individually visible; the adapter owns admission
 of their combined reference.
 
 Supply a separate nonempty `identity_key` and an opaque frozen `identity` that
-binds every record spec and adapter policy field. Changed identity/content and an
+binds every record spec and adapter policy field. The helper stores a 48-byte
+`SPU1` marker binding the domain, namespace and SHA-256 of this identity; changing
+either identity coordinate rejects before another staging step. Changed identity/content and an
 occupied namespace without that marker fail explicitly. The helper validates
 content digests and quota before staging, but does not interpret the adapter's
 marker or grant access. HTTP and RPC callers use this shared upload mechanism;
@@ -122,12 +124,15 @@ current access, protected historical reads and cleanup. `just test::unit` covers
 strict codecs, independent digest fixtures, quota/identity refusal and rollback.
 The [test guide](../../../../tests/README.md) records executed evidence and limits.
 
-This is a Zig framework API. Connector capture is scoped in
-[M15](../../../../docs/roadmap/M15.md)/[M16](../../../../docs/roadmap/M16.md), Document CRDT/SDK interfaces in
-[M17](../../../../docs/roadmap/M17.md), and wider Fuze sources/query interfaces in
-[M18](../../../../docs/roadmap/M18.md). None is implicit in this primitive.
-M13 query result layouts and their 207-byte
-public plan limit are unchanged. The 64 KiB qualification is a useful operation
+The native SDK publication actions use the application domain. Query uploads,
+query results, Table mutations, accepted Documents, exchange captures and
+application definitions use separate domains. Caller-staged HTTP, RPC and
+Document request bodies use the application domain and caller-assigned
+namespaces. The [layout contract](../../../../contracts/STATION_PUBLICATION_V1.md)
+records the domain registry. Domains isolate budgets, descriptors, chunks and
+cursors within a resource; current grants and writer fencing still apply.
+
+The 64 KiB qualification is a useful operation
 size, not a whole-resource limit; total published records grow on disk under
 normal deployment quotas. Larger configured records require workload-specific
 qualification. Format IDs label application bytes; they do not validate them.

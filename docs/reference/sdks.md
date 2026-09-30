@@ -33,6 +33,51 @@ use separate generated, runtime-validated [query](../../packages/ts/transit-quer
 [application](../../packages/ts/transit-application/README.md) packages; the Node
 native client is not a browser credential adapter.
 
+## Catalog callers
+
+Python provides [synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md);
+TypeScript provides [promise-based catalog callers](../../packages/ts/transit-station-sdk/docs/catalog.md);
+Rust provides [blocking callers with exclusive borrows](../../packages/rust/transit-station-sdk/docs/CATALOG.md);
+Ruby provides [block-scoped synchronous callers](../../packages/ruby/transit-station/docs/CATALOG.md);
+C provides [owned handles and inline values](../../packages/c/transit-station/docs/CATALOG.md);
+C++ provides [typed values and move-only owners](../../packages/cpp/transit-station-sdk/docs/CATALOG.md);
+Java provides [immutable values and bounded futures](../../packages/java/transit-station-sdk/docs/CATALOG.md);
+.NET provides [immutable values and bounded tasks](../../packages/dotnet/transit-station-sdk/docs/CATALOG.md);
+Erlang provides [immutable records and an owned worker](../../packages/beam/transit-station-sdk/docs/catalog.md);
+Elixir provides [structs over the Erlang caller](../../packages/beam/transit-station-elixir/docs/catalog.md).
+These support initialization, conditional policy, named Table creation and exact
+saved recovery through the shared [native catalog boundary](../../packages/zig/transit-station-bindings/docs/catalog.md),
+retaining full-width identities. All ten SDKs also expose exact-name lookup,
+immutable definition reads and ordered pages of at most eight definitions.
+Continue with the original mandatory-definition cursor; a changed revision
+requires a fresh listing. Every metadata call rechecks current inspection and
+native rights. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
+Zig owner; query connections do not enable administration.
+
+## Table mutation callers
+
+Typed mutation clients provide SQL compilation, explicit staging, exact saved
+retries and durable status through the shared Zig owner. They require an
+explicit writer/resource/Table connection and a separate mutation policy.
+Read-query clients do not confer mutation access.
+
+| Language | Caller API |
+| --- | --- |
+| Python | [Synchronous and asynchronous clients](../../packages/python/transit-station/docs/mutations.md) |
+| TypeScript | [Promise methods and owned native port](../../packages/ts/transit-station-sdk/docs/mutations.md) |
+| Ruby | [Blocking client with owned worker and immutable values](../../packages/ruby/transit-station/docs/MUTATIONS.md) |
+| Rust | [Blocking client with exclusive borrows and owned requests](../../packages/rust/transit-station-sdk/docs/MUTATIONS.md) |
+| C | [Owned handles, buffers and typed observations](../../packages/c/transit-station/docs/TABLE_MUTATIONS.md) |
+| C++ | [Move-only clients and saved commands](../../packages/cpp/transit-station-sdk/docs/TABLE_MUTATIONS.md) |
+| Java | [Immutable values and bounded asynchronous calls](../../packages/java/transit-station-sdk/docs/MUTATIONS.md) |
+| .NET | [Immutable values, asynchronous calls and joined disposal](../../packages/dotnet/transit-station-sdk/docs/MUTATIONS.md) |
+| Erlang | [Immutable records and an owned native-port worker](../../packages/beam/transit-station-sdk/docs/mutations.md) |
+| Elixir | [Immutable structs and tagged recovery results](../../packages/beam/transit-station-elixir/docs/mutations.md) |
+
+The
+[native ABI/port](../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+exposes the same neutral operation independently of those public adapters.
+
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

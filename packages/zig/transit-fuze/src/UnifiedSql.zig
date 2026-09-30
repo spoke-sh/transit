@@ -14,7 +14,7 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
     var input: [m.max_columns]u8 = undefined;
-    const input_projection = try projection(if (ast.input) |value| value.projection else .{ null, null }, source.name, source.schema, &input);
+    const input_projection = try projection(if (ast.input) |value| value.projection else @splat(null), source.name, source.schema, &input);
     const qualifier = if (ast.input) |value| try m.Name.init(value.alias.slice()) else source.name;
     var selected: [m.max_columns]u8 = undefined;
     var aggregate: m.Plan.Aggregate = .rows;
@@ -39,7 +39,7 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     var result: m.Plan = .{ .projection = owned_projection, .aggregate = aggregate, .limit = if (ast.input) |value| value.limit else ast.limit };
     result.predicate = switch (ast.predicate) {
         .all => .all,
-        .is_null => |column| .{ .state = .{ .column = try resolve(column, source.name, source.schema), .value = .null } },
+        .state => |state| .{ .state = .{ .column = try resolve(state.column, source.name, source.schema), .value = state.value } },
         .compare => |value| .{ .compare = .{
             .column = try resolve(value.column, source.name, source.schema),
             .op = switch (value.op) {
@@ -70,19 +70,30 @@ fn resolve(column: sql.Column, qualifier: m.Name, schema: m.Schema) !u8 {
 }
 fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output: *[m.max_columns]u8) ![]const u8 {
     if (value[0] == null) {
-        if (value[1] != null) return error.InvalidProjection;
+        for (value[1..]) |column| if (column != null) return error.InvalidProjection;
         for (0..schema.columns.len) |i| output[i] = @intCast(i);
         return output[0..schema.columns.len];
     }
-    output[0] = try resolve(value[0].?, qualifier, schema);
-    if (value[1]) |column| {
-        output[1] = try resolve(column, qualifier, schema);
-        if (output[0] == output[1]) return error.DuplicateProjection;
-        return output[0..2];
+    var count: usize = 0;
+    for (value) |column| {
+        if (column) |selected| {
+            const index = try resolve(selected, qualifier, schema);
+            if (std.mem.indexOfScalar(u8, output[0..count], index) != null) return error.DuplicateProjection;
+            output[count] = index;
+            count += 1;
+        } else {
+            for (value[count..]) |remaining| if (remaining != null) return error.InvalidProjection;
+            break;
+        }
     }
-    return output[0..1];
+    return output[0..count];
 }
 fn scalar(allocator: std.mem.Allocator, literal: sql.Literal) !m.Scalar {
+    switch (literal) {
+        .uint64 => |value| return .{ .uint64 = value },
+        .float64 => |value| return .{ .float64 = value },
+        else => {},
+    }
     const value = try sql.literalCell(literal);
     return switch (value) {
         .null => error.UnsupportedNullComparison,

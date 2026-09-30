@@ -14,6 +14,10 @@
 -record(transit_unified_cursor, {opaque :: binary()}).
 -record(transit_unified_connection, {source :: #transit_process{}, resource :: #transit_resource{}, requester :: #transit_process{}, requests :: #transit_resource{}}).
 -record(transit_unified_description, {resource_revision, policy_revision, budgets, active = undefined, bundle_bytes, segment_bytes, batch_rows}).
+-record(transit_unified_source_description, {columns = []}).
+-record(transit_unified_table_listing, {names = []}).
+-record(transit_unified_explanation, {operators = [], predicate = all, projection = [], limit = undefined, aggregate, columns = [], budgets}).
+-record(transit_unified_inspection, {name, resource, source_kind, source_digest, schema_digest, resource_revision, policy_revision, details}).
 -record(transit_unified_status, {phase, correlation, reference, manifest = undefined, collected = false}).
 -record(transit_unified_observation, {state, reason = undefined}).
 -record(transit_unified_alternative, {counter, replica, value}).

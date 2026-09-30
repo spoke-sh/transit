@@ -1,8 +1,9 @@
 # CREATE KV
 
-**Grammar only.** This statement names a KV resource and a declared value type.
-It does not provision state, choose a writer or install a decoder. SQL query
-interfaces reject it.
+**Offline compiler; no publication.** Fuze's Zig `Declaration.compile` validates
+this statement as a named KV definition and formats it for review. It does not
+provision state, choose a writer or install a decoder. SQL query interfaces
+reject it; CLI, Board and language SDKs have no administrative route for it.
 
 ## Syntax
 
@@ -18,7 +19,7 @@ binding for the resource.
 
 ## Examples
 
-These examples illustrate syntax only:
+These examples compile as offline definitions:
 
 ```sql
 CREATE KV settings (UTF8);
@@ -37,5 +38,7 @@ or [application installation](../applications.md#installation-and-bootstrap) to
 provision and access supported state. Unified SQL needs an explicitly declared
 KV decoder and schema; arbitrary stored bytes are not implicitly SQL values.
 See [query source profiles](../queries.md#source-declarations).
+The [offline declaration contract](../../../contracts/STATE_DECLARATION_V1.md)
+defines owned names, complete-input validation, canonical formatting and bounds.
 
 Source: [`createKv`, `dataType`](../../../contracts/sql/TransitExtensions.g4).

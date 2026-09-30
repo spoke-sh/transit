@@ -4,6 +4,7 @@ const q = @import("transit_query");
 const s = @import("transit_station");
 const p = s.protocol;
 const Admin = @import("growing_support.zig").Admin(46);
+const Combined = @import("table_query_writer_support.zig");
 const Kind = enum { kv, table, document };
 const count = 41;
 const document_count = 12;
@@ -169,6 +170,7 @@ pub fn main(init: std.process.Init) !void {
     errdefer if (transport.last_rejection) |reason| std.debug.print("Authority rejection: {s}\n", .{@tagName(reason)});
     var admin: Admin = .{ .wire = &transport, .key = root };
     admin.sequence = (try admin.query(.{ .capabilities = {} })).principal_sequence;
+    if (std.mem.eql(u8, command, "provision-combined")) return Combined.provision(init, url, &transport, &admin, directory);
     if (std.mem.eql(u8, command, "provision") or std.mem.eql(u8, command, "provision-expiring")) {
         if (args.len != 5 and args.len != 6) return error.Usage;
         const kind = std.meta.stringToEnum(Kind, args[4]) orelse return error.InvalidKind;
@@ -264,6 +266,7 @@ pub fn main(init: std.process.Init) !void {
     }
     const parsed = try std.json.parseFromSlice(Config, init.arena.allocator(), try std.Io.Dir.cwd().readFileAlloc(init.io, try file(init, directory, "client.json"), init.arena.allocator(), .limited(8192)), .{});
     const config = parsed.value;
+    if (std.mem.startsWith(u8, command, "combined-")) return Combined.execute(init, &transport, &admin, directory, command, config.connection);
     if (std.mem.eql(u8, command, "age")) {
         if (args.len != 5) return error.Usage;
         const entries = try std.fmt.parseInt(usize, args[4], 10);

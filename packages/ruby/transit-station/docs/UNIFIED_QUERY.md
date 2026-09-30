@@ -17,6 +17,16 @@ realm. It needs no activation or writer ownership. `describe(source)` checks
 current availability and policy. Native requests and results are checked against
 the generated schema, including the complete tagged variants.
 
+`inspect_sql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
+`SHOW TABLES` or `EXPLAIN SELECT ...` through the same Zig inspection owner as
+the console. The immutable `Inspection` carries source/schema digests, current
+resource/policy revisions and `SourceDescription`, `TableListing` or
+`Explanation` details. Explanation includes ordered operator symbols, a typed
+predicate without literal values, projection/output columns and explicit budgets.
+Wide values remain `Integer`; returned strings, digests and arrays are frozen.
+The operation checks current authorization before and after resolution, creates
+no snapshot and admits no query. The listing covers only the configured source.
+
 For each command, call `prepare_next(namespace, bundle)`, persist the returned
 `Prepared.data`, and then `submit(prepared)`. The returned input position proves
 admission only; wait for `observe(position).state == :committed` before preparing

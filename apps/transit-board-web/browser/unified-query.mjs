@@ -99,6 +99,38 @@ try {
   const draft = page.getByLabel("SQL draft", { exact: true });
   await expect(draft).toBeVisible();
   await expect(page.getByRole("heading", { name: `items · ${kind}` })).toBeVisible();
+  const inspection = page.getByLabel("SQL inspection", { exact: true });
+  for (const sql of ["DESCRIBE items;", "SHOW TABLES;", "EXPLAIN SELECT count(*) FROM items;"]) {
+    await draft.fill(sql);
+    await page.getByRole("button", { name: "Inspect SQL", exact: true }).click();
+    await expect(inspection).toBeVisible();
+    await expect(inspection).toContainText("No data snapshot or query admission.");
+    await expect(inspection).toContainText(`Configured source items · ${kind}`);
+    if (sql.startsWith("EXPLAIN")) {
+      await expect(inspection.getByRole("heading", { name: "Proposed query plan" })).toBeVisible();
+      await expect(inspection.getByLabel("Proposed operators").getByRole("listitem")).toHaveText([
+        "scan",
+        "count",
+      ]);
+      await expect(inspection.getByRole("table")).toContainText("uint64");
+    }
+    if (sql.startsWith("SHOW") && kind !== "table")
+      await expect(inspection).toContainText("No Table in this configured source.");
+    assert.equal(submissions, 0, "SQL inspection must not submit work");
+    await expect(page.getByLabel("Verified query result")).toHaveCount(0);
+  }
+  await draft.fill("SELECT * FROM items");
+  await expect(inspection).toContainText("Metadata belongs to the earlier inspected statement.");
+  await draft.fill("SHOW SOURCES;");
+  const unsupportedInspection = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/query") &&
+      response.request().postDataJSON().inspect?.sql === "SHOW SOURCES;",
+  );
+  await page.getByRole("button", { name: "Inspect SQL", exact: true }).click();
+  assert.equal((await unsupportedInspection).ok(), false);
+  await expect(inspection).toHaveCount(0);
+  assert.equal(submissions, 0);
   const completion = page.getByRole("group", { name: "SQL completions", exact: true });
   await draft.fill("SE");
   const coldCompletion = performance.now();
@@ -211,6 +243,10 @@ try {
       page.getByText("Draft changed. The displayed result belongs to the earlier submitted SQL."),
     ).toBeVisible();
   }
+  await draft.fill("DESCRIBE items;");
+  await page.getByRole("button", { name: "Inspect SQL", exact: true }).click();
+  await expect(inspection).toBeVisible();
+  assert.equal(submissions, completed);
   await draft.fill("SELECT * FROM it");
   await draft.press("Control+Space");
   await expect(completion).toContainText('"items"');
@@ -219,6 +255,7 @@ try {
     page.getByText("Query access denied. Protected workspace data cleared."),
   ).toBeVisible({ timeout: 20000 });
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
+  await expect(inspection).toHaveCount(0);
   await expect(draft).toHaveCount(0);
   await expect(completion).toHaveCount(0);
   assert.equal(submissions, completed);
@@ -226,7 +263,7 @@ try {
   assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0]);
   assert.deepEqual(errors, []);
   console.log(
-    `Unified ${kind} browser: explicit SQL, identical uncertain retry, truthful provenance, view/draft separation${kind === "table" ? ", finite Live drafts and saved exact recovery" : ""} and current denial passed.`,
+    `Unified ${kind} browser: read-only SQL inspection, explicit SQL, identical uncertain retry, truthful provenance, view/draft separation${kind === "table" ? ", finite Live drafts and saved exact recovery" : ""} and current denial passed.`,
   );
 } catch (error) {
   console.error("Recent query operations:", observations);

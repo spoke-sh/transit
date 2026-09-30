@@ -36,6 +36,8 @@ query-result support. `Activation(ProcessRef, principal, generation, seedFile)`
 does not read its seed; opening the owned native host does. `nativeHost` overrides
 installed executable discovery. Both host versions and authority capabilities
 are checked. No implicit legacy fallback exists.
+Opening also verifies the exact generated contract definition; matching v1
+labels alone do not establish compatibility with another native build.
 
 See [runtime and recovery](docs/runtime.md), the
 [HTTP call and replay guide](docs/http.md), the
@@ -54,3 +56,11 @@ owned bytes and validated native responses preserve the shared Zig contract.
 The [unified query guide](docs/unified-query.md) covers explicit v1 sources,
 persisted admission commands, current-policy results and owned nested Arrow.
 Qualification is tracked per source and SDK.
+
+The [Table mutation guide](docs/mutations.md) covers explicit SQL writes, owned
+request references, exact saved-command recovery and durable results through
+the shared Zig mutation caller.
+
+The [catalog guide](docs/catalog.md) covers explicit typed initialization,
+conditional policy, Table creation and exact saved-command recovery, with
+`bigint` identities and generated runtime validation through the native port.

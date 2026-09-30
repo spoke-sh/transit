@@ -100,6 +100,25 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
 
                 # Request ceilings catch amplification regressions independently
                 # of host speed. The integer fixtures fit the byte scan budget.
+                for sql in ('DESCRIBE items;', 'SHOW TABLES;', 'EXPLAIN SELECT count(*) FROM items;'):
+                    before_counts = probe.snapshot()
+                    code, stdout, stderr, measurements = measured_run([*args, '-c', sql], root, timeout=180, node=process.pid)
+                    assert code == 0, stderr
+                    counts = probe.snapshot() - before_counts
+                    assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
+                    assert not any(value for key, value in counts.items() if 'snapshot' in key), counts
+                    assert counts['POST'] == 5, (sql, dict(counts))  # capabilities + two current reads before/after
+                    result = json.loads(stdout)['inspection']
+                    assert result['version'] == 1 and result['scope'] == 'configured_source'
+                    assert result['source_kind'] == kind and result['name'] == 'items'
+                    if sql.startswith('SHOW'):
+                        assert result['details']['tables'] == (['items'] if kind == 'table' else [])
+                    if sql.startswith('EXPLAIN'):
+                        plan = result['details']['explanation']
+                        assert plan['operators'] == ['scan', 'count']
+                        assert plan['columns'] == [{'name': 'count', 'type': 'uint64'}]
+                    print(json.dumps({'source': kind, 'inspection': sql, **measurements,
+                                      'native_attempts': counts['POST'], 'durable_updates': 0, 'snapshots': 0}), flush=True)
                 scan_budget = 30 if kind == 'document' else 3 + max(1, (count + 7) // 8) + max(0, (count + 63) // 64 - 1)
                 small_budget = 29 if kind == 'document' else 3
                 first = query('SELECT * FROM items;', count, request_budget=scan_budget)
@@ -112,6 +131,9 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 query('SELECT * FROM items LIMIT 0;', 0, request_budget=3)
                 query('SELECT * FROM items;', count, 'table', request_budget=scan_budget)
                 if kind == 'table':
+                    query('SELECT * FROM items WHERE id IS VALUE;', count, request_budget=scan_budget)
+                    for state in ('MISSING', 'TYPE_ERROR', 'CONFLICT'):
+                        query(f'SELECT * FROM items WHERE id IS {state};', 0, request_budget=scan_budget)
                     point = query(f'SELECT * FROM items WHERE id = {count - 1};', min(1, count), request_budget=3)
                     if count:
                         assert point[0]['cells'][0][0] == {'value': {'int64': str(count - 1)}}
@@ -204,6 +226,9 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 assert not any(json.loads(line)['complete_coverage'] for line in stdout.splitlines())
                 console = None
                 blocked[0] = False
+                for sql in ('DESCRIBE items;', 'SHOW TABLES;', 'EXPLAIN SELECT count(*) FROM items;'):
+                    denied = subprocess.run([*args, '-c', sql], capture_output=True, text=True, timeout=30)
+                    assert denied.returncode != 0 and not denied.stdout, (sql, denied.stdout, denied.stderr)
                 invoke('restore')
                 query('SELECT * FROM items LIMIT 3;', min(3, count))
                 print(f'Interactive {kind}: fresh cuts, bounded frames, zero durable updates, cancellation and current denial passed in {time.monotonic()-started:.2f}s', flush=True)

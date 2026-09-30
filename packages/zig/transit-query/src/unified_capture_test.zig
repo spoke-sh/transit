@@ -34,7 +34,7 @@ fn request(store: *Store, bundle: q.Bundle) !s.PublicationReference {
     const ref = try bundle.reference(store.resource, 1);
     for (0..100) |_| {
         var turn = try store.capture();
-        if (try s.PublicationUpload.step(&turn, .{ .namespace = ref.namespace, .identity_key = r.key('u', 1, 0), .identity = try ref.encode(), .limits = .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = ref.spec, .bytes = body }} })) return ref;
+        if (try s.PublicationUpload.step(&turn, .{ .domain = .query_request, .namespace = ref.namespace, .identity_key = r.key('u', 1, 0), .identity = try ref.encode(), .limits = .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = ref.spec, .bytes = body }} })) return ref;
         try store.commit(turn);
     }
     return error.UploadDidNotFinish;
@@ -85,7 +85,7 @@ fn verifyComplete(store: *Store, requests: *Store, job: r.Job, expected: u64, wo
     try t.expect(store.versions.get(job.source).?.view.released_at != null);
     const publication = job.publication(store.resource);
     const published = try publication.inspect(&reader, r.manifest_record);
-    const ref: s.PublicationReference = .{ .resource = store.resource, .namespace = publication.namespace, .record = r.manifest_record, .spec = published.spec };
+    const ref: s.PublicationReference = .{ .domain = .query_result, .resource = store.resource, .namespace = publication.namespace, .record = r.manifest_record, .spec = published.spec };
     var manifest_bytes: [r.Manifest.max_bytes]u8 = undefined;
     const manifest = try r.Manifest.decode(try ref.read(Source{ .store = store }, &manifest_bytes));
     try t.expectEqualDeep(complete, manifest.job);
@@ -201,7 +201,7 @@ fn finishCleanup(store: *Store, requests: *Store, job: r.Job, workspace: []u8) !
             try t.expect(store.versions.get(job.source).?.view.released_at != null);
             const publication = job.publication(store.resource);
             var keys = store.state.keyIterator();
-            while (keys.next()) |key| if (key.len == 23 and std.mem.eql(u8, key.data[0..2], "\x00P") and key.data[10] == 'c' and std.mem.readInt(u64, key.data[2..10], .big) == publication.namespace) return error.CleanupLeftChunk;
+            while (keys.next()) |key| if (key.len == 27 and std.mem.eql(u8, key.data[0..2], "\x00P") and std.mem.readInt(u32, key.data[2..6], .big) == @backingInt(publication.domain) and key.data[14] == 'c' and std.mem.readInt(u64, key.data[6..14], .big) == publication.namespace) return error.CleanupLeftChunk;
             return;
         }
     }
@@ -347,7 +347,7 @@ test "completed result pages enforce current authority and policy before during 
     var reader = try store.capture();
     const pubn = job.publication(store.resource);
     const descriptor = try pubn.inspect(&reader, r.manifest_record);
-    const reference: s.PublicationReference = .{ .resource = store.resource, .namespace = pubn.namespace, .record = r.manifest_record, .spec = descriptor.spec };
+    const reference: s.PublicationReference = .{ .domain = .query_result, .resource = store.resource, .namespace = pubn.namespace, .record = r.manifest_record, .spec = descriptor.spec };
     const identity: q.UnifiedResult.Expected = .{ .resource = 7, .source = 3, .requester = 9, .correlation = 77, .request = job.request };
     var count: usize = 0;
     var authority: Source = .{ .store = &store, .other = &requests, .opens = &count };

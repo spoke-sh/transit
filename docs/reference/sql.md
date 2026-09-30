@@ -12,17 +12,21 @@ establishes syntax and AST agreement for its declared PostgreSQL subset; executi
 keeps Transit's documented types, cell states, ordering and arithmetic limits.
 The [standards and data-model analysis](../internals/query-engine.md#standards-and-multiple-data-models)
 explains future language targets without expanding the supported interface.
+The [grammar surface inventory](sql/grammar-surface.md) labels implemented and
+planned operations, including the intended graph, foreign-relation and historical
+schema syntax. Planned examples are proposals, not runnable SQL.
 
 ## Find an operation
 
 | Task | Reference |
 | --- | --- |
+| Compare implemented and planned grammar | [Grammar surface and semantic targets](sql/grammar-surface.md) |
 | Read rows, filter or aggregate | [SELECT](sql/select.md) |
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
 | Find a function or operator | [Functions and operators](sql/expressions.md) |
-| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md): unsupported in SQL; application APIs are available |
-| Inspect definitions | [DESCRIBE](sql/describe.md), [SHOW](sql/show.md): grammar only; use console metadata commands |
+| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer, shared Zig/native ABI/port and [typed SDK callers](sdks.md#table-mutation-callers), or [mutation CLI](../../apps/transit-cli/docs/mutations.md) |
+| Inspect definitions and plans | [DESCRIBE](sql/describe.md), [SHOW TABLES](sql/show.md), [EXPLAIN](sql/explain.md) within the configured source scope |
 | Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
 | Define an application interface | [Application declarations](sql/application.md) |
 
@@ -39,10 +43,15 @@ capabilities. Each operation has an explicit support boundary:
 | Executable | The stated interface compiles and executes the documented subset |
 | Grammar only | The reference parser recognizes the form; query interfaces do not execute it |
 | Separate compiler | Application definitions compile offline and use explicit publication operations |
+| Offline compiler | State definitions parse, validate and format for review; no SQL publication operation |
+| Zig integration | An application explicitly invokes a typed helper inside its authorized Station turn |
 | Unsupported | The form has no accepted SQL grammar or execution contract |
 
-Administrative SQL extensions are **grammar-only**; their examples describe
-syntax and do not execute in the query console. Unsupported command entries
+State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
+catalog callers and the explicit [catalog CLI](../../apps/transit-cli/docs/catalog.md)
+also create and publish named two-column Tables. General SQL administrative
+routes, grants and connector catalog listings remain unavailable;
+their examples describe syntax and do not execute in the query console. Unsupported command entries
 explain the current alternatives without defining new syntax.
 
 The console, CLI and Board use the same query v1 source and plan contract.
@@ -53,8 +62,8 @@ Arrow int64 columns.
 | --- | --- |
 | Sources | One declared KV, Table or accepted Document projection |
 | `SELECT *` | All one to eight declared columns |
-| Explicit projection | One or two column names; wider lists require typed plans |
-| Predicate | One comparison or `IS NULL` |
+| Explicit projection | One to eight distinct column names in the requested order |
+| Predicate | One comparison or exact cell-state test |
 | Ordering | Defined source order |
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |
 | `COUNT(*)` | uint64, counting every cell state; Flight checks conversion to int64 |
@@ -70,19 +79,20 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | Statement | Support | Reference |
 | --- | --- | --- |
 | `SELECT` | Executable finite read in the profiles above | [Projection, filtering, limits and aggregates](sql/select.md) |
-| `INSERT` | Unsupported; absent from grammar and runtime | [Row insertion and current application APIs](sql/insert.md) |
-| `UPDATE` | Unsupported; absent from grammar and runtime | [State changes and commit boundaries](sql/update.md) |
-| `DELETE` | Unsupported; absent from grammar and runtime | [Row removal and retained history](sql/delete.md) |
+| `INSERT` | Bounded explicit writer with Zig/native ABI/port and typed SDK callers; query transports reject | [Row insertion and current application APIs](sql/insert.md) |
+| `UPDATE` | Primary-key equality through the explicit mutation writer | [State changes and commit boundaries](sql/update.md) |
+| `DELETE` | Primary-key equality through the explicit mutation writer | [Row removal and retained history](sql/delete.md) |
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
 | `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
-| `CREATE TABLE` | Grammar only | [Columns, types and nullability](sql/create-table.md) |
-| `CREATE DOCUMENT` | Grammar only | [Document declaration](sql/create-document.md) |
-| `CREATE KV` | Grammar only | [Typed KV declaration](sql/create-kv.md) |
+| `CREATE TABLE` | Offline compiler, shared Zig/C ABI/native-port callers, catalog CLI and explicit catalog host; query transports reject | [Columns, types and nullability](sql/create-table.md) |
+| `CREATE DOCUMENT` | Offline compiler; no publication | [Document declaration](sql/create-document.md) |
+| `CREATE KV` | Offline compiler; no publication | [Typed KV declaration](sql/create-kv.md) |
 | `GRANT` | Grammar only | [Privilege declaration](sql/grant.md) |
 | `REVOKE` | Grammar only | [Privilege revocation](sql/revoke.md) |
-| `SHOW` | Grammar only | [Tables, sources, sinks and connections](sql/show.md) |
-| `DESCRIBE` | Grammar only | [Named-object description](sql/describe.md) |
+| `SHOW` | `TABLES` executes in configured scope; connector listings are grammar only | [Tables, sources, sinks and connections](sql/show.md) |
+| `DESCRIBE` | Executable in configured scope | [Named-object description](sql/describe.md) |
+| `EXPLAIN` | Executable for finite SELECT; no query execution | [Proposed plan and output columns](sql/explain.md) |
 | `FOR SYSTEM_TIME AS OF` | Separate grammar fragment; not part of `SELECT` | [Revision selection](sql/as-of.md) |
 | `CREATE INTERFACE`, `THEME`, `SCREEN`, `BINDING`, `ACTION` | Separate application compiler; publication is explicit | [Application declarations](sql/application.md) |
 
@@ -90,7 +100,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 
 | Operation | Current boundary |
 | --- | --- |
-| `EXPLAIN`, `DESCRIBE SELECT` | No SQL plan or query-result schema inspection |
+| `DESCRIBE SELECT` | Use `EXPLAIN SELECT` for output column inspection |
 | `ALTER`, `DROP`, `TRUNCATE` | No SQL object replacement, retirement or bulk deletion |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | No SQL transaction session; application turns retain their own atomic boundary |
 | `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
@@ -144,9 +154,10 @@ are literal. There are no implicit casts, E strings or dollar quotes.
 
 Queries accept `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=` under their type
 rules. Operands are exactly typed,
-including byte ordering for text/binary. Uint64 and float64 columns can be
-projected, but comparison literals for them require typed plans.
-`IS NULL` selects explicit null, not a missing Document field.
+including byte ordering for text/binary. Uint64 and float64 comparisons use explicit string literals such as
+`'18446744073709551615'::uint64` and `'1.25e2'::float64`.
+`IS NULL` selects explicit null, not a missing Document field. `IS MISSING`,
+`IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select those exact states.
 
 ## Bounds and unsupported operations
 
@@ -157,10 +168,17 @@ trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
 Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
-`COUNT(column)`, general casts, writes and continuous queries are unsupported.
-`CREATE`, `GRANT`, `REVOKE`, `SHOW` and `DESCRIBE` in the
+`COUNT(column)`, general casts and continuous queries are unsupported.
+Public query transports reject writes. Applications can explicitly integrate
+the [bounded Table mutation helper](sql/insert.md) in their fenced writer.
+`CREATE TABLE/KV/DOCUMENT` compile offline through Fuze's
+[`Declaration` API](../../contracts/STATE_DECLARATION_V1.md). Compatible empty
+Tables can also be created through explicit Zig/C ABI/native-port catalog callers
+and `transit catalog`; native
+provisioning and query/mutation policy remain separate. Other `CREATE`
+forms, `GRANT`, `REVOKE` and connector forms of `SHOW` in the
 [reference grammar](../../contracts/sql/README.md) are grammar-only.
-They do not execute in the console, Board query workspace or Flight SQL.
+None executes in the console, Board query workspace or Flight SQL.
 
 This is not PostgreSQL execution compatibility. The checked corpus establishes
 selected parser/AST agreement. Fuze's ordered, checked int64 sum differs from

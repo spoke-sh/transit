@@ -20,17 +20,16 @@ defines the exact profile:
 | SQL | Behavior |
 | --- | --- |
 | `SELECT *` | All one to eight declared columns |
-| One/two named columns | Ordered projection; duplicate names reject |
-| One comparison | Exactly typed int64, bool, UTF-8 or binary literal; byte ordering for text/binary |
-| `IS NULL` | Explicit null only; missing remains distinct |
+| One to eight named columns | Ordered projection; duplicate names reject |
+| One comparison | Exactly typed int64, uint64, finite float64, bool, UTF-8 or binary literal; byte ordering for text/binary |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state selection |
 | `LIMIT` | Full u64 count after filtering; no limit means no implicit truncation |
 | `COUNT(*)` | uint64 count including all cell states |
 | `SUM(column)` | Checked int64 sum in source order; missing/null skipped, error/conflict fails |
 
 The existing restricted aggregate subquery spells filter → limit → aggregate.
-An outer aggregate LIMIT rejects. Uint64/float64 columns can be projected;
-comparison literals for those types, additional state tests, and more than two
-explicit projection names currently require the typed API. `column = NULL`
+An outer aggregate LIMIT rejects. Uint64 and finite float64 comparison literals
+use explicit `'digits'::uint64` and `'decimal'::float64` forms. `column = NULL`
 rejects with `UnsupportedNullComparison`. No implicit casts or rewrites occur.
 Document paths, expansion and text materialization belong to the declared source,
 not SQL syntax. DDL, writes, joins, arbitrary expressions and continuous queries

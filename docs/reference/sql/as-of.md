@@ -23,10 +23,26 @@ FOR SYSTEM_TIME AS OF 240
 
 ## Meaning and current interface
 
-The reference form names a Transit revision, an integer journal position. Its
-SQL system-time spelling does not imply a wall-clock timestamp, an event-time
-window or PostgreSQL compatibility. The grammar does not check revision
-availability or define a complete historical-query operation.
+The syntax notation calls its integer token `revision`; no production operation
+interprets it. This token sequence does not implement SQL temporal tables, a
+timestamp selector or historical-query execution. The grammar does not check history
+availability or bind a historical schema. Do not use its integer as a public
+snapshot-selection contract.
+
+## Planned temporal and historical selectors
+
+**Planned; not accepted by the query compiler.** The intended language reserves
+`FOR SYSTEM_TIME AS OF` for SQL temporal meaning. Typed Transit snapshot, branch
+and tag selectors are separate from resource-scoped journal revisions. The
+[grammar surface inventory](grammar-surface.md#planned-historical-schemas-and-branches)
+shows proposed `AS OF SNAPSHOT` and `AS OF BRANCH` forms and their historical
+schema binding. Their syntax and execution are not enabled by this fragment.
+
+The isolated integer fragment remains unchanged until a deliberate grammar and
+contract cutover replaces its ambiguous spelling. There is no dual interpretation
+or fallback from a temporal expression to a Transit resource revision. Selecting
+old data must also bind the old schema, views, graph mappings and decoders before
+name resolution; inspecting a retained resource alone cannot supply that catalog.
 
 The [retained-read contract](../../../contracts/READ_VERSIONS_V1.md) owns supported
 read-version machinery. [Query execution](../queries.md) binds each current query

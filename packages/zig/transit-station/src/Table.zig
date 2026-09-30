@@ -124,7 +124,8 @@ pub fn delete(self: Table, turn: anytype, key: i64) !void {
     try self.check(turn);
     try turn.write(rowKey(self.id, key), null);
 }
-fn encodeCell(self: Table, cell: m.Cell) !p.Value {
+/// Pure Table value encoding; this grants no read/write authority.
+pub fn encodeCell(self: Table, cell: m.Cell) !p.Value {
     try cell.validate(self.schema.value_type);
     var bytes: [m.max_cell_bytes + 2]u8 = @splat(0);
     bytes[0] = 1;
@@ -146,7 +147,7 @@ fn encodeCell(self: Table, cell: m.Cell) !p.Value {
     };
     return p.Value.init(bytes[0..len]);
 }
-fn decodeCell(self: Table, value: p.Value) !m.Cell {
+pub fn decodeCell(self: Table, value: p.Value) !m.Cell {
     try value.validate();
     if (value.len < 2 or value.data[0] != 1 or value.data[1] > 1) return error.InvalidTableRow;
     if (value.data[1] == 0) {

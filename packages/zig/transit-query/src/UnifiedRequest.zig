@@ -91,10 +91,10 @@ pub const Status = struct {
         if (self.manifest) |reference| {
             if (self.phase != .complete and self.phase != .retired) return error.InvalidQueryUpload;
             try reference.validate();
-            if (reference.record != q.UnifiedRecords.manifest_record or reference.spec.format != q.UnifiedRecords.manifest_format or reference.spec.length > q.UnifiedRecords.Manifest.max_bytes or reference.spec.length == 0) return error.InvalidQueryManifest;
+            if (reference.domain != .query_result or reference.record != q.UnifiedRecords.manifest_record or reference.spec.format != q.UnifiedRecords.manifest_format or reference.spec.length > q.UnifiedRecords.Manifest.max_bytes or reference.spec.length == 0) return error.InvalidQueryManifest;
         }
         if (self.collected and self.phase != .cancelled and self.phase != .retired) return error.InvalidQueryUpload;
-        var bytes: [151]u8 = undefined;
+        var bytes: [159]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQU1");
         try writer.writeAll((try self.reference.encode()).slice());

@@ -32,9 +32,9 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
 
     def request(path, operation=None, status=200, headers=None, instance=0):
         endpoint = second_origin if instance else origin
+        body = None if operation is None else json.dumps(operation).encode()
         for attempt in range(12):
             time.sleep(0.12)
-            body = None if operation is None else json.dumps(operation).encode()
             req = urllib.request.Request(endpoint+path, body,
                 {'Origin': endpoint, 'Content-Type': 'application/json'} | (headers or {}))
             try: response = fixture.http.open(req, timeout=10)
@@ -42,14 +42,19 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
             with response:
                 data = json.loads(response.read())
                 if response.status == 429 and status != 429: continue
+                read = operation is None or next(iter(operation)) in ('describe', 'inspect', 'status', 'page', 'observe', 'draft_status', 'compile', 'next', 'suggest', 'assist')
+                # A 503 leaves a signed submission uncertain. Retry the exact
+                # frozen body, never call next/prepare for replacement bytes.
+                # The scenarios below still require the original receipt.
+                frozen = operation is not None and next(iter(operation)) == 'submit'
+                if frozen and status in (None, 200) and response.status == 503 and data.get('err') == 'Unavailable': continue
                 if status is None: return response.status, data
-                read = operation is None or next(iter(operation)) in ('describe', 'status', 'page', 'observe', 'draft_status', 'compile', 'next', 'suggest', 'assist')
                 if read and status == 200 and response.status == 503 and data.get('err') == 'Unavailable': continue
                 if read and status == 200 and response.status == 409 and data.get('err') == 'QueryExpired': continue
                 assert response.status == status, (path, operation and next(iter(operation)), response.status, data)
                 assert response.headers['Cache-Control'] == 'no-store'
                 return data
-        raise AssertionError('Board read did not stabilize')
+        raise AssertionError('Board operation did not stabilize')
 
     def api(operation, **kwargs): return request('/api/v1/query', operation, **kwargs)
     caps = request('/api/v1/capabilities')
@@ -58,6 +63,15 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 1
     assert atlas['query_resource'] == caller['connection']['resource']
     description = api({'describe': {}})['description']
+    inspected = api({'inspect': {'sql': 'DESCRIBE items'}})['inspection']
+    assert inspected['resource'] == caller['connection']['resource']
+    assert inspected['source_kind'] == kind and inspected['name'] == 'items'
+    listed = api({'inspect': {'sql': 'SHOW TABLES'}})['inspection']
+    assert listed['details'] == {'tables': ['items'] if kind == 'table' else []}
+    explained = api({'inspect': {'sql': 'EXPLAIN SELECT count(*) FROM items'}})['inspection']
+    assert explained['details']['explanation']['operators'] == ['scan', 'count']
+    assert api({'inspect': {'sql': 'SHOW SOURCES'}}, status=400) == {'err': 'UnsupportedQuery'}
+    assert api({'inspect': {'sql': "EXPLAIN SELECT * FROM items WHERE id = 'oops'::uint64"}}, status=400) == {'err': 'UnsupportedQuery'}
     assisted = api({'assist': {'sql':'SELECT * FROM it','cursor':16,'generation':7}})['assistance']
     assert assisted['version'] == 1 and assisted['generation'] == 7 and assisted['profile'] == 'unified_v1'
     assert assisted['resource'] == caller['connection']['resource']
@@ -81,6 +95,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     first = api({'page': {'namespace': '1'}})['page']
     assert first['evidence']['next'] and first['cells']
     invoke('revoke', direct=True)
+    api({'inspect': {'sql': 'DESCRIBE items'}}, status=403)
     api({'assist': {'sql':'SE','cursor':2,'generation':9}}, status=403)
     api({'suggest': {'search': ''}}, status=403)
     api({'compile': {'sql': 'SELECT * FROM items'}}, status=403)

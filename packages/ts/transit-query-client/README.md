@@ -18,6 +18,13 @@ contracts and unknown failures do not acquire this retry policy. Keep frozen
 prepared tokens through every uncertain submission. Choose the timeout above the host's bounded request deadline; the
 default six seconds matches Board's five-second host profile.
 
+`{ inspect: { sql } }` reads scoped `DESCRIBE`, `SHOW TABLES` or `EXPLAIN SELECT`
+metadata through the same transport. Its `inspection` response remains separate
+from compiled bundles and Arrow results. Validation checks full-width revisions,
+configured Table scope, operator order, projection/output agreement and budgets;
+it rejects extra literal values through the generated strict schema. Inspection
+is on the explicit read-conflict retry allowlist and cannot submit a query.
+
 `verifiedPage` performs a bounded full-coverage pass over one immutable result,
 then rereads the selected visible page under current authority. It holds one
 segment at a time and rejects mixed manifests, incorrect coverage and cancellation.

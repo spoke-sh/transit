@@ -94,7 +94,7 @@ test "cleanup continuation closes exact staging work and releases its reservatio
     while (true) {
         var turn = try store.turn(44);
         const receipt = (try configured().receipt(&turn, 44, proposal.operation)).?;
-        const descriptor = try s.Publication.Descriptor.decode((try turn.read(s.Publication.key(19, 'r', proposal.record.value, 0))).?);
+        const descriptor = try s.Publication.Descriptor.decode((try turn.read(s.Publication.key(.application_definition, 19, 'r', proposal.record.value, 0))).?);
         const state: root.Native.State = .{
             .revision = .{ .value = store.position },
             .configuration = configured().configuration,
@@ -220,7 +220,7 @@ test "competing proposals retain conflicts and cannot abandon another operator's
     var denied_close = try store.turn(45);
     try configured().abandon(&denied_close, spoof.operation);
     try store.commit(&denied_close);
-    const winner = try (s.Publication{ .resource = 7, .namespace = 19 }).inspect(&denied_close, first.record.value);
+    const winner = try (s.Publication{ .domain = .application_definition, .resource = 7, .namespace = 19 }).inspect(&denied_close, first.record.value);
     try t.expectEqual(s.Publication.State.published, winner.state);
     try t.expectEqual(@as(u64, 1), (try configured().head(&denied_close)).?.revision.value);
 }
@@ -277,7 +277,7 @@ test "retained interface revisions grow beyond active staging quota" {
         var read = try store.turn(44);
         previous = (try configured().head(&read)).?;
         try t.expectEqual(revision, previous.?.revision.value);
-        const quota = try (s.Publication{ .resource = 7, .namespace = 19 }).budget(&read);
+        const quota = try (s.Publication{ .domain = .application_definition, .resource = 7, .namespace = 19 }).budget(&read);
         try t.expectEqual(@as(u32, 0), quota.records);
     }
     var read = try store.turn(44);
@@ -336,7 +336,7 @@ test "a signed unsupported program can stage bytes but never activate or acquire
     try t.expectError(error.InvalidApplicationProgram, configured().finishUpload(t.allocator, &complete, request.operation));
     try t.expectEqual(@as(usize, 0), mutationCount(&complete));
     try t.expect(try configured().head(&complete) == null);
-    const descriptor = try (s.Publication{ .resource = 7, .namespace = 19 }).inspect(&complete, 100);
+    const descriptor = try (s.Publication{ .domain = .application_definition, .resource = 7, .namespace = 19 }).inspect(&complete, 100);
     try t.expectEqual(s.Publication.State.staging, descriptor.state);
     try configured().abandon(&complete, request.operation);
     try store.commit(&complete);

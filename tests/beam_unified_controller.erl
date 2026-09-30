@@ -63,6 +63,19 @@ loop(A,C,Cfg,Connection,Saved)->
     end.
 result({ok,V})->V;
 result({error,E})->throw({failure,E}).
+inspection_columns(Columns)->[#{name=>N,type=>atom_to_binary(T)}||#transit_unified_column{name=N,type=T}<-Columns].
+inspection_details(#transit_unified_source_description{columns=Columns})->#{description=>#{columns=>inspection_columns(Columns)}};
+inspection_details(#transit_unified_table_listing{names=Names})->#{tables=>Names};
+inspection_details(#transit_unified_explanation{operators=Operators,predicate=Predicate,projection=Projection,limit=Limit,aggregate=Aggregate,columns=Columns,budgets=#transit_unified_budgets{pages=Pages,segments=Segments,result_bytes=Bytes}})->
+    P=case Predicate of all->#{all=>#{}}; {state,N,S}->#{state=>#{column=>N,value=>atom_to_binary(S)}}; {compare,N,O,T}->#{compare=>#{column=>N,op=>atom_to_binary(O),type=>atom_to_binary(T)}} end,
+    #{explanation=>#{operators=>[atom_to_binary(O)||O<-Operators],predicate=>P,projection=>Projection,limit=>case Limit of undefined->null; _->integer_to_binary(Limit) end,
+        aggregate=>atom_to_binary(Aggregate),columns=>inspection_columns(Columns),budgets=>#{pages=>integer_to_binary(Pages),segments=>integer_to_binary(Segments),result_bytes=>integer_to_binary(Bytes)}}}.
+action(A,C,#{<<"inspect">>:=#{<<"scope">>:=Scope,<<"sql">>:=Sql}},Connection,Kind)->
+    Limits=maps:get(<<"limits">>,Scope),Resource=Connection#transit_unified_connection.resource,
+    Budgets=#transit_unified_budgets{pages=binary_to_integer(maps:get(<<"pages">>,Limits)),segments=binary_to_integer(maps:get(<<"segments">>,Limits)),result_bytes=binary_to_integer(maps:get(<<"result_bytes">>,Limits))},
+    #transit_unified_inspection{name=Name,resource=Resource,source_kind=K,source_digest=Contract,schema_digest=Schema,resource_revision=Revision,policy_revision=Policy,details=Details}=result(A:inspect(C,source(Resource,Kind,false),maps:get(<<"name">>,Scope),Sql,Budgets)),
+    Kind=atom_to_binary(K),{#{inspection=>#{version=>1,scope=><<"configured_source">>,name=>Name,resource=>Resource#transit_resource.resource,source_kind=>Kind,
+        contract=>binary_to_list(Contract),schema=>binary_to_list(Schema),resource_revision=>Revision,policy_revision=>integer_to_binary(Policy),details=>inspection_details(Details)}},undefined};
 action(A,C,#{<<"next">>:=#{<<"namespace">>:=N,<<"bundle">>:=B}},_,_)->
     P=result(A:next(C,binary_to_integer(N),#transit_unified_bundle{bytes=binary:decode_hex(B)})),
     {#{prepared=>case P of undefined->null; #transit_unified_prepared{bytes=Bytes}->Bytes end},undefined};
@@ -75,7 +88,8 @@ action(A,C,#{<<"observe">>:=Position},_,_)->
     #transit_unified_observation{state=S,reason=Reason}=result(A:observe(C,Position)),{#{observation=>#{atom_to_binary(S,utf8)=>case Reason of undefined->#{}; _->hex(Reason) end}},undefined};
 action(A,C,#{<<"status">>:=N},_,_)->
     Status=result(A:status(C,binary_to_integer(N))),{#{status=>case Status of undefined->null; #transit_unified_status{phase=P,correlation=Correlation}->#{phase=>atom_to_binary(P,utf8),correlation=>integer_to_binary(Correlation)} end},undefined};
-action(A,C,#{<<"page">>:=#{<<"namespace">>:=N,<<"cursor">>:=Cursor}},Connection,Kind)->
+action(A,C,#{<<"page">>:=#{<<"namespace">>:=N}=Request},Connection,Kind)->
+    Cursor=maps:get(<<"cursor">>,Request,null),
     Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
     Resource=Connection#transit_unified_connection.resource,Kind=atom_to_binary(K,utf8),Rows=length(ok(A:decode(Columns,Ipc,Rows))),
     {#{page=>#{ordinal=>integer_to_binary(Ordinal),ipc=>hex(Ipc),manifest=>#{segments=>integer_to_binary(Segments)},next=>case Next of undefined->null; #transit_unified_cursor{opaque=Opaque}->Opaque end}},Page}.

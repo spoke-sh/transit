@@ -98,6 +98,45 @@ defmodule Transit.Station.Sdk.UnifiedQuery.Description do
   ]
 end
 
+defmodule Transit.Station.Sdk.UnifiedQuery.SourceDescription do
+  @enforce_keys [:columns]
+  defstruct [:columns]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.TableListing do
+  @enforce_keys [:names]
+  defstruct [:names]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.Explanation do
+  @enforce_keys [:operators, :predicate, :projection, :aggregate, :columns, :budgets]
+  defstruct [:operators, :predicate, :projection, :aggregate, :columns, :budgets, limit: nil]
+end
+
+defmodule Transit.Station.Sdk.UnifiedQuery.Inspection do
+  @enforce_keys [
+    :name,
+    :resource,
+    :source_kind,
+    :source_digest,
+    :schema_digest,
+    :resource_revision,
+    :policy_revision,
+    :details
+  ]
+  @derive {Inspect, only: [:name, :source_kind]}
+  defstruct [
+    :name,
+    :resource,
+    :source_kind,
+    :source_digest,
+    :schema_digest,
+    :resource_revision,
+    :policy_revision,
+    :details
+  ]
+end
+
 defmodule Transit.Station.Sdk.UnifiedQuery.Status do
   @enforce_keys [:phase, :correlation, :reference]
   @derive {Inspect, only: []}
@@ -194,6 +233,10 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     Cursor,
     Connection,
     Description,
+    SourceDescription,
+    TableListing,
+    Explanation,
+    Inspection,
     Status,
     Observation,
     Alternative,
@@ -247,6 +290,12 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
 
   def describe(client, source),
     do: result(:transit_unified_query.describe(client, native(source)))
+
+  def inspect_sql(client, source, name, sql, %Budgets{} = budgets),
+    do:
+      result(
+        :transit_unified_query.inspect_sql(client, native(source), name, sql, native(budgets))
+      )
 
   def prepare_next(client, namespace, %Bundle{} = bundle),
     do: result(:transit_unified_query.prepare_next(client, namespace, native(bundle)))
@@ -338,6 +387,23 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
     do:
       {:transit_unified_page, native(v.manifest), native(v.columns), native(v.ordinal),
        native(v.rows), native(v.ipc), native(v.next)}
+
+  def native(%SourceDescription{} = v),
+    do: {:transit_unified_source_description, native(v.columns)}
+
+  def native(%TableListing{} = v), do: {:transit_unified_table_listing, native(v.names)}
+
+  def native(%Explanation{} = v),
+    do:
+      {:transit_unified_explanation, native(v.operators), native(v.predicate),
+       native(v.projection), native(v.limit), native(v.aggregate), native(v.columns),
+       native(v.budgets)}
+
+  def native(%Inspection{} = v),
+    do:
+      {:transit_unified_inspection, native(v.name), native(v.resource), native(v.source_kind),
+       native(v.source_digest), native(v.schema_digest), native(v.resource_revision),
+       native(v.policy_revision), native(v.details)}
 
   def native(%Transit.Station.Sdk.ReadVersion{} = v), do: Value.native(v)
   def native(%Client.AdmissionReceipt{position: p}), do: {:transit_admission, p}
@@ -444,6 +510,40 @@ defmodule Transit.Station.Sdk.UnifiedQuery do
       manifest: convert(manifest),
       collected: convert(collected)
     }
+
+  def convert({:transit_unified_source_description, columns}),
+    do: %SourceDescription{columns: convert(columns)}
+
+  def convert({:transit_unified_table_listing, names}), do: %TableListing{names: convert(names)}
+
+  def convert(
+        {:transit_unified_explanation, operators, predicate, projection, limit, aggregate,
+         columns, budgets}
+      ),
+      do: %Explanation{
+        operators: convert(operators),
+        predicate: convert(predicate),
+        projection: convert(projection),
+        limit: convert(limit),
+        aggregate: convert(aggregate),
+        columns: convert(columns),
+        budgets: convert(budgets)
+      }
+
+  def convert(
+        {:transit_unified_inspection, name, resource, source_kind, source_digest, schema_digest,
+         resource_revision, policy_revision, details}
+      ),
+      do: %Inspection{
+        name: convert(name),
+        resource: convert(resource),
+        source_kind: convert(source_kind),
+        source_digest: convert(source_digest),
+        schema_digest: convert(schema_digest),
+        resource_revision: convert(resource_revision),
+        policy_revision: convert(policy_revision),
+        details: convert(details)
+      }
 
   def convert({:transit_unified_observation, state, reason}),
     do: %Observation{state: convert(state), reason: convert(reason)}

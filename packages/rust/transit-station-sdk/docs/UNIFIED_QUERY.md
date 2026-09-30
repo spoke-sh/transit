@@ -18,6 +18,16 @@ take an exclusive mutable borrow; concurrent access cannot be hidden in an
 unbounded executor queue. The API blocks: move the owner into a host blocking
 task when integrating with an executor. `close` and drop join native destruction.
 
+`inspect_sql(&source, name, sql, budgets)` executes scoped `DESCRIBE name`,
+`SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig inspection owner.
+The owned `Inspection` returns source/schema digests, current resource/policy
+revisions and an `InspectionDetails` enum: `Description`, `Tables` or
+`Explanation`. Explanation includes ordered `InspectionOperator` values,
+`InspectedPredicate` structure without literal values, projection/output columns
+and explicit budgets. Wide limits and revisions remain `u64`. Inspection checks
+current authorization before and after resolution, creates no snapshot and
+admits no query. The Table listing covers only the configured source.
+
 Call `describe` to check current policy and limits. `prepare_next(namespace,
 &bundle)` prepares one command; persist `Prepared::data()` before `submit(&prepared)`.
 The receipt's input position is admission, not query completion. Observe that

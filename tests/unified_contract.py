@@ -63,7 +63,7 @@ def bundles():
         for index, offset in enumerate(range(0, len(bundle), 256)):
             part = bundle[offset:offset+256]
             digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
-        ref = b'SPF1' + struct.pack('<QQQII', 8, 2**64-1, 1, 0x31425155, len(bundle)) + digest
+        ref = b'SPF1' + struct.pack('<QIQQII', 8, 2, 2**64-1, 1, 0x31425155, len(bundle)) + digest
         result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex()))
     return json.dumps(result, indent=2)+'\n'
 

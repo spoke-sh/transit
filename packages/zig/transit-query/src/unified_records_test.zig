@@ -61,7 +61,7 @@ test "durable source records fit unchanged values and preserve all continuation 
         if (kind == .table) changed.cursor.table_after = std.math.minInt(i64) else changed.cursor.traversal = .{ .current = .{ .counter = std.math.maxInt(u64), .replica = std.math.maxInt(u64) }, .phase = .siblings };
         try t.expectEqualDeep(changed, try r.Checkpoint.decode(try changed.encode()));
     }
-    const segment: r.Segment = .{ .ordinal = 0, .row_start = 0, .rows = 1, .reference = .{ .resource = 7, .namespace = job.namespace(), .record = 1, .spec = try q.station.Publication.Digest.of(r.arrow_format, "fixture") }, .arrow_digest = @splat(3) };
+    const segment: r.Segment = .{ .ordinal = 0, .row_start = 0, .rows = 1, .reference = .{ .domain = .query_result, .resource = 7, .namespace = job.namespace(), .record = 1, .spec = try q.station.Publication.Digest.of(r.arrow_format, "fixture") }, .arrow_digest = @splat(3) };
     try t.expectEqualDeep(segment, try r.Segment.decode(try segment.encode()));
     checkpoint.progress.pages = 1;
     checkpoint.progress.scanned = 1;
@@ -78,7 +78,7 @@ test "durable source records fit unchanged values and preserve all continuation 
     const manifest: r.Manifest = .{ .job = complete, .checkpoint = checkpoint };
     var output: [r.Manifest.max_bytes]u8 = undefined;
     try t.expectEqualDeep(manifest, try r.Manifest.decode(try manifest.encode(&output)));
-    try t.expectEqual(@as(usize, 392), (try manifest.encode(&output)).len);
+    try t.expectEqual(@as(usize, 396), (try manifest.encode(&output)).len);
     for ([_]p.Value{ try policy.encode(), try job.encode(), try checkpoint.encode(), try segment.encode() }, 0..) |value, kind| {
         var bad = value;
         bad.data[0] = 'X';

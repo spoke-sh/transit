@@ -152,7 +152,7 @@ test "prefetched index chunks retain digest checks and reject unavailable batche
     var store: Turns = .{};
     defer store.deinit();
     var turn = try store.capture();
-    const publication = try Pub.create(&turn, 1, .{ .record_bytes = Index.node_bytes, .staging_bytes = Index.node_bytes, .staging_records = 1 });
+    const publication = try Pub.create(&turn, .application, 1, .{ .record_bytes = Index.node_bytes, .staging_bytes = Index.node_bytes, .staging_records = 1 });
     try store.commit(turn);
     turn = try store.capture();
     _ = try publication.begin(&turn, ref.id, ref.spec);
@@ -209,11 +209,45 @@ test "prefetched index chunks retain digest checks and reject unavailable batche
     try t.expectError(error.StorageUnavailable, tree.get(&reader, try key(3)));
 }
 
+test "index cache cannot mask unavailable content in a different publication domain" {
+    var encoded: Store = .{};
+    defer encoded.deinit();
+    const tree = try (Index{}).put(&encoded, try key(1), try value(9));
+    const ref = tree.root.?;
+    const bytes = encoded.records.items[@intCast(ref.id - 1)];
+    var store: Turns = .{};
+    defer store.deinit();
+    for ([_]Pub.Domain{ .application, .document }) |domain| {
+        var turn = try store.capture();
+        const publication = try Pub.create(&turn, domain, 1, .{ .record_bytes = Index.node_bytes, .staging_bytes = Index.node_bytes, .staging_records = 1 });
+        try store.commit(turn);
+        turn = try store.capture();
+        _ = try publication.begin(&turn, ref.id, ref.spec);
+        try store.commit(turn);
+        for (0..ref.spec.chunks()) |i| {
+            turn = try store.capture();
+            _ = try publication.append(&turn, ref.id, @intCast(i), bytes[i * 256 .. @min(bytes.len, (i + 1) * 256)]);
+            try store.commit(turn);
+        }
+        turn = try store.capture();
+        _ = try publication.publish(&turn, ref.id);
+        try store.commit(turn);
+    }
+    var turn = try store.capture();
+    var reader: Index.Reader(*Turn) = .{ .publication = .{ .resource = 7, .domain = .application, .namespace = 1 }, .source = &turn };
+    try t.expect(Index.Value.eql(try value(9), (try tree.get(&reader, try key(1))).?));
+    // The exact same reference and captured basis exist in both domains. A
+    // cached node from the first must not hide a missing chunk in the second.
+    _ = store.state.remove(Pub.key(.document, 1, 'c', ref.id, 0));
+    reader.publication.domain = .document;
+    try t.expectError(error.MissingPublicationChunk, tree.get(&reader, try key(1)));
+}
+
 test "index candidates resume one publication operation per turn without changing accepted roots" {
     var store: Turns = .{};
     defer store.deinit();
     var turn = try store.capture();
-    const publication = try Pub.create(&turn, 1, .{ .record_bytes = Index.node_bytes, .staging_bytes = Index.node_bytes, .staging_records = 1 });
+    const publication = try Pub.create(&turn, .application, 1, .{ .record_bytes = Index.node_bytes, .staging_bytes = Index.node_bytes, .staging_records = 1 });
     try store.commit(turn);
     var tree: Index = .{};
     var next_id: u64 = 1;
