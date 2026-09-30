@@ -1397,6 +1397,11 @@
         ],
         "type": "int64"
       }
+    },
+    {
+      "id": "table-projection-bound",
+      "sql": "SELECT id, value, id FROM items",
+      "compile_error": "InvalidProjection"
     }
   ],
   "reject": [
@@ -1413,11 +1418,6 @@
     {
       "id": "excluded-2",
       "sql": "SELECT * FROM items; SELECT * FROM items",
-      "postgres": true
-    },
-    {
-      "id": "excluded-3",
-      "sql": "SELECT id, value, id FROM items",
       "postgres": true
     },
     {

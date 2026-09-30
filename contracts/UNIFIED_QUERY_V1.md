@@ -189,7 +189,7 @@ The v1 SQL compiler reuses the complete-input SQL parser and reference grammar.
 One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
-star (all declared columns), one/two ordered named columns, one typed comparison
+star (all declared columns), one to eight ordered named columns, one typed comparison
 or `IS NULL`, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
@@ -205,7 +205,7 @@ null comparison scalar. The typed API separately exposes all five state tests.
 No implicit integer conversion, collation, new syntax or rewrite is introduced.
 UTF-8/binary comparisons use the plan's lexicographic byte order.
 
-Parser bounds remain 4096 statement bytes, 16-byte identifiers, two explicit
+Parser bounds remain 4096 statement bytes, 16-byte identifiers, eight explicit
 projection names and 220 decoded literal bytes. Star can project eight declared
 columns, including columns whose names exceed the SQL identifier bound. Count
 returns uint64, sum returns checked int64 with null for no contributing values.

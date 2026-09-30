@@ -89,3 +89,24 @@ test "unified SQL rejects unsupported semantics without broadening v1" {
     try t.expectError(error.UnsupportedStatement, m.Sql.plan(a, "CREATE KV items (UTF8)", src));
     try t.expectError(error.UnsupportedConstruct, m.Sql.plan(a, "SELECT * FROM items; SELECT * FROM items", src));
 }
+
+test "wide SQL projections preserve order and reject holes in externally supplied ASTs" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    var columns: [8]m.Column = undefined;
+    for (&columns, 0..) |*column, i| {
+        column.* = .{ .name = try m.Name.init(&.{ 'c', @as(u8, @intCast(i)) + '0' }), .type = .int64 };
+    }
+    const src = try source(&columns);
+    const plan = try m.Sql.plan(arena.allocator(), "SELECT c7, c6, c5, c4, c3, c2, c1, c0 FROM items", src);
+    try t.expectEqualSlices(u8, &.{ 7, 6, 5, 4, 3, 2, 1, 0 }, plan.projection);
+    try t.expectError(error.DuplicateProjection, m.Sql.plan(arena.allocator(), "SELECT c0, c1, c0 FROM items", src));
+    try t.expectError(error.InvalidProjection, m.Sql.plan(arena.allocator(), "SELECT c0, c1, c2, c3, c4, c5, c6, c7, c0 FROM items", src));
+    var ast = try f.Sql.parse("SELECT c0, c1, c2 FROM items");
+    ast.selection.rows[1] = null;
+    try t.expectError(error.InvalidProjection, m.Sql.compile(arena.allocator(), ast, src));
+    ast.selection.rows[0] = null;
+    try t.expectError(error.InvalidProjection, m.Sql.compile(arena.allocator(), ast, src));
+    const hints = try f.Sql.hints("SELECT c0, c1, ");
+    try t.expectEqual(f.Sql.NameRole.column, hints.name_role.?);
+}

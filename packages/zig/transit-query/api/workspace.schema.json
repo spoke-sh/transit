@@ -1147,7 +1147,7 @@
                   "x-transit-defaults": {
                     "version": 1,
                     "statement_bytes": 4096,
-                    "named_columns": 2,
+                    "named_columns": 8,
                     "star_columns": 8,
                     "uint64_limits": true,
                     "uint64_literals": false,
@@ -1234,7 +1234,7 @@
                 "sql": {
                   "version": 1,
                   "statement_bytes": 4096,
-                  "named_columns": 2,
+                  "named_columns": 8,
                   "star_columns": 8,
                   "uint64_limits": true,
                   "uint64_literals": false,

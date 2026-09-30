@@ -17,7 +17,7 @@ SELECT aggregate FROM (
   SELECT projection FROM source [WHERE predicate] [LIMIT count]
 ) AS alias;
 
-projection := * | column [, column]
+projection := * | column [, column ...]
 aggregate  := COUNT(*) | SUM(column)
 predicate  := column IS NULL | column comparison literal
 comparison := = | <> | != | < | <= | > | >=
@@ -38,8 +38,8 @@ SELECT value FROM items;
 SELECT items.value, items.id FROM items;
 ```
 
-Explicit lists preserve the requested order and contain one or two different
-column names. Star selects all one to eight declared columns. Wider explicit lists require typed plans. Output aliases,
+Explicit lists preserve the requested order and contain one to eight different
+column names. Star selects all declared columns. Output aliases,
 expressions and `DISTINCT` are unsupported.
 
 Results follow defined source order, including primary-key order for Tables.

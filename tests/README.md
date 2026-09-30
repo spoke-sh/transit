@@ -4673,3 +4673,15 @@ workspace and 64 KiB output buffer. These are supplied budgets, not measured RSS
 There is no timing assertion. Run controls without competing builds; compare the
 same cases and optimization mode. These measurements exclude source adapters,
 authorization, network, storage, result publication and rendering.
+
+The wider projection iteration passes `just test::sql`: 104 Zig/ANTLR/PostgreSQL
+AST comparisons, 91 Table plans, 16 unified results across three source bases
+and eight page widths, plus nine unified rejection/failure cases. The added
+cases cover eight-column reversed output, a wider derived input, duplicates,
+unknown names and a ninth column. Canonical plans and result layouts are unchanged.
+`just check` also passes for this iteration, including generated contract parity,
+shared native/port codecs, CLI diagnostics, frontend checks and the documentation
+build. Five local performance samples put compilation at 0.393–0.897 µs per
+statement across the four cases and 8,192-row count/sum at 0.772/0.788 ms.
+A documentation build overlapped this sample, so it is not a controlled speedup
+claim; the raw report is `.cache/verification/sql/projection.json`.

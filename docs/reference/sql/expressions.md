@@ -7,7 +7,7 @@ functions. It has no general scalar expression evaluator. Use
 
 ## Column expressions
 
-`*` selects all declared columns. A named projection contains one or two distinct
+`*` selects all declared columns. A named projection contains one to eight distinct
 columns, optionally qualified by the declared source name. Literals cannot be
 selected as result expressions. Arithmetic, concatenation, `CASE`, output
 aliases and scalar function calls are unsupported.

@@ -53,7 +53,7 @@ Arrow int64 columns.
 | --- | --- |
 | Sources | One declared KV, Table or accepted Document projection |
 | `SELECT *` | All one to eight declared columns |
-| Explicit projection | One or two column names; wider lists require typed plans |
+| Explicit projection | One to eight distinct column names in the requested order |
 | Predicate | One comparison or `IS NULL` |
 | Ordering | Defined source order |
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |

@@ -79,7 +79,7 @@ not imply SQL provisioning support or encode every type in a unified query schem
 The production parser accepts at most 4096 UTF-8 bytes, 16-byte identifiers,
 16 levels of block comments and 220 bytes per decoded literal cell. It rejects
 NUL, malformed UTF-8, unterminated tokens and out-of-range integers. The AST holds
-at most two explicit projected columns and one predicate. Durable queries have finite plan upload and execution budgets.
+at most eight explicit projected columns and one predicate. Durable queries have finite plan upload and execution budgets.
 
 These are per-operation bounds, independent of source cardinality. A syntactically
 valid query may still fail name/type checking, authorization or execution. See

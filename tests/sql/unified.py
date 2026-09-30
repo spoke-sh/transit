@@ -59,6 +59,9 @@ def expected(ast):
 
 def check(driver):
     statements = [
+        'SELECT optional, missing, raw, value, flag, fraction, counter, id FROM items',
+        'SELECT id, counter, fraction FROM items LIMIT 33',
+        'SELECT sum(chosen.id) FROM (SELECT raw, id, optional FROM items LIMIT 37) AS chosen',
         'SELECT * FROM items', 'SELECT counter, fraction FROM items LIMIT 18446744073709551615',
         'SELECT optional, value FROM items WHERE optional IS NULL',
         'SELECT * FROM items WHERE missing IS NULL', 'SELECT value FROM items WHERE value IS NULL',
@@ -70,6 +73,9 @@ def check(driver):
         'SELECT sum(id) FROM (SELECT id FROM items LIMIT 0) AS chosen',
     ]
     failures = [
+        ('SELECT id, counter, id FROM items', 'DuplicateProjection'),
+        ('SELECT id, counter, absent FROM items', 'UnknownColumn'),
+        ('SELECT id, counter, fraction, flag, value, raw, missing, optional, id FROM items', 'InvalidProjection'),
         ('SELECT * FROM items WHERE counter = 1', 'TypeMismatch'),
         ('SELECT * FROM items WHERE fraction = 1', 'TypeMismatch'),
         ('SELECT * FROM items WHERE value = NULL', 'UnsupportedNullComparison'),

@@ -8,8 +8,8 @@ pub const max_comment_depth = 16;
 pub const max_literal_bytes = 2 + 2 * m.max_cell_bytes;
 
 pub const Column = struct { qualifier: ?m.Name = null, name: m.Name };
-/// Both null means star. Otherwise first is present and second is optional.
-pub const Projection = [2]?Column;
+/// All null means star. Explicit names form a contiguous bounded prefix.
+pub const Projection = [f.Unified.max_columns]?Column;
 pub const Selection = union(enum) { rows: Projection, count, sum: Column };
 pub const Text = struct {
     bytes: [max_literal_bytes]u8 = @splat(0),
@@ -234,9 +234,17 @@ const Parser = struct {
         return .{ .name = first };
     }
     fn projection(self: *Parser) !Projection {
-        if (try self.take(.star)) return .{ null, null };
-        const first = try self.column();
-        return .{ first, if (try self.take(.comma)) try self.column() else null };
+        var result: Projection = @splat(null);
+        if (try self.take(.star)) return result;
+        for (&result, 0..) |*column_value, index| {
+            column_value.* = try self.column();
+            if (index + 1 == result.len) {
+                if (self.token.tag == .comma) return error.InvalidProjection;
+                return result;
+            }
+            if (!try self.take(.comma)) return result;
+        }
+        unreachable;
     }
     fn selection(self: *Parser) !Selection {
         const count = self.word("COUNT");

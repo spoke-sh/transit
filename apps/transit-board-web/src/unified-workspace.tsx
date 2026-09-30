@@ -637,9 +637,9 @@ export function UnifiedWorkspace({
               {source.source.policy_revision}
             </p>
             <p>
-              Statement ≤ {source.sql.statement_bytes} bytes. Star or two named columns; one
-              comparison or IS NULL; rows, count, checked int64 sum. Uint64/float64 comparison
-              literals and writes are unsupported.
+              Statement ≤ {source.sql.statement_bytes} bytes. Star or up to{" "}
+              {source.sql.named_columns} named columns; one comparison or IS NULL; rows, count,
+              checked int64 sum. Uint64/float64 comparison literals and writes are unsupported.
             </p>
             <p>
               Budgets: {source.budgets.pages} pages · {source.budgets.segments} segments ·{" "}

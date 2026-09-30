@@ -14,7 +14,9 @@ cursor assistance; there is one compiler and execution definition. Its capabilit
 matrix covers whole-query limits, star projection, nested cell states, full-width
 count and unsupported null comparisons. Administrative reference grammar does not
 imply an executable administrative operation. The [proof ledger](../../tests/README.md)
-records independent grammar, plan and result checks.
+records independent grammar, plan and result checks. The shared grammar admits
+projection lists; lowering accepts up to eight explicit declared columns.
+No rewrite is enabled.
 
 ## Reproducible reference checks
 
@@ -65,7 +67,7 @@ remain outside this evidence.
 ## Grammar coverage
 
 The read grammar permits one Table, one optional typed comparison or `IS NULL`,
-one/two columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
+one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; table aliases
 are admitted only on the single restricted aggregate input subquery. Strings
 escape quotes by doubling them; bytea literals use `'\x00ff'::bytea`. Keywords

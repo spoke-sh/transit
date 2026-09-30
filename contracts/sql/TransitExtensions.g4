@@ -6,7 +6,7 @@ options { caseInsensitive = true; }
 statement: (selectStatement | extensionStatement) SEMI? EOF;
 asOfFragment: asOfClause EOF;
 
-// A single predicate and at most two columns, matching Fuze's existing model.
+// A single predicate and a projection bounded by the declared schema at compile time.
 // The one derived-table form spells filter -> limit -> aggregate without
 // misinterpreting SQL's outer LIMIT as an aggregate input limit.
 selectStatement
@@ -17,7 +17,7 @@ selectStatement
     ;
 selection: projection | aggregateSelection;
 aggregateSelection: COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN;
-projection: STAR | columnReference (COMMA columnReference)?;
+projection: STAR | columnReference (COMMA columnReference)*;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
 predicate: columnReference (IS NULL_ | comparison literal);
