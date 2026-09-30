@@ -39,9 +39,11 @@ pub fn active(source: anytype) !?u64 {
     if (namespace == 0) return error.InvalidMutationRecord;
     return namespace;
 }
-fn required(turn: *Turn, namespace: u64, principal: u64) !r.Status {
-    const current = (try status(turn, namespace)) orelse return error.MutationNotFound;
+fn required(turn: *Turn, reference: s.PublicationReference, principal: u64) !r.Status {
+    if (reference.resource != turn.view.resource) return error.MutationIdentityConflict;
+    const current = (try status(turn, reference.namespace)) orelse return error.MutationNotFound;
     if (current.principal != principal) return error.MutationPrincipalMismatch;
+    if (!std.meta.eql(current.reference, reference)) return error.MutationIdentityConflict;
     return current;
 }
 fn store(turn: *Turn, current: r.Status) !void {
@@ -148,12 +150,13 @@ pub fn dispatch(turn: *Turn) !r.Status {
     if (principal == 0 or principal > p.max_counter) return error.MutationPrincipalMismatch;
     const command = try r.Command.decode(&frame.payload);
     if (command == .begin) return begin(turn, principal, command.begin);
-    const namespace = switch (command) {
+    const reference = switch (command) {
         .begin => unreachable,
-        .part => |value| value.namespace,
+        .part => |value| value.reference,
         .seal, .apply, .cancel => |value| value,
     };
-    var current = try required(turn, namespace, principal);
+    var current = try required(turn, reference, principal);
+    const namespace = reference.namespace;
     if (!current.terminal()) try checkActive(turn, namespace);
     switch (command) {
         .begin => unreachable,

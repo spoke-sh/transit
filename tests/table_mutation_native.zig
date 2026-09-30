@@ -11,6 +11,7 @@ const Admin = @import("growing_support.zig").Admin(46);
 const Config = struct { definition: g.Definition, writer: Admin.Provision };
 // Test-fixture persistence only. The mandatory definition and canonical equality
 // prevent missing/defaulted fields from turning a saved proposal into new work.
+const Staged = struct { definition: g.Definition, reference: s.PublicationReference };
 const Frozen = struct { definition: g.Definition, signed: g.SignedRequest };
 const Handler = struct {
     fn initialize(_: ?*anyopaque, turn: *s.Turn) !void {
@@ -62,6 +63,10 @@ fn load(comptime T: type, init: std.process.Init, directory: []const u8, name: [
     const value = try std.json.parseFromSliceLeaky(T, init.arena.allocator(), bytes, .{});
     if (!std.mem.eql(u8, bytes, try std.json.Stringify.valueAlloc(init.arena.allocator(), value, .{}))) return error.NoncanonicalFixture;
     return value;
+}
+fn stagedReference(init: std.process.Init, directory: []const u8, namespace: u64) !s.PublicationReference {
+    const name = try std.fmt.allocPrint(init.arena.allocator(), "mutation-{d}.json", .{namespace});
+    return (try load(Staged, init, directory, name)).reference;
 }
 fn print(init: std.process.Init, value: anytype) !void {
     var buffer: [4096]u8 = undefined;
@@ -120,22 +125,23 @@ pub fn main(init: std.process.Init) !void {
         const grant = (try admission.policy(&resource, 1234, 1)).?;
         const request = try q.TableMutationRequest.fromSql(46, config.writer.pid, table, try .init("items"), args[5]);
         const ref = try request.reference(namespace);
+        try save(init, directory, try std.fmt.allocPrint(init.arena.allocator(), "mutation-{d}.json", .{namespace}), Staged{ .definition = g.current_definition, .reference = ref });
         _ = try applyCommand(init, &wire, config, .{ .begin = .{ .reference = ref, .table = 1, .policy_revision = grant.revision } }, false);
         var buffer: [q.TableMutationRequest.max_bytes]u8 = undefined;
         const bytes = try request.encode(&buffer);
         for (0..ref.spec.chunks()) |ordinal| {
             const offset = ordinal * s.Publication.chunk_bytes;
             const chunk = bytes[offset..][0..try ref.spec.size(@intCast(ordinal))];
-            _ = try applyCommand(init, &wire, config, .{ .part = .{ .namespace = namespace, .ordinal = @intCast(ordinal), .second = false, .bytes = chunk[0..@min(chunk.len, r.part_bytes)] } }, false);
-            if (chunk.len > r.part_bytes) _ = try applyCommand(init, &wire, config, .{ .part = .{ .namespace = namespace, .ordinal = @intCast(ordinal), .second = true, .bytes = chunk[r.part_bytes..] } }, false);
+            _ = try applyCommand(init, &wire, config, .{ .part = .{ .reference = ref, .ordinal = @intCast(ordinal), .second = false, .bytes = chunk[0..@min(chunk.len, r.part_bytes)] } }, false);
+            if (chunk.len > r.part_bytes) _ = try applyCommand(init, &wire, config, .{ .part = .{ .reference = ref, .ordinal = @intCast(ordinal), .second = true, .bytes = chunk[r.part_bytes..] } }, false);
         }
-        _ = try applyCommand(init, &wire, config, .{ .seal = namespace }, false);
+        _ = try applyCommand(init, &wire, config, .{ .seal = ref }, false);
         return print(init, .{ .staged = namespace });
     }
     if (std.mem.eql(u8, mode, "prepare")) {
         if (args.len != 5) return error.Usage;
         const namespace = try std.fmt.parseInt(u64, args[4], 10);
-        const worker = try applyCommand(init, &wire, config, .{ .apply = namespace }, true);
+        const worker = try applyCommand(init, &wire, config, .{ .apply = try stagedReference(init, directory, namespace) }, true);
         try t.expect(worker.pending_kind == .commit);
         const pending = worker.pending.?.signed;
         try save(init, directory, "mutation-commit.json", Frozen{ .definition = g.current_definition, .signed = pending });
@@ -147,7 +153,7 @@ pub fn main(init: std.process.Init) !void {
     }
     if (std.mem.eql(u8, mode, "stale-view")) {
         if (args.len != 6) return error.Usage;
-        _ = try send(&wire, config, .{ .apply = try std.fmt.parseInt(u64, args[4], 10) });
+        _ = try send(&wire, config, .{ .apply = try stagedReference(init, directory, try std.fmt.parseInt(u64, args[4], 10)) });
         var worker = try makeServer(&wire, config);
         const delivery = (try worker.session.receive()).?;
         var resource = (try admin.query(.{ .resource = config.writer.resource })).body.resource;
@@ -168,7 +174,7 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "apply") or std.mem.eql(u8, mode, "cancel")) {
         if (args.len != 5) return error.Usage;
         const namespace = try std.fmt.parseInt(u64, args[4], 10);
-        _ = try applyCommand(init, &wire, config, if (std.mem.eql(u8, mode, "apply")) .{ .apply = namespace } else .{ .cancel = namespace }, false);
+        _ = try applyCommand(init, &wire, config, if (std.mem.eql(u8, mode, "apply")) .{ .apply = try stagedReference(init, directory, namespace) } else .{ .cancel = try stagedReference(init, directory, namespace) }, false);
         return print(init, .{ .completed = namespace });
     }
     if (std.mem.eql(u8, mode, "resume")) {

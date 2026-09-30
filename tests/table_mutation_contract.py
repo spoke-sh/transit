@@ -50,9 +50,9 @@ def records(requests):
         value = b'TMS1'+reference+struct.pack('<QI',10,9)+declaration+struct.pack('<QBBBQ',4,phase,count,reason,input_id)
         statuses.append(dict(phase=phase,affected=count,reason=reason,input=input_id,wire_hex=value.hex()))
     commands = [b'TMB1'+reference+struct.pack('<IQ',9,4),
-                b'TMP1'+struct.pack('<QIB',99,0,0)+data[:128],
-                b'TMP1'+struct.pack('<QIB',99,0,1)+data[128:256],
-                *[tag+struct.pack('<Q',99) for tag in [b'TMZ1',b'TMX1',b'TMK1']]]
+                b'TMP1'+reference+struct.pack('<IB',0,0)+data[:128],
+                b'TMP1'+reference+struct.pack('<IB',0,1)+data[128:256],
+                *[tag+reference for tag in [b'TMZ1',b'TMX1',b'TMK1']]]
     # This request is shorter than one chunk. The second half is still nonempty.
     assert 128 < len(data) <= 256
     return json.dumps(dict(version=1,declaration=declaration.hex(),reference=reference.hex(),policy=policy.hex(),statuses=statuses,commands=[value.hex() for value in commands]),indent=2)+'\n'

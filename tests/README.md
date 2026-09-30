@@ -5080,3 +5080,52 @@ the final schedule above is the qualifying result. The ordinary growth lane now
 owns `test::table-mutation`, and invariant `SQL-MUTATION-01` maps its contracts,
 implementation, SQL oracle and native proof. Native integration does not complete
 the remaining supplied-host and public caller work.
+
+### Full-reference mutation command cutover
+
+Mutation parts, seal, apply and cancel now carry the complete 68-byte immutable
+publication reference. Unit schedules reject a different resource with the same
+writer/principal/Table/namespace/policy revision, changed request length/digest,
+and changed references to terminal results. Namespace-only payloads reject.
+The largest part is 205 bytes; native frame, request, row and turn bounds remain.
+
+The shared native/ABI definition is replaced with `b17eab6aefacb9013afbbcfebf9eededea9f57dcd8be304bab4a18e5d41cd016`.
+Generated native/install schemas, ABI/binding resources, browser schemas and
+independent request/query/serving/signing fixtures are regenerated together.
+Existing missing/foreign-definition and canonical saved-request checks remain.
+`just check`, the package-local query tests, the independent mutation fixture
+check and application signing check pass. The first root check caught two
+hard-coded native signing digests; independently recomputing their current
+canonical bytes corrected the fixtures. An initial package invocation using
+`--build-file` failed configuration; running from the package directory passes.
+
+`just test::table-mutation` passes on this definition in **7.682 s**, with the
+same 555 read requests, 26 successful turn responses (including exact retries),
+four-mutation maximum, 256-byte maximum stored value and eight resident authority
+pages. The fixture persists the original reference alongside its required
+definition before staging, then loads that reference for later apply/cancel.
+It never resolves a replacement reference from the current namespace.
+The frozen node digest is `a511cb9f1f8996f93a94cdb795fece1d8cbdbb46bf2663e2fa2b034947362835`;
+the proof digest is `6d1b6ce699f80e0f09d28ec5c6e54f66b3a8f99c10106e121698a3259fa404ee`.
+These independent runs are not a paired performance comparison.
+
+The earlier rebased Document schedule completed on the preceding definition:
+Python, Node, Ruby, Rust, C, C++, Erlang and Elixir plus native/port/CLI inspection
+agree, and real Board API/browser checks pass. Combined with the previously
+recorded Java/.NET schedule, all ten SDK source sets are covered on that
+revision. The final Document run takes **1805.83 s**, including **1436.92 s**
+provisioning; it produces 12 rows in two segments (9880 bytes), uses 64 resident
+authority pages, and retains 1255 cold objects (139076558 bytes). Two concurrent
+Board readers sample 45101056 bytes RSS, excluding Chromium. Worker/node/store
+restart, prefix revocation, released source pins, current denial and exact
+uncertain retries pass. This completed earlier-build evidence is not substituted
+for post-cutover caller qualification.
+
+The first committed-HEAD `just ci-clean` run, at `d3fab512`, passed the core lane
+and growth Arrow/page proofs, then failed in `test::growing` with
+`LegacyAcceptedGrowthHistory`. The old assertion expected the now-consolidated
+current adapter to reject its own history. Later clean-CI lanes did not run.
+The isolated checkout and failure evidence remain at
+`/var/tmp/transit-ci-rb8z_6yk`. A replacement current-owner definition-rejection
+proof and new committed-HEAD validation are tracked separately; the failed run
+is not a clean pass.

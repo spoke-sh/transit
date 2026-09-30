@@ -24,7 +24,9 @@ Table mutation plan and Station Table codecs. It can produce an immutable
 publication reference without admission or execution. `TableMutationAdmission`
 composes explicit principal/Table policies, immutable upload staging and a
 terminal result with the row proposal in one private Station turn. Applications
-must install its policy through their authorized configuration path and opt into
+retain the full immutable publication reference in every staged or control command;
+the owner rejects changed resource, length or digest even for terminal results.
+Applications must install its policy through their authorized configuration path and opt into
 its external-cast dispatch; the supplied query hosts and public query clients
 still reject writes. No read permission implicitly enables mutation dispatch.
 See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).

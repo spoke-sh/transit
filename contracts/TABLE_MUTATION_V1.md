@@ -14,8 +14,10 @@ The helper does not discover a writer, grant access, submit work or commit.
 The console, Board, Flight SQL and language SDK query clients do not yet admit
 SQL mutations. A query source declaration or read permission is insufficient.
 The canonical request below supports immutable transport; it does not create a
-public admission route or standalone transaction session. Existing Table storage
-and the native contract definition are unchanged.
+public admission route or standalone transaction session. Table row storage keeps
+its existing encoding. Native, ABI and saved-operation definition checks cover
+the mutation command semantics; incompatible builds cannot exchange these casts
+or reopen each other's authority history.
 
 `transit-query.TableMutationAdmission` supplies an explicitly composed private-turn
 admission owner. It stages these requests, checks a separate writer policy and
@@ -179,8 +181,16 @@ pointer. Begin binds the immutable request reference, originating principal,
 Table, current declaration and expected policy revision. The namespace cannot
 already belong to another publication. A repeated exact begin preserves the
 original status; changing its reference, Table or policy revision rejects.
-Further parts, seal, apply and cancellation must come from that original
-principal. An active namespace prevents another begin. A terminal pointer may
+Further parts, seal, apply and cancellation carry the complete original immutable
+reference and must come from that original principal. The reference's resource
+must match the current turn, and every reference field must match the stored
+status, including its length and digest. This check precedes staging, application,
+cancellation and returning a terminal result. A reused namespace under another
+resource or request cannot retarget already accepted input. Callers retain the
+reference with their prepared command; they cannot replace it by looking up the
+same namespace again during recovery.
+
+An active namespace prevents another begin. A terminal pointer may
 be replaced by the next begin; terminal evidence remains retained.
 
 Parts reuse `PublicationParts`: 128-byte halves of a 256-byte immutable chunk.
@@ -240,12 +250,15 @@ or inconsistent fields reject; stored values never receive compatibility default
 | Cast payload magic | Following fields |
 | --- | --- |
 | Begin `TMB1` | `SPF1` reference, Table u32, expected policy revision u64 |
-| Part `TMP1` | namespace u64, chunk ordinal u32, second-half flag u8 (0 or 1), 1–128 payload bytes |
-| Seal `TMZ1` | namespace u64 |
-| Apply `TMX1` | namespace u64 |
-| Cancel `TMK1` | namespace u64 |
+| Part `TMP1` | `SPF1` reference, chunk ordinal u32, second-half flag u8 (0 or 1), 1–128 payload bytes |
+| Seal `TMZ1` | `SPF1` reference |
+| Apply `TMX1` | `SPF1` reference |
+| Cancel `TMK1` | `SPF1` reference |
 
-These payloads fit an ordinary Station frame. The contextual publication owner
+The largest payload is a 205-byte part; seal/apply/cancel occupy 72 bytes. They
+fit an ordinary Station frame without changing its bound. Namespace-only command
+payloads reject; no decoder substitutes a current reference for missing fields.
+The contextual publication owner
 checks each part's exact required length. Decode borrows part bytes from the
 input only for the enclosing handler; durable staging copies them into the private
 proposal. Native envelope and persisted-head definition checks bind the enclosing

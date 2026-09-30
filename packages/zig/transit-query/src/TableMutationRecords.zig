@@ -136,10 +136,10 @@ pub const Status = struct {
 pub const Begin = struct { reference: Ref, table: u32, policy_revision: u64 };
 pub const Command = union(enum) {
     begin: Begin,
-    part: struct { namespace: u64, ordinal: u32, second: bool, bytes: []const u8 },
-    seal: u64,
-    apply: u64,
-    cancel: u64,
+    part: struct { reference: Ref, ordinal: u32, second: bool, bytes: []const u8 },
+    seal: Ref,
+    apply: Ref,
+    cancel: Ref,
     pub fn encode(self: Command) !p.Value {
         var bytes: [q.station.Frame.max_payload]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
@@ -161,15 +161,16 @@ pub const Command = union(enum) {
             },
             .part => |value| {
                 const chunks = std.math.divCeil(u32, Request.max_bytes, q.station.Publication.chunk_bytes) catch unreachable;
-                if (value.namespace == 0 or value.bytes.len == 0 or value.bytes.len > part_bytes or value.ordinal >= chunks) return error.InvalidMutationCommand;
-                try writer.writeInt(u64, value.namespace, .little);
+                try Request.checkReference(value.reference);
+                if (value.bytes.len == 0 or value.bytes.len > part_bytes or value.ordinal >= chunks) return error.InvalidMutationCommand;
+                try writer.writeAll((try value.reference.encode()).slice());
                 try writer.writeInt(u32, value.ordinal, .little);
                 try writer.writeByte(@intFromBool(value.second));
                 try writer.writeAll(value.bytes);
             },
-            .seal, .apply, .cancel => |namespace| {
-                if (namespace == 0) return error.InvalidMutationCommand;
-                try writer.writeInt(u64, namespace, .little);
+            .seal, .apply, .cancel => |reference| {
+                try Request.checkReference(reference);
+                try writer.writeAll((try reference.encode()).slice());
             },
         }
         return p.Value.init(writer.buffered());
@@ -181,12 +182,12 @@ pub const Command = union(enum) {
         var reader: std.Io.Reader = .fixed(value.slice());
         const tag = try reader.take(4);
         const result: Command = if (std.mem.eql(u8, tag, "TMB1")) .{ .begin = .{ .reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .table = try reader.takeInt(u32, .little), .policy_revision = try reader.takeInt(u64, .little) } } else if (std.mem.eql(u8, tag, "TMP1")) blk: {
-            const namespace = try reader.takeInt(u64, .little);
+            const reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes)));
             const ordinal = try reader.takeInt(u32, .little);
             const second = try reader.takeByte();
             if (second > 1) return error.InvalidMutationCommand;
-            break :blk .{ .part = .{ .namespace = namespace, .ordinal = ordinal, .second = second == 1, .bytes = try reader.take(reader.bufferedLen()) } };
-        } else if (std.mem.eql(u8, tag, "TMZ1")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "TMX1")) .{ .apply = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "TMK1")) .{ .cancel = try reader.takeInt(u64, .little) } else return error.InvalidMutationCommand;
+            break :blk .{ .part = .{ .reference = reference, .ordinal = ordinal, .second = second == 1, .bytes = try reader.take(reader.bufferedLen()) } };
+        } else if (std.mem.eql(u8, tag, "TMZ1")) .{ .seal = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))) } else if (std.mem.eql(u8, tag, "TMX1")) .{ .apply = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))) } else if (std.mem.eql(u8, tag, "TMK1")) .{ .cancel = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))) } else return error.InvalidMutationCommand;
         if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value.*)) return error.InvalidMutationCommand;
         return result;
     }

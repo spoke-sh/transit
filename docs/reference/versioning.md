@@ -87,3 +87,10 @@ capability response fails loading. Replace the identifier whenever an
 incompatible wire, ABI or stored framework definition changes, including changes
 that retain the same fields but alter their meaning. It is a compatibility token,
 not an automatically computed source hash or a substitute for verification.
+
+Table mutation casts carry the full immutable request reference, including the
+resource and content commitment. Namespace-only casts are incompatible and
+reject. This stored framework contract is covered by the same native definition;
+its hard cutover requires matching node, worker, client and SDK builds. Pending
+work under an earlier definition requires that earlier build's recovery procedure,
+not a replacement reference or automatic data reset.
