@@ -1,5 +1,15 @@
 # Validation and milestone evidence
 
+## Publication clock-bound correction
+
+The committed clean run at `5b267061` passed 27 ordinary tasks, then stopped at
+`test::publication`: a fixed 3.1-second sleep observed `DeadlineUncertain` instead
+of definite expiry. That run is incomplete; its remaining 37 tasks did not run.
+The fixture now passes its configured maximum clock error to the public caller.
+The caller opens a view beyond that bound and waits until the deadline plus the
+same bound before requiring the exact `StateViewExpired` rejection. Unavailable
+or uncertain authority is still a failure, not accepted expiry evidence.
+
 ## External fault supervisor and installed hosts
 
 The [external harness](verification/README.md#external-fault-testing) runs real
