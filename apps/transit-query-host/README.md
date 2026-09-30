@@ -48,7 +48,11 @@ The host and courier preserve their activation through transient authority
 transport loss, including DNS failure and closed connections. They use the
 shared client availability classification, retain exact pending mutations, and
 discard only poisoned unsent proposals. Denial, invalid responses and fencing
-remain terminal. Reference Flight qualification exposed the former timeout-only
+remain terminal. Initial ownership reads also retry transient transport failures,
+with retry admission bounded by `request_timeout_ms`; an attempt already in flight
+can take one further request timeout. The host creates its activation marker and
+reports readiness only after current ownership succeeds.
+Reference Flight qualification exposed the former timeout-only
 retry path when a Substrate worker encountered a temporary DNS failure.
 
 The real provisioning/proof uses a separate public-API caller and these actual

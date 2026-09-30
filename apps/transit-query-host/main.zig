@@ -64,7 +64,15 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (bootstrap) try q.wire.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .pid = config.pid, .principal = config.principal, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, config.bootstrap_timeout_ms);
     var server = try s.GenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association);
     // Check current ownership before recording that this activation has run.
-    _ = try server.session.receive();
+    const starting = std.Io.Clock.awake.now(init.io);
+    while (true) {
+        _ = server.session.receive() catch |err| {
+            if (!q.wire.Client.unavailable(err) or starting.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= config.request_timeout_ms) return err;
+            try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
+            continue;
+        };
+        break;
+    }
     const directory = config.activation_directory orelse return error.MissingActivationDirectory;
     const marker = try std.fmt.allocPrint(init.gpa, "{s}/{d}-{d}-{d}.activation", .{ directory, config.realm, config.pid, config.generation });
     defer init.gpa.free(marker);

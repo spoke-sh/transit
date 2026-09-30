@@ -24,7 +24,7 @@ def run(node, host, cli, proof):
             "ursula_url": fixture.url, "bucket": "public-query", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         processes, logs = [], []
-        fault = {"lost": None, "retry": False, "stage": threading.Event(), "pause": threading.Event()}
+        fault = {"lost": None, "retry": False, "startup": set(), "stage": threading.Event(), "pause": threading.Event()}
         fault["pause"].set()
 
         class Proxy(BaseHTTPRequestHandler):
@@ -32,6 +32,17 @@ def run(node, host, cli, proof):
             def do_POST(self):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 message = json.loads(body)
+                if self.path == "/v1/query":
+                    query = message["query"]
+                    principal = query["principal"]
+                    if principal in (65536, 65537) and "process" in query["kind"] and principal not in fault["startup"]:
+                        fault["startup"].add(principal)
+                        data = b'{"err":"HttpCapacity"}'
+                        self.send_response(503)
+                        self.send_header("Content-Length", str(len(data)))
+                        self.end_headers()
+                        self.wfile.write(data)
+                        return
                 connection = HTTPConnection("127.0.0.1", port, timeout=15)
                 try:
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
@@ -202,8 +213,9 @@ def run(node, host, cli, proof):
             retired = send(".resume 1")
             assert retired["err"] in ("QuerySourceUnavailable", "ResourceUnavailable"), retired
             assert send(".next")["err"] == "NamespaceRequired"
+            assert fault["startup"] == {65536, 65537}, fault["startup"]
             shell.close()
-            print("public query: real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
+            print("public query: transient startup reads, real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException:
             for log in logs:
                 log.flush(); log.seek(0); sys.stderr.write(log.read()[-4000:])
