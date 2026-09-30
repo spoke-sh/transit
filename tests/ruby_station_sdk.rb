@@ -771,9 +771,15 @@ begin
       end
       check %w[one reconcile].include?(line.chomp)
       event = nil
-      32.times do |index|
-        event = line.chomp == 'reconcile' && index.zero? ? runner.reconcile : runner.next
-        break unless event.is_a?(S::Progress)
+      begin
+        32.times do |index|
+          event = line.chomp == 'reconcile' && index.zero? ? runner.reconcile : runner.next
+          break unless event.is_a?(S::Progress)
+        end
+      rescue ReadFailed => error
+        raise unless error.status == 7
+        report(event: 'ReadUnavailable', code: error.code)
+        next
       end
       check event.mutation.export == File.binread(cfg.fetch('pending')) if event.is_a?(S::NeedsRecovery)
       response = { event: event.class.name.split('::').last }

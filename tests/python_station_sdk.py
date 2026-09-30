@@ -336,9 +336,14 @@ def consumer(mode, config_path):
                 print(json.dumps({'closed': True}), flush=True)
                 return
             if action not in ('one', 'reconcile'): raise AssertionError(action)
-            for index in range(32):
-                event = runner.reconcile() if action == 'reconcile' and index == 0 else runner.next()
-                if isinstance(event, (Committed, NeedsRecovery, Blocked, Idle)): break
+            try:
+                for index in range(32):
+                    event = runner.reconcile() if action == 'reconcile' and index == 0 else runner.next()
+                    if isinstance(event, (Committed, NeedsRecovery, Blocked, Idle)): break
+            except ReadFailed as error:
+                if error.status != 7: raise
+                print(json.dumps({'event': 'ReadUnavailable', 'code': error.code}), flush=True)
+                continue
             if isinstance(event, NeedsRecovery):
                 assert event.mutation.export() == Path(cfg['pending']).read_bytes()
                 response = {'event': 'NeedsRecovery', 'phase': event.phase, 'code': event.error.code}

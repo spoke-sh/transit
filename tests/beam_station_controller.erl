@@ -92,6 +92,7 @@ worker(A, R, S) ->
     case unicode:characters_to_binary(io:get_line("")) of
         <<"ready\n">> -> report(#{ready => true}), worker(A, R, S);
         Action when Action =:= <<"one\n">>; Action =:= <<"reconcile\n">> ->
+            try
             First = case Action of <<"reconcile\n">> -> ok(A, A:reconcile(R)); _ -> next(A, R) end,
             E = case kind(A, First) of progress -> until_event(A, R, 31); _ -> First end,
             case kind(A, E) of needs_recovery ->
@@ -102,7 +103,11 @@ worker(A, R, S) ->
                 #{phase := Phase, error := Error} = view(A, E),
                 #{event => Name, phase => Phase, code => maps:get(code, view(A, Error))};
                 _ -> #{event => Name} end,
-            report(Result), worker(A, R, S);
+            report(Result)
+            catch error:{sdk_failure, #{status := 7, code := Code}} ->
+                report(#{event => <<"ReadUnavailable">>, code => Code})
+            end,
+            worker(A, R, S);
         <<"close\n">> -> ok(A, A:close(R)), expired(A, S),
             [begin #{ordinal := I, ipc := Bytes} = view(A, Segment), ok = file:write_file(path(S, <<(integer_to_binary(I))/binary, ".arrow">>), Bytes) end || {{segment, _}, Segment} <- ets:tab2list(S)],
             report(#{closed => true})

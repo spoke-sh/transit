@@ -251,7 +251,12 @@ async function main() {
       if (action === 'close') { await runner.close(); if (handler.saveOwned) await handler.saveOwned(); report({ closed: true }); return; }
       assert.ok(['one', 'reconcile'].includes(action));
       let event;
-      for (let i = 0; i < 32; i++) { event = await (action === 'reconcile' && i === 0 ? runner.reconcile() : runner.next()); if (['committed', 'needs-recovery', 'blocked', 'idle'].includes(event.kind)) break; }
+      try {
+        for (let i = 0; i < 32; i++) { event = await (action === 'reconcile' && i === 0 ? runner.reconcile() : runner.next()); if (['committed', 'needs-recovery', 'blocked', 'idle'].includes(event.kind)) break; }
+      } catch (error) {
+        if (!(error instanceof ReadFailed) || error.status !== 7) throw error;
+        report({ event: 'ReadUnavailable', code: error.code }); continue;
+      }
       if (event.kind === 'needs-recovery') assert.deepEqual(event.mutation.export(), new Uint8Array(await readFile(cfg.pending)));
       report({ event: { committed: 'Committed', 'needs-recovery': 'NeedsRecovery', blocked: 'Blocked', idle: 'Idle' }[event.kind], phase: event.phase, code: event.error?.code });
     }

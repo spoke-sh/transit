@@ -36,7 +36,7 @@ def run(node, cli, library, artifacts, report_path=None):
                                  ('c', 'c'), ('java', 'java'), ('dotnet', 'dotnet'), ('beam', 'beam')):
             importlib.import_module(f'{language}_station_sdk').run(node, cli, library, artifacts / folder, execute=install)
         installed_at = time.monotonic()
-        fault = {'pid': None, 'lost': 0}
+        fault = {'pid': None, 'lost': 0, 'reader': None, 'unavailable_reads': 0}
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
             def do_POST(self):
@@ -48,6 +48,15 @@ def run(node, cli, library, artifacts, report_path=None):
                     return
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 envelope = json.loads(body)
+                if fault['reader'] is not None and envelope.get('query', {}).get('principal') == fault['reader']:
+                    fault['reader'] = None
+                    fault['unavailable_reads'] += 1
+                    data = b'{"err":"AuthorityUnavailable"}'
+                    self.send_response(503)
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                    return
                 command = envelope.get('request', {}).get('command', {})
                 turn = command.get('turn', command.get('turn_with_versions', {}).get('turn', {}))
                 connection = HTTPConnection('127.0.0.1', system.port, timeout=15)
@@ -126,6 +135,7 @@ def run(node, cli, library, artifacts, report_path=None):
                     after = value['id']
         children = []
         reconciliations = 0
+        read_retries = 0
         def worker(client, cfg):
             consumer = client[2]
             child = subprocess.Popen(consumer.command('worker', config(client, cfg)), cwd=client[1], env=consumer.environment,
@@ -136,7 +146,7 @@ def run(node, cli, library, artifacts, report_path=None):
             assert json.loads(child.stdout.readline()) == {'ready': True}
             return child
         def one(child):
-            nonlocal reconciliations
+            nonlocal reconciliations, read_retries
             action, deadline = 'one', time.monotonic() + 90
             while True:
                 child.stdin.write(action + '\n'); child.stdin.flush()
@@ -145,6 +155,11 @@ def run(node, cli, library, artifacts, report_path=None):
                 assert line, f'Public worker exited with {child.poll()}'
                 result = json.loads(line)
                 if result['event'] in ('Committed', 'Idle'): return result['event']
+                if result['event'] == 'ReadUnavailable':
+                    assert result.get('code') in ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpConnectionClosing') and time.monotonic() < deadline, result
+                    read_retries += 1
+                    time.sleep(.1)
+                    continue
                 assert (result['event'] == 'NeedsRecovery' and result.get('phase') in ('dispatch', 'observe-confirmation', 'observe_confirmation')
                         and result.get('code') in ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpConnectionClosing')
                         and time.monotonic() < deadline), result
@@ -188,9 +203,12 @@ def run(node, cli, library, artifacts, report_path=None):
             table['peer'], query['peer'] = query['pid'], table['pid']
             server, caller = worker(service, table), worker(requester, query)
             before_recovery = reconciliations
+            before_read_retry = read_retries
             fault['pid'] = table['pid']
+            fault['reader'] = table['principal']
             send(table, b'TSQ\x01\x01'); assert one(server) == 'Committed'
             assert fault['pid'] is None and reconciliations > before_recovery
+            assert fault['reader'] is None and read_retries > before_read_retry
             expected = [{'id': -(2**63), 'value': None}, {'id': 0, 'value': 2**53+1}, {'id': 2**63-1, 'value': -(2**63)}]
             for row in expected:
                 payload = b'TSQ\x01\x02' + row['id'].to_bytes(8, 'little', signed=True)
@@ -215,7 +233,7 @@ def run(node, cli, library, artifacts, report_path=None):
             pairs.append(pair)
             timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3)})
             print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, typed Table/query and owned original IPC passed.', flush=True)
-        assert fault['lost'] == len(clients)
+        assert fault['lost'] == fault['unavailable_reads'] == len(clients)
         check('public-language-ring', {'pairs': pairs, 'reply_value': str(2**64-1), 'query_rows_per_pair': 3,
                                       'fresh_requesters': True, 'owned_ipc_after_close': not children})
         elapsed = time.monotonic()-started
@@ -228,6 +246,7 @@ def run(node, cli, library, artifacts, report_path=None):
                       'elapsed_seconds': round(elapsed, 3), 'consumer_install_seconds': round(installed_at-started, 3), 'pairs': timings,
                       'reconciled_transient_results': reconciliations,
                       'injected_lost_receipts': fault['lost'],
+                      'transient_read_retries': read_retries, 'injected_unavailable_reads': fault['unavailable_reads'],
                       'limits': 'Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement.'}
             Path(report_path).parent.mkdir(parents=True, exist_ok=True)
             Path(report_path).write_text(json.dumps(report, indent=2) + '\n')

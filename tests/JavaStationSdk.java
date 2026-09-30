@@ -562,7 +562,12 @@ public final class JavaStationSdk {
                         report(Values.obj("closed", true)); break;
                     }
                     check(line.equals("one") || line.equals("reconcile")); Event event = null;
-                    for (int count = 0; count < 32; count++) { event = await(line.equals("reconcile") && count == 0 ? runner.reconcile() : runner.next()); if (!(event instanceof Progress)) break; }
+                    try {
+                        for (int count = 0; count < 32; count++) { event = await(line.equals("reconcile") && count == 0 ? runner.reconcile() : runner.next()); if (!(event instanceof Progress)) break; }
+                    } catch (TransitException error) {
+                        if (error.status() != 7) throw error;
+                        report(Values.obj("event", "ReadUnavailable", "code", error.code())); continue;
+                    }
                     if (event instanceof NeedsRecovery paused) check(Arrays.equals(paused.mutation().export(), Files.readAllBytes(store.pending)));
                     report(event instanceof NeedsRecovery paused
                         ? Values.obj("event", "NeedsRecovery", "phase", paused.phase(), "code", paused.error().code())

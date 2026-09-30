@@ -321,11 +321,17 @@ static void drive(const Config &cfg) {
             if (line == "close") { runner->close(); runner.reset(); check_expired(shared); save_owned(shared, cfg); report("{\"closed\":true}"); return; }
             assert(line == "one" || line == "reconcile"); bool observed = false;
             for (size_t i = 0; i < 32; ++i) {
+                try {
                 const auto event = line == "reconcile" && i == 0 ? runner->reconcile() : runner->next(); const auto info = event.info();
                 if (info.kind == TRANSIT_EVENT_PROGRESS) continue;
                 const char *name = info.kind == TRANSIT_EVENT_COMMITTED ? "Committed" : info.kind == TRANSIT_EVENT_IDLE ? "Idle" : info.kind == TRANSIT_EVENT_BLOCKED ? "Blocked" : "NeedsRecovery";
                 if (info.kind == TRANSIT_EVENT_NEEDS_RECOVERY) assert(event.pending()->export_bytes() == read_file(cfg.pending));
                 report(std::string("{\"event\":\"") + name + "\",\"phase\":\"" + info.phase + "\",\"code\":\"" + info.error.code + "\"}"); observed = true; break;
+                } catch (const Error &error) {
+                    const auto &detail = error.detail();
+                    if (!detail.has_native_status || detail.native_status != 7) throw;
+                    report(std::string("{\"event\":\"ReadUnavailable\",\"code\":\"") + detail.code + "\"}"); observed = true; break;
+                }
             }
             assert(observed); check_expired(shared);
         }

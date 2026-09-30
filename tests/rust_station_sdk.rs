@@ -478,10 +478,18 @@ fn drive<M: 'static, H: Handler<M>>(
             assert!(line == "one" || line == "reconcile");
             let mut result = None;
             for index in 0..32 {
-                let event = if line == "reconcile" && index == 0 {
-                    runner.reconcile()?.unwrap()
+                let outcome = if line == "reconcile" && index == 0 {
+                    runner.reconcile()
                 } else {
-                    runner.next()?.unwrap()
+                    runner.next()
+                };
+                let event = match outcome {
+                    Ok(event) => event.unwrap(),
+                    Err(error) if error.status == Some(7) => {
+                        result = Some(json!({"event":"ReadUnavailable","code":error.code}));
+                        break;
+                    }
+                    Err(error) => return Err(error),
                 };
                 match event {
                     RunnerEvent::Progress => {}

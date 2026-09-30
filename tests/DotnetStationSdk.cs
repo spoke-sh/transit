@@ -418,7 +418,12 @@ static class Proof
             for (string? line; (line = Console.ReadLine()) is not null;) {
                 if (line == "ready") { Report(new() { ["ready"] = true }); continue; }
                 if (line == "close") { await runner.CloseAsync(); if (handler is QueryProof query) query.SaveOwned(); if (handler is TableProof table) table.Expired(); Report(new() { ["closed"] = true }); break; }
-                Check(line is "one" or "reconcile"); RunnerEvent? ev = null; for (int count = 0; count < 32; count++) { ev = await (line == "reconcile" && count == 0 ? runner.ReconcileAsync() : runner.NextAsync()); if (ev is not Progress) break; }
+                Check(line is "one" or "reconcile"); RunnerEvent? ev = null;
+                try {
+                    for (int count = 0; count < 32; count++) { ev = await (line == "reconcile" && count == 0 ? runner.ReconcileAsync() : runner.NextAsync()); if (ev is not Progress) break; }
+                } catch (TransitException error) when (error.Status == 7) {
+                    Report(new() { ["event"] = "ReadUnavailable", ["code"] = error.Code }); continue;
+                }
                 if (ev is NeedsRecovery paused) Check(paused.Mutation.Export().AsSpan().SequenceEqual(File.ReadAllBytes(store.Pending)));
                 var response = new JsonObject { ["event"] = ev!.GetType().Name };
                 if (ev is NeedsRecovery recoveryEvent) { response["phase"] = recoveryEvent.Phase; response["code"] = recoveryEvent.Error.Code; }
