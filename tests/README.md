@@ -1752,7 +1752,13 @@ records object count and file bytes. Use it with `--initial-node` for continued
 growth beyond the hot-only fixture's capacity; operation deadlines, eight
 authority cache pages and four application mutations remain unchanged. Failed
 upgrade runs retain the stopped cold-store files with their private disk fixture.
-Cold-store qualification is pending.
+The first cold run at `1f6dd4ee` fails on `AuthorityTimeout` before node
+replacement. Its proxy-drain cleanup then fails, so the last report contains
+only an earlier **112-addition / 263.393 s** sample; final progress and fixture
+retention are not established. `b97406fe` makes cleanup continue through
+authority/proxy shutdown and final reporting after a drain error, and retains
+failed upgrade fixtures even when cleanup itself fails. A cold-tier retry is
+running without the two concurrent clean lanes; qualification remains pending.
 
 The same `85009af5` passes full `just check` and the eight-seed resource
 simulation: **798 traces**, **15,496 events**, **1598 executions**, identical
@@ -1762,7 +1768,19 @@ the remaining 21 tasks do not run. Strict cleanup diagnostics expose exit 130
 when cleanup sends Ctrl-C during command output. The fixture now queues editor
 draft clearing and ordinary `.quit`, preserving explicit interrupt tests and
 rethrowing unexpected exits/timeouts. The focused 399-case CLI diagnostic suite
-passes with queued quit. Clean-core requalification remains pending.
+passes with queued quit. Full `just check` also passes after the terminal cleanup
+and diagnostic-path lifetime fixes.
+
+Committed `1f6dd4ee` then passes all **22 clean-core tasks** in **1154.37 s**
+and all **seven clean-experience tasks** in **501.07 s**. Core includes the
+399-case CLI diagnostic suite, simulations, disk WAL/recovery, callers,
+inspection and state. Station's disk readiness write takes **307.79 s** and the
+complete storage task **481.35 s**; the experience Station replacement/restart
+task takes **283.96 s**. Evidence is retained in
+`.cache/ci/clean/1f6dd4eec3fd-transit-ci-58qo5jmn/` and
+`.cache/ci/clean/1f6dd4eec3fd-transit-ci-mr8_g_9s/`. These are two lane passes,
+not the complete CI inventory. The later catalog cleanup change affects only
+the proof runner and remains under focused disk qualification.
 
 The clean experience run at rebased `ef2cc97d` passes all **seven tasks** in
 **433.89 s**, including Station's Arrow exchange, replacements and persistent
