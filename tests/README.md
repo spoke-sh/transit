@@ -5511,6 +5511,18 @@ The C/C++ tree passes full `just check`, including native contract drift, unit
 checks, the verification catalog, frontend checks and documentation build. The
 broader installed runner/connector regression is recorded separately when complete.
 
+The broader `just bindings::c-sdk-test` also passes after loading the added native
+mutation entry points through the shared C bridge. Both installed raw clients
+preserve owned I/O, exact seedless recovery and current denial. Both Station
+runners preserve scope/gates, callback errors, poisoned reads, fencing/expiry,
+exact disk/host recovery, retained Tables and six owned IPC segments. Installed
+C/C++ HTTP schedules pass in **75.51/78.73 s**, and gRPC in **79.47/86.94 s**,
+including staged recovery, binary TLS, current denial and authenticated disposal
+and followup. The final mutation rerun passes in **24.968 s** with 1776 reads,
+unchanged send/turn/fault counts and native artifact digests. No skipped case is
+counted as passed. This working-tree regression is separate from committed-HEAD
+clean qualification.
+
 ### Installed Java Table mutation caller
 
 `just bindings::mutation-java` builds the public/native JARs with the pinned Java
