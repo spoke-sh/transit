@@ -269,6 +269,33 @@ pub fn Tree(comptime Store: type) type {
             return error.InvalidPageHeight;
         }
         const Changed = struct { children: [branch_children + mutation_batch]Child = undefined, count: usize = 0, height: u8 };
+        /// Absorb split growth into sparse neighbors before growing the parent.
+        /// Only adjacent pages at this level are loaded, two at a time; roots
+        /// and all unaffected descendant references remain immutable.
+        fn coalesce(self: Self, children: []Child, previous_count: usize, height: u8) !usize {
+            var count = children.len;
+            var index: usize = 0;
+            while (count > previous_count and index + 1 < count) {
+                var left = try self.load(children[index].reference, height);
+                const right = try self.load(children[index + 1].reference, height);
+                const combined = @as(usize, left.count) + right.count;
+                const capacity: usize = if (height == 0) leaf_entries else branch_children;
+                if (combined > capacity) {
+                    index += 1;
+                    continue;
+                }
+                if (height == 0) {
+                    @memcpy(left.body.leaf[left.count..combined], right.body.leaf[0..right.count]);
+                } else {
+                    @memcpy(left.body.branch[left.count..combined], right.body.branch[0..right.count]);
+                }
+                left.count = @intCast(combined);
+                children[index] = try self.stage(&left);
+                std.mem.copyForwards(Child, children[index + 1 .. count - 1], children[index + 2 .. count]);
+                count -= 1;
+            }
+            return count;
+        }
         fn mutatePage(self: Self, ref: ?Reference, height: ?u8, mutations: []const Mutation) anyerror!Changed {
             const original: ?Page = if (ref) |reference| try self.load(reference, height) else null;
             const level: u8 = if (original) |page| page.height else 0;
@@ -323,6 +350,7 @@ pub fn Tree(comptime Store: type) type {
                 }
                 first = end;
             }
+            count = try self.coalesce(merged[0..count], original.?.count, level - 1);
             if (count == original.?.count) {
                 const unchanged = for (merged[0..count], 0..) |child, i| {
                     if (!std.meta.eql(child, children[i].?)) break false;

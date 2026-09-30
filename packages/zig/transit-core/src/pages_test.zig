@@ -89,6 +89,70 @@ test "descending bounded mutations retain shallow lookup paths and old roots" {
     }
 }
 
+fn thinChild(store: *Store, index: usize, height: u8) !p.Child {
+    var page: p.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = key(index), .value = value(index) };
+    var child: p.Child = .{ .minimum = key(index), .reference = try store.stage(try page.reference(), &page) };
+    for (0..height) |level| {
+        page = .{ .height = @intCast(level + 1), .count = 1, .body = .{ .branch = @splat(null) } };
+        page.body.branch[0] = child;
+        child.reference = try store.stage(try page.reference(), &page);
+    }
+    return child;
+}
+
+test "mutations continue from a sparse root at the height guard without replacing old cuts" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var page: p.Page = .{ .count = p.leaf_entries, .body = .{ .leaf = @splat(null) } };
+    for (&page.body.leaf, 0..) |*slot, i| slot.* = .{ .key = key(1024 + i), .value = value(1024 + i) };
+    var root: p.Child = .{ .minimum = key(1024), .reference = try store.stage(try page.reference(), &page) };
+    var next_key: usize = 1024 + p.leaf_entries;
+    // A valid persisted shape produced by repeatedly filling the left split:
+    // a full spine, with sparse same-height siblings. No obsolete codec or
+    // alternate implementation is needed to construct this current-v1 root.
+    for (0..p.max_height) |level| {
+        var children: [p.branch_children]?p.Child = @splat(null);
+        children[0] = root;
+        for (children[1..]) |*child| {
+            child.* = try thinChild(&store, next_key, @intCast(level));
+            next_key += 1;
+        }
+        page = .{ .height = @intCast(level + 1), .count = p.branch_children, .body = .{ .branch = children } };
+        root.reference = try store.stage(try page.reference(), &page);
+    }
+    const retained = root.reference;
+    const first = [_]p.Mutation{.{ .key = key(1023), .value = value(1023) }};
+    const before = store.writes;
+    _ = try tree.mutate(retained, &first);
+    const stages = store.writes - before;
+    for (0..stages) |offset| for (0..2) |kind| {
+        store.fail_at = if (kind == 0) store.writes + offset else null;
+        store.lose_at = if (kind == 1) store.writes + offset else null;
+        if (kind == 0) {
+            try t.expectError(error.StagingFailed, tree.mutate(retained, &first));
+        } else {
+            try t.expectError(error.StagingAcknowledgementLost, tree.mutate(retained, &first));
+        }
+        store.fail_at = null;
+        store.lose_at = null;
+        try t.expect((try tree.get(retained, key(1023))) == null);
+        try t.expectEqualSlices(u8, value(1024).slice(), (try tree.get(retained, key(1024))).?.slice());
+    };
+    var current: ?p.Reference = retained;
+    for (0..64) |i| {
+        const index = 1023 - i;
+        current = try tree.mutate(current, &.{.{ .key = key(index), .value = value(index) }});
+        try t.expect((try tree.get(retained, key(index))) == null);
+    }
+    for (960..next_key) |i| {
+        const found = (try tree.get(current, key(i))).?;
+        try t.expectEqualSlices(u8, value(i).slice(), found.slice());
+        if (i >= 1024) try t.expectEqualSlices(u8, value(i).slice(), (try tree.get(retained, key(i))).?.slice());
+    }
+}
+
 test "bounded tree ranges stop at the exclusive end and avoid unrelated leaves" {
     var store: Store = .{};
     defer store.deinit();
