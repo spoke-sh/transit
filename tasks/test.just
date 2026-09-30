@@ -366,6 +366,10 @@ unified-codec:
 grpc-faults:
     zig build test-grpc-worker -Dgrpc-faults=true
 
+# Focus the finite work cutoff and bounded closure while the RPC remains active.
+grpc-control:
+    zig build test-grpc-worker -Dgrpc-control=true
+
 # Generate and compile durable request helpers without sockets or reflection.
 grpc-codegen:
     zig build test-grpc-codegen

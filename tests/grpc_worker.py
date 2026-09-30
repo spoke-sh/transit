@@ -18,8 +18,10 @@ from cold_storage import ColdStore
 from grpc_faults import Boundary
 
 
-def run(node, provision, worker, board=None, browser=None):
-    faults = board == "faults"
+def run(node, provision, worker, board=None, browser=None, *, control=False):
+    control = control or board == 'control'
+    faults = board in ('faults', 'control')
+    assert not control or faults
     if faults: board = None
     boundary = Boundary()
     started = time.monotonic()
@@ -33,12 +35,14 @@ def run(node, provision, worker, board=None, browser=None):
         port = free_port(); url = f"http://127.0.0.1:{port}"
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
         node_config = fixture.root / "node.json"
-        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "grpc-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        max_clock_error_ms = 10000
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": max_clock_error_ms}, "ursula_url": fixture.url, "bucket": "grpc-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         key, cert = fixture.root / "peer.key", fixture.root / "peer.pem"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"], check=True, capture_output=True, timeout=20)
         sends, applied, failures, dropped, recovered = [], set(), [], {}, set()
         capture_prefix = threading.Event(); release_capture = threading.Event()
         capture_armed = False
+        blocked_peer = {}
         def begin(context, shape):
             fields = list(context.invocation_metadata())
             assert ("authorization", "Bearer fixture-rpc-secret") in fields
@@ -46,6 +50,7 @@ def run(node, provision, worker, board=None, browser=None):
             assert ("x-binary-bin", b"\x00\xff") in fields
             operation = next(v for k, v in fields if k == "idempotency-key")
             sends.append((shape, operation)); applied.add(operation)
+            if operation == 'blocked-control': blocked_peer['context'] = context
             boundary.peer(operation)
             context.send_initial_metadata((("x-repeat", "one"), ("x-repeat", "two"), ("set-cookie", "fixture-rpc-response-secret")))
             context.set_trailing_metadata((("x-binary-bin", b"\x00\xff"),))
@@ -129,7 +134,12 @@ def run(node, provision, worker, board=None, browser=None):
             request_file.write_text(json.dumps(metadata, separators=(",", ":")))
             count = 1 if shape in ("unary", "server_streaming") else 3
             batch_file.write_bytes(b"GRB1" + struct.pack("<I", count) + (struct.pack("<I", len(payload))+payload)*count)
-            value = {"url": f"http://127.0.0.1:{proxy.server_port}", "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": exchange, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer_port, "tls": True, "ca_file": str(cert), "timeout_ms": 60000}, "mode": mode, "request_file": str(request_file), "batch_file": str(batch_file), "reconcile_before_ms": deadline, "credentials": [{"binding": "peer", "version": 1, "metadata": "authorization", "file": str(secret)}], "response_metadata": ["x-repeat", "x-binary-bin"], "max_attempts": 2, "retry_policy": {"id": 1, "revision": 1, "key_metadata": "idempotency-key"}, "followup": followup}
+            # The control scenario crosses a finite process cutoff. Declare
+            # the peer's existing 120-second block budget before preparing its
+            # immutable request, so a separate RPC timeout cannot end the call
+            # before that cutoff and its admitted clock uncertainty have passed.
+            network_timeout_ms = 120000 if control else 60000
+            value = {"url": f"http://127.0.0.1:{proxy.server_port}", "realm": 47, "principal": 65536, "seed_file": str(seed), "pid": saved["pid"], "generation": saved["generation"], "activation_directory": str(fixture.root), "exchange": exchange, "endpoint_revision": 1, "endpoint": {"host": "localhost", "address": "127.0.0.1", "port": peer_port, "tls": True, "ca_file": str(cert), "timeout_ms": network_timeout_ms}, "mode": mode, "request_file": str(request_file), "batch_file": str(batch_file), "reconcile_before_ms": deadline, "credentials": [{"binding": "peer", "version": 1, "metadata": "authorization", "file": str(secret)}], "response_metadata": ["x-repeat", "x-binary-bin"], "max_attempts": 2, "retry_policy": {"id": 1, "revision": 1, "key_metadata": "idempotency-key"}, "followup": followup}
             config.write_text(json.dumps(value)); return value
         def invoke(expect=True):
             result = subprocess.run([worker, str(config)], capture_output=True, timeout=180, env=os.environ | {"LOG_FORMAT": "json"})
@@ -138,7 +148,8 @@ def run(node, provision, worker, board=None, browser=None):
             return json.loads(result.stdout) if result.returncode == 0 else result
         try:
             subprocess.run([node, str(node_config), "--initialize"], check=True, stdout=node_log, stderr=subprocess.STDOUT, timeout=30)
-            authority = start_node(); saved = admin("provision")
+            authority = start_node()
+            if not control: saved = admin("provision")
             if not faults:
                 shapes = [("unary", "Unary", 1), ("server_streaming", "Server", 3), ("client_streaming", "Client", 1), ("bidi", "Bidi", 3)]
                 for exchange, (shape, method, response_count) in enumerate(shapes, 1):
@@ -195,7 +206,7 @@ def run(node, provision, worker, board=None, browser=None):
                         assert admin("replay", exchange, expect=False).returncode != 0
                         if status["collected"] == status["segments"] + int(status["pending"]): break
                     else: raise AssertionError("Bounded cleanup did not finish")
-            else:
+            elif not control:
                 # Every stop occurs after a real accepted command, while its receipt
                 # is withheld. Recovery crosses an actual node/store cold restart.
                 for exchange, phase in enumerate(('preparation', 'dispatch', 'complete', 'observe'), 1):
@@ -238,22 +249,50 @@ def run(node, provision, worker, board=None, browser=None):
                 assert len(sends) == before and admin('inspect', 5)['effect'] == 'pending'
                 admin('allow-dispatch'); saved = admin('own'); configure(saved, 5, 'unary', 'Unary', 'revocation', 'execute')
                 assert invoke()['outcome'] == 'observed' and len(sends) == before + 1
+                print('RPC dispatch revocation passed.', flush=True)
+            else:
                 # A separate executor loses work authority by its declared cutoff.
                 # Its blocked remote invocation cannot starve explicit closure.
-                cutoff = int(time.time()*1000) + 60000
+                control_started = time.monotonic()
+                # Two real publication preparations can take nearly a minute.
+                # Choose the complete work window before spawning, then keep
+                # that recorded cutoff unchanged through preparation/dispatch.
+                cutoff = int(time.time()*1000) + 120000
                 saved = admin('provision', cutoff)
+                lifetime = {'work_before_ms': cutoff, 'settle_before_ms': cutoff + 120000}
+                assert admin('lifetime') == lifetime
                 configure(saved, 1, 'unary', 'Unary', 'blocked-control', 'prepare'); invoke()
                 saved = admin('own'); configure(saved, 2, 'unary', 'Unary', 'never-dispatched', 'prepare'); invoke()
+                assert admin('lifetime') == lifetime
+                print(f'RPC control preparation: {time.monotonic()-control_started:.3f}s', flush=True)
+                # Hold the RPC across the cutoff, without making fast setup wait
+                # through the entire work lifetime inside a network operation.
+                while time.time()*1000 < cutoff - 30000:
+                    assert time.monotonic()-control_started < 100, 'Clock did not reach the dispatch window'
+                    time.sleep(0.1)
                 saved = admin('own'); configure(saved, 1, 'unary', 'Unary', 'blocked-control', 'execute')
                 boundary.peer_release.clear()
                 child = subprocess.Popen([worker, str(config)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                assert boundary.peer_blocked.wait(timeout=60), child.poll()
+                if not boundary.peer_blocked.wait(timeout=60):
+                    code = child.poll()
+                    details = child.communicate(timeout=10)[1][-3500:] if code is not None else b''
+                    raise AssertionError({'peer_not_reached': code, 'stderr': details})
+                print(f'RPC control peer blocked: {time.monotonic()-control_started:.3f}s', flush=True)
                 assert admin('forge-observation', 1, expect=False).returncode != 0
-                while time.time()*1000 <= cutoff + 200: time.sleep(0.1)
+                while time.time()*1000 <= cutoff + max_clock_error_ms:
+                    assert time.monotonic()-control_started < 140, 'Clock did not reach the declared cutoff'
+                    time.sleep(0.1)
                 before = len(sends)
-                assert admin('dispatch', 2, expect=False).returncode != 0
+                admin('dispatch-expired', 2)
                 control_start = time.monotonic(); admin('close', 1)
-                assert time.monotonic()-control_start < 10 and child.poll() is None
+                close_seconds = time.monotonic()-control_start
+                closure = {'close_seconds': round(close_seconds, 3),
+                           'worker_exit': child.poll(),
+                           'peer_active': blocked_peer['context'].is_active(),
+                           'schedule_seconds': round(time.monotonic()-control_started, 3)}
+                print('RPC control closure:', json.dumps(closure), flush=True)
+                assert close_seconds < 10 and closure['worker_exit'] is None and closure['peer_active'], closure
+                assert admin('lifetime') == lifetime
                 assert admin('inspect', 1)['effect'] == 'closed_unknown'
                 assert admin('close', 1, expect=False).returncode != 0
                 admin('terminate')
@@ -262,10 +301,11 @@ def run(node, provision, worker, board=None, browser=None):
                 boundary.close(); child.communicate(timeout=60); assert child.returncode != 0; child = None
                 assert len(sends) == before and admin('inspect', 1)['effect'] == 'closed_unknown'
                 assert admin('inspect', 2)['effect'] == 'cancelled'
-                print('RPC dispatch revocation, work cutoff, forged observation, blocked-peer control and permanent retirement passed.', flush=True)
+                print('RPC work cutoff, forged observation, blocked-peer control and permanent retirement passed.', flush=True)
             assert not failures, failures
-            assert cold.data_objects() > 0
-            print(f"RPC worker {'faults' if faults else 'shapes'}: {len(sends)} sends, {len(applied)} applications.")
+            if not control: assert cold.data_objects() > 0
+            profile = 'control' if control else 'faults' if faults else 'shapes'
+            print(f"RPC worker {profile}: {len(sends)} sends, {len(applied)} applications.")
             print(f"RPC capture storage: 8 MiB hot limit, {cold.data_objects()} cold objects, {cold.file_bytes()} object-store bytes.")
             print(f"RPC worker proof wall time: {time.monotonic()-started:.2f}s (excludes compilation).")
         finally:
@@ -278,6 +318,11 @@ def run(node, provision, worker, board=None, browser=None):
             node_log.seek(0)
             if sys.exc_info()[0]: print(node_log.read()[-6000:], file=sys.stderr)
             node_log.close()
+    if faults and not control:
+        # Keep the cutoff proof's admission window independent of accumulated
+        # capture history from the preceding crash schedules.
+        # Both installations use real disk storage; the first proves cold spill.
+        run(node, provision, worker, 'faults', control=True)
 
 
 if __name__ == "__main__":

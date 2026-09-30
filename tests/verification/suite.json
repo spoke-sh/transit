@@ -197,7 +197,8 @@
       "test::server-board-package",
       "transit-docs::browser",
       "test::resource-simulation",
-      "bindings::rust-lifetime"
+      "bindings::rust-lifetime",
+      "test::grpc-control"
     ]
   },
   "nested_tasks": {

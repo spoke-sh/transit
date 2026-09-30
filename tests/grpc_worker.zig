@@ -43,6 +43,14 @@ pub fn main(init: std.process.Init) !void {
         } else if (std.mem.eql(u8, args[2], "position")) {
             try std.json.Stringify.value((try admin.query(.{ .capabilities = {} })).position, .{}, &output.interface);
             return output.interface.flush();
+        } else if (std.mem.eql(u8, args[2], "lifetime")) {
+            // Retained operator metadata remains inspectable after work expiry;
+            // the execution-read selector also requests the next eligible input.
+            const page = (try admin.query(.{ .inspection = .{ .resource = .process, .pid = saved.pid } })).body.inspection;
+            const process = page.processes[0].?;
+            try std.testing.expectEqual(saved.pid, process.pid);
+            try std.json.Stringify.value(.{ .work_before_ms = process.work_before_ms, .settle_before_ms = process.settle_before_ms }, .{}, &output.interface);
+            return output.interface.flush();
         } else if (std.mem.eql(u8, args[2], "own")) {
             _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = 65536 } });
             saved.generation += 1;
@@ -54,16 +62,20 @@ pub fn main(init: std.process.Init) !void {
             _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = 65536, .permissions = p.State.all_permissions } });
         } else if (std.mem.eql(u8, args[2], "terminate")) {
             _ = try admin.submit(.{ .terminate = saved.pid });
-        } else if (std.mem.eql(u8, args[2], "dispatch") or std.mem.eql(u8, args[2], "close") or std.mem.eql(u8, args[2], "cancel") or std.mem.eql(u8, args[2], "forge-observation")) {
+        } else if (std.mem.eql(u8, args[2], "dispatch") or std.mem.eql(u8, args[2], "dispatch-expired") or std.mem.eql(u8, args[2], "close") or std.mem.eql(u8, args[2], "cancel") or std.mem.eql(u8, args[2], "forge-observation")) {
             const id = try std.fmt.parseInt(u64, args[4], 10);
             const resource = (try admin.query(.{ .resource = saved.resource })).body.resource;
             const page = try admin.query(.{ .entries = .{ .resource = saved.resource, .revision = resource.revision, .key = x.Exchange.key(id, 'i', 0) } });
             const intent = page.body.entries.page.entries[0].?;
             const effect = (try admin.query(.{ .effects = .{ .pid = saved.pid, .after = intent.revision - 1, .position = page.position } })).body.effects.entries[0].?;
-            if (std.mem.eql(u8, args[2], "dispatch")) {
+            if (std.mem.eql(u8, args[2], "dispatch") or std.mem.eql(u8, args[2], "dispatch-expired")) {
                 const descriptors = try admin.query(.{ .entries = .{ .resource = saved.resource, .revision = resource.revision, .key = x.Exchange.key(id, 'd', 0) } });
                 const descriptor = try x.Descriptor.decode(descriptors.body.entries.page.entries[0].?.value);
-                _ = try admin.submit(.{ .dispatch = .{ .pid = saved.pid, .effect = effect.id, .reconcile_before_ms = descriptor.reconcile_before_ms, .max_observations = 1 } });
+                const command: p.Growth.Command = .{ .dispatch = .{ .pid = saved.pid, .effect = effect.id, .reconcile_before_ms = descriptor.reconcile_before_ms, .max_observations = 1 } };
+                if (std.mem.eql(u8, args[2], "dispatch-expired")) {
+                    try std.testing.expectError(error.Rejected, admin.submit(command));
+                    try std.testing.expectEqual(.DeadlineExpired, wire.last_rejection.?);
+                } else _ = try admin.submit(command);
             } else if (std.mem.eql(u8, args[2], "cancel")) {
                 _ = try admin.submit(.{ .cancel_effect = .{ .pid = saved.pid, .effect = effect.id } });
             } else if (std.mem.eql(u8, args[2], "close")) {

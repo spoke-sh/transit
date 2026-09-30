@@ -75,6 +75,56 @@ growing-service proof also passed without code or deadline changes: Station writ
 took 71.616 s against 240 s, and query delivery took 149.820 s against 180 s.
 Earlier timing failures remain separate evidence.
 
+The subsequent clean growth lane at `dae70a38` passed 14 tasks, including query
+delivery in 145.224 s and the complete gRPC streaming/restart proof. Its gRPC fault
+fixture then reached its declared 60-second process work cutoff while preparing
+the second call for the blocked-peer scenario. `DeadlineUncertain` correctly
+prevented further ordinary work; that scenario's intended control challenge had
+not begun. The remaining three growth tasks and four later lanes were unrun.
+The cutoff scenario now uses a separate disposable disk installation after the
+crash/revocation installation is joined. It declares a 120-second work lifetime
+before spawning and verifies that the recorded work and settlement cutoffs stay
+unchanged through preparation and closure. It starts the RPC in the final
+30 seconds of that work window. The 10-second control-progress limit remains
+unchanged; cold-spill evidence belongs to the preceding crash/revocation profile.
+Expiry waits through the configured
+10-second clock-error bound and requires `DeadlineExpired`, rather than accepting
+any failed dispatch. This scenario declares the peer's existing 120-second block
+window as its RPC timeout before preparing the request, and checks that both the
+worker and remote RPC remain active when closure completes.
+
+An initial isolated attempt failed the combined closure-duration/worker-alive
+assertion before its operands were logged; the original operand remains
+unattributed. Four diagnostic reruns passed, with closure taking 0.186–0.711 s.
+Those passes precede the definite-expiry and active-peer assertions and do not
+erase the earlier failure.
+
+A full rerun then took 59.078 s just to prepare both calls in the fresh
+installation; the worker exited before reaching the peer. This demonstrated
+that separating installations alone did not establish the intended pre-cutoff
+dispatch premise. The 120-second work window is selected before admission to
+accommodate setup; the test still requires definite expiry, an active remote
+call, bounded closure and permanent retirement.
+
+The lifetime diagnostic initially used the execution-read selector after work
+expiry, which correctly rejected input access even though closure had passed in
+0.294 s with an active peer. It now uses public inspection for retained process
+metadata. `just test::grpc-control` runs this isolated portion directly;
+`just test::grpc-faults` still includes both crash/revocation and cutoff profiles.
+The corrected focused proof passed in 133.06 s excluding compilation, with
+closure in 0.181 s while the worker and remote RPC remained active. It verified
+unchanged recorded cutoffs, exact `DeadlineExpired`, duplicate-closure rejection,
+permanent retirement and pending-effect cancellation. `just check` passed with
+the corrected fixtures and focused task registration.
+
+The next combined proof passed all crash boundaries and dispatch revocation,
+then failed while starting the separate control installation: MinIO returned
+HTTP 503 to bucket creation after its health probe returned ready. Bucket creation
+now retries only HTTP 503 using the same signed request and the original
+30-second startup deadline. An injected 503 followed by real MinIO creation
+passed; negative checks retained immediate non-503 failure and deadline exhaustion
+under persistent unavailability.
+
 The expanded deterministic profiles passed on committed sources. Authority and
 resource reports identify `028e2f7b`; shared-client and component reports identify
 `2b9faa53`, whose intervening change corrects the separate state API polling fixture.
