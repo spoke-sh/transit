@@ -111,6 +111,12 @@ def compare(trace, lines):
         if failure in ('AccessDenied','Rejected','StaleActivation','ProcessExpired','ProcessTerminated','RetiredProcess','ClockRollback','UntrustedTime') and s['position']!=line['before']:
             return fail('rejected operation changed authority')
         submitted=line['submitted']
+        # A first submission may create pending bytes and lose its reply in the
+        # same step. Comparing only against the previous step misses this case.
+        if submitted and failure=='AuthorityUnavailable':
+            actor=2 if kind=='courier' else source
+            if line['pending'][actor]!=submitted['digest']:
+                return fail('uncertain submission did not retain its exact identity')
         if submitted and s['sequences'][submitted['principal']]==submitted['sequence']:
             identity=(submitted['principal'],submitted['sequence'])
             if identity in accepted and accepted[identity]!=submitted['digest']:
