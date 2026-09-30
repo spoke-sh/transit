@@ -5982,5 +5982,291 @@
       "log_sha256": "10b779fdc48c37f7abc5a46e1b68be950f9b9b251a6c2fe45093ffdb2fadd892"
     },
     "qualification_limit": "Focused control proof; the complete clean ordinary gate remains separate."
+  },
+  "clean_ee4770c9_checkpoint": {
+    "bindings": {
+      "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+      "completed": true,
+      "metadata": {
+        "version": 1,
+        "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+        "tier": "bindings",
+        "completed": true,
+        "expected_tasks": [
+          "bindings::check",
+          "bindings::native",
+          "bindings::python-test",
+          "bindings::node-sdk-test",
+          "bindings::rust-sdk-test",
+          "bindings::ruby-sdk-test",
+          "bindings::c-sdk-test",
+          "bindings::java-sdk-test",
+          "bindings::dotnet-sdk-test",
+          "bindings::beam-sdk-test",
+          "bindings::sdk-interop",
+          "test::model",
+          "test::model-delivery",
+          "test::sql-rewrites",
+          "test::sql",
+          "bindings::grpc-faults"
+        ],
+        "seconds": 7078.35,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "tasks": [
+        {
+          "lane": "bindings",
+          "task": "bindings::check",
+          "seconds": 8.59,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::native",
+          "seconds": 395.6,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::python-test",
+          "seconds": 438.34,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::node-sdk-test",
+          "seconds": 460.62,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::rust-sdk-test",
+          "seconds": 578.06,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::ruby-sdk-test",
+          "seconds": 429.5,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::c-sdk-test",
+          "seconds": 1351.61,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::java-sdk-test",
+          "seconds": 492.66,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::dotnet-sdk-test",
+          "seconds": 436.75,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::beam-sdk-test",
+          "seconds": 979.26,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::sdk-interop",
+          "seconds": 1224.8,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::model",
+          "seconds": 5.83,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::model-delivery",
+          "seconds": 0.99,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::sql-rewrites",
+          "seconds": 4.44,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "test::sql",
+          "seconds": 9.71,
+          "exit_code": 0
+        },
+        {
+          "lane": "bindings",
+          "task": "bindings::grpc-faults",
+          "seconds": 261.57,
+          "exit_code": 0
+        }
+      ],
+      "log_sha256": "ab8e922091655b9c18eafc5eee0e2e4ceb217200eede380868d8abcdfb5e3281",
+      "outer_seconds": 7096.414
+    },
+    "growth_first_attempt": {
+      "recorded_at": "2026-09-30T22:24:10.930786+00:00",
+      "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+      "exit_code": 1,
+      "log_sha256": "3362a05b995ce21173b28ef08e6735283da8849bcfbffe4246c219b367f1a736",
+      "metadata": {
+        "version": 1,
+        "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+        "tier": "growth",
+        "completed": false,
+        "expected_tasks": [
+          "test::arrow",
+          "test::pages",
+          "test::growing",
+          "test::growing-service",
+          "test::public-query",
+          "test::publication",
+          "test::http-transport",
+          "test::tls-alpn",
+          "test::grpc-libraries",
+          "test::grpc-codegen",
+          "test::grpc-transport",
+          "test::grpc-server",
+          "test::flight-metadata",
+          "test::grpc-worker",
+          "test::grpc-faults",
+          "test::http-worker",
+          "examples::http",
+          "examples::grpc"
+        ],
+        "seconds": 769.36,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "tasks": [
+        {
+          "lane": "growth",
+          "task": "test::arrow",
+          "seconds": 10.93,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::pages",
+          "seconds": 8.04,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing",
+          "seconds": 144.7,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing-service",
+          "seconds": 605.69,
+          "exit_code": 1
+        }
+      ],
+      "failure": "Growing query deliver subprocess exceeded unchanged 180-second limit. Successful receipts continued until timeout; no correctness assertion failure observed. Cause not attributed.",
+      "station_write_seconds": 217.453,
+      "station_write_limit_seconds": 240,
+      "original_affinity": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ],
+      "followup_affinity": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "other_host_workloads_active": true
+    },
+    "workspace_recovery": {
+      "observed_at": "2026-09-30T22:02:28.324729+00:00",
+      "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+      "event": "Worktree and branch removed externally during clean bindings; current clean checkout and test process survived. Restored worktree and qualification source at identical revision, preserved open log descriptors and source bundle. No test was restarted or bypassed.",
+      "logs": {
+        "qualify-ee4770c9.log": "/proc/1572234/fd/2",
+        "qualify-ee4770c9-bindings.log": "/proc/1572234/fd/3"
+      },
+      "test_checkout": "/var/tmp/transit-ci-9vonfm52/src",
+      "source_bundle": "/var/tmp/transit-qualification-rescue-ee4770c9/source.bundle",
+      "historical_ignored_artifacts": "Earlier ignored logs, build outputs and private crash files were removed with the worktree. Their committed result summaries, embedded simulation reports, trace hashes and source hashes survive in the follow-up ledger. Active clean bindings log recovered through an open descriptor."
+    },
+    "qualification_complete": false,
+    "next_attempt": "Clean growth followed by experience, launchers and core at unchanged ee4770c9, affinity 6-11. No deadline or source change. Results pending."
   }
 }

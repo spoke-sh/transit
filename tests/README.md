@@ -142,6 +142,27 @@ plus stalled and incomplete histories. The retained reports include the full tra
 hash lists and actual fault counts. These in-process results preserve the existing
 atomic-journal premise; disk durability and host scheduling use their separate proofs.
 
+At committed `ee4770c9`, the complete clean bindings lane passed all 16 tasks in
+7,096.414 s including setup. This includes every installed SDK, the ten-language
+interoperability ring, finite models, SQL checks and gRPC publication faults. The
+same revision's first clean growth attempt passed Arrow, pages and authority growth,
+then exceeded the unchanged 180-second query-delivery limit in `growing-service`.
+Station writes had passed in 217.453 s against 240 s. Successful delivery/turn
+receipts continued until the query timeout; no correctness assertion failed, but
+the cause remains unattributed. Other test workloads were active on the shared
+host. This attempt does not establish the complete ordinary gate. A new clean
+attempt uses the same source, workload and limits with CPU affinity 6–11 instead
+of 16–31; its qualification is pending.
+
+During the bindings run, an external process removed the qualification worktree
+and branch. The independent clean checkout and running tests survived. The
+worktree and source checkout were restored at the identical commit, and open log
+descriptors preserved the complete bindings log through completion. No test was
+restarted or skipped. Earlier ignored logs, build outputs and private crash files
+were removed with the worktree; their committed result summaries, embedded reports
+and hashes remain in the follow-up record. This event is recorded separately from
+test outcomes.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
