@@ -398,6 +398,14 @@ hashes match this catalog run; its log is
 `/tmp/transit-sql-catalog-cli-mutation-regression.log`. These are development
 checks and focused proofs; committed-HEAD clean validation follows separately.
 
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at `e107fe7d`**
+without inherited workspace build outputs, in **710.32 seconds**.
+Evidence is `.cache/ci/clean/e107fe7df44b-transit-ci-48en01yu/core.json` and
+`core.meta.json`; the full log is `/tmp/transit-sql-catalog-cli-ci-clean.log`.
+The following evidence-only commit changes no production code. This qualifies
+the CLI core lane and focused recovery above, not idiomatic catalog SDKs or a
+complete clean suite.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
