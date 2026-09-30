@@ -1216,8 +1216,15 @@ and eight resident pages. ABI/port/CLI also compare all sixteen definitions and
 two pages in this run; language SDK metadata methods are not exercised by this
 checkpoint. Source revision is `7fc92b33`; report/package hashes and log are
 `/tmp/transit-sql-catalog-metadata-all-ten-regression.json` and
-`/tmp/transit-sql-catalog-metadata-all-ten-regression.log`. Committed clean
-validation remains a separate execution.
+`/tmp/transit-sql-catalog-metadata-all-ten-regression.log`.
+
+Committed `7fc92b33` passes `just ci-clean --lane core`: **all 22 tasks in
+756.17 s**, including the shared protocol enum fix, generated contracts and
+seeded simulations. Evidence is
+`.cache/ci/clean/7fc92b33d25a-transit-ci-en_9c5gk/core.{json,meta.json}` and
+`/tmp/transit-sql-catalog-metadata-abi-cli-ci-clean.log`. This validates the
+ABI/CLI checkpoint independently of inherited build outputs; it does not include
+the subsequent language metadata methods or establish a full clean-suite pass.
 
 ### Python catalog metadata
 
