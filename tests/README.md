@@ -5844,3 +5844,21 @@ the final phase recovers with one resident authority page. It records **8984
 reads**, **361 turns**, three killed workers, at most four mutations and 256-byte
 values. The 8 MiB hot store leaves **460 cold objects / 43721160 bytes**. The
 log is `/tmp/transit-sql-publication-domains-refresh-document.log`.
+
+The committed-HEAD clean core run at `fd929ddc` passed foundation checks,
+properties, simulation, codecs, deployment/telemetry, independent package builds
+and compute. It then failed in the raw client ABI's signing vectors: the SDK
+operation fixture's canonical definition had changed but its expected digest
+and signature were stale. This is a fixture defect, not a passing ABI proof.
+Later core tasks did not run. The source/log evidence is retained at
+`/var/tmp/transit-ci-uwms4hww/src` and
+`/tmp/transit-sql-publication-domains-ci-clean.log`.
+
+The two SDK operation digests and Ed25519 signatures are regenerated from the
+fixture's public test seed using independent SHA-256 and OpenSSL signing.
+The foundation verification check now checks their definition, canonical JSON
+and digest before native builds. `just test::client-abi` then passes standalone
+port checks, canonical signatures, full-width growing identities, disk/host
+restart, exact uncertain recovery, current revocation and malformed replies.
+The log is `/tmp/transit-sql-publication-domains-client-abi.log`. This focused
+pass does not complete the earlier failed clean lane.

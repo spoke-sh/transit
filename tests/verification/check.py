@@ -1,4 +1,5 @@
 """Validate proof ownership and reviewed limit classifications without a deployment."""
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -72,6 +73,13 @@ def validate(suite, invariants, limits, sdk):
         assert item['anchor'] in (ROOT / item['source']).read_text(), item
     assert replacements == removed, f'unreviewed removed bound: {removed - replacements}'
     schema = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())
+    # Definition cutovers also change the raw SDK's canonical signing vectors.
+    # Catch an edited request with a stale digest before building native callers.
+    for case in read('sdk-operations-v1.json')['cases']:
+        document = json.loads(case['canonical'])
+        assert document['definition'] == schema['x-transit']['definition'], case['name']
+        assert json.dumps(document, separators=(',', ':')) == case['canonical'], case['name']
+        assert hashlib.sha256((case['domain'] + case['canonical']).encode()).hexdigest() == case['sha256'], case['name']
     for name in ('Request', 'Query'):
         principal = schema['$defs'][name]['properties']['principal']
         assert principal['maximum'] == (1 << 53) - 1, principal
