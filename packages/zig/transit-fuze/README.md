@@ -28,6 +28,16 @@ These plans are separate from read queries. The application invokes Station's
 private-turn helper under its own command authorization; public query transports
 reject mutation statements. See the [Table mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 
+`Sql.parseDeclaration` and `Declaration.compile` parse and validate offline
+`CREATE TABLE`, `CREATE KV` and `CREATE DOCUMENT` definitions. Definitions own
+their names and up to eight Table columns, preserve omitted nullability and
+format canonical review SQL into a caller-owned buffer. `Definition.tableSchema`
+explicitly checks compatibility with the existing two-column Table model.
+Compilation does not provision resources, publish a catalog or confer authority;
+query transports still reject declarations. The
+[state declaration contract](../../../contracts/STATE_DECLARATION_V1.md) defines
+types, ownership, errors and capability limits.
+
 `Sql.hints` uses the production parser up to a token-boundary cursor and returns
 bounded grammar expectations. `SqlInput` frames semicolon termination and
 whole-token replacement while respecting quotes, nested comments and UTF-8.

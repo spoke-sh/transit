@@ -46,6 +46,21 @@ pub fn main(init: std.process.Init) !void {
         try std.json.Stringify.value(.{ .phase = "compile_mutation", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
+    for ([_][]const u8{
+        "CREATE TABLE items (id INT64 NOT NULL, value UTF8 NULL)",
+        "CREATE KV settings (UTF8)",
+        "CREATE DOCUMENT notebook",
+        "CREATE TABLE wide (a INT64,b BOOL,c UTF8,d BINARY,e INT64,f BOOL,g UTF8,h BINARY)",
+    }, 0..) |sql, case| {
+        const start = std.Io.Clock.awake.now(init.io);
+        for (0..iterations) |_| {
+            const definition = try f.Declaration.compile(sql);
+            std.mem.doNotOptimizeAway(definition);
+        }
+        const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+        try std.json.Stringify.value(.{ .phase = "compile_declaration", .case = case, .iterations = iterations, .elapsed_ns = elapsed }, .{}, &stdout.interface);
+        try stdout.interface.writeByte('\n');
+    }
     const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
     var output: [m.Arrow.segment_bytes]u8 = undefined;
     var cells: [m.max_rows][2]m.Cell = undefined;

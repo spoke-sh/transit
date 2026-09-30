@@ -358,6 +358,13 @@
       "expression": "4 + 32 + 8 * 3 + 4 + 1 + 39 + 2 + f.TableMutation.max_rows * (8 + 1 + f.model.max_cell_bytes + 2)",
       "classification": "operation",
       "meaning": "799-byte maximum canonical request for three full-width Table rows and exact target/schema; immutable publication stages larger-than-envelope requests without enlarging a native turn."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Declaration.zig",
+      "symbol": "max_columns",
+      "expression": "@import(\"Unified.zig\").max_columns",
+      "classification": "operation",
+      "meaning": "At most eight columns in one offline state definition; not a bound on total catalog objects or durable history."
     }
   ],
   "identities": [

@@ -87,9 +87,16 @@ compound predicates, expression arithmetic, general casts,
 `COUNT(column)`, aliases on output columns and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
-`CREATE TABLE`/`DOCUMENT`/`KV`/`CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`,
-and connector forms of `SHOW` are grammar-only. They do not execute typed
-commands, resolve catalogs or authorize effects. `Sql.parseMutation` and
+`CREATE TABLE`/`DOCUMENT`/`KV` have a separate bounded offline Zig compiler:
+`Sql.parseDeclaration` and `Declaration.compile` validate owned definitions and
+format canonical review SQL. The [state declaration contract](../STATE_DECLARATION_V1.md)
+preserves unspecified nullability and explicitly checks the current Table schema.
+The [declaration corpus](corpus/declarations.json) and generated type/nullability
+matrix compare Zig with independent ANTLR ASTs, formatting and Table fingerprints.
+These are not PostgreSQL DDL compatibility or administrative execution checks.
+`CREATE CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`, and connector forms of
+`SHOW` remain grammar-only. No declaration compiler resolves catalogs, provisions
+resources or authorizes effects. `Sql.parseMutation` and
 `TableMutation.compile` recognize literal INSERT, key-equality UPDATE and DELETE.
 The [mutation contract](../TABLE_MUTATION_V1.md) defines the private-turn helper;
 query transports reject writes and applications explicitly authorize admission.

@@ -51,6 +51,48 @@ pub fn parse(text: []const u8) !Ast {
     var parser: Parser = .{ .lexer = .{ .text = text } };
     return statement(&parser);
 }
+/// Offline state declaration syntax. No catalog lookup, provisioning or grants.
+/// Omitted nullability remains unspecified; semantic validation is separate.
+pub fn parseDeclaration(text: []const u8) !?f.Declaration.Definition {
+    try validateText(text);
+    var parser: Parser = .{ .lexer = .{ .text = text } };
+    try parser.advance();
+    if (!parser.word("CREATE")) return null;
+    try parser.advance();
+    const table = parser.word("TABLE");
+    const kv = parser.word("KV");
+    if (!table and !kv and !parser.word("DOCUMENT")) return error.UnsupportedDeclaration;
+    try parser.advance();
+    const name = try parser.name();
+    const body: f.Declaration.Body = if (table) blk: {
+        var columns: f.Declaration.Columns = @splat(null);
+        try parser.require(.left);
+        for (&columns, 0..) |*slot, index| {
+            const column_name = try parser.name();
+            const data_type = try parser.declarationType();
+            const nullability: f.Declaration.Nullability = if (parser.word("NOT")) nullable: {
+                try parser.advance();
+                try parser.requireWord("NULL");
+                break :nullable .not_null;
+            } else if (parser.word("NULL")) nullable: {
+                try parser.advance();
+                break :nullable .null;
+            } else .unspecified;
+            slot.* = .{ .name = column_name, .type = data_type, .nullability = nullability };
+            if (!try parser.take(.comma)) break;
+            if (index + 1 == columns.len) return error.DeclarationTooManyColumns;
+        }
+        try parser.require(.right);
+        break :blk .{ .table = columns };
+    } else if (kv) blk: {
+        try parser.require(.left);
+        const data_type = try parser.declarationType();
+        try parser.require(.right);
+        break :blk .{ .kv = data_type };
+    } else .document;
+    try parser.end();
+    return .{ .name = name, .body = body };
+}
 fn validateText(text: []const u8) !void {
     if (text.len > max_statement_bytes) return error.StatementTooLarge;
     if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
@@ -289,6 +331,11 @@ const Parser = struct {
     fn end(self: *Parser) !void {
         _ = try self.take(.semi);
         if (self.token.tag != .eof) return error.UnsupportedConstruct;
+    }
+    fn declarationType(self: *Parser) !m.Type {
+        const result: m.Type = if (self.word("INT64")) .int64 else if (self.word("BOOL")) .boolean else if (self.word("UTF8")) .utf8 else if (self.word("BINARY")) .binary else return error.UnsupportedDeclarationType;
+        try self.advance();
+        return result;
     }
     fn name(self: *Parser) !m.Name {
         var bytes: [16]u8 = undefined;

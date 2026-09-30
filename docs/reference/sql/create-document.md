@@ -1,8 +1,10 @@
 # CREATE DOCUMENT
 
-**Grammar only.** This statement names a Document. It does not create a Document
-resource, initialize a replica or accept a change. It is not executable in SQL
-query interfaces.
+**Offline compiler; no publication.** Fuze's Zig `Declaration.compile` validates
+this statement as a named Document definition and formats it for review. It does
+not create a resource, initialize a replica or accept a change. SQL query
+interfaces reject it; CLI, Board and language SDKs have no administrative route
+for it.
 
 ## Syntax
 
@@ -15,7 +17,7 @@ schema, replica configuration or `IF NOT EXISTS` clause in this rule.
 
 ## Example
 
-This example illustrates syntax only:
+This example compiles as an offline definition:
 
 ```sql
 CREATE DOCUMENT notebook;
@@ -33,6 +35,8 @@ and [caller interface](../../../packages/zig/transit-station-document/docs/remot
 for initialization, changes and reads. Current authorization and writer fencing
 still apply. Querying requires an explicit accepted Document projection; this
 grammar form neither creates one nor makes arbitrary Document paths valid SQL.
+The [offline declaration contract](../../../contracts/STATE_DECLARATION_V1.md)
+defines owned names, complete-input validation, canonical formatting and bounds.
 
 Source: [`createDocument`](../../../contracts/sql/TransitExtensions.g4). See also
 [SELECT](select.md) and [state resources](../state.md).

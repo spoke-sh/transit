@@ -6,6 +6,49 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Offline state declaration compiler
+
+The additive Fuze `Declaration` API parses, validates and formats owned
+`CREATE TABLE/KV/DOCUMENT` definitions. Its explicit `tableSchema` adapter accepts
+only the existing two-column Table profile. This is offline compiler evidence;
+it does not qualify a catalog, resource creation, grants, publication, language
+SDK/CLI administration or wider Table storage. Existing native and ABI definitions
+are unchanged. [The contract](../contracts/STATE_DECLARATION_V1.md) owns semantics;
+`SQL-DECLARATION-01` and the per-definition bound are in the verification inventory.
+
+Executed in the pinned bindings shell on the development source based on
+`aba61401`:
+
+- Full `just check` passes, including generated contracts, native/package tests,
+  CLI diagnostics, frontend checks and the production documentation build. Final
+  proof-inventory and documentation checks cover 51 invariants, 52 classified
+  bounds, 12 SDK scenarios and 4498 local links across 472 files.
+- Standalone `transit-fuze` `zig build test` passes, including five declaration
+  tests for owned names, canonical padding, sparse/duplicate columns, whole-input
+  rejection, formatting buffers and explicit Table capability checks.
+- `just test::sql` passes **182 declaration cases**, including the complete
+  four-type/three-nullability product for both Table columns. **156 Zig/ANTLR
+  ASTs agree**, canonical formatting reparses in both implementations, and five
+  compatible definitions match independently calculated existing Table schema
+  fingerprints. Other cases reject at syntax, structural or capability boundaries.
+  Existing SELECT/Arrow, unified-source and mutation oracles also pass.
+- `just test::sql-benchmark --samples 7 --output
+  .cache/verification/sql/state-declaration-benchmark.json` records seven warmed
+  ReleaseSafe processes with 10,000 compilations per case. The pinned compiler
+  is `0.17.0-dev.2267+48abf1a34`; the probe SHA-256 is
+  `83e09098bd4ac3877a8dec229b22936d70ac8fe0bcad9b2ee464799f77948ad9`.
+
+| Offline declaration | Median ns/compile | Observed min–max |
+| --- | ---: | ---: |
+| Two-column Table | 296.92 | 284.35–317.55 |
+| KV | 133.13 | 130.98–136.94 |
+| Document | 119.28 | 114.54–120.86 |
+| Eight-column Table | 632.59 | 612.16–636.75 |
+
+The raw report identifies dirty source, platform and binary. This is a local
+compiler baseline with no allocation, source I/O, authorization, publication or
+transport work. It is not a before/after speedup or end-to-end latency claim.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
@@ -182,6 +225,7 @@ core mutants were detected: omitted resource writes in 2.128 seconds and omitted
 input progress in 2.079 seconds, including bounded minimization. These in-memory observations do not
 establish actual WAL durability, physical page reclamation, full CI completion
 or hosted cost. Compiling core mutation qualification is a separate command.
+
 
 
 ## Authority and delivery simulation
