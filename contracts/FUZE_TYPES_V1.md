@@ -1,0 +1,92 @@
+# Fuze logical types v1
+
+This contract specifies the shared Zig logical type and conversion model. The
+implementation/capability table in the [type reference](../docs/reference/sql/types.md)
+distinguishes admitted types from interfaces that still accept a narrower profile.
+Logical types describe meaning; Arrow layouts and neutral encodings describe
+representation. Neither a descriptor nor a decoded value grants source access.
+
+## Descriptors and identity
+
+A descriptor is an acyclic tree with explicit children and field order. Its
+canonical encoding includes the current definition identifier, kind, parameters,
+field names, nullability and optionality. Its SHA-256 fingerprint excludes memory
+addresses, allocation strategy and physical batch layout. Unknown identifiers,
+invalid parameters, duplicate field names and trailing bytes reject.
+
+| Family | Definition |
+| --- | --- |
+| Integers | Signed and unsigned 8, 16, 32, 64 and 128 bits; checked ranges |
+| Floats | IEEE binary32/binary64, finite only; negative zero survives encoding |
+| Decimal | Signed 128-bit coefficient, precision 1–38, scale 0–precision; exact base ten |
+| Boolean | Exactly false or true |
+| UTF-8 / binary | Valid UTF-8 without normalization / arbitrary bytes; lengths in bytes |
+| Date | Signed days since 1970-01-01 in the proleptic Gregorian calendar |
+| Time | Nanoseconds since midnight, 0 inclusive to 86400e9 exclusive; no leap seconds |
+| Timestamp | Signed microseconds since 1970-01-01; descriptor distinguishes UTC instant from timezone-free civil time |
+| Interval | Signed months, days and nanoseconds; components remain independent; no implicit duration ordering |
+| UUID | Exactly 16 bytes, canonical textual spelling 8-4-4-4-12 hexadecimal |
+| Struct | Ordered named fields, each with type, nullable and optional flags |
+| List / fixed array | One element type and nullability; arrays have a positive declared length |
+| Map | Ordered entries with non-null scalar keys, unique under typed equality |
+| Tagged union | Ordered named alternatives; one tag and one typed cell |
+| JSON | Valid UTF-8 JSON preserving numeric lexemes; duplicate object keys reject |
+
+Enum, domain, opaque extension, spatial, arbitrary precision numeric and named
+IANA timezone types are unsupported. UTC timestamps require no timezone database;
+civil-to-instant conversion requires explicit application policy and is not an
+implicit cast. Decimal support selects no currency or monetary rounding policy.
+Schema depth, nodes, field-name bytes and encoded bytes have independent budgets.
+Value depth, children, variable-width bytes and total work have separate budgets.
+Exhaustion rejects the operation and publishes no successful prefix.
+
+## Values and cell states
+
+Value, null, missing, type error and conflict remain distinct. Nullability permits
+null; optionality permits missing. A conflict preserves ordered nonzero assignment
+identities and every value/null/type-error alternative; it cannot choose a winner.
+Nested values obey the same state rules. Values borrow explicitly owned input or
+allocator storage. Releasing that owner invalidates borrowed children.
+
+Typed equality requires equal logical descriptors. Integers compare exactly;
+finite floats compare numerically, so signed zeros are equal and hash identically.
+Decimal coefficients compare at their declared scale without binary floating point.
+UTF-8/binary/UUID use unsigned byte order. Structs, lists and arrays compare
+lexicographically in declaration/element order when every child is comparable.
+Maps and JSON have structural equality without a general ordering. Intervals use
+component equality without converting calendar months into elapsed days. Conflict
+and type error never silently participate as ordinary values or nulls.
+
+## Binding, casting, promotion and inference
+
+These are separate operations with separate admission rules:
+
+- Literal binding parses the target type and checks its complete grammar/range.
+  It consumes all bytes, rejects surrounding whitespace and never parses an exact
+  integer or decimal through floating point.
+- Explicit casts check ranges. Lossless is the default; a rounding mode must be
+  supplied for scale reduction or inexact binary conversion. Supported rounding
+  modes are reject, toward zero and nearest ties to even. Overflow always fails.
+- Expression promotion admits only a common type representing both input domains
+  without loss. Mixed signed/unsigned integers may require a wider signed type;
+  signed128 plus unsigned128 has no integer promotion. Integer/float mixing is
+  not an automatic lossless promotion. Existing checked int64 SUM retains its
+  source-order checks and result type.
+- Inference unifies observations without changing textual identities. Canonical
+  integer text may infer an integer; leading zeros, a plus sign and ambiguous
+  formatting remain UTF-8. CSV decimals do not infer binary floats. JSON numbers
+  retain exact integer/decimal values or raw JSON when outside the bounded exact
+  domain. Null/missing alone do not establish a type. Heterogeneous values fall
+  back to a lossless representation, never an implicit stringification of JSON.
+
+An emitted schema never widens. Explicit conversions that cannot represent a
+value produce a declared failure or type-error cell, never null. A sampled
+candidate does not establish full-input conformance.
+
+## Capability boundaries
+
+The existing native query profile admits int64, uint64, finite float64, boolean,
+UTF-8 and binary. Stored Tables, SQL literals, Flight and foreign SDK operations
+retain their independently documented profiles until their owning codecs and
+proofs admit an extension. Unsupported types reject before execution. Adding a
+logical descriptor does not enable new SQL grammar or change stored Tables.
