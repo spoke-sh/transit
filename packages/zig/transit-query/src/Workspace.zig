@@ -43,6 +43,7 @@ pub const Request = union(enum) {
     suggest: struct { search: []const u8 },
     assist: q.Assistance.Request,
     compile: struct { sql: []const u8 },
+    inspect: struct { sql: []const u8 },
     next: struct { namespace: []const u8, bundle: []const u8 },
     next_draft: struct { namespace: []const u8, bundle: []const u8, generation: []const u8 },
     draft_open: struct { expected: []const u8, limit: u8 },
@@ -60,6 +61,7 @@ pub const Response = union(enum) {
     suggestions: struct { resource: u64, contract: [32]u8, items: []const q.Editor.Item },
     assistance: q.Assistance.Response,
     compiled: Compiled,
+    inspection: q.SqlInspection.Result,
     prepared: ?Frozen,
     receipt: q.protocol.Receipt,
     observation: q.UnifiedClient.Observation,
@@ -73,6 +75,7 @@ pub fn apply(allocator: std.mem.Allocator, client: *q.UnifiedClient, config: Con
     const limits = try config.limits.native();
     const name = try m.Name.init(config.name);
     switch (request) {
+        .inspect => |value| return .{ .inspection = try client.inspectSql(allocator, .{ .scope = .{ .name = config.name, .source = config.source, .limits = config.limits }, .sql = value.sql }) },
         .assist => |value| {
             _ = try client.describe(definition);
             var columns: [m.max_columns]m.Column = undefined;

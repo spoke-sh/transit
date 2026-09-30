@@ -68,6 +68,9 @@ fn requester(self: *Self) !q.wire.ResourceReader.Reader {
 pub fn describe(self: *Self, definition: q.SourceDefinition) !Description {
     return self.read(describeOnce, .{definition});
 }
+pub fn inspectSql(self: *Self, allocator: std.mem.Allocator, request: q.SqlInspection.Request) !q.SqlInspection.Result {
+    return q.SqlInspection.apply(allocator, self, request);
+}
 /// Generic keys only: the native authority never interprets source policy,
 /// requester identity, Table descriptors or Document lifecycle records.
 pub fn interactiveMetadata(self: *Self, definition: q.SourceDefinition) ![g.SnapshotRead.current_resources]?g.SnapshotRead.Current {

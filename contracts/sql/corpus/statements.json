@@ -1499,6 +1499,7 @@
     "SHOW SOURCES;",
     "SHOW SINKS;",
     "SHOW CONNECTIONS;",
-    "DESCRIBE orders;"
+    "DESCRIBE orders;",
+    "EXPLAIN SELECT value FROM items WHERE id > 0 LIMIT 2;"
   ]
 }

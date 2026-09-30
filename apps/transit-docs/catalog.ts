@@ -59,6 +59,7 @@ export const sections: Section[] = [
       reference("sql/revoke", "REVOKE"),
       reference("sql/show", "SHOW"),
       reference("sql/describe", "DESCRIBE"),
+      reference("sql/explain", "EXPLAIN"),
       reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),
       reference("sql/application", "Application declarations"),
       reference("queries", "Query execution and recovery"),

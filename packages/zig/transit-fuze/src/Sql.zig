@@ -32,13 +32,45 @@ pub const Ast = struct {
     limit: ?u64 = null,
     input: ?Input = null,
 };
+pub const Catalog = enum { tables, sources, sinks, connections };
+pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
 
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
-    if (text.len > max_statement_bytes) return error.StatementTooLarge;
-    if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
+    try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text } };
     return statement(&parser);
+}
+fn validateText(text: []const u8) !void {
+    if (text.len > max_statement_bytes) return error.StatementTooLarge;
+    if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
+}
+/// Recognize inspection without making it an executable SELECT. A null result
+/// leaves other statements to their owner; recognized forms consume all input.
+/// Catalog resolution and current read authority belong to the query client.
+pub fn parseInspection(text: []const u8) !?Inspection {
+    try validateText(text);
+    var parser: Parser = .{ .lexer = .{ .text = text } };
+    try parser.advance();
+    if (parser.word("EXPLAIN")) return .{ .explain = try statement(&parser) };
+    if (parser.word("DESCRIBE")) {
+        try parser.advance();
+        const name = try parser.name();
+        try parser.end();
+        return .{ .describe = name };
+    }
+    if (parser.word("SHOW")) {
+        try parser.advance();
+        inline for (comptime std.meta.fieldNames(Catalog)) |name| {
+            if (parser.word(name)) {
+                try parser.advance();
+                try parser.end();
+                return .{ .show = @field(Catalog, name) };
+            }
+        }
+        return error.UnsupportedCatalog;
+    }
+    return null;
 }
 fn statement(parser: *Parser) !Ast {
     try parser.advance();

@@ -59,6 +59,13 @@ stopped; inspect `status` for completion, denial or cancellation. It is not a
 complete-result claim. `prepare` also supports explicit cancel, retire and
 bounded collect commands.
 
+`inspect` accepts a `scope` (`name`, `source`, `limits`) and complete inspection
+SQL. It delegates to `UnifiedClient.inspectSql` and returns `inspection`, with
+current metadata evidence and description, Table listing or proposed plan.
+It never returns a prepared token or query result. The
+[SQL inspection contract](../../../../contracts/SQL_INSPECTION_V1.md) defines the
+one-source scope, current access checks and exact metadata bounds.
+
 After uncertain dispatch, retain and resubmit the **identical prepared string**,
 including after replacing the native owner. Never parse/re-encode it or prepare
 a new command to resolve the old attempt. Local invalid-envelope failures occur

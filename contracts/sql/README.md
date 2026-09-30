@@ -86,8 +86,13 @@ compound predicates, expression arithmetic, writes, general casts,
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
 `CREATE TABLE`/`DOCUMENT`/`KV`/`CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`,
-`SHOW` and `DESCRIBE` are grammar-only. They do not execute typed commands,
-resolve catalogs or authorize effects. SQL writes are not grammar-checked here.
+and connector forms of `SHOW` are grammar-only. They do not execute typed
+commands, resolve catalogs or authorize effects. SQL writes are not
+grammar-checked here. The separate `Sql.parseInspection` entry point recognizes
+`DESCRIBE`, `SHOW` and `EXPLAIN SELECT` with the same bounded lexer and complete
+input checks. The [inspection owner](../SQL_INSPECTION_V1.md) executes description,
+Table listing and plan explanation in one configured source scope; the SELECT
+compiler continues to reject those statements as executable queries.
 
 ## Lean scope
 

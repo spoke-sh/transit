@@ -49,6 +49,13 @@ selects only explicit null, and comparison to a NULL literal rejects. There are
 no general casts, joins, sort,
 general pushdown, rewrites, continuous queries or implicit application decoders.
 
+The console and workspace/native query `inspect` operations share
+`DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT`. Results describe one configured
+source or proposed plan under current native and query-policy access. They
+carry no captured query basis and perform no admission. Connector catalog
+listings remain unsupported, and Flight SQL retains its separate metadata
+operations. See [SQL inspection](../../../../contracts/SQL_INSPECTION_V1.md).
+
 The engine advances eight rows per page with at most eight columns. Scalars are
 bounded at 4096 bytes; Arrow segments at 64 KiB with 4 MiB caller-owned workspace.
 Document adapters add bounded path/list/text traversal; source hosts allocate a

@@ -4722,3 +4722,31 @@ just test::sql-benchmark --samples 9 --control /path/to/frozen-probe \
 The runner rejects mismatched case/workload shapes, alternates process order and
 retains both sets of samples and executable hashes. Use the actual baseline
 revision and a frozen probe built with the same optimization and toolchain.
+
+### Scoped SQL inspection iteration
+
+The inspection change adds shared Fuze parsing, validated output schemas and the
+query owner's `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` operations. Before
+rebasing onto the protocol-consolidation revision, `just check` (including the
+full docs build), `just test::unit` and `just test::sql` pass: 104 SELECT ASTs, 16 syntax exclusions, 14 extensions,
+44 documentation examples, 91 executable Table fixtures and 24 unified results
+across three source bases and eight page widths. Neutral inspection fixtures
+cover operator order, output types, literal redaction, exact names, full-width
+limits/policy revisions, empty KV listings, initial/final denial and reduced
+final budgets. Browser fixtures consume the same JSON and reject impossible
+operator order, duplicate projections, overflow and foreign Table names.
+
+`just test::interactive-query` completes Table and KV cases against disk Ursula
+with 41 rows. Each of the three inspection statements uses five native reads,
+zero snapshots and zero durable writes. Table wall times are 15.1–21.0 ms and
+KV times 16.6–17.7 ms, including process startup; sampled console peak RSS is
+8.4–9.4 MiB. Revocation returns no metadata. Existing finite-query fresh-cut,
+cancellation and current-denial checks pass for both kinds. The Document run is
+stopped during provisioning to apply the user's requested protocol rebase; it
+is incomplete and establishes no Document execution evidence for inspection.
+
+Five pure benchmark samples record compile medians 0.45–0.97 microseconds and
+8192-row count/sum medians 0.789/0.808 ms. The raw report records dirty source
+state and the executable digest; these are local observations, not a paired
+performance improvement claim. All of this evidence predates the protocol
+rebase and must be rechecked on the consolidated implementation.

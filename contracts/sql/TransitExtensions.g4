@@ -41,6 +41,7 @@ extensionStatement
     | revokeStatement
     | showStatement
     | describeStatement
+    | explainStatement
     ;
 
 // CREATE CONNECTION kafka_conn TO HTTP (endpoint = 'https://...', token = SECRET('...'));
@@ -154,6 +155,10 @@ describeStatement
     : DESCRIBE identifier
     ;
 
+explainStatement
+    : EXPLAIN selectStatement
+    ;
+
 // A fragment only: reserved for a future SELECT table-reference extension,
 // deliberately excluded from the executable SELECT profile here — `orders FOR SYSTEM_TIME AS OF 240`.
 // Deliberately the SQL:2011 system-versioned-table clause name (forensic
@@ -168,7 +173,7 @@ asOfClause
     ;
 
 identifier
-    : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64
+    : IDENTIFIER | QUOTED_IDENTIFIER | MISSING | TYPE_ERROR | VALUE | CONFLICT | UINT64 | FLOAT64 | EXPLAIN
     ;
 
 // ---- Lexer rules --------------------------------------------------------
@@ -189,6 +194,7 @@ VALUE: 'VALUE';
 CONFLICT: 'CONFLICT';
 UINT64: 'UINT64';
 FLOAT64: 'FLOAT64';
+EXPLAIN: 'EXPLAIN';
 CREATE: 'CREATE';
 CONNECTION: 'CONNECTION';
 CONNECTIONS: 'CONNECTIONS';

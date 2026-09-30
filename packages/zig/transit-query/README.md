@@ -152,3 +152,10 @@ fixtures cover quoted/qualified names, suffix replacement, hidden/foreign names,
 unsupported comparisons, checked sums, slash arguments and allocation failures.
 The console vocabulary is shared data; introducing it does not implement a CLI
 command or administrative SQL operation.
+
+`SqlInspection` owns `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` over one
+configured source. `UnifiedClient.inspectSql`, `Bridge.inspect` and
+`Workspace.inspect` share current authorization, bounded typed results and Fuze
+output-schema rules. Metadata is separate from Arrow query results; inspection
+does not create snapshots or requests. The [inspection contract](../../../contracts/SQL_INSPECTION_V1.md)
+defines scope, literal redaction and final access checks.

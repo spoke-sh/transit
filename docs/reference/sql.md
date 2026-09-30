@@ -22,7 +22,7 @@ explains future language targets without expanding the supported interface.
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
 | Find a function or operator | [Functions and operators](sql/expressions.md) |
 | Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md): unsupported in SQL; application APIs are available |
-| Inspect definitions | [DESCRIBE](sql/describe.md), [SHOW](sql/show.md): grammar only; use console metadata commands |
+| Inspect definitions and plans | [DESCRIBE](sql/describe.md), [SHOW TABLES](sql/show.md), [EXPLAIN](sql/explain.md) within the configured source scope |
 | Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
 | Define an application interface | [Application declarations](sql/application.md) |
 
@@ -41,8 +41,8 @@ capabilities. Each operation has an explicit support boundary:
 | Separate compiler | Application definitions compile offline and use explicit publication operations |
 | Unsupported | The form has no accepted SQL grammar or execution contract |
 
-Administrative SQL extensions are **grammar-only**; their examples describe
-syntax and do not execute in the query console. Unsupported command entries
+Administrative mutations and connector catalog listings are **grammar-only**;
+their examples describe syntax and do not execute in the query console. Unsupported command entries
 explain the current alternatives without defining new syntax.
 
 The console, CLI and Board use the same query v1 source and plan contract.
@@ -81,8 +81,9 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `CREATE KV` | Grammar only | [Typed KV declaration](sql/create-kv.md) |
 | `GRANT` | Grammar only | [Privilege declaration](sql/grant.md) |
 | `REVOKE` | Grammar only | [Privilege revocation](sql/revoke.md) |
-| `SHOW` | Grammar only | [Tables, sources, sinks and connections](sql/show.md) |
-| `DESCRIBE` | Grammar only | [Named-object description](sql/describe.md) |
+| `SHOW` | `TABLES` executes in configured scope; connector listings are grammar only | [Tables, sources, sinks and connections](sql/show.md) |
+| `DESCRIBE` | Executable in configured scope | [Named-object description](sql/describe.md) |
+| `EXPLAIN` | Executable for finite SELECT; no query execution | [Proposed plan and output columns](sql/explain.md) |
 | `FOR SYSTEM_TIME AS OF` | Separate grammar fragment; not part of `SELECT` | [Revision selection](sql/as-of.md) |
 | `CREATE INTERFACE`, `THEME`, `SCREEN`, `BINDING`, `ACTION` | Separate application compiler; publication is explicit | [Application declarations](sql/application.md) |
 
@@ -90,7 +91,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 
 | Operation | Current boundary |
 | --- | --- |
-| `EXPLAIN`, `DESCRIBE SELECT` | No SQL plan or query-result schema inspection |
+| `DESCRIBE SELECT` | Use `EXPLAIN SELECT` for output column inspection |
 | `ALTER`, `DROP`, `TRUNCATE` | No SQL object replacement, retirement or bulk deletion |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | No SQL transaction session; application turns retain their own atomic boundary |
 | `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
@@ -159,7 +160,7 @@ upload.
 
 Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
 `COUNT(column)`, general casts, writes and continuous queries are unsupported.
-`CREATE`, `GRANT`, `REVOKE`, `SHOW` and `DESCRIBE` in the
+`CREATE`, `GRANT`, `REVOKE` and connector forms of `SHOW` in the
 [reference grammar](../../contracts/sql/README.md) are grammar-only.
 They do not execute in the console, Board query workspace or Flight SQL.
 
