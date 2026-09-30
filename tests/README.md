@@ -24,6 +24,11 @@ physical storage, application installation, transport or remote dispatch. See th
 [harness guide](verification/README.md#component-simulation) for exact bounds,
 artifacts, seed replay and separate mutation qualification.
 
+At committed `a59e0d9c`, all five real-code mutations were detected by executed
+contract assertions (1.245–1.508 seconds each). Trace logging is enabled only by
+the component runner; ordinary package tests execute the same assertions quietly.
+The two-seed replay after that logging change passed in 2.377 seconds.
+
 ## Shared-client scheduling simulation
 
 The shared Session/courier driver runs production preparation, frozen retry,

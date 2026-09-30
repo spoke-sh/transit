@@ -87,7 +87,7 @@ test "simulation: Document accepted-set convergence through staging loss and reo
             const duplicate = try doc.apply(&store, edit);
             try t.expect(duplicate.duplicate);
             try t.expectEqual(doc.revision, duplicate.accepted_revision);
-            std.debug.print("SIMULATION {{\"domain\":\"document\",\"round\":{d},\"replica\":{d},\"fault_after\":{d},\"revision\":{d}}}\n", .{ round, replica, fault, doc.revision });
+            if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"document\",\"round\":{d},\"replica\":{d},\"fault_after\":{d},\"revision\":{d}}}\n", .{ round, replica, fault, doc.revision });
         }
         const snapshot = doc;
         const conflicts = try field(doc, &store, "x");

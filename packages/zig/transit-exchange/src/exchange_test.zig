@@ -195,7 +195,7 @@ test "simulation: Exchange closure races preserve unknown outcomes and replay ho
         turn = try store.capture();
         try t.expectError(error.ExchangeUnavailable, ex.open(&turn, &turn));
         try t.expectEqual(before.chain, (try ex.inspect(&turn)).chain);
-        std.debug.print("SIMULATION {{\"domain\":\"exchange\",\"round\":{d},\"complete_capture\":{},\"outcome\":\"closed_unknown\",\"retired\":true}}\n", .{ round, complete });
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"exchange\",\"round\":{d},\"complete_capture\":{},\"outcome\":\"closed_unknown\",\"retired\":true}}\n", .{ round, complete });
     }
 }
 test "finite segment coverage grows on disk shape, replay validates and retirement rejects old roots" {

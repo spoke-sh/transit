@@ -6,6 +6,7 @@ component algorithm. These private-turn stores do not establish disk durability.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import time
@@ -16,7 +17,7 @@ DOMAINS = ({'document', 'checkpoint'}, {'exchange'}, {'refresh'}, {'runtime'})
 
 def execute(binary, seed, expected, log):
     result = subprocess.run([str(binary), f'--seed={seed}'], capture_output=True,
-                            text=True, timeout=120)
+                            text=True, timeout=120, env=os.environ | {'TRANSIT_SIMULATION_TRACE': '1'})
     output = result.stdout + result.stderr
     log.write_text(output)
     if result.returncode:

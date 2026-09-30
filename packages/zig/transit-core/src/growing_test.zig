@@ -392,7 +392,7 @@ test "simulation: provider schedules fence old activations and retain accepted b
         try t.expectEqual(@as(u64, 0), process.consumed);
         try t.expectEqual(epoch, (try f.engine.principal(65536)).epoch);
         try t.expectError(error.AlreadyActivated, f.root(activation));
-        std.debug.print("SIMULATION {{\"domain\":\"runtime\",\"round\":{d},\"unknowns\":{d},\"lost_reply\":{},\"generation\":{d}}}\n", .{ round, unknowns, lost, process.generation });
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"runtime\",\"round\":{d},\"unknowns\":{d},\"lost_reply\":{},\"generation\":{d}}}\n", .{ round, unknowns, lost, process.generation });
     }
     _ = try f.root(.{ .terminate = pid });
     f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);

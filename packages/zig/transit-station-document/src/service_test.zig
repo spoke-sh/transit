@@ -324,7 +324,7 @@ test "simulation: Document checkpoint head and epoch publish only at the accepte
             candidate = turn;
         }
         try store.commit(candidate);
-        std.debug.print("SIMULATION {{\"domain\":\"checkpoint\",\"step\":{d},\"discard\":{},\"complete\":{}}}\n", .{ step, discard, proposed == .complete });
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"checkpoint\",\"step\":{d},\"discard\":{},\"complete\":{}}}\n", .{ step, discard, proposed == .complete });
         if (proposed == .complete) break;
     } else return error.CheckpointDidNotComplete;
     turn = try store.capture();

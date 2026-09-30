@@ -247,7 +247,7 @@ test "simulation: refresh source cuts survive replacement, interruption and in-f
         }
         rig.source.denied = true;
         try t.expectError(error.AccessDenied, rig.reader().result(&turn, admitted.namespace.value, rig.declaration));
-        std.debug.print("SIMULATION {{\"domain\":\"refresh\",\"round\":{d},\"interruptions\":{d},\"replaced\":{},\"mutated\":{}}}\n", .{ round, interrupted, replace, changed });
+        if (t.environ.containsConstant("TRANSIT_SIMULATION_TRACE")) std.debug.print("SIMULATION {{\"domain\":\"refresh\",\"round\":{d},\"interruptions\":{d},\"replaced\":{},\"mutated\":{}}}\n", .{ round, interrupted, replace, changed });
     }
 }
 
