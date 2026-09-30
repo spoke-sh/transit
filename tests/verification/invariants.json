@@ -13,7 +13,8 @@
         "test::unit",
         "test::storage",
         "test::properties",
-        "test::model"
+        "test::model",
+        "test::simulation"
       ],
       "scenarios": [
         "Competing prepared successors",
@@ -36,7 +37,8 @@
         "test::service",
         "test::state",
         "test::properties",
-        "test::model"
+        "test::model",
+        "test::simulation"
       ],
       "scenarios": [
         "Revoke or replace owner between prepare and commit",
@@ -467,7 +469,8 @@
       "profile": "transit-v1 development work slice; not running service",
       "tasks": [
         "test::unit",
-        "contract::check"
+        "contract::check",
+        "test::simulation"
       ],
       "scenarios": [
         "Independent routes and stale prepared admission after revocation",
@@ -1286,6 +1289,32 @@
       "limits": "Loopback only; realm-wide process metadata and explicit per-resource grants, no per-viewer authentication, browser query/operator credentials or in-place upgrades of older pinned neighborhoods. Nine fixed native roles plus explicit application quotas; one bounded atlas startup probe, three restarts and retained receipts. No hosted CI budget expansion.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
+    },
+    {
+      "id": "SIM-01",
+      "claim": "Frozen multi-process turns and deliveries preserve route order, exact retry, destination provenance and retirement, and eligible work drains under an explicit finite fair schedule",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing.zig",
+        "packages/zig/transit-core/src/growing_work.zig",
+        "tests/delivery_simulation.zig"
+      ],
+      "profile": "two producer PIDs and one destination; real signed core transitions with an atomic in-memory journal",
+      "tasks": [
+        "test::simulation",
+        "test::simulation-mutations"
+      ],
+      "scenarios": [
+        "Competing workers and same-principal sequences with delayed prepared publication",
+        "Lost turn/delivery replies and exact retries before and after restart",
+        "Revoked retry, independent routes, terminal denial and permanent retirement",
+        "Live/cold logical correspondence and no page staging during recovery",
+        "Finite eligible drain after policy/storage stabilization",
+        "Compiling route-order and provenance mutations produce minimized failures"
+      ],
+      "limits": "Eight pending decision slots; at most 4096 actions. No actual client/worker/courier scheduler, HTTP, finite clock/lifetime, resource mutation, page fault or physical provider. Progress is conditional on the explicit finite schedule; atomic conditional append is assumed.",
+      "model": null,
+      "qualification": "See tests/README.md#authority-and-delivery-simulation for executed current-revision evidence; tracking issue #26 covers broader simulation and real-binary work."
     }
   ]
 }

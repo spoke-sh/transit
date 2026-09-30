@@ -41,6 +41,14 @@ build:
 properties *args:
     zig build test-properties -- {{args}}
 
+# Seeded multi-process delivery, live/cold correspondence and bounded progress.
+simulation *args:
+    zig build test-simulation -- {{args}}
+
+# Committed HEAD only: qualify delivery oracles against compiling core mutants.
+simulation-mutations:
+    python3 -B tests/verification/mutations.py --simulation
+
 # Run finite codec regressions; optional Zig fuzz iteration budget.
 codecs *args:
     zig build test-codecs {{args}}

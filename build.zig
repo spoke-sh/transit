@@ -279,6 +279,19 @@ pub fn build(b: *std.Build) void {
     properties.has_side_effects = true;
     properties.stdio = .inherit;
     b.step("test-properties", "Run reproducible authority schedules and saved regressions").dependOn(&properties.step);
+    const simulation_driver = b.addExecutable(.{ .name = "transit-delivery-simulation", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/delivery_simulation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
+    }) });
+    const simulation = b.addSystemCommand(&.{ "python3", "-B" });
+    simulation.addFileArg(b.path("tests/verification/simulation.py"));
+    simulation.addArtifactArg(simulation_driver);
+    simulation.addPassthruArgs();
+    simulation.has_side_effects = true;
+    simulation.stdio = .inherit;
+    b.step("test-simulation", "Simulate competing workers, ordered delivery and bounded recovery progress").dependOn(&simulation.step);
     const formal = b.addSystemCommand(&.{ "python3", "-B" });
     formal.addFileArg(b.path("tests/verification/model.py"));
     formal.addArtifactArg(transition_driver);

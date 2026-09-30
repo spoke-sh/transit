@@ -1,5 +1,35 @@
 # Validation and milestone evidence
 
+## Authority and delivery simulation
+
+The multi-process simulator executes real signed authority/outbox transitions for
+two producer PIDs and one destination, with eight delayed-decision slots and an
+atomic in-memory journal. Its independent oracle checks every operation outcome,
+ownership/sequence/lifecycle projection, output and destination-input provenance.
+Cold recovery must match the live engine without writing pages; the live engine
+and cache persist until an explicit restart. The
+[harness guide](verification/README.md#authority-and-delivery-simulation) owns
+commands, fault assumptions, bounded progress and artifact formats.
+
+The initial development run of `just test::simulation` passed six saved cases and
+eight generated 48-step schedules: 14 traces, 749 events, each replayed identically,
+in 18.287 seconds on the shared Linux development host. The healthy suffixes add
+events beyond the requested random steps. These are test execution timings, not
+throughput or deployed latency measurements. The run used the pinned Zig
+`0.17.0-dev.2267+48abf1a34`; evidence records the binary hash and dirty source status.
+
+Initial driver bring-up exposed an optional-slot assignment that became populated
+before failed preparation completed. The minimized two-event schedule is retained
+in `failed-preparation.json`; preparation now finishes before assigning the slot.
+This was a harness defect, not a discovered Transit protocol defect.
+
+The profile does not execute application handlers, resource mutations, an
+automatic worker/courier scheduler, clocks, HTTP or real disk. Its progress check
+restores permissions and explicitly schedules finite eligible work with available
+storage. It does not prove scheduler fairness or general liveness. The complete
+external real-binary program remains tracked by
+[issue #26](https://github.com/rupurt/rey/issues/26).
+
 ## Native v1 cutover checkpoint — 2026-09-30
 
 This checkpoint replaces the bounded native authority with the paged v1

@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "profile": "delivery",
+  "actions": [
+    {
+      "kind": "prepare_delivery",
+      "slot": 4
+    },
+    {
+      "kind": "commit",
+      "slot": 4
+    },
+    {
+      "kind": "send"
+    },
+    {
+      "kind": "prepare_turn",
+      "slot": 4
+    },
+    {
+      "kind": "prepare_delivery",
+      "slot": 4
+    },
+    {
+      "kind": "retry",
+      "slot": 4
+    },
+    {
+      "kind": "progress"
+    },
+    {
+      "kind": "policy",
+      "principal": 1
+    },
+    {
+      "kind": "policy",
+      "principal": 2
+    },
+    {
+      "kind": "policy",
+      "principal": 3
+    },
+    {
+      "kind": "prepare_turn",
+      "source": 0
+    },
+    {
+      "kind": "commit"
+    },
+    {
+      "kind": "prepare_delivery",
+      "output": 1
+    },
+    {
+      "kind": "commit"
+    },
+    {
+      "kind": "assert_drained"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "assert_drained"
+    }
+  ]
+}
