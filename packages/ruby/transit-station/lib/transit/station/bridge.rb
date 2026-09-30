@@ -65,6 +65,9 @@ module Transit
       def unified_query(action)
         port.request({ 'unified_query' => action }, phase: :unified_query, mutation: action.key?('submit'), response: 'UnifiedQueryResult')
       end
+      def table_mutation(action)
+        port.request({ 'table_mutation' => action }, phase: :table_mutation, mutation: action.key?('submit'), response: 'TableMutationResult')
+      end
       def document_read(action)
         raise UnsupportedCapability, 'Native Document reads unavailable' unless caps['document_reads']
         port.request({ 'growing_document_read' => action }, phase: :document_read, response: 'DocumentReadResult')

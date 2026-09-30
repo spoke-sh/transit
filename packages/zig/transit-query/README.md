@@ -47,8 +47,7 @@ saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V
 keeps full-width namespaces out of JSON numbers. The
 [native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
 exposes these actions through an explicit profile.
-[Python](../../python/transit-station/docs/mutations.md) and
-[TypeScript](../../ts/transit-station-sdk/docs/mutations.md) provide typed callers;
+[Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;
 CLI and other language mutation APIs remain unsupported.
 
 `zig build test` checks the package independently. The real host and shell proof

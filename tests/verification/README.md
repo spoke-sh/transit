@@ -510,6 +510,12 @@ It also checks generated response validation, byte ownership and preservation of
 uncertainty on unconfirmed submit responses. `bindings::mutation-node` selects
 these checks independently.
 
+`bindings::ruby-sdk-test` adds immutable mutation values through the existing
+owned Ruby worker and native port. Its installed schedule uses namespace
+`9223372036854775825`, rejects an altered request commitment, replaces the caller
+after receipt loss, recovers the original command and enforces current status
+denial. `bindings::mutation-ruby` selects that schedule independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

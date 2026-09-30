@@ -310,11 +310,17 @@ def run(node, proof, host, port_host, library, *, sdks=()):
             caller_timings = []
             for namespace,(label,factory) in enumerate(factories,7):
                 if label == 'node': namespace = (1 << 64)-1
+                if label == 'ruby': namespace = (1 << 63)+17
                 caller_started = time.monotonic()
                 owner = factory(); clients.append(owner)
                 assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3
                 assert owner.call({'describe':{}})['description']['resource'] == description['resource']
                 operation = owner.call({'compile':dict(name='items',sql=f"UPDATE items SET value='{label}' WHERE id=2",namespace=str(namespace))})['compiled']
+                altered = dict(operation)
+                altered['reference'] = operation['reference'][:-1]+('1' if operation['reference'][-1] != '1' else '2')
+                try: owner.call({'next':altered})
+                except Failure as error: assert error.status == 5, error
+                else: raise AssertionError('Mutation caller silently replaced a changed request commitment')
                 token = owner.call({'next':operation})['prepared']
                 saved = root/f'{label}-prepared.txt'
                 saved.write_text(token)

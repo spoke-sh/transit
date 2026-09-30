@@ -106,6 +106,7 @@ ruby-sdk-test: ruby-build
     ruby -c packages/ruby/transit-station/lib/transit/station/turn.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/table.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/query.rb
+    ruby -c packages/ruby/transit-station/lib/transit/station/mutations.rb
     ruby -c packages/ruby/transit-station/lib/transit/station/runner.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples.rb
     ruby -c examples/station-sdk/ruby/lib/transit/sdk_examples/codecs.rb
@@ -116,6 +117,7 @@ ruby-sdk-test: ruby-build
     zig build transit-station-grpc-worker
     python3 -B tests/ruby_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/ruby zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language ruby
+    just test::table-mutation --sdk ruby
 
 # Build independent C/C++ prefixes with standard pkg-config metadata.
 c-build: build
@@ -241,6 +243,11 @@ mutation-node: node-build
     vp exec --filter @transit/station tsc --noEmit
     vp exec --filter @transit/station node --test src/mutations.test.ts
     just test::table-mutation --sdk node
+
+# Installed Ruby immutable mutation callers, joined ownership and exact retry.
+mutation-ruby: ruby-build
+    ruby -c packages/ruby/transit-station/lib/transit/station/mutations.rb
+    just test::table-mutation --sdk ruby
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

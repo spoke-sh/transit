@@ -33,13 +33,22 @@ use separate generated, runtime-validated [query](../../packages/ts/transit-quer
 [application](../../packages/ts/transit-application/README.md) packages; the Node
 native client is not a browser credential adapter.
 
-[Python](../../packages/python/transit-station/docs/mutations.md) and
-[TypeScript Table mutation clients](../../packages/ts/transit-station-sdk/docs/mutations.md)
-provide SQL compilation, explicit staging, exact saved retries and durable status
-through the shared Zig owner. Python offers synchronous and asynchronous methods;
-TypeScript uses promises. They require an
+## Table mutation callers
+
+Typed mutation clients provide SQL compilation, explicit staging, exact saved
+retries and durable status through the shared Zig owner. They require an
 explicit writer/resource/Table connection and a separate mutation policy.
 Read-query clients do not confer mutation access.
+
+| Language | Caller API |
+| --- | --- |
+| Python | [Synchronous and asynchronous clients](../../packages/python/transit-station/docs/mutations.md) |
+| TypeScript | [Promise methods and owned native port](../../packages/ts/transit-station-sdk/docs/mutations.md) |
+| Ruby | [Blocking client with owned worker and immutable values](../../packages/ruby/transit-station/docs/MUTATIONS.md) |
+
+Other language SDKs do not yet expose typed Table mutation clients. The
+[native ABI/port](../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+exposes the same neutral operation independently of those public adapters.
 
 ## Rules that travel across languages
 

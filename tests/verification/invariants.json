@@ -1435,7 +1435,9 @@
         "apps/transit-station-host/main.zig",
         "packages/python/transit-station/transit_station/mutations.py",
         "packages/ts/transit-station-sdk/src/mutations.ts",
-        "packages/ts/transit-station-sdk/src/bridge.ts"
+        "packages/ts/transit-station-sdk/src/bridge.ts",
+        "packages/ruby/transit-station/lib/transit/station/mutations.rb",
+        "packages/ruby/transit-station/lib/transit/station/bridge.rb"
       ],
       "profile": "transit-v1/state-v1/station-v1/table-mutation-v1",
       "tasks": [
@@ -1443,7 +1445,8 @@
         "test::sql",
         "test::table-mutation",
         "bindings::python-test",
-        "bindings::node-sdk-test"
+        "bindings::node-sdk-test",
+        "bindings::ruby-sdk-test"
       ],
       "scenarios": [
         "Independent typed request/policy/status/command bytes and complete-input SQL rejection",
@@ -1456,11 +1459,12 @@
         "Owned neutral request/reference and opaque signed actions through the real writer, with current status denial",
         "Real ABI/port caller replacement after lost admission receipt, exact saved retry and current disclosure revocation",
         "Installed Python sync/async UPDATE, owned saved command across caller replacement, exact receipt recovery and current status denial",
-        "Installed TypeScript UPDATE with maximum uint64 namespace, owned request/reference bytes, current disclosure denial and exact retry; malformed port responses preserve uncertainty"
+        "Installed TypeScript UPDATE with maximum uint64 namespace, owned request/reference bytes, current disclosure denial and exact retry; malformed port responses preserve uncertainty",
+        "Installed Ruby immutable request ownership, full-width namespace, altered commitment rejection and exact receipt recovery after caller replacement"
       ],
-      "limits": "Explicit supplied writer host and shared Zig/native ABI/port/Python/TypeScript callers; CLI and other language SDK mutation routes remain. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
+      "limits": "Explicit supplied writer host and shared Zig/native ABI/port/Python/TypeScript/Ruby callers; CLI and other language SDK mutation routes remain. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
       "model": null,
-      "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed Python/TypeScript schedules; CLI and other SDK integration remains a separate boundary."
+      "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed Python/TypeScript/Ruby schedules; CLI and other SDK integration remains a separate boundary."
     }
   ]
 }

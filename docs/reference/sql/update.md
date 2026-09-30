@@ -2,8 +2,7 @@
 
 Literal value updates by primary-key equality are available through the explicit
 mutation writer, shared Zig/native ABI/port callers and
-[Python](../../../packages/python/transit-station/docs/mutations.md) and
-[TypeScript mutation clients](../../../packages/ts/transit-station-sdk/docs/mutations.md). The
+[typed SDK mutation clients](../sdks.md#table-mutation-callers). The
 [caller guide](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
 defines signed preparation, exact recovery and durable result observation.
 Applications can also compose `station.TableMutation.applySql` in a private

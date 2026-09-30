@@ -5408,3 +5408,32 @@ segments; ordinary installed HTTP (**76.74 s**) and RPC (**77.52 s**) with stage
 recovery, binary TLS, current denial and authenticated disposal/followup. Its
 final mutation rerun takes **22.589 s** with 1685 reads and unchanged send/turn/
 fault counts and native digests. No skipped case is counted as passed.
+
+### Installed Ruby Table mutation caller
+
+`just bindings::mutation-ruby` rebuilds and installs the public/native gems in
+an external consumer, checks Ruby syntax, and passes the shared native schedule.
+Typed value constructors copy and freeze request/reference bytes; the consumer
+mutates the original strings and verifies that the saved request is unchanged.
+The UPDATE uses namespace **9223372036854775825**, survives a lost admission
+receipt and caller replacement, recovers the exact original send, observes the
+durable one-row result, and stops disclosure after current read revocation.
+The native ABI, port and Ruby callers also reject a changed complete request
+commitment before preparing a valid stage. No adapter reconstructs that identity.
+
+The final focused run takes **19.970 s**, including **1.810 s** installation and
+**2.325 s** for the Ruby caller interval. It records **1592 reads**, **46 send
+responses**, **46 turn responses**, four lost caller receipts and one lost writer
+receipt. Four mutations, 256-byte stored values, eight resident authority pages
+and all five native artifact digests match the ABI/port record. The initial
+installed trial before the altered-commitment case took 20.861 s with 1617 reads.
+These are unpaired shared-host measurements with poll-dependent counts; no
+comparative throughput improvement is claimed. The installed extension exercises
+UPDATE recovery; shared native cases cover INSERT/UPDATE/DELETE and rollback.
+
+Block-based acquisition reuses the existing all-interrupt mask so its ensure
+clause owns worker/child cleanup before caller interruption can arrive. The port
+uses the existing generated definition and action/result validation. The ordinary
+Ruby SDK task now includes the mutation schedule; this focused evidence does not
+claim that the entire Ruby runner/connector regression was rerun for this additive
+adapter. CLI and seven other typed language mutation clients remain outstanding.
