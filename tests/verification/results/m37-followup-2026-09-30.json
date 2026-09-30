@@ -6267,6 +6267,205 @@
       "historical_ignored_artifacts": "Earlier ignored logs, build outputs and private crash files were removed with the worktree. Their committed result summaries, embedded simulation reports, trace hashes and source hashes survive in the follow-up ledger. Active clean bindings log recovered through an open descriptor."
     },
     "qualification_complete": false,
-    "next_attempt": "Clean growth followed by experience, launchers and core at unchanged ee4770c9, affinity 6-11. No deadline or source change. Results pending."
+    "next_attempt": "Experience, launchers and core continue sequentially at ee4770c9. Their results are not included in this draft checkpoint.",
+    "growth_repeat": {
+      "completed": true,
+      "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+      "metadata": {
+        "version": 1,
+        "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+        "tier": "growth",
+        "completed": true,
+        "expected_tasks": [
+          "test::arrow",
+          "test::pages",
+          "test::growing",
+          "test::growing-service",
+          "test::public-query",
+          "test::publication",
+          "test::http-transport",
+          "test::tls-alpn",
+          "test::grpc-libraries",
+          "test::grpc-codegen",
+          "test::grpc-transport",
+          "test::grpc-server",
+          "test::flight-metadata",
+          "test::grpc-worker",
+          "test::grpc-faults",
+          "test::http-worker",
+          "examples::http",
+          "examples::grpc"
+        ],
+        "seconds": 3541.0,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "tasks": [
+        {
+          "lane": "growth",
+          "task": "test::arrow",
+          "seconds": 10.51,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::pages",
+          "seconds": 7.76,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing",
+          "seconds": 71.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::growing-service",
+          "seconds": 346.56,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::public-query",
+          "seconds": 120.2,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::publication",
+          "seconds": 272.28,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-transport",
+          "seconds": 21.09,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::tls-alpn",
+          "seconds": 2.91,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-libraries",
+          "seconds": 11.46,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-codegen",
+          "seconds": 8.88,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-transport",
+          "seconds": 16.47,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-server",
+          "seconds": 14.06,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::flight-metadata",
+          "seconds": 54.94,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-worker",
+          "seconds": 717.77,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::grpc-faults",
+          "seconds": 476.57,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "test::http-worker",
+          "seconds": 1202.63,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::http",
+          "seconds": 86.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "growth",
+          "task": "examples::grpc",
+          "seconds": 98.93,
+          "exit_code": 0
+        }
+      ],
+      "log_sha256": "788232cd56d07380bccf7ec0f965a79862b3ddbae9fb5abdde1df2b70b97ded7",
+      "outer_seconds": 3548.751,
+      "affinity": [
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
+      "source_workload_and_deadlines_unchanged": true,
+      "selected_observations": {
+        "station_write_seconds": 71.311,
+        "query_deliver_seconds": 150.013,
+        "grpc_closure_seconds": 0.316,
+        "worker_and_remote_rpc_active_during_closure": true,
+        "grpc_worker_sends": 9,
+        "grpc_worker_applications": 8,
+        "http_sends": 16,
+        "http_applications": 8,
+        "http_cancellation_requests": 2
+      }
+    },
+    "completed_clean_tasks_at_same_revision": 34,
+    "remaining_ordinary_lanes": [
+      "experience",
+      "launchers",
+      "core"
+    ]
+  },
+  "draft_checkpoint": {
+    "qualification_complete": false,
+    "implementation_revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+    "main_checked": "dca324f3",
+    "main_integration_pending": true,
+    "conflicting_paths": [
+      "tests/README.md",
+      "tests/cold_storage.py",
+      "tests/state_api.py",
+      "tests/verification/invariants.json",
+      "tests/verification/suite.json"
+    ],
+    "issue_26_remains_open": true
   }
 }

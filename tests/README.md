@@ -152,7 +152,14 @@ receipts continued until the query timeout; no correctness assertion failed, but
 the cause remains unattributed. Other test workloads were active on the shared
 host. This attempt does not establish the complete ordinary gate. A new clean
 attempt uses the same source, workload and limits with CPU affinity 6–11 instead
-of 16–31; its qualification is pending.
+of 16–31. That clean growth repeat passed all 18 tasks in 3,548.751 s including
+setup. Station writes took 71.311 s and query delivery took 150.013 s. The full
+gRPC fault proof passed with closure in 0.316 s while its worker and remote RPC
+remained active. The HTTP proof passed sixteen sends, eight applications and two
+cancellation requests. Both real connector examples passed. These two complete
+lanes account for 34 tasks at the same implementation revision; experience,
+launchers and core remain outside this draft checkpoint. The earlier growth
+timeout remains an incomplete attempt with an unattributed cause.
 
 During the bindings run, an external process removed the qualification worktree
 and branch. The independent clean checkout and running tests survived. The
