@@ -7312,6 +7312,19 @@ injections, timeouts and resident limits remain unchanged; Debug remains
 available through the direct Zig commands. A new committed-head clean run is
 required to qualify the recipe change.
 
+The clean growth retry at `7f2ef35f` passes its first **seven tasks**, including
+the ReleaseSafe growing service (**300.67 s**) and the expanded mutation task
+(**333.20 s**, including compilation). The mutation schedule itself completes
+**21 profiles in 210.849 s**, with **6231 reads**, **153 turn responses**,
+**23 lost receipts** and successful cleanup. It covers native ABI, port and CLI;
+the separate 98-profile installed proof above covers all ten SDKs.
+The lane then fails in `test::table-query-writer` after **115.47 s** when the
+console reports `AuthorityTimeout`. The **1340.14 s** lane is failed, with its
+last **13 tasks unrun**. Evidence remains at `/var/tmp/transit-ci-w350glyv/src`
+and `/tmp/transit-sql-mutation-coverage-clean-growth-release-safe.log`;
+the completed mutation record is copied to
+`/tmp/transit-sql-mutation-coverage-clean-native.json`.
+
 ### Full-reference mutation command cutover
 
 Mutation parts, seal, apply and cancel now carry the complete 68-byte immutable
@@ -8169,6 +8182,32 @@ authorized mutations still succeed. Mutation-policy revocation rejects new
 mutations while new queries succeed. Native read revocation finally prevents
 disclosure. Independent PyArrow decoding verifies the complete typed cell
 envelopes and values.
+
+The clean attempt at `7f2ef35f` exposed a synchronization problem in that fixture:
+it held an interactive snapshot read while performing the entire CLI mutation
+upload, seal and apply. The console keeps its ordinary five-second request
+timeout; the extra setup exceeded it. The fixture now stages and seals before
+opening the console snapshot, freezes the final apply command, and holds the
+snapshot read only until that apply input is processed. It checks the applied
+outcome, affected row and original input separately, then compares both retained
+cuts and both later queries. `snapshot_pause_seconds` records the harness's final
+apply interval. Workload rows, numeric namespace collision, request deadlines,
+resident bounds and recovery/policy assertions remain unchanged. The focused
+rerun reaches all retained/latest query assertions, then fails in later policy
+progress polling on `StaleStateResource`: that poll opened a Table-policy view
+while the turn being observed could change its resource revision. The progress
+probe now reads only the current process input. Separate phase, policy and row
+assertions still check their owning state; no rejection is swallowed or retried.
+The first focused log is `/tmp/transit-sql-combined-snapshot-final-apply.log`.
+
+With both fixture corrections, `just test::table-query-writer` passes in
+**106.683 s**, with **5001 reads**, **70 turn responses**, both recovered
+initialization receipts and a **1.085 s** final-apply pause. Four mutations,
+256-byte values, eight authority pages, and the five-second console deadline
+remain unchanged. The log is `/tmp/transit-sql-combined-snapshot-progress.log`.
+This run covers native/CLI callers; it does not expand installed SDK coverage.
+A new committed-head clean growth run is still required; neither earlier failed
+run is reclassified as a pass.
 
 The schedule takes **54.355 s**, including provisioning/recovery, with **5303
 reads**, **70 accepted turn responses**, two recovered initialization receipts,

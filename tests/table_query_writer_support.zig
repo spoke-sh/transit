@@ -56,6 +56,12 @@ pub fn provision(init: std.process.Init, url: []const u8, wire: *s.client.Client
     return print(init, connection);
 }
 pub fn execute(init: std.process.Init, wire: *s.client.Client, admin: *Admin, directory: []const u8, command: []const u8, connection: q.UnifiedClient.Connection) !void {
+    if (std.mem.eql(u8, command, "combined-progress")) {
+        // Progress polling needs the current input only. Reading Table policies
+        // here opens a resource view that the very turn being polled may change.
+        const process = (try admin.query(.{ .process = connection.source })).body.process;
+        return print(init, .{ .pending = if (process.input) |value| value.position else @as(?u64, null) });
+    }
     if (std.mem.eql(u8, command, "combined-deliver")) {
         for (0..32) |_| {
             var after: ?u64 = null;
