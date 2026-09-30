@@ -1952,6 +1952,34 @@ reduces demonstrated repeated work; it does not by itself diagnose that provider
 stall or qualify the full native recovery schedule. Full checks, resource-fault
 simulation and native/committed-head clean evidence are recorded separately.
 
+At committed `68794bd7`, full `just check` passes, including generated contracts,
+CLI, frontend and documentation checks. The eight-seed resource simulation
+passes **798 traces / 15,496 events / 1,598 executions**, with identical replay
+in **450.845 s**. Its report records dirty source based on `d5541301`; the
+production source was committed unchanged as `68794bd7`. Committed-head
+`just ci-clean --lane core --work-root /var/tmp` passes all **22 tasks** in
+**1254.78 s**, without inherited workspace build outputs. Evidence is retained
+under `.cache/ci/clean/68794bd70102-transit-ci-w03ie6wa` and in
+`/tmp/transit-sql-catalog-mutation-batch-resource-simulation.json`.
+
+The native cold-recovery schedule at that same committed revision **fails after
+149 applied additions / 944.550 s** on an application-status `AuthorityTimeout`.
+Original input **538** recovers as receipt **540** without resubmission. Joined
+cleanup succeeds. Eight authority pages, four mutations, the 8 MiB hot store
+and 8 MiB cold cache remain the bounds. The full 257-addition continuation,
+later metadata/restart and disclosure checks are unqualified for this candidate.
+The record is `/tmp/transit-sql-catalog-mutation-batch-cold-recovery.json`; the
+private failure fixture remains under
+`.cache/verification/catalog/recovery-failures/1790809229338501922`.
+
+Its final node events distinguish a turn reaching the ten-second deadline
+(52 cache hits / 912 misses) from the following read spending **9.950 s**
+waiting and **0.050 s** working before its own deadline. A later turn is logged
+successful at position **573**, but the interrupted proof did not observe its
+application status. Neither that log nor component page-load savings qualifies
+the missing end-to-end assertions or establishes the storage stall's cause.
+The complete native run remains failed; no deadline has been increased.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
