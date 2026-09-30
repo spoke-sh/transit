@@ -33,6 +33,16 @@ public final class JavaCatalogSdk {
     private static JsonObject json(CreateTable v) {
         JsonArray names=new JsonArray();v.schema().names().forEach(names::add);return json("scope",json(v.scope()),"operation",v.operation().toString(),"object",v.object().toString(),"table",v.table(),"name",v.name(),"schema",json("names",names,"value_type",tag(v.schema().valueType())));
     }
+    private static Cursor cursor(JsonObject v) { return new Cursor(text(v,"definition"),scope(v.getAsJsonObject("scope")),v.get("resource_revision").getAsLong(),text(v,"after")); }
+    private static JsonObject json(Cursor v) { return json("definition",v.definition(),"scope",json(v.scope()),"resource_revision",v.resourceRevision(),"after",v.after()); }
+    private static JsonObject json(Definition v) {
+        JsonArray names=new JsonArray();v.source().schema().names().forEach(names::add);
+        return json("scope",json(v.scope()),"object",v.object().toString(),"revision",v.revision().toString(),"name",v.name(),"source",json("table",json("id",v.source().table(),"schema",json("names",names,"value_type",tag(v.source().schema().valueType())))),"principal",v.principal(),"operation",v.operation().toString(),"input",v.input());
+    }
+    private static JsonObject json(Page v) {
+        JsonArray entries=new JsonArray();v.entries().forEach(item -> entries.add(json(item)));while(entries.size()<8)entries.add(JsonNull.INSTANCE);
+        return json("resource_revision",v.resourceRevision(),"entries",entries,"next",v.next().map(JavaCatalogSdk::json).orElse(null));
+    }
     private static Prepared prepared(String text) { return new Prepared(new Bytes(text.getBytes(StandardCharsets.UTF_8))); }
     private static String saved(Prepared v) { return new String(v.bytes().copy(),StandardCharsets.UTF_8); }
     private static JsonObject call(Catalog.Client client,JsonObject action) {
@@ -40,6 +50,9 @@ public final class JavaCatalogSdk {
         return switch(name) {
             case "capabilities" -> {var v=await(client.capabilities());yield json("capabilities",json("version",v.version(),"definition",v.definition(),"initialize",v.initialize(),"create_table",v.createTable(),"conditional_policy",v.conditionalPolicy(),"current_metadata",v.currentMetadata(),"max_saved_bytes",v.maxSavedBytes(),"table_columns",v.tableColumns()));}
             case "describe" -> {var v=await(client.describe());yield json("description",json("configuration",json(v.configuration()),"policy",json(v.policy()),"resource_revision",v.resourceRevision()));}
+            case "lookup" -> json("definition",await(client.lookup(value.getAsString())).map(JavaCatalogSdk::json).orElse(null));
+            case "definition" -> {var v=value.getAsJsonObject();yield json("definition",await(client.definition(wide(v,"object"),wide(v,"revision"))).map(JavaCatalogSdk::json).orElse(null));}
+            case "list" -> json("page",json(await(client.list(value.isJsonNull()?Optional.empty():Optional.of(cursor(value.getAsJsonObject()))))));
             case "compile" -> {var v=value.getAsJsonObject();var r=await(client.compileSql(text(v,"sql"),wide(v,"operation"),wide(v,"object"),v.get("table").getAsLong()));yield json("compiled",json("request",json(r.request()),"canonical",HexFormat.of().formatHex(r.canonical().copy())));}
             case "prepare_initialize" -> json("prepared",saved(await(client.prepareInitialize(configuration(value.getAsJsonObject())))));
             case "prepare_create" -> json("prepared",saved(await(client.prepareCreate(request(value.getAsJsonObject())))));

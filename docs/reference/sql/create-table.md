@@ -81,7 +81,7 @@ Zig, native ABI/port and explicit CLI callers support name lookup, exact definit
 most eight catalog definitions. Continuation binds the resource revision and
 rechecks current rights; a changed revision requires a fresh listing. These
 metadata methods also have Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous
-and C/C++ owned-value mappings; other language mappings remain separate.
+C/C++ owned-value and Java future mappings; other language mappings remain separate.
 The supplied catalog host requires explicit native provisioning, initialization
 and grants. It does not enable the query console or infer query/mutation policy.
 

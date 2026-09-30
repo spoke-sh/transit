@@ -34,7 +34,65 @@ public final class JavaCatalogValues {
         check(ProcessHandle.of(pid).map(p -> !p.isAlive()).orElse(true));
         check(Thread.getAllStackTraces().keySet().stream().noneMatch(t -> t.isAlive() && (t.getName().equals("transit-owned-port") || t.getName().equals("transit-completions"))));
     }
+    private static JsonObject metadataDefinition() {
+        return new Gson().fromJson("""
+            {"scope":{"realm":46,"resource":7,"catalog":"18446744073709551615"},
+             "object":"18446744073709551615","revision":"18446744073709551615","name":"items",
+             "source":{"table":{"id":4294967295,"schema":{"names":["id","value"],"value_type":"utf8"}}},
+             "principal":17,"operation":"18446744073709551615","input":9}
+            """,JsonObject.class);
+    }
+    private static JsonObject metadataPage() {
+        JsonObject page=new JsonObject();page.addProperty("resource_revision",9);JsonArray entries=new JsonArray();entries.add(metadataDefinition());
+        while(entries.size()<8)entries.add(JsonNull.INSTANCE);page.add("entries",entries);
+        page.add("next",new Cursor(io.transit.client.internal.Values.CONTRACT.get("definition").getAsString(),SCOPE,9,"items").wire());return page;
+    }
+    private static void metadataValues() {
+        JsonObject wire=metadataDefinition();Definition definition=Catalog.resolved(wire,SCOPE,"items",null,null).orElseThrow();
+        check(definition.object().equals(MAX) && definition.revision().equals(MAX) && definition.operation().equals(MAX) && definition.source().table()==0xffffffffL);
+        wire.addProperty("name","changed");wire.getAsJsonObject("source").getAsJsonObject("table").getAsJsonObject("schema").getAsJsonArray("names").set(0,new JsonPrimitive("changed"));
+        check(definition.name().equals("items") && definition.source().schema().names().get(0).equals("id"));
+        check(Catalog.resolved(JsonNull.INSTANCE,SCOPE,null,MAX,MAX).isEmpty());
+        check(Catalog.resolved(metadataDefinition(),SCOPE,null,MAX,MAX).orElseThrow().equals(definition));
+        for(Runnable decode:List.<Runnable>of(
+            () -> Catalog.resolved(metadataDefinition(),SCOPE,"wrong",null,null),
+            () -> Catalog.resolved(metadataDefinition(),SCOPE,null,BigInteger.ONE,MAX),
+            () -> Catalog.resolved(metadataDefinition(),SCOPE,null,MAX,BigInteger.ONE),
+            () -> Catalog.resolved(metadataDefinition(),new Scope(SCOPE.resource(),BigInteger.ONE),null,null,null))) {
+            check(rejects(TransitException.class,decode).kind()==TransitException.Kind.INCOMPATIBLE_NATIVE);
+        }
+        JsonObject original=metadataPage();Page page=Catalog.page(original,SCOPE,Optional.empty());original.getAsJsonArray("entries").set(0,JsonNull.INSTANCE);
+        check(page.entries().size()==1 && page.entries().get(0).equals(definition));
+        rejects(UnsupportedOperationException.class,() -> page.entries().clear());
+        List<Definition> input=new ArrayList<>(page.entries());Page copy=new Page(9,input,page.next());input.clear();check(copy.equals(page));
+        for(int index=0;index<12;index++) {
+            JsonObject malformed=metadataPage();JsonArray entries=malformed.getAsJsonArray("entries");JsonObject next=malformed.getAsJsonObject("next");
+            switch(index) {
+                case 0 -> entries.remove(7);
+                case 1 -> {entries.set(1,entries.get(0));entries.set(0,JsonNull.INSTANCE);}
+                case 2 -> entries.set(1,entries.get(0));
+                case 3 -> entries.get(0).getAsJsonObject().getAsJsonObject("scope").addProperty("catalog","1");
+                case 4 -> next.remove("definition");
+                case 5 -> next.addProperty("definition","0".repeat(64));
+                case 6 -> next.addProperty("after","wrong");
+                case 7 -> next.addProperty("resource_revision",10);
+                case 8 -> entries.get(0).getAsJsonObject().addProperty("object",MAX);
+                case 9 -> entries.get(0).getAsJsonObject().addProperty("name","bad-name");
+                case 10 -> malformed.addProperty("extra",true);
+                case 11 -> entries.get(0).getAsJsonObject().getAsJsonObject("source").getAsJsonObject("table").getAsJsonObject("schema").getAsJsonArray("names").set(1,new JsonPrimitive("id"));
+                default -> throw new AssertionError();
+            }
+            check(rejects(TransitException.class,() -> Catalog.page(malformed,SCOPE,Optional.empty())).kind()==TransitException.Kind.INCOMPATIBLE_NATIVE);
+        }
+        check(rejects(TransitException.class,() -> Catalog.page(metadataPage(),SCOPE,page.next())).kind()==TransitException.Kind.INCOMPATIBLE_NATIVE);
+        Cursor previous=new Cursor(page.next().orElseThrow().definition(),SCOPE,8,"a");
+        check(rejects(TransitException.class,() -> Catalog.page(metadataPage(),SCOPE,Optional.of(previous))).kind()==TransitException.Kind.INCOMPATIBLE_NATIVE);
+        JsonObject empty=metadataPage();empty.getAsJsonArray("entries").set(0,JsonNull.INSTANCE);empty.add("next",JsonNull.INSTANCE);
+        check(Catalog.page(empty,SCOPE,page.next()).entries().isEmpty());
+        rejects(IllegalArgumentException.class,() -> new Cursor("0".repeat(64),SCOPE,9,"items"));
+    }
     public static void main(String[] args) throws Exception {
+        metadataValues();
         Path root=Path.of(args[0]);Files.writeString(root.resolve("seed"),"11".repeat(32));
         rejects(IllegalArgumentException.class,() -> new Scope(SCOPE.resource(),MAX.add(BigInteger.ONE)));
         rejects(IllegalArgumentException.class,() -> new Scope(SCOPE.resource(),BigInteger.ZERO));
@@ -79,6 +137,6 @@ public final class JavaCatalogValues {
             Files.writeString(root.resolve("release"),"1");closing.get(5,TimeUnit.SECONDS);check(pending.isCancelled());check(prepared.bytes().copy()[0]==1);
         } finally {Files.writeString(root.resolve("release"),"1");client.close();if(closing!=null)closing.get(5,TimeUnit.SECONDS);}
         joined(root);check(rejects(TransitException.class,() -> await(client.capabilities())).kind()==TransitException.Kind.CLOSED);
-        System.out.println("Java catalog immutable values, uncertain receipts and joined cancellation passed.");
+        System.out.println("Java catalog metadata, immutable values, uncertain receipts and joined cancellation passed.");
     }
 }

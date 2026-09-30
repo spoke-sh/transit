@@ -1426,6 +1426,36 @@ Source is development based on `a65c4285`; package hashes/report are
 not a paired latency comparison. Java/.NET/Erlang/Elixir metadata remains outside
 this evidence.
 
+### Java catalog metadata
+
+Java adds immutable definitions, Table sources, copied dense page lists and
+mandatory original cursors through the existing bounded-future worker. Installed
+value checks cover full-width identities, retained immutable values, twelve
+malformed-page cases, response identity, repeated/changed continuation cuts,
+empty final pages and absence. Existing owned-port malformed/lost responses,
+result-allocation failure and cancelled-future cleanup remain in the schedule.
+
+The first installed attempt fails at fixture compilation: referencing Gson's
+`JsonParser` exposes unavailable `InlineMe` annotation methods under `-Werror`.
+Using the existing `Gson.fromJson` entry point fixes the fixture without changing
+dependencies or suppressing warnings. That attempt is retained at
+`/tmp/transit-sql-catalog-java-metadata-native.log`.
+
+Rebuilt installed JARs pass `just test::catalog --sdk java --grow 17` in
+**64.660 s**, including **2.735 s** installation. Java agrees with Zig/ABI/port/CLI
+on **23 definitions over three pages**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. The creation/control schedule retains six lost caller replies and three
+lost owner replies. Counts are 5126 reads, 2634 caller reads and 56 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. All seven
+successful Java listings cost four signed reads with negotiated batch support.
+
+Source is development based on `dc2e2e10`; native binary hashes are unchanged.
+Report/package hashes are `/tmp/transit-sql-catalog-java-metadata-native.json`;
+logs are `/tmp/transit-sql-catalog-java-metadata-build.log` and
+`/tmp/transit-sql-catalog-java-metadata-native-fixed.log`. This focused result does
+not qualify .NET/Erlang/Elixir metadata or establish a latency comparison.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

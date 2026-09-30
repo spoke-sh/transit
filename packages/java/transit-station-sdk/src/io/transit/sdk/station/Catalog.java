@@ -19,6 +19,9 @@ public final class Catalog {
     private static String name(String value) {
         text(value,16);if(value.isEmpty())throw new IllegalArgumentException("Empty catalog name");return value;
     }
+    private static String metadataName(String value) {
+        name(value);if(!value.matches("[A-Za-z_][A-Za-z_0-9]*"))throw new IllegalArgumentException("Expected ASCII catalog name");return value;
+    }
     private static long table(long value) {
         if(value<1 || value>0xffffffffL)throw new IllegalArgumentException("Invalid catalog Table identity");return value;
     }
@@ -89,6 +92,37 @@ public final class Catalog {
     }
     public record Capabilities(int version,String definition,boolean initialize,boolean createTable,boolean conditionalPolicy,boolean currentMetadata,int maxSavedBytes,int tableColumns) {}
     public record Description(Configuration configuration,Policy policy,long resourceRevision) {}
+    public record TableSource(long table,Schema schema) {
+        public TableSource {
+            Catalog.table(table);Objects.requireNonNull(schema);schema.names().forEach(Catalog::metadataName);
+            if(schema.names().get(0).equals(schema.names().get(1)))throw new IllegalArgumentException("Duplicate catalog columns");
+        }
+    }
+    public record Definition(Scope scope,BigInteger object,BigInteger revision,String name,TableSource source,long principal,BigInteger operation,long input) {
+        public Definition { Objects.requireNonNull(scope);positive(object);positive(revision);metadataName(name);Objects.requireNonNull(source);counter(principal,0);positive(operation);counter(input,1); }
+    }
+    /** Persist all original fields; never supply a default compatibility definition. */
+    public record Cursor(String definition,Scope scope,long resourceRevision,String after) {
+        public Cursor {
+            if(!string(CONTRACT.get("definition")).equals(definition))throw new IllegalArgumentException("Foreign catalog cursor definition");
+            Objects.requireNonNull(scope);counter(resourceRevision,1);metadataName(after);
+        }
+        JsonObject wire() { return obj("definition",definition,"scope",scope.wire(),"resource_revision",resourceRevision,"after",after); }
+    }
+    public record Page(long resourceRevision,List<Definition> entries,Optional<Cursor> next) {
+        public Page {
+            counter(resourceRevision,1);entries=List.copyOf(entries);Objects.requireNonNull(next);
+            if(entries.size()>8)throw new IllegalArgumentException("At most eight catalog definitions");
+            for(int i=1;i<entries.size();i++) {
+                Definition a=entries.get(i-1),b=entries.get(i);
+                if(!a.scope().equals(b.scope()) || a.name().compareTo(b.name())>=0)throw new IllegalArgumentException("Expected ordered definitions in one scope");
+            }
+            if(next.isPresent()) {
+                Cursor c=next.get();Definition last=entries.isEmpty()?null:entries.get(entries.size()-1);
+                if(last==null || !c.scope().equals(last.scope()) || !c.after().equals(last.name()) || c.resourceRevision()!=resourceRevision)throw new IllegalArgumentException("Cursor differs from catalog page");
+            }
+        }
+    }
     public record Receipt(CreateTable request,long principal,long input,Outcome outcome) {}
     public record Disposition(Scope scope,Origin origin,long principal,long input,Bytes payload,DispositionOutcome outcome) {}
 
@@ -105,6 +139,53 @@ public final class Catalog {
         JsonObject v=fields(value,"scope","operation","object","table","name","schema");JsonObject schema=fields(v.get("schema"),"names","value_type");
         JsonElement names=schema.get("names");if(!names.isJsonArray() || names.getAsJsonArray().size()!=2)throw incompatible("catalog-columns");
         return new CreateTable(scope(v.get("scope")),NativeValues.wide(v.get("operation"),true),NativeValues.wide(v.get("object"),true),table(number(v.get("table"),1)),name(string(v.get("name"))),new Schema(names.getAsJsonArray().asList().stream().map(item -> name(string(item))).toList(),variant(Type.class,schema.get("value_type"))));
+    }
+    private static <T> T metadata(Supplier<T> decode) {
+        try { return decode.get(); }
+        catch(TransitException error) { throw error; }
+        catch(IllegalArgumentException | IllegalStateException | NullPointerException error) { throw incompatible("catalog-metadata"); }
+    }
+    private static Optional<Definition> definition(JsonElement value) {
+        if(value.isJsonNull())return Optional.empty();
+        JsonObject v=fields(value,"scope","object","revision","name","source","principal","operation","input");
+        JsonObject table=fields(fields(v.get("source"),"table").get("table"),"id","schema");
+        JsonObject schema=fields(table.get("schema"),"names","value_type");JsonElement names=schema.get("names");
+        if(!names.isJsonArray() || names.getAsJsonArray().size()!=2)throw incompatible("catalog-columns");
+        TableSource source=new TableSource(number(table.get("id"),1),new Schema(names.getAsJsonArray().asList().stream().map(item -> metadataName(string(item))).toList(),variant(Type.class,schema.get("value_type"))));
+        return Optional.of(new Definition(scope(v.get("scope")),NativeValues.wide(v.get("object"),true),NativeValues.wide(v.get("revision"),true),string(v.get("name")),source,number(v.get("principal"),0),NativeValues.wide(v.get("operation"),true),number(v.get("input"),1)));
+    }
+    static Optional<Definition> resolved(JsonElement value,Scope scope,String name,BigInteger object,BigInteger revision) {
+        return metadata(() -> {
+            Optional<Definition> found=definition(value);
+            if(found.isPresent()) {
+                Definition v=found.get();
+                if(!v.scope().equals(scope) || (name!=null && !v.name().equals(name)) || (object!=null && !v.object().equals(object)) || (revision!=null && !v.revision().equals(revision)))throw incompatible("catalog-request-identity");
+            }
+            return found;
+        });
+    }
+    private static Optional<Cursor> cursor(JsonElement value) {
+        if(value.isJsonNull())return Optional.empty();
+        JsonObject v=fields(value,"definition","scope","resource_revision","after");
+        return Optional.of(new Cursor(string(v.get("definition")),scope(v.get("scope")),number(v.get("resource_revision"),1),string(v.get("after"))));
+    }
+    static Page page(JsonElement value,Scope scope,Optional<Cursor> previous) {
+        return metadata(() -> {
+            JsonObject v=fields(value,"resource_revision","entries","next");JsonElement slots=v.get("entries");
+            if(!slots.isJsonArray() || slots.getAsJsonArray().size()!=8)throw incompatible("catalog-page-slots");
+            List<Definition> entries=new ArrayList<>();boolean ended=false;
+            for(JsonElement slot:slots.getAsJsonArray()) {
+                Optional<Definition> entry=definition(slot);
+                if(entry.isEmpty())ended=true;
+                else { if(ended || !entry.get().scope().equals(scope))throw incompatible("catalog-page-scope");entries.add(entry.get()); }
+            }
+            Page page=new Page(number(v.get("resource_revision"),1),entries,cursor(v.get("next")));
+            if(previous.isPresent()) {
+                Cursor c=previous.get();
+                if(page.resourceRevision()!=c.resourceRevision() || (!entries.isEmpty() && entries.get(0).name().compareTo(c.after())<=0))throw incompatible("catalog-continuation");
+            }
+            return page;
+        });
     }
     private static Capabilities capabilities(JsonElement value) {
         JsonObject v=fields(value,"version","definition","initialize","create_table","conditional_policy","current_metadata","max_saved_bytes","table_columns");
@@ -149,6 +230,19 @@ public final class Catalog {
         public CompletableFuture<Capabilities> capabilities() { return worker.submit(b -> Catalog.capabilities(result(b.catalog(obj("capabilities",obj())),"capabilities"))); }
         public CompletableFuture<Description> describe() {
             return worker.submit(b -> {JsonObject v=fields(result(b.catalog(obj("describe",obj())),"description"),"configuration","policy","resource_revision");return new Description(configuration(v.get("configuration")),policy(v.get("policy")),number(v.get("resource_revision"),0));});
+        }
+        public CompletableFuture<Optional<Definition>> lookup(String name) {
+            String requested=metadataName(name);JsonObject action=obj("lookup",requested);
+            return worker.submit(b -> resolved(result(b.catalog(action),"definition"),connection.scope(),requested,null,null));
+        }
+        public CompletableFuture<Optional<Definition>> definition(BigInteger object,BigInteger revision) {
+            JsonObject action=obj("definition",obj("object",positive(object).toString(),"revision",positive(revision).toString()));
+            return worker.submit(b -> resolved(result(b.catalog(action),"definition"),connection.scope(),null,object,revision));
+        }
+        public CompletableFuture<Page> list() { return list(Optional.empty()); }
+        public CompletableFuture<Page> list(Optional<Cursor> cursor) {
+            Objects.requireNonNull(cursor);JsonObject action=obj("list",cursor.map(Cursor::wire).orElse(null));
+            return worker.submit(b -> page(result(b.catalog(action),"page"),connection.scope(),cursor));
         }
         public CompletableFuture<Compiled> compileSql(String sql,BigInteger operation,BigInteger object,long table) {
             if(text(sql,4096).isEmpty())throw new IllegalArgumentException("Empty catalog SQL");

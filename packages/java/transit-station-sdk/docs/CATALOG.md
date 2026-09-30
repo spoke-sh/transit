@@ -49,6 +49,28 @@ not blockingly close their own publisher. Futures and Java fields are not durabl
 recovery storage. Created Tables do not automatically become query sources or
 mutation writers.
 
+## Metadata
+
+`lookup(name)` returns a future of `Optional<Definition>` for an exact
+case-sensitive ASCII name of one to sixteen bytes. `definition(object, revision)`
+reads an immutable definition by positive uint64 `BigInteger` identities.
+Absence is an empty optional; malformed records and current denial are errors.
+Definitions own scope, original name, Table/schema and creation attribution.
+
+`list()` starts an ordered page; `list(page.next())` continues only when `next`
+is present. `Page.entries()` is an immutable copied list of at most eight
+values. An empty final page is possible. Retain every original `Cursor` field,
+including its mandatory matching contract definition, scope, resource revision
+and last name. A changed revision returns a native conflict; restart the listing
+and keep results from different revisions separate. Do not pass an empty optional
+to continue an exhausted listing: that starts a fresh page.
+
+Metadata readers submit no command or snapshot and check current catalog
+inspection and native rights on each call, including continuation. Response
+validation checks requested identity, page order/scope and continuation cut.
+These methods use the same bounded worker and cancellation/close ownership as
+other catalog calls. They do not make created Tables into query sources.
+
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 policies, atomic publication, supported schemas and bounds. The
 [proof ledger](../../../../tests/README.md) records installed recovery,
