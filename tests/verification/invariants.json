@@ -1365,6 +1365,34 @@
       "limits": "At most 512 events. Transport calls are synchronous deterministic boundaries; HTTP/TLS, OS scheduling and host await-cancellation are separate external tests. Fairness is a supplied finite schedule, not a theorem.",
       "model": null,
       "qualification": "Execution and remaining external limits are recorded in tests/README.md and scheduler-simulation artifacts."
+    },
+    {
+      "id": "SIM-04",
+      "claim": "Component schedules preserve Document accepted sets/floors, Exchange uncertainty/holds, query source and refresh ownership, and provider activation gates",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "packages/zig/transit-station-document/src/merge_test.zig",
+        "packages/zig/transit-station-document/src/service_test.zig",
+        "packages/zig/transit-exchange/src/exchange_test.zig",
+        "packages/zig/transit-serving/src/refresh_test.zig",
+        "packages/zig/transit-core/src/growing_test.zig",
+        "tests/verification/domain_simulation.py"
+      ],
+      "profile": "Seeded real-component tests with atomic private-turn stores",
+      "tasks": [
+        "test::domain-simulation",
+        "test::domain-simulation-mutations"
+      ],
+      "scenarios": [
+        "Reordered concurrent edits, missing dependencies, duplicate requests and interrupted page staging",
+        "Checkpoint candidate discard, final floor/epoch publication and stale-replica rejection",
+        "Captured completion versus unknown outcome; outstanding replay holds fence retirement",
+        "Refresh replacement, current source denial, retained basis and in-flight mutation",
+        "Provider unknown/stale evidence, exact activation retry and retained backlog"
+      ],
+      "limits": "Twelve four-edit Document rounds, one bounded checkpoint, sixteen Exchange rounds, four refresh rounds and eight activations per seed; at most 64 seeds. No physical provider, connector dispatch, arbitrary edited-trace replay or automated minimization.",
+      "model": null,
+      "qualification": "Executed results and compiling mutation outcomes belong in tests/README.md; artifacts preserve incomplete status."
     }
   ]
 }

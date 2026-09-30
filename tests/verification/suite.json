@@ -7,6 +7,7 @@
       "test::simulation",
       "test::resource-simulation-smoke",
       "test::scheduler-simulation",
+      "test::domain-simulation",
       "test::codecs",
       "test::dev-environment",
       "test::kubectl-transit",
@@ -133,7 +134,8 @@
       "test::mutations",
       "test::simulation-mutations",
       "test::resource-simulation-mutations",
-      "test::scheduler-simulation-mutations"
+      "test::scheduler-simulation-mutations",
+      "test::domain-simulation-mutations"
     ],
     "focused": [
       "test::packages",

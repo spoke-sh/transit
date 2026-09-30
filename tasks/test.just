@@ -478,3 +478,11 @@ scheduler-simulation *args:
 # Defects in the actual shared Session and courier code must be observed.
 scheduler-simulation-mutations:
     python3 -B tests/verification/mutations.py --scheduler
+
+# Seeded checks over real Document, Exchange, query/reactive and runtime code.
+domain-simulation *args:
+    zig build test-domain-simulation -- {{args}}
+
+# Qualify each component oracle using a compiling defect in its real owner.
+domain-simulation-mutations:
+    python3 -B tests/verification/mutations.py --domain

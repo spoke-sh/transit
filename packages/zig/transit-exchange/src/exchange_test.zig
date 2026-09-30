@@ -144,6 +144,60 @@ fn segment(store: *Store, ex: Exchange, ordinal: u32, kind: u32, bytes: []const 
     for (turn.decision.mutations) |slot| try t.expect(slot != null);
     try store.commit(turn);
 }
+
+test "simulation: Exchange closure races preserve unknown outcomes and replay holds" {
+    var random = std.Random.DefaultPrng.init(t.random_seed);
+    for (0..16) |round| {
+        var store: Store = .{};
+        defer store.deinit();
+        const ex = try exchange(&store, round + 1);
+        try bind(&store, ex);
+        try segment(&store, ex, 1, 2, "captured prefix");
+        var turn = try store.capture();
+        const before = try ex.inspect(&turn);
+        const complete = random.random().boolean();
+        _ = if (complete) try ex.finish(&turn, 200) else try ex.closeUnknown(&turn);
+        // A discarded private outcome neither completes nor closes capture.
+        var recovered = try store.capture();
+        try t.expectEqualDeep(before, try ex.inspect(&recovered));
+        _ = if (complete) try ex.finish(&recovered, 200) else try ex.closeUnknown(&recovered);
+        try t.expectEqualDeep(turn.decision.mutations, recovered.decision.mutations);
+        try store.commit(recovered);
+        turn = try store.capture();
+        if (complete) {
+            try t.expectError(error.ExchangeClosed, ex.closeUnknown(&turn));
+            _ = try ex.open(&turn, &turn);
+        } else {
+            try t.expectError(error.ExchangeClosed, ex.finish(&turn, 200));
+            try t.expectError(error.IncompleteExchange, ex.open(&turn, &turn));
+        }
+        try t.expectError(error.UnsettledExchange, ex.retire(&turn));
+        const d = try ex.inspect(&turn);
+        // Even a complete capture can lose the native observation race. Its
+        // retained bytes are evidence; settlement still records closed_unknown.
+        const effect: p.Growth.Effect = .{ .id = d.effect, .pid = d.owner, .payload = (try turn.read(Exchange.key(ex.id, 'i', 0))).?, .phase = .closed_unknown, .attempt = d.attempt, .executor = d.executor, .reconcile_before_ms = d.reconcile_before_ms };
+        _ = try ex.settle(&turn, effect);
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectEqual(.closed_unknown, (try ex.control(&turn)).disposition);
+        try t.expectEqual(.duplicate, try ex.settle(&turn, effect));
+        try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+        _ = try ex.retain(&turn, 1, 99);
+        _ = try ex.releaseCaller(&turn, 9);
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectError(error.ExchangeHasDependents, ex.retire(&turn));
+        _ = try ex.release(&turn, 1, 99);
+        try store.commit(turn);
+        turn = try store.capture();
+        _ = try ex.retire(&turn);
+        try store.commit(turn);
+        turn = try store.capture();
+        try t.expectError(error.ExchangeUnavailable, ex.open(&turn, &turn));
+        try t.expectEqual(before.chain, (try ex.inspect(&turn)).chain);
+        std.debug.print("SIMULATION {{\"domain\":\"exchange\",\"round\":{d},\"complete_capture\":{},\"outcome\":\"closed_unknown\",\"retired\":true}}\n", .{ round, complete });
+    }
+}
 test "finite segment coverage grows on disk shape, replay validates and retirement rejects old roots" {
     var store: Store = .{};
     defer store.deinit();

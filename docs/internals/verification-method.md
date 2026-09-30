@@ -146,6 +146,27 @@ caller/courier integration proof retains responsibility for the actual binaries.
 
 ## Reproducibility
 
+The [component runner](../../tests/verification/domain_simulation.py) asks a
+narrower question: do independently stated contract properties survive reordered
+edits, discarded private turns and repeated recovery boundaries in each owner?
+It invokes filtered tests in the real Document, Exchange, serving and core packages.
+The Document oracle expects an explicit four-assignment set independent of arrival
+order; its checkpoint oracle holds the old revision/floor until final publication.
+Exchange tests distinguish complete captured bytes from a closed-unknown native
+outcome and refuse retirement until replay holds are released. Refresh tests
+compare exact source identity and data coverage across in-flight mutations, and
+reject stale acknowledgements after selection replacement. Runtime tests require
+an accepted activation after provider readiness; repeated unknown observations
+cannot acquire ownership or consume backlog.
+
+The bounded schedules use the pinned compiler's PRNG, record their actual choices,
+and replay twice. Component-specific compiling mutations challenge each oracle.
+They are seeded package experiments, not the general JSON event simulator: replay
+requires the recorded seed and same binary; arbitrary event editing and automatic
+minimization are not implemented for this profile. Private-turn stores assume
+atomic publication. Application installation, physical placement, host scheduling
+and real transport retain their separate integration proofs.
+
 Record the source/toolchain/provider revisions, commands, environment, workload,
 configuration, topology and seeds or saved traces. Keep expected and observed
 outcomes separate. Preserve failures and incomplete runs alongside final results;

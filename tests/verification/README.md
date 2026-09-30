@@ -5,6 +5,28 @@
 This is executable test infrastructure, not an alternate authority. The existing
 disk, native scheduling, browser, launcher and provider proofs remain necessary.
 
+## Component simulation
+
+`just test::domain-simulation` runs two seeds over real Document, Exchange,
+query/refresh and core runtime implementations. `--seed N --seeds N` selects a
+bounded range (at most 64 seeds). Each package runs twice; structured event
+records must agree and all five domains must appear. Each run has a 120-second
+deadline. The ordinary suite owns two seeds; scheduled discovery owns sixteen.
+
+Artifacts in `.cache/verification/domain-simulation/` retain actual choices and
+test logs; the adjacent JSON report records source/dirty status, compiler, binary
+hashes, generator, seed range, trace hashes, elapsed time and completion. Replay
+uses the same binary/seed. This package profile does not support arbitrary trace
+editing or minimization. Errors, timeouts and missing domains cannot pass.
+
+`just test::domain-simulation-mutations` uses committed source clones to omit
+Document conflict retention, checkpoint floor advancement, Exchange replay holds,
+refresh generation fencing and runtime readiness. Only executed contract assertion
+failures count as detection; compilation and infrastructure failures do not.
+The private-turn stores model atomic publication and current-reader failure;
+actual WAL durability and application installation remain separate integration
+checks. No connector transport runs or dispatches during these replay tests.
+
 ## Inventory
 
 [suite.json](suite.json) is the task inventory used by local and hosted CI.

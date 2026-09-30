@@ -74,6 +74,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
+| `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh and runtime contract schedules and qualify their assertions with real-code mutations |
 | `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |
 | `just test::resource-simulation-mutations` | Detect omitted resource writes and input progress in isolated committed core mutants |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |

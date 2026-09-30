@@ -1,5 +1,17 @@
 # Validation and milestone evidence
 
+## Component simulation
+
+At dirty source based on `d3562a07`, `just test::domain-simulation --seeds 8`
+passed 32 package schedules, each replayed identically, in 9.586 seconds with
+pinned Zig `0.17.0-dev.2267+48abf1a34`. Five domains cover concurrent Document
+assignments and dependencies, checkpoint discard/final floors, Exchange closure
+and replay holds, query refresh ownership/source cuts, and provider activation.
+These are real component operations over private-turn stores. They do not qualify
+physical storage, application installation, transport or remote dispatch. See the
+[harness guide](verification/README.md#component-simulation) for exact bounds,
+artifacts, seed replay and separate mutation qualification.
+
 ## Shared-client scheduling simulation
 
 The shared Session/courier driver runs production preparation, frozen retry,
@@ -15,6 +27,13 @@ exact retries, stale activation and disk recovery. The proxy printed a broken-pi
 diagnostic during its interruption scenario; the complete caller task exited zero.
 These are shared-host development observations, not hosted cost or OS scheduling
 qualification. Compiler/binary/oracle identities are retained in the artifacts.
+
+The shared-client ABI proof passed at `982b85b0`. At `d3562a07`, both compiling
+shared-client mutants were detected: discarded courier uncertainty (2.646 seconds)
+and omitted Session activation validation (1.739 seconds). The earlier checker
+missed uncertainty created and lost within the first courier step; the corrected
+oracle explicitly requires that submission's digest to remain pending. Its full
+eight-trace / 542-event run passed in 16.730 seconds before mutation qualification.
 
 ## Resource publication simulation
 

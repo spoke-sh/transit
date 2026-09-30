@@ -64,6 +64,13 @@ permits, settlement, expiry maintenance and clock refusal. Independent input,
 output and provenance checks run after each event. Network framing, operating
 system scheduling and host await-cancellation require the external suites.
 
+Component schedules exercise accepted Document edit sets and checkpoint floors,
+Exchange capture/closure and replay holds, query source cuts and refresh generation
+replacement, and provider readiness/activation fencing. They reuse the real
+component implementations with private-turn stores and independent contract
+assertions. Seeded replay compares their event records; these stores establish
+logical publication boundaries, not disk or remote-effect durability.
+
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
 current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,

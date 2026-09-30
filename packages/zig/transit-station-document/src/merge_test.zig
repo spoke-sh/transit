@@ -63,6 +63,48 @@ fn text(doc: Document, store: *Store, object: m.Dot, buffer: []u8) ![]const u8 {
     return error.TraversalDidNotComplete;
 }
 
+test "simulation: Document accepted-set convergence through staging loss and reordered dependencies" {
+    var random = std.Random.DefaultPrng.init(t.random_seed);
+    for (0..12) |round| {
+        var store: Store = .{};
+        defer store.deinit();
+        var doc: Document = .{ .document = 17 };
+        var order = [_]u64{ 1, 2, 3, 4 };
+        random.random().shuffle(u64, &order);
+        var observed: [4]m.Dot = undefined;
+        for (&observed, 0..) |*item, i| item.* = dot(1, i + 1);
+        const resolution = change(5, 0, 2, &.{.{ .assign = .{ .field = try name("x"), .observed = try m.Observed.init(&observed), .value = .{ .unsigned = round } } }});
+        try t.expectError(error.DocumentDependencyMissing, doc.apply(&store, resolution));
+        for (order) |replica| {
+            const edit = change(replica, 0, 1, &.{.{ .assign = .{ .field = try name("x"), .value = .{ .unsigned = replica } } }});
+            const snapshot = doc;
+            const fault = random.random().uintLessThan(usize, 3);
+            store.fail_after = store.records.items.len + fault;
+            try t.expectError(error.StorageUnavailable, doc.apply(&store, edit));
+            try t.expectEqualDeep(snapshot, doc);
+            store.fail_after = null;
+            try accept(&doc, &store, edit);
+            const duplicate = try doc.apply(&store, edit);
+            try t.expect(duplicate.duplicate);
+            try t.expectEqual(doc.revision, duplicate.accepted_revision);
+            std.debug.print("SIMULATION {{\"domain\":\"document\",\"round\":{d},\"replica\":{d},\"fault_after\":{d},\"revision\":{d}}}\n", .{ round, replica, fault, doc.revision });
+        }
+        const snapshot = doc;
+        const conflicts = try field(doc, &store, "x");
+        try t.expectEqual(@as(u8, 4), conflicts.len);
+        // This expected set is independent of application/iteration order.
+        for (conflicts.assignments[0..conflicts.len], 1..) |assignment, replica| {
+            try t.expectEqual(dot(1, replica), assignment.id);
+            try t.expectEqual(replica, assignment.value.unsigned);
+        }
+        try accept(&doc, &store, resolution);
+        try t.expectEqual(round, (try field(doc, &store, "x")).assignments[0].value.unsigned);
+        try t.expectEqual(.conflict, (try field(snapshot, &store, "x")).status());
+        store.denied = true;
+        try t.expectError(error.AccessDenied, field(snapshot, &store, "x"));
+    }
+}
+
 test "map conflicts, explicit resolution, null, missing, type errors and duplicate identity" {
     var store: Store = .{};
     defer store.deinit();

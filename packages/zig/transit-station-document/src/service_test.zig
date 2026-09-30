@@ -293,6 +293,49 @@ fn checkpoint(store: *Turns, id: u64) !u64 {
     return error.CheckpointDidNotComplete;
 }
 
+test "simulation: Document checkpoint head and epoch publish only at the accepted boundary" {
+    var random = std.Random.DefaultPrng.init(t.random_seed);
+    var store: Turns = .{};
+    defer store.deinit();
+    try setup(&store);
+    const edit = makeChange(1, 1, &.{.{ .assign = .{ .field = try m.Name.init("value"), .value = .{ .unsigned = 42 } } }});
+    _ = try prepare(&store, 1, edit, 128);
+    try upload(&store, 1, edit);
+    _ = try finish(&store, 1);
+    var turn = try store.capture();
+    const before = try service.head(&turn);
+    try service.configureMergeWindow(&turn, 1);
+    try store.commit(turn);
+    turn = try store.capture();
+    try Checkpoint.begin(service, &turn, 2);
+    try store.commit(turn);
+    for (0..1000) |step| {
+        var candidate = try store.capture();
+        const proposed = try Checkpoint.step(service, &candidate, 2);
+        turn = try store.capture();
+        try t.expectEqual(before.state.revision, (try service.head(&turn)).state.revision);
+        try t.expectEqual(@as(u64, 0), (try service.head(&turn)).floor);
+        _ = try service.open(&turn, 0);
+        const discard = random.random().boolean();
+        if (discard) {
+            const recovered = try Checkpoint.step(service, &turn, 2);
+            try t.expectEqualDeep(proposed, recovered);
+            try t.expectEqualDeep(candidate.decision.mutations, turn.decision.mutations);
+            candidate = turn;
+        }
+        try store.commit(candidate);
+        std.debug.print("SIMULATION {{\"domain\":\"checkpoint\",\"step\":{d},\"discard\":{},\"complete\":{}}}\n", .{ step, discard, proposed == .complete });
+        if (proposed == .complete) break;
+    } else return error.CheckpointDidNotComplete;
+    turn = try store.capture();
+    const head = try service.head(&turn);
+    try t.expectEqual(@as(u64, 2), head.state.revision);
+    try t.expectEqual(@as(u64, 2), head.floor);
+    try t.expectEqual(@as(u64, 2), head.state.epoch);
+    try t.expectError(error.DocumentHistoryGap, service.open(&turn, 1));
+    try t.expectError(error.DocumentResyncRequired, service.prepare(&turn, 3, edit, 128));
+}
+
 test "unlimited checkpoints retain duplicate and deletion evidence; finite floor changes only at final publication" {
     var store: Turns = .{};
     defer store.deinit();

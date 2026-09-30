@@ -347,6 +347,15 @@ pub fn build(b: *std.Build) void {
     scheduler.has_side_effects = true;
     scheduler.stdio = .inherit;
     b.step("test-scheduler-simulation", "Schedule shared Sessions/courier with faults, clocks and maintenance").dependOn(&scheduler.step);
+    const domains = b.addSystemCommand(&.{ "python3", "-B" });
+    domains.addFileArg(b.path("tests/verification/domain_simulation.py"));
+    inline for (.{ document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core") }) |module| {
+        domains.addArtifactArg(b.addTest(.{ .root_module = module, .filters = &.{"simulation:"} }));
+    }
+    domains.addPassthruArgs();
+    domains.has_side_effects = true;
+    domains.stdio = .inherit;
+    b.step("test-domain-simulation", "Replay seeded Document, Exchange, refresh and provider schedules").dependOn(&domains.step);
     const installation_fixture = b.addRunArtifact(client.artifact("transit-application-installation-contract"));
     installation_fixture.addArg("--fixture");
     b.step("application-installation-fixture", "Export a shared application signing fixture").dependOn(&installation_fixture.step);

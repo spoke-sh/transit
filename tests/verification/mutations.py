@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -59,6 +60,13 @@ SCHEDULER_MUTANTS = {
     "session_activation": ("Session.zig", "if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;", "// Mutation: omit Session activation validation."),
 }
 MODES = {
+    "domain": ("test-domain-simulation", ["--seeds", "1"], "domain-simulation-mutations", {
+        "document_conflicts": ("transit-station-document/src/Document.zig", "if (!observed.contains(dot))", "if (!observed.contains(dot) and false)"),
+        "checkpoint_floor": ("transit-station-document/src/Checkpoint.zig", "h.floor = progress.floor;", "h.floor = 0; // Mutation: forget accepted read floor."),
+        "exchange_hold": ("transit-exchange/src/Exchange.zig", "if (c.caller == .held or c.dependents != 0) return error.ExchangeHasDependents;", "// Mutation: allow retirement with replay holds."),
+        "refresh_generation": ("transit-serving/src/Refresh.zig", "if (try head(turn, principal, selection.session.session) != selection.generation) return error.RefreshGenerationConflict;", "// Mutation: accept stale selected generation."),
+        "provider_ready": ("transit-core/src/growing_runtime.zig", "if (binding.desired != .running or binding.phase != .ready or binding.incarnation == null) return error.ProviderNotReady;", "// Mutation: activate before provider readiness."),
+    }, "Domain simulation:", "component invariant failed", "domain-simulation.json"),
     "scheduler": ("test-scheduler-simulation", ["--seeds", "1", "--steps", "1"], "scheduler-simulation-mutations", SCHEDULER_MUTANTS,
                   "Scheduler simulation:", "Scheduler simulation failed (invariant)", "scheduler-simulation/minimized.json"),
     "properties": ("test-properties", ["--seeds", "1", "--steps", "1"], "mutations", MUTANTS,
@@ -85,11 +93,12 @@ def execute(checkout, mode):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group()
+    group.add_argument('--domain', action='store_true', help='qualify component contract assertions')
     group.add_argument('--scheduler', action='store_true', help='qualify shared Session/courier checks')
     group.add_argument('--resource', action='store_true', help='qualify resource/input atomicity checkers')
     group.add_argument('--simulation', action='store_true', help='qualify delivery order and provenance checkers')
     args = parser.parse_args()
-    mode = "scheduler" if args.scheduler else "resource" if args.resource else "simulation" if args.simulation else "properties"
+    mode = "domain" if args.domain else "scheduler" if args.scheduler else "resource" if args.resource else "simulation" if args.simulation else "properties"
     _, _, artifact, mutants, passed, marker, minimized = MODES[mode]
     # Snapshot semantics are deliberate. Running dirty source under an old
     # revision would make the recorded experiment misleading.
@@ -109,7 +118,7 @@ def main():
             if code or passed not in output:
                 raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
             for name, (filename, guard, replacement) in mutants.items():
-                source = checkout / (Path("packages/zig/transit-client/src") if mode == "scheduler" else CORE) / filename
+                source = checkout / (Path("packages/zig") if mode == "domain" else Path("packages/zig/transit-client/src") if mode == "scheduler" else CORE) / filename
                 original = source.read_text()
                 assert original.count(guard) == 1, f"review changed guard: {name}"
                 source.write_text(original.replace(guard, replacement))
@@ -124,6 +133,8 @@ def main():
                     raise RuntimeError(f"{name}: mutant survived or did not execute; inspect {destination}")
                 failure = checkout / ".cache/verification" / minimized
                 (destination / f"{name}.json").write_bytes(failure.read_bytes())
+                if mode == "domain":
+                    shutil.copytree(checkout / ".cache/verification/domain-simulation", destination / name, dirs_exist_ok=True)
                 source.write_text(original)
         evidence["status"] = "passed"
         print(f"{mode} mutations: {', '.join(mutants)} detected by real-engine schedules.")
