@@ -6,6 +6,13 @@ a source or change its declaration. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and
 publish bounded Arrow result segments. See [query execution](queries.md).
 
+Transit does not claim SQL Core, full PostgreSQL, SQL/PGQ or GQL conformance.
+The [checked compatibility corpus](../../contracts/sql/README.md#compatibility-corpus)
+establishes syntax and AST agreement for its declared PostgreSQL subset; execution
+keeps Transit's documented types, cell states, ordering and arithmetic limits.
+The [standards and data-model analysis](../internals/query-engine.md#standards-and-multiple-data-models)
+explains future language targets without expanding the supported interface.
+
 ## Find an operation
 
 | Task | Reference |
