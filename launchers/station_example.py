@@ -40,7 +40,9 @@ class StationInstallation(Installation):
             "pid": records["ledger"]["pid"], "name": b"supervisor".hex(),
             "resource": records["coordinator"]["resource"], "required": False}})
         for role, record in records.items():
-            generation = self.native_query({"process": record["pid"]})["body"]["process"]["process"]["generation"]
+            # Named provisioning requests must retain identical bytes on restart.
+            # Each initial association fences once; the ledger has two.
+            generation = 2 if role == "ledger" else 1
             self.command("initialize-" + role, {'initialize': {"pid": record["pid"], "expected_generation": generation}})
         write(self.path / "station.json", records)
         write(self.path / "pid.json", records["ledger"]["pid"])
