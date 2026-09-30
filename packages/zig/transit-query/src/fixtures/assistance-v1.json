@@ -40,6 +40,14 @@
     {"sql": "SELECT * FROM items AS x WHERE x.wide IS ", "cursor": 41, "start": 41, "end": 41, "items": ["NULL", "MISSING", "TYPE_ERROR", "VALUE", "CONFLICT"]},
     {"sql": "SELECT * FROM items AS \"Row\" WHERE \"Row\".l", "cursor": 42, "start": 41, "end": 42, "items": ["\"label\""]},
     {"sql": "SELECT * FROM items AS \"Row\" WHERE row.l", "cursor": 40, "start": 39, "end": 40, "items": []},
-    {"sql": "SELECT * FROM items AS ", "cursor": 23, "start": 23, "end": 23, "items": []}
+    {"sql": "SELECT * FROM items AS ", "cursor": 23, "start": 23, "end": 23, "items": []},
+    {"sql":"SELECT * FROM items WHERE items ","cursor":32,"start":32,"end":32,"items":["."]},
+    {"sql":"SELECT * FROM items AS x WHERE x ","cursor":33,"start":33,"end":33,"items":["."]},
+    {"sql":"SELECT * FROM items AS x WHERE items ","cursor":37,"start":37,"end":37,"items":[]},
+    {"sql":"SELECT * FROM other AS x WHERE x ","cursor":33,"start":33,"end":33,"items":[]},
+    {"sql":"SELECT * FROM items AS id WHERE id ","cursor":35,"start":35,"end":35,"items":["IS",".","=","<>","<","<=",">",">="]},
+    {"sql":"SELECT * FROM items AS id WHERE id.id ","cursor":38,"start":38,"end":38,"items":["IS","=","<>","<","<=",">",">="]},
+    {"sql":"SELECT * FROM items AS \"Row\" WHERE \"Row\" ","cursor":41,"start":41,"end":41,"items":["."]},
+    {"sql":"SELECT * FROM items AS \"Row\" WHERE row ","cursor":39,"start":39,"end":39,"items":[]}
   ]
 }

@@ -6780,6 +6780,15 @@ actual sources and duplicate columns. Completion fixtures keep the declared
 source authority separate from alias spelling, including quoted case and typed
 literal hints.
 
+Eight additional independent completion fixtures expose and correct a missing
+dot continuation after a source qualifier, including an alias that also names a
+column, quoted case, hidden/foreign sources and an already qualified column.
+The first run fails the original-source continuation case (63/64 package tests
+pass); after the correction all 64 query package tests pass. Logs are
+`/tmp/transit-sql-source-aliases-completion-before.log` and
+`/tmp/transit-sql-source-aliases-completion-after.log`. This changes suggestions,
+not source authority, parsing or the saved-plan format.
+
 `just test::sql` passes **113** Zig/ANTLR/PostgreSQL SELECT AST comparisons,
 **92** real plans and independent paged Arrow checks, and **19** grammar
 exclusions. The unified fixture checks **28** independent results at three source

@@ -84,7 +84,14 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
             predicate_type = candidate.type;
             break;
         };
-        if (predicate_type == null) return builder.finish(range);
+        if (predicate_type == null) {
+            // The parsed name can still become a qualified column. It is not
+            // itself a scalar, so only the grammar's dot continuation is valid.
+            if (column.qualifier == null and std.mem.eql(u8, column.name.slice(), source_qualifier.slice()) and
+                std.mem.indexOfScalar(?sql.Tag, &hints.symbols, .dot) != null)
+                try builder.add(".", .symbol, "SQL grammar");
+            return builder.finish(range);
+        }
     }
     var has_int64 = false;
     for (schema.columns) |column| if (column.type == .int64 and column.name.len <= 16) {
@@ -130,7 +137,7 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
     };
     for (hints.symbols) |symbol| if (symbol) |tag| {
         if (tag == .dot) if (hints.predicate_column) |column| {
-            if (!std.mem.eql(u8, column.name.slice(), name.slice())) continue;
+            if (column.qualifier != null or !std.mem.eql(u8, column.name.slice(), source_qualifier.slice())) continue;
         };
         if (literal_type != null) continue; // Typed literals above; no invalid numeric/sign suggestions.
         const value: ?[]const u8 = switch (tag) {
