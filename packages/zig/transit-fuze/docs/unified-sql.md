@@ -36,7 +36,7 @@ Document paths, expansion and text materialization belong to the declared source
 not SQL syntax. DDL, writes, joins, arbitrary expressions and continuous queries
 remain unsupported. Parser bounds and escaping are unchanged from [v1](sql.md).
 
-`just test::sql` checks both compilers. V2 independently evaluates 70 rows with
+The SQL proof checks both compilers. V2 independently evaluates 70 rows with
 six scalar types and five cell states, compares actual nested Arrow at all eight
 page widths under each source-kind basis, and exercises explicit failures.
 These are pure engine source-basis checks; actual adapter/service recovery has

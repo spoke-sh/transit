@@ -316,6 +316,6 @@ deadlines; the completion-wait budget does not cut off their presentation.
 Output writes have a two-second deadline and join on failure. Timeout preserves the saved query for `.resume`; none of these local
 bounds expires accepted work or promises external cancellation.
 
-`just test::console table`, `kv` and `document` exercise real query workers and
-disk Ursula, pipes, a controlling PTY and explicit TLS trust. Executed outcomes
+The console proofs exercise Table, KV and Document workers with disk Ursula,
+pipes, a controlling PTY and explicit TLS trust. Commands and executed outcomes
 belong in the [proof ledger](../../../tests/README.md).

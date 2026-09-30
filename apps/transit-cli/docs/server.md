@@ -1,8 +1,9 @@
 # Local server
 
 `transit serve` is an alias for `transit server`, with the same options and
-recovery contract. The [Nix packages](../../../nix/README.md#transit-cli-packages)
-supply the CLI and pinned native neighborhood artifacts.
+recovery contract. Commands assume the complete local bundle is installed with
+`transit` on `PATH`; see the [quickstart](../../../docs/guides/quickstart.md).
+The bundle supplies the CLI and matching native neighborhood artifacts.
 
 `transit server --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
@@ -23,7 +24,7 @@ on 19106, and Board on 19107. Application quotas are eight applications and 32
 roles. For missing executable settings, lookup prepends the directory containing
 the physical `transit` executable to the inherited `PATH`. The default names are
 `minio`, `ursula`, `transit-node`, `transit-query-host` and `transit-board`.
-For example, `./zig-out/bin/transit server` searches `zig-out/bin` first, then
+Running `transit server` searches that executable’s directory first, then
 `PATH`. Symlink invocation uses the resolved executable directory. A missing
 provider must be installed there or available on `PATH`; lookup reports its
 name. Explicit `executables` paths override lookup. The effective search is
@@ -142,8 +143,9 @@ hashes every configured executable and itself with bounded streaming reads befor
 startup requires the same hashes and normalized configuration. It currently
 refuses artifact/configuration changes; this is not an upgrade mechanism.
 
-An empty `PATH` is supported. No shell, Python, `just`, Process Compose or source
-checkout is used by the running installation. Child environments are explicit.
+After resolving the CLI, the complete local bundle needs no ambient tools.
+The running installation uses no shell, Python, task runner, Process Compose or
+source checkout. Child environments are explicit.
 MinIO receives a private service home under `provider-home` and an explicit
 certificate directory, without inheriting the operator's home or credentials.
 Its browser is disabled; the separate cold-console port remains reserved.
@@ -356,8 +358,9 @@ Initialize a separately named installation with matching packaged artifacts for
 a hard cutover; no in-place history conversion is provided. `--no-ui` and later
 UI re-enablement use the same compatible installation and retained history.
 
-Retain the `transit-local` Nix output with a profile or GC-rooted build link for
-the lifetime of its installations. Its manifest includes Board and all native
+Retain the installed local bundle for the lifetime of its installations.
+The [source installation guide](../../../nix/README.md#transit-cli-packages)
+explains package retention. Its manifest includes Board and all native
 providers; paths and executable hashes identify the selected bytes. Do not replace
 individual pinned paths during ordinary restart. Runtime execution needs no
 Node, Python, frontend dev server, source tree, Docker or ambient PATH lookup.

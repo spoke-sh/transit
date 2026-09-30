@@ -4319,3 +4319,51 @@ Working-tree validation with the pinned Nix development shell:
 
 No grammar, compiler or runtime behavior changes in this revision. These checks
 do not qualify any proposed mutation, maintained-query or effect-binding profile.
+
+## Query performance reproduction
+
+From the repository's pinned development environment:
+
+```sh
+nix develop
+just test::console-latency --single
+just test::console-latency --single --resident-pages 64
+just test::console-latency --single --worker-interval-ms 200
+just test::console-latency --single --repeat 3 --age-queries 5
+just test::console-latency --single --instrument
+just test::console-latency --single --execution durable
+just test::interactive-query
+just test::interactive-query --source table --rows 257 --age 128
+just test::interactive-query --source table --resident-pages 0
+just test::pages --keys 256 --cache 2 --mutation-batch 1
+just test::pages --keys 256 --cache 2 --mutation-batch 8
+just test::pages-cold --keys 1024 --cache 2
+```
+
+Interpret the measurements using the [performance reference](../docs/reference/performance.md#reproduce-and-compare).
+These are reproduction commands, not a record of a new execution.
+
+## Public command documentation
+
+The published handbook assumes the complete local bundle is installed and invokes
+`transit` through `PATH`. Source setup and proof commands remain with repository
+tooling owners. The launcher overview retains `/guides/launchers`; its full
+runbook remains outside the site catalog and search. This follows the public
+documentation scope in [M26](../docs/roadmap/M26.md).
+
+Executed for this documentation change:
+
+- `just check` passed the native/contract/unit checks, 174 CLI diagnostic cases,
+  frontend checks/tests and production documentation build.
+- `just transit-docs::check` passed: formatting/lint, strict TypeScript, seven
+  content/reference tests and the production build. The content guard rejects
+  Nix/Just commands and path-qualified Transit invocations in published code.
+- `python3 -B tests/docs.py` passed 4,334 local links across 453 Markdown files.
+- `nix develop --command bash -c 'cd apps/transit-docs && vp exec playwright test'`
+  passed all four production browser checks at `/`, covering desktop/mobile
+  navigation, search, generated downloads, diagrams and accessibility.
+- The built search index was checked for repository command invocations and
+  local Transit executable paths; none remain across its 92 entries.
+
+These checks validate documentation and rendering. They do not rerun bundle
+builds, application installation, provider recovery or deployment qualification.

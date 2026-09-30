@@ -1,8 +1,9 @@
 # Finite gateway configuration
 
-Build `just build::release-safe transit-flight-gateway`; run
-`zig-out/bin/transit-flight-gateway /private/gateway.json`. Provision service,
-query hosts and grants before starting this adapter. `just test::flight` creates
+With `transit-flight-gateway` installed on `PATH`, run
+`transit-flight-gateway /private/gateway.json`. Provision service,
+query hosts and grants before starting this adapter. The
+[Flight proof](../../../tests/README.md) creates
 an owned, disk-backed native installation with real query hosts, a TLS edge and
 pinned independent clients. It deletes only its temporary installation on exit.
 

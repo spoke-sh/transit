@@ -2,8 +2,8 @@
 
 `transit` starts a local server, manages installed applications and opens signed
 query sessions. It is separate from the retained `rey-cli` administration utility
-and `kubectl-transit` runtime tooling. Build it with `zig build transit` in the
-pinned development shell, or use the [Nix local bundle](../guides/quickstart.md).
+and `kubectl-transit` runtime tooling. Commands assume `transit` is on `PATH`.
+Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
 ## Commands
 

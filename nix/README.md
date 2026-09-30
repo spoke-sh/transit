@@ -46,6 +46,20 @@ Board is enabled by default, with `--no-ui` for headless use. Retain the package
 output through a Nix profile or build-link GC root while installations use its
 pinned paths; see the [server guide](../apps/transit-cli/docs/server.md).
 
+To prepare the bundle for the public quickstart, run from the repository root:
+
+```sh
+mkdir -p .cache
+nix build .#transit-local --out-link .cache/transit-local
+export PATH="$PWD/.cache/transit-local/bin:$PATH"
+transit --version
+```
+
+Add that same absolute `bin` directory to `PATH` in each terminal used by the
+quickstart. Keep the build link while installations use it; do not rebuild it
+in place to change a running installation's selected artifacts. Continue with
+[Run Transit locally](../docs/guides/quickstart.md).
+
 MinIO is built from the source of release `2025-09-07T16-13-09Z`, matching the
 existing fixture's release because the historical binary/image distribution is
 unavailable. This package selects the trusted local development profile, not a
