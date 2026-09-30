@@ -267,7 +267,7 @@ def run(node, cli, library, artifacts, report_path=None):
         if report_path:
             sources = [Path(__file__), *[Path(__file__).with_name(f'{name}_station_sdk.py') for name in ('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam')]]
             report = {'version': 1, 'status': 'passed', 'recorded_at': datetime.now(timezone.utc).isoformat(),
-                      'environment': {'platform': platform.system(), 'architecture': platform.machine(), 'available_cpus': len(os.sched_getaffinity(0)), 'authority_cpus': 1, 'admin_timeout_ms': 15000},
+                      'environment': {'platform': platform.system(), 'architecture': platform.machine(), 'available_cpus': len(os.sched_getaffinity(0)), 'authority_cpus': len(os.sched_getaffinity(system.authority.pid)), 'admin_timeout_ms': 15000},
                       'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                       'proof_sha256': {str(path.relative_to(Path(__file__).resolve().parents[1])): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources},
                       'elapsed_seconds': round(elapsed, 3), 'consumer_install_seconds': round(installed_at-started, 3), 'pairs': timings,
