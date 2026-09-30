@@ -21,6 +21,40 @@ from catalog_cli import Cli
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def diagnostic_errors(log):
+    """Retain bounded error attribution before the owned log is removed.
+
+    Only fixed runtime event/operation/error names and timing are copied. Logs
+    remain observations, not receipts; no body, credential or user label is kept.
+    """
+    log.flush()
+    log.seek(0)
+    errors = {}
+    dropped = 0
+    for line in log:
+        _, separator, encoded = line.partition('{')
+        if not separator:
+            continue
+        try:
+            value = json.loads(separator + encoded)
+        except ValueError:
+            continue
+        event = value.get('event', {})
+        if event.get('name') not in ('transit.storage.operation', 'transit.http.request', 'service.failed') or not event.get('error_type'):
+            continue
+        key = (event['name'], event.get('operation'), event['error_type'])
+        if key not in errors:
+            if len(errors) == 64:
+                dropped += 1
+                continue
+            errors[key] = dict(event=key[0], operation=key[1], error=key[2],
+                               count=0, first_time_unix_ms=value.get('time_unix_ms'), max_ns=0)
+        summary = errors[key]
+        summary['count'] += 1
+        summary['max_ns'] = max(summary['max_ns'], value.get('duration_ns', 0))
+    return dict(groups=list(errors.values()), dropped=dropped)
+
+
 def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth=0):
     if growth < 0: raise ValueError('Catalog growth count must be nonnegative')
     started = time.monotonic()
@@ -725,6 +759,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             proxy.shutdown()
             proxy.server_close()
             thread.join(timeout=10)
+            report['node_errors'] = diagnostic_errors(log)
             log.flush()
             log.seek(0)
             if sys.exc_info()[0]:

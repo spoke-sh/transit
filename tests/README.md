@@ -1615,6 +1615,11 @@ even when the caller cannot observe the result. Counts describe attempts, not
 unique durable commits. Metrics contain no request bodies or credential values.
 Compare native request counts and phase costs at equivalent workload boundaries;
 shared-host durations do not establish percentiles or throughput guarantees.
+After stopping the node, the report also retains at most 64 distinct node/storage
+error groups, with occurrence counts, first timestamps and maximum observed
+durations. Further groups increment a dropped counter. These summaries preserve
+errors that can fall outside the printed log tail, without retaining payloads,
+credentials or user labels; they do not establish operation outcomes.
 
 The first instrumented disk runs use runner SHA-256
 `63fa35689262d5fce12b5a303fcf390f3812931cf9a64a6375e7e76e3eb47fbe`
@@ -1652,6 +1657,13 @@ Both fail `launchers::local::test-station` waiting for the requester Arrow reply
 after **275.54 s** and **277.76 s**. Private fixture logs and WALs are retained
 for diagnosis. Neither is a clean experience pass; these runs do not supersede
 the separate full `just check` passes or establish all clean-suite gates.
+
+The corrected clean core run at `4927ba38` passes nineteen tasks, including
+Vortex, Station and all disk storage phases. It then fails `test::callers` in
+**17.63 s** when the courier-progress observation sees `AuthorityUnavailable`;
+the last two core tasks are not reached. Node observations show a two-second
+request deadline interrupting page staging and a queued observation. This is
+not a clean-core pass or a demonstrated root cause of the earlier catalog failure.
 
 ## SQL branch integration of seeded simulations
 
