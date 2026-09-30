@@ -13,6 +13,7 @@ import urllib.error
 import urllib.request
 
 from storage import Fixture, free_port, wait_ready
+from inspection import available_post
 
 
 def run(node, worker, cli):
@@ -72,13 +73,14 @@ def run(node, worker, cli):
                 response = error
             with response:
                 value = json.load(response)
+                if status is None: return response.status, value
                 assert response.status == status, (response.status, value, status)
                 return value
 
         def command(value):
             nonlocal seq
             seq += 1
-            return post("/v1/command", signed(value, seq))["position"]
+            return available_post(post, "/v1/command", signed(value, seq))["position"]
 
         resources = {}
         def sign_query(kind, principal=0, seed=root_key, realm=47):
@@ -86,7 +88,8 @@ def run(node, worker, cli):
             path.write_text(json.dumps({"realm": realm, "principal": principal, "kind": kind}))
             return invoke("sign-query", seed, path)
         def query(kind, principal=0, seed=root_key, status=200):
-            return post("/v1/query", sign_query(kind, principal, seed), status)
+            signed_read = sign_query(kind, principal, seed)
+            return available_post(post, "/v1/query", signed_read) if status == 200 else post("/v1/query", signed_read, status)
         def view(pid, principal=0, seed=root_key, status=200):
             response = query({"process": pid}, principal, seed, status)
             return {**response["body"]["process"], "principal_sequence": response["principal_sequence"]} if status == 200 else response

@@ -11,6 +11,22 @@ import urllib.request
 from storage import Fixture, free_port, wait_ready
 
 
+def available_post(post, path, signed):
+    """Bound transient retries without changing the signed operation."""
+    deadline = time.monotonic() + 10
+    while True:
+        try:
+            status, body = post(path, signed, status=None)
+        except (ConnectionError, TimeoutError):
+            if time.monotonic() >= deadline: raise
+        else:
+            if status == 200: return body
+            assert (status == 503 and body.get("err") in
+                    ("AuthorityUnavailable", "AuthorityTimeout", "HttpCapacity") and
+                    time.monotonic() < deadline), (status, body)
+        time.sleep(.05)
+
+
 class System:
     def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800):
         self.node, self.cli = node, cli
@@ -86,18 +102,7 @@ class System:
         return self.available_post("/v1/command", self.signed(command, self.sequence))["position"]
 
     def available_post(self, path, signed):
-        deadline = time.monotonic() + 10
-        while True:
-            try:
-                status, body = self.post(path, signed, status=None)
-            except (ConnectionError, TimeoutError):
-                if time.monotonic() >= deadline: raise
-            else:
-                if status == 200: return body
-                assert (status == 503 and body.get("err") in
-                        ("AuthorityUnavailable", "AuthorityTimeout", "HttpCapacity") and
-                        time.monotonic() < deadline), (status, body)
-            time.sleep(.05)
+        return available_post(self.post, path, signed)
 
     def native_query(self, kind, principal=0, seed=None, status=200):
         path = self.root / "native-query.json"
