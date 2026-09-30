@@ -99,9 +99,18 @@ def run(node, cli, counter):
             maintenance = s.start(node, s.config, '--maintain')
             until = time.monotonic() + 10
             while True:
-                metadata = s.native_query({'resource': resource})['body']['resource']
-                if metadata['phase'] == 'reclaimed':
-                    break
+                status, response = s.native_query({'resource': resource}, status=None)
+                if status == 200:
+                    if response['body']['resource']['phase'] == 'reclaimed':
+                        break
+                else:
+                    # Maintenance can advance the authority tail during this
+                    # current metadata read. Discard the conflicted observation
+                    # and poll a fresh cut within the original deadline. Never
+                    # apply this rule to commands or fixed-cut continuations.
+                    assert ((status == 409 and response == {'err': 'Conflict'}) or
+                            (status == 503 and response.get('err') in
+                             ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity'))), (status, response)
                 assert time.monotonic() < until and maintenance.poll() is None
                 time.sleep(.05)
             maintenance.kill()

@@ -1557,6 +1557,18 @@ This successful rerun does not identify the earlier cleanup failure's cause or
 erase that failed run. Surface and final-exit diagnostics remain in the fixture
 for recurrence; no SDK runtime fix is claimed.
 
+The clean core run at `8e021cc6` passes 21 of 22 tasks, then fails
+`test::state`: its current-resource poll races the separate maintenance process
+and receives HTTP 409 `Conflict`. The authority's final journal-tail check in
+`growing_read.zig` deliberately rejects that changed observation; no mixed cut
+is returned. The reclamation poll now discards exactly that conflict and reads
+a fresh cut within its existing ten-second deadline. Denial, unexpected errors,
+command retries and fixed-cut continuations are unchanged. The focused
+`just test::state` rerun passes at `/tmp/transit-sql-pr27-state-maintenance.log`.
+The failed clean report remains at
+`/var/tmp/transit-ci-n4hi0a30/src/.cache/ci/core.json`; its log is
+`/tmp/transit-sql-catalog-all-metadata-ci-clean.log`. It is not a clean-lane pass.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
