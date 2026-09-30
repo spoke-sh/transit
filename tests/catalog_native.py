@@ -40,6 +40,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
         port_host, library = str(root / 'port'), str(root / 'library.so')
         cli = str(root / 'cli')
         clients = []
+        client_names = {}
         (root / 'caller.seed').write_text('0a' * 32)
         port = free_port()
         url = f'http://127.0.0.1:{port}'
@@ -431,6 +432,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             for index, (name, factory) in enumerate(factories):
                 client = factory()
                 clients.append(client)
+                client_names[id(client)] = name
                 caps = client.call({'capabilities': {}})['capabilities']
                 assert caps['definition'] == definition.hex() and caps['create_table'] and caps['conditional_policy']
                 description = client.call({'describe': {}})['description']
@@ -485,6 +487,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 restart()
                 client = factory()
                 clients.append(client)
+                client_names[id(client)] = name
                 prepared = saved.read_text()
                 admitted = client.call({'submit': prepared})['receipt']
                 assert admitted == json.loads(fault['receipt']) and fault['recovered']
@@ -664,6 +667,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 try:
                     client.close()
                 except BaseException as error:
+                    error.add_note(f"Catalog cleanup surface: {client_names[id(client)]}")
                     cleanup_errors.append(error)
             stop_worker()
             if authority is not None:
@@ -681,6 +685,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 sys.stderr.write(worker_log.read()[-12000:])
             log.close()
             worker_log.close()
+            report['cleanup_failures'] = [str(error) + ": " + ", ".join(error.__notes__) for error in cleanup_errors]
             record(failure is None and not cleanup_errors,
                    type(failure).__name__ if failure is not None else 'Cleanup' if cleanup_errors else None)
             print(json.dumps({key: value for key, value in report.items() if key not in ('growth_samples', 'metadata_measurements')}, indent=2))

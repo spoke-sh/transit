@@ -1526,6 +1526,24 @@ Those options are restored; the stopped attempt remains at
 `/tmp/transit-sql-catalog-all-ten-metadata-native.log`. This record does not
 establish a completed combined run or a clean-suite pass.
 
+### Combined metadata cleanup investigation
+
+The ten-language metadata schedule at committed `8e021cc6` completes its
+functional assertions for **33 named definitions over five pages**, before/after
+disk restart, with sixteen lost caller receipts and three lost owner receipts.
+It remains **failed**: an installed caller closes stdout during final cleanup
+without the expected close response, and the original diagnostic observes its
+exit status before reaping. Counts are 15846 reads, 8560 caller reads and 86 turn
+responses; bounds remain four mutations, 134-byte values and eight resident pages.
+Elapsed time is 356.319 s, including 61.592 s installation. The failed report is
+`/tmp/transit-sql-catalog-all-ten-metadata-native-failed.json`; the log is
+`/tmp/transit-sql-catalog-all-ten-metadata-native-fixed.log`.
+
+The fixture now joins an EOF child before reporting its exit code and annotates
+catalog cleanup failures with the caller surface. Those diagnostics do not
+change SDK behavior or turn an incomplete cleanup into success. A rerun is
+required before the combined result can pass.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

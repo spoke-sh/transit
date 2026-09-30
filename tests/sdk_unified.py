@@ -32,7 +32,11 @@ class Consumer:
     def read(self):
         assert select.select([self.child.stdout], [], [], 90)[0], 'installed query caller timed out'
         line = self.child.stdout.readline()
-        assert line, f'installed query caller exited ({self.child.poll()})'
+        if not line:
+            # EOF can race process reaping. Join before reporting the exit code;
+            # the caller's finally block still kills a child that does not exit.
+            code = self.child.wait(timeout=10)
+            raise AssertionError(f'installed query caller exited ({code})')
         return json.loads(line)
 
     def send(self, action):
