@@ -13,6 +13,7 @@ import {
   frozenBytes,
 } from "@transit/client/internal";
 import schemas from "./schemas.json" with { type: "json" };
+import contract from "./contract.json" with { type: "json" };
 import type {
   DocumentCodecAction,
   DocumentCodecResult,
@@ -35,6 +36,12 @@ import type {
   UnifiedQueryAction,
   UnifiedQueryResult,
   UnifiedQueryConfig,
+  TableMutationAction,
+  TableMutationResult,
+  TableMutationConfig,
+  CatalogAction,
+  CatalogResult,
+  CatalogConfig,
 } from "./wire.ts";
 import {
   FrozenMutation,
@@ -70,6 +77,11 @@ async function openPort(config: object, override?: string): Promise<Port> {
     ) {
       throw new IncompatibleNative("Native Station protocol version mismatch");
     }
+    const native = record(
+      await port.request({ growing_capabilities: {} }, { phase: "native-definition" }),
+    );
+    if (native.definition !== contract.definition)
+      throw new IncompatibleNative("Native Station contract definition mismatch");
     return port;
   } catch (error) {
     await port.close();
@@ -333,6 +345,106 @@ export class QueryBridge {
   }
   close(): Promise<void> {
     return this.port.close();
+  }
+}
+
+export class MutationBridge {
+  readonly #port: Port;
+  private constructor(port: Port) {
+    this.#port = port;
+  }
+  static async open(
+    url: string,
+    seedFile: string,
+    config: TableMutationConfig,
+    nativeHost?: string,
+  ): Promise<MutationBridge> {
+    const port = await openPort({ url, seed_file: seedFile, mutation_client: config }, nativeHost);
+    try {
+      const bridge = new MutationBridge(port);
+      const value = await bridge.call({ capabilities: {} });
+      if (!("capabilities" in value))
+        throw new IncompatibleNative("Expected mutation capabilities");
+      const caps = value.capabilities;
+      if (
+        caps.version !== 1 ||
+        caps.max_rows !== 3 ||
+        caps.max_request_bytes !== 799 ||
+        caps.max_saved_bytes !== 8192 ||
+        !caps.insert ||
+        !caps.update_primary_key ||
+        !caps.delete_primary_key
+      )
+        throw new UnsupportedCapability("Native mutation client lacks the bounded Table profile");
+      return bridge;
+    } catch (error) {
+      await port.close();
+      throw error;
+    }
+  }
+  async call(action: TableMutationAction): Promise<TableMutationResult> {
+    return (await this.#port.request(
+      { table_mutation: action },
+      {
+        phase: "table-mutation",
+        mutation: "submit" in action,
+        validator: validation.TableMutationResult,
+      },
+    )) as TableMutationResult;
+  }
+  close(): Promise<void> {
+    return this.#port.close();
+  }
+}
+
+/** Explicit catalog caller; shared schemas validate its port boundary. */
+export class CatalogBridge {
+  readonly #port: Port;
+  private constructor(port: Port) {
+    this.#port = port;
+  }
+  static async open(
+    url: string,
+    seedFile: string,
+    config: CatalogConfig,
+    nativeHost?: string,
+  ): Promise<CatalogBridge> {
+    const port = await openPort({ url, seed_file: seedFile, catalog_client: config }, nativeHost);
+    try {
+      const bridge = new CatalogBridge(port);
+      const result = await bridge.call({ capabilities: {} });
+      if (!("capabilities" in result))
+        throw new IncompatibleNative("Expected catalog capabilities");
+      const caps = result.capabilities;
+      if (
+        caps.version !== 1 ||
+        caps.definition !== contract.definition ||
+        caps.table_columns !== 2 ||
+        caps.max_saved_bytes !== 8192 ||
+        !caps.initialize ||
+        !caps.create_table ||
+        !caps.conditional_policy ||
+        !caps.current_metadata
+      )
+        throw new UnsupportedCapability("Native catalog client lacks the named Table profile");
+      return bridge;
+    } catch (error) {
+      await port.close();
+      throw error;
+    }
+  }
+  async call(action: CatalogAction): Promise<CatalogResult> {
+    return (await this.#port.request(
+      { catalog: action },
+      {
+        phase: "catalog",
+        mutation: "submit" in action,
+        validator: validation.CatalogResult,
+      },
+    )) as CatalogResult;
+  }
+  close(): Promise<void> {
+    return this.#port.close();
   }
 }
 

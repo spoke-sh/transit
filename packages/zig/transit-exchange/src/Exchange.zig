@@ -15,7 +15,7 @@ pub fn key(id: u64, tag: u8, ordinal: u32) p.Value {
     return p.Value.init(&bytes) catch unreachable;
 }
 pub fn publication(self: Self) Pub {
-    return .{ .resource = self.resource, .namespace = self.id };
+    return .{ .domain = .exchange, .resource = self.resource, .namespace = self.id };
 }
 pub fn create(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, reconcile_before_ms: u64) !Self {
     if (origin.parent != 0) return error.UseExchangeFollowup;
@@ -35,8 +35,8 @@ fn createRecord(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, 
         return self;
     }
     // A namespace belongs exclusively to one exchange; never adopt unrelated bodies.
-    if (try turn.read(Pub.key(id, 'b', 0, 0)) != null) return error.ExchangeIdentityConflict;
-    _ = try Pub.create(turn, id, .{ .record_bytes = limits.segment_bytes, .staging_bytes = limits.segment_bytes, .staging_records = 1 });
+    if (try turn.read(Pub.key(.exchange, id, 'b', 0, 0)) != null) return error.ExchangeIdentityConflict;
+    _ = try Pub.create(turn, .exchange, id, .{ .record_bytes = limits.segment_bytes, .staging_bytes = limits.segment_bytes, .staging_records = 1 });
     try turn.write(key(id, 'd', 0), try initial.encode());
     return self;
 }

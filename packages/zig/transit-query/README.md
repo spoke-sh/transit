@@ -19,8 +19,53 @@ hosted source behavior and result verification reuses Station. Current reads
 may return a conflict if a resource changes during a bounded observation; callers
 may retry the read, but must never regenerate uncertain mutations automatically.
 
+`TableMutationRequest` encodes owned, definition-bound requests over the shared
+Table mutation plan and Station Table codecs. It can produce an immutable
+publication reference without admission or execution. `TableMutationAdmission`
+composes explicit principal/Table policies, immutable upload staging and a
+terminal result with the row proposal in one private Station turn. Applications
+retain the full immutable publication reference in every staged or control command;
+the owner rejects changed resource, length or digest even for terminal results.
+Applications must install its policy through their authorized configuration path and opt into
+its external-cast dispatch. The query host offers an explicit `table_writer`
+role; read-query roles and public query clients still reject writes. No read permission implicitly enables mutation dispatch.
+See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
+
+`TableMutationClient` supplies the shared Zig caller for applications that expose
+that owner: current metadata/SQL compilation, canonical saved signed commands,
+explicit submission, input observation, status and bounded upload resumption.
+It retains full request identity across caller and writer recovery. Preparing the
+next step requires reconciling the preceding exact command first; a native send
+receipt is admission, and only a terminal mutation status establishes the result.
+The [caller contract](../../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller)
+defines these APIs and the required current grants. `TableMutationWriter`
+composes guarded initialization, policy changes and durable rejected-input
+dispositions for the explicit host role. Read-query routes do not dispatch
+mutations. `TableMutationBridge` supplies owned neutral actions/results
+over the same caller, including exact compiled-reference validation and opaque
+saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
+keeps full-width namespaces out of JSON numbers. The
+[native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
+exposes these actions through an explicit profile.
+[Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;
+The CLI's explicit `mutate` commands use the same bridge and saved-command rules.
+
+`TableQueryWriter` composes the query source and mutation writer for one typed
+Table. Its guarded two-turn initializer freezes the complete configuration,
+creates metadata, then atomically installs independent query/mutation policies
+and marks the host ready. Each turn stays within four mutations. It cannot adopt
+an existing standalone owner. The [combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md)
+defines readiness, authenticated continuations, conditional policy changes and
+the visibility of intermediate metadata to native readers. Component tests cover
+initialization and routing. `just test::table-query-writer` exercises both
+initialization commits through disk recovery and interleaves durable/interactive
+queries with CLI mutations; the proof ledger records the measured scope.
+
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::unified-query`; [tests](../../../tests/README.md) record evidence.
+is `just test::unified-query`; `just test::table-mutation` exercises an explicit
+mutation application against native authority and disk-backed Ursula, including
+exact frozen recovery, writer fencing and current grants.
+[Tests](../../../tests/README.md) record evidence and interface limits.
 
 `Interactive.open/next/close` owns one finite statement over a fresh
 `transit-client.SnapshotReader`. The caller supplies a fresh 16-byte nonce,
@@ -152,3 +197,10 @@ fixtures cover quoted/qualified names, suffix replacement, hidden/foreign names,
 unsupported comparisons, checked sums, slash arguments and allocation failures.
 The console vocabulary is shared data; introducing it does not implement a CLI
 command or administrative SQL operation.
+
+`SqlInspection` owns `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` over one
+configured source. `UnifiedClient.inspectSql`, `Bridge.inspect` and
+`Workspace.inspect` share current authorization, bounded typed results and Fuze
+output-schema rules. Metadata is separate from Arrow query results; inspection
+does not create snapshots or requests. The [inspection contract](../../../contracts/SQL_INSPECTION_V1.md)
+defines scope, literal redaction and final access checks.

@@ -11,6 +11,7 @@ import time
 import urllib.request
 import urllib.error
 import uuid
+import xml.etree.ElementTree as ET
 from storage import free_port
 
 
@@ -92,6 +93,18 @@ class ColdStore:
                     print(f"Cold-store bucket readiness: {retries} temporary HTTP 503 responses before creation.", flush=True)
                 return
             except urllib.error.HTTPError as error:
+                if error.code == 409:
+                    # A prior PUT can have succeeded before its reply was lost.
+                    # Only the explicit owned-bucket result is idempotent.
+                    body = error.read(4096)
+                    error.close()
+                    try:
+                        owned = ET.fromstring(body).findtext('Code') == 'BucketAlreadyOwnedByYou'
+                    except ET.ParseError:
+                        owned = False
+                    if not owned:
+                        raise
+                    return
                 # The health route can become ready before bucket operations.
                 # Repeat this same private fixture request only for temporary
                 # unavailability, within the original startup deadline.

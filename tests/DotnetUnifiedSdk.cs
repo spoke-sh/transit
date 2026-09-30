@@ -45,6 +45,29 @@ static class Program
         bool rejected=false; try { await Q.DecodeArrowAsync(columns,Read(config,"malformed"),5); }catch(TransitException) { rejected=true; } Check(rejected);
         Console.WriteLine(".NET installed unified codecs: three sources, six types, five states, immutable values and malformed rejection passed");
     }
+    static string Name(Enum value) => value.ToString() is "TypeError"?"type_error":value.ToString().ToLowerInvariant();
+    static JsonObject Inspection(Q.Inspection value) {
+        JsonArray Columns(IReadOnlyList<Q.Column> values) => new(values.Select(v=>(JsonNode?)Obj(("name",v.Name),("type",Name(v.Type)))).ToArray());
+        JsonArray Names(IEnumerable<string> values) => new(values.Select(v=>(JsonNode?)JsonValue.Create(v)).ToArray());
+        JsonObject details;
+        if(value.Details is Q.SourceDescription description) details=Obj(("description",Obj(("columns",Columns(description.Columns)))));
+        else if(value.Details is Q.TableListing tables) details=Obj(("tables",Names(tables.Names)));
+        else {
+            var plan=(Q.Explanation)value.Details;
+            JsonObject predicate=plan.Predicate switch {
+                Q.InspectedAll=>Obj(("all",Obj())),
+                Q.InspectedState p=>Obj(("state",Obj(("column",p.Column),("value",Name(p.State))))),
+                Q.InspectedComparison p=>Obj(("compare",Obj(("column",p.Column),("op",Name(p.Comparison)),("type",Name(p.Type))))),
+                _=>throw new Exception("Unknown SQL inspection predicate")
+            };
+            details=Obj(("explanation",Obj(("operators",Names(plan.Operators.Select(v=>Name(v)))),("predicate",predicate),("projection",Names(plan.Projection)),
+                ("limit",plan.Limit?.ToString()),("aggregate",Name(plan.Aggregate)),("columns",Columns(plan.Columns)),
+                ("budgets",Obj(("pages",plan.Budgets.Pages.ToString()),("segments",plan.Budgets.Segments.ToString()),("result_bytes",plan.Budgets.ResultBytes.ToString()))))));
+        }
+        JsonArray Digest(Bytes bytes) => new(bytes.Copy().Select(v=>(JsonNode?)JsonValue.Create((int)v)).ToArray());
+        return Obj(("inspection",Obj(("version",1),("scope","configured_source"),("name",value.Name),("resource",value.Resource.Resource),("source_kind",Name(value.SourceKind)),
+            ("contract",Digest(value.SourceDigest)),("schema",Digest(value.SchemaDigest)),("resource_revision",value.ResourceRevision),("policy_revision",value.PolicyRevision.ToString()),("details",details))));
+    }
     static async Task Serve(JsonNode config) {
         var c=config["connection"]!; ulong realm=Number(c,"realm"); ResourceRef resource=new(realm,Number(c,"resource"));
         Q.Connection connection=new(new(realm,Number(c,"source")),resource,new(realm,Number(c,"requester")),new(realm,Number(c,"requests")));
@@ -60,7 +83,12 @@ static class Program
                 var action=JsonNode.Parse(line)!.AsObject(); if(action.ContainsKey("close"))break;
                 try {
                     JsonObject result;
-                    if(action["next"] is {} next) { var p=await client.PrepareNextAsync(ulong.Parse(Text(next,"namespace")),new(new Bytes(Convert.FromHexString(Text(next,"bundle"))))); result=Obj(("prepared",p is null?null:Encoding.UTF8.GetString(p.Bytes.Copy()))); }
+                    if(action["inspect"] is {} inspection) {
+                        var scope=inspection["scope"]!; var limits=scope["limits"]!;
+                        var value=await client.InspectSqlAsync(source,Text(scope,"name"),Text(inspection,"sql"),new(ulong.Parse(Text(limits,"pages")),ulong.Parse(Text(limits,"segments")),ulong.Parse(Text(limits,"result_bytes"))));
+                        Check(value.Resource==resource && Name(value.SourceKind)==kind); result=Inspection(value);
+                    }
+                    else if(action["next"] is {} next) { var p=await client.PrepareNextAsync(ulong.Parse(Text(next,"namespace")),new(new Bytes(Convert.FromHexString(Text(next,"bundle"))))); result=Obj(("prepared",p is null?null:Encoding.UTF8.GetString(p.Bytes.Copy()))); }
                     else if(action["submit"] is not null) {
                         Q.Prepared p=new(new Bytes(Encoding.UTF8.GetBytes(Text(action,"submit")))); byte[] original=p.Bytes.Copy();
                         try { result=Obj(("receipt",Obj(("position",(await client.SubmitAsync(p)).Position)))); }catch(TransitException) { Check(p.Bytes.Copy().SequenceEqual(original)); throw; }

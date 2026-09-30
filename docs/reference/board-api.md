@@ -17,6 +17,12 @@ publishes query requests through its own public contract. The opt-in application
 editor also has a separate operator identity. Neither grants mutations to the
 inspection identity. See [Board configuration](../../apps/transit-board/docs/configuration.md).
 
+The query workspace's `inspect` request accepts `DESCRIBE`, `SHOW TABLES` and
+`EXPLAIN SELECT` through the shared [SQL inspection owner](../../contracts/SQL_INSPECTION_V1.md).
+It returns current metadata within the configured source scope, separate from
+compiled query bundles or submitted results. It creates no query or snapshot.
+The worksheet's Run action retains its explicit SELECT submission interface.
+
 ## Read evidence, not assumptions
 
 Reads are paged and carry their observation basis. A source association is not

@@ -49,8 +49,8 @@ pub fn initialize(self: Self, turn: *Turn) !void {
         if (!previous.eql(encoded)) return error.ApplicationConfigurationChanged;
     } else {
         // Never adopt a namespace whose contents were created by another owner.
-        if (try turn.read(Pub.key(config.namespace.value, 'b', 0, 0)) != null) return error.PublicationUploadNamespaceInUse;
-        _ = try Pub.create(turn, config.namespace.value, limits);
+        if (try turn.read(Pub.key(.application_definition, config.namespace.value, 'b', 0, 0)) != null) return error.PublicationUploadNamespaceInUse;
+        _ = try Pub.create(turn, .application_definition, config.namespace.value, limits);
         try turn.write(self.key('c', 0, 0), encoded);
     }
 }
@@ -84,10 +84,10 @@ pub fn receipt(self: Self, reader: anytype, who: u64, operation: m.Wide) !?Recei
     return if (try reader.read(self.key('o', who, operation.value))) |value| try c.decode(Receipt, 'o', value) else null;
 }
 pub fn reference(self: Self, resource: u64, value: Head) s.PublicationReference {
-    return .{ .resource = resource, .namespace = self.configuration.namespace.value, .record = value.record.value, .spec = value.spec };
+    return .{ .domain = .application_definition, .resource = resource, .namespace = self.configuration.namespace.value, .record = value.record.value, .spec = value.spec };
 }
 fn publication(self: Self, turn: *Turn) Pub {
-    return .{ .resource = turn.view.resource, .namespace = self.configuration.namespace.value };
+    return .{ .domain = .application_definition, .resource = turn.view.resource, .namespace = self.configuration.namespace.value };
 }
 fn baseMatches(previous: ?Head, proposal: Proposal) bool {
     const revision = if (previous) |value| value.revision.value else 0;
@@ -98,7 +98,7 @@ pub fn validateProposal(proposal: Proposal) !void {
     if (proposal.operation.value == 0 or proposal.record.value == 0 or proposal.revision.value != try std.math.add(u64, proposal.expected.value, 1) or proposal.spec.format != format or proposal.spec.length == 0 or proposal.spec.length > m.max_program_bytes) return error.InvalidApplicationProposal;
 }
 fn reserve(self: Self, turn: *Turn, who: u64, proposal: Proposal) !void {
-    if (try turn.read(Pub.key(self.configuration.namespace.value, 'r', proposal.record.value, 0)) != null) return error.ApplicationRecordOccupied;
+    if (try turn.read(Pub.key(.application_definition, self.configuration.namespace.value, 'r', proposal.record.value, 0)) != null) return error.ApplicationRecordOccupied;
     _ = try self.publication(turn).begin(turn, proposal.record.value, proposal.spec);
     try turn.write(self.key('o', who, proposal.operation.value), try c.encode('o', Receipt{ .proposal = proposal, .phase = .staging, .input = turn.delivery.input.position, .owns_record = true }));
 }
@@ -131,7 +131,7 @@ pub fn appendUpload(self: Self, turn: *Turn, operation: m.Wide, part: s.Publicat
     if (!current.owns_record) return error.ApplicationPublicationChanged;
     try validateProposal(current.proposal);
     if (!baseMatches(try self.head(turn), current.proposal)) return self.conflict(turn, who, current.proposal, true);
-    try s.PublicationParts.append(turn, .{ .resource = turn.view.resource, .namespace = self.configuration.namespace.value, .record = current.proposal.record.value, .spec = current.proposal.spec }, self.key('x', who, operation.value), part);
+    try s.PublicationParts.append(turn, .{ .domain = .application_definition, .resource = turn.view.resource, .namespace = self.configuration.namespace.value, .record = current.proposal.record.value, .spec = current.proposal.spec }, self.key('x', who, operation.value), part);
     return .staging;
 }
 pub fn finishUpload(self: Self, allocator: std.mem.Allocator, turn: *Turn, operation: m.Wide) !Phase {
@@ -147,7 +147,7 @@ pub fn finishUpload(self: Self, allocator: std.mem.Allocator, turn: *Turn, opera
     var bytes: [m.max_program_bytes]u8 = undefined;
     for (0..descriptor.written) |i| {
         const index: u32 = @intCast(i);
-        const chunk = (try turn.read(Pub.key(self.configuration.namespace.value, 'c', current.proposal.record.value, index))) orelse return error.MissingPublicationChunk;
+        const chunk = (try turn.read(Pub.key(.application_definition, self.configuration.namespace.value, 'c', current.proposal.record.value, index))) orelse return error.MissingPublicationChunk;
         if (chunk.len != try descriptor.spec.size(index)) return error.InvalidPublicationChunk;
         @memcpy(bytes[i * Pub.chunk_bytes ..][0..chunk.len], chunk.slice());
     }

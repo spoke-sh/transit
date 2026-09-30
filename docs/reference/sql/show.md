@@ -1,14 +1,20 @@
 # SHOW
 
-**Grammar only.** This statement names a catalog listing. It does not resolve
-catalogs or return rows in the console, Board query workspace or Flight SQL.
+`SHOW TABLES` lists typed Tables within the configured query-source scope in the
+console and query workspace `inspect` operation. `SHOW SOURCES`, `SHOW SINKS`
+and `SHOW CONNECTIONS` remain grammar-only connector catalog forms.
 
 ## Syntax and examples
 
-These four examples illustrate syntax only:
+The Table listing is executable:
 
 ```sql
 SHOW TABLES;
+```
+
+The connector listings illustrate syntax only:
+
+```sql
 SHOW SOURCES;
 SHOW SINKS;
 SHOW CONNECTIONS;
@@ -16,19 +22,24 @@ SHOW CONNECTIONS;
 
 These are all four alternatives in the grammar. There are no filters, namespace
 arguments, `LIKE`, `WHERE` or pagination clauses. `SHOW DOCUMENTS`, `SHOW KV` and
-`SHOW GRANTS` are not part of this rule. The grammar defines no result schema,
-ordering, visibility or continuation contract.
+`SHOW GRANTS` are not part of this rule.
 
-## Meaning and current interface
+## Result and access
 
 `TABLES` names typed state Tables; `SOURCES` and `SINKS` refer to the connector
 declarations, while `CONNECTIONS` refers to reusable connector configuration.
-The statement recognizes those object families without implementing a catalog.
+`SHOW TABLES` returns zero or one names: the configured name when it identifies a
+typed Table, otherwise an empty list. This is not a realm-wide catalog. Native
+source/requester access and query policy must permit the configured declaration
+before and after metadata is assembled, including empty listings. The result
+contains current metadata revisions and declaration/schema fingerprints; it
+acquires no data snapshot. See the [inspection contract](../../../contracts/SQL_INSPECTION_V1.md).
 
-For current console metadata use the dot commands documented in
-[the console guide](../../../apps/transit-cli/docs/console.md). Console `.show`
-displays effective settings; it is distinct from SQL `SHOW`. Use
-[Board inspection](../../guides/inspect-board.md) for bounded runtime evidence
-under its configured read scope. Neither interface promises these SQL result sets.
+Console `.show` displays effective settings; it is distinct from SQL `SHOW`.
+See the [console guide](../../../apps/transit-cli/docs/console.md) for related
+metadata commands. [Board inspection](../../guides/inspect-board.md) presents
+bounded runtime evidence under its configured read scope. Flight SQL retains
+its separate Table metadata and SELECT interfaces and does not accept these
+SQL inspection statements.
 
 Source: [`showStatement`, `catalogKind`](../../../contracts/sql/TransitExtensions.g4).

@@ -24,6 +24,16 @@ retry token. Admission, `observe` disposition and `status` completion are separa
 `nil` from `prepare_next` means inspect status. `prepare_control` creates explicit
 cancel/retire/collect commands with the same persistence rules.
 
+`inspect_sql(client, source, name, sql, budgets)` returns `{:ok, %Inspection{}}`
+for scoped `DESCRIBE name`, `SHOW TABLES` and `EXPLAIN SELECT ...`. Its details
+are `SourceDescription`, `TableListing` or `Explanation` structs with owned
+immutable values, source/schema digests and current resource/policy revisions.
+Explanation includes ordered operator atoms, predicate structure without literal
+values, projection/output columns and explicit budgets. Integers preserve all
+64 bits. The shared Zig owner checks current authorization before and after
+resolution, creates no snapshot and admits no query. The listing covers only
+the configured source; local tasks do not extend its permission.
+
 `page` rechecks current source access, lifecycle and complete result coverage.
 It returns immutable IPC and manifest evidence with an optional opaque cursor;
 `nil` continuation means verified complete coverage. `decode_arrow` preserves

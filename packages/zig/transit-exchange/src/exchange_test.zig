@@ -35,7 +35,7 @@ const Store = struct {
     }
     fn create(self: *Store, policy: Pub.Limits) !Pub {
         var turn = try self.capture();
-        const pubn = try Pub.create(&turn, std.math.maxInt(u64), policy);
+        const pubn = try Pub.create(&turn, .exchange, std.math.maxInt(u64), policy);
         try self.commit(turn);
         return pubn;
     }

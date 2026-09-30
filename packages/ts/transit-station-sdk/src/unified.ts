@@ -421,6 +421,102 @@ export interface Description {
   readonly segmentBytes: number;
   readonly batchRows: number;
 }
+export type InspectedPredicate =
+  | { readonly kind: "state"; readonly column: string; readonly state: State }
+  | {
+      readonly kind: "compare";
+      readonly column: string;
+      readonly comparison: Comparison;
+      readonly type: Type;
+    };
+export type InspectionDetails =
+  | { readonly kind: "description"; readonly columns: readonly Column[] }
+  | { readonly kind: "tables"; readonly names: readonly string[] }
+  | {
+      readonly kind: "explanation";
+      readonly operators: readonly ("scan" | "filter" | "limit" | "project" | "count" | "sum")[];
+      readonly predicate: InspectedPredicate | undefined;
+      readonly projection: readonly string[];
+      readonly limit: bigint | undefined;
+      readonly aggregate: Aggregate;
+      readonly columns: readonly Column[];
+      readonly budgets: Budgets;
+    };
+export interface Inspection {
+  readonly name: string;
+  readonly resource: ResourceRef;
+  readonly sourceKind: "kv" | "table" | "document";
+  readonly sourceDigest: Uint8Array;
+  readonly schemaDigest: Uint8Array;
+  readonly resourceRevision: number;
+  readonly policyRevision: bigint;
+  readonly details: InspectionDetails;
+}
+function inspection(
+  value: Extract<UnifiedQueryResult, { inspection: unknown }>["inspection"],
+  expected: ResourceRef,
+): Inspection {
+  if (
+    value.version !== 1 ||
+    value.scope !== "configured_source" ||
+    value.resource !== expected.resource
+  )
+    throw new IncompatibleNative("Invalid SQL inspection scope");
+  const input = value.details;
+  let details: InspectionDetails;
+  if ("description" in input)
+    details = Object.freeze({
+      kind: "description",
+      columns: Object.freeze(input.description.columns.map((v) => Object.freeze(column(v)))),
+    });
+  else if ("tables" in input)
+    details = Object.freeze({ kind: "tables", names: Object.freeze([...input.tables]) });
+  else {
+    const plan = input.explanation;
+    const predicate = plan.predicate;
+    const inspected: InspectedPredicate | undefined =
+      "all" in predicate
+        ? undefined
+        : "state" in predicate
+          ? Object.freeze({
+              kind: "state",
+              column: predicate.state.column,
+              state: predicate.state.value,
+            })
+          : Object.freeze({
+              kind: "compare",
+              column: predicate.compare.column,
+              comparison: predicate.compare.op,
+              type: predicate.compare.type,
+            });
+    if (plan.operators.length < 2 || plan.operators.length > 4)
+      throw new IncompatibleNative("Invalid inspected operators");
+    details = Object.freeze({
+      kind: "explanation",
+      operators: Object.freeze([...plan.operators]),
+      predicate: inspected,
+      projection: Object.freeze([...plan.projection]),
+      limit: plan.limit === null ? undefined : nativeWide(plan.limit),
+      aggregate: plan.aggregate,
+      columns: Object.freeze(plan.columns.map((v) => Object.freeze(column(v)))),
+      budgets: Object.freeze({
+        pages: nativeWide(plan.budgets.pages),
+        segments: nativeWide(plan.budgets.segments),
+        resultBytes: nativeWide(plan.budgets.result_bytes),
+      }),
+    });
+  }
+  return Object.freeze({
+    name: value.name,
+    resource: expected,
+    sourceKind: value.source_kind,
+    sourceDigest: digest(value.contract),
+    schemaDigest: digest(value.schema),
+    resourceRevision: integer(value.resource_revision, "revision", 0),
+    policyRevision: nativeWide(value.policy_revision),
+    details,
+  });
+}
 export interface Manifest {
   readonly job: number;
   readonly source: ReadVersion;
@@ -489,7 +585,7 @@ function page(value: WirePage, realm: number): Page {
     requester: new ProcessRef(realm, m.requester),
     correlation: nativeWide(m.correlation),
     policyRevision: nativeWide(m.policy_revision),
-    request: unhex(m.request, 68),
+    request: unhex(m.request, 72),
     sourceKind: m.basis.kind,
     resource: new ResourceRef(realm, m.basis.resource),
     revision: integer(m.basis.revision, "revision", 0),
@@ -577,6 +673,36 @@ export class Client {
       batchRows: v.capabilities.batch_rows,
     });
   }
+  /** Current configured-source metadata; no snapshot, upload or admission. */
+  async inspectSql(
+    source: Source,
+    name: string,
+    sql: string,
+    budgets: Budgets,
+  ): Promise<Inspection> {
+    const id = resource(source);
+    if (
+      id.realm !== this.connection.resource.realm ||
+      id.resource !== this.connection.resource.resource
+    )
+      throw new TypeError("Source differs from the connection");
+    const value = await this.bridge.call({
+      inspect: {
+        scope: {
+          name: text(name, 32),
+          source: sourceWire(source),
+          limits: {
+            pages: positive(budgets.pages),
+            segments: positive(budgets.segments),
+            result_bytes: positive(budgets.resultBytes),
+          },
+        },
+        sql: text(sql, 4096),
+      },
+    });
+    if (!("inspection" in value)) throw new IncompatibleNative("Expected SQL inspection");
+    return inspection(value.inspection, id);
+  }
   async prepareNext(namespace: bigint, bundle: Bundle): Promise<Prepared | undefined> {
     if (!(bundle instanceof Bundle)) throw new TypeError("Expected query bundle");
     const value = await this.bridge.call({
@@ -638,8 +764,8 @@ export class Client {
       : Object.freeze({
           phase: v.phase,
           correlation: nativeWide(v.correlation),
-          reference: unhex(v.reference, 68),
-          manifest: v.manifest === null ? undefined : unhex(v.manifest, 68),
+          reference: unhex(v.reference, 72),
+          manifest: v.manifest === null ? undefined : unhex(v.manifest, 72),
           collected: v.collected,
         });
   }

@@ -70,17 +70,31 @@ class Terminal(Shell):
         return json.loads(line) if json_line else line
 
     def close(self):
-        if self.process.poll() is None:
-            self.send('\x03')
-            try:
-                self.expect('transit> ')
-                self.send('.quit\r')
+        try:
+            if self.process.poll() is None:
+                # Queue an ordinary disconnect after any command output. A
+                # signal here can interrupt metadata (correctly exiting 130),
+                # and an unread prompt cannot acknowledge that signal. Clear
+                # any remaining draft with editor keys before submitting quit.
+                self.send('\x05\x15.quit\r')
                 assert self.process.wait(timeout=10) == 0
-            except AssertionError:
-                if self.process.poll() is None: self.process.kill(); self.process.wait(timeout=10)
-        assert termios.tcgetattr(self.slave) == self.original, 'terminal attributes were not restored'
-        if self.process.stdout is not None: self.process.stdout.close()
-        os.close(self.master); os.close(self.slave)
+            assert termios.tcgetattr(self.slave) == self.original, 'terminal attributes were not restored'
+        except (AssertionError, subprocess.TimeoutExpired) as error:
+            # Preserve the final rendered command when an interrupt/quit race
+            # recurs. Do not turn an unexpected exit or timeout into a pass.
+            if select.select([self.master], [], [], 0)[0]:
+                try:
+                    self.screen += os.read(self.master, 65536)
+                except OSError:
+                    pass  # A closed PTY may report EIO after child exit.
+            error.add_note(f'Terminal close: exit={self.process.poll()}, display={ANSI.sub(b"", self.screen)[-1000:]!r}')
+            raise
+        finally:
+            if self.process.poll() is None:
+                self.process.kill()
+                self.process.wait(timeout=10)
+            if self.process.stdout is not None: self.process.stdout.close()
+            os.close(self.master); os.close(self.slave)
 
 
 def check(binary, path, root, kind, invoke, fault):

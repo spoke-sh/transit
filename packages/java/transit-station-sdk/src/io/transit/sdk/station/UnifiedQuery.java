@@ -149,6 +149,50 @@ public final class UnifiedQuery {
         JsonObject wire(Credential identity) { if(identity.realm()!=source.realm())throw new IllegalArgumentException("Different credential realm"); return obj("realm",source.realm(),"principal",identity.principal(),"source",source.pid(),"resource",resource.resource(),"requester",requester.pid(),"requests",requests.resource()); }
     }
     public record Description(long resourceRevision,BigInteger policyRevision,Budgets budgets,Optional<BigInteger> active,int bundleBytes,int segmentBytes,int batchRows) {}
+    public enum InspectionOperator { SCAN, FILTER, LIMIT, PROJECT, COUNT, SUM }
+    public sealed interface InspectedPredicate permits InspectedAll, InspectedState, InspectedComparison {}
+    public record InspectedAll() implements InspectedPredicate {}
+    public record InspectedState(String column,State state) implements InspectedPredicate {}
+    public record InspectedComparison(String column,Query.Comparison comparison,Type type) implements InspectedPredicate {}
+    public sealed interface InspectionDetails permits SourceDescription, TableListing, Explanation {}
+    public record SourceDescription(List<Column> columns) implements InspectionDetails {
+        public SourceDescription { columns=List.copyOf(columns); }
+    }
+    public record TableListing(List<String> names) implements InspectionDetails {
+        public TableListing { names=List.copyOf(names); }
+    }
+    public record Explanation(List<InspectionOperator> operators,InspectedPredicate predicate,List<String> projection,
+        Optional<BigInteger> limit,Query.Aggregate aggregate,List<Column> columns,Budgets budgets) implements InspectionDetails {
+        public Explanation { operators=List.copyOf(operators); projection=List.copyOf(projection); columns=List.copyOf(columns); limit.ifPresent(v->u64(v)); }
+    }
+    public record Inspection(String name,ResourceRef resource,SourceKind sourceKind,Bytes sourceDigest,Bytes schemaDigest,long resourceRevision,BigInteger policyRevision,InspectionDetails details) {}
+    private static List<Column> inspectedColumns(JsonElement value) { return array(value,8).stream().map(Column::parse).toList(); }
+    private static List<String> inspectedNames(JsonElement value,int max) { return array(value,max).stream().map(v->text(string(v),32)).toList(); }
+    private static Inspection inspection(JsonElement value,ResourceRef resource) {
+        JsonObject v=object(value);
+        if(number(v.get("version"),1)!=1 || !string(v.get("scope")).equals("configured_source") || number(v.get("resource"),1)!=resource.resource())throw incompatible("inspection-scope");
+        JsonObject details=object(v.get("details")); if(details.size()!=1)throw incompatible("inspection-details"); var entry=details.entrySet().iterator().next();
+        InspectionDetails parsed=switch(entry.getKey()) {
+            case "description" -> new SourceDescription(inspectedColumns(object(entry.getValue()).get("columns")));
+            case "tables" -> new TableListing(inspectedNames(entry.getValue(),1));
+            case "explanation" -> {
+                JsonObject plan=object(entry.getValue()), predicate=object(plan.get("predicate")), limits=object(plan.get("budgets"));
+                if(predicate.size()!=1)throw incompatible("inspection-predicate"); var selected=predicate.entrySet().iterator().next(); JsonObject data=object(selected.getValue());
+                InspectedPredicate p=switch(selected.getKey()) {
+                    case "all" -> new InspectedAll();
+                    case "state" -> new InspectedState(text(string(data.get("column")),32),State.valueOf(string(data.get("value")).toUpperCase(Locale.ROOT)));
+                    case "compare" -> new InspectedComparison(text(string(data.get("column")),32),Query.Comparison.valueOf(string(data.get("op")).toUpperCase(Locale.ROOT)),Type.valueOf(string(data.get("type")).toUpperCase(Locale.ROOT)));
+                    default -> throw incompatible("inspection-predicate");
+                };
+                List<InspectionOperator> operators=array(plan.get("operators"),4).stream().map(o->InspectionOperator.valueOf(string(o).toUpperCase(Locale.ROOT))).toList();
+                if(operators.size()<2)throw incompatible("inspection-operators");
+                yield new Explanation(operators,p,inspectedNames(plan.get("projection"),8),plan.get("limit").isJsonNull()?Optional.empty():Optional.of(wide(plan.get("limit"))),
+                    Query.Aggregate.valueOf(string(plan.get("aggregate")).toUpperCase(Locale.ROOT)),inspectedColumns(plan.get("columns")),new Budgets(wide(limits.get("pages")),wide(limits.get("segments")),wide(limits.get("result_bytes"))));
+            }
+            default -> throw incompatible("inspection-details");
+        };
+        return new Inspection(text(string(v.get("name")),32),resource,SourceKind.valueOf(string(v.get("source_kind")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("contract")),NativeValues.digest(v.get("schema")),number(v.get("resource_revision"),0),positive(wide(v.get("policy_revision"))),parsed);
+    }
     public enum Phase { UPLOADING, SEALED, ADMITTED, COMPLETE, CANCELLED, DENIED, REJECTED, RETIRED }
     public record Status(Phase phase,BigInteger correlation,Bytes reference,Optional<Bytes> manifest,boolean collected) {}
     public enum Observed { PENDING, COMMITTED, REJECTED }
@@ -167,7 +211,7 @@ public final class UnifiedQuery {
     private static Bytes fixed(JsonElement v,int size) { Bytes out=encoded(v,size); if(out.size()!=size)throw incompatible("query-reference"); return out; }
     private static Manifest manifest(JsonElement value,long realm) {
         JsonObject v=object(value), b=object(v.get("basis"));
-        return new Manifest(number(v.get("job"),1),NativeValues.version(v.get("source")),new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),68),
+        return new Manifest(number(v.get("job"),1),NativeValues.version(v.get("source")),new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),72),
             SourceKind.valueOf(string(b.get("kind")).toUpperCase(Locale.ROOT)),new ResourceRef(realm,number(b.get("resource"),1)),number(b.get("revision"),0),NativeValues.digest(b.get("contract")),NativeValues.digest(b.get("schema")),NativeValues.digest(v.get("plan")),
             wide(v.get("pages")),wide(v.get("scanned")),wide(v.get("selected")),wide(v.get("segments")),wide(v.get("rows")),wide(v.get("bytes")),v.get("sum").isJsonNull()?Optional.empty():Optional.of(NativeValues.signed(v.get("sum"))),Finished.valueOf(string(v.get("finished")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("chain")));
     }
@@ -188,6 +232,11 @@ public final class UnifiedQuery {
             if(!source.resource().equals(connection.resource()))throw new IllegalArgumentException("Different query resource"); JsonObject action=obj("describe",UnifiedQuery.source(source));
             return worker.submit(b -> { JsonObject v=object(b.unifiedQuery(action,false).get("description")), limits=object(v.get("limits")), caps=object(v.get("capabilities")); return new Description(number(v.get("resource_revision"),0),wide(v.get("policy_revision")),new Budgets(wide(limits.get("pages")),wide(limits.get("segments")),wide(limits.get("result_bytes"))),v.get("active").isJsonNull()?Optional.empty():Optional.of(wide(v.get("active"))),Math.toIntExact(number(caps.get("bundle_bytes"),1)),Math.toIntExact(number(caps.get("segment_bytes"),1)),Math.toIntExact(number(caps.get("batch_rows"),1))); });
         }
+        public CompletableFuture<Inspection> inspectSql(Source source,String name,String sql,Budgets budgets) {
+            if(!source.resource().equals(connection.resource()))throw new IllegalArgumentException("Different query resource");
+            JsonObject action=obj("inspect",obj("scope",obj("source",UnifiedQuery.source(source),"name",text(name,32),"limits",budgets.wire()),"sql",text(sql,4096)));
+            return worker.submit(b->inspection(b.unifiedQuery(action,false).get("inspection"),connection.resource()));
+        }
         public CompletableFuture<Optional<Prepared>> prepareNext(BigInteger namespace,Bundle bundle) {
             JsonObject action=obj("next",obj("namespace",positive(namespace).toString(),"bundle",hex(bundle.bytes())));
             return worker.submit(b -> { JsonElement v=b.unifiedQuery(action,false).get("prepared"); return v.isJsonNull()?Optional.empty():Optional.of(new Prepared(new Bytes(string(v).getBytes(StandardCharsets.UTF_8)))); });
@@ -206,7 +255,7 @@ public final class UnifiedQuery {
         }
         public CompletableFuture<Optional<Status>> status(BigInteger namespace) {
             JsonObject action=obj("status",positive(namespace).toString());
-            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),68),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),68)),bool(v.get("collected")))); });
+            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),72),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),72)),bool(v.get("collected")))); });
         }
         public CompletableFuture<Page> page(BigInteger namespace,Optional<Cursor> cursor) {
             JsonObject action=obj("page",obj("namespace",positive(namespace).toString(),"cursor",cursor.map(Cursor::opaque).orElse(null)));

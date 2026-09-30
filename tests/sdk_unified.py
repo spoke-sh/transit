@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Consumer:
-    def __init__(self, command, environment, directory):
+    def __init__(self, command, environment, directory, *, inspection=False):
+        self.inspection = inspection
         self.child = subprocess.Popen(command, env=environment, cwd=directory,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         try: assert self.read() == {'ready': True}
@@ -31,7 +32,11 @@ class Consumer:
     def read(self):
         assert select.select([self.child.stdout], [], [], 90)[0], 'installed query caller timed out'
         line = self.child.stdout.readline()
-        assert line, f'installed query caller exited ({self.child.poll()})'
+        if not line:
+            # EOF can race process reaping. Join before reporting the exit code;
+            # the caller's finally block still kills a child that does not exit.
+            code = self.child.wait(timeout=10)
+            raise AssertionError(f'installed query caller exited ({code})')
         return json.loads(line)
 
     def send(self, action):
@@ -102,8 +107,8 @@ def install(root, languages):
             config = root/'client.json'
             config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'),
                 kind=kind, bundle=str(state/'bundle.bin'), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
-            first = Consumer([python, '-B', script, 'sync', config], env, root)
-            try: second = Consumer([python, '-B', script, 'async', config], env, root)
+            first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True)
+            try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True)
             except BaseException:
                 first.close()
                 raise
@@ -128,7 +133,7 @@ def install_node(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer(['node', script, 'serve', config], env, root)]
+        return [Consumer(['node', script, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 
@@ -147,7 +152,7 @@ def install_ruby(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer(['ruby', script, 'serve', config], env, root)]
+        return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 
@@ -190,7 +195,7 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([executable, 'serve', config], env, root)]
+        return [Consumer([executable, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 
@@ -200,8 +205,11 @@ class CConsumer(Consumer):
         elif 'submit' in action: command = 'submit ' + action['submit'].encode().hex()
         elif 'next' in action:
             v = action['next']; command = f"next {v['namespace']} {v['bundle']}"
+        elif 'inspect' in action:
+            v = action['inspect']; scope = v['scope']; limits = scope['limits']
+            command = f"inspect {scope['name']} {v['sql'].encode().hex()} {limits['pages']} {limits['segments']} {limits['result_bytes']}"
         elif 'page' in action:
-            v = action['page']; command = f"page {v['namespace']} {v['cursor'].encode().hex() if v['cursor'] is not None else '-'}"
+            v = action['page']; command = f"page {v['namespace']} {v['cursor'].encode().hex() if v.get('cursor') is not None else '-'}"
         else:
             name, value = next(iter(action.items())); command = f'{name} {value}'
         self.child.stdin.write(command+'\n'); self.child.stdin.flush()
@@ -226,6 +234,7 @@ def install_c(root, fixtures, language):
     flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'transit-station-c' if language == 'c' else 'transit-station-cpp'], text=True, env=env))
     filename = 'c_unified_sdk.c' if language == 'c' else 'cpp_unified_sdk.cpp'
     source = root/filename; shutil.copyfile(ROOT/'tests'/filename, source)
+    shutil.copyfile(ROOT/'tests/unified_inspection_fixture.h', root/'unified_inspection_fixture.h')
     executable = root/'consumer'
     subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', source, *flags, '-lpthread', '-o', executable], cwd=root, env=env, check=True)
     source.unlink()
@@ -240,7 +249,7 @@ def install_c(root, fixtures, language):
     def open_callers(url, connection, state, kind):
         arguments = [executable, 'serve', url, str(state/'caller.seed'), kind, str(state/'bundle.bin')]
         arguments += [str(connection[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
-        return [CConsumer(arguments, env, root)]
+        return [CConsumer(arguments, env, root, inspection=True)]
     return open_callers
 
 
@@ -259,7 +268,7 @@ def install_java(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 
@@ -287,7 +296,7 @@ def install_dotnet(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 
@@ -313,5 +322,5 @@ def install_beam(root, fixtures, language):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([*command, 'serve', config], env, root)]
+        return [Consumer([*command, 'serve', config], env, root, inspection=True)]
     return open_callers

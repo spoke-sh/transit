@@ -17,6 +17,8 @@ internal sealed class Bridge : IWorkerState<object?>
     private RawBridge? raw;
     private IntPtr server;
     private IntPtr queryClient;
+    private IntPtr mutationClient;
+    private IntPtr catalogClient;
     internal Bridge(string? nativeDirectory)
     {
         if (typeof(Transit.Client.Client).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion != "0.2.0") throw Value.Incompatible("client-sdk-version");
@@ -86,6 +88,59 @@ internal sealed class Bridge : IWorkerState<object?>
         if (bytes.Length > Value.MaxBody) throw new ArgumentException("Query codec action exceeds its bound");
         uint status = Api.station_unified_query_codec(bytes, (nuint)bytes.Length, out var buffer);
         return Result(status, buffer, "query-codec", schema: "UnifiedQueryCodecResult");
+    }
+    internal static Bridge OpenMutation(ClientConfig config, Credential identity, Mutations.Connection connection)
+    {
+        Bridge bridge = new(config.NativeDirectory);
+        try {
+            byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
+            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis)));
+            byte[] seed = RawBridge.Seed(identity.SeedFile);
+            try {
+                uint status = bridge.Api.station_table_mutation_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.mutationClient);
+                if (status != 0) throw Value.NativeError(status, null, "mutation-create");
+                if (bridge.mutationClient == IntPtr.Zero) throw Value.Incompatible("mutation-create");
+            } finally { CryptographicOperations.ZeroMemory(seed); }
+            var caps = Value.Object(bridge.TableMutation(Value.Obj(("capabilities", Value.Obj())))["capabilities"]);
+            if (Value.Number(caps["version"], 1) != 1 || Value.Number(caps["max_rows"], 1) != 3 || Value.Number(caps["max_request_bytes"], 1) != 799 || Value.Number(caps["max_saved_bytes"], 1) != 8192) throw Value.Incompatible("mutation-capabilities");
+            foreach (string operation in new[] { "insert", "update_primary_key", "delete_primary_key" }) if (!Value.Boolean(caps[operation])) throw Value.Incompatible("mutation-capabilities");
+            return bridge;
+        } catch (Exception) { bridge.Dispose(); throw; }
+    }
+    internal JsonObject TableMutation(JsonObject action)
+    {
+        Schema.Require(Value.Object(Schemas["TableMutationAction"]), action);
+        byte[] bytes = Value.Json(action);
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Mutation action exceeds its bound");
+        uint status = Api.station_table_mutation_call(mutationClient, bytes, (nuint)bytes.Length, out var buffer);
+        // Preserve uncertainty if copying/validating an admitted or already
+        // uncertain response fails; explicit preflight rejections stay distinct.
+        return Result(status, buffer, "table-mutation", action.ContainsKey("submit") && (status is 0 or 6), "TableMutationResult");
+    }
+    internal static Bridge OpenCatalog(ClientConfig config, Credential identity, Catalog.Connection connection)
+    {
+        Bridge bridge = new(config.NativeDirectory);
+        try {
+            byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
+            byte[] document = Value.Json(Value.Obj(("connection", connection.Wire(identity)), ("timeout_ms", config.TimeoutMillis)));
+            byte[] seed = RawBridge.Seed(identity.SeedFile);
+            try {
+                uint status = bridge.Api.station_catalog_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, seed, document, (nuint)document.Length, out bridge.catalogClient);
+                if (status != 0) throw Value.NativeError(status, null, "catalog-create");
+                if (bridge.catalogClient == IntPtr.Zero) throw Value.Incompatible("catalog-create");
+            } finally { CryptographicOperations.ZeroMemory(seed); }
+            var caps = Sdk.Catalog.ParseCapabilities(bridge.Catalog(Value.Obj(("capabilities", Value.Obj())))["capabilities"]);
+            if (!caps.Initialize || !caps.CreateTable || !caps.ConditionalPolicy || !caps.CurrentMetadata) throw new TransitException(ErrorKind.UnsupportedCapability, "catalog-capabilities");
+            return bridge;
+        } catch (Exception) { bridge.Dispose(); throw; }
+    }
+    internal JsonObject Catalog(JsonObject action)
+    {
+        Schema.Require(Value.Object(Schemas["CatalogAction"]), action);
+        byte[] bytes = Value.Json(action);
+        if (bytes.Length > Value.MaxBody) throw new ArgumentException("Catalog action exceeds its bound");
+        uint status = Api.station_catalog_call(catalogClient, bytes, (nuint)bytes.Length, out var buffer);
+        return Result(status, buffer, "catalog", action.ContainsKey("submit") && (status is 0 or 6), "CatalogResult");
     }
     internal JsonObject UnifiedQuery(JsonObject action, bool mutation = false)
     {
@@ -222,6 +277,8 @@ internal sealed class Bridge : IWorkerState<object?>
     public object? Evidence() => null;
     public void Dispose()
     {
+        if (catalogClient != IntPtr.Zero) { Api.station_catalog_destroy(catalogClient); catalogClient = IntPtr.Zero; }
+        if (mutationClient != IntPtr.Zero) { Api.station_table_mutation_destroy(mutationClient); mutationClient = IntPtr.Zero; }
         if (queryClient != IntPtr.Zero) { Api.station_unified_query_destroy(queryClient); queryClient = IntPtr.Zero; }
         try { if (server != IntPtr.Zero) { Api.station_growing_destroy(server); server = IntPtr.Zero; } }
         finally { try { raw?.Dispose(); } finally { package.Dispose(); } }

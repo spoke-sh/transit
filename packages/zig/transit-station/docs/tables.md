@@ -6,6 +6,17 @@ int64, boolean, UTF-8 or binary value. Names are distinct ASCII identifiers of
 insert/update/upsert/delete and get operate on a private `Turn`. `Table.atomic`
 restores the entire proposal on error and never splits a transaction.
 
+`TableMutation.applySql(turn, table, name, sql)` compiles bounded INSERT, UPDATE
+and DELETE statements through Fuze and applies them to that private turn.
+`TableMutation.apply` accepts the same validated typed plan. The application
+explicitly authorizes and routes these operations to its writer; the helper
+neither submits nor commits. Inserts accept one to three literal rows and reject
+duplicate keys. Updates and deletes require primary-key equality, returning zero
+for a missing row. The provisional affected-row count becomes durable only with
+the enclosing commit. The [mutation contract](../../../../contracts/TABLE_MUTATION_V1.md)
+defines rollback, exact typing, bounds and recovery. Public query transports do
+not admit these statements.
+
 `Table.page` reads at most eight rows in increasing primary-key order. Its
 continuation binds the captured or retained source identity, resource revision,
 Table and storage-schema fingerprint. A cursor cannot move to a newer snapshot.

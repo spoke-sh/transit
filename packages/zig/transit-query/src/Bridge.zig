@@ -30,6 +30,7 @@ pub const Command = union(enum) {
 pub const Action = union(enum) {
     capabilities,
     describe: c.Source,
+    inspect: q.SqlInspection.Request,
     prepare: Command,
     next: struct { namespace: []const u8, bundle: []const u8 },
     submit: []const u8,
@@ -89,6 +90,7 @@ pub const Page = struct {
 pub const Result = union(enum) {
     capabilities: q.UnifiedClient.Capabilities,
     description: Description,
+    inspection: q.SqlInspection.Result,
     prepared: ?[]const u8,
     receipt: p.Receipt,
     observation: q.UnifiedClient.Observation,
@@ -110,6 +112,7 @@ fn cursor(alloc: Allocator, bytes: []const u8) !q.UnifiedResult.Cursor {
 pub fn apply(alloc: Allocator, client: *q.UnifiedClient, action: Action) !Result {
     switch (action) {
         .capabilities => return .{ .capabilities = .{} },
+        .inspect => |request| return .{ .inspection = try client.inspectSql(alloc, request) },
         .describe => |v| {
             const result = try client.describe(try v.native(alloc));
             return .{ .description = .{ .capabilities = result.capabilities, .source = try c.Source.fromNative(alloc, result.definition), .resource_revision = result.resource_revision, .policy_revision = try a.decimal(alloc, result.policy_revision), .limits = try c.Limits.fromNative(alloc, result.limits), .active = if (result.active) |id| try a.decimal(alloc, id) else null } };

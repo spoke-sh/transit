@@ -100,15 +100,17 @@ def run(node, cli, counter):
             until = time.monotonic() + 10
             while True:
                 status, response = s.native_query({'resource': resource}, status=None)
-                if status == 200 and response['body']['resource']['phase'] == 'reclaimed':
-                    break
-                # Maintenance can publish between data acquisition and the
-                # final authority-tail check. Poll this fresh metadata read;
-                # never retry a mutation or combine pages from different cuts.
-                assert (status == 200 or
-                        (status == 409 and response.get('err') == 'Conflict') or
-                        (status == 503 and response.get('err') in
-                         ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity'))), (status, response)
+                if status == 200:
+                    if response['body']['resource']['phase'] == 'reclaimed':
+                        break
+                else:
+                    # Maintenance can advance the authority tail during this
+                    # current metadata read. Discard the conflicted observation
+                    # and poll a fresh cut within the original deadline. Never
+                    # apply this rule to commands or fixed-cut continuations.
+                    assert ((status == 409 and response == {'err': 'Conflict'}) or
+                            (status == 503 and response.get('err') in
+                             ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity'))), (status, response)
                 assert time.monotonic() < until and maintenance.poll() is None
                 time.sleep(.05)
             maintenance.kill()

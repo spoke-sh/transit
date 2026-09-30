@@ -104,8 +104,8 @@ accepted history; visible path traversal cannot resurrect it.
 
 ## Durable publication profile
 
-The `Service` component fixes one resource and a Publication namespace equal to
-Document ID. It owns a permanent head, revision snapshots, job ledgers and
+The `Service` component fixes one resource and a namespace equal to Document ID
+in the Document publication domain (5). It owns a permanent head, revision snapshots, job ledgers and
 exclusive monotonically allocated record intervals. One active job is supported;
 its explicit node quota is independent of total accepted history. `prepare`
 freezes the exact canonical request commitment before upload. Changed job content
@@ -207,7 +207,8 @@ Zig validation and implement no independent merge algorithm.
 ## Authenticated submission profile
 
 Remote submission uses an authenticated Station call. A caller publishes one
-canonical SDC1 change as Publication record 1 in a dedicated caller namespace.
+canonical SDC1 change as record 1 in a dedicated caller namespace in the
+application publication domain (1).
 It sends an STN1 `call` carrying SDQ1, a 96-byte reference with these ordered,
 little-endian fields: magic, resource:u64, namespace:u64, document:u64, epoch:u64,
 type_revision:u32, replica:u64, policy_revision:u64, format:u32, length:u32,

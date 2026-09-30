@@ -68,13 +68,13 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
 }
 pub fn reference(self: Self, resource: u64, namespace: u64) !q.station.PublicationReference {
     var buffer: [max_bytes]u8 = undefined;
-    const result: q.station.PublicationReference = .{ .resource = resource, .namespace = namespace, .record = 1, .spec = try q.station.Publication.Digest.of(format, try self.encode(&buffer)) };
+    const result: q.station.PublicationReference = .{ .domain = .query_request, .resource = resource, .namespace = namespace, .record = 1, .spec = try q.station.Publication.Digest.of(format, try self.encode(&buffer)) };
     try checkReference(result);
     return result;
 }
 pub fn checkReference(ref: q.station.PublicationReference) !void {
     try ref.validate();
-    if (ref.record != 1 or ref.spec.format != format or ref.spec.length < 32 or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
+    if (ref.domain != .query_request or ref.record != 1 or ref.spec.format != format or ref.spec.length < 32 or ref.spec.length > max_bytes) return error.InvalidQueryBundle;
 }
 /// A policy-bound request resource is still not a substitute for its publisher.
 pub fn checkPublisher(ref: q.station.PublicationReference, source: anytype, peer: u64) !void {

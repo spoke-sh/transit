@@ -40,6 +40,7 @@ pub fn build(b: *std.Build) void {
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
@@ -73,9 +74,37 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     sql_test.addArtifactArg(unified_sql);
+    const mutation_sql = b.addExecutable(.{ .name = "transit-mutation-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_mutation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    sql_test.addArtifactArg(mutation_sql);
+    const declaration_sql = b.addExecutable(.{ .name = "transit-declaration-sql-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_declaration.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    sql_test.addArtifactArg(declaration_sql);
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
+    const sql_benchmark = b.addExecutable(.{ .name = "transit-sql-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_bench.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    b.step("sql-benchmark", "Build the pure SQL performance probe").dependOn(&b.addInstallArtifact(sql_benchmark, .{}).step);
+    const declarative_benchmark = b.addExecutable(.{ .name = "transit-declarative-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/declarative_bench.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    b.step("declarative-benchmark", "Build declarative workload component benchmarks").dependOn(&b.addInstallArtifact(declarative_benchmark, .{}).step);
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });
@@ -140,11 +169,22 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
     unified_contract_test.has_side_effects = true;
     unified_contract_test.stdio = .inherit;
     test_step.dependOn(&unified_contract_test.step);
+    const mutation_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    mutation_contract_test.addFileArg(b.path("tests/table_mutation_contract.py"));
+    mutation_contract_test.has_side_effects = true;
+    mutation_contract_test.stdio = .inherit;
+    test_step.dependOn(&mutation_contract_test.step);
+    const catalog_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    catalog_contract_test.addFileArg(b.path("tests/catalog_contract.py"));
+    catalog_contract_test.has_side_effects = true;
+    catalog_contract_test.stdio = .inherit;
+    test_step.dependOn(&catalog_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
@@ -349,13 +389,13 @@ pub fn build(b: *std.Build) void {
     b.step("test-scheduler-simulation", "Schedule shared Sessions/courier with faults, clocks and maintenance").dependOn(&scheduler.step);
     const domains = b.addSystemCommand(&.{ "python3", "-B" });
     domains.addFileArg(b.path("tests/verification/domain_simulation.py"));
-    inline for (.{ document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core") }) |module| {
+    inline for (.{ document.module("transit_station_document"), exchange.module("transit_exchange"), serving.module("transit_serving"), core.module("transit_core"), catalog.module("transit_catalog") }) |module| {
         domains.addArtifactArg(b.addTest(.{ .root_module = module, .filters = &.{"simulation:"} }));
     }
     domains.addPassthruArgs();
     domains.has_side_effects = true;
     domains.stdio = .inherit;
-    b.step("test-domain-simulation", "Replay seeded Document, Exchange, refresh and provider schedules").dependOn(&domains.step);
+    b.step("test-domain-simulation", "Replay seeded Document, Exchange, refresh, provider and catalog schedules").dependOn(&domains.step);
     const installation_fixture = b.addRunArtifact(client.artifact("transit-application-installation-contract"));
     installation_fixture.addArg("--fixture");
     b.step("application-installation-fixture", "Export a shared application signing fixture").dependOn(&installation_fixture.step);
@@ -573,6 +613,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
         }) });
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
+        app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
         const install = b.addInstallArtifact(app, .{});
@@ -851,6 +892,55 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
+    const catalog_proof = b.addExecutable(.{ .name = "transit-catalog-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/catalog_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    build_test_step.dependOn(&catalog_proof.step);
+    const catalog_native = b.addSystemCommand(&.{ "python3", "-B" });
+    catalog_native.addFileArg(b.path("tests/catalog_native.py"));
+    catalog_native.addArtifactArg(node_artifact);
+    catalog_native.addArtifactArg(catalog_proof);
+    catalog_native.addArtifactArg(query_host);
+    catalog_native.addArtifactArg(station_host);
+    catalog_native.addArtifactArg(station_bindings.artifact("transit_station"));
+    catalog_native.addArtifactArg(query_shell);
+    catalog_native.addPassthruArgs();
+    catalog_native.has_side_effects = true;
+    catalog_native.stdio = .inherit;
+    b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);
+    const mutation_proof = b.addExecutable(.{ .name = "transit-table-mutation-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/table_mutation_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    build_test_step.dependOn(&mutation_proof.step);
+    const mutation_native_test = b.addSystemCommand(&.{ "python3", "-B" });
+    mutation_native_test.addFileArg(b.path("tests/table_mutation_native.py"));
+    mutation_native_test.addArtifactArg(node_artifact);
+    mutation_native_test.addArtifactArg(mutation_proof);
+    mutation_native_test.addArtifactArg(query_host);
+    mutation_native_test.addArtifactArg(station_host);
+    mutation_native_test.addArtifactArg(station_bindings.artifact("transit_station"));
+    mutation_native_test.addArtifactArg(query_shell);
+    mutation_native_test.addPassthruArgs();
+    mutation_native_test.has_side_effects = true;
+    mutation_native_test.stdio = .inherit;
+    b.step("test-table-mutation", "Prove Table mutation rows and results share native recovery and authority gates").dependOn(&mutation_native_test.step);
+    const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
+    combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
+    combined_table_test.addArtifactArg(node_artifact);
+    combined_table_test.addArtifactArg(query_host);
+    combined_table_test.addArtifactArg(unified_query);
+    combined_table_test.addArtifactArg(station_bindings.artifact("transit_station"));
+    combined_table_test.addArtifactArg(query_shell);
+    combined_table_test.addPassthruArgs();
+    combined_table_test.has_side_effects = true;
+    combined_table_test.stdio = .inherit;
+    b.step("test-table-query-writer", "Prove combined Table initialization and interleaved query/mutation recovery").dependOn(&combined_table_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));

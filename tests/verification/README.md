@@ -8,9 +8,9 @@ disk, native scheduling, browser, launcher and provider proofs remain necessary.
 ## Component simulation
 
 `just test::domain-simulation` runs two seeds over real Document, Exchange,
-query/refresh and core runtime implementations. `--seed N --seeds N` selects a
+query/refresh, core runtime and catalog implementations. `--seed N --seeds N` selects a
 bounded range (at most 64 seeds). Each package runs twice; structured event
-records must agree and all five domains must appear. Each run has a 120-second
+records must agree and all six domains must appear. Each run has a 120-second
 deadline. The ordinary suite owns two seeds; scheduled discovery owns sixteen.
 
 Artifacts in `.cache/verification/domain-simulation/` retain actual choices and
@@ -21,11 +21,23 @@ editing or minimization. Errors, timeouts and missing domains cannot pass.
 
 `just test::domain-simulation-mutations` uses committed source clones to omit
 Document conflict retention, checkpoint floor advancement, Exchange replay holds,
-refresh generation fencing and runtime readiness. Only executed contract assertion
+refresh generation fencing, runtime readiness, current catalog create policy and
+original catalog receipt positions. Only executed contract assertion
 failures count as detection; compilation and infrastructure failures do not.
 The private-turn stores model atomic publication and current-reader failure;
 actual WAL durability and application installation remain separate integration
 checks. No connector transport runs or dispatches during these replay tests.
+
+Each catalog seed runs 64 requests: sixteen fresh Tables and sixteen conflicts
+for each of name, object and physical Table identity. Seeded choices select
+existing conflicting objects, policy revocations, point/page read failures,
+discarded proposals and caller/owner replacement after lost replies. An independent
+accepted-request ledger checks original receipts, visible definitions, sorted
+bounded pages and the exact committed key count. Changed page cuts reject.
+The fixture uses a dynamic map and models atomic commit; it injects read faults,
+not allocator or physical journal failures. The catalog native/installed SDK
+schedules separately qualify signed transport, current native grants and disk
+restart. This component profile does not qualify native catalog growth.
 
 ## External fault testing
 
@@ -48,12 +60,12 @@ seed files remain only in the disposable fixture and are never copied to artifac
 
 `just test::vortex-profile PROFILE` selects an independent experiment:
 
-| Profile | Owned checks | Environment / boundary |
-| --- | --- | --- |
-| `sdk` | Installed Python wheels and Node tarballs: frozen bytes, dropped reply, seedless host recovery, await cancellation, disposal and revoked retry | Native Linux public SDKs; package/build hashes and per-host histories |
-| `application` | Lost provisioning/rotation/migration/activation replies, current revocation and runtime upgrade | Local application manager and provider adapter fixture; no Kubernetes claim |
-| `query` | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial | Distinct durable and leased query lifetimes; Docker cold-store fixture for interactive reads |
-| `reactive` | Real browser refresh replacement, pause, revocation and lifecycle recovery | Owning TLS/browser rig; installed Chromium required |
+| Profile       | Owned checks                                                                                                                                   | Environment / boundary                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `sdk`         | Installed Python wheels and Node tarballs: frozen bytes, dropped reply, seedless host recovery, await cancellation, disposal and revoked retry | Native Linux public SDKs; package/build hashes and per-host histories                        |
+| `application` | Lost provisioning/rotation/migration/activation replies, current revocation and runtime upgrade                                                | Local application manager and provider adapter fixture; no Kubernetes claim                  |
+| `query`       | Durable capture cancellation/expiry plus interactive Table snapshot cancellation/current denial                                                | Distinct durable and leased query lifetimes; Docker cold-store fixture for interactive reads |
+| `reactive`    | Real browser refresh replacement, pause, revocation and lifecycle recovery                                                                     | Owning TLS/browser rig; installed Chromium required                                          |
 
 The profile runner retains commands, logs, source/compiler identity and per-stage
 completion in `.cache/verification/external/`; every stage has a 900-second cap.
@@ -142,11 +154,11 @@ took 622/626s, experience/launchers 696/712s and bindings 540s. Feedback improve
 and the user accepted that result as close enough to defer further optimization.
 Three ordinary warm samples now meet the 15-minute / 60-runner-minute budgets:
 
-| Run | Revision | Feedback | Aggregate runner time | Restored |
-| --- | --- | --- | --- | --- |
-| [36194234944](https://github.com/rupurt/rey/actions/runs/36194234944) | `97f3b7e` | 12m37s | 53m27s | 10.69 GiB |
-| [36197767974](https://github.com/rupurt/rey/actions/runs/36197767974) | `22aa6f0` | 14m35s | 58m08s | 10.69 GiB |
-| [36199109839](https://github.com/rupurt/rey/actions/runs/36199109839) | `22aa6f0` | 13m31s | 51m53s | 10.69 GiB |
+| Run                                                                   | Revision  | Feedback | Aggregate runner time | Restored  |
+| --------------------------------------------------------------------- | --------- | -------- | --------------------- | --------- |
+| [36194234944](https://github.com/rupurt/rey/actions/runs/36194234944) | `97f3b7e` | 12m37s   | 53m27s                | 10.69 GiB |
+| [36197767974](https://github.com/rupurt/rey/actions/runs/36197767974) | `22aa6f0` | 14m35s   | 58m08s                | 10.69 GiB |
+| [36199109839](https://github.com/rupurt/rey/actions/runs/36199109839) | `22aa6f0` | 13m31s   | 51m53s                | 10.69 GiB |
 
 All three ran the same 33 required tasks on five 2-vCPU Linux x86_64 runners.
 These samples establish the bounded calibration, not a percentile or future
@@ -497,6 +509,56 @@ six complete owned IPC segments. Separate checks exercise poisoned reads,
 codec stop/block policy, scoped/thread access, cancellation/join, expiry and
 revocation during result reading. Other public languages must add equivalent
 observations; Python evidence does not qualify those runtimes.
+
+`bindings::python-test` also runs installed synchronous and asynchronous Table
+mutation clients through `test::table-mutation --sdk python`. Each compiles an
+UPDATE, replaces its caller after an accepted-but-lost receipt, retries the
+original saved bytes, observes application and rejects disclosure after current
+grant revocation. `bindings::mutation-python` selects this schedule independently.
+
+`bindings::node-sdk-test` runs the installed TypeScript mutation caller with the
+same lost-receipt and current-grant schedule at namespace `18446744073709551615`.
+It also checks generated response validation, byte ownership and preservation of
+uncertainty on unconfirmed submit responses. `bindings::mutation-node` selects
+these checks independently.
+
+`bindings::ruby-sdk-test` adds immutable mutation values through the existing
+owned Ruby worker and native port. Its installed schedule uses namespace
+`9223372036854775825`, rejects an altered request commitment, replaces the caller
+after receipt loss, recovers the original command and enforces current status
+denial. `bindings::mutation-ruby` selects that schedule independently.
+
+`bindings::rust-sdk-test` adds owned requests and exclusively borrowed mutation
+calls through the existing native worker. The installed crate consumer uses
+namespace `9223372036854775826`, rejects an altered commitment, replaces the
+caller after receipt loss, recovers the original command and enforces current
+status denial. A separate compiler check rejects overlapping mutable borrows.
+`bindings::mutation-rust` selects this schedule independently.
+
+`bindings::c-sdk-test` adds installed C11 and C++17 mutation callers at full-width
+namespaces. It checks copied request/prepared buffers, saved commands after native
+client close, cleared C failure outputs, caller replacement after receipt loss,
+exact retry and current status denial. C++ copy attempts reject during compilation.
+`bindings::mutation-c` selects the shared mutation schedule independently.
+
+`bindings::java-sdk-test` adds immutable Table mutation values and bounded futures
+over the existing generated-schema port. Its installed caller uses namespace
+`9223372036854775829`, replaces the caller after receipt loss, recovers the exact
+saved command, rejects changed request commitments and enforces current status
+denial. `bindings::mutation-java` selects that schedule independently.
+
+`bindings::dotnet-sdk-test` adds immutable Table mutation values and asynchronous
+calls over the existing native worker. Its installed NuGet consumer uses namespace
+`9223372036854775830`, replaces the caller after receipt loss, recovers the exact
+saved command, rejects changed request commitments and enforces current status
+denial. `bindings::mutation-dotnet` selects that schedule independently.
+
+`bindings::beam-sdk-test` adds immutable Table mutation records and structs over
+the existing owned worker and generated-schema port. Installed Erlang/Elixir
+consumers use namespaces `9223372036854775831` and `9223372036854775832`, retain
+the original prepared value in uncertain results, replace the caller, recover
+the exact admitted command, reject changed commitments and enforce current
+status denial. `bindings::mutation-beam` selects these schedules independently.
 
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their

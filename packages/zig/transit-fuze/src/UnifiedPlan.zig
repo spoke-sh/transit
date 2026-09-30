@@ -30,6 +30,17 @@ pub fn validate(self: Self, schema: m.Schema) !void {
         .compare => |comparison| try comparison.value.validate((try schema.column(comparison.column)).type),
     }
 }
+/// The same validated output schema is used by execution, inspection and result
+/// verification. The returned slice borrows columns, never the source schema.
+pub fn outputSchema(self: Self, schema: m.Schema, columns: *[m.max_columns]m.Column) !m.Schema {
+    try self.validate(schema);
+    if (self.aggregate != .rows) {
+        columns[0] = .{ .name = try m.Name.init(@tagName(self.aggregate)), .type = if (self.aggregate == .count) .uint64 else .int64 };
+        return .{ .columns = columns[0..1] };
+    }
+    for (self.projection, 0..) |index, offset| columns[offset] = try schema.column(index);
+    return .{ .columns = columns[0..self.projection.len] };
+}
 pub const Bound = struct {
     plan: Self,
     basis: m.Basis,

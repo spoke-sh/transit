@@ -3,9 +3,15 @@
 The public [SQL statement reference](../../docs/reference/sql.md#statement-forms)
 covers every statement below with syntax, examples and execution limits, including
 the separate [historical-read fragment](../../docs/reference/sql/as-of.md).
+The [grammar surface inventory](../../docs/reference/sql/grammar-surface.md)
+separates implemented profiles, checked grammar, proposed syntax and undecided
+syntax. Proposed graph, foreign-relation and historical-selector examples are
+not inputs to this checked grammar. The integer system-time fragment has no
+execution semantics; the intended language reserves that spelling for SQL
+temporal meaning and uses separate typed Transit selectors.
 
-The reference grammar covers read-only single-Table `SELECT` and the existing
-administrative extension syntax. `TransitExtensions.g4` is the checked reference;
+The reference grammar covers finite `SELECT`, bounded literal Table mutations
+and administrative extension syntax. `TransitExtensions.g4` is the checked reference;
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
 The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
 lowers SELECT syntax against declared KV/Table/Document schemas to the current
@@ -14,7 +20,9 @@ cursor assistance; there is one compiler and execution definition. Its capabilit
 matrix covers whole-query limits, star projection, nested cell states, full-width
 count and unsupported null comparisons. Administrative reference grammar does not
 imply an executable administrative operation. The [proof ledger](../../tests/README.md)
-records independent grammar, plan and result checks.
+records independent grammar, plan and result checks. The shared grammar admits
+projection lists; lowering accepts up to eight explicit declared columns.
+No rewrite is enabled.
 
 ## Reproducible reference checks
 
@@ -59,13 +67,17 @@ is accepted, full execution equivalence, or a formal superset theorem. In
 particular, Fuze's checked int64 sum differs from PostgreSQL's widened numeric
 sum, and Fuze supplies deterministic primary-key order without a SQL `ORDER BY`.
 DDL and connector extensions are additive syntax, not PostgreSQL compatibility
-cases. Broader regression suites, fuzz discovery and server execution comparison
+cases. The separate [mutation corpus](corpus/mutations.json) compares bounded
+mutation ASTs and checks proposed Table storage bytes against an independent
+interpreter. These helper checks do not claim public admission or native recovery. The Transit-specific state predicates use independent ANTLR/Arrow
+fixtures; uint64/float64 type suffixes have parser agreement without claiming
+PostgreSQL has those builtin types. Broader regression suites, fuzz discovery and server execution comparison
 remain outside this evidence.
 
 ## Grammar coverage
 
-The read grammar permits one Table, one optional typed comparison or `IS NULL`,
-one/two columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
+The read grammar permits one Table, one optional typed comparison or exact cell-state test,
+one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; table aliases
 are admitted only on the single restricted aggregate input subquery. Strings
 escape quotes by doubling them; bytea literals use `'\x00ff'::bytea`. Keywords
@@ -77,13 +89,31 @@ comment nesting; grammar acceptance alone does not validate those budgets.
 spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
 `LIMIT` is syntactically recognized but cannot be lowered as an input limit.
 No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
-compound predicates, expression arithmetic, writes, casts other than bytea,
+compound predicates, expression arithmetic, general casts,
 `COUNT(column)`, aliases on output columns and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
-`CREATE TABLE`/`DOCUMENT`/`KV`/`CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`,
-`SHOW` and `DESCRIBE` are grammar-only. They do not execute typed commands,
-resolve catalogs or authorize effects. SQL writes are not grammar-checked here.
+`CREATE TABLE`/`DOCUMENT`/`KV` have a separate bounded offline Zig compiler:
+`Sql.parseDeclaration` and `Declaration.compile` validate owned definitions and
+format canonical review SQL. The [state declaration contract](../STATE_DECLARATION_V1.md)
+preserves unspecified nullability and explicitly checks the current Table schema.
+The [declaration corpus](corpus/declarations.json) and generated type/nullability
+matrix compare Zig with independent ANTLR ASTs, formatting and Table fingerprints.
+These are not PostgreSQL DDL compatibility or administrative execution checks.
+The separate [declarative catalog helper](../DECLARATIVE_CATALOG_V1.md) creates
+and publishes a compatible Table inside an explicitly authorized Station turn.
+It does not enable CREATE in public SQL transports.
+`CREATE CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`, and connector forms of
+`SHOW` remain grammar-only. No declaration compiler resolves catalogs, provisions
+resources or authorizes effects. `Sql.parseMutation` and
+`TableMutation.compile` recognize literal INSERT, key-equality UPDATE and DELETE.
+The [mutation contract](../TABLE_MUTATION_V1.md) defines the private-turn helper;
+query transports reject writes and applications explicitly authorize admission.
+The separate `Sql.parseInspection` entry point recognizes
+`DESCRIBE`, `SHOW` and `EXPLAIN SELECT` with the same bounded lexer and complete
+input checks. The [inspection owner](../SQL_INSPECTION_V1.md) executes description,
+Table listing and plan explanation in one configured source scope; the SELECT
+compiler continues to reject those statements as executable queries.
 
 ## Lean scope
 

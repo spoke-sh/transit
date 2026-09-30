@@ -41,6 +41,7 @@ export const sections: Section[] = [
     label: "SQL",
     pages: [
       reference("sql", "SQL reference"),
+      reference("sql/grammar-surface", "Grammar surface: implemented and planned"),
       reference("sql/syntax", "Syntax, names and literals"),
       reference("sql/types", "Data types and cell states"),
       reference("sql/expressions", "Functions and operators"),
@@ -59,6 +60,7 @@ export const sections: Section[] = [
       reference("sql/revoke", "REVOKE"),
       reference("sql/show", "SHOW"),
       reference("sql/describe", "DESCRIBE"),
+      reference("sql/explain", "EXPLAIN"),
       reference("sql/as-of", "FOR SYSTEM_TIME AS OF"),
       reference("sql/application", "Application declarations"),
       reference("queries", "Query execution and recovery"),
@@ -168,6 +170,7 @@ export const sections: Section[] = [
       page("apps/transit-board/docs/configuration.md", "guides/board", "Configure Board"),
       reference("observability", "Logs, metrics and probes"),
       reference("performance", "Performance and improvement plan"),
+      reference("benchmarks", "Declarative benchmarks and TPC coverage"),
       page("apps/transit-node/docs/operations.md", "guides/node", "Node operations"),
       reference("storage", "Storage and recovery boundary"),
     ],

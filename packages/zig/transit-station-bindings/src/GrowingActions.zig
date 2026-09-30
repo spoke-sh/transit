@@ -11,7 +11,7 @@ const unsigned = @import("HttpCodec.zig").unsigned;
 fn publishedRequest(turn: *s.Turn, wire: p.Value) !void {
     const reference = try http.RequestRecord.Reference.decode(wire);
     if (reference.resource != turn.view.resource) return error.InvalidHttpRequestReference;
-    const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
+    const publication: s.Publication = .{ .domain = .application, .resource = reference.resource, .namespace = reference.namespace };
     const metadata = try publication.open(turn, http.RequestRecord.metadata_id);
     const body = try publication.open(turn, http.RequestRecord.body_id);
     if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
@@ -19,7 +19,7 @@ fn publishedRequest(turn: *s.Turn, wire: p.Value) !void {
 fn publishedGrpcRequest(turn: *s.Turn, wire: p.Value) !void {
     const reference = try grpc.RequestRecord.Reference.decode(wire);
     if (reference.resource != turn.view.resource) return error.InvalidGrpcRequestReference;
-    const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
+    const publication: s.Publication = .{ .domain = .application, .resource = reference.resource, .namespace = reference.namespace };
     const metadata = try publication.open(turn, grpc.RequestRecord.metadata_id);
     const body = try publication.open(turn, grpc.RequestRecord.batch_id);
     if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.batchSpec())) return error.InvalidGrpcRequestReference;
@@ -188,14 +188,14 @@ pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Resul
         .document => |v| return .{ .document = try @import("DocumentBridge.zig").apply(allocator, turn, v) },
         .budgets => return .{ .budgets = .{ .mutations = remaining(turn.decision.mutations), .outputs = remaining(turn.decision.outputs), .views = remaining(turn.decision.views), .retained_reads = remaining(turn.decision.read_versions), .retains = remaining(turn.decision.retain), .releases = remaining(turn.decision.release) } },
         .publication_create => |v| {
-            _ = try s.Publication.create(turn, try unsigned(v.namespace), .{ .record_bytes = v.record_bytes, .staging_bytes = try unsigned(v.staging_bytes), .staging_records = v.staging_records });
+            _ = try s.Publication.create(turn, .application, try unsigned(v.namespace), .{ .record_bytes = v.record_bytes, .staging_bytes = try unsigned(v.staging_bytes), .staging_records = v.staging_records });
         },
-        .publication_begin => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).begin(turn, try unsigned(v.id), v.spec) },
-        .publication_append => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).append(turn, try unsigned(v.id), v.index, v.bytes.slice()) },
-        .publication_publish => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).publish(turn, try unsigned(v.id)) },
-        .publication_abandon => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).abandon(turn, try unsigned(v.id)) },
-        .publication_retire => |v| return .{ .publication = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).retire(turn, try unsigned(v.id)) },
-        .publication_collect => |v| return .{ .collected = try (s.Publication{ .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).collect(turn, try unsigned(v.id)) },
+        .publication_begin => |v| return .{ .publication = try (s.Publication{ .domain = .application, .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).begin(turn, try unsigned(v.id), v.spec) },
+        .publication_append => |v| return .{ .publication = try (s.Publication{ .domain = .application, .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).append(turn, try unsigned(v.id), v.index, v.bytes.slice()) },
+        .publication_publish => |v| return .{ .publication = try (s.Publication{ .domain = .application, .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).publish(turn, try unsigned(v.id)) },
+        .publication_abandon => |v| return .{ .publication = try (s.Publication{ .domain = .application, .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).abandon(turn, try unsigned(v.id)) },
+        .publication_retire => |v| return .{ .publication = try (s.Publication{ .domain = .application, .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).retire(turn, try unsigned(v.id)) },
+        .publication_collect => |v| return .{ .collected = try (s.Publication{ .domain = .application, .resource = turn.view.resource, .namespace = try unsigned(v.namespace) }).collect(turn, try unsigned(v.id)) },
         .http_call => |v| {
             try publishedRequest(turn, v.reference);
             return .{ .correlation = try a.decimal(allocator, try turn.call(v.pid, v.reference, null)) };

@@ -77,7 +77,7 @@ pub const Job = struct {
         return (@as(u64, 1) << 63) | self.id;
     }
     pub fn publication(self: Job, resource: u64) Pub {
-        return .{ .resource = resource, .namespace = self.namespace() };
+        return .{ .domain = .query_result, .resource = resource, .namespace = self.namespace() };
     }
     pub fn encode(self: Job) !p.Value {
         inline for (.{ "id", "destination", "correlation", "policy_revision" }) |name| try identity(@field(self, name));
@@ -85,7 +85,7 @@ pub const Job = struct {
         try q.Bundle.checkReference(self.request);
         if (self.source.input != self.id) return error.InvalidQueryRecord;
         try identity(self.continuation);
-        var bytes: [138]u8 = undefined;
+        var bytes: [142]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQJ1");
         inline for (.{ "id", "destination", "correlation", "policy_revision" }) |name| try writer.writeInt(u64, @field(self, name), .little);
@@ -193,8 +193,8 @@ pub const Segment = struct {
     arrow_digest: [32]u8,
     pub fn encode(self: Segment) !p.Value {
         try self.reference.validate();
-        if (self.ordinal >= manifest_record - 1 or self.reference.record != self.ordinal + 1 or self.rows > m.max_rows or self.reference.spec.format != arrow_format or self.reference.spec.length == 0 or self.reference.spec.length > m.Arrow.segment_bytes) return error.InvalidResultSegment;
-        var bytes: [121]u8 = undefined;
+        if (self.reference.domain != .query_result or self.ordinal >= manifest_record - 1 or self.reference.record != self.ordinal + 1 or self.rows > m.max_rows or self.reference.spec.format != arrow_format or self.reference.spec.length == 0 or self.reference.spec.length > m.Arrow.segment_bytes) return error.InvalidResultSegment;
+        var bytes: [125]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("UQS1");
         try writer.writeInt(u64, self.ordinal, .little);

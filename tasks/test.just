@@ -117,6 +117,7 @@ packages:
     cd packages/zig/transit-exchange && zig build test
     cd packages/zig/transit-station-http && zig build test
     cd packages/zig/transit-query && zig build test
+    cd packages/zig/transit-catalog && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
@@ -144,6 +145,7 @@ packages-build:
     cd packages/zig/transit-exchange && zig build check
     cd packages/zig/transit-station-http && zig build check
     cd packages/zig/transit-query && zig build check
+    cd packages/zig/transit-catalog && zig build check
     cd packages/zig/transit-station && zig build check
     cd packages/zig/transit-fuze && zig build check
     cd packages/zig/transit-observability && zig build check
@@ -201,18 +203,18 @@ pages-cold *args:
 growing *args:
     zig build test-growing -- {{args}}
 
-# Exercise the explicit v1 node/client profile and lost replies on one CPU.
+# Exercise the explicit v1 node/client profile with optimized safety checks on one CPU.
 growing-service:
-    zig build test-growing-service
+    zig build test-growing-service -Doptimize=ReleaseSafe
 
 # Focus service/Station quota refusal and reserved control progress after restart.
 growing-quota:
     zig build test-growing-quota
 
-# Focus incremental Arrow capture, lost receipts and two disk recovery boundaries.
+# Focus incremental Arrow capture and disk recovery with optimized safety checks.
 [positional-arguments]
 query *args:
-    zig build test-query -- "$@"
+    zig build test-query -Doptimize=ReleaseSafe -- "$@"
 
 # Run the same growing service/fault corpus with optimized safety checks.
 growing-service-release:
@@ -283,6 +285,36 @@ sql-rewrites:
 # Full reference/production AST, real plan and paged Arrow execution proof.
 sql:
     nix shell .#sql-tools --command zig build test-sql
+
+# Real Table mutation authority gates, exact frozen recovery and disk restart.
+[positional-arguments]
+table-mutation *args:
+    zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
+
+# Catalog Table publication, exact receipt recovery and native fencing on disk.
+[positional-arguments]
+catalog *args:
+    zig build test-catalog -Doptimize=ReleaseSafe -- "$@"
+
+# Disk-backed metadata beyond resident pages, current cursors and restart.
+catalog-growth:
+    just test::catalog --grow 65
+
+# Combined Table initialization, retained reads and independently authorized writes.
+[positional-arguments]
+table-query-writer *args:
+    zig build test-table-query-writer -Doptimize=ReleaseSafe -- "$@"
+
+# Record pure compiler/engine costs separately from interactive source I/O.
+sql-benchmark *args:
+    zig build sql-benchmark -Doptimize=safe
+    python3 -B tests/sql/benchmark.py zig-out/bin/transit-sql-benchmark {{args}}
+
+# Correctness-checked component measurements and explicit full-suite blockers.
+[positional-arguments]
+declarative-benchmark *args:
+    zig build declarative-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/benchmarks/run.py zig-out/bin/transit-declarative-benchmark "$@"
 
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
@@ -483,7 +515,7 @@ scheduler-simulation *args:
 scheduler-simulation-mutations:
     python3 -B tests/verification/mutations.py --scheduler
 
-# Seeded checks over real Document, Exchange, query/reactive and runtime code.
+# Seeded checks over real Document, Exchange, query/reactive, runtime and catalog code.
 domain-simulation *args:
     zig build test-domain-simulation -- {{args}}
 
@@ -493,6 +525,7 @@ domain-simulation-mutations:
 
 # External OS/network faults over owned binaries and actual disk Ursula.
 vortex *args:
+    python3 -B tests/verification/vortex_proxy.py
     zig build test-vortex -- {{args}}
 
 # Installed Python/Node, local application, query or browser/reactive faults.

@@ -9,6 +9,7 @@ pub const UnifiedClient = @import("UnifiedClient.zig");
 pub const Interactive = @import("Interactive.zig");
 pub const UnifiedBehavior = @import("UnifiedBehavior.zig");
 pub const TableSource = @import("TableSource.zig");
+pub const TableQueryWriter = @import("TableQueryWriter.zig");
 pub const UnifiedRequest = @import("UnifiedRequest.zig");
 pub const UnifiedUpload = @import("UnifiedUpload.zig");
 pub const Draft = @import("Draft.zig");
@@ -23,6 +24,12 @@ test {
     _ = @import("unified_capture_test.zig");
     _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
+    _ = @import("table_mutation_request_test.zig");
+    _ = @import("table_mutation_admission_test.zig");
+    _ = @import("table_mutation_client_test.zig");
+    _ = @import("table_mutation_writer_test.zig");
+    _ = @import("table_query_writer_test.zig");
+    _ = @import("table_mutation_bridge_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -31,8 +38,16 @@ pub const Bridge = @import("Bridge.zig");
 pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
 pub const Assistance = @import("Assistance.zig");
+pub const SqlInspection = @import("SqlInspection.zig");
+pub const TableMutationRequest = @import("TableMutationRequest.zig");
+pub const TableMutationRecords = @import("TableMutationRecords.zig");
+pub const TableMutationAdmission = @import("TableMutationAdmission.zig");
+pub const TableMutationClient = @import("TableMutationClient.zig");
+pub const TableMutationWriter = @import("TableMutationWriter.zig");
 
 /// Test-only reference transactions; never a production authority or backend.
 pub const testing = if (@import("builtin").is_test) struct {
     pub const Store = @import("source_store_test.zig");
 } else struct {};
+
+pub const TableMutationBridge = @import("TableMutationBridge.zig");

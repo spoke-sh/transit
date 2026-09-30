@@ -17,7 +17,7 @@ resource: u64,
 document: u64,
 pub const change_format = 0x53444301;
 pub fn publication(self: Self) Pub {
-    return .{ .resource = self.resource, .namespace = self.document };
+    return .{ .domain = .document, .resource = self.resource, .namespace = self.document };
 }
 pub fn key(self: Self, tag: u8, id: u64) p.Value {
     var bytes: [19]u8 = undefined;
@@ -57,14 +57,14 @@ pub fn create(self: Self, turn: *Turn, type_revision: u32, limits: Pub.Limits) !
         const existing = try Head.decode(value);
         if (existing.retired) return error.DocumentRetired;
         if (existing.state.type_revision != type_revision) return error.DocumentIdentityMismatch;
-        _ = try Pub.create(turn, self.document, limits);
+        _ = try Pub.create(turn, .document, self.document, limits);
         return;
     }
     if (self.publication().budget(turn)) |_| return error.DocumentNamespaceOccupied else |err| {
         if (err != error.PublicationNamespaceNotFound) return err;
     }
     const out: Head = .{ .state = .{ .document = self.document, .type_revision = type_revision } };
-    _ = try Pub.create(turn, self.document, limits);
+    _ = try Pub.create(turn, .document, self.document, limits);
     try turn.write(self.key('h', 0), try out.encode());
     try turn.write(self.key('v', 0), try records.snapshot(out.state));
 }

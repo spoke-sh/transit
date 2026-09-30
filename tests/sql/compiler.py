@@ -116,6 +116,10 @@ def main():
           f'codec round trips and paged Arrow results independently checked; all exclusions rejected.')
     from unified import check as check_unified
     check_unified(sys.argv[2])
+    from mutations import check as check_mutations
+    check_mutations(sys.argv[3])
+    from declarations import check as check_declarations
+    check_declarations(sys.argv[4])
 
 
 if __name__ == '__main__':

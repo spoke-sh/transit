@@ -13,6 +13,7 @@ import { liveQuery, liveDraft, querySession, selectLiveTemplate } from "./query-
 import { QueryCandidates } from "./query-candidates";
 import { SqlEditor } from "./sql-editor";
 import { QueryProfile } from "./query-profile";
+import { QueryInspection, type Inspection } from "./query-inspection";
 import { DraftControls } from "./draft-controls";
 import { useScope } from "./state";
 import { unifiedContract, unifiedPage, mismatch, type QueryBinding } from "./binding";
@@ -102,6 +103,8 @@ export function UnifiedWorkspace({
     updateRunDraft(value);
   };
   const [compiled, setCompiled] = useState<Compiled | null>(null);
+  const [inspection, setInspection] = useState<Inspection | null>(null);
+  const [inspectionDraft, setInspectionDraft] = useState("");
   const [status, setStatus] = useState<Status>(null);
   const [page, setPage] = useState<Page | null>(null);
   const [error, setError] = useState("");
@@ -118,6 +121,8 @@ export function UnifiedWorkspace({
   if (retained.resource === 0) retained.resource = resource;
   const verified = useRef<string | null>(null);
   const alive = useRef(true);
+  const visibleNow = useRef(visible);
+  visibleNow.current = visible;
   const abort = useRef(new AbortController());
   const clear = useCallback(() => {
     // Frozen signatures and the original upload plan survive current denial.
@@ -132,6 +137,7 @@ export function UnifiedWorkspace({
     setDraft("");
     setRunDraft("");
     setCompiled(null);
+    setInspection(null);
     setStatus(null);
     setPage(null);
     setResume("");
@@ -152,6 +158,7 @@ export function UnifiedWorkspace({
           if (cause instanceof BoardError && cause.code === "BindingChanged") {
             setAuthorized(false);
             setPage(null);
+            setInspection(null);
           }
           if (
             cause instanceof BoardError &&
@@ -268,6 +275,13 @@ export function UnifiedWorkspace({
         }
         if (disposed || signal.aborted || document.hidden) return;
         setSource(response.description);
+        setInspection((previous) =>
+          previous &&
+          previous.resource_revision === response.description.source.resource_revision &&
+          previous.policy_revision === response.description.source.policy_revision
+            ? previous
+            : null,
+        );
         setDraft((text) => text || `SELECT * FROM ${response.description.name}`);
         if (retained.binding === bindingId) await advance(signal);
         const current = work.current;
@@ -323,6 +337,7 @@ export function UnifiedWorkspace({
         liveDraft.pause();
         setAuthorized(false);
         setPage(null);
+        setInspection(null);
       } else void poll();
     };
     void poll();
@@ -337,6 +352,7 @@ export function UnifiedWorkspace({
     if (!visible) {
       void liveQuery.pause();
       liveDraft.pause();
+      setInspection(null);
     }
   }, [visible]);
   useEffect(() => {
@@ -350,6 +366,7 @@ export function UnifiedWorkspace({
     }
     if (["DraftSourceChanged", "DraftScopeChanged"].includes(draftLive.detail)) {
       setPage(null);
+      setInspection(null);
       setAuthorized(false);
       setError(draftLive.detail);
       return;
@@ -361,6 +378,7 @@ export function UnifiedWorkspace({
       if (binding) unifiedPage(binding, result.page);
     } catch (cause) {
       setPage(null);
+      setInspection(null);
       setAuthorized(false);
       setError(errorText(cause));
       liveDraft.pause();
@@ -400,6 +418,7 @@ export function UnifiedWorkspace({
         if (binding) unifiedPage(binding, live.snapshot.value);
       } catch (cause) {
         setPage(null);
+        setInspection(null);
         setAuthorized(false);
         setError(errorText(cause));
         void liveQuery.pause();
@@ -409,6 +428,21 @@ export function UnifiedWorkspace({
       setAuthorized(true);
     }
   }, [live.snapshot, live.phase, visible, clear, work, binding]);
+  const inspect = () =>
+    void task(async (signal) => {
+      setInspection(null);
+      const response = await query({ inspect: { sql: draft } }, signal);
+      if (
+        !("inspection" in response) ||
+        response.inspection.resource !== resource ||
+        response.inspection.name !== source?.name
+      )
+        throw new BoardError(0, "InvalidResponse");
+      if (signal.aborted || document.hidden || !visibleNow.current) return;
+      setInspection(response.inspection);
+      setInspectionDraft(draft);
+      setError("");
+    });
   const execute = () =>
     void task(async (signal) => {
       if (work.current.pending || work.current.input !== null || work.current.bundle) return;
@@ -420,6 +454,7 @@ export function UnifiedWorkspace({
       retained.follow = false;
       work.current = { ...empty(), namespace: freshNamespace(), bundle: response.compiled.bundle };
       setCompiled(response.compiled);
+      setInspection(null);
       setRunDraft(draft);
       setPage(null);
       setStatus(null);
@@ -637,9 +672,10 @@ export function UnifiedWorkspace({
               {source.source.policy_revision}
             </p>
             <p>
-              Statement ≤ {source.sql.statement_bytes} bytes. Star or two named columns; one
-              comparison or IS NULL; rows, count, checked int64 sum. Uint64/float64 comparison
-              literals and writes are unsupported.
+              Statement ≤ {source.sql.statement_bytes} bytes. Star or up to{" "}
+              {source.sql.named_columns} named columns; one comparison or exact cell-state test;
+              rows, count, checked int64 sum. Uint64/float64 literals use explicit type suffixes.
+              Writes are unsupported.
             </p>
             <p>
               Budgets: {source.budgets.pages} pages · {source.budgets.segments} segments ·{" "}
@@ -679,6 +715,10 @@ export function UnifiedWorkspace({
             <button disabled={busy || !draft.trim()} onClick={execute}>
               Run query
             </button>
+            <button disabled={busy || !draft.trim()} onClick={inspect}>
+              Inspect SQL
+            </button>
+            <p>Inspect SQL accepts DESCRIBE, SHOW TABLES and EXPLAIN SELECT.</p>
             <button
               disabled={controlBusy || !work.current.namespace}
               onClick={() => control("cancel")}
@@ -705,6 +745,7 @@ export function UnifiedWorkspace({
           {runDraft && runDraft !== draft && (
             <p>Draft changed. The displayed result belongs to the earlier submitted SQL.</p>
           )}
+          {inspection && <QueryInspection value={inspection} changed={inspectionDraft !== draft} />}
           {page && (
             <div className="query-result" aria-label="Verified query result">
               <QueryProfile page={page} />

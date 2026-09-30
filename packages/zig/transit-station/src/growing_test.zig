@@ -8,6 +8,50 @@ const Waiting = @import("Waiting.zig");
 const Registry = @import("Registry.zig");
 const Store = @import("TestStore.zig");
 
+test "explicit committed reads exclude private inserts updates and deletes at one captured cut" {
+    var store: Store = .{};
+    const schema: @import("transit_fuze").model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
+    const table: Table = .{ .resource = 7, .id = 1, .schema = schema };
+    store.entries[0] = .{ .key = Table.descriptorKey(1), .value = try Table.encodeSchema(schema), .revision = 0 };
+    for (0..2) |i| store.entries[i + 1] = .{ .key = Table.rowKey(1, @intCast(i)), .value = try table.encodeCell(.{ .int64 = @intCast(i + 10) }), .revision = 0 };
+    var turn = try store.turn(.{});
+    var source = turn.committed();
+    try table.update(&turn, .{ .key = 0, .value = .{ .int64 = 90 } });
+    try table.delete(&turn, 1);
+    try table.insert(&turn, .{ .key = 2, .value = .{ .int64 = 92 } });
+    const proposal = turn.decision;
+    try t.expectEqual(90, (try table.get(&turn, 0)).?.value.int64);
+    try t.expectEqual(null, try table.get(&turn, 1));
+    try t.expectEqual(92, (try table.get(&turn, 2)).?.value.int64);
+    try t.expectError(error.QueryAfterMutation, table.page(&turn, null));
+    const captured = try Table.open(&source, 1);
+    const page = try captured.page(&source, null);
+    try t.expectEqual(2, page.len);
+    try t.expectEqual(10, page.rows[0].value.int64);
+    try t.expectEqual(11, page.rows[1].value.int64);
+    try t.expectEqual(10, (try captured.get(&source, 0)).?.value.int64);
+    try t.expectEqual(null, try captured.get(&source, 2));
+    try t.expect(std.meta.eql(proposal, turn.decision));
+    try turn.validate();
+    for ([_]bool{ false, true }) |page_failure| {
+        turn = try store.turn(.{});
+        try turn.put(try p.Value.init("private"), try p.Value.init("kept"));
+        source = turn.committed();
+        store.fail = !page_failure;
+        store.fail_page = page_failure;
+        if (page_failure) try t.expectError(error.Unavailable, source.page(null)) else try t.expectError(error.Unavailable, source.read(Table.descriptorKey(1)));
+        try t.expectError(error.Unavailable, turn.validate());
+        try t.expectError(error.Unavailable, turn.read(try p.Value.init("private")));
+        store.fail = false;
+        store.fail_page = false;
+    }
+    turn = try store.turn(.{});
+    source = turn.committed();
+    source.view.resource += 1;
+    try t.expectError(error.InvalidCommittedSource, source.page(null));
+    try t.expectError(error.InvalidCommittedSource, turn.validate());
+}
+
 test "growing registry reads stay bounded across names with full-width scoped principals" {
     var store: Store = .{};
     var turn = try store.turn(.{});

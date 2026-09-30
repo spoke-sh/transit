@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "sql": "create table Items (id INT64 NOT NULL, value INT64 NULL);"
+    },
+    {
+      "sql": "CREATE TABLE \"TABLE\" (\"NULL\" INT64, \"null\" BINARY NULL);"
+    },
+    {
+      "sql": "CREATE TABLE empty (a INT64);"
+    },
+    {
+      "sql": "CREATE TABLE wide (a INT64, b BOOL, c UTF8, d BINARY, e INT64, f BOOL, g UTF8, h BINARY);"
+    },
+    {
+      "sql": "/* outer /* nested */ */ CREATE DOCUMENT \"Notebook\"; -- end"
+    },
+    {
+      "sql": "CREATE DOCUMENT abcdefghijklmnop;"
+    },
+    {
+      "sql": "CREATE KV flags (BOOL);"
+    },
+    {
+      "sql": "CREATE KV bodies (BINARY);"
+    },
+    {
+      "sql": "CREATE KV counters (INT64);"
+    },
+    {
+      "sql": "CREATE KV settings (UTF8);"
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64, ID UTF8);",
+      "validation_error": "DuplicateColumn"
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64, \"id\" UTF8);",
+      "validation_error": "DuplicateColumn"
+    },
+    {
+      "sql": "CREATE TABLE nine (a INT64,b INT64,c INT64,d INT64,e INT64,f INT64,g INT64,h INT64,i INT64);",
+      "parse_error": "DeclarationTooManyColumns"
+    },
+    {
+      "sql": "CREATE DOCUMENT abcdefghijklmnopq;",
+      "parse_error": "InvalidColumnName"
+    },
+    {
+      "sql": "CREATE DOCUMENT \"not ebook\";",
+      "parse_error": "InvalidColumnName"
+    },
+    {
+      "sql": "CREATE CONNECTION conn TO http (endpoint='https://example.test');",
+      "parse_error": "UnsupportedDeclaration"
+    },
+    {
+      "sql": "CREATE SOURCE records FROM http CONNECTION conn;",
+      "parse_error": "UnsupportedDeclaration"
+    },
+    {
+      "sql": "CREATE SINK target INTO http CONNECTION conn;",
+      "parse_error": "UnsupportedDeclaration"
+    },
+    {
+      "sql": "CREATE",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items ()",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64,)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64 NOT)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64 NULL NOT NULL)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id UINT64)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id FLOAT64)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id \"INT64\")",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64 PRIMARY KEY)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items (id INT64 DEFAULT 1)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE items AS SELECT * FROM other",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE TABLE a.b (id INT64)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE KV settings ()",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE KV settings (INT64, NULL)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE KV settings (UTF8 NULL)",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE DOCUMENT notebook ()",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE DOCUMENT IF NOT EXISTS notebook",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE DOCUMENT notebook; CREATE DOCUMENT other",
+      "syntax_error": true
+    },
+    {
+      "sql": "CREATE DOCUMENT notebook;;",
+      "syntax_error": true
+    }
+  ]
+}

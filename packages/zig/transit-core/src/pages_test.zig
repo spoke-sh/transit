@@ -11,6 +11,7 @@ pub const Store = struct {
     lose_at: ?usize = null,
     missing: bool = false,
     corrupt: bool = false,
+    missing_at: ?usize = null,
     pub fn stage(self: *Store, ref: p.Reference, page: *const p.Page) !p.Reference {
         if (self.fail_at == self.writes) return error.StagingFailed;
         self.writes += 1;
@@ -19,8 +20,9 @@ pub const Store = struct {
         return ref;
     }
     pub fn load(self: *Store, ref: p.Reference) !p.Page {
+        const unavailable = self.missing_at == self.reads;
         self.reads += 1;
-        if (self.missing) return error.PageUnavailable;
+        if (self.missing or unavailable) return error.PageUnavailable;
         if (self.pages.getPtr(ref)) |item| {
             var result = item.*;
             if (self.corrupt) switch (result.body) {
@@ -44,6 +46,178 @@ fn value(index: usize) p.Value {
     var buffer: [8]u8 = undefined;
     std.mem.writeInt(u64, &buffer, index, .big);
     return p.Value.init(&buffer) catch unreachable;
+}
+
+test "bounded point batches share paths and preserve input order, absence and failure" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var root: ?p.Reference = null;
+    for (0..257) |i| root = try tree.put(root, key(i * 2), value(i));
+    const indices = [_]usize{ 130, 129, 128, 136, 134, 133, 132, 138 };
+    var keys: [p.page_entries]p.Key = undefined;
+    var expected: [p.page_entries]?p.Value = @splat(null);
+    for (indices, 0..) |index, i| {
+        keys[i] = key(index);
+        if (index % 2 == 0) expected[i] = value(index / 2);
+    }
+    store.reads = 0;
+    for (keys, expected) |k, v| try t.expectEqualDeep(v, try tree.get(root, k));
+    const separate_reads = store.reads;
+    store.reads = 0;
+    const writes = store.writes;
+    try t.expectEqualDeep(expected, try tree.getMany(root, &keys));
+    const shared_reads = store.reads;
+    try t.expect(shared_reads < separate_reads);
+    try t.expectEqual(writes, store.writes);
+    for (0..shared_reads) |offset| {
+        store.missing_at = store.reads + offset;
+        try t.expectError(error.PageUnavailable, tree.getMany(root, &keys));
+    }
+    store.missing_at = null;
+    store.corrupt = true;
+    try t.expectError(error.CorruptPage, tree.getMany(root, &keys));
+    store.corrupt = false;
+    const reads = store.reads;
+    const empty: [p.page_entries]?p.Value = @splat(null);
+    try t.expectEqualDeep(empty, try tree.getMany(root, &.{}));
+    try t.expectEqualDeep(empty, try tree.getMany(null, &keys));
+    const oversized: [p.page_entries + 1]p.Key = @splat(key(0));
+    try t.expectError(error.PageReadBudget, tree.getMany(root, &oversized));
+    var malformed = keys;
+    malformed[3].data[malformed[3].len] = 1;
+    try t.expectError(error.InvalidPageValue, tree.getMany(root, &malformed));
+    try t.expectEqual(reads, store.reads);
+    // Distinct native keys are validated above the tree. The reusable primitive
+    // also resolves repeated requests consistently without loading a path twice.
+    const repeated = try tree.getMany(root, &.{ key(8), key(8) });
+    try t.expectEqualDeep(value(4), repeated[0].?);
+    try t.expectEqualDeep(repeated[0], repeated[1]);
+    const next = try tree.put(root, key(130), value(999));
+    try t.expectEqualDeep(expected, try tree.getMany(root, &keys));
+    try t.expectEqualDeep(value(999), (try tree.getMany(next, &keys))[0].?);
+}
+
+test "descending bounded mutations retain shallow lookup paths and old roots" {
+    for ([_]usize{ 1, 4, 8 }) |batch_size| {
+        var store: Store = .{};
+        defer store.deinit();
+        const tree: p.Tree(Store) = .{ .store = &store };
+        var root: ?p.Reference = null;
+        var remaining: usize = 257;
+        while (remaining > 0) {
+            const count = @min(batch_size, remaining);
+            var changes: [p.mutation_batch]p.Mutation = undefined;
+            for (changes[0..count], 0..) |*change, i| {
+                const index = remaining - i - 1;
+                change.* = .{ .key = key(index), .value = value(index) };
+            }
+            const previous = root;
+            root = try tree.mutate(root, changes[0..count]);
+            try t.expect((try tree.get(previous, key(remaining - 1))) == null);
+            remaining -= count;
+        }
+        // A 257-key insertion-only tree must not approach the 32-level address
+        // guard. This generous bound permits half-full binary branching.
+        for (0..257) |i| {
+            store.reads = 0;
+            const found = (try tree.get(root, key(i))).?;
+            try t.expectEqualSlices(u8, value(i).slice(), found.slice());
+            try t.expect(store.reads <= 9);
+        }
+        var cursor: ?p.Key = null;
+        var expected: usize = 0;
+        while (true) {
+            const batch = try tree.scan(root, cursor);
+            for (batch.entries) |slot| if (slot) |entry| {
+                try t.expectEqualSlices(u8, key(expected).slice(), entry.key.slice());
+                try t.expectEqualSlices(u8, value(expected).slice(), entry.value.slice());
+                expected += 1;
+            };
+            cursor = batch.next;
+            if (cursor == null) break;
+        }
+        try t.expectEqual(257, expected);
+    }
+}
+
+fn thinChild(store: *Store, index: usize, height: u8) !p.Child {
+    var page: p.Page = .{ .count = 1, .body = .{ .leaf = @splat(null) } };
+    page.body.leaf[0] = .{ .key = key(index), .value = value(index) };
+    var child: p.Child = .{ .minimum = key(index), .reference = try store.stage(try page.reference(), &page) };
+    for (0..height) |level| {
+        page = .{ .height = @intCast(level + 1), .count = 1, .body = .{ .branch = @splat(null) } };
+        page.body.branch[0] = child;
+        child.reference = try store.stage(try page.reference(), &page);
+    }
+    return child;
+}
+
+test "mutations continue from a sparse root at the height guard without replacing old cuts" {
+    var store: Store = .{};
+    defer store.deinit();
+    const tree: p.Tree(Store) = .{ .store = &store };
+    var page: p.Page = .{ .count = p.leaf_entries, .body = .{ .leaf = @splat(null) } };
+    for (&page.body.leaf, 0..) |*slot, i| slot.* = .{ .key = key(1024 + i), .value = value(1024 + i) };
+    var root: p.Child = .{ .minimum = key(1024), .reference = try store.stage(try page.reference(), &page) };
+    var next_key: usize = 1024 + p.leaf_entries;
+    // A valid persisted shape produced by repeatedly filling the left split:
+    // a full spine, with sparse same-height siblings. No obsolete codec or
+    // alternate implementation is needed to construct this current-v1 root.
+    for (0..p.max_height) |level| {
+        var children: [p.branch_children]?p.Child = @splat(null);
+        children[0] = root;
+        for (children[1..]) |*child| {
+            child.* = try thinChild(&store, next_key, @intCast(level));
+            next_key += 1;
+        }
+        page = .{ .height = @intCast(level + 1), .count = p.branch_children, .body = .{ .branch = children } };
+        root.reference = try store.stage(try page.reference(), &page);
+    }
+    const retained = root.reference;
+    var keys: [p.page_entries]p.Key = undefined;
+    var expected: [p.page_entries]?p.Value = @splat(null);
+    for (&keys, 0..) |*k, i| {
+        const index = 1024 + keys.len - i - 1;
+        k.* = key(index);
+        expected[i] = value(index);
+    }
+    store.reads = 0;
+    for (keys, expected) |k, v| try t.expectEqualDeep(v, try tree.get(retained, k));
+    const separate_reads = store.reads;
+    store.reads = 0;
+    try t.expectEqualDeep(expected, try tree.getMany(retained, &keys));
+    try t.expect(store.reads <= p.max_height + keys.len);
+    try t.expect(store.reads < separate_reads);
+    std.debug.print("Depth-32 point batch: {d} separate loads, {d} shared loads for eight keys.\n", .{ separate_reads, store.reads });
+    const first = [_]p.Mutation{.{ .key = key(1023), .value = value(1023) }};
+    const before = store.writes;
+    _ = try tree.mutate(retained, &first);
+    const stages = store.writes - before;
+    for (0..stages) |offset| for (0..2) |kind| {
+        store.fail_at = if (kind == 0) store.writes + offset else null;
+        store.lose_at = if (kind == 1) store.writes + offset else null;
+        if (kind == 0) {
+            try t.expectError(error.StagingFailed, tree.mutate(retained, &first));
+        } else {
+            try t.expectError(error.StagingAcknowledgementLost, tree.mutate(retained, &first));
+        }
+        store.fail_at = null;
+        store.lose_at = null;
+        try t.expect((try tree.get(retained, key(1023))) == null);
+        try t.expectEqualSlices(u8, value(1024).slice(), (try tree.get(retained, key(1024))).?.slice());
+    };
+    var current: ?p.Reference = retained;
+    for (0..64) |i| {
+        const index = 1023 - i;
+        current = try tree.mutate(current, &.{.{ .key = key(index), .value = value(index) }});
+        try t.expect((try tree.get(retained, key(index))) == null);
+    }
+    for (960..next_key) |i| {
+        const found = (try tree.get(current, key(i))).?;
+        try t.expectEqualSlices(u8, value(i).slice(), found.slice());
+        if (i >= 1024) try t.expectEqualSlices(u8, value(i).slice(), (try tree.get(retained, key(i))).?.slice());
+    }
 }
 
 test "bounded tree ranges stop at the exclusive end and avoid unrelated leaves" {

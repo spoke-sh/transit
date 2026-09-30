@@ -398,7 +398,7 @@ test "occupied refresh namespace fails one view and preserves ingress progress" 
     try rig.apply(.{ .invalidate = selection });
     var turn = try rig.requests.capture();
     const namespace = (@as(u64, 1) << 63) | turn.delivery.input.position;
-    const key = s.Publication.key(namespace, 'b', 0, 0);
+    const key = s.Publication.key(.query_request, namespace, 'b', 0, 0);
     const original = try p.Value.init("occupied");
     try rig.requests.state.put(t.allocator, key, original);
     try rig.requests.revisions.put(t.allocator, key, rig.requests.revision);

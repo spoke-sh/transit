@@ -6,13 +6,22 @@ Transit commands and the Zig Station API. See the
 
 ## Identity and encoding
 
-A record is identified by `(resource, namespace:u64, id:u64)`. Namespace and ID
+A record is identified by `(resource, domain:u32, namespace:u64, id:u64)`. Namespace and ID
 are nonzero caller-assigned numbers, independent of PID/activation. They confer
 no permission. IDs remain occupied after abandonment, retirement and cleanup.
 Applications own allocation and any mapping to domain identities. This profile
 does not transfer a resource's writer to another PID.
 
-All keys are 23 bytes: `00 50`, namespace:u64be, tag:u8, id:u64be, index:u32be.
+A domain separates publication budgets, descriptors, chunks and cursors belonging
+to independently composed framework owners. It is part of immutable identity,
+not authorization. Domain zero is invalid. Domains are application=1,
+query request=2, query result=3, Table mutation=4, Document=5, exchange capture=6,
+application definition=7. Values 8–65535 are
+reserved; application-defined domains use values from 65536 through uint32 max.
+The generic storage primitive validates the nonzero domain without interpreting
+its contents. An owning typed interface checks its expected domain.
+
+All keys are 27 bytes: `00 50`, domain:u32be, namespace:u64be, tag:u8, id:u64be, index:u32be.
 Tags are `b` (namespace budget, id/index zero), `r` (descriptor, index zero),
 and `c` (chunk). Values use little-endian integers. Unknown versions, lengths,
 enum tags, reserved bytes and inconsistent counters are errors.
@@ -74,7 +83,7 @@ The kernel does not verify application honesty or domain/CRDT validity.
 ## Reads and lifetime
 
 `open` requires a published descriptor and returns an owned cursor naming the
-resource, source revision, view or retained-version ID, namespace, record ID,
+resource, source revision, view or retained-version ID, domain, namespace, record ID,
 spec, next chunk and chain. Current-view reads reject private mutations. Each
 `read` checks the exact source and descriptor and returns at most 256 bytes,
 with either a continuation or verified completion. Empty completion still reads
@@ -100,9 +109,9 @@ v1 does not infer a dependency graph from opaque bytes.
 
 ## Immutable reference encoding
 
-The additive `SPF1` reference is exactly 68 bytes: magic (4), resource (u64),
+The `SPF1` reference is exactly 72 bytes: magic (4), resource (u64), domain (u32),
 namespace (u64), record (u64), format (u32), length (u32), and digest (32).
-Integers are little-endian. Resource is a nonzero protocol counter; namespace,
+Integers are little-endian. Resource is a nonzero protocol counter; domain, namespace,
 record and format are nonzero. Unknown magic, trailing bytes and truncation reject.
 This encoding introduces no grant, lifetime extension or application acceptance.
 
@@ -135,8 +144,8 @@ selection at its own ingress. They are not a substitute for resource-wide
 capacity or a per-principal quota enforced by the authority.
 Retained published bodies/tombstones are governed by resource capacity and
 lifetime, separately from staging reservation. Logical key/value bytes for a
-nonempty record are `length + 23*ceil(length/256) + 127`; namespace overhead is
-55 bytes. Provider indexes, history, retained versions and journal overhead are
+nonempty record are `length + 27*ceil(length/256) + 131`; domain/namespace overhead is
+59 bytes. Provider indexes, history, retained versions and journal overhead are
 additional. The executed proof qualifies 64 KiB content and growing record counts; it does not
 claim production throughput or arbitrary u32-sized records.
 
@@ -151,3 +160,18 @@ mutations). Repeating any previously committed part checks exact retained bytes.
 Wrong specs, changed parts, unavailable chunks and gaps reject. This helper adds
 no wire format or implicit publication; query v1 retains its existing command
 encoding and lifecycle, and native frame/value bounds remain unchanged.
+
+## Definition compatibility
+
+Domain-aware keys, references and cursors replace the earlier layouts through
+the shared native definition cutover. Missing domains and 68-byte references
+reject; there is no default domain when decoding an artifact. Stored authority
+heads from the earlier definition reject before page reads. Preserve that history
+and recover pending work with its matching build; this change supplies no
+conversion, automatic reset or replay of effects.
+
+Finite upload markers are 48 bytes: `SPU1`, domain:u32le, namespace:u64le,
+and SHA-256 of the caller's frozen identity bytes. Marker equality is checked
+before resuming in any domain. The native SDK publication actions and
+caller-staged HTTP/RPC/Document request bodies use the application domain;
+typed framework owners select their own fixed domains.

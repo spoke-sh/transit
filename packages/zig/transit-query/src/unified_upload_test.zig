@@ -87,7 +87,7 @@ test "larger upload keeps ordinary frames frozen chunks and one original durable
     const current = (try upload.status(&turn, ref.namespace)).?;
     try t.expectEqual(.admitted, current.phase);
     try t.expectEqualDeep(current, try request.Status.decode(try current.encode()));
-    const manifest: s.PublicationReference = .{ .resource = 7, .namespace = 900, .record = r.manifest_record, .spec = try s.Publication.Digest.of(r.manifest_format, "manifest") };
+    const manifest: s.PublicationReference = .{ .domain = .query_result, .resource = 7, .namespace = 900, .record = r.manifest_record, .spec = try s.Publication.Digest.of(r.manifest_format, "manifest") };
     const frame: s.Frame = .{ .kind = .reply, .correlation = correlation, .payload = try manifest.encode() };
     turn.delivery.input.value = try frame.encode();
     turn.delivery.input.origin = .{ .process = .{ .pid = 3, .turn = 1, .output = 0 } };
@@ -231,7 +231,7 @@ test "independent upload frames preserve full-width namespace and strict status 
     const decoded = try request.Status.decode(encoded);
     try t.expectEqual(std.math.maxInt(u64), decoded.reference.namespace);
     try t.expectEqual(.uploading, decoded.phase);
-    try t.expectEqual(@as(u16, 83), encoded.len);
+    try t.expectEqual(@as(u16, 87), encoded.len);
     try t.expect((try decoded.encode()).eql(encoded));
 }
 
@@ -291,7 +291,7 @@ fn completeTemplate(store: *Store, bundle: q.Bundle, namespace: u64) !s.Publicat
     turn = try store.capture();
     const correlation = try upload.submit(&turn, namespace, 3);
     try store.commit(turn);
-    const manifest: s.PublicationReference = .{ .resource = 7, .namespace = 900, .record = r.manifest_record, .spec = try s.Publication.Digest.of(r.manifest_format, "manifest") };
+    const manifest: s.PublicationReference = .{ .domain = .query_result, .resource = 7, .namespace = 900, .record = r.manifest_record, .spec = try s.Publication.Digest.of(r.manifest_format, "manifest") };
     const frame: s.Frame = .{ .kind = .reply, .correlation = correlation, .payload = try manifest.encode() };
     turn = try store.capture();
     turn.delivery.input.value = try frame.encode();
@@ -373,7 +373,7 @@ test "refresh copy rejects mixed half-upload and corrupt template bytes before a
     try t.expect(!try upload.copyNext(&turn, 1, 2));
     try store.commit(turn);
     turn = try store.capture();
-    const chunk = store.state.get(s.Publication.key(1, 'c', ref.record, 0)).?;
+    const chunk = store.state.get(s.Publication.key(.query_request, 1, 'c', ref.record, 0)).?;
     try upload.part(&turn, .{ .namespace = 2, .ordinal = 0, .second = false, .bytes = chunk.slice()[0..request.part_bytes] });
     try store.commit(turn);
     turn = try store.capture();
@@ -385,7 +385,7 @@ test "refresh copy rejects mixed half-upload and corrupt template bytes before a
     try cleanup(&store, abandoned);
     var corrupt = chunk;
     corrupt.data[0] ^= 1;
-    try store.state.put(t.allocator, s.Publication.key(1, 'c', ref.record, 0), corrupt);
+    try store.state.put(t.allocator, s.Publication.key(.query_request, 1, 'c', ref.record, 0), corrupt);
     for (0..ref.spec.chunks() + 1) |_| {
         turn = try store.capture();
         try t.expect(!try upload.copyNext(&turn, 1, 3));

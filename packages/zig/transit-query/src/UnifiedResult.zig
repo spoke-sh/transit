@@ -17,21 +17,15 @@ pub const Open = struct {
     manifest: r.Manifest,
     bundle: q.Bundle,
     pub fn outputSchema(self: Open, columns: *[m.max_columns]m.Column) !m.Schema {
-        if (self.bundle.plan.aggregate != .rows) {
-            columns[0] = .{ .name = try m.Name.init(@tagName(self.bundle.plan.aggregate)), .type = if (self.bundle.plan.aggregate == .count) .uint64 else .int64 };
-            return .{ .columns = columns[0..1] };
-        }
         var input: [m.max_columns]m.Column = undefined;
-        const schema = try self.bundle.source.schema(&input);
-        for (self.bundle.plan.projection, 0..) |index, offset| columns[offset] = try schema.column(index);
-        return .{ .columns = columns[0..self.bundle.plan.projection.len] };
+        return self.bundle.plan.outputSchema(try self.bundle.source.schema(&input), columns);
     }
 };
 fn checkReference(reference: Ref, expected: Expected) !void {
     try reference.validate();
     inline for (.{ "resource", "source", "requester", "correlation" }) |name| try r.identity(@field(expected, name));
     try q.Bundle.checkReference(expected.request);
-    if (reference.resource != expected.resource or reference.record != r.manifest_record or reference.spec.format != r.manifest_format or reference.spec.length == 0 or reference.spec.length > r.Manifest.max_bytes) return error.InvalidQueryManifest;
+    if (reference.domain != .query_result or reference.resource != expected.resource or reference.record != r.manifest_record or reference.spec.format != r.manifest_format or reference.spec.length == 0 or reference.spec.length > r.Manifest.max_bytes) return error.InvalidQueryManifest;
 }
 fn live(reference: Ref, expected: Expected, opened: Open, source: anytype) !void {
     try checkReference(reference, expected);
@@ -89,7 +83,7 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     if (next.ordinal == 0 and (next.rows != 0 or next.bytes != 0 or !std.mem.eql(u8, &next.chain, &r.initialChain()))) return error.InvalidQueryCursor;
     var reader = try source.open(reference.resource);
     const segment = try r.Segment.decode((try reader.read(r.key('s', manifest.job.id, next.ordinal))) orelse return error.MissingResultSegment);
-    if (segment.ordinal != next.ordinal or segment.row_start != next.rows or segment.reference.resource != reference.resource or segment.reference.namespace != reference.namespace) return error.InvalidResultSegment;
+    if (segment.ordinal != next.ordinal or segment.row_start != next.rows or segment.reference.resource != reference.resource or segment.reference.domain != reference.domain or segment.reference.namespace != reference.namespace) return error.InvalidResultSegment;
     const descriptor = try segment.reference.publication().inspect(&reader, segment.reference.record);
     if (descriptor.publisher != expected.source or descriptor.state != .published or !std.meta.eql(descriptor.spec, segment.reference.spec)) return error.ResultUnavailable;
     const bytes = try segment.reference.read(source, output);

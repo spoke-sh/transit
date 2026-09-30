@@ -336,6 +336,99 @@ class Description:
 
 
 @dataclass(frozen=True, slots=True)
+class InspectedState:
+    column: str
+    state: State
+
+
+@dataclass(frozen=True, slots=True)
+class InspectedComparison:
+    column: str
+    comparison: Comparison
+    type: Type
+
+
+@dataclass(frozen=True, slots=True)
+class SourceDescription:
+    columns: tuple[Column, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TableListing:
+    names: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Explanation:
+    operators: tuple[str, ...]
+    predicate: InspectedState | InspectedComparison | None
+    projection: tuple[str, ...]
+    limit: int | None
+    aggregate: Aggregate
+    columns: tuple[Column, ...]
+    budgets: Budgets
+
+
+@dataclass(frozen=True, slots=True)
+class Inspection:
+    """Current configured-source metadata, never a captured query result."""
+    name: str
+    resource: ResourceRef
+    source_kind: str
+    source_digest: bytes
+    schema_digest: bytes
+    resource_revision: int
+    policy_revision: int
+    details: SourceDescription | TableListing | Explanation
+
+
+def _inspection(value: dict[str, Any], resource: ResourceRef) -> Inspection:
+    if value['version'] != 1 or value['scope'] != 'configured_source' or value['resource'] != resource.resource:
+        raise IncompatibleNative('Invalid SQL inspection scope')
+    if value['source_kind'] not in ('kv', 'table', 'document'):
+        raise IncompatibleNative('Invalid SQL inspection source')
+    details = value['details']
+    result: SourceDescription | TableListing | Explanation
+    if len(details) != 1: raise IncompatibleNative('Invalid SQL inspection variant')
+    if 'description' in details:
+        result = SourceDescription(tuple(Column(v['name'], Type(v['type'])) for v in details['description']['columns']))
+    elif 'tables' in details:
+        result = TableListing(tuple(details['tables']))
+    elif 'explanation' in details:
+        plan = details['explanation']
+        predicate = plan['predicate']
+        inspected: InspectedState | InspectedComparison | None
+        if len(predicate) != 1: raise IncompatibleNative('Invalid inspected predicate')
+        if 'all' in predicate: inspected = None
+        elif 'state' in predicate:
+            v = predicate['state']
+            inspected = InspectedState(v['column'], State(v['value']))
+        elif 'compare' in predicate:
+            v = predicate['compare']
+            inspected = InspectedComparison(v['column'], Comparison(v['op']), Type(v['type']))
+        else: raise IncompatibleNative('Invalid inspected predicate')
+        operators = tuple(plan['operators'])
+        if not 2 <= len(operators) <= 4 or any(op not in ('scan', 'filter', 'limit', 'project', 'count', 'sum') for op in operators):
+            raise IncompatibleNative('Invalid inspected operators')
+        limits = plan['budgets']
+        result = Explanation(operators, inspected, tuple(plan['projection']),
+            None if plan['limit'] is None else _wide(int(plan['limit']), 'limit'), Aggregate(plan['aggregate']),
+            tuple(Column(v['name'], Type(v['type'])) for v in plan['columns']),
+            Budgets(*(int(limits[name]) for name in ('pages', 'segments', 'result_bytes'))))
+    else: raise IncompatibleNative('Invalid SQL inspection variant')
+    source_digest, schema_digest = bytes(value['contract']), bytes(value['schema'])
+    if len(source_digest) != 32 or len(schema_digest) != 32: raise IncompatibleNative('Invalid inspection commitment')
+    return Inspection(value['name'], resource, value['source_kind'], source_digest, schema_digest,
+        integer(value['resource_revision'], 'revision', minimum=0), _wide(int(value['policy_revision']), 'policy revision', 1), result)
+
+
+def _inspection_request(source: Source, name: str, sql: str, budgets: Budgets) -> object:
+    owned_bytes(name.encode(), 32)
+    owned_bytes(sql.encode(), 4096)
+    return {'inspect': {'scope': {'source': source._wire(), 'name': name, 'limits': budgets._wire()}, 'sql': sql}}
+
+
+@dataclass(frozen=True, slots=True)
 class Manifest:
     job: int
     source: ReadVersion
@@ -384,7 +477,7 @@ def _page(v: dict[str, Any], realm: int) -> Page:
     original = data['source']
     manifest = Manifest(integer(data['job'], 'job'), ReadVersion(original['pid'], original['input'], original['index']),
         ProcessRef(realm, data['requester']), _wide(int(data['correlation']), 'correlation'), _wide(int(data['policy_revision']), 'policy revision'),
-        owned_bytes(bytes.fromhex(data['request']), 68), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
+        owned_bytes(bytes.fromhex(data['request']), 72), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
         bytes(basis['contract']), bytes(basis['schema']), bytes(data['plan']),
         _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'),
         _wide(int(data['segments']), 'segments'), _wide(int(data['rows']), 'rows'), _wide(int(data['bytes']), 'bytes'),
@@ -436,6 +529,11 @@ class Client:
             Budgets(*(int(budgets[name]) for name in ('pages', 'segments', 'result_bytes'))),
             None if v['active'] is None else _wide(int(v['active']), 'active'), caps['bundle_bytes'], caps['segment_bytes'], caps['batch_rows'])
 
+    def inspect_sql(self, source: Source, name: str, sql: str, budgets: Budgets) -> Inspection:
+        """DESCRIBE, SHOW TABLES or EXPLAIN under current source access; no query admission."""
+        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        return _inspection(self._call(_inspection_request(source, name, sql, budgets))['inspection'], source.resource)
+
     def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}})['prepared']
         return None if value is None else Prepared(value.encode())
@@ -462,8 +560,8 @@ class Client:
     def status(self, namespace: int) -> Status | None:
         value = self._call({'status': str(_wide(namespace, 'namespace', 1))})['status']
         if value is None: return None
-        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 68),
-            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 68), value['collected'])
+        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 72),
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'])
 
     def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
         return _page(self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),
@@ -499,6 +597,10 @@ class AsyncClient:
             Budgets(*(int(budgets[name]) for name in ('pages', 'segments', 'result_bytes'))),
             None if v['active'] is None else _wide(int(v['active']), 'active'), caps['bundle_bytes'], caps['segment_bytes'], caps['batch_rows'])
 
+    async def inspect_sql(self, source: Source, name: str, sql: str, budgets: Budgets) -> Inspection:
+        if source.resource != self.connection.resource: raise ValueError('Source differs from the connection')
+        return _inspection((await self._call(_inspection_request(source, name, sql, budgets)))['inspection'], source.resource)
+
     async def prepare_next(self, namespace: int, bundle: Bundle) -> Prepared | None:
         value = (await self._call({'next': {'namespace': str(_wide(namespace, 'namespace', 1)), 'bundle': bundle.data.hex()}}))['prepared']
         return None if value is None else Prepared(value.encode())
@@ -524,8 +626,8 @@ class AsyncClient:
     async def status(self, namespace: int) -> Status | None:
         value = (await self._call({'status': str(_wide(namespace, 'namespace', 1))}))['status']
         if value is None: return None
-        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 68),
-            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 68), value['collected'])
+        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 72),
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'])
 
     async def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
         return _page((await self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),

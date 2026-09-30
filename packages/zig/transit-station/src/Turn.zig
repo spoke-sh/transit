@@ -24,6 +24,32 @@ read_error: ?anyerror = null,
 decision: Decision,
 resource_deadline_ms: ?u64 = null,
 
+/// A read-only borrow of this turn's captured committed cut. Point reads and
+/// pages both exclude private writes, without acquiring/retaining a new view.
+pub const Committed = struct {
+    turn: *Turn,
+    view: View,
+    fn check(self: *@This()) !void {
+        if (self.turn.read_error) |err| return err;
+        if (!std.meta.eql(self.view, self.turn.view)) {
+            self.turn.read_error = error.InvalidCommittedSource;
+            return error.InvalidCommittedSource;
+        }
+    }
+    pub fn read(self: *@This(), key: p.Value) !?p.Value {
+        try self.check();
+        try p.State.key(key);
+        return self.turn.readCommitted(key);
+    }
+    pub fn page(self: *@This(), after: ?p.Value) !Page {
+        try self.check();
+        return self.turn.pageCommitted(after);
+    }
+};
+pub fn committed(self: *Turn) Committed {
+    return .{ .turn = self, .view = self.view };
+}
+
 /// A read-only source borrowed for this handler. Reopen its durable ID
 /// from a later turn; never retain the native pointer across handlers.
 pub const Retained = struct {
@@ -148,6 +174,9 @@ pub fn read(self: *Turn, key: p.Value) !?p.Value {
     try p.State.key(key);
     if (self.read_error) |err| return err;
     for (self.decision.mutations) |slot| if (slot) |mutation| if (mutation.key.eql(key)) return mutation.value;
+    return self.readCommitted(key);
+}
+fn readCommitted(self: *Turn, key: p.Value) !?p.Value {
     return self.reader.read(self.reader.context, self.view, key) catch |err| {
         self.read_error = err;
         return err;
@@ -162,6 +191,9 @@ pub fn put(self: *Turn, key: p.Value, value: p.Value) !void {
 pub fn page(self: *Turn, after: ?p.Value) !Page {
     if (self.read_error) |err| return err;
     for (self.decision.mutations) |slot| if (slot != null) return error.QueryAfterMutation;
+    return self.pageCommitted(after);
+}
+fn pageCommitted(self: *Turn, after: ?p.Value) !Page {
     const scan = self.reader.page orelse return error.UnsupportedStateScan;
     return scan(self.reader.context, self.view, after) catch |err| {
         self.read_error = err;

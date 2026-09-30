@@ -1,42 +1,35 @@
 # DESCRIBE
 
-**Grammar only.** This statement names an object to describe. It does not perform
-catalog lookup or return a schema through SQL query interfaces.
+`DESCRIBE` returns the ordered column names and types of one configured KV,
+Table or Document query source through the console or query workspace `inspect`
+operation.
 
 ## Syntax
-
-```text
-DESCRIBE object_name;
-```
-
-`object_name` is a single identifier. The rule has no object-kind keyword,
-qualified name, query argument, `EXTENDED` modifier or `DESC` shorthand. Quoting
-follows the [shared syntax](syntax.md#names). No result schema or name-resolution
-policy is defined by this grammar.
-
-## Example
-
-This example illustrates syntax only:
 
 ```sql
 DESCRIBE items;
 ```
 
-## Meaning and current interface
+The object name is a single identifier. The rule has no object-kind keyword,
+qualified name, query argument, `EXTENDED` modifier or `DESC` shorthand. Quoting
+follows the [shared syntax](syntax.md#names). Unquoted names fold to lowercase;
+quoted names resolve exactly against the configured source name.
 
-The form represents metadata inspection, separate from granting access or reading
-application values. An implementation would need a scoped catalog and exact
-description/result contract; grammar acceptance supplies neither.
+## Result and access
 
-The query compiler receives one caller-supplied source schema. It has no catalog
-lookup with which to execute this statement. Adding a parser keyword alone
-would not supply metadata authorization, dependency information or a result
-schema. `DESCRIBE SELECT ...` is absent from the reference grammar as well.
+The result identifies its scope as one configured source, with source kind,
+resource, full declaration and schema fingerprints, current metadata and policy
+revisions, and column names/types. It does not enumerate other realm objects or
+read application rows. Current native source/requester access and query policy
+are checked before resolving the name and again before disclosing the result.
+`DESCRIBE SELECT ...` is unsupported; use [EXPLAIN](explain.md) for a query's
+output columns. See the [inspection contract](../../../contracts/SQL_INSPECTION_V1.md).
 
-Use the supported metadata commands in the
+Related metadata interfaces are documented in the
 [console guide](../../../apps/transit-cli/docs/console.md), the
-[Board API](../board-api.md), or the declared [query source schema](../queries.md#source-declarations).
-Current permissions still determine which metadata may be disclosed.
+[Board API](../board-api.md), and the declared [query source schema](../queries.md#source-declarations).
+Flight SQL retains its separate Table metadata and SELECT interfaces and does
+not accept this SQL statement.
 
 Source: [`describeStatement`](../../../contracts/sql/TransitExtensions.g4).
 See also [SHOW](show.md).

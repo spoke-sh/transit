@@ -65,7 +65,10 @@ def run(node, caller):
                         selected = None
                         for key, value in values:
                             if value.startswith(b"SPR1"):
-                                record = int.from_bytes(key[11:19], "big")
+                                assert len(key) == 27 and key[:2] == b'\x00P'
+                                if int.from_bytes(key[2:6], 'big') != 5:
+                                    continue
+                                record = int.from_bytes(key[15:23], "big")
                                 written = int.from_bytes(value[16:20], "little")
                                 collected = int.from_bytes(value[20:24], "little")
                                 if record > 1 and value[4] == 1 and written == 1:

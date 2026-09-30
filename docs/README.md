@@ -16,30 +16,33 @@ and operations remain shared references below those entry points.
 | Interface | Start here |
 | --- | --- |
 | CLI | [Commands](reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md) |
-| SQL | [Statements and support](reference/sql.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
+| SQL | [Statements and support](reference/sql.md), [implemented and planned grammar](reference/sql/grammar-surface.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
 | SDKs | [Language SDKs](reference/sdks.md), [caller semantics](reference/callers.md) |
 | HTTP APIs | [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
 | Reactive APIs | [AsyncAPI](reference/asyncapi.md), [sessions and watches](reference/reactive.md) |
 | Analytical clients | [Flight SQL and ADBC](reference/flight.md) |
 | Native protocol | [Signed operations](reference/native.md) |
 
-The SQL statement index covers the complete checked grammar, including
-administrative forms that remain grammar-only. It also indexes absent operations
-such as INSERT, UPDATE and DELETE with their current application API alternatives.
-Each statement's page explains its support boundary before giving examples.
+The SQL statement index covers the complete checked grammar, including explicit
+Table mutations, offline definitions and administrative forms that remain
+grammar-only. The grammar surface inventory also labels planned relational,
+graph, foreign-relation and historical-schema operations, separating proposed
+syntax from forms whose syntax is undecided. Each statement's page explains its
+support boundary before giving examples.
 
 | Topic | Public documentation |
 | --- | --- |
 | Internals | [System models, mechanisms and evidence](internals/README.md), [scientific standard](internals/standard.md) |
 | Model and components | [Architecture and scope](reference/architecture.md), [component directory](reference/components.md), [glossary](reference/glossary.md) |
 | Compatibility policy | [Versioning and hard cutovers](reference/versioning.md) |
-| Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [examples across languages](guides/workload-examples.md) |
+| Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [declarative benchmarks](reference/benchmarks.md), [examples across languages](guides/workload-examples.md) |
 | Durable execution | [Processes and turns](reference/processes.md), [streams and delivery](reference/streams.md), [caller/SDK semantics](reference/callers.md) |
 | Authority and lifetime | [Security](reference/security.md), [retention and capacity](reference/retention.md), [storage](reference/storage.md) |
 | Application state | [State resources](reference/state.md), [Station](reference/station.md), [Tables](reference/tables.md), [Documents](reference/documents.md) |
 | Installation and composition | [Application installation, definitions and migration](reference/applications.md), [language SDKs](reference/sdks.md) |
 | Effects and inbound APIs | [Connectors](reference/connectors.md), [serving](reference/serving.md), [reactive sessions and views](reference/reactive.md) |
 | Queries and interchange | [SQL](reference/sql.md), [query execution](reference/queries.md), [Arrow](reference/arrow.md), [Flight SQL/ADBC](reference/flight.md) |
+| Type coverage and schema discovery | [Implemented types and planned CSV/JSONL inference](reference/sql/types.md), [planned DuckDB performance comparisons](reference/performance.md#planned-schema-on-demand-comparisons) |
 | Interface specifications | [CLI](reference/cli.md), [native protocol](reference/native.md), [serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md), [AsyncAPI](reference/asyncapi.md) |
 | Operation and contribution | [Deployment](reference/deployment.md), [Board](guides/inspect-board.md), [observability](reference/observability.md), [verification limits](reference/verification.md), [contributing](guides/contributing.md) |
 
@@ -70,7 +73,7 @@ preserve the actual support boundary.
 | Location | Ownership |
 | --- | --- |
 | `docs/guides/` | Runnable user and contributor workflows |
-| `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled workload priorities and performance improvement plans |
+| `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled grammar targets, workload priorities and performance improvement plans |
 | Package/app READMEs and `docs/` | Exact component APIs, configuration and substantial integration/recovery guides; linked directly from the handbook |
 | [contracts/](../contracts) | Versioned wire/ABI formats, neutral schemas and shared fixtures; generated descriptions keep their implementation owners |
 | [examples/](../examples/README.md) | Complete applications and commands that exercise the public APIs |

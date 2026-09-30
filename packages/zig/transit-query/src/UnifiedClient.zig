@@ -68,21 +68,34 @@ fn requester(self: *Self) !q.wire.ResourceReader.Reader {
 pub fn describe(self: *Self, definition: q.SourceDefinition) !Description {
     return self.read(describeOnce, .{definition});
 }
-/// Generic keys only: the native authority never interprets source policy,
-/// requester identity, Table descriptors or Document lifecycle records.
-pub fn interactiveMetadata(self: *Self, definition: q.SourceDefinition) ![g.SnapshotRead.current_resources]?g.SnapshotRead.Current {
+pub fn inspectSql(self: *Self, allocator: std.mem.Allocator, request: q.SqlInspection.Request) !q.SqlInspection.Result {
+    return q.SqlInspection.apply(allocator, self, request);
+}
+/// The complete current source evidence for both inspection and interactive
+/// reads. These are generic keys to the authority, not retained source data.
+fn sourceMetadata(self: *Self, definition: q.SourceDefinition, keys: *[3]p.Value) ![]const p.Value {
     if (definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
-    var keys: g.SnapshotRead.Keys = @splat(null);
     keys[0] = r.key('p', self.connection.requester, 0);
     switch (definition.source) {
-        .kv => {},
-        .table => |table| keys[1] = s.Table.descriptorKey(table.id),
+        .kv => return keys[0..1],
+        .table => |table| {
+            keys[1] = s.Table.descriptorKey(table.id);
+            return keys[0..2];
+        },
         .document => |document| {
             const service = try document.reference.identity().service();
             keys[1] = service.key('h', 0);
             keys[2] = service.key('v', document.reference.revision);
+            return keys[0..3];
         },
     }
+}
+/// Generic keys only: the native authority never interprets source policy,
+/// requester identity, Table descriptors or Document lifecycle records.
+pub fn interactiveMetadata(self: *Self, definition: q.SourceDefinition) ![g.SnapshotRead.current_resources]?g.SnapshotRead.Current {
+    var source_keys: [3]p.Value = undefined;
+    var keys: g.SnapshotRead.Keys = @splat(null);
+    for (try self.sourceMetadata(definition, &source_keys), 0..) |key, i| keys[i] = key;
     var requester_keys: g.SnapshotRead.Keys = @splat(null);
     requester_keys[0] = r.key('w', 0, 0);
     return .{ .{ .resource = self.connection.resource, .keys = keys }, .{ .resource = self.connection.requests, .keys = requester_keys } };
@@ -110,33 +123,16 @@ pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.Sourc
     return q.Bundle.fromSql(allocator, definition, name, text, limits);
 }
 fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
-    if (definition.resource != self.connection.resource) return error.QueryIdentityMismatch;
-    if (definition.source != .document) return self.describeBatched(definition);
-    var source = try self.checked(self.connection.resource, self.connection.source);
-    var requests = try self.requester();
-    const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
-    if (!grant.allow or grant.requests != self.connection.requests or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(definition))) return error.QueryDenied;
-    try q.UnifiedSource.checkCurrent(definition, &source);
-    return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = try q.UnifiedUpload.active(&requests) };
-}
-fn describeBatched(self: *Self, definition: q.SourceDefinition) !Description {
+    var storage: [3]p.Value = undefined;
+    const keys = try self.sourceMetadata(definition, &storage);
     if (self.batch_reads == null) self.batch_reads = try self.resources().batches();
-    var keys: [2]p.Value = .{ r.key('p', self.connection.requester, 0), undefined };
-    var count: usize = 1;
-    if (definition.source == .table) {
-        keys[1] = s.Table.descriptorKey(definition.source.table.id);
-        count = 2;
-    }
-    const source = try self.batch_reads.?.read(self.connection.resource, null, keys[0..count]);
+    const source = try self.batch_reads.?.read(self.connection.resource, null, keys);
     const requests = try self.batch_reads.?.read(self.connection.requests, null, &.{ r.key('w', 0, 0), r.key('a', 0, 0) });
     if (source.resource.writer != self.connection.source or requests.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;
     try (q.UnifiedBehavior.Requester{ .principal = self.connection.principal, .source = self.connection.source }).check(&requests);
     const grant = (try q.UnifiedCapture.policy(&source, self.connection.requester)) orelse return error.QueryDenied;
     if (!grant.allow or grant.requests != self.connection.requests or !std.mem.eql(u8, &grant.declaration, &try q.Bundle.declaration(definition))) return error.QueryDenied;
-    if (definition.source == .table) {
-        const table = try s.Table.open(&source, definition.source.table.id);
-        if (!std.meta.eql(table.schema, definition.source.table.schema)) return error.TableSchemaChanged;
-    }
+    try q.UnifiedSource.checkCurrent(definition, &source);
     return .{ .definition = definition, .resource_revision = source.view.revision, .policy_revision = grant.revision, .limits = grant.limits, .active = try q.UnifiedUpload.active(&requests) };
 }
 /// Prepare only one command. After any uncertain submit, retain and resubmit

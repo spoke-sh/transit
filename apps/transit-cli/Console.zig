@@ -87,6 +87,10 @@ pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagno
 fn connection(init: std.process.Init, options: Options.Options, preferences: Preferences, diagnostic: *Diagnostic) !?Preferences {
     var arena: std.heap.ArenaAllocator = .init(init.gpa);
     defer arena.deinit();
+    // Diagnostics are rendered by main after this connection arena is gone.
+    errdefer if (diagnostic.file) |file| {
+        diagnostic.file = init.arena.allocator().dupe(u8, file) catch null;
+    };
     const allocator = arena.allocator();
     var base: []const u8 = undefined;
     const config = if (preferences.connection) |selected| explicit: {
@@ -239,7 +243,7 @@ pub const Console = struct {
     }
     fn perform(self: *Console, text: []const u8) !void {
         const execution = @import("Execute.zig");
-        if (!isMeta(text)) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
+        if (!isMeta(text) and try q.fuze.Sql.parseInspection(text) == null) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
         if (self.interactive and (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) return error.NoQuery;
         if (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ")) {
             const id: ?u64 = if (text.len == 7) null else try q.Values.unsigned(std.mem.trim(u8, text[8..], " \t"));
@@ -256,13 +260,39 @@ pub const Console = struct {
         const destination = self.out;
         self.out = &buffered;
         defer self.out = destination;
-        try self.dispatch(text, arena.allocator());
+        if (isMeta(text)) {
+            try self.dispatch(text, arena.allocator());
+        } else {
+            const result = (try q.Workspace.apply(arena.allocator(), self.client, self.config, .{ .inspect = .{ .sql = text } })).inspection;
+            if (self.session.format == .json) try self.json(.{ .inspection = result }) else try self.inspection(result);
+        }
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         try @import("Output.zig").write(self.init, destination, buffered.buffered());
     }
     fn json(self: *Console, value: anytype) !void {
         try std.json.Stringify.value(value, .{ .escape_unicode = true }, self.out);
         try self.out.writeByte('\n');
+    }
+    fn inspection(self: *Console, result: q.SqlInspection.Result) !void {
+        try self.out.print("Configured source: {s} ({s})\nMetadata revision: {d}; policy: {s}\n", .{ result.name, @tagName(result.source_kind), result.resource_revision, result.policy_revision });
+        switch (result.details) {
+            .description => |value| for (value.columns) |column| try self.out.print("{s}: {s}\n", .{ column.name, @tagName(column.type) }),
+            .tables => |names| {
+                for (names) |name| try self.out.print("{s}\n", .{name});
+                try self.out.print("{d} tables in configured scope\n", .{names.len});
+            },
+            .explanation => |value| {
+                try self.out.writeAll("Proposed plan: ");
+                for (value.operators, 0..) |operator, index| {
+                    if (index != 0) try self.out.writeAll(" -> ");
+                    try self.out.writeAll(@tagName(operator));
+                }
+                try self.out.writeByte('\n');
+                if (value.limit) |limit| try self.out.print("Input limit: {s}\n", .{limit});
+                for (value.columns) |column| try self.out.print("{s}: {s}\n", .{ column.name, @tagName(column.type) });
+                try self.out.print("Budgets: {s} pages, {s} segments, {s} result bytes\n", .{ value.budgets.pages, value.budgets.segments, value.budgets.result_bytes });
+            },
+        }
     }
     fn queryFailure(self: *Console, err: anyerror) anyerror {
         self.had_error = true;
@@ -291,7 +321,7 @@ pub const Console = struct {
             return self.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "mode", "timing", "connect", "show", "info", "quit" }, .sql = "Finite SELECT over a fresh leased snapshot. Exit cancels active execution." });
         }
         if (std.mem.eql(u8, text, ".help") and self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .timing on|off .connect PATH .show .info .quit\nRecovery: .status .resume [ID] .cancel\nDisconnecting does not cancel accepted work.\n");
-        if (std.mem.eql(u8, text, ".help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT. SQL prints verified results; .resume recovers the saved query." });
+        if (std.mem.eql(u8, text, ".help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT; DESCRIBE, SHOW TABLES and EXPLAIN inspect the configured source. SELECT prints verified results; .resume recovers the saved query." });
         if (std.mem.startsWith(u8, text, ".connect ")) {
             if (self.batch) return error.ConnectionSwitchRequiresTerminal;
             if (self.session.pending != null or self.session.input != null or (self.session.namespace != null and !self.session.complete)) return error.UnresolvedSubmission;

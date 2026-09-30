@@ -62,6 +62,28 @@ public final class JavaUnifiedSdk {
         boolean rejected=false; try { UnifiedQuery.decodeArrow(columns,read(config,"malformed"),5); }catch(TransitException e) { rejected=true; } check(rejected);
         System.out.println("Java installed unified codecs: three sources, six types, five states, immutable values and malformed rejection passed");
     }
+    private static String name(Enum<?> v) { return v.name().toLowerCase(Locale.ROOT); }
+    private static JsonArray columns(List<Column> values) { JsonArray a=new JsonArray(); values.forEach(v->a.add(json("name",v.name(),"type",name(v.type())))); return a; }
+    private static JsonArray names(List<String> values) { JsonArray a=new JsonArray(); values.forEach(a::add); return a; }
+    private static JsonArray digest(Bytes bytes) { JsonArray a=new JsonArray(); for(byte b:bytes.copy())a.add(Byte.toUnsignedInt(b)); return a; }
+    private static JsonObject inspection(Inspection value) {
+        JsonObject details=switch(value.details()) {
+            case SourceDescription d -> json("description",json("columns",columns(d.columns())));
+            case TableListing d -> json("tables",names(d.names()));
+            case Explanation d -> {
+                JsonObject predicate=switch(d.predicate()) {
+                    case InspectedAll ignored -> json("all",json());
+                    case InspectedState p -> json("state",json("column",p.column(),"value",name(p.state())));
+                    case InspectedComparison p -> json("compare",json("column",p.column(),"op",name(p.comparison()),"type",name(p.type())));
+                };
+                yield json("explanation",json("operators",names(d.operators().stream().map(JavaUnifiedSdk::name).toList()),"predicate",predicate,"projection",names(d.projection()),
+                    "limit",d.limit().map(BigInteger::toString).orElse(null),"aggregate",name(d.aggregate()),"columns",columns(d.columns()),
+                    "budgets",json("pages",d.budgets().pages().toString(),"segments",d.budgets().segments().toString(),"result_bytes",d.budgets().resultBytes().toString())));
+            }
+        };
+        return json("inspection",json("version",1,"scope","configured_source","name",value.name(),"resource",value.resource().resource(),"source_kind",name(value.sourceKind()),
+            "contract",digest(value.sourceDigest()),"schema",digest(value.schemaDigest()),"resource_revision",value.resourceRevision(),"policy_revision",value.policyRevision().toString(),"details",details));
+    }
     private static void serve(JsonObject config) throws Exception {
         var c=config.getAsJsonObject("connection"); long realm=c.get("realm").getAsLong(); ResourceRef resource=new ResourceRef(realm,c.get("resource").getAsLong());
         var connection=new Connection(new ProcessRef(realm,c.get("source").getAsLong()),resource,new ProcessRef(realm,c.get("requester").getAsLong()),new ResourceRef(realm,c.get("requests").getAsLong()));
@@ -75,14 +97,19 @@ public final class JavaUnifiedSdk {
                     JsonObject action=object(line); if(action.has("close"))break;
                     try {
                         JsonObject result;
-                        if(action.has("next")) { var v=action.getAsJsonObject("next"); var p=await(client.prepareNext(new BigInteger(string(v,"namespace")),new Bundle(new Bytes(HexFormat.of().parseHex(string(v,"bundle")))))); result=json("prepared",p.map(item -> new String(item.bytes().copy(),StandardCharsets.UTF_8)).orElse(null)); }
+                        if(action.has("inspect")) {
+                            var request=action.getAsJsonObject("inspect"); var scope=request.getAsJsonObject("scope"); var limits=scope.getAsJsonObject("limits");
+                            var value=await(client.inspectSql(source,string(scope,"name"),string(request,"sql"),new Budgets(new BigInteger(string(limits,"pages")),new BigInteger(string(limits,"segments")),new BigInteger(string(limits,"result_bytes")))));
+                            check(value.resource().equals(resource) && name(value.sourceKind()).equals(kind)); result=inspection(value);
+                        }
+                        else if(action.has("next")) { var v=action.getAsJsonObject("next"); var p=await(client.prepareNext(new BigInteger(string(v,"namespace")),new Bundle(new Bytes(HexFormat.of().parseHex(string(v,"bundle")))))); result=json("prepared",p.map(item -> new String(item.bytes().copy(),StandardCharsets.UTF_8)).orElse(null)); }
                         else if(action.has("submit")) {
                             var prepared=new Prepared(new Bytes(string(action,"submit").getBytes(StandardCharsets.UTF_8))); Bytes before=prepared.bytes();
                             try { result=json("receipt",json("position",await(client.submit(prepared)).position())); }catch(TransitException e) { check(prepared.bytes().equals(before)); throw e; }
                         }else if(action.has("observe")) { var v=await(client.observe(action.get("observe").getAsLong())); result=json("observation",json(v.state().name().toLowerCase(Locale.ROOT),v.reason().isEmpty()?json():hex(v.reason().orElseThrow()))); }
                         else if(action.has("status")) { var v=await(client.status(new BigInteger(string(action,"status")))); result=json("status",v.map(item -> json("phase",item.phase().name().toLowerCase(Locale.ROOT),"correlation",item.correlation().toString())).orElse(null)); }
                         else {
-                            var v=action.getAsJsonObject("page"); Page page=await(client.page(new BigInteger(string(v,"namespace")),v.get("cursor").isJsonNull()?Optional.empty():Optional.of(new Cursor(string(v,"cursor")))));
+                            var v=action.getAsJsonObject("page"); Page page=await(client.page(new BigInteger(string(v,"namespace")),!v.has("cursor")||v.get("cursor").isJsonNull()?Optional.empty():Optional.of(new Cursor(string(v,"cursor")))));
                             check(page.manifest().resource().equals(resource) && page.manifest().kind().name().equalsIgnoreCase(kind)); check(page.decode().size()==page.rows()); saved=page;
                             result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
                         }

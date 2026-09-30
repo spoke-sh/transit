@@ -67,7 +67,7 @@ def literal(ctx):
         return {'kind': 'null', 'value': None}
     value = ctx.STRING().getText()[1:-1].replace("''", "'")
     # AST keeps the bytea input string; compilation validates its hex encoding.
-    return {'kind': 'binary' if ctx.BYTEA() else 'utf8', 'value': value}
+    return {'kind': 'uint64', 'value': int(value)} if ctx.UINT64() else ({'kind': 'float64', 'value': float(value)} if ctx.FLOAT64() else {'kind': 'binary' if ctx.BYTEA() else 'utf8', 'value': value})
 
 
 def antlr_ast(sql):
@@ -85,7 +85,7 @@ def antlr_ast(sql):
     predicate = None
     if where:
         pred = where.predicate()
-        predicate = {'column': column(pred.columnReference()), 'op': 'is_null'}
+        predicate = {'column': column(pred.columnReference()), 'op': 'is_' + pred.cellState().getText().lower() if pred.cellState() else None}
         if pred.comparison():
             predicate['op'] = {'=': 'eq', '<>': 'ne', '!=': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[pred.comparison().getText()]
             predicate['literal'] = literal(pred.literal())
@@ -123,8 +123,10 @@ def pg_ast(sql):
     def const(node):
         if 'TypeCast' in node:
             cast = node['TypeCast']
-            assert cast['typeName']['names'][-1]['String']['sval'] == 'bytea'
-            return {'kind': 'binary', 'value': cast['arg']['A_Const']['sval']['sval']}
+            kind = cast['typeName']['names'][-1]['String']['sval']
+            value = cast['arg']['A_Const']['sval']['sval']
+            assert kind in ('bytea', 'uint64', 'float64')
+            return {'kind': 'uint64', 'value': int(value)} if kind == 'uint64' else ({'kind': 'float64', 'value': float(value)} if kind == 'float64' else {'kind': 'binary', 'value': value})
         if 'A_Expr' in node:
             expr = node['A_Expr']
             assert 'lexpr' not in expr and expr['name'][0]['String']['sval'] == '+'

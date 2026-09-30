@@ -10,6 +10,27 @@ fn source(allocator: std.mem.Allocator, kind: f.Unified.Type) !f.Unified.Sql.Sou
     });
     return .{ .name = try f.Unified.Name.init("items"), .schema = .{ .columns = columns } };
 }
+test "inspection shares lexical bounds and never lowers as executable SELECT" {
+    const described = (try sql.parseInspection("/* scope */ DeScRiBe \"Items\"; -- end")).?;
+    try t.expectEqualStrings("Items", described.describe.slice());
+    inline for (comptime std.meta.fieldNames(sql.Catalog)) |name| {
+        try t.expectEqual(@field(sql.Catalog, name), (try sql.parseInspection("SHOW " ++ name ++ ";")).?.show);
+    }
+    const select = "SELECT sum(chosen.value) FROM (SELECT value FROM items WHERE id > 0 LIMIT 2) AS chosen";
+    try t.expectEqualDeep(try sql.parse(select), (try sql.parseInspection("EXPLAIN " ++ select)).?.explain);
+    try t.expect((try sql.parseInspection(select)) == null);
+    try t.expectError(error.UnsupportedStatement, sql.parse("EXPLAIN " ++ select));
+    try t.expectError(error.UnsupportedStatement, sql.parse("DESCRIBE items"));
+    try t.expectError(error.UnsupportedStatement, sql.parse("SHOW TABLES"));
+    try t.expectError(error.UnsupportedConstruct, sql.parseInspection("DESCRIBE items; SELECT * FROM items"));
+    try t.expectError(error.UnsupportedConstruct, sql.parseInspection("SHOW TABLES WHERE id = 1"));
+    try t.expectError(error.UnsupportedCatalog, sql.parseInspection("SHOW DOCUMENTS"));
+    try t.expectError(error.UnsupportedStatement, sql.parseInspection("EXPLAIN ANALYZE SELECT * FROM items"));
+    try t.expectError(error.InvalidSqlSyntax, sql.parseInspection("DESCRIBE items /*"));
+    try t.expectError(error.InvalidSqlEncoding, sql.parseInspection("SHOW TABLES\x00"));
+    try t.expectError(error.StatementTooLarge, sql.parseInspection(&(@as([sql.max_statement_bytes + 1]u8, @splat(' ')))));
+    _ = try sql.parse("SELECT explain FROM explain");
+}
 test "SQL bounded lexical decoding and complete-input rejection" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();

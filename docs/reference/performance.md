@@ -1,5 +1,9 @@
 # Performance characteristics and improvement plan
 
+For planned CSV/JSONL workloads, see
+[schema-on-demand comparisons](#planned-schema-on-demand-comparisons). The native
+query measurements below do not measure file discovery or type inference.
+
 The console executes fresh interactive queries through leased native snapshots
 and client-side Fuze. It avoids the durable upload/result-publication workflow
 whose measured costs motivated this change. This page records local measurements
@@ -10,6 +14,9 @@ Interactive `.timing` separates local `compile`, snapshot `open`, `fetch`
 The instrumented fixture also records cumulative upstream elapsed nanoseconds
 by native operation and principal. Those durations include provider/queue time
 and proxy overhead; they are not independent CPU measurements.
+
+See [declarative benchmarks](benchmarks.md) for synthetic compiler/execution
+measurements and explicit TPC-C, TPC-E, TPC-H and TPC-DS coverage gaps.
 
 ## Interactive execution measurements
 
@@ -303,3 +310,77 @@ node/provider memory, time to first batch, completion and source freshness.
 Recovery, current revocation, cancellation, expiry, source changes and uncertain
 commits belong in the same evaluation. Durable-job recovery remains a separate
 requirement. A fast read that skips these boundaries does not qualify the design.
+
+## Planned schema on demand comparisons
+
+**Status: planned; no CSV/JSONL inference implementation or comparative results.**
+The [type-system plan](sql/types.md#planned-type-system-and-schema-discovery)
+requires useful first-query latency without losing exact types or allowing
+resident memory to grow with the input. Existing Table/KV/Document timings above
+are not a file-reading baseline. DuckDB supplies a comparison system; it does
+not supply Transit's execution engine or authorization semantics.
+
+### Workload matrix
+
+Run explicit-schema, partial-override, bounded-sample, full-input-discovery and
+raw modes separately. Full discovery necessarily reads the selected input before
+its final schema is known; compare that cost separately from a sampled first
+batch. Record which modes each implementation actually supports.
+
+| Dimension | Required cases |
+| --- | --- |
+| Format and access | CSV and JSONL; seekable local files, compressed files and non-seekable streams; single file and many-file inputs |
+| Shape | Narrow numeric rows, wide mostly unused columns, long text, exact decimals/large integers, temporal values, nested/sparse/heterogeneous JSON |
+| Inference hazards | Empty/all-null input, leading-zero identifiers, late numeric overflow or new fields, ambiguous dates, duplicate names/keys, missing versus null and malformed trailing records |
+| Query work | First bounded projection, selective filter, full scan, count and checked aggregation for supported types; include result validation/export |
+| Scale | Small startup-dominated input, input larger than caches, input larger than RAM, many files and adversarial nesting/field counts under fixed budgets |
+| Reuse and concurrency | Fresh process/discovery, repeated bound schema, valid/invalid metadata cache, changed source/options, single-thread and declared parallel settings, concurrent scans |
+
+Keep a regression suite for the existing six-scalar explicit KV/Table/Document
+path. A general type representation must not impose unmeasured per-cell dynamic
+allocation or dispatch overhead on those queries.
+
+### Method and acceptance
+
+Pin Transit revision/toolchain/build mode and DuckDB release/build/extensions.
+Retain fixture generators, seeds, file hashes, exact commands, options, CPU,
+memory, thread counts, storage and compression settings. Normalize only declared
+shared semantics; verify schema, row count, exact values and failure disposition
+with an independent oracle before comparing speed. Keep missing/null, decimal
+rounding or overflow differences visible instead of normalizing them away to
+produce a misleading parity result.
+
+Measure discovery and bytes sampled, binding/compilation, time to schema and first
+batch, full scan/conversion, query execution and output encoding separately.
+Report rows/s and input MiB/s, CPU time, peak RSS, allocator high-water marks and
+allocation counts, bytes read/decoded/copied, and metadata/spool size. A configured
+cache cap is not peak RSS; full-file bytes retained on disk are not resident RAM.
+Measure source-only kernels separately from authorized end-to-end and durable
+capture/publication paths. DuckDB file scans do not model Transit recovery costs.
+
+Use randomized or alternating paired runs on the same host, separate warmups
+from retained samples and declare cache state rather than calling every fresh
+process cold. Retain all repetitions and failures; report spread and sufficiently
+sampled percentiles. Before optimization, review baseline-derived numeric budgets
+for startup, scan throughput, scalar-path regressions and memory. No numerical
+speedup, parity target or latency promise is selected by this plan. Performance
+acceptance requires published budgets and measured results, plus correctness and
+memory-bound checks; missing comparisons remain unmeasured.
+
+### Optimization hypotheses
+
+DuckDB's [execution format](https://duckdb.org/docs/current/internals/vector)
+describes column vectors, compact constant/dictionary representations and child
+vectors for nested values. That motivates evaluating typed batches and specialized
+scalar kernels in Fuze, but does not establish a benefit in Transit. Other
+candidates are per-batch type dispatch, bounded scratch reuse, delayed conversion
+of unneeded columns, and inference caches bound to exact source/options/schema.
+Measure each independently against equivalent work before adopting it.
+
+Projection and filter pushdown must preserve the selected validation/error policy
+and inference coverage: an invalid unprojected field cannot disappear if full-row
+validation was promised. Parallel parsing must preserve record boundaries,
+deterministic inference and declared error order; compression/seekability affect
+which partitions are legal. Keep sample buffers, parser state, schema metadata,
+nested children, output and any spool independently budgeted. A larger fixed array
+or silent row/field truncation does not satisfy the memory requirement.

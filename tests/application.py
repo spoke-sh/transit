@@ -63,7 +63,9 @@ def run(node, caller):
                                 observations["max_value_bytes"] = max(observations["max_value_bytes"], len(bytes.fromhex(item["value"])))
                         descriptors = [(bytes.fromhex(item["key"]), bytes.fromhex(item["value"]))
                                        for item in mutations if item["value"] and bytes.fromhex(item["value"]).startswith(b"SPR1")]
-                        first = next((value for key, value in descriptors if int.from_bytes(key[11:19], "big") == 100), None)
+                        for key, _ in descriptors:
+                            assert len(key) == 27 and key[:2] == b'\x00P' and int.from_bytes(key[2:6], 'big') == 7
+                        first = next((value for key, value in descriptors if int.from_bytes(key[15:23], "big") == 100), None)
                         selected = None
                         if first:
                             written, _collected = struct.unpack_from("<II", first, 16)

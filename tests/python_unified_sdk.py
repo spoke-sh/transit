@@ -91,7 +91,32 @@ async def serve(config, asynchronous):
             if 'close' in action:
                 break
             try:
-                if 'next' in action:
+                if 'inspect' in action:
+                    v = action['inspect']
+                    limits = v['scope']['limits']
+                    inspected = await invoke('inspect_sql', declared, v['scope']['name'], v['sql'],
+                        q.Budgets(*(int(limits[name]) for name in ('pages', 'segments', 'result_bytes'))))
+                    assert inspected.resource == connection.resource
+                    assert inspected.source_kind == config['kind']
+                    details = inspected.details
+                    if isinstance(details, q.SourceDescription):
+                        normalized = {'description': {'columns': [{'name': c.name, 'type': c.type.value} for c in details.columns]}}
+                    elif isinstance(details, q.TableListing): normalized = {'tables': details.names}
+                    else:
+                        assert isinstance(details, q.Explanation)
+                        predicate = details.predicate
+                        if predicate is None: selection = {'all': {}}
+                        elif isinstance(predicate, q.InspectedState): selection = {'state': {'column': predicate.column, 'value': predicate.state.value}}
+                        else: selection = {'compare': {'column': predicate.column, 'op': predicate.comparison.value, 'type': predicate.type.value}}
+                        normalized = {'explanation': {'operators': details.operators, 'predicate': selection,
+                            'projection': details.projection, 'limit': None if details.limit is None else str(details.limit),
+                            'aggregate': details.aggregate.value, 'columns': [{'name': c.name, 'type': c.type.value} for c in details.columns],
+                            'budgets': {name: str(getattr(details.budgets, name)) for name in ('pages', 'segments', 'result_bytes')}}}
+                    result = {'inspection': {'version': 1, 'scope': 'configured_source', 'name': inspected.name,
+                        'resource': inspected.resource.resource, 'source_kind': inspected.source_kind,
+                        'contract': list(inspected.source_digest), 'schema': list(inspected.schema_digest),
+                        'resource_revision': inspected.resource_revision, 'policy_revision': str(inspected.policy_revision), 'details': normalized}}
+                elif 'next' in action:
                     v = action['next']
                     prepared = await invoke('prepare_next', int(v['namespace']), q.Bundle(bytes.fromhex(v['bundle'])))
                     result = {'prepared': None if prepared is None else prepared.data.decode()}

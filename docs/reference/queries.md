@@ -19,6 +19,11 @@ cannot discover or grant access to an undeclared source. The query cell model ke
 value, null, missing, type error and conflict distinct through Arrow and language
 bindings. Do not coerce missing/conflict into null or a successful empty result.
 
+CSV/JSONL sources and schema inference are unsupported. The
+[type system and schema discovery plan](sql/types.md#planned-type-system-and-schema-discovery)
+describes proposed file-source binding, richer types and preserved cell states;
+it does not extend the current source contract.
+
 Each captured source basis names the resource/revision and contract/schema it
 actually read. This is not a cross-resource transaction, global snapshot or
 promise of an arbitrary historical `AS OF` query. Preserve source evidence with

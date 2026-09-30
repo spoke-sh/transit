@@ -33,3 +33,9 @@ values, scoped writer jobs and current-policy reads through the joined worker.
 
 The [unified query guide](docs/UNIFIED_QUERY.md) covers typed v1 sources, finite
 plans, persisted admission commands and immutable nested Arrow pages.
+
+The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes,
+immutable requests, saved-command recovery and durable result observations.
+
+The [catalog guide](docs/CATALOG.md) covers typed initialization, conditional
+policy, named Table creation and immutable saved-command recovery.

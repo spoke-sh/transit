@@ -218,7 +218,7 @@ pub fn drive(self: Self, turn: *Turn, reader: anytype, upper_ms: u64) !bool {
         // Reserved high-bit namespace domain plus the globally unique committed
         // input position. Explicit old user choices can collide, never overwrite.
         const namespace = (@as(u64, 1) << 63) | turn.delivery.input.position;
-        if (try q.UnifiedUpload.status(turn, namespace) != null or try turn.read(root.station.Publication.key(namespace, 'b', 0, 0)) != null) {
+        if (try q.UnifiedUpload.status(turn, namespace) != null or try turn.read(root.station.Publication.key(.query_request, namespace, 'b', 0, 0)) != null) {
             value.enabled = false;
             value.phase = .failed;
             try save(turn, value);

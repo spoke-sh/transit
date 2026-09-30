@@ -18,6 +18,7 @@
         .transit_exchange = .{ .path = "packages/zig/transit-exchange" },
         .transit_station_http = .{ .path = "packages/zig/transit-station-http" },
         .transit_query = .{ .path = "packages/zig/transit-query" },
+        .transit_catalog = .{ .path = "packages/zig/transit-catalog" },
         .transit_fuze = .{ .path = "packages/zig/transit-fuze" },
         .transit_station = .{ .path = "packages/zig/transit-station" },
         .transit_station_bindings = .{ .path = "packages/zig/transit-station-bindings" },

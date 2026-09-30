@@ -108,7 +108,7 @@ def run(env, _tls):
     for ordinal, offset in enumerate(range(0, len(bundle), 256)):
         part = bundle[offset:offset+256]
         digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', ordinal, len(part)) + part).digest()
-    reference = b'SPF1' + struct.pack('<QQQII', requests, 1, 1, 0x31425155, len(bundle)) + digest
+    reference = b'SPF1' + struct.pack('<QIQQII', requests, 2, 1, 1, 0x31425155, len(bundle)) + digest
     cast(ingress, b'UQB1' + reference, principal)
     drained(ingress)
     for ordinal, offset in enumerate(range(0, len(bundle), 256)):
@@ -119,7 +119,7 @@ def run(env, _tls):
     cast(ingress, b'UQS1' + struct.pack('<Q', 1), principal)
     drained(ingress)
     cast(ingress, b'UQX1' + struct.pack('<Q', 1), principal)
-    wait(lambda: (current := status(1)) is not None and current[72] == 4)
+    wait(lambda: (current := status(1)) is not None and current[76] == 4)
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     drained(ingress)
@@ -179,6 +179,6 @@ def run(env, _tls):
         command({'pause': selection}, refresh=True, control=True)
         command({'close': selection['session']}, control=True)
     for namespace in ('1', frozen, ready_second['namespace']):
-        assert status(namespace)[72] == 4
+        assert status(namespace)[76] == 4
     Path('.cache/verification/m21-refresh-trace.json').write_text(json.dumps(trace))
     print(f'Reactive durable refresh: two shared-principal views, exact lost follow receipt, one admitted query, fair successor, worker replacement, full-width identities and current entry-read denial with metadata still permitted passed in {time.monotonic() - started:.2f}s', flush=True)

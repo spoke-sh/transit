@@ -20,6 +20,17 @@ in flight. Try-with-resources closes the port and joins the worker. Completion
 callbacks must not call blocking close on the publisher thread; close from the
 owning application thread after observing the future.
 
+`inspectSql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
+`SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig inspection owner.
+Its future returns an immutable `Inspection` with source/schema digests, current
+resource/policy revisions and `SourceDescription`, `TableListing` or
+`Explanation` details. Explanation includes ordered operators, a typed
+predicate without literal values, projection/output columns and explicit budgets.
+Full-width limits and policy revisions use `BigInteger`. Inspection checks
+current access before and after resolution, creates no snapshot and admits no
+query. The listing covers only the configured source. Cancelling the future
+retains native ownership until join.
+
 For a positive namespace, `prepareNext` returns an optional immutable `Prepared`.
 Persist `prepared.bytes().copy()` before `submit`. Keep those exact bytes after
 `TransitException.Kind.UNKNOWN_OUTCOME` or a cancelled/lost future, and recover

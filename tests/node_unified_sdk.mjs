@@ -81,7 +81,23 @@ async function serve() {
       if ('close' in action) break;
       try {
         let result;
-        if ('next' in action) {
+        if ('inspect' in action) {
+          const request = action.inspect, limits = request.scope.limits;
+          const value = await client.inspectSql(source, request.scope.name, request.sql, {
+            pages: BigInt(limits.pages), segments: BigInt(limits.segments), resultBytes: BigInt(limits.result_bytes),
+          });
+          assert.deepEqual(value.resource, resource); assert.equal(value.sourceKind, config.kind);
+          const d = value.details;
+          const details = d.kind === 'description' ? {description: {columns: d.columns}} : d.kind === 'tables' ? {tables: d.names} : {
+            explanation: {operators: d.operators, predicate: d.predicate === undefined ? {all: {}} : d.predicate.kind === 'state'
+              ? {state: {column: d.predicate.column, value: d.predicate.state}} : {compare: {column: d.predicate.column, op: d.predicate.comparison, type: d.predicate.type}},
+              projection: d.projection, limit: d.limit?.toString() ?? null, aggregate: d.aggregate, columns: d.columns,
+              budgets: {pages: d.budgets.pages.toString(), segments: d.budgets.segments.toString(), result_bytes: d.budgets.resultBytes.toString()}},
+          };
+          result = {inspection: {version: 1, scope: 'configured_source', name: value.name, resource: value.resource.resource,
+            source_kind: value.sourceKind, contract: [...value.sourceDigest], schema: [...value.schemaDigest],
+            resource_revision: value.resourceRevision, policy_revision: value.policyRevision.toString(), details}};
+        } else if ('next' in action) {
           const prepared = await client.prepareNext(BigInt(action.next.namespace), new q.Bundle(Buffer.from(action.next.bundle, 'hex')));
           result = {prepared: prepared?.data ?? null};
         } else if ('submit' in action) {

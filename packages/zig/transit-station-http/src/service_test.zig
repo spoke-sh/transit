@@ -83,7 +83,7 @@ test "metadata inspection verifies selected records without reading private head
         denied: bool = false,
         pub fn read(self: *@This(), key: p.Value) !?p.Value {
             if (self.denied) return error.AccessDenied;
-            if (key.len == 23 and std.mem.eql(u8, key.data[0..2], "\x00P") and key.data[10] == 'c') {
+            if (key.len == 27 and std.mem.eql(u8, key.data[0..2], "\x00P") and std.mem.readInt(u32, key.data[2..6], .big) == @backingInt(x.Publication.Domain.exchange) and key.data[14] == 'c') {
                 const record = std.mem.readInt(u64, key.data[11..19], .big);
                 if (record >= 2 and record <= 5) return error.PrivateContentRead;
             }
@@ -105,7 +105,7 @@ test "metadata inspection verifies selected records without reading private head
     source.denied = true;
     try t.expectError(error.AccessDenied, http.Inspection.read(t.allocator, ex, &source));
     source.denied = false;
-    const chunk_key = x.Publication.key(ex.id, 'c', 6, 0);
+    const chunk_key = x.Publication.key(.exchange, ex.id, 'c', 6, 0);
     var corrupted = store.state.get(chunk_key).?;
     corrupted.data[4] ^= 1;
     try store.state.put(t.allocator, chunk_key, corrupted);
@@ -618,7 +618,7 @@ test "upload steps recover only the frozen complete request and become callable 
         turn = try store.capture(9, 99, wire);
     }
     try t.expect(steps > 3);
-    const publication: x.Publication = .{ .resource = 7, .namespace = 99 };
+    const publication: x.Publication = .{ .domain = .application, .resource = 7, .namespace = 99 };
     try t.expectEqual(prepared.reference.bodySpec(), (try publication.open(&turn, 2)).spec);
     _ = try publication.retire(&turn, 2);
     try store.commit(turn);

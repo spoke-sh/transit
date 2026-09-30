@@ -43,9 +43,12 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M33](M33.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M34](M34.md) | Relational guarantees, joins and aggregation | Proposed; explicit source vectors, finite Table joins/grouping, maintained revisions and semantic gates for reshuffling |
 | [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
-| [M36](M36.md) | SQL language completeness and declarative dataflows | Proposed; scoped inspection, bounded Table mutations, typed declarations, maintained queries and recorded effect bindings |
+| [M36](M36.md) | SQL language completeness and declarative dataflows | In progress: finite queries/inspection, combined Table reads/writes, ten mutation SDKs, saved-file CLI mutations and conditional Zig Table catalog; administrative callers, remaining declarations and maintained dataflows remain |
 | [M37](M37.md) | Simulation and external fault verification | Implemented deterministic and Vortex-style profiles; repository-wide clean and hosted qualification remain open |
-| [M38](M38.md) | Standards, multi-model dataflows and schema branching | Proposed; standards ledger, graph/foreign relations, historical catalogs, isolated branches and reviewed merges |
+| [M38](M38.md) | Standards, multi-model dataflows and schema branching | Handbook grammar inventory published; implementation sequence starts with the standards ledger and historical contracts; graph/foreign relations, branches and merges remain planned |
+| [M39](M39.md) | Comprehensive types and bounded schema on demand | Planned; shared scalar/nested semantics, CSV/JSONL discovery and DuckDB correctness/performance comparisons |
+| [M40](M40.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |
+| [M41](M41.md) | Declarative benchmark coverage and measurement | 28 components measured and full TPC coverage inventoried; clean qualification in progress; complete suites blocked |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -117,6 +120,13 @@ that foundation, then historical schemas, isolated branches and reviewed merges.
 Its contract and proof slices are tracked in [issue #31](https://github.com/rupurt/rey/issues/31).
 It reuses M34–M36's operators and lifecycle contracts without expanding their
 recorded implementation claims.
+
+[M39](M39.md) adds comprehensive type semantics and bounded CSV/JSONL schema
+discovery, tracked in [issue #36](https://github.com/rupurt/rey/issues/36). It
+coordinates M38's schema identity and M40's expression/COPY work, and compares
+equivalent workloads with DuckDB without adding a query-engine dependency. The
+extended SQL continuation moves from M39 to M40 with its scope intact, keeping
+type and reader prerequisites ahead of their consumers.
 
 M19–M21 separately qualify the serving foundation, reactive API contracts and
 their interface consumers. Completed milestone scope and proof remain unchanged;

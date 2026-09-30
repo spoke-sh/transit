@@ -22,7 +22,7 @@ const Saved = struct {
     stale: ?g.SignedRequest = null,
 };
 fn publication(turn: *Turn) Pub {
-    return .{ .resource = turn.view.resource, .namespace = Namespace };
+    return .{ .domain = .application, .resource = turn.view.resource, .namespace = Namespace };
 }
 fn chunk(index: u32) [256]u8 {
     var bytes: [256]u8 = undefined;
@@ -57,7 +57,7 @@ const Handler = struct {
         return @ptrCast(@alignCast(raw.?));
     }
     fn initialize(_: ?*anyopaque, turn: *Turn) !void {
-        _ = try Pub.create(turn, Namespace, .{ .record_bytes = RecordBytes, .staging_bytes = RecordBytes + 513, .staging_records = 2 });
+        _ = try Pub.create(turn, .application, Namespace, .{ .record_bytes = RecordBytes, .staging_bytes = RecordBytes + 513, .staging_records = 2 });
     }
     fn handle(raw: ?*anyopaque, turn: *Turn, frame: station.Frame) !void {
         const self = get(raw);
@@ -231,7 +231,7 @@ fn value(admin: *Admin, resource: u64, key: p.Value) !?p.Value {
     return if (entry) |item| item.value else null;
 }
 fn descriptor(admin: *Admin, resource: u64, id: u64) !Pub.Descriptor {
-    return Pub.Descriptor.decode((try value(admin, resource, Pub.key(Namespace, 'r', id, 0))).?);
+    return Pub.Descriptor.decode((try value(admin, resource, Pub.key(.application, Namespace, 'r', id, 0))).?);
 }
 fn save(init: std.process.Init, path: []const u8, saved: Saved) !void {
     const bytes = try std.json.Stringify.valueAlloc(init.gpa, saved, .{});
@@ -373,10 +373,10 @@ pub fn main(init: std.process.Init) !void {
         try t.expectEqualStrings("65536", (try value(&admin, saved.resource, try p.Value.init("verified"))).?.slice());
         const retained = try server.session.version(saved.pin.?);
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Principal, .permissions = 0 } });
-        try t.expectError(error.AccessDenied, server.session.readVersion(retained, Pub.key(Namespace, 'c', 1, 0), null));
+        try t.expectError(error.AccessDenied, server.session.readVersion(retained, Pub.key(.application, Namespace, 'c', 1, 0), null));
         _ = try admin.submit(.{ .grant_resource = .{ .resource = saved.resource, .subject = Principal, .permissions = p.State.all_permissions } });
         try send(init.io, &admin, &server, &handler, 10, false);
-        try t.expectError(error.Rejected, server.session.readVersion(retained, Pub.key(Namespace, 'c', 1, 0), null));
+        try t.expectError(error.Rejected, server.session.readVersion(retained, Pub.key(.application, Namespace, 'c', 1, 0), null));
         try t.expectEqual(.ReadVersionReleased, wire.last_rejection.?);
         try t.expect((try value(&admin, saved.resource, try p.Value.init("head"))) == null);
         try t.expectEqualStrings("1", (try value(&admin, saved.resource, try p.Value.init("acceptances"))).?.slice());

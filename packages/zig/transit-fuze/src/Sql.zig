@@ -8,8 +8,8 @@ pub const max_comment_depth = 16;
 pub const max_literal_bytes = 2 + 2 * m.max_cell_bytes;
 
 pub const Column = struct { qualifier: ?m.Name = null, name: m.Name };
-/// Both null means star. Otherwise first is present and second is optional.
-pub const Projection = [2]?Column;
+/// All null means star. Explicit names form a contiguous bounded prefix.
+pub const Projection = [f.Unified.max_columns]?Column;
 pub const Selection = union(enum) { rows: Projection, count, sum: Column };
 pub const Text = struct {
     bytes: [max_literal_bytes]u8 = @splat(0),
@@ -18,10 +18,10 @@ pub const Text = struct {
         return self.bytes[0..self.len];
     }
 };
-pub const Literal = union(enum) { null, int64: i64, boolean: bool, utf8: Text, binary: Text };
+pub const Literal = union(enum) { null, int64: i64, uint64: u64, float64: f64, boolean: bool, utf8: Text, binary: Text };
 pub const Predicate = union(enum) {
     all,
-    is_null: Column,
+    state: struct { column: Column, value: f.Unified.State },
     compare: struct { column: Column, op: f.Unified.Plan.Comparison, literal: Literal },
 };
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
@@ -32,13 +32,141 @@ pub const Ast = struct {
     limit: ?u64 = null,
     input: ?Input = null,
 };
+pub const Catalog = enum { tables, sources, sinks, connections };
+pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
+pub const max_mutation_rows = 3;
+pub const KeyEquality = struct { column: Column, literal: Literal };
+pub const Mutation = struct {
+    source: m.Name,
+    operation: union(enum) {
+        insert: struct { columns: [2]m.Name, rows: [max_mutation_rows]?[2]Literal = @splat(null) },
+        update: struct { column: Column, literal: Literal, key: KeyEquality },
+        delete: KeyEquality,
+    },
+};
 
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
-    if (text.len > max_statement_bytes) return error.StatementTooLarge;
-    if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
+    try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text } };
     return statement(&parser);
+}
+/// Offline state declaration syntax. No catalog lookup, provisioning or grants.
+/// Omitted nullability remains unspecified; semantic validation is separate.
+pub fn parseDeclaration(text: []const u8) !?f.Declaration.Definition {
+    try validateText(text);
+    var parser: Parser = .{ .lexer = .{ .text = text } };
+    try parser.advance();
+    if (!parser.word("CREATE")) return null;
+    try parser.advance();
+    const table = parser.word("TABLE");
+    const kv = parser.word("KV");
+    if (!table and !kv and !parser.word("DOCUMENT")) return error.UnsupportedDeclaration;
+    try parser.advance();
+    const name = try parser.name();
+    const body: f.Declaration.Body = if (table) blk: {
+        var columns: f.Declaration.Columns = @splat(null);
+        try parser.require(.left);
+        for (&columns, 0..) |*slot, index| {
+            const column_name = try parser.name();
+            const data_type = try parser.declarationType();
+            const nullability: f.Declaration.Nullability = if (parser.word("NOT")) nullable: {
+                try parser.advance();
+                try parser.requireWord("NULL");
+                break :nullable .not_null;
+            } else if (parser.word("NULL")) nullable: {
+                try parser.advance();
+                break :nullable .null;
+            } else .unspecified;
+            slot.* = .{ .name = column_name, .type = data_type, .nullability = nullability };
+            if (!try parser.take(.comma)) break;
+            if (index + 1 == columns.len) return error.DeclarationTooManyColumns;
+        }
+        try parser.require(.right);
+        break :blk .{ .table = columns };
+    } else if (kv) blk: {
+        try parser.require(.left);
+        const data_type = try parser.declarationType();
+        try parser.require(.right);
+        break :blk .{ .kv = data_type };
+    } else .document;
+    try parser.end();
+    return .{ .name = name, .body = body };
+}
+fn validateText(text: []const u8) !void {
+    if (text.len > max_statement_bytes) return error.StatementTooLarge;
+    if (!std.unicode.utf8ValidateSlice(text) or std.mem.indexOfScalar(u8, text, 0) != null) return error.InvalidSqlEncoding;
+}
+/// Parse only bounded, literal Table mutations. This supplies no write authority;
+/// the application must explicitly route the plan through its fenced writer.
+pub fn parseMutation(text: []const u8) !?Mutation {
+    try validateText(text);
+    var parser: Parser = .{ .lexer = .{ .text = text } };
+    try parser.advance();
+    const insert = parser.word("INSERT");
+    const update = parser.word("UPDATE");
+    const delete = parser.word("DELETE");
+    if (!insert and !update and !delete) return null;
+    try parser.advance();
+    if (insert) try parser.requireWord("INTO");
+    if (delete) try parser.requireWord("FROM");
+    const source = try parser.name();
+    const operation: @FieldType(Mutation, "operation") = if (insert) blk: {
+        try parser.require(.left);
+        const first = try parser.name();
+        try parser.require(.comma);
+        const second = try parser.name();
+        try parser.require(.right);
+        try parser.requireWord("VALUES");
+        var values: @FieldType(@FieldType(Mutation, "operation"), "insert") = .{ .columns = .{ first, second } };
+        var index: usize = 0;
+        while (true) : (index += 1) {
+            if (index == max_mutation_rows) return error.MutationBatchTooLarge;
+            try parser.require(.left);
+            const key = try parser.literal();
+            try parser.require(.comma);
+            const value = try parser.literal();
+            try parser.require(.right);
+            values.rows[index] = .{ key, value };
+            if (!try parser.take(.comma)) break;
+        }
+        break :blk .{ .insert = values };
+    } else if (update) blk: {
+        try parser.requireWord("SET");
+        const column = try parser.column();
+        try parser.require(.eq);
+        const literal = try parser.literal();
+        break :blk .{ .update = .{ .column = column, .literal = literal, .key = try parser.keyEquality() } };
+    } else .{ .delete = try parser.keyEquality() };
+    try parser.end();
+    return .{ .source = source, .operation = operation };
+}
+/// Recognize inspection without making it an executable SELECT. A null result
+/// leaves other statements to their owner; recognized forms consume all input.
+/// Catalog resolution and current read authority belong to the query client.
+pub fn parseInspection(text: []const u8) !?Inspection {
+    try validateText(text);
+    var parser: Parser = .{ .lexer = .{ .text = text } };
+    try parser.advance();
+    if (parser.word("EXPLAIN")) return .{ .explain = try statement(&parser) };
+    if (parser.word("DESCRIBE")) {
+        try parser.advance();
+        const name = try parser.name();
+        try parser.end();
+        return .{ .describe = name };
+    }
+    if (parser.word("SHOW")) {
+        try parser.advance();
+        inline for (comptime std.meta.fieldNames(Catalog)) |name| {
+            if (parser.word(name)) {
+                try parser.advance();
+                try parser.end();
+                return .{ .show = @field(Catalog, name) };
+            }
+        }
+        return error.UnsupportedCatalog;
+    }
+    return null;
 }
 fn statement(parser: *Parser) !Ast {
     try parser.advance();
@@ -77,9 +205,14 @@ fn statement(parser: *Parser) !Ast {
 
 /// Shared checked SQL literal decoding; the returned value owns its bytes.
 pub fn literalCell(literal: Literal) !m.Cell {
+    switch (literal) {
+        .utf8, .binary => |value| if (value.len > value.bytes.len) return error.LiteralTooLarge,
+        else => {},
+    }
     return switch (literal) {
         .null => .null,
         .int64 => |value| .{ .int64 = value },
+        .uint64, .float64 => error.UnsupportedLiteral,
         .boolean => |value| .{ .boolean = value },
         .utf8 => |value| .{ .utf8 = try m.Bytes.init(value.slice()) },
         .binary => |value| blk: {
@@ -199,6 +332,11 @@ const Parser = struct {
         _ = try self.take(.semi);
         if (self.token.tag != .eof) return error.UnsupportedConstruct;
     }
+    fn declarationType(self: *Parser) !m.Type {
+        const result: m.Type = if (self.word("INT64")) .int64 else if (self.word("BOOL")) .boolean else if (self.word("UTF8")) .utf8 else if (self.word("BINARY")) .binary else return error.UnsupportedDeclarationType;
+        try self.advance();
+        return result;
+    }
     fn name(self: *Parser) !m.Name {
         var bytes: [16]u8 = undefined;
         const token = self.token;
@@ -234,9 +372,17 @@ const Parser = struct {
         return .{ .name = first };
     }
     fn projection(self: *Parser) !Projection {
-        if (try self.take(.star)) return .{ null, null };
-        const first = try self.column();
-        return .{ first, if (try self.take(.comma)) try self.column() else null };
+        var result: Projection = @splat(null);
+        if (try self.take(.star)) return result;
+        for (&result, 0..) |*column_value, index| {
+            column_value.* = try self.column();
+            if (index + 1 == result.len) {
+                if (self.token.tag == .comma) return error.InvalidProjection;
+                return result;
+            }
+            if (!try self.take(.comma)) return result;
+        }
+        unreachable;
     }
     fn selection(self: *Parser) !Selection {
         const count = self.word("COUNT");
@@ -264,9 +410,10 @@ const Parser = struct {
         if (self.assistance) |h| h.predicate_column = col;
         if (self.word("IS")) {
             try self.advance();
-            try self.requireWord("NULL");
+            const value: f.Unified.State = if (self.word("NULL")) .null else if (self.word("MISSING")) .missing else if (self.word("TYPE_ERROR")) .type_error else if (self.word("VALUE")) .value else if (self.word("CONFLICT")) .conflict else return error.UnsupportedConstruct;
+            try self.advance();
             if (self.assistance) |h| h.predicate_column = null;
-            return .{ .is_null = col };
+            return .{ .state = .{ .column = col, .value = value } };
         }
         if (self.token.tag == .cursor) if (self.assistance) |h| {
             for ([_]Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| h.symbol(tag);
@@ -288,6 +435,12 @@ const Parser = struct {
             h.predicate_column = null;
         }
         return .{ .compare = .{ .column = col, .op = op, .literal = value } };
+    }
+    fn keyEquality(self: *Parser) !KeyEquality {
+        try self.requireWord("WHERE");
+        const column_value = try self.column();
+        try self.require(.eq);
+        return .{ .column = column_value, .literal = try self.literal() };
     }
     fn literal(self: *Parser) !Literal {
         if (self.word("NULL")) {
@@ -311,8 +464,20 @@ const Parser = struct {
             }
             try self.advance();
             if (try self.take(.cast)) {
-                try self.requireWord("BYTEA");
-                return .{ .binary = value };
+                const result: Literal = if (self.word("BYTEA")) .{ .binary = value } else if (self.word("UINT64")) blk: {
+                    const bytes = value.slice();
+                    if (bytes.len == 0) return error.InvalidNumericLiteral;
+                    for (bytes) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidNumericLiteral;
+                    break :blk .{ .uint64 = std.fmt.parseInt(u64, bytes, 10) catch return error.LiteralOutOfRange };
+                } else if (self.word("FLOAT64")) blk: {
+                    const bytes = value.slice();
+                    for (bytes) |byte| if (std.mem.indexOfScalar(u8, "0123456789+-.eE", byte) == null) return error.InvalidNumericLiteral;
+                    const number = std.fmt.parseFloat(f64, bytes) catch return error.InvalidNumericLiteral;
+                    if (!std.math.isFinite(number)) return error.LiteralOutOfRange;
+                    break :blk .{ .float64 = number };
+                } else return error.UnsupportedConstruct;
+                try self.advance();
+                return result;
             }
             return .{ .utf8 = value };
         }

@@ -1,10 +1,16 @@
 # Transit console
 
 `transit console` is the query interface for finite, read-only SQL over the
-configured KV, Table or Document source. Each statement compiles SQL, acquires a
+configured KV, Table or Document source. Each SELECT compiles SQL, acquires a
 fresh leased snapshot and executes Fuze in the client, printing native Arrow
 batches. Completion or cancellation releases the snapshot. No durable query
 upload, execution progress or result publication is written by a SELECT.
+
+`DESCRIBE items`, `SHOW TABLES` and `EXPLAIN SELECT ...` inspect the configured
+source and proposed plans under current read access. They acquire no snapshot
+and submit no query. JSON mode returns one `inspection` envelope; table mode
+labels the configured scope, metadata revision, columns or logical plan. See
+the [SQL inspection contract](../../../contracts/SQL_INSPECTION_V1.md).
 Bare `transit console` uses the [local server](server.md)'s topology defaults,
 including its `transit.yaml` discovery and `TRANSIT_` overrides. It reads allocated
 resource identities from the existing installation and uses its scoped

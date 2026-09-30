@@ -46,6 +46,18 @@ test "one typed plan binds all source kinds and exact contract and schema eviden
     try t.expectError(error.UnsupportedAggregate, (m.Plan{ .projection = &.{0}, .aggregate = .sum }).bind(try basis(.kv), schema));
     try t.expectError(error.DuplicateProjection, (m.Plan{ .projection = &.{ 0, 0 } }).bind(try basis(.kv), schema));
 }
+test "output schema is validated without a source cut and owns column names" {
+    var output: [m.max_columns]m.Column = undefined;
+    const projected = try (m.Plan{ .projection = &.{ 1, 0 } }).outputSchema(schema, &output);
+    try t.expectEqualDeep(columns[1], projected.columns[0]);
+    try t.expectEqualDeep(columns[0], projected.columns[1]);
+    const count = try (m.Plan{ .projection = &.{0}, .aggregate = .count }).outputSchema(schema, &output);
+    try t.expectEqualStrings("count", count.columns[0].name.slice());
+    try t.expectEqual(m.Type.uint64, count.columns[0].type);
+    try t.expectError(error.UnsupportedAggregate, (m.Plan{ .projection = &.{1}, .aggregate = .sum }).outputSchema(schema, &output));
+    try t.expectError(error.DuplicateProjection, (m.Plan{ .projection = &.{ 0, 0 } }).outputSchema(schema, &output));
+    try t.expectError(error.UnknownColumn, (m.Plan{ .projection = &.{2}, .aggregate = .count }).outputSchema(schema, &output));
+}
 test "canonical FZP1 preserves wide literals negative zero binary and larger plans" {
     const long: [512]u8 = @splat('x');
     const values = [_]m.Scalar{ .{ .int64 = std.math.minInt(i64) }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = false }, .{ .utf8 = "🙂" }, .{ .binary = &.{ 0, 255 } }, .{ .utf8 = &long } };

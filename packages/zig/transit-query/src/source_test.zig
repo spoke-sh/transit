@@ -154,6 +154,28 @@ pub fn changeDocument(store: *@import("source_store_test.zig"), service: q.docum
     }
     return error.ChangeIncomplete;
 }
+
+// Acquire exactly the production current-metadata key set from the reference
+// store. Batch.read refuses any additional lookup, including payload access.
+fn currentMetadata(store: *@import("source_store_test.zig"), definition: Definition) !q.wire.ResourceReader.Batch {
+    var client: q.UnifiedClient = .{
+        .wire = undefined,
+        .key = undefined,
+        .connection = .{ .realm = 1, .principal = 2, .source = store.pid, .resource = store.resource, .requester = 9, .requests = 10 },
+    };
+    const request = (try client.interactiveMetadata(definition))[0].?;
+    var result: q.wire.ResourceReader.Batch = .{
+        .resource = .{ .id = store.resource, .writer = store.pid, .owner = null, .revision = store.revision, .deadline_ms = null },
+        .view = .{ .resource = store.resource, .revision = store.revision },
+        .keys = request.keys,
+        .entries = @splat(null),
+    };
+    var turn = try store.capture();
+    for (request.keys, 0..) |slot, i| if (slot) |key| {
+        if (try turn.read(key)) |value| result.entries[i] = .{ .key = key, .value = value, .revision = store.revisions.get(key).? };
+    };
+    return result;
+}
 test "accepted Document paths text conflicts and list pages retain live lifecycle checks" {
     const Memory = @import("source_store_test.zig");
     const source = q.UnifiedSource;
@@ -194,6 +216,14 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
         .{ .column = .{ .name = try m.Name.init("child"), .type = .uint64 }, .path = &.{ try d.Name.init("nested"), try d.Name.init("child") } },
     };
     var definition: Definition = .{ .resource = 7, .source = .{ .document = .{ .reference = reference, .projections = &projections } } };
+    var metadata = try currentMetadata(&store, definition);
+    try source.checkCurrent(definition, &metadata);
+    var foreign = definition;
+    foreign.source.document.reference.epoch += 1;
+    try t.expectError(error.DocumentIdentityMismatch, source.checkCurrent(foreign, &metadata));
+    var incomplete = metadata;
+    incomplete.keys[2] = null;
+    try t.expectError(error.UnrequestedResourceKey, source.checkCurrent(definition, &incomplete));
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     var batch: source.Batch = .{};
@@ -231,6 +261,7 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
     try t.expectEqual(@as(usize, 12), count);
     store.denied = true;
     current = try store.capture();
+    try t.expectError(error.AccessDenied, currentMetadata(&store, definition));
     try t.expectError(error.AccessDenied, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
     store.denied = false;
     turn = try store.capture();
@@ -247,11 +278,15 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
     } else return error.CheckpointIncomplete;
     current = try store.capture();
     try t.expectError(error.DocumentHistoryGap, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
+    metadata = try currentMetadata(&store, definition);
+    try t.expectError(error.DocumentHistoryGap, source.checkCurrent(definition, &metadata));
     turn = try store.capture();
     try service.retire(&turn);
     try store.commit(turn);
     current = try store.capture();
     try t.expectError(error.DocumentRetired, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
+    metadata = try currentMetadata(&store, definition);
+    try t.expectError(error.DocumentRetired, source.checkCurrent(definition, &metadata));
 }
 
 test "independent UQS1 fixtures preserve all three source declarations" {

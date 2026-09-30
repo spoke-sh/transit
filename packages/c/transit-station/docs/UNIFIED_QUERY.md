@@ -19,6 +19,16 @@ native worker and copied credential; it acquires no process activation.
 16 KiB, an Arrow segment is at most 64 KiB and a batch has at most eight rows and
 eight columns. Local capability support does not establish remote permission.
 
+`transit_station_unified_inspect_sql(client, source, name, sql, budgets, out)`
+executes scoped `DESCRIBE name`, `SHOW TABLES` or `EXPLAIN SELECT ...` through the
+shared Zig owner. The output struct owns all names, digests, revisions and tagged
+description/list/explanation details inline; copying it retains no client pointer
+and needs no destroy call. The response contains at most eight columns and four
+operators. The Table listing has zero or one names for the configured source.
+Explanation exposes predicate structure without literal values and preserves
+full-width limits and budgets. Inspection rechecks current authorization before
+returning, creates no snapshot and admits no query. Failure clears the output.
+
 For a positive namespace, call `prepare_next`, copy and persist the returned
 prepared bytes, then `submit`. Keep the prepared owner until a definite outcome.
 `TRANSIT_SDK_UNKNOWN_OUTCOME` requires resubmitting the identical persisted bytes;

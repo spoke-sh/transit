@@ -1,5 +1,2068 @@
 # Validation and milestone evidence
 
+Evidence is scoped to each recorded revision or definition. “Current” in an
+earlier entry refers to that entry's source, not automatically to HEAD. The latest
+[publication-domain cutover](#publication-domains-and-coordinated-caller-cutover)
+records its reruns and remaining qualification separately; earlier consolidation
+results do not qualify the changed stored layout by inheritance.
+
+## Declarative benchmark components
+
+The [component harness](benchmarks/README.md) measures synthetic SQL compilation,
+paged Fuze/Arrow execution, declarations and private Station mutation proposals.
+It enumerates all 151 full-workload units across TPC-C/E/H/DS as blocked.
+Component correctness never changes full-suite coverage or implies a TPC score.
+Executed in the pinned development shell, using locked frontend dependencies:
+
+- Eight report/inventory tests pass, including missing/duplicate results,
+  incompatible definitions, wrong build mode, absent timings and failure reports.
+- The 28 components pass independent SQLite/PyArrow results, declaration schema
+  checks and mutation-byte oracles. Smoke runs cover zero rows/page width one,
+  one null row, 17 rows with the maximum uint32 seed, and 257 rows/page width
+  three. Nine exact rejection probes pass; `--require-full` exits 2.
+- `just test::sql` passes its 49 public examples, 104 SELECT AST cases,
+  86 plan/Arrow cases, 24 unified results, 31 mutation cases and 182 declaration
+  cases. These remain component/grammar proofs, not complete TPC execution.
+
+Full `just check` passes, including the unit/protocol checks, 346 CLI diagnostic
+cases, generated contracts, frontend tests/types and production handbook build.
+The final report tests and a 17-row/three-row-page smoke pass after report
+validation was tightened to reject missing timings and retain decoded outputs.
+Logs: `/tmp/transit-benchmark-check.log`, `/tmp/transit-benchmark-sql.log`,
+`/tmp/transit-benchmark-smoke.log` and `/tmp/transit-benchmark-final-smoke.log`.
+
+At clean committed source `8446688afda8d0662bea1503ec8151fd3a6ac942`,
+`just test::declarative-benchmark` passes all 28 components and nine blocker probes
+with five samples, 8192 synthetic rows, eight-row pages, seed 42, ten query
+executions and 2000 compilations/proposals. The
+[retained report](benchmarks/results/2026-09-30.json) has `dirty: false`, all 52
+timed phases, independently verified query outputs and mutation proposals,
+fixture/build/source hashes and host metadata. Binary SHA-256 is
+`4b8457964e12931d1058c2149d6483676e54618890863bb45959d600e2023e19`.
+The [public summary](../docs/reference/benchmarks.md#recorded-component-measurements)
+reports the exact scope and shared-host limits. Measurement log:
+`/tmp/transit-benchmark-measurement.log`. These are unpaired component timings;
+all 151 complete-workload units remain blocked. Native authority, disk durability
+and public transport latency are outside this harness's measured boundary.
+A separate fresh clone of `95d0107797551fbf6e4c7d0a47c72aa0e26830c1` builds
+`transit-declarative-benchmark` without inherited workspace outputs and passes
+all component oracles with 257 rows, three-row pages, one sample/execution and
+50 compilations/proposals. The copied report is
+`.cache/verification/benchmarks/clean-smoke.json` with `dirty: false`.
+Broader committed-HEAD clean-lane outcomes are recorded in PR #38 after
+those runs; they do not expand the benchmark's execution boundary.
+
+After rebasing onto `main` at `4c22b426058c7299af62a8cba03ab5925336ba44`,
+the default measurement repeats at clean source
+`bc9476ba7c9613df625a28e9277bf10e568e0f6c`. The
+[second raw report](benchmarks/results/2026-09-30-main.json) retains five samples,
+all 52 timed phases and the same 28 passing components/nine rejection probes.
+The executable, fixture, manifest, harness, driver and lock hashes match the
+earlier report, as do independently decoded query outputs. The new SDK catalog
+metadata readers do not change the measured Fuze/Station implementation or
+remove any full-workload blocker. Both reports preserve their original source
+identity; the public summary uses this repeat without claiming a speedup.
+Log: `/tmp/transit-benchmark-rebased-measurement.log`.
+
+The rebased executable also passes zero-row/one-row-page, one-null-row,
+maximum-uint32-seed and 257-row/three-row-page cases; `--require-full` writes a
+component-success/full-workloads-blocked report and exits 2. These focused
+runs use one sample/execution and 50 compilations/proposals; documentation/report
+updates are present in the working tree and their reports record `dirty: true`.
+Log: `/tmp/transit-benchmark-rebased-edges.log`.
+
+With these report/documentation updates, `just transit-board::install`, full
+`just check` and `just test::sql` pass in the pinned shell. This includes all
+eight report tests, 399 CLI diagnostics, generated contracts, frontend checks,
+the production handbook and the same SQL case counts listed above. Log:
+`/tmp/transit-benchmark-rebased-check.log`. Committed-HEAD clean-lane outcomes
+remain separately recorded in PR #38; earlier clean runs do not qualify
+the rebased source by inheritance.
+
+## Handbook grammar inventory and implementation plan
+
+The documentation-first work for issue #31 starts from PR #27's pushed
+`9051f0a4209b874ebb4c1ba69aecd50fa7c8225a`. The handbook checkpoint `37996e4f`
+adds the public implemented/planned inventory and navigation, corrects stale
+state-declaration descriptions, and reconciles system-time comments without
+changing any accepted grammar rule or production execution. M38 now consumes
+that inventory with staged ledger/semantic/historical work and explicit exits;
+no runtime work package is marked complete by this documentation.
+
+Executed in the pinned development shell with locked frontend dependencies:
+
+- Full `just check` passes for the handbook checkpoint, including generated
+  contracts, unit/CLI checks, frontend types/tests and production documentation.
+  The documentation check reports 4642 local links across 484 files.
+- `just test::sql` passes: 49 published SQL examples, 104 SELECT AST comparisons,
+  16 syntax exclusions, 14 extensions, 86 actual plans/Arrow checks, 24 unified
+  results across three bases/eight page widths, 31 mutation outcome/rejection
+  cases, and 182 declaration cases. Proposed syntax uses explicitly labeled text
+  blocks; these checks do not accept or qualify the proposed graph/branch forms.
+- The initial `just transit-docs::browser` run has two passes and two failures:
+  inherited assertions expect the SQL index's old label and still describe
+  CREATE TABLE as grammar-only. `7316a9e5` corrects those expectations, retains
+  the grammar-only connection check and exercises the new inventory through
+  navigation/search with distinct Table-publication and KV/Document labels.
+  The corrected root-hosting run passes all four browser tests in 15.6 s.
+- `just transit-docs::check` passes after the browser changes; the subsequent
+  repository link check, including the roadmap sequence, passes 4647 links
+  across 484 files. These are working-tree documentation results, not new
+  runtime qualification.
+
+Committed-HEAD `just ci-clean --lane experience` at `37996e4f` **fails** in
+`transit-board::query-test`: `tests/board_query.py` receives HTTP 503
+`Unavailable` while observing an upload. Board check, documentation check, Node
+binding check, observability and Board inspection pass first; the final local
+Station launcher task does not run. The failed checkout and task timings remain
+at `/var/tmp/transit-ci-e1al9pr1`; the log is
+`/tmp/rey-grammar-ci-clean-inventory.log`. A focused rerun of the unchanged query
+test in that checkout fails with the same response; its log is
+`/tmp/rey-grammar-query-rerun.log`. The failure is unresolved. Neither that run
+nor the focused documentation/browser passes establish a clean-lane or complete
+clean-suite pass. No graph, foreign-capture, historical-query, branch, merge or
+standards-conformance execution is claimed.
+
+## Conditional declarative catalog
+
+The additive `transit-catalog` package composes Fuze's declaration compiler with
+Station's existing two-column Table and four-mutation turn. It publishes the
+Table descriptor, immutable definition, name binding and attributed receipt at
+one commit. It is an explicit Zig integration API; the initial helper proofs do
+not establish a supplied catalog host, signed caller, SQL administrative endpoint
+or CLI/SDK route. The signed caller's separate evidence is recorded below.
+Native/ABI definitions and existing stored formats
+are unchanged. The [contract](../contracts/DECLARATIVE_CATALOG_V1.md) owns the
+current profile; `SQL-CATALOG-01` maps its proof obligations.
+
+Executed in the pinned bindings shell on development source based on `ef3053af`:
+
+- Standalone `transit-catalog` `zig build test` passes ten component tests.
+  Independent Python fixtures pin every record kind, key and definition digest.
+  Tests cover full-width application IDs, mandatory definition checks, orphan
+  namespace/row refusal, exact application retries, changed intent, three terminal
+  conflicts, separate conditional policies, changed scope/schema/digest, private
+  rollback and poisoned reads at every point-read boundary. A successful new
+  creation performs seven private point-read callbacks, one bounded row-prefix
+  page check and four writes. A private mutation before creation rejects the
+  committed page check; a page-read failure poisons the turn.
+- A dynamic-map component store holds 257 objects and lists them in 33 pages,
+  each with at most eight definitions. Changed revisions, revoked inspection,
+  private writes and malformed page shapes reject. This is bounded helper
+  evidence, not native disk growth or performance evidence.
+- Full `just check` passes, including package/unit and generated contract checks,
+  frontend checks/tests and the production documentation build. This run preceded
+  registration of the native proof and the following evidence documentation.
+- Final `just check-core` passes after the orphan-row check. The independent
+  `just test::sql` oracle also passes, including 182 declaration cases and the
+  existing SELECT, unified-source and mutation schedules. Inventory/docs checks
+  cover 52 invariants, 52 classified bounds, 12 SDK scenarios and 4509 links
+  across 474 files.
+- `TMPDIR=/var/tmp just test::catalog` passes against the real native authority
+  and disk-backed Ursula. It loses one accepted caller-send receipt and one
+  owner-commit receipt, restarts node/storage separately at both boundaries, and
+  recovers the original frozen signed requests and exact receipts. An independent
+  Python oracle checks all four stored records at one resource revision. Input
+  progress, no-write application duplicates and terminal name conflicts agree.
+  Changed native retry, stale ownership, revoked write authority and revoked
+  reads reject; restoring write permission permits the same unaccepted request.
+
+The final native schedule takes **2.406 seconds** with **155 reads**, **6 accepted turn
+responses**, **8 resident authority pages**, at most **4 mutations** and **127
+value bytes** for this fixture. Component maximum-name fixtures separately check
+138-byte requests, 163-byte definitions and 155-byte receipts. The native timing
+includes provisioning/recovery and is not a service latency or throughput result.
+The report `.cache/verification/catalog/native.json` records source/dirty status,
+counts and frozen binary hashes:
+
+| Binary        | SHA-256                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Node          | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Catalog proof | `ac649f3e3410924cb1e03c58da4e1c975f8e209b6e3907f21fc280955be1f7a9` |
+
+Logs are `/tmp/transit-sql-catalog-orphan-components.log`,
+`/tmp/transit-sql-catalog-check.log`, `/tmp/transit-sql-catalog-final-checks.log`
+and `/tmp/transit-sql-catalog-orphan-native-check.log`.
+The native proof is registered in the growth lane. It creates two applied Tables;
+it does not establish native catalog growth, host power-loss recovery or installed
+caller compatibility. Native page scans may cross the catalog prefix; the helper
+does not decode or return those other values, but cannot promise zero row-byte
+I/O at the boundary. Current proofs do not qualify the remaining declaration,
+dependency, lifecycle, maintained-query or effect systems.
+
+At committed `97378a8e`, **`just ci-clean --lane core` passes all 18 tasks**
+without inherited workspace build outputs in **702.52 seconds**. Independent
+package builds take 139.81 seconds, Station 148.66 seconds and disk storage
+213.72 seconds, including the 129.21-second readiness write. Completion metadata
+and per-task results are retained under
+`.cache/ci/clean/97378a8e43a2-transit-ci-twnd5sz1/`; the log is
+`/tmp/transit-sql-catalog-ci-clean.log`. The following evidence-only commit changes
+no production code. This is a clean core-lane pass plus the focused native/SQL
+proofs above, not a complete clean-suite or administrative-surface qualification.
+
+### Shared signed catalog caller
+
+The additive `transit-catalog.Client` now prepares owned signed creation commands,
+restores exact saved bytes, submits explicitly and separates admission/input
+processing from original-request status. Description and status use bounded
+current native metadata batches; they retain no snapshot or permission cache.
+This does not enable a supplied host, neutral ABI, CLI or language SDK route.
+
+On development source based on `97378a8e`, both new caller component tests pass
+alongside the ten helper tests. They verify full-width identities, owned restored
+bytes, canonical complete input, missing/foreign nested definitions and local
+connection/signature rejection before transport. Full `just check` passes,
+including 52 invariants, 53 classified bounds, 12 SDK scenarios, 4509 local links,
+frontend checks/tests and the production documentation build.
+
+The expanded `just test::catalog` schedule uses the shared caller for preparation,
+saved-command restore, submission, observation and status. It preserves the exact
+prepared bytes after caller/node/store replacement, returns pending/null before
+application and processed/applied afterward, retains the original attributed
+receipt on an application duplicate and rejects changed operation intent. Current
+catalog inspection revocation hides old status while native reads still work;
+revoked create policy blocks preparation while inspection remains available.
+Native read revocation also prevents status disclosure. The earlier atomicity,
+conflict, owner fencing and lost native receipt cases remain in the schedule.
+
+The run passes in **3.310 seconds**, with **227 reads**, **9 accepted turn
+responses**, eight resident pages, four mutations and 127-byte maximum fixture
+values. It adds policy and observation operations, so its duration is not an
+equivalent-workload comparison with the helper-only run. The proof binary SHA-256
+is `a81fbd9cb9662196c91df512d4a6740e334e0dd7b7a85730ba9ac28c9ba6a82d`;
+the node hash is unchanged. Logs are `/tmp/transit-sql-catalog-client-components.log`,
+`/tmp/transit-sql-catalog-client-native.log` and
+`/tmp/transit-sql-catalog-client-check.log`. This development evidence does not
+extend the preceding committed clean checkpoint to the caller changes.
+
+At committed `149bbe41`, **`just ci-clean --lane core` passes all 18 tasks**
+for the signed caller in **717.91 seconds**. Package checks take 141.36 seconds,
+Station 146.71 seconds and disk storage 229.67 seconds. Exact revision,
+completion and per-task evidence are retained under
+`.cache/ci/clean/149bbe41f0a0-transit-ci-l0fprhu0/`; the log is
+`/tmp/transit-sql-catalog-client-ci-clean.log`. The following evidence-only commit
+changes no production source. This qualifies the core lane and the focused caller
+schedule above, not a full clean suite or a supplied catalog host.
+
+### Supplied catalog host and explicit committed sources
+
+The `catalog` role in the supplied `transit-query-host` now runs the shared
+catalog behavior through GenServer. Initial framework/configuration/policy/input
+disposition publication fits one four-mutation turn. Creation keeps its original
+operation receipt; policy controls and rejected inputs retain separate attributed
+dispositions. No neutral administrative ABI or CLI/language SDK route is implied.
+
+`Turn.committed()` supplies the initialization composition's explicit read-only
+captured source. A new Station component test proves private inserts, updates and
+deletes stay out of both its point reads and pages, its view binding cannot change,
+reader failures poison the original proposal, and ordinary Table/Turn pages still
+reject after private mutations. The standalone Station tests pass. Catalog
+components pass 17 tests, including independent policy-command/disposition bytes,
+three-write helper composition, four-write behavior initialization, whole-proposal
+rollback, process/effect-origin rejection, stale controls, manual-catalog adoption
+refusal and poison at every behavior point-read boundary. Those private-store
+tests do not independently establish native authority or durability.
+
+On development source based on `bea9ed2f`, the expanded **`just test::catalog`
+passes against the actual supplied host** and disk-backed Ursula. It loses the
+host's initialization and creation commit receipts separately, holds exact retries,
+kills the worker, restarts node/storage, and recovers each original signed commit
+and receipt. Independent Python bytes verify the complete four-record initial
+publication at one resource revision. Reusing the old activation rejects;
+replacement workers run under fresh ownership. Duplicate initialization leaves
+policy unchanged. A revoked create policy causes a recorded denial even for a
+raw signed input that bypasses caller preparation. A later authorized input can
+apply the same operation while the original input disposition remains unchanged.
+Current native read denial also protects the signed caller's disposition API.
+The earlier manual-owner and signed-caller schedules still run in the same proof.
+
+The schedule takes **6.712 seconds**, with **512 reads**, **18 accepted turn
+responses**, one lost caller receipt, three lost owner receipts, eight resident
+authority pages, four mutations and a 127-byte maximum fixture value. It creates
+four applied Tables across two resources. The read count includes host polling
+and proof inspection; this expanded schedule is not an equivalent-workload
+latency comparison or a native catalog growth/power-loss proof. The catalog role
+allocates neither the query host's 4 MiB Arrow workspace nor its 1 MiB source
+adapter. ReleaseSafe binary hashes are:
+
+| Binary        | SHA-256                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Node          | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Catalog proof | `7a1070c7f73412109396917041bfb136c0cde0b99a6c154dc496f78194db810e` |
+| Supplied host | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
+
+The first native attempt failed in a fixture metadata read with
+`StaleStateResource`: policy publication advanced the resource between acquiring
+its revision and reading a disposition. The fixture now uses the shared atomic
+metadata-batch API, preserving stale-cut rejection. Failure and corrected logs
+are `/tmp/transit-sql-catalog-host-native.log` and
+`/tmp/transit-sql-catalog-host-native-batches.log`. Full `just check` also passes,
+including package/contract checks, frontend checks/tests and the documentation
+build (`/tmp/transit-sql-catalog-host-check.log`). The real `just test::station`
+regression also passes, covering Tables, exact retries, policy changes, captured
+Arrow replies, worker/store recovery, fencing, registry, supervision and lifetime
+(`/tmp/transit-sql-catalog-host-station.log`). Final independent SQL, documentation
+and inventory checks pass: 182 declaration cases, 31 mutation cases, 4513 local
+links across 474 files, 52 invariants, 53 classified bounds and 12 SDK scenarios
+(`/tmp/transit-sql-catalog-host-final-checks.log`). The final component run also
+passes after expanding read-failure injection across initialization, creation and
+policy controls (`/tmp/transit-sql-catalog-host-poison-final.log`).
+No existing native/ABI definition or
+stored record layout changes; commands/dispositions and the explicit source are
+additive, and existing creation requests keep their exact bytes.
+
+At committed `fefb42c3`, **`just ci-clean --lane core` passes all 18 tasks**
+for the supplied host and explicit committed source in **727.49 seconds**.
+Independent package builds take 142.97 seconds, Station 148.36 seconds and disk
+storage 230.44 seconds. The readiness write takes 147.48 seconds. Exact revision,
+completion and per-task results are retained under
+`.cache/ci/clean/fefb42c33b92-transit-ci-2j8mr2ji/`; the log is
+`/tmp/transit-sql-catalog-host-ci-clean.log`. The following evidence-only commit
+changes no production source. This is a clean core-lane pass plus the focused
+host proof above, not a full clean suite or administrative CLI/SDK qualification.
+
+### Signed initialization and policy controls
+
+The shared catalog caller now prepares initialization and conditional policy
+commands, using the same owned `Prepared` envelope, exact submission, input
+observation and current-policy disposition reads as creation. Initialization
+checks its connection/configuration binding; policy preparation reads the exact
+configuration and target policy in one current native batch. The configured
+administrator can restore application rights after self-revocation, while
+disposition inspection remains denied until the restoration applies. Existing
+creation bytes, native/ABI definitions and stored record layouts are unchanged.
+
+On development source based on `3dea7fad`, standalone catalog tests pass **18
+named component cases** (19 including the root import test). The saved-command
+matrix now covers initialization, creation and full-width policy revisions,
+owned restoration, missing/foreign definitions, altered identities and canonical
+input. Invalid administrator/owner/scope and policy revisions reject before
+transport. Full **`just check` passes**, including generated contracts, frontend
+checks/tests and the production documentation build; later proof/documentation
+edits receive their focused checks.
+
+The final **`just test::catalog` passes in 9.918 seconds**, with **776 reads**,
+**25 accepted turn responses**, two lost caller receipts and three lost owner
+receipts. It restores a saved initialization send after caller/node/store
+replacement, then preserves the supplied host's initialization/creation recovery
+schedule. Two controls prepared at the same policy revision queue before the host
+starts: the second records `stale_policy` after the first changes policy. Separate
+target principals, absent-policy creation, exact policy duplicates and stale
+preparation checks pass. Self-revocation denies creation and disposition reads;
+duplicate initialization cannot restore those rights, but an explicit next policy
+can. Four Tables, eight resident authority pages, four mutations and the fixture's
+127-byte maximum value remain unchanged. The added controls, restart and polling
+make this an expanded recovery schedule, not an equivalent-workload speed result.
+
+The first control run returned `CatalogDenied` when the fixture attempted result
+inspection before restoration had been processed. The fixture now waits for
+explicit input observation before acquiring a newly authorized disposition;
+the caller's current-policy rejection is preserved. The ordered run passes, then
+the final run above adds independent target-principal cases. Logs are
+`/tmp/transit-sql-catalog-controls-components.log`,
+`/tmp/transit-sql-catalog-controls-check.log`,
+`/tmp/transit-sql-catalog-controls-native.log` (failed),
+`/tmp/transit-sql-catalog-controls-native-ordered.log` and
+`/tmp/transit-sql-catalog-controls-native-targets.log` (final pass).
+The proof binary SHA-256 is
+`3d7ac8adf5b9a0d4d782b40c48bfbd3d26529f3c6bf882595cca550dfa3c798e`;
+node and host hashes match the supplied-host entry above. This development result
+does not extend that earlier clean checkpoint or qualify neutral administrative
+bindings, CLI/SDK routes or general SQL grants.
+
+At committed `98ddd4cb`, **`just ci-clean --lane core` passes all 18 tasks**
+for signed administrative controls in **702.27 seconds**. Independent package
+builds take 140.97 seconds, Station 149.08 seconds and disk storage 211.88 seconds.
+Completion and per-task evidence are retained under
+`.cache/ci/clean/98ddd4cbad77-transit-ci-cjfwraqj/`; the log is
+`/tmp/transit-sql-catalog-controls-ci-clean.log`. This qualifies that committed
+control caller and core lane, not the subsequent neutral bridge or native ABI.
+
+### Neutral catalog caller values
+
+The shared `Bridge.Action`/`Result` now covers offline creation compilation,
+description, signed initialization/creation/policy preparation, exact submission,
+observation and separate application/disposition reads. Full-width IDs and policy
+revisions cross JSON as canonical decimal strings; native counters remain bounded
+numbers and saved commands remain opaque. It delegates remote behavior to the
+existing signed client and defines no new native/stored format.
+
+Standalone catalog tests pass **21 total tests** including the root import test
+on development source based on `98ddd4cb`. Two new bridge cases compare typed
+neutral values with independently generated Python records, preserve owned names
+and full-width values after source mutation, and reject numeric application IDs,
+quoted native IDs, malformed decimal strings, changed scope and invalid saved
+commands before transport. The local compile/capabilities cases use no transport.
+The generated fixture owner is `tests/catalog_contract.py`; component output is
+`/tmp/transit-sql-catalog-bridge-components.log`. Native ABI/port and idiomatic
+language reachability are not established by these component tests.
+
+### Catalog C ABI and native port
+
+The additive `station_catalog_create/call/destroy` exports and `catalog_client`
+port profile use the neutral bridge and shared signed client. Catalog calls
+validate local recovery before dispatch and preserve `uncertain` after a valid
+submission has begun. One operation per handle, bounded I/O, joined destruction,
+key wiping and independently owned result buffers follow the existing binding
+contract. Three new generated schemas and the optional catalog host profile are
+propagated to every generated language resource. Comparing parsed ABI contracts
+with the preceding revision shows no existing export-signature, status, definition
+or existing schema change outside additive `HostConfig`/`HostRequest` fields.
+
+On development source based on `d7b99144`, standalone binding tests pass **12
+tests**, including the new catalog output-ownership, overlap, malformed recovery,
+signature rejection and uncertain transport case. Full **`just check` passes**,
+including contract generation/drift, native units, frontend checks/tests and the
+production documentation build. `just bindings::node-check` passes its strict
+TypeScript checks and 17 tests. Logs are
+`/tmp/transit-sql-catalog-abi-components.log`,
+`/tmp/transit-sql-catalog-abi-generate.log`,
+`/tmp/transit-sql-catalog-abi-check.log` and
+`/tmp/transit-sql-catalog-abi-node-check.log`.
+
+The expanded **`just test::catalog` passes in 13.799 seconds**, with **1075
+reads**, **33 accepted turn responses**, four lost caller receipts and three lost
+owner receipts. Both a real C ABI handle and native-port child compile the same
+independently encoded creation record, apply typed initialization/policy controls,
+recover an unchanged saved send after caller/node/store replacement and preserve
+the original creation outcome. The port is killed during uncertainty. Mixed
+profiles, catalog calls on a query profile, numeric full-width IDs and quoted
+native numbers reject. Current application inspection and native-read revocation
+each hide earlier outcomes through both transports. Explicit port shutdown joins
+cleanup. Earlier manual/shared-Zig and supplied-host cases remain in the schedule.
+
+This run creates six Tables across two resources with eight resident authority
+pages, four mutations and a 132-byte maximum fixture value. Its expanded work and
+polling count do not establish an equivalent-workload speedup, catalog growth or
+power-loss guarantee. The report remains `.cache/verification/catalog/native.json`;
+the log is `/tmp/transit-sql-catalog-abi-native.log`. ReleaseSafe binary hashes:
+
+| Binary        | SHA-256                                                            |
+| ------------- | ------------------------------------------------------------------ |
+| Node          | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Catalog proof | `3d7ac8adf5b9a0d4d782b40c48bfbd3d26529f3c6bf882595cca550dfa3c798e` |
+| Catalog host  | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
+| Native port   | `37b44139c09058e863d63c07a3cc78aa7edb803fb48b4ed2eafe384a8df68091` |
+| Station ABI   | `98c76da16161abae1ab0fb1f91a9d2613f720b6acabb8e81c729fc9b3c7585f1` |
+
+`just bindings::native` also passes the existing native/port local-codec,
+gated-control, scoped-page, capture, exact host/disk recovery, current-policy,
+Arrow query and materialization schedules
+(`/tmp/transit-sql-catalog-abi-regression.log`). All eight language-package build
+recipes pass, covering Python, TypeScript, Rust, Ruby, C/C++, Java, .NET and
+Erlang/Elixir against the regenerated resources
+(`/tmp/transit-sql-catalog-abi-sdk-builds.log`). These are package builds, not
+installed catalog SDK qualification. Final docs/inventory/format checks pass
+4521 local links across 475 files, 52 invariants, 53 classified bounds and 12 SDK
+scenarios (`/tmp/transit-sql-catalog-abi-final-checks.log`).
+
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at `2ecf2457`**
+with no inherited workspace build outputs, in **701.65 seconds**. Independent
+packages take 141.20 s, Station 147.35 s and disk storage 213.40 s. Evidence is
+`.cache/ci/clean/2ecf24572ae5-transit-ci-62kkqyq2/core.json` and
+`core.meta.json`; the full log is `/tmp/transit-sql-catalog-abi-ci-clean.log`.
+The following evidence-only commit changes no production code. This is a clean
+core lane plus the focused native/port schedule above; it does not qualify
+idiomatic catalog SDKs, a catalog CLI or a complete clean suite.
+
+### Explicit catalog CLI
+
+`transit catalog` now uses the shared neutral bridge and signed caller. Offline
+compilation accepts a scope-only connection without loading a key or contacting
+an endpoint. Initialization, creation and conditional policy preparation require
+new private saved artifacts; submission restores those exact commands. Typed
+compiled fields must agree with current-definition canonical bytes. Input
+processing, control/rejection dispositions and original creation outcomes remain
+separate. The extracted private-file writer also preserves mutation CLI behavior.
+
+On development source based on `8054f127`, the expanded **`just test::catalog`
+passes in 15.439 seconds**, with **1204 reads**, **36 accepted turn responses**,
+**five lost caller receipts** and **three lost owner receipts**. The added CLI
+case uses its own 0600 output files again after caller/node/store replacement,
+recovers the exact admission receipt and original creation result, then rejects
+status disclosure after catalog inspection and native read revocation. The
+schedule exercises seven applied Tables across two resources; maximum mutations
+remain **four**, maximum fixture value **132 bytes** within the 256-byte bound,
+and the authority uses **eight resident pages**. This enlarged recovery schedule
+includes provisioning and polling; it is not a latency comparison, native catalog
+growth proof or host power-loss guarantee.
+
+The report is `.cache/verification/catalog/native.json`, with source revision,
+dirty status and frozen executable hashes. The log is
+`/tmp/transit-sql-catalog-cli-native.log`. ReleaseSafe node, proof and catalog-host
+hashes match the preceding ABI schedule. Updated caller hashes are:
+
+| Artifact        | SHA-256                                                            |
+| --------------- | ------------------------------------------------------------------ |
+| Native port     | `4bc5ed8c56b5302379c6c597ecd55d7bfecf89c86ffb4e03c63e864edf754622` |
+| Station library | `3d668634629fe306a9628ea11b50ebd790783686a333e8e87a37980eb9083b93` |
+| CLI             | `2a53d92f5383f3a3b9002531262272437fc6eaff900a1b145a9c02a6d4222572` |
+
+The real CLI diagnostics now cover **346 cases**, including JSON/YAML offline
+compilation, full-width IDs, file privacy/non-replacement, malformed and foreign
+artifacts before key loading, invalid options and offline help. This extends
+caller evidence; idiomatic catalog SDKs and native catalog growth remain.
+
+Full **`just check` passes**, including generated contracts, 346 diagnostics,
+4534 local links across 476 files, the verification inventory, frontend tests
+and the documentation build (`/tmp/transit-sql-catalog-cli-check.log`). The
+existing native/port/CLI **`just test::table-mutation` passes in 23.776 seconds**,
+including exact saved-file recovery after the writer extraction: 1664 reads,
+48 accepted turn responses, four lost caller receipts and one lost owner receipt,
+four mutations, 256-byte values and eight resident pages. Its frozen CLI/library
+hashes match this catalog run; its log is
+`/tmp/transit-sql-catalog-cli-mutation-regression.log`. These are development
+checks and focused proofs; committed-HEAD clean validation follows separately.
+
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at `e107fe7d`**
+without inherited workspace build outputs, in **710.32 seconds**.
+Evidence is `.cache/ci/clean/e107fe7df44b-transit-ci-48en01yu/core.json` and
+`core.meta.json`; the full log is `/tmp/transit-sql-catalog-cli-ci-clean.log`.
+The following evidence-only commit changes no production code. This qualifies
+the CLI core lane and focused recovery above, not idiomatic catalog SDKs or a
+complete clean suite.
+
+### Python catalog callers
+
+The typed Python `catalog.Client` and `AsyncClient` compose the shared catalog
+ABI. Immutable owned values retain full-width application IDs, current native
+bounds and exact opaque prepared bytes. Both callers separate admission, input
+processing, control/rejection dispositions and original creation receipts.
+Cancellation of an await leaves the native worker owned; close joins cleanup.
+
+On development source based on `e107fe7d`, strict mypy passes **22 source files**,
+matching Python wheels build, and **`just test::catalog --sdk python` passes in
+22.855 seconds**, including **1.859 seconds** of isolated package installation.
+The script copies and hashes four wheels into the fixture, installs without
+checkout imports, and uses both public synchronous and asynchronous APIs.
+Initialization and conditional policy controls precede full-width creation;
+lost admission recovery replaces caller/node/store and restores original saved
+commands. Original-request status, current catalog-policy denial and current
+native denial pass through every caller.
+
+The combined schedule performs **1515 reads**, **42 accepted turn responses**,
+**seven lost caller receipts** and **three lost owner receipts**. It creates nine
+applied Tables across two resources, with **four mutations**, **133-byte maximum
+fixture values** and **eight resident authority pages**. These times include
+installation, provisioning and recovery; they do not establish latency targets,
+equivalent-workload speedups, native catalog growth or host power-loss recovery.
+All six frozen executable hashes match the preceding CLI schedule. The package
+hashes in `.cache/verification/catalog/native.json` are:
+
+| Wheel                    | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station`        | `7bd67ecab612be7df8204b181d2c1a5cdb37288c09d0da3fab6b3fbed3e23da5` |
+| `transit-native-station` | `5380949f2c664d9418734f2f348fe37a304763fda1de9b4b341fe975d95ef022` |
+| `transit-client`         | `be974f85e6ba910846dad633b5cdbb390e619a88bccbbefea72a83f865a48cc7` |
+| `transit-native-client`  | `72ee6e0924bb4f9479fe630450dcefddd5f6d450d9489429f38a9b45b1252ba3` |
+
+The installed value test independently checks byte/name ownership, canonical
+full-width response strings and numeric types, malformed success responses and
+injected response allocation failure preserving submission uncertainty. A blocked
+adapter verifies cancelled-await overlap rejection and joined destruction. Those
+injected cases establish Python ownership/error behavior, not authority outcomes;
+the real disk schedule establishes exact admitted-command recovery separately.
+
+Full **`just check` passes**, including generated resources, 346 CLI diagnostics,
+4544 local links across 477 files, 52 invariants, 53 classified bounds, 13 SDK
+scenarios, frontend checks and documentation build. Logs are
+`/tmp/transit-sql-catalog-python-final-native.log` and
+`/tmp/transit-sql-catalog-python-check.log`. The focused
+`just bindings::catalog-python` recipe builds and runs this installed schedule;
+`bindings::python-test` also includes it. Other nine idiomatic catalog SDKs and
+committed-HEAD clean qualification for this Python increment remain separate.
+
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at `70919367`**
+without inherited workspace build outputs, in **706.64 seconds**.
+Evidence is `.cache/ci/clean/70919367bbec-transit-ci-cian9wcj/core.json` and
+`core.meta.json`; the full log is `/tmp/transit-sql-catalog-python-ci-clean.log`.
+The following evidence-only commit changes no production code. This qualifies
+the core lane plus the installed Python schedule above, not a complete clean
+suite or the other nine catalog SDKs.
+
+### TypeScript catalog caller
+
+The public TypeScript `catalog.Client` uses the existing owned native port and
+shared generated catalog request/result schemas. Frozen typed declarations and
+controls retain full-width `bigint` identities; canonical byte getters return
+copies and prepared text stays opaque. The client distinguishes original creation
+receipts from input dispositions and preserves uncertain submissions, including
+malformed successful native responses. Status decoding checks the complete
+original request. No shared protocol definition changes.
+
+On development source based on `70919367`, **`just bindings::node-check` passes
+28 tests**, including 11 new catalog value/port-boundary cases and existing
+mutation/runner ownership tests. Cases cover mutable input copies, native-number
+versus bigint boundaries, invalid revisions, unknown observations, malformed
+admission receipts and missing/foreign native definitions. Generated schemas
+validate the real port path; injected hosts do not establish authority outcomes.
+
+The final combined **`just test::catalog --sdk python --sdk node` passes in
+29.190 seconds**, including **4.662 seconds** of isolated package installation.
+It uses frozen, hashed Python wheels and TypeScript tarballs outside the checkout.
+The new TypeScript caller prepares initialization/policy controls, compiles and
+creates a full-width request, loses its admission response, replaces caller/node/
+store and recovers the same saved command and original receipt. Current catalog
+and native disclosure revocation still hide earlier results. Python sync/async
+callers pass in the same schedule.
+
+The schedule records **1863 reads**, **45 accepted turn responses**, **eight lost
+caller receipts** and **three lost owner receipts**, with ten applied Tables over
+two resources. Bounds remain **four mutations**, **133-byte maximum fixture values**
+and **eight resident authority pages**. Installation and expanded recovery work
+are included; the interval is not an equivalent-workload speedup, latency target,
+native growth proof or host power-loss guarantee. The six frozen executable hashes
+and four Python wheel hashes match the preceding Python schedule. TypeScript
+package hashes in `.cache/verification/catalog/native.json` are:
+
+| Tarball                  | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station`        | `1ddd05e7a8da2f506c658dc3b72dfac2ebfee377e5effcbed6a9fe98fb63aa56` |
+| `transit-native-station` | `f738de57b1c4912b0787c37a0e42303fb4230f41c80db1a88ce16ae0145171b5` |
+| `transit-client`         | `263043a2da762afd3771dbfd8d6c411a8195ba017ba877ffeca0dae385bb901e` |
+| `transit-native-client`  | `815e315a33426f171954cd5763d87e1c39fe0e7001889ea1d8d859f96cd25f0d` |
+
+The packaged catalog guide and README also match the working sources. Logs are
+`/tmp/transit-sql-catalog-node-check.log`,
+`/tmp/transit-sql-catalog-node-final-native.log` and
+`/tmp/transit-sql-catalog-node-final-format.log`.
+
+Full **`just check` passes**, including generated contracts, 346 CLI diagnostics,
+4551 local links across 478 files, 52 invariants, 53 classified bounds, 13 SDK
+scenarios, frontend checks and documentation build
+(`/tmp/transit-sql-catalog-node-full-check.log`). The focused
+`bindings::catalog-node` recipe and regular `bindings::node-sdk-test` include
+installed catalog recovery. These are development and focused checks; the other
+eight catalog SDKs remain.
+
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at
+`6ba60509162e57d3c0c6bfbe17ce9da0e768e788` in 718.92 s**. The clone inherits
+no workspace build outputs. Completion and per-task timings are recorded in
+`.cache/ci/clean/6ba60509162e-transit-ci-lpweqipr/core.meta.json` and `core.json`;
+the log is `/tmp/transit-sql-catalog-node-ci-clean.log`. This qualifies the core
+lane plus the focused TypeScript/Python schedule, not a full clean suite or
+the remaining catalog SDKs. The following commit records evidence only.
+
+### Rust catalog caller
+
+The public `transit_station_sdk::catalog::Client` uses the shared generated ABI
+on one owned blocking worker. Typed declarations and controls own full-width
+`u64` identities and their strings; prepared commands are borrowed unchanged by
+submission. Response adapters check exact field sets, canonical decimal IDs,
+bounds and original-request status matching. A malformed success receipt or
+failure of an admitted worker job remains `UnknownOutcome`; definite native
+rejections keep their category, status and code. Shared Zig retains signing,
+policy, publication and recovery semantics. No definition or native binary
+changes in this increment.
+
+Executed on development source based on `c904ae08` in the pinned bindings shell:
+
+- Full **`just check` passes**, including generated contracts, 346 CLI diagnostic
+  cases, 4558 local links across 479 files, 52 invariants, 53 classified bounds,
+  13 SDK scenarios, frontend checks and documentation build. The log is
+  `/tmp/transit-sql-catalog-rust-full-check.log`.
+- Rust formatting and verification inventory checks pass. Three component
+  tests pass both in source and from the installed crate: owned maximum-width
+  values/strict decoding, malformed successful receipt uncertainty, and an
+  injected worker panic after admission that preserves recovery. Definite
+  errors remain unchanged. An initial source invocation without embedded native
+  artifacts failed in native-package build scripts; the documented `TRANSIT_LIBRARY_DIR`
+  development override passes. Installed tests remove that override and use
+  the packaged libraries.
+- Final **`just test::catalog --sdk python --sdk node --sdk rust` passes in
+  46.173 s**, including 20.142 s isolated installation. The Rust consumer builds
+  from copied, hashed crates outside the checkout with pinned registry checksums
+  and no Arrow dependency. Compiler rejection checks prevent overlapping
+  mutable caller borrows and reuse after consuming `close`. Extracted sources
+  and build outputs are removed before running the packaged native consumer.
+- The shared disk schedule exercises Rust initialization, conditional policy,
+  full-width creation and exact saved-command recovery after lost admission and
+  caller/node/store replacement. Original outcomes match independent records;
+  current catalog and native denial still hide them. Python sync/async and
+  TypeScript repeat the same schedule. It records **1994 reads, 48 accepted turn
+  responses, nine lost caller replies and three lost owner replies**, with at
+  most four mutations, 133-byte values and eight resident authority pages.
+  Eleven applied Tables across two resources do not establish native catalog
+  growth or host power-loss recovery. The interval includes provisioning,
+  compilation and recovery; it is not an SDK latency comparison.
+
+Final Rust crate SHA-256 values:
+
+| Artifact                 | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station-sdk`    | `cdfb35189dc89b59893380339d3f0efd05708ddee04444812c156d05252ee600` |
+| `transit-native-station` | `8c26d46b678cc8714e6444b84052ac502a54a03c2d552d5bd819f6a42f8cb34d` |
+| `transit-client`         | `5f546a83afe1eba98b7c8504d4fca550ccb383a4c2bfa4df0affd2bd3399a57f` |
+| `transit-native-client`  | `6d83bab01c95822a9daf8db22bf59c46a88e55c31a56b1560a69792e55275c42` |
+
+All six executables/libraries, four Python wheels and four TypeScript tarballs
+match the preceding TypeScript schedule. Packaged Rust sources, README and catalog
+guide match the working files. Logs are
+`/tmp/transit-sql-catalog-rust-worker-native.log`,
+`/tmp/transit-sql-catalog-rust-worker-test.log` and
+`/tmp/transit-sql-catalog-rust-final-format.log`; the initial source artifact failure
+is retained in `/tmp/transit-sql-catalog-rust-components.log`.
+`bindings::catalog-rust` and regular `bindings::rust-sdk-test` include installed
+catalog recovery. These development and focused passes cover Rust; the other
+seven catalog SDKs remain.
+
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at
+`f77fcc29dd6eeb0c98670d4f4f3b1212129bb55a` in 710.42 s**. The clone inherits
+no workspace build outputs. Completion and per-task timings are recorded in
+`.cache/ci/clean/f77fcc29dd6e-transit-ci-2wn0hfvk/core.meta.json` and `core.json`;
+the log is `/tmp/transit-sql-catalog-rust-ci-clean.log`. This qualifies the core
+lane plus the focused Python/TypeScript/Rust schedule, not a full clean suite
+or the remaining catalog SDKs. The following commit records evidence only.
+
+### Ruby catalog caller
+
+The public `Transit::Station::Catalog::Client` uses the existing owned worker
+and native port. Frozen typed declarations, controls and copied recovery strings
+retain full-width integers. Generated request/response schemas validate the port;
+public adapters validate canonical IDs, exact result fields and original-request
+status matching. `Catalog::Uncertain` retains the original prepared object after
+unconfirmed submission, malformed success or allocation failure. Definite native
+rejections preserve their category, status and code. The Zig definition and
+native binaries are unchanged.
+
+Executed on development source based on `f77fcc29` in the pinned bindings shell:
+
+- Full **`just check` passes**, including generated contracts, 346 CLI diagnostic
+  cases, 4565 local links across 480 files, 52 invariants, 53 classified bounds,
+  13 SDK scenarios, frontend checks and documentation build. Ruby source/fixture
+  syntax and the final verification inventory also pass.
+- Installed gems pass owned/frozen value checks, maximum-width identities,
+  malformed successful receipts, unchanged definite denial and original-request
+  matching. An injected allocation failure retains uncertainty. Real owned child
+  processes exercise generated response validation and child loss. A separately
+  injected blocked operation keeps the worker busy after its waiting thread is
+  killed, and explicit close joins active work and child cleanup.
+- Final **`just test::catalog --sdk python --sdk node --sdk rust --sdk ruby`
+  passes in 54.910 s**, including 24.273 s isolated package installation. Each
+  artifact is copied and hashed outside the checkout. The Ruby consumer verifies
+  it loaded the installed gem; its native host uses the installed matching gem.
+  It prepares initialization and conditional policy, compiles full-width creation,
+  recovers exact saved submission after lost admission and caller/node/store
+  replacement, observes the original result, then checks current catalog/native
+  denial. Python sync/async, TypeScript and Rust repeat the shared schedule.
+- The report records **2151 reads, 51 accepted turn responses, ten lost caller
+  replies and three lost owner replies**, with at most four mutations, 133-byte
+  values and eight resident authority pages. Twelve applied Tables across two
+  resources do not establish native growth or host power-loss recovery. The
+  interval includes installation, provisioning and recovery, and is not an SDK
+  latency comparison.
+
+Final Ruby gem SHA-256 values:
+
+| Artifact                 | SHA-256                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `transit-station`        | `2e43bc199d383643280deb893d0101b6d6abd7c88bcd1072bc145d9dd5181424` |
+| `transit-native-station` | `4653bccd2758a788ec99f0df17407ca772942b3e1a8513d84eb41306ef1a2570` |
+| `transit-client`         | `e627518b495c150e8661d233e4b8856c806b9bc239b13d6396b6fc6b82953725` |
+| `transit-native-client`  | `71894ce4dba5fe70942c1b8ad2fb5bdf36c3c72cb8e5d0133fb888b38d8f52fc` |
+
+All six native executables/libraries and the Python, TypeScript and Rust artifacts
+match the preceding Rust schedule. The packaged Ruby README, catalog guide and
+sources match the working files. Logs are
+`/tmp/transit-sql-catalog-ruby-full-check.log`,
+`/tmp/transit-sql-catalog-ruby-final-native.log` and
+`/tmp/transit-sql-catalog-ruby-syntax.log`. `bindings::catalog-ruby` and regular
+`bindings::ruby-sdk-test` include the installed schedule. Committed-HEAD
+`just ci-clean --lane core` subsequently passes all 18 tasks at `eb25b6fd` in
+707.48 s. Evidence is `.cache/ci/clean/eb25b6fd4a66-transit-ci-t_rx2nl0/` and
+`/tmp/transit-sql-catalog-ruby-ci-clean.log`. This predates the PR #33 rebase and
+does not qualify its expanded 22-task core lane. The other six catalog SDKs remain.
+
+### C and C++ catalog callers
+
+`transit/catalog.h` adds typed C11 catalog values and explicit owned handles;
+`transit/catalog.hpp` adds C++17 owned values, optional outcomes and move-only
+callers/commands. Both use the existing bounded C worker and shared Zig catalog
+ABI. No protocol/schema definition changes. Saved bytes remain borrowed unchanged
+on submission; malformed successful receipts and post-dispatch result-copy
+failure retain uncertainty through the existing native result boundary. Metadata
+and status outputs publish only after complete parsing; failures clear C outputs.
+
+Executed on development source based on `08fd00a6` (with evidence-only
+`12c892e9` subsequently recording the simulation checkpoint), in the pinned
+bindings shell:
+
+- `just bindings::c-build` builds independent C/C++ packages and example binaries.
+  Installed consumers are compiled as C11/C++17 with warnings treated as errors,
+  using only copied archives and their pkg-config dependencies. Source fixtures
+  are removed before execution. All six selected archives are hashed. C++
+  compiler checks reject copies of `Client`, `Compiled` and `Prepared`.
+- Value checks cover maximum-width catalog/operation/object/Table IDs, owned
+  request/canonical/saved data after the source changes, oversized/empty commands,
+  unterminated C names, unsupported schema types and access after moving an owner.
+  Prepared and compiled owners remain readable after native close. C failure
+  outputs clear before return; exact borrowed commands survive uncertain sends.
+- `just test::catalog --sdk c --sdk cpp` passes in **21.896 s**, including
+  **6.669 s** installation: **1452 reads, 42 accepted turn responses, seven lost
+  caller receipts and three lost owner receipts**. The installed callers prepare
+  initialization/policy, compile creation, recover original admission and result
+  after caller/node/store replacement and preserve current catalog/native denial.
+  Nine Tables across two resources do not establish native growth. Bounds remain
+  four mutations, 133-byte values and eight resident authority pages.
+- The existing `just test::table-mutation --sdk c --sdk cpp` regression passes in
+  **27.884 s**, including **4.341 s** installation, 2028 reads, 56 turn responses
+  and seven lost receipts. The same C library handles saved UPDATE recovery,
+  caller replacement and current denial. This interval includes native/port/CLI
+  cases and provisioning; it is not a C-versus-C++ latency comparison.
+- Full `just check` passes, including generated contracts, unit/CLI checks,
+  frontend tests and the documentation build. Final ownership/doc checks pass
+  56 invariants, 53 bounds, 13 SDK scenarios and 4596 local links across 482 files.
+
+An initial installed C++ fixture failed compilation on aggregate initializer
+warnings and use of C fields as accessor methods. The fixture was corrected;
+that failed attempt is not recovery evidence. Logs are
+`/tmp/transit-sql-catalog-cpp-native.log`,
+`/tmp/transit-sql-catalog-cpp-native-rerun.log`,
+`/tmp/transit-sql-catalog-cpp-native-fixed.log`,
+`/tmp/transit-sql-catalog-cpp-final-native.log` and
+`/tmp/transit-sql-catalog-cpp-full-check.log`. The final report is copied to
+`/tmp/transit-sql-catalog-cpp-final-native.json`. Native binary hashes match the
+rebased four-language report below. Final SDK archive SHA-256 values:
+
+| Archive | SHA-256 |
+| --- | --- |
+| `transit-client-c-0.2.0-linux-x86_64.tar.gz` | `90c820a934d5a0d2a8aea65e70a6f1ec28dd5f0044c351f80bc156cbdcd3d4a0` |
+| `transit-client-cpp-0.2.0.tar.gz` | `24b3d7944ae2899f914dce09edfbbb00744579d3e76dceaee973f23f7dd86f99` |
+| `transit-native-client-c-0.2.0-linux-x86_64.tar.gz` | `a435721d4ee2561818adde127a0a098f4d49daf69176c192f305294a83f5857e` |
+| `transit-native-station-c-0.2.0-linux-x86_64.tar.gz` | `fbd4acaf89f0e8d6aaf4b5819a3c1af4162594cf9a9a2fa5b6ab532bcbf3690f` |
+| `transit-station-c-0.2.0-linux-x86_64.tar.gz` | `84594774cd5c7de7efd4b94ba9d2be35b6e3d21c90792a8d00aa62ca70a346fd` |
+| `transit-station-cpp-0.2.0.tar.gz` | `04be1174bd6ccd8137de0972027ec10a092a885291bc874a58dfeb6bbb5ce152` |
+
+`bindings::catalog-c` owns this focused installed schedule; the regular C SDK
+regression also includes it. Committed-HEAD `just ci-clean --lane core` passes
+all **22 tasks at `4ecef2ff` in 737.81 s**, from an isolated clone without inherited
+build outputs. Evidence is `.cache/ci/clean/4ecef2ffe5f1-transit-ci-78lwlq08/` and
+`/tmp/transit-sql-catalog-cpp-ci-clean.log`. This is the expanded core lane plus
+focused installed catalog/mutation proofs, not the full clean suite. The four
+Java/.NET/Erlang/Elixir catalog callers remain. No catalog-specific host
+cancellation or allocator-fault injection is claimed by these C/C++ fixtures.
+
+### Java catalog caller
+
+`io.transit.sdk.station.Catalog` exposes immutable typed values and bounded
+futures through the existing Java worker/native port. Positive `BigInteger`
+identities retain the full uint64 range; copied lists/`Bytes` retain ownership.
+The generated host request/response schemas and strict adapter result fields
+validate boundaries. Signing, policy and exact recovery stay in shared Zig.
+Successful receipt decoding failures remain `UNKNOWN_OUTCOME`; original prepared
+commands stay immutable. Definite native error categories/status/codes remain.
+
+Executed on development source based on `4ecef2ff`, with the evidence-only
+`cb23fd69` published during the final run, in the pinned bindings shell:
+
+- `just bindings::java-build` compiles Java 21 JARs/examples with all warnings
+  treated as errors. The installed catalog proof copies and hashes four Transit
+  JARs plus pinned Gson, compiles outside the checkout and removes Java sources
+  before execution. The normal recovery consumer uses its packaged native host.
+- Installed value checks cover maximum-width identities, immutable/copied
+  declarations and recovery data, malformed/extra-field successful receipts,
+  original-request matching, noncanonical decimal values and an injected result
+  allocation error. Definite access denial preserves the original exception.
+- A separate actual port wrapper uses the installed native artifact for
+  handshakes, joins that helper, then injects child loss, malformed replies,
+  definite denial and a blocked successful submission. Cancelling its Java
+  future preserves `BUSY`; close waits until the explicit release and joins the
+  port and worker threads. This checks the owned process and host scheduling,
+  not remote cancellation or recovery under general heap exhaustion.
+- Focused `just test::catalog --sdk java` passes in **17.126 s**, including
+  **2.470 s** installation, 1459 reads, 39 accepted turn responses, six lost
+  caller receipts and three lost owner receipts.
+- The final **seven-language** schedule (`just test::catalog --sdk python --sdk
+  node --sdk rust --sdk ruby --sdk c --sdk cpp --sdk java`) passes in **73.578 s**,
+  including **33.900 s** installation. It records **2655 reads, 60 accepted turn
+  responses, thirteen lost caller receipts and three lost owner receipts**.
+  Every selected caller recovers the original operation after caller/node/store
+  replacement and preserves current catalog/native denial. Python includes both
+  synchronous and asynchronous callers. Fifteen Tables across two resources do
+  not establish native catalog growth. Bounds remain four mutations, 134-byte
+  observed values and eight resident authority pages. Timings include package
+  installation and recovery; they are not cross-language latency comparisons.
+- Full `just check` passes: unit/generated-contract/CLI checks, frontend checks
+  and documentation build. Final direct checks pass 4603 links across 483 files,
+  56 invariants, 53 bounds and 13 SDK scenarios.
+- The existing `just test::table-mutation --sdk java` regression passes in
+  **22.624 s**, including **0.856 s** installation, 1879 reads, 52 turn responses
+  and six lost receipts. Installed Java retains exact UPDATE recovery through
+  the same bridge; native/port/CLI mutation cases also pass. The log is
+  `/tmp/transit-sql-catalog-java-mutation-regression.log`.
+
+The initial fixture compilation exposed deprecated Gson construction and missing
+optional annotation metadata under `-Werror`; it now uses the existing supported
+Gson entry point and the real submission conversion helper for injected failure.
+A subsequent port-fixture cleanup assertion failed because its handshake
+subprocess had not been joined before the wrapper could be killed. Joining that
+helper before admitting faults fixes the fixture. Neither failed attempt counts
+as executed recovery proof. Logs are
+`/tmp/transit-sql-catalog-java-native.log`,
+`/tmp/transit-sql-catalog-java-native-fixed.log`,
+`/tmp/transit-sql-catalog-java-native-joined.log`,
+`/tmp/transit-sql-catalog-java-all-native.log` and
+`/tmp/transit-sql-catalog-java-full-check.log`. Reports are copied to
+`/tmp/transit-sql-catalog-java-native.json` and
+`/tmp/transit-sql-catalog-java-all-native.json`; both retain exact SDK/native
+hashes. Native binary hashes match the rebased report below. Final Java artifacts:
+
+| JAR | SHA-256 |
+| --- | --- |
+| `transit-client-0.2.0.jar` | `8775ebc5cdb52de401f426f03d7d9496c15307089be60884685e078edd5ed89f` |
+| `transit-native-client-0.2.0.jar` | `66132be7fb9bec1018bdc867a1165593db00b0f41fae70330f8025c8489c52ae` |
+| `transit-station-sdk-0.2.0.jar` | `b966c9f485827ce4e1d19046b26031a9c2813d98381d11361e21120a4595fb26` |
+| `transit-native-station-0.2.0.jar` | `70c1cc5e8f6612fb84c89cd64eedb5e024932a4588d3ed76627d902f9687b7d6` |
+| `gson-2.12.1.jar` | `ebee13d5fb7477cd7f1cc010e0c356df8ca80709715248da97f79e35ccb4fbec` |
+
+`bindings::catalog-java` owns the focused installed schedule; the regular Java
+SDK regression also includes it. These are development and focused passes.
+Committed `66d0a97e` passes `just ci-clean --lane core`: all **22 tasks**
+complete in **742.17 s** without inherited build outputs, including the new
+resource, scheduler, domain and Vortex simulation tasks. Evidence is under
+`.cache/ci/clean/66d0a97e4044-transit-ci-137qp_eh/` (`core.json` and
+`core.meta.json`); the log is `/tmp/transit-sql-catalog-java-ci-clean.log`.
+This is the expanded core lane and focused installed checks above, not the
+full clean suite. .NET/Erlang/Elixir catalog callers remain. The following
+commit records this evidence only.
+
+### .NET catalog caller
+
+`Transit.Station.Sdk.Catalog` exposes immutable typed records and bounded tasks
+through the existing .NET worker and generated native C ABI. Positive `ulong`
+identities retain the full uint64 range. Copied name lists and `Bytes` retain
+ownership; schema equality compares names by value so decoded original requests
+can be checked against independently reconstructed callers. Generated action and
+result schemas plus strict adapter fields validate boundaries. Shared Zig owns
+signing, current policy and exact recovery. Successful receipt decoding failure
+remains `UnknownOutcome`; explicit native rejection retains its category/code.
+
+Executed in the pinned bindings shell on development source based on `66d0a97e`:
+
+- `just bindings::catalog-dotnet` builds four NuGets and installs exact package
+  versions from an isolated local feed. The consumer compiles with warnings as
+  errors, then runs after removing its source and package cache. Package hashes
+  are retained in the native report.
+- Installed checks cover copied immutable declarations/prepared bytes, maximum
+  identities, original-request equality, noncanonical decimal strings and
+  malformed/extra-field successful receipt uncertainty. Decoder fault inputs
+  use the installed assembly through reflection; they are not forged native
+  ABI outputs or allocator-failure injection.
+- A local TCP peer blocks an actual native catalog HTTP read. A previously
+  cancelled token admits no request. Cancelling the admitted wait preserves
+  `Busy`; disposal remains pending until the peer releases the read, then joins
+  the owned worker. Post-disposal calls fail `Closed`. This tests read
+  cancellation and local ownership, not cancellation of admitted mutations.
+- The focused native catalog schedule passes in **17.031 s**, including
+  **3.035 s** installation: **1395 reads, 39 turn responses, six lost caller
+  receipts and three lost owner receipts**. The installed .NET caller recovers
+  its original creation after caller/node/store replacement and respects current
+  catalog/native disclosure denial. The native ABI, port and CLI cases also
+  pass. Eight Tables across two resources do not establish native catalog growth.
+  Bounds remain four mutations, 133-byte observed values and eight resident
+  authority pages. This timing includes installation and recovery, not a
+  cross-language latency comparison.
+- The existing `just test::table-mutation --sdk dotnet` regression passes in
+  **24.302 s**, including **2.543 s** installation, 1849 reads, 52 turn responses
+  and six lost receipts. Exact UPDATE recovery and current denial remain intact
+  through the shared bridge.
+
+The first installed fixture supplied managed numeric nodes directly to the
+wire-result decoder, which correctly rejected their differing runtime types.
+The fixture now serializes and parses JSON before decoder checks. The first
+full check also found the new task absent from the suite inventory; the task and
+invariant inventories now agree. Those attempts are failures, not proof passes.
+Logs are `/tmp/transit-sql-catalog-dotnet-build.log`,
+`/tmp/transit-sql-catalog-dotnet-native.log` (initial fixture failure),
+`/tmp/transit-sql-catalog-dotnet-native-fixed.log`,
+`/tmp/transit-sql-catalog-dotnet-mutation-regression.log`,
+`/tmp/transit-sql-catalog-dotnet-full-check.log` (inventory failure) and
+`/tmp/transit-sql-catalog-dotnet-full-check-fixed.log`. The focused report is
+copied to `/tmp/transit-sql-catalog-dotnet-native.json`; native hashes match the
+rebased report below. Installed package hashes:
+
+| NuGet | SHA-256 |
+| --- | --- |
+| `Transit.Client.0.2.0.nupkg` | `9c1c8db6507b0a76e43fd17b3504c7d44c6cad7495e3ba09dd453820f970eb2a` |
+| `Transit.Native.Client.0.2.0.nupkg` | `9b906b7103a2fe0c27612a8bdda09fd6cf84ba6d8dc0612aca1d08d9cdc6d445` |
+| `Transit.Station.Sdk.0.2.0.nupkg` | `56576b6978e2fae0a340e7e6e6dbad314c761db4411809de4676e5c18066fc5b` |
+| `Transit.Native.Station.0.2.0.nupkg` | `b034cd99a5fbefc2b0c2227fec50a100e1e06be86d5190efbaeeeb61acaafdd6` |
+
+`bindings::catalog-dotnet` owns the focused installed schedule; the regular .NET
+SDK regression also includes it. Full `just check` passes unit/generated-contract
+and CLI checks, frontend checks and the documentation build. Final direct checks
+cover 4609 links across 484 files, 56 invariants, 53 bounds and 13 SDK scenarios.
+Committed `7ec2e0e1` passes `just ci-clean --lane core`: all **22 tasks**
+complete in **758.12 s** without inherited build outputs, including the new
+simulation tasks. Evidence is under
+`.cache/ci/clean/7ec2e0e11b24-transit-ci-v67ub5ds/` (`core.json` and
+`core.meta.json`); the log is `/tmp/transit-sql-catalog-dotnet-ci-clean.log`.
+This is the expanded core lane plus the focused checks above, not the full clean
+suite. Erlang/Elixir catalog callers remain. The following commit records only
+this clean evidence.
+
+### Erlang/Elixir catalog callers and combined installed schedule
+
+`transit_catalog` and `Transit.Station.Sdk.Catalog` expose immutable records and
+structs through the existing BEAM worker/native port. Full-width identities,
+fixed allowed atoms, generated boundary schemas and exact original-request
+matching preserve the shared catalog contract. Signing, authorization and
+recovery remain in Zig. An uncertain submit returns the original prepared value;
+native rejection retains its category, status and code. `close` joins admitted
+work after a waiting process dies.
+
+Executed in the pinned bindings shell on development source based on `7ec2e0e1`:
+
+- `just bindings::beam-build` compiles OTP applications and real examples with
+  warnings as errors. The focused installed schedule copies/hashes four Erlang
+  artifacts and six Elixir artifacts, compiles consumers outside the checkout,
+  removes consumer source files and uses the installed native host. Elixir
+  formatting checks pass.
+- Installed value checks compile maximum-width catalog/operation/object/Table
+  IDs and reject invalid integers and saved bytes. Real owned ports use native
+  handshakes, join that helper, then inject malformed replies, child loss,
+  explicit denial and a blocked successful submit. Uncertainty retains the
+  identical prepared record/struct. Killing the waiting process retains `busy`;
+  close waits for explicit release, and the child is gone after cleanup. The
+  Java fixture is renamed `catalog_port_host.py` for shared use and handles
+  explicit shutdown. Java's installed fault checks pass with the shared fixture.
+  These cases do not prove general allocator exhaustion or remote cancellation.
+- The focused Erlang/Elixir catalog schedule passes in **21.772 s**, including
+  **5.334 s** installation: 1574 reads, 42 turn responses, seven lost caller
+  receipts and three lost owner receipts. It creates nine Tables. The final
+  combined run below uses rebuilt artifacts including the published guides.
+- **All ten SDKs** pass the combined catalog schedule in **108.574 s**, including
+  **43.699 s** installation: **4095 reads, 69 turn responses, sixteen lost caller
+  receipts and three lost owner receipts**. Python includes both sync and async
+  callers. Every selected caller recovers its original creation after
+  caller/node/store replacement and respects current catalog/native disclosure
+  denial. The native ABI, native port and CLI cases also pass. Eighteen Tables
+  across two resources do not establish native catalog growth. Bounds remain
+  four mutations, 134-byte observed values and eight resident authority pages.
+  These local timings include installation and recovery while independent
+  repository/regression checks run; they are not cross-language latency rankings.
+- The existing Erlang/Elixir mutation regression passes in **28.509 s**, including
+  **2.159 s** installation, 2127 reads, 56 turn responses and seven lost receipts.
+  Exact UPDATE recovery and current denial remain intact through the shared port.
+- Full `just check` passes unit/generated-contract and CLI checks, frontend
+  checks and the documentation build. Direct checks cover 4625 links across 486
+  files, 56 invariants, 53 bounds and 13 SDK scenarios. The SDK proof inventory
+  now records C/C++/Java/.NET/BEAM ownership evidence and its distinct limits.
+
+The initial combined run stopped during Rust's compile-rejection assertion while
+`/tmp` was under disk pressure; the captured output reports Ursula disk pressure,
+but the assertion did not preserve compiler stderr. The concurrent full check
+failed copying the CLI binary with `ENOSPC`. Both attempts remain failed. The
+Rust fixture now includes compiler exit/stderr on an unexpected result. Repeating
+both checks with `TMPDIR=/var/tmp` passes; no deployment quotas or resident bounds
+were raised. The failure does not establish a Rust ownership regression or a
+catalog recovery pass.
+
+Logs are `/tmp/transit-sql-catalog-beam-build.log`,
+`/tmp/transit-sql-catalog-beam-final-build.log`,
+`/tmp/transit-sql-catalog-beam-native.log`,
+`/tmp/transit-sql-catalog-beam-mutation-regression.log`,
+`/tmp/transit-sql-catalog-all-ten-native.log` (failed),
+`/tmp/transit-sql-catalog-all-ten-native-var.log`,
+`/tmp/transit-sql-catalog-beam-full-check.log` (failed) and
+`/tmp/transit-sql-catalog-beam-full-check-var.log`. Reports are copied to
+`/tmp/transit-sql-catalog-beam-native.json` and
+`/tmp/transit-sql-catalog-all-ten-native.json`. The combined report retains all
+selected package hashes; earlier eight SDK identities and native binary hashes
+match the recorded checkpoints above/below. Final BEAM artifacts:
+
+| OTP artifact | SHA-256 |
+| --- | --- |
+| `transit_native_client-0.2.0.tar.gz` | `c4436c6ec88f4e0a838e88c0214521cced7d527a1bca8343a2eb43c5e0712529` |
+| `transit_client-0.2.0.tar.gz` | `7ef15b4c716177372dc39dcca2230ef2878e118bdf430176ce86e8e15a26e0aa` |
+| `transit_native_station-0.2.0.tar.gz` | `8e8aba003040a0924bc78b3383fcee833f3652ccf115f76c7a48de35b799c6d2` |
+| `transit_station_sdk-0.2.0.tar.gz` | `b60cb4c0eee515d4d8af515d23843a0fb54525e03d2fdb30668fc5d0a386493e` |
+| `transit_client_elixir-0.2.0.tar.gz` | `adc379bfc22a4027c5caf26bc2c03062981b2a4cc50500bc50d32d413a830b36` |
+| `transit_station_elixir-0.2.0.tar.gz` | `5a72442a18d3527740e4571f07ae0438c7a464b7c04f97b4d97298aa30de564d` |
+
+`bindings::catalog-beam` owns the focused installed schedule; the regular BEAM
+SDK regression also includes it. All ten SDKs expose this catalog profile;
+native catalog growth/paged callers and broader declaration operations remain.
+
+Committed-HEAD `TMPDIR=/var/tmp nix develop --option eval-cache false .#bindings
+--command just ci-clean --lane core` passes all **22 tasks** at `3c11f9c3` in
+**1371.72 s** without inherited workspace outputs. The completion and task timing
+records are `.cache/ci/clean/3c11f9c3c3ed-transit-ci-ble3b_wo/core.meta.json`
+and `core.json`; the log is `/tmp/transit-sql-catalog-beam-ci-clean.log`.
+Concurrent workloads make this unpaired duration unsuitable for a performance
+regression claim. This is the expanded core lane, not a full clean suite. The
+following evidence-only commit records the result; signed metadata work remains
+separate from this checkpoint.
+
+### Signed catalog metadata
+
+The Zig signed caller shares `Inspection` validation with the private-turn
+catalog helper for name lookup, exact definition reads and eight-entry pages.
+Each call acquires current configuration/policy and checks the native writer;
+subsequent reads enforce the same resource revision. Current inspection rights
+precede cursor checks. Create-only conflict checks remain independent of inspect
+permission. No saved view, admission or authorization cache is introduced.
+Neutral ABI/port, CLI and language SDK metadata mappings remain separate work.
+
+On development source based on `3c11f9c3`, pinned Zig
+`0.17.0-dev.2267+48abf1a34` passes root unit/fixture checks, the small real native
+schedule and full `just check`. The native schedule takes **42.936 s** with
+1391 reads, 36 accepted turn responses, five lost caller replies and three lost
+owner replies. It checks five named definitions in the supplied host resource,
+seven applied Tables across both resources, point/list agreement and current
+catalog/native disclosure denial. Bounds remain four mutations, 132-byte observed
+values and eight resident authority pages. This small schedule is not a growth
+proof. Its report is `/tmp/transit-sql-catalog-metadata-native-fixed.json` and log
+`/tmp/transit-sql-catalog-metadata-native-fixed.log`.
+
+The native contract definition is unchanged. Binary SHA-256 identities:
+
+| Binary | SHA-256 |
+| --- | --- |
+| node | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| catalog proof | `19da6d30e2d6c792c285bf35bc1f3faf93f4c0ef92f6f78b82d6784ec06d5aa2` |
+| catalog host | `9545df46010fede16ed61231e508942b1b744c6285cfb0673656e3d034d6f1c6` |
+| native port | `4a31f186752ff355011f6952c59965baffd9c9efc1799347a47b24d7b219b993` |
+| native library | `34ae38b64593862311010b9d478324fc3a8103cc52a018677fcc0c46d854d398` |
+| CLI | `f66e7b11526f1e14006f6a43721f806af1f61916e360229d096ca7ae63991325` |
+
+Eight component seeds pass **40 package schedules / 1264 events** with identical
+replay in **13.719 s**, including the shared inspection code. The log and report
+are `/tmp/transit-sql-catalog-metadata-domain.log` and
+`/tmp/transit-sql-catalog-metadata-domain.json`. At committed `6464b125`, all **nine
+compiling component mutants** are detected by executed assertions, including
+removing inspection authorization or the cursor revision guard from `Inspection`.
+The log and copied report are `/tmp/transit-sql-catalog-metadata-mutants.log` and
+`/tmp/transit-sql-catalog-metadata-mutants.json`; detailed traces remain in
+`.cache/verification/domain-simulation-mutations/`.
+
+The 257-additional-Table disk run fails during creation-status polling with
+`AuthorityTimeout`; the owner also reports an uncertain turn. It does not reach
+the final listing/restart checks and remains failed. The log is
+`/tmp/transit-sql-catalog-metadata-growth.log`; it does not retain an exact completed
+creation count. The fixture now retains incomplete progress, operation counts and
+metadata timings in `native.json`, including on failures. Bounds and timeouts are
+unchanged. The larger schedule remains incomplete.
+
+The subsequent `just test::catalog --grow 65` schedule passes in **292.798 s** on
+development source based on `869f112e`, with the binary hashes above. It creates
+65 additional Tables and lists **70 definitions across nine pages**, checks each
+name lookup and exact object/revision against the listing, kills/restarts the
+node and disk store, and repeats the complete listing. Actual committed growth
+invalidates an old cursor; changed scope/revision and current native/catalog
+revocation reject. There are 72 applied Tables across both resources, 6382 total
+reads (3209 from the catalog caller), 101 accepted turn responses and the original
+five caller/three owner receipt-loss cases. Bounds remain four mutations,
+132-byte observed values and eight resident authority pages. This is the finite
+default `test::catalog-growth` schedule; it does not complete the failed 257 case.
+The report and log are `/tmp/transit-sql-catalog-metadata-growth-65.json` and
+`/tmp/transit-sql-catalog-metadata-growth-65.log`.
+
+The report separates caller reads from worker polling. Cold signed listing costs
+**19 reads for eight definitions** and 15 for six; successful name lookup costs
+five and exact definition lookup three. A missing name costs three. Measurements
+cover 19 successful listing calls (including one during growth), 142 name
+lookups and 142 definition reads across the two walks. Growth creation takes
+211.962 s; cumulative 16/32/48/64-Table times are 27.904/71.741/134.220/206.188 s.
+These shared-host measurements expose increasing creation cost and a bounded
+point-read batching opportunity; they do not attribute the cost to a specific
+subsystem or establish end-to-end latency targets.
+
+The initial native metadata attempts fail converting a Zig JSON byte string as a
+Python integer array; the corrected fixture passes the small schedule. A new
+create-only unit assertion initially overflows its maximum-ID fixture; selecting
+a distinct lower operation ID fixes the test. Failed logs are
+`/tmp/transit-sql-catalog-metadata-native-initial.log`,
+`/tmp/transit-sql-catalog-metadata-native.log` and
+`/tmp/transit-sql-catalog-metadata-full-check.log`. The full rerun passes at
+`/tmp/transit-sql-catalog-metadata-full-check-fixed.log` with 4625 documentation
+links, 56 invariants, 53 classified bounds and 13 SDK scenarios. Neither fixture
+failure establishes a successful production check.
+
+### Batched signed catalog pages
+
+The signed reader fetches the page's definition records and Table descriptors in
+two dependent batches. Each requires the exact initial resource revision and
+current native grants; the second replaces the first after definitions are copied
+into the result. Private-turn callers retain ordinary point reads and sticky
+failure behavior. Resident dependency storage holds at most eight keys/entries,
+independently of retained catalog size.
+
+On development source based on `55f360e3`, the same 65-additional-Table disk
+schedule passes in **218.313 s**: 70 named definitions over nine pages, exact
+point/list agreement, node/store restart, current denial, five caller and three
+owner receipt-loss cases. It records 5981 total reads, 2958 caller reads and 101
+accepted turn responses; bounds remain four mutations, 132-byte values and eight
+resident pages. Source/dirty status and binary hashes are in
+`/tmp/transit-sql-catalog-metadata-batch-growth.json`; the log is
+`/tmp/transit-sql-catalog-metadata-batch-growth.log`.
+
+All **19 successful list calls cost five signed reads**, including the two
+six-entry final pages. Compared with the earlier matching growth schedule, a
+full eight-definition page falls from **19 to five reads**; listing calls total
+353 reads before and 95 after. The 142 name lookups retain their five-read
+successful/three-read absent costs, and the 142 exact-definition calls retain
+three reads each. Listing wall times total 6.972 s before and 3.258 s after, but
+these shared-host runs are unpaired: only the measured request-count reduction
+establishes the batching improvement. Total runtime and worker polling are not
+used as a latency or throughput guarantee. The failed 257-Table attempt remains
+incomplete.
+
+Root unit checks pass, and eight seeded component runs pass **40 package
+schedules / 1264 events** with identical replay in **13.732 s** after changing the
+read order. Logs are `/tmp/transit-sql-catalog-metadata-batch-unit.log` and
+`/tmp/transit-sql-catalog-metadata-batch-domain.log`; the domain report is copied
+to `/tmp/transit-sql-catalog-metadata-batch-domain.json`.
+
+A separate real native schedule pauses the first dependent definition batch
+after initial policy/name reads, revokes the caller's native resource read grant,
+then releases the batch. Listing fails with `AccessDenied`; restoring the grant
+permits a fresh listing. This check passes in **43.676 s**, with 1428 total reads,
+507 caller reads and 36 turn responses. It preserves the original five
+caller/three owner receipt-loss cases, five listed definitions and the same
+resident/write bounds. Every successful listing asserts a five-read budget.
+The log and report are `/tmp/transit-sql-catalog-metadata-batch-revocation-fixed.log`
+and `/tmp/transit-sql-catalog-metadata-batch-revocation.json`. The first attempt
+does not compile because the new fixture gives an eight-bit permission field a
+32-bit value; `/tmp/transit-sql-catalog-metadata-batch-revocation.log` retains that
+failure. It is corrected without changing protocol fields or limits.
+
+Final native binary hashes (the growth run uses the preceding helper hash
+`cc3c0b7046c631bca1ed2fb96154b148127aac94b897d0cf2fa44bc188c5f941`):
+
+| Binary | SHA-256 |
+| --- | --- |
+| node | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| catalog proof | `18a822862a38cc4a52a4edd0c5c42716a7795a2700ed4fc7d04c94ad637ffe6b` |
+| catalog host | `dc96313fc0d17aa038e34791c6ea7e2af527ee445172791555995fd27e9bc8eb` |
+| native port | `62442c92768565973e7879ad6e83328f3674add9406d560e1156447b80bad63d` |
+| native library | `5fb61f939a4aacf5b5355196a5a78534689a7bdb160ce9e01a06746eeeceaad4` |
+| CLI | `f373d7886a3d0b696723441a974376834f6e0e86703ac76b6b74b618b98eea42` |
+
+Full `just check` passes at `/tmp/transit-sql-catalog-metadata-batch-full-check.log`,
+including unchanged generated contracts and 4625 documentation links. All nine
+compiling component mutants are detected again at committed `8e728de3`, including
+inspection authorization and cursor revision defects after batching. The log and
+copied report are `/tmp/transit-sql-catalog-metadata-batch-mutants.log` and
+`/tmp/transit-sql-catalog-metadata-batch-mutants.json`. Committed clean validation
+passes separately at `8e728de3`: `just ci-clean --lane core` completes all
+**22 tasks in 1146.58 s**, without inherited workspace build outputs. Evidence is
+`.cache/ci/clean/8e728de3a8de-transit-ci-ykvwiuy3/core.{json,meta.json}`; the log is
+`/tmp/transit-sql-catalog-metadata-batch-ci-clean.log`. This is the core lane,
+not the complete clean suite or the subsequent ABI/CLI metadata work.
+
+### Neutral catalog metadata values
+
+Shared definition/cursor/page conversions match independently assembled metadata
+and binary definition fixtures. Root unit checks verify full-width decimal
+identities, owned text, mandatory current cursor definitions and rejection of
+missing/foreign definitions, unsafe revisions, page holes, mixed scopes and
+inconsistent continuation. The generated native/ABI/host contracts remain
+unchanged: these conversion types alone expose no new executable actions.
+The pinned-shell logs are `/tmp/transit-sql-catalog-neutral-metadata-unit.log`
+and `/tmp/transit-sql-catalog-neutral-metadata-contracts.log`. Native ABI/port,
+CLI and SDK metadata actions and installed-caller evidence remain.
+
+Committed `55f360e3` also passes `just ci-clean --lane core`: **22 tasks in
+1171.42 s**, including the seeded simulation checks. Evidence is
+`.cache/ci/clean/55f360e39e73-transit-ci-q0dn3km_/core.{json,meta.json}` and
+`/tmp/transit-sql-catalog-neutral-metadata-ci-clean.log`. It does not include
+the later signed-read batching or metadata action additions.
+
+### Catalog metadata through native ABI, port and CLI
+
+The neutral bridge adds `lookup`, exact `definition` and `list` actions using
+the shared signed client. Generated schemas/resources cover the new variants;
+earlier action/result fields, handle layouts and saved commands are unchanged.
+CLI list continuation consumes the original private saved page and checks its
+complete structure before credential loading.
+
+On development source based on `fdaa53f4`, `just test::catalog --grow 17` passes
+in **48.402 s**. All three callers agree with Zig for **22 definitions over three
+pages**, every point lookup and exact definition, and missing records. The walk
+repeats after node/Ursula disk restart. A newly created Table invalidates an
+original cursor on all surfaces, including a saved CLI page. Catalog and native
+revocation deny all three metadata actions; the paused dependent-read revocation
+case also remains. Existing creation/control recovery retains five lost caller
+receipts and three lost owner receipts. Counts are 4201 total reads, 2193 caller
+reads and 53 turn responses; bounds remain four mutations, 132-byte values and
+eight resident pages.
+
+All 21 successful neutral list calls stay within five signed reads: seven each
+through ABI/port cost four with previously negotiated batch support, and seven
+fresh CLI invocations cost five. The cached capability is not an authorization
+cache. Every operation still fetches current configuration/policy and native
+grants; these unpaired wall times establish no latency claim.
+The report is `/tmp/transit-sql-catalog-metadata-abi-cli-native.json`; the log is
+`/tmp/transit-sql-catalog-metadata-abi-cli-native-schema-fixed.log`.
+The report retains source/dirty status and all six binary hashes. Node, proof and
+catalog host hashes match the preceding batched-reader proof. Updated binaries:
+
+| Binary | SHA-256 |
+| --- | --- |
+| native port | `f8329121706cfb35e41af77aaf96df35c1389d384849fa8d980f7055401bcb62` |
+| native library | `fac060c74e3f679858543451b494c1e1ebf4a3e5d7d5312897759be140539060` |
+| CLI | `7f427823c886cbd629b3325aaccbf98de48fbbb3dee92dad2f33563b4d9a993c` |
+
+Protocol/catalog unit tests and **399 real CLI diagnostic cases** pass at
+`/tmp/transit-sql-catalog-metadata-ordinal-fix.log`. New cases check required
+arguments, canonical IDs/names, saved-page holes, ordering/continuation scope and
+revision, missing/foreign definitions and final-page refusal before credential
+loading. The first CLI/native attempts expose a shared decoder defect: Zig's
+generic enum parser accepts an all-zero string as ordinal zero. The shared
+protocol shape validator now requires exact declared names; numeric aliases
+reject even when nested in a page or action. Logs
+`/tmp/transit-sql-catalog-metadata-abi-cli-expanded.log` and
+`/tmp/transit-sql-catalog-metadata-abi-cli-native.log` retain those failures.
+The following native attempt reaches metadata comparison but fails because its
+fixture retains the native schema's `version` field in the neutral expectation;
+`/tmp/transit-sql-catalog-metadata-abi-cli-native-fixed.log` records it. The
+fixture now verifies version one and compares the declared neutral schema.
+Full `just check` passes at
+`/tmp/transit-sql-catalog-metadata-abi-cli-full-check.log`; final documentation
+and verification inventory checks pass 4625 links across 486 files, 56
+invariants, 53 bounds and 13 SDK scenarios at
+`/tmp/transit-sql-catalog-metadata-abi-cli-docs.log`.
+
+All ten rebuilt, installed SDKs pass their existing catalog creation/control and
+recovery schedule against these additive schemas/actions: **126.508 s**, including
+**47.718 s** installation, 4558 reads, 69 turn responses, sixteen lost caller
+receipts and three lost owner receipts. It retains eighteen Tables across the two
+resources, sixteen listed definitions, four mutations, 134-byte observed values
+and eight resident pages. ABI/port/CLI also compare all sixteen definitions and
+two pages in this run; language SDK metadata methods are not exercised by this
+checkpoint. Source revision is `7fc92b33`; report/package hashes and log are
+`/tmp/transit-sql-catalog-metadata-all-ten-regression.json` and
+`/tmp/transit-sql-catalog-metadata-all-ten-regression.log`.
+
+Committed `7fc92b33` passes `just ci-clean --lane core`: **all 22 tasks in
+756.17 s**, including the shared protocol enum fix, generated contracts and
+seeded simulations. Evidence is
+`.cache/ci/clean/7fc92b33d25a-transit-ci-en_9c5gk/core.{json,meta.json}` and
+`/tmp/transit-sql-catalog-metadata-abi-cli-ci-clean.log`. This validates the
+ABI/CLI checkpoint independently of inherited build outputs; it does not include
+the subsequent language metadata methods or establish a full clean-suite pass.
+
+### Python catalog metadata
+
+Python sync/async public methods return immutable definitions, Table sources,
+cursors and dense page tuples. Strict decoding checks full-width identities,
+requested scope/name/revision, continuation and page structure. Type checking
+passes all 18 source files, and focused malformed-response/ownership checks pass
+at `/tmp/transit-sql-catalog-python-metadata-values.log`. Missing/foreign cursor
+definitions, holes, duplicate order, changed cuts, wrong identity and source
+variants reject; copied name/entry collections remain independent and frozen.
+
+Rebuilt installed wheels pass `just test::catalog --sdk python --grow 17` in
+**72.256 s**, including **2.022 s** installation. Both public clients agree with
+Zig/ABI/port/CLI on **24 definitions, three full pages and an empty final page**,
+all exact/name reads and missing records before and after node/store disk
+restart. Original cursors reject after creation, and both catalog/native
+revocation deny each metadata method. Seven lost caller replies and three lost
+owner replies retain the existing exact creation/control recovery checks.
+Counts are 5839 reads, 3146 caller reads and 59 turn responses; bounds remain
+four mutations, 133-byte observed values and eight resident pages. Each Python
+client's seven successful populated list calls cost four signed reads and two
+empty final pages cost two, using already negotiated native batch support.
+
+The native report and installed-wheel hashes are
+`/tmp/transit-sql-catalog-python-metadata-native.json`; the log is
+`/tmp/transit-sql-catalog-python-metadata-native.log`. Source is development based
+on `8c375486`; all six native binary hashes match the ABI/CLI metadata checkpoint.
+This proves Python metadata mappings, not the remaining nine SDKs.
+
+### TypeScript catalog metadata
+
+TypeScript adds frozen definitions, Table sources, cursors and dense page arrays
+over its existing native port. Generated schemas reject malformed wire shapes;
+the public adapter checks requested identity, scope, ordering and continuation.
+`vp check`, TypeScript compilation and **22 catalog tests** pass at
+`/tmp/transit-sql-catalog-node-metadata-values.log`, including altered identities,
+missing/foreign definitions, holes, duplicate order, changed cuts, unknown sources,
+wide bigint values and owned collections. The earlier type check also passes at
+`/tmp/transit-sql-catalog-node-metadata-types.log`.
+
+Rebuilt TypeScript and Python installed packages pass the combined
+`just test::catalog --sdk python --sdk node --grow 17` schedule in **89.568 s**,
+including **7.015 s** installation. All six callers agree on **25 definitions
+over four pages**, every point read and absence before/after node/store restart.
+Original stale cursors and current catalog/native revocation reject. Eight lost
+caller receipts and three lost owner receipts preserve creation/control recovery.
+There are 6956 reads, 3634 caller reads and 62 turn responses, bounded to four
+mutations, 133-byte values and eight resident pages. All nine successful TypeScript
+list calls cost four signed reads with already negotiated batch support.
+
+Report/package hashes and log are
+`/tmp/transit-sql-catalog-python-node-metadata-native.json` and
+`/tmp/transit-sql-catalog-python-node-metadata-native.log`. This is development
+source based on `2ec18f51`, with unchanged native binary hashes. Other eight
+language metadata mappings remain outside this evidence.
+
+### Rust catalog metadata
+
+Rust adds owned definitions, Table sources, dense page vectors and explicit
+checked cursors through mutable blocking caller methods. Four catalog tests pass
+at `/tmp/transit-sql-catalog-rust-metadata-unit-fixed.log`, including full-width
+identity, independent cloned ownership, response matching and ten malformed-page
+cases. The first source test at
+`/tmp/transit-sql-catalog-rust-metadata-unit.log` fails before execution because
+native artifacts are not selected; the rerun supplies the built library directory
+explicitly. No package dependency or search fallback changes are made.
+
+Rebuilt installed crates pass `just test::catalog --sdk rust --grow 17` in
+**72.367 s**, including **16.278 s** installation. Their packaged unit tests and
+compiler rejection of overlapping mutable callers/use after close pass. Rust
+agrees with Zig/ABI/port/CLI for **23 definitions over three pages**, all point
+reads and absence before/after node/store restart. Changed cursors and current
+catalog/native denial reject, retaining six lost caller replies and three lost
+owner replies in the existing creation/control recovery schedule. Counts are
+4968 reads, 2629 caller reads and 56 turn responses; bounds remain four mutations,
+133-byte values and eight resident pages. All seven successful Rust listings
+cost four signed reads with already negotiated batch support.
+
+Report/package hashes and log are
+`/tmp/transit-sql-catalog-rust-metadata-native.json` and
+`/tmp/transit-sql-catalog-rust-metadata-native.log`. Source is development based
+on `9c6ca374`; native binary hashes are unchanged. Seven language metadata
+mappings remain outside this evidence.
+
+Committed `a65c4285` passes `just ci-clean --lane core`: **all 22 tasks in
+891.07 s**, including the seeded resource, scheduler, component and external
+fault suites. Completion metadata and every task exit code are retained at
+`.cache/ci/clean/a65c4285c45d-transit-ci-_g1s7lbt/core.{json,meta.json}`;
+the command log is `/tmp/transit-sql-catalog-three-sdk-metadata-ci-clean.log`.
+The cumulative Python/TypeScript/Rust source passes full `just check`, including
+the documentation build, at
+`/tmp/transit-sql-catalog-three-sdk-metadata-full-check.log`. This is the expanded
+clean core lane, not a full clean suite or evidence for the seven remaining
+language metadata APIs. The following evidence-only commit records these results.
+
+### Ruby catalog metadata
+
+Ruby adds frozen definitions, Table sources, owned dense page arrays and mandatory
+original cursors through the existing synchronous worker. Syntax checks pass at
+`/tmp/transit-sql-catalog-ruby-metadata-syntax.log`. Installed value checks cover
+full-width identity, copied/frozen strings and collections, nine malformed pages,
+request identity, continuation cuts, empty final pages and absence. Existing
+owned-port malformed/lost responses and cancelled waiting-thread cleanup remain
+in the schedule.
+
+Rebuilt installed gems pass `just test::catalog --sdk ruby --grow 17` in
+**62.700 s**, including **4.971 s** installation. Ruby agrees with Zig/ABI/port/CLI
+on **23 definitions over three pages**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. The creation/control schedule retains six lost caller replies and three
+lost owner replies. Counts are 4987 reads, 2638 caller reads and 56 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. Native
+binary hashes remain those of the ABI/CLI metadata checkpoint.
+
+The report/package hashes and log are
+`/tmp/transit-sql-catalog-ruby-metadata-native.json` and
+`/tmp/transit-sql-catalog-ruby-metadata-native.log`, from development source based
+on `a65c4285`. Empty-final-page validation here is a value test, not an observed
+final native page. This focused run does not qualify the six remaining metadata
+SDKs or establish a latency comparison.
+
+### C/C++ catalog metadata
+
+C adds bounded inline definition, cursor and eight-entry page values through the
+existing native worker; C++ exposes owned strings, vectors and optional values.
+C output values clear on failure, and lookup/list accept their input name/cursor
+from the same output value by copying it before clearing. Installed tests exercise
+both alias cases, foreign/missing cursor definitions, retained metadata after
+close and independent C++ copies. Existing compiler rejection of copied C++
+client/recovery owners remains in the schedule. Known metadata shape, scope,
+identity, ordering and continuation checks do not establish rejection of every
+unknown JSON field by the C parser.
+
+The first installed attempt fails in the fixture with `KeyError: next_hex`: its
+inherited query adapter expects a hex query cursor on catalog pages. The corrected
+catalog adapter decodes only saved command bytes and uses typed catalog cursors.
+That failed attempt remains at
+`/tmp/transit-sql-catalog-c-metadata-native-failed.json` and
+`/tmp/transit-sql-catalog-c-metadata-native.log`; no production compatibility
+fallback is added.
+
+Rebuilt installed packages pass `just test::catalog --sdk c --sdk cpp --grow 17`
+in **122.816 s**, including **6.856 s** installation. They agree with
+Zig/ABI/port/CLI on **24 definitions, three full pages and an empty final page**,
+point reads and absence before/after disk-backed node/store restart. Changed
+cursors and current catalog/native denial reject; creation/control recovery
+retains seven lost caller replies and three lost owner replies. Counts are
+5976 reads, 3138 caller reads and 59 turn responses; bounds remain four mutations,
+133-byte values and eight resident pages. Native binary hashes are unchanged.
+
+Source is development based on `a65c4285`; package hashes/report are
+`/tmp/transit-sql-catalog-c-metadata-native.json`, build log is
+`/tmp/transit-sql-catalog-c-metadata-build.log`, and completed native log is
+`/tmp/transit-sql-catalog-c-metadata-native-fixed.log`. Shared-host elapsed time is
+not a paired latency comparison. Java/.NET/Erlang/Elixir metadata remains outside
+this evidence.
+
+### Java catalog metadata
+
+Java adds immutable definitions, Table sources, copied dense page lists and
+mandatory original cursors through the existing bounded-future worker. Installed
+value checks cover full-width identities, retained immutable values, twelve
+malformed-page cases, response identity, repeated/changed continuation cuts,
+empty final pages and absence. Existing owned-port malformed/lost responses,
+result-allocation failure and cancelled-future cleanup remain in the schedule.
+
+The first installed attempt fails at fixture compilation: referencing Gson's
+`JsonParser` exposes unavailable `InlineMe` annotation methods under `-Werror`.
+Using the existing `Gson.fromJson` entry point fixes the fixture without changing
+dependencies or suppressing warnings. That attempt is retained at
+`/tmp/transit-sql-catalog-java-metadata-native.log`.
+
+Rebuilt installed JARs pass `just test::catalog --sdk java --grow 17` in
+**64.660 s**, including **2.735 s** installation. Java agrees with Zig/ABI/port/CLI
+on **23 definitions over three pages**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. The creation/control schedule retains six lost caller replies and three
+lost owner replies. Counts are 5126 reads, 2634 caller reads and 56 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. All seven
+successful Java listings cost four signed reads with negotiated batch support.
+
+Source is development based on `dc2e2e10`; native binary hashes are unchanged.
+Report/package hashes are `/tmp/transit-sql-catalog-java-metadata-native.json`;
+logs are `/tmp/transit-sql-catalog-java-metadata-build.log` and
+`/tmp/transit-sql-catalog-java-metadata-native-fixed.log`. This focused result does
+not qualify .NET/Erlang/Elixir metadata or establish a latency comparison.
+
+### .NET catalog metadata
+
+.NET adds immutable definitions, Table sources, copied read-only page collections
+and mandatory original cursors through the existing bounded-task worker. Installed
+value checks cover full-width identities, retained immutable values, twelve
+malformed-page cases, requested identity, repeated/changed continuation cuts,
+empty final pages and absence. Existing actual native HTTP read cancellation,
+pre-admission cancellation and disposal/join checks remain in the schedule.
+
+The first installed attempt terminates with an unhandled `IncompatibleNative`
+exception in its new value fixture: locally constructed `JsonValue<int>` counters
+are not parsed neutral JSON numbers. Round-tripping the fixture through JSON
+establishes the intended boundary. No production decoder is relaxed. The initial
+failure is retained at `/tmp/transit-sql-catalog-dotnet-metadata-native.log`.
+
+Rebuilt installed packages pass `just test::catalog --sdk dotnet --grow 17` in
+**61.955 s**, including **4.816 s** installation. They agree with Zig/ABI/port/CLI
+on **23 definitions over three pages**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. The creation/control schedule retains six lost caller replies and three
+lost owner replies. Counts are 5003 reads, 2629 caller reads and 56 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. All seven
+successful .NET listings cost four signed reads with negotiated batch support.
+
+Source is development based on `5dce22fa`; native binary hashes are unchanged.
+Report/package hashes are `/tmp/transit-sql-catalog-dotnet-metadata-native.json`;
+logs are `/tmp/transit-sql-catalog-dotnet-metadata-build.log` and
+`/tmp/transit-sql-catalog-dotnet-metadata-native-fixed.log`. This focused result
+does not qualify Erlang/Elixir metadata or establish a latency comparison.
+
+### Erlang/Elixir catalog metadata
+
+Erlang adds immutable definition, Table source, cursor and bounded dense page
+records; Elixir maps them to mandatory-field structs through the same owned
+worker. Each installed language exercises full-width values, requested identity,
+absence, repeated/changed continuation cuts, twelve malformed-page cases and
+empty pages through the actual port boundary. Missing/foreign cursor definitions
+reject; external text never becomes a newly allocated atom. Existing uncertain
+submission and waiting-process loss/join checks remain in the schedule.
+
+The first installed attempt expects `incompatible_native` for every malformed
+page. The existing port instead reports `read_failed` when a neutral reply fails
+its generated schema before metadata decoding. The corrected test checks those
+exact categories separately from semantic metadata failures. No transport error
+mapping changes. The failed attempt remains at
+`/tmp/transit-sql-catalog-beam-metadata-native.log`.
+
+Rebuilt installed packages pass
+`just test::catalog --sdk erlang --sdk elixir --grow 17` in **81.413 s**, including
+**9.413 s** installation. Both agree with Zig/ABI/port/CLI on **24 definitions,
+three full pages and an empty final page**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. Creation/control recovery retains seven lost caller replies and three
+lost owner replies. Counts are 6002 reads, 3144 caller reads and 59 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. Each
+language makes seven populated listings at four signed reads and two empty final
+listings at two signed reads with negotiated batch support.
+
+Source is development based on `bbb6e11d`; native binary hashes are unchanged.
+Report/package hashes are `/tmp/transit-sql-catalog-beam-metadata-native.json`;
+logs are `/tmp/transit-sql-catalog-beam-metadata-build.log` and
+`/tmp/transit-sql-catalog-beam-metadata-native-fixed.log`. All ten SDK metadata
+APIs now have focused installed evidence. Cumulative full `just check` passes at
+`/tmp/transit-sql-catalog-all-metadata-full-check.log`, including the documentation
+build. The first combined command stops at argument parsing because splitting the
+Ruby/C commits accidentally removed `c`/`cpp` from the runner's allowed options.
+Those options are restored; the stopped attempt remains at
+`/tmp/transit-sql-catalog-all-ten-metadata-native.log`. This record does not
+establish a completed combined run or a clean-suite pass.
+
+### Combined metadata cleanup investigation
+
+The ten-language metadata schedule at committed `8e021cc6` completes its
+functional assertions for **33 named definitions over five pages**, before/after
+disk restart, with sixteen lost caller receipts and three lost owner receipts.
+It remains **failed**: an installed caller closes stdout during final cleanup
+without the expected close response, and the original diagnostic observes its
+exit status before reaping. Counts are 15846 reads, 8560 caller reads and 86 turn
+responses; bounds remain four mutations, 134-byte values and eight resident pages.
+Elapsed time is 356.319 s, including 61.592 s installation. The failed report is
+`/tmp/transit-sql-catalog-all-ten-metadata-native-failed.json`; the log is
+`/tmp/transit-sql-catalog-all-ten-metadata-native-fixed.log`.
+
+The fixture now joins an EOF child before reporting its exit code and annotates
+catalog cleanup failures with the caller surface. Those diagnostics do not
+change SDK behavior or turn an incomplete cleanup into success.
+
+The same ten-language command with `--grow 17` passes on development source
+based on `8e021cc6`, with those diagnostics and test-only growth timing, in
+**393.676 s**, including 85.563 s installation. All fourteen metadata surfaces
+agree on 33 definitions over five pages before/after disk restart, current
+denial, sixteen lost caller replies and three lost owner replies; final cleanup
+reports no failures. Counts are 16473 reads, 8565 caller reads and 86 turn
+responses, with the same four-mutation, 134-byte-value and eight-resident-page
+bounds. All six native binary hashes match the earlier focused runs. Report and
+package hashes are `/tmp/transit-sql-catalog-all-ten-metadata-native-diagnostic.json`;
+the log is `/tmp/transit-sql-catalog-all-ten-metadata-native-diagnostic.log`.
+This successful rerun does not identify the earlier cleanup failure's cause or
+erase that failed run. Surface and final-exit diagnostics remain in the fixture
+for recurrence; no SDK runtime fix is claimed.
+
+The clean core run at `8e021cc6` passes 21 of 22 tasks, then fails
+`test::state`: its current-resource poll races the separate maintenance process
+and receives HTTP 409 `Conflict`. The authority's final journal-tail check in
+`growing_read.zig` deliberately rejects that changed observation; no mixed cut
+is returned. The reclamation poll now discards exactly that conflict and reads
+a fresh cut within its existing ten-second deadline. Denial, unexpected errors,
+command retries and fixed-cut continuations are unchanged. The focused
+`just test::state` rerun passes at `/tmp/transit-sql-pr27-state-maintenance.log`.
+The failed clean report remains at
+`/var/tmp/transit-ci-n4hi0a30/src/.cache/ci/core.json`; its log is
+`/tmp/transit-sql-catalog-all-metadata-ci-clean.log`. It is not a clean-lane pass.
+
+The next committed clean core attempt at `0621d2a1` fails the external Vortex
+schedule after two rounds. Its third turn receives HTTP 503 `AuthorityTimeout`;
+the proxy drops that response, and the supervisor incorrectly assumes acceptance
+before killing the worker/node/store. The recorded history establishes a missing
+test premise, not lost accepted work. Evidence remains under
+`/var/tmp/transit-ci-l2btxgaw/src/.cache/verification/vortex/1790796726338078073-seed-1/`
+and `/tmp/transit-sql-pr27-state-fixed-ci-clean.log`.
+
+Response-loss/delay injection now waits for HTTP 200 acceptance, forwarding other
+responses and retaining the armed fault within the existing supervisor deadline.
+An independent loopback proxy check forces a 503 followed by acceptance for both
+fault kinds and checks that only the accepted response triggers the fault. It
+passes at `/tmp/transit-sql-pr27-vortex-proxy.log` and runs in `test::vortex`.
+The real disk schedule `just test::vortex --seed 19 --rounds 12` passes in
+**33.892 s** with joined cleanup after this correction; its report/history are
+`.cache/verification/vortex/1790796842894520667-seed-19/` and its log is
+`/tmp/transit-sql-pr27-vortex-acceptance.log`. Production admission, timeouts and
+recovery assertions are unchanged. Neither prior failed clean attempt is a pass.
+
+### Catalog growth attribution
+
+`just test::catalog-growth` runs the disk-backed schedule with 65 additional
+Tables; `just test::catalog --grow 257` selects the larger investigation. The
+report at `.cache/verification/catalog/native.json` retains source revision,
+dirty status, runner and native binary hashes, growth progress and failure state.
+Copy it before another run overwrites it. No timeout, cache, turn or value limit
+changes with this instrumentation.
+
+The report separates `compile`, `prepare`, `admit` and `await_application` wall
+time, calls, failures and caller reads. A failed phase retains its zero-based
+growth index; a successful application clears it. An admitted send is not an
+applied Table, and a failed status read does not establish rejection. A baseline
+immediately before growth and cumulative samples every sixteen Tables (plus the
+last Table) allow subtraction of setup work and comparison of successive blocks.
+Cursor checks during growth remain outside the four timed phases.
+
+The owned proxy groups upstream attempts by fixed caller/owner/administrator/
+other roles and native operation. It records transport failures, HTTP errors,
+cumulative elapsed nanoseconds and the maximum observed duration. Durations end
+after the upstream body is read; they include queue/provider work and proxy
+overhead, overlap across requests, and are not independent CPU measurements.
+Deliberately blocked requests never reach upstream; lost-reply attempts count
+even when the caller cannot observe the result. Counts describe attempts, not
+unique durable commits. Metrics contain no request bodies or credential values.
+Compare native request counts and phase costs at equivalent workload boundaries;
+shared-host durations do not establish percentiles or throughput guarantees.
+After stopping the node, the report also retains at most 64 distinct node/storage
+error groups, with occurrence counts, first timestamps and maximum observed
+durations. Further groups increment a dropped counter. These summaries preserve
+errors that can fall outside the printed log tail, without retaining payloads,
+credentials or user labels; they do not establish operation outcomes.
+
+The first instrumented disk runs use runner SHA-256
+`63fa35689262d5fce12b5a303fcf390f3812931cf9a64a6375e7e76e3eb47fbe`
+and the same six native binaries, with eight resident authority pages. The
+65-additional-Table run at committed `d681181d` passes in **233.028 s**, lists
+70 named definitions in nine pages, and repeats the metadata checks after
+node/store restart. Cleanup joins. Growth itself takes **112.669 s**:
+
+| Phase | Calls | Seconds | Caller reads |
+| --- | ---: | ---: | ---: |
+| Compile | 65 | 0.010 | 0 |
+| Prepare | 65 | 1.923 | 130 |
+| Admit | 65 | 10.595 | 0 |
+| Await application | 65 | 99.922 | 1089 |
+
+Growth-only upstream observations include 65 owner turns (**41.125 s**), 845
+owner entry reads (**38.810 s**) and 1170 caller entry reads (**89.375 s**).
+These overlapping durations include serialized authority/provider work and
+contention; they are not additive phase costs. Validation runs share the host.
+
+The 257-additional-Table attempt at committed `05454efd` fails in **508.687 s**
+after **138** additions apply. The next send is admitted, then index 138 remains
+in `await_application` at the unchanged twenty-second progress deadline. Owner
+turns repeatedly report `AuthorityUnavailable`. Cleanup joins, but the final
+listing/restart checks are not reached and the pending operation's outcome is
+not established. This attempt supplies failure attribution, not a larger-growth
+pass. Both reports retain complete binary hashes and source identities; later
+rebases preserve the runner's content.
+
+Committed-head clean experience runs at `1c4d91e1` (source tree `3d38f5a7`,
+matching the merged implementation) and `0dc49100` (tree `6216f338`, matching
+the rebased attribution increment `c79c4307`) each pass six of seven tasks.
+Board query inspection passes in **103.43 s** and **101.79 s** respectively.
+Both fail `launchers::local::test-station` waiting for the requester Arrow reply,
+after **275.54 s** and **277.76 s**. Private fixture logs and WALs are retained
+for diagnosis. Neither is a clean experience pass; these runs do not supersede
+the separate full `just check` passes or establish all clean-suite gates.
+
+The corrected clean core run at `4927ba38` passes nineteen tasks, including
+Vortex, Station and all disk storage phases. It then fails `test::callers` in
+**17.63 s** when the courier-progress observation sees `AuthorityUnavailable`;
+the last two core tasks are not reached. Node observations show a two-second
+request deadline interrupting page staging and a queued observation. This is
+not a clean-core pass or a demonstrated root cause of the earlier catalog failure.
+
+### Balanced batch splits and larger catalog growth
+
+The original binaries repeat the failure after exactly 138 applied additions
+in **564.408 s** with the diagnostic runner. Cleanup joins and no storage-error
+group is recorded; sixteen native attempts report `AuthorityUnavailable`.
+The independent descending-key page regression fails with `PageDepthExceeded`:
+batch splits pack one sibling full, so descending inserts repeatedly split the
+left spine and reach the 32-level guard before 257 keys. Evenly distributing
+entries and children across split pages fixes that insertion pattern without
+changing page encodings, mutation budgets, resident limits or deadlines.
+
+At committed `1483b330`, all **60** standalone core tests and full `just check`
+pass. The new regression checks 257 descending keys in batches of one, four and
+eight, retained roots, ordered scans and at most nine page loads per lookup.
+`just test::resource-simulation --seeds 8` passes **798 traces / 15,496 events**
+with identical replay in **437.762 s**. All six negative controls are detected.
+Its binary SHA-256 is
+`82db89402f28ae6b1d28b999392600c912870c2f67bae7f8d220ef659bfacda6`;
+the two-page in-memory fault store does not establish physical disk durability.
+
+`just test::catalog --grow 257` then passes in **397.642 s**, including **262
+named definitions / 33 pages**, repeated metadata after node/store restart,
+current denial, original lost-reply recovery and joined cleanup. It uses eight
+resident authority pages, at most four turn mutations and 132-byte values.
+Only the node binary differs from the original runs; its SHA-256 is
+`214b0646e187cd12676c995d4b2badd0e4962631988df0946440039b32dfcd04`.
+The five caller/host binary hashes remain equal. The report retains all hashes
+and the diagnostic runner identity.
+
+The 257 growth additions take **254.420 s**: compile **0.041 s**, prepare
+**3.488 s**, admission **30.433 s**, application waiting **220.260 s**.
+All growth phases succeed. There are 257 owner-turn attempts and 3341 owner-entry
+reads (thirteen per Table), with no growth transport/HTTP errors. These shared-host
+instrumented samples establish the completed workload, not a throughput ratio.
+The existing roots of previously deep catalogs are not rebuilt; continuation
+from an already exhausted height guard remains a separate recovery qualification.
+Committed-head `just ci-clean --lane core` at `1483b330` passes all **22 tasks**
+in **947.49 s**, including the caller-progress test that failed in the earlier
+attempt. Its completion/timing records are retained under
+`.cache/ci/clean/1483b330d7b9-transit-ci-lwcj_yf3/`. Subsequent changes only record
+evidence in this ledger and the roadmap; their documentation links pass. This
+is a clean core-lane pass, not an experience/bindings/complete-suite or hosted
+CI pass. The earlier experience failures are not reclassified as successes.
+
+### Resuming a depth-exhausted catalog
+
+The optional `test::catalog --grow 257 --initial-node PATH` schedule starts
+with an explicitly supplied pre-fix node binary. Its digest is recorded alongside
+the target binary. At the known zero-based growth index 138, it requires two
+`AuthorityUnavailable` responses to the exact same owner turn, then replaces
+only the node binary across disk-store restart. The worker and its frozen turn
+stay alive. Success requires that same turn's receipt and the originally admitted
+SQL input, followed by continued growth and the normal metadata/restart/denial
+checks. The SQL send is not resubmitted. No operation deadline is increased.
+
+Failure joins owned services and retains the private fixture under
+`.cache/verification/catalog/recovery-failures/`; it contains credentials and
+must not be published. `node_recovery` records the initial digest, original turn
+digest, input, observed failures, replacement and receipt state. Retained
+configurations still name their original temporary paths; the fixture is
+diagnostic evidence, not an automatically restorable launcher installation.
+
+With source based on `ef2cc97d` and the recovery runner under development, the
+original node digest `1039c8de…328d6e07e` stalls after 138 additions. Replacing it
+with the split-only node `214b0646…2dfcd04` still fails the unchanged progress
+deadline in **416.073 s** total. Input **538** remains without an observed turn
+receipt. The private fixture is retained; this is not successful recovery.
+A separate current-v1 page fixture with a full spine and sparse siblings at
+height 32 also fails `PageDepthExceeded` before local sibling merging. After
+merging, all **61** core component tests pass, including 64 further inserts,
+old-root preservation and refusal/lost-acknowledgement at every staging boundary
+of the first repaired mutation. Disk qualification of that repair follows.
+
+At `85009af5`, the repaired node `89e7f544…d65f0a19` resumes the exact original
+turn: input **538** produces receipt **540**, with the worker and signed turn
+unchanged across replacement. The full run still fails after **145** additions
+in **477.296 s**. Ursula reports `ColdBackpressure` at its **64 MiB** hot-store
+limit; this fixture has no cold tier. The node records 161 `page.stage`
+`ServiceUnavailable` failures. Joined cleanup succeeds and the private fixture
+is retained. This establishes receipt recovery, not full growth qualification.
+
+`--cold` selects the existing owned S3 fixture with an **8 MiB** hot-store
+limit and **8 MiB** cold cache. It requires actual persisted cold chunks and
+records object count and file bytes. Use it with `--initial-node` for continued
+growth beyond the hot-only fixture's capacity; operation deadlines, eight
+authority cache pages and four application mutations remain unchanged. Failed
+upgrade runs retain the stopped cold-store files with their private disk fixture.
+The first cold run at `1f6dd4ee` fails on `AuthorityTimeout` before node
+replacement. Its proxy-drain cleanup then fails, so the last report contains
+only an earlier **112-addition / 263.393 s** sample; final progress and fixture
+retention are not established. `b97406fe` makes cleanup continue through
+authority/proxy shutdown and final reporting after a drain error, and retains
+failed upgrade fixtures even when cleanup itself fails.
+
+The retry at committed `b97406fe` passes in **1438.997 s**. It recovers original
+input **538** as receipt **540** after two failures of the same signed turn,
+then applies all **257** additions. All **262 definitions / 33 pages** pass
+Zig, ABI, port and CLI metadata checks, a further node/store restart, current
+denial and joined cleanup. The worker and original SQL input are preserved;
+no send is resubmitted. The run retains eight authority cache pages, four
+mutations and the unchanged operation deadlines. Its S3 fixture uses an **8 MiB**
+hot limit and **8 MiB** cold cache, and holds **1125 persisted cold chunks** and
+**142,532,884 filesystem bytes** including object-store metadata.
+
+Growth takes **823.220 s**: compile **0.040 s**, prepare **15.111 s**, admit
+**78.784 s**, and await application **729.043 s**. There are **4890** measured
+metadata calls across the complete schedule. The only `AuthorityUnavailable`
+responses recorded by the node are the two expected pre-replacement failures;
+cleanup reports no failures. These shared-host durations are not a throughput
+comparison with the fresh balanced-tree schedule. Earlier failed runs remain
+failed, and their causes are not inferred from this retry's success.
+
+The target node digest is `89e7f544…d65f0a19`, the initial node is
+`1039c8de…328d6e07e`, and the runner is `f9329712…67ac8b82a`.
+The full hashes, source identity and measurements are retained in
+`/tmp/transit-sql-deep-catalog-recovery-cold-retry.json`; its matching `.log`
+contains the executed command and completion output.
+
+The same `85009af5` passes full `just check` and the eight-seed resource
+simulation: **798 traces**, **15,496 events**, **1598 executions**, identical
+replay and all six negative controls in **431.120 s**. Its committed-head clean
+core attempt fails in the first task's CLI terminal cleanup after **81.49 s**;
+the remaining 21 tasks do not run. Strict cleanup diagnostics expose exit 130
+when cleanup sends Ctrl-C during command output. The fixture now queues editor
+draft clearing and ordinary `.quit`, preserving explicit interrupt tests and
+rethrowing unexpected exits/timeouts. The focused 399-case CLI diagnostic suite
+passes with queued quit. Full `just check` also passes after the terminal cleanup
+and diagnostic-path lifetime fixes.
+
+Committed `1f6dd4ee` then passes all **22 clean-core tasks** in **1154.37 s**
+and all **seven clean-experience tasks** in **501.07 s**. Core includes the
+399-case CLI diagnostic suite, simulations, disk WAL/recovery, callers,
+inspection and state. Station's disk readiness write takes **307.79 s** and the
+complete storage task **481.35 s**; the experience Station replacement/restart
+task takes **283.96 s**. Evidence is retained in
+`.cache/ci/clean/1f6dd4eec3fd-transit-ci-58qo5jmn/` and
+`.cache/ci/clean/1f6dd4eec3fd-transit-ci-mr8_g_9s/`. These are two lane passes,
+not the complete CI inventory. The later catalog cleanup change affects only
+the proof runner and remains under focused disk qualification.
+
+The clean experience run at rebased `ef2cc97d` passes all **seven tasks** in
+**433.89 s**, including Station's Arrow exchange, replacements and persistent
+restart in **220.67 s**. This revision includes main's type/schema-discovery
+documentation, with unchanged split-only runtime code. Evidence is retained in
+`.cache/ci/clean/ef2cc97dc6b0-transit-ci-dl5e5q05/`. It does not retroactively pass
+the earlier failures or qualify the subsequent sibling-merging change.
+
+### Shared immutable paths for bounded point reads
+
+`edb54a12` adds a bounded tree traversal for native `read_entries`. It retains
+caller order and current native authority checks while sharing immutable paths
+among the existing eight requested keys. Component fixtures cover absent and
+repeated keys, invalid input before I/O, every selected page-load failure,
+corruption and retained roots. The depth-32 eight-key fixture records **37 page
+loads**, compared with **264** separate lookup loads. These counts are component
+I/O evidence, not a native throughput result.
+
+All **62 core component tests**, full `just check` and the eight-seed resource
+simulation pass. The simulation records **798 traces / 15,496 events / 1598
+executions**, identical replay and all six negative controls in **437.816 s**.
+Committed-head `just ci-clean --lane core` passes all **22 tasks** in
+**1060.07 s**. Evidence is retained under
+`.cache/ci/clean/edb54a12a558-transit-ci-4bx7pg1w/`; this is one lane, not the
+complete CI suite. Subsequent history changes and parent evidence documentation
+do not change these runtime files.
+
+The cold-tier legacy-root recovery schedule at the same clean source fails in
+**1248.201 s**, after **213** additions, on `AuthorityTimeout` during the next
+application-status read. The original input **538** recovered as receipt **540**
+after node replacement, but the remaining growth and larger metadata/restart
+phases did not complete. Joined cleanup succeeds and retains the private
+fixture. This is not a full recovery-profile pass. Node diagnostics record two
+additional ten-second `AuthorityUnavailable` requests and `ReadFailed` events
+for page staging and journal tail; these observations do not establish the
+timeout's cause. Operation deadlines and resident bounds are unchanged.
+
+The runner is `f9329712…67ac8b82a`, the target node is
+`fa29956b…fdf8f`, and the other five binaries match the completed sparse-sibling
+baseline above. Source, full hashes, failed phase and retained fixture location
+are recorded in `/tmp/transit-sql-shared-point-read-cold-recovery.json`, with its
+matching `.log`. The private fixture includes credentials and must not be
+published. PRs #40 and #41 are merged; merge status does not qualify this failed
+schedule or establish a performance improvement under native cold storage.
+
+## SQL branch integration of seeded simulations
+
+The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
+resource, shared Session/courier, component and external fault suites. The
+consolidated query and protocol owners remain in use. All 75 rebased commits
+retain their author dates and use matching committer dates. Conflict resolution
+preserves both task/invariant inventories and roadmap scope; Session and courier
+production files match main exactly.
+
+On development source based on `9140972c`, pinned Zig
+`0.17.0-dev.2267+48abf1a34` and the bindings shell:
+
+- Full `just check` passes, including unit tests, generated contracts, CLI
+  diagnostics, frontend checks and the documentation build. Final direct checks
+  pass 4581 links across 480 files and 56 invariants/53 bounds/13 SDK scenarios.
+- `just test::domain-simulation --seeds 8` passes **40 package schedules with
+  identical replay in 13.302 s**. The new catalog domain runs 512 requests over
+  eight seeds: 128 fresh Tables and 128 conflicts of each kind. Every round
+  injects a point/page failure and compares committed state with an independent
+  accepted-request ledger; seeded choices also cover revocation, discarded
+  proposals and replacement after lost replies. Each seed ends with 115 keys,
+  sixteen created Tables and all 64 original receipts. Sorted bounded pages and
+  changed-cut rejection are checked throughout.
+- The catalog test binary SHA-256 is
+  `8d69a473d37ba62b800965f8f0f372c11b58f20aab3ff522c421062fecc53a05`;
+  runner SHA-256 is
+  `2b157b687d1c9f12e87efc56f7277e7b0605e802099da974846d694a3c361a06`.
+  `.cache/verification/domain-simulation.json` records all five binary hashes,
+  source/dirty status and per-seed trace hashes; its adjacent directory retains
+  original and replay events/logs.
+
+Logs are `/tmp/transit-sql-pr33-full-check.log` and
+`/tmp/transit-sql-pr33-domain.log`. These private-turn stores model atomic
+publication; they do not qualify physical journal faults, native catalog growth,
+signed transports or installed SDKs. Compiling catalog policy/receipt mutants
+are registered for the committed-source checker; registration alone is not a
+passed mutation proof. Separate execution results follow their completed runs.
+
+Committed `08fd00a6` also passes `just test::domain-simulation-mutations`.
+All seven compiling mutants are detected by executed assertions, including the
+new current-create-policy bypass (2.420 s) and overwritten receipt position
+(2.375 s). The baseline and original five component defects pass their expected
+checks; build failures are not counted. Evidence is
+`.cache/verification/domain-simulation-mutations/evidence.json` with per-mutant
+traces/logs, and `/tmp/transit-sql-pr33-domain-mutations.log`.
+
+The rebased resource run (`just test::resource-simulation --seeds 4`) passes
+**402 traces / 7804 events with identical replay in 216.661 s**. The shared-client
+run (`just test::scheduler-simulation --seeds 8 --steps 96`) passes **12 traces /
+1410 events in 37.499 s**. Both began on development source based on `9140972c`;
+reports retain exact binary/oracle hashes and configuration. Logs are
+`/tmp/transit-sql-pr33-simulations.log`. Resource faults use the atomic in-memory
+journal premise; the scheduler uses signed in-process transport. Neither result
+expands the documented physical-durability or host-cancellation evidence.
+
+Python, TypeScript, Rust and Ruby packages are rebuilt against the rebased
+libraries before `just test::catalog --sdk python --sdk node --sdk rust --sdk ruby`.
+The combined installed schedule passes in **48.876 s**, including **25.066 s**
+installation: **2157 reads, 51 accepted turn responses, ten lost caller receipts
+and three lost owner receipts**. Original receipts, current catalog/native denial
+and replacement after lost admission pass for all selected callers. Bounds remain
+four mutations, 133-byte values and eight resident pages; twelve Tables do not
+establish native catalog growth. This report binds `08fd00a6` with dirty status
+(the resumed C/C++ source is uncommitted and not selected). Artifact hashes and
+execution output are retained in `/tmp/transit-sql-pr33-sdk-native.json` and
+`/tmp/transit-sql-pr33-sdk-native.log`.
+
+Rebuilt native SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `node` | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| `proof` | `03074b53ddcb92a57e63a00f2e2b53093fc61efaf5b8cdca4ae3214f1464340f` |
+| `host` | `64fd1efeeb6cee7a182271439cb429fa2fc4c68d31e8a68c2e82b74bb70faa72` |
+| `port` | `67db289ec20b1e2dc94ebe918694f17be34d5c33dc1e219e8bc72a723f284643` |
+| `library.so` | `85411c09a7e8bc832050fead3fc93c5eb54eeb37966f847ff6f2f7792dc9780c` |
+| `cli` | `ec1ee54bcf1e41a345b7a52e4398fbcfa012adc530240af943677aefc2d76351` |
+
+Committed-HEAD `just ci-clean --lane core` passes **all 22 tasks at `08fd00a6`
+in 744.86 s**, including the added resource, shared-client, catalog/component and
+external fault suites. It installs locked frontend dependencies and runs from a
+fresh clone without inherited build outputs. Completion and per-task timing are
+in `.cache/ci/clean/08fd00a6d234-transit-ci-9cznago1/`; the log is
+`/tmp/transit-sql-pr33-ci-clean.log`. This qualifies the expanded core lane and
+separately recorded focused schedules, not a full clean suite or the resumed
+uncommitted C/C++ implementation. Existing incomplete proof runs remain recorded.
+
+## Offline state declaration compiler
+
+The additive Fuze `Declaration` API parses, validates and formats owned
+`CREATE TABLE/KV/DOCUMENT` definitions. Its explicit `tableSchema` adapter accepts
+only the existing two-column Table profile. This is offline compiler evidence;
+it does not qualify a catalog, resource creation, grants, publication, language
+SDK/CLI administration or wider Table storage. Existing native and ABI definitions
+are unchanged. [The contract](../contracts/STATE_DECLARATION_V1.md) owns semantics;
+`SQL-DECLARATION-01` and the per-definition bound are in the verification inventory.
+
+Executed in the pinned bindings shell on the development source based on
+`aba61401`:
+
+- Full `just check` passes, including generated contracts, native/package tests,
+  CLI diagnostics, frontend checks and the production documentation build. Final
+  proof-inventory and documentation checks cover 51 invariants, 52 classified
+  bounds, 12 SDK scenarios and 4498 local links across 472 files.
+- Standalone `transit-fuze` `zig build test` passes, including five declaration
+  tests for owned names, canonical padding, sparse/duplicate columns, whole-input
+  rejection, formatting buffers and explicit Table capability checks.
+- `just test::sql` passes **182 declaration cases**, including the complete
+  four-type/three-nullability product for both Table columns. **156 Zig/ANTLR
+  ASTs agree**, canonical formatting reparses in both implementations, and five
+  compatible definitions match independently calculated existing Table schema
+  fingerprints. Other cases reject at syntax, structural or capability boundaries.
+  Existing SELECT/Arrow, unified-source and mutation oracles also pass.
+- `just test::sql-benchmark --samples 7 --output
+.cache/verification/sql/state-declaration-benchmark.json` records seven warmed
+  ReleaseSafe processes with 10,000 compilations per case. The pinned compiler
+  is `0.17.0-dev.2267+48abf1a34`; the probe SHA-256 is
+  `83e09098bd4ac3877a8dec229b22936d70ac8fe0bcad9b2ee464799f77948ad9`.
+
+| Offline declaration | Median ns/compile | Observed min–max |
+| ------------------- | ----------------: | ---------------: |
+| Two-column Table    |            296.92 |    284.35–317.55 |
+| KV                  |            133.13 |    130.98–136.94 |
+| Document            |            119.28 |    114.54–120.86 |
+| Eight-column Table  |            632.59 |    612.16–636.75 |
+
+The raw report identifies dirty source, platform and binary. This is a local
+compiler baseline with no allocation, source I/O, authorization, publication or
+transport work. It is not a before/after speedup or end-to-end latency claim.
+
+At committed implementation `0bb8364c`, `just ci-clean --lane core` passes all
+18 tasks without inherited workspace build outputs: foundation, properties,
+simulation, codecs, tooling, packages, compute, client ABI, Station, disk storage,
+service, runtime upgrade, callers, inspection and state. Package builds take
+135.06 seconds, Station 150.09 seconds and storage 212.97 seconds, including the
+129.00-second readiness write schedule. Completion, exact revision and timings
+are retained under `.cache/ci/clean/0bb8364c2384-transit-ci-3clcw1pd/`.
+The following evidence-only commit changes no production source. This is a
+complete core-lane pass plus the focused SQL proof above, not a full clean-suite
+or administrative-execution qualification.
+
 ## Rust native lifetime investigation — 2026-09-30
 
 Following PR #33, a fresh installed Rust suite passed on the merged source
@@ -179,17 +2242,17 @@ revision is `b0462904`; subsequent ledger changes contain documentation/evidence
 Passing profiles below retain their actual source identity. They do not combine
 into a complete ordinary-suite pass.
 
-| Executed profile | Result and scope |
-| --- | --- |
-| Repository checks | `just check` passed at committed `fb912908`, including units/contracts, ownership inventory, frontend checks and the public Docusaurus build |
-| Expanded resource simulation | At committed `5b267061`, 204 traces / 3,958 events replayed identically in 111.250 s; staging/read/publication/trim faults and independent atomicity/view checks |
-| Clean ordinary simulations | At `e92087ff`, 14 authority traces / 749 events, six resource traces / 112 events, eight Session/courier traces / 542 events and eight component package schedules passed with identical replay |
-| Compiling mutations | At committed `5b267061`, all nine new resource, scheduler and component mutants were detected by executed contract checks; build failures/timeouts did not count |
-| External supervisor | At `f7d0361f`, seed 19 / twelve rounds passed in a fresh checkout in 19.588 s; the later clean core run also passed four rounds, with requested faults observed and cleanup joined |
-| Installed SDKs | Python/Node package builds and independent installed consumers passed in 30.343 s total; signed histories, cancellation/disposal and exactly two admissions retained |
-| Application/provider fixture | Lost provisioning, rotation, migration and activation replies plus runtime upgrade passed in 28.531 s total |
-| Query lifetimes | Durable lifecycle, durable expiry and interactive Table cancellation/current denial passed in 385.887 s total |
-| Browser/reactive lifecycle | The real TLS/browser owner passed refresh replacement, pause, revocation, stream loss/resume, pagehide/expiry and reset/resnapshot in 169.381 s total |
+| Executed profile             | Result and scope                                                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository checks            | `just check` passed at committed `fb912908`, including units/contracts, ownership inventory, frontend checks and the public Docusaurus build                                                    |
+| Expanded resource simulation | At committed `5b267061`, 204 traces / 3,958 events replayed identically in 111.250 s; staging/read/publication/trim faults and independent atomicity/view checks                                |
+| Clean ordinary simulations   | At `e92087ff`, 14 authority traces / 749 events, six resource traces / 112 events, eight Session/courier traces / 542 events and eight component package schedules passed with identical replay |
+| Compiling mutations          | At committed `5b267061`, all nine new resource, scheduler and component mutants were detected by executed contract checks; build failures/timeouts did not count                                |
+| External supervisor          | At `f7d0361f`, seed 19 / twelve rounds passed in a fresh checkout in 19.588 s; the later clean core run also passed four rounds, with requested faults observed and cleanup joined              |
+| Installed SDKs               | Python/Node package builds and independent installed consumers passed in 30.343 s total; signed histories, cancellation/disposal and exactly two admissions retained                            |
+| Application/provider fixture | Lost provisioning, rotation, migration and activation replies plus runtime upgrade passed in 28.531 s total                                                                                     |
+| Query lifetimes              | Durable lifecycle, durable expiry and interactive Table cancellation/current denial passed in 385.887 s total                                                                                   |
+| Browser/reactive lifecycle   | The real TLS/browser owner passed refresh replacement, pause, revocation, stream loss/resume, pagehide/expiry and reset/resnapshot in 169.381 s total                                           |
 
 `just ci-clean --lane core` passed all 22 tasks at `e92087ff` in 1,186.95 s.
 `just ci-clean --lane experience` passed all seven tasks at `b0462904` in
@@ -410,24 +2473,24 @@ are historical executions and do not qualify the replacement automatically.
 Executed against the cutover workspace with the pinned Linux x86_64 Nix/Zig
 toolchain:
 
-| Check | Observed result |
-| --- | --- |
-| `just check` | Passed pinned tooling checks, generated contracts, native units/fixtures, CLI diagnostics, documentation links, frontend lint/types/unit tests and the production documentation build |
-| Native unit/independent fixture suite | Passed, including current-definition rejection and owner-lifetime read/required-dependency gates |
-| `zig build test-storage` | Passed all four disk/restart phases of the nine storage, kernel, effects, lifetime, outbox, runtime, deletion, state and readiness executables |
-| `zig build test-service` | Passed actual signed HTTP counter/state recovery, bootstrap/fencing, background expiry/checkpointing, blocked storage deadlines, real effect uncertainty and payload deletion |
-| `zig build test-station` | Passed two-resource application recovery, registry routing, timed waits, supervision, paged child discovery and lifetime cleanup |
-| Native state HTTP proof | Passed resource grants, captured views, paging/cuts, exact retry, counter worker and disk recovery |
-| `zig build test-flight -Dflight-faults=true` in the Flight shell | Passed independent Arrow clients, bounded concurrent/control behavior, ticket/current-rights checks and worker/gateway/node/store recovery |
-| `just bindings::native` and `just bindings::node-sdk-test` in the bindings shell | Passed native/port ownership and installed Node client/Station/query/HTTP/gRPC scenarios |
-| `zig build test-public-query` | Passed actual shell/hosts, 41 exact int64/null rows, frozen retry, fencing/recovery, busy admission, schema rejection, cancellation and terminal resource refusal |
-| `just bindings::python-test` in the bindings shell | Passed clean installed client/Station packages, durable continuation, query pages, HTTP and gRPC scenarios |
-| `zig build test-transit-board` | Passed embedded assets, current inspection/resource grants, framework views, history gaps, outage handling and bounded-load control progress |
-| `zig build test-board-query` | Passed separate query identity, current typed result schema, exact retry, malformed admission, incomplete-result refusal, cancellation and current grants/cuts |
-| `zig build test-observability` | Passed correlated spans, exact receipt retries, revoked reads, secret exclusion and progress with a blocked diagnostic pipe |
-| `zig build test-inspection` | Passed bounded scoped discovery, signed query rejection, old-route refusal, changed cuts, revocation and disk recovery |
-| `zig build test-server -Dserver-faults=true` | Passed local lifecycle, exact bootstrap recovery, definition mismatch without record mutation, private gateway/Host checks, process/storage recovery, executable drift and authority rollback refusal |
-| `just examples::run counter` | Passed the actual counter binary over independently granted resource state |
+| Check                                                                            | Observed result                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just check`                                                                     | Passed pinned tooling checks, generated contracts, native units/fixtures, CLI diagnostics, documentation links, frontend lint/types/unit tests and the production documentation build                 |
+| Native unit/independent fixture suite                                            | Passed, including current-definition rejection and owner-lifetime read/required-dependency gates                                                                                                      |
+| `zig build test-storage`                                                         | Passed all four disk/restart phases of the nine storage, kernel, effects, lifetime, outbox, runtime, deletion, state and readiness executables                                                        |
+| `zig build test-service`                                                         | Passed actual signed HTTP counter/state recovery, bootstrap/fencing, background expiry/checkpointing, blocked storage deadlines, real effect uncertainty and payload deletion                         |
+| `zig build test-station`                                                         | Passed two-resource application recovery, registry routing, timed waits, supervision, paged child discovery and lifetime cleanup                                                                      |
+| Native state HTTP proof                                                          | Passed resource grants, captured views, paging/cuts, exact retry, counter worker and disk recovery                                                                                                    |
+| `zig build test-flight -Dflight-faults=true` in the Flight shell                 | Passed independent Arrow clients, bounded concurrent/control behavior, ticket/current-rights checks and worker/gateway/node/store recovery                                                            |
+| `just bindings::native` and `just bindings::node-sdk-test` in the bindings shell | Passed native/port ownership and installed Node client/Station/query/HTTP/gRPC scenarios                                                                                                              |
+| `zig build test-public-query`                                                    | Passed actual shell/hosts, 41 exact int64/null rows, frozen retry, fencing/recovery, busy admission, schema rejection, cancellation and terminal resource refusal                                     |
+| `just bindings::python-test` in the bindings shell                               | Passed clean installed client/Station packages, durable continuation, query pages, HTTP and gRPC scenarios                                                                                            |
+| `zig build test-transit-board`                                                   | Passed embedded assets, current inspection/resource grants, framework views, history gaps, outage handling and bounded-load control progress                                                          |
+| `zig build test-board-query`                                                     | Passed separate query identity, current typed result schema, exact retry, malformed admission, incomplete-result refusal, cancellation and current grants/cuts                                        |
+| `zig build test-observability`                                                   | Passed correlated spans, exact receipt retries, revoked reads, secret exclusion and progress with a blocked diagnostic pipe                                                                           |
+| `zig build test-inspection`                                                      | Passed bounded scoped discovery, signed query rejection, old-route refusal, changed cuts, revocation and disk recovery                                                                                |
+| `zig build test-server -Dserver-faults=true`                                     | Passed local lifecycle, exact bootstrap recovery, definition mismatch without record mutation, private gateway/Host checks, process/storage recovery, executable drift and authority rollback refusal |
+| `just examples::run counter`                                                     | Passed the actual counter binary over independently granted resource state                                                                                                                            |
 
 Limits at this checkpoint: the remaining installed-language matrix stopped at
 Rust formatting;
@@ -459,40 +2522,40 @@ links, rather than as current specifications.
 The following executions use the pinned Linux x86_64 toolchain. Rows describe
 finite schedules, not a complete cutover qualification or performance guarantee.
 
-| Check | Observed result |
-| --- | --- |
-| `just check` | Passed native units and independent fixtures, generated contracts, verification inventory, 174 CLI diagnostic cases, documentation links, frontend checks and production documentation build |
-| `zig build test-query -Doptimize=ReleaseSafe` | Passed staging, sealing, publication and partial-consumption recovery over real disk Ursula: 41 rows, six current nested IPC segments, 21,296 bytes, exact retries and receiver credit |
-| `zig build test-arrow` | Independent PyArrow validated current scalar/state encoding, 13 malformed schema/state cases, all eight page widths, exact aggregates and 167-byte checkpoints; a 70-row text result occupied 38,296 bytes over 11 segments |
-| SQL grammar/compiler proofs | Three parsers agreed on 103 SELECT cases; 86 current plans matched the independent encoding/result oracle. Unified results covered three source bases and all eight page widths |
-| Unified Table shell/Board/browser/lifecycle | Passed frozen upload/restart, same signed retries, current grants, explicit cancellation, released-version refusal, finite draft budgets, complete coverage and retirement: 41 rows, six segments, 251.59 seconds |
-| Interactive Table/KV/Document queries | Passed fresh cuts, bounded frames, zero durable updates, cancellation and current denial: 3.60 / 3.07 / 314.63 seconds |
-| Serving lifecycle | Passed two-gateway exact retry, ordered cancel/timeout, late replies after restart, process/wait/resource limits and current revocation: 23.59 seconds |
-| Reactive browser view lifecycle | Passed shared-principal tabs, transport reconnection without replacing logical sessions, pagehide/expiry, explicit watch-generation reset/resnapshot and retirement: 61.61 seconds |
-| Local installation and replacement faults | Passed exact recovery after five lost replies: spawn, worker rotation, copy admission, worker copy and activation admission; fault schedule 22.252 seconds |
-| Native client ABI and `just bindings::native` | Passed canonical signatures, foreign/missing-definition rejection, saved-operation recovery, disk/host restart, revoked retry, scoped Station callbacks and independent decoding of six current query segments |
-| `just bindings::python-test` | Passed clean installed client/Station/example artifacts, scope/lifetime ownership, retained query segments and HTTP/gRPC capture/replay/disposal; HTTP 65.05 seconds, gRPC 68.94 seconds |
-| Installed Node and Rust SDKs | Passed raw clients, Station callbacks/recovery, current nested Arrow ownership and HTTP/gRPC capture, disposal and follow-up rejection. Node HTTP/gRPC: 76.28 / 76.20 seconds; Rust: 106.17 / 107.77 seconds |
-| Installed Ruby, C/C++, Java, .NET and BEAM SDKs | Passed raw clients, Station scope/fencing/recovery, independent decoding and retained ownership of six current nested IPC segments, and HTTP/gRPC capture/replay/disposal. HTTP/gRPC seconds: Ruby 69.62 / 69.36; C 73.06 / 76.84; C++ 79.49 / 85.10; Java 83.89 / 83.29; .NET 72.01 / 73.90; Erlang 32.27 / 30.48; Elixir 35.72 / 32.15 |
-| Unified KV and Document shell/Board/browser | Passed frozen retries, disk/worker recovery, scoped denial, complete nested results and retirement. KV: 41 rows, six segments, 170.91 seconds; Document: 12 rows, two segments, 509.39 seconds |
-| Transition properties, codecs and bounded models | Passed 40 saved/generated authority traces (1,687 steps), codec corpus/allocation failures, the authority model with negative controls, and the delivery safety model |
-| Runtime upgrade and reference workload | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown |
-| Local and Compose counter launchers | Passed persistent restart, exact retry, artifact replacement, incompatible-definition refusal, courier recovery, Board evidence and foreground signal cleanup |
-| `just test::growing-capacity` | Real owned ext4 ENOSPC, physical control-reserve release and disk restart passed with 40 retained rows and one 8,544-byte resident page. Recovery created zero pages and issued only GET/HEAD requests |
-| Unified KV and Document lifecycle/expiry | Current-definition lifecycle schedules passed caller/source denial, cancellation, released-version refusal and bounded cleanup (76.70 / 364.63 seconds). Real-clock expiry denied prefix/complete reads, released pins and survived node/store restart (194.16 / 503.58 seconds) |
-| Current reactive limits/client/refresh/view lifecycle | Passed finite sessions/streams, reserved renewal and health, signed cursors, malformed frames, reconnects, observer absence, expiry and retirement. Two gateways used 51,281,920 bytes RSS under the 256 MiB ceiling; health took 0.005 seconds. Shared client, durable refresh and browser lifecycle passed in 4.44 / 71.16 / 54.47 seconds |
-| Current Flight faults | Passed independent Arrow consumers, concurrent/control reads, one-byte HTTP/2 credit stalls, malformed framing, current ticket rights, worker/gateway/node/store restart and retirement. Sampled gateway RSS was 72,007,680 bytes |
-| Local and Compose Station launchers | Passed registry routing, calls, current Arrow exchange, three-worker recovery/upgrades, Board provenance and persistent stop/start |
-| Committed-source mutation controls | All four disabled guards—generation, resource revision, permission and view deadline—produced minimized engine counterexamples at `3ea81aaa`. Compilation failures were not counted as detections |
-| Current Station | Passed calls, two-resource turns, exact recovery, captured authorized nested Arrow, fencing and blocked-handler control; registry, supervision, late timeout closure and real-clock lifetime/reclamation survived disk restart |
-| Current public-query startup and Work Items | Injected first-read 503 responses for both query hosts recovered before readiness; full public-query retry, recovery and denial passed. Native Work Items passed 19 rows, two fresh-key fenced replacements, disk restart and exact operator/worker retries in 15.36 seconds |
-| Current Work Items browser | Passed complete pages, publication/schema changes, gateway replacement, saved upload recovery/cancellation, fresh query generation, current denial and responsive keyboard/axe checks in 93.48 seconds. Largest sampled gateway RSS was 28,954,624 bytes |
-| Reference Station and counter launchers | Passed registry/calls/current Arrow, real pod loss with same-PID fresh activation, worker upgrades, Board provenance, authority restart and persistent stop/start. Counter also passed queued work through image replacement, logical suspension/provider stop and courier recovery |
-| Immutable page proof | Current v1 roots/checkpoints, page writes, read-only recovery and trimming passed with 64 keys, 17,088 cache bytes and zero recovery writes |
-| Current SDK unified matrix | All ten installed targets passed KV, Table and Document codecs and complete source schedules: frozen upload retry, worker/node/store recovery, current prefix denial and retired-source refusal. KV: 41 rows / six segments / 13,584 bytes / 231.00 seconds; Table: 41 / six / 13,584 / 248.59 seconds; Document: 12 / two / 9,880 / 1,742.66 seconds. These runs used disk-backed temporary storage and eight/eight/64 resident authority pages |
-| Current core service/caller follow-up | Passed signed service recovery, background expiry/checkpointing, effect uncertainty without replay dispatch, runtime upgrade fencing, runnable counter/byte-log examples, inspection and state APIs |
-| Physical-disk phase measurements | Standalone readiness write/recover/checkpoint/trim recovery passed in 348.45 / 6.88 / 5.48 / 4.97 seconds. Kernel write/recover/checkpoint/trim recovery passed in 27.47 / 79.40 / 1.87 / 3.32 seconds. The shared-store schedule exceeded its previous 120-second phase budget; each phase now has a finite 600-second test limit and prints its actual cost |
-| Complete current disk schedule | All nine executables passed write, SIGKILL/recovery, checkpoint and trim recovery against one shared disk store. Readiness write took 395.33 seconds and kernel recovery took 100.96 seconds; every phase completed within the finite 600-second fixture budget |
+| Check                                                 | Observed result                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `just check`                                          | Passed native units and independent fixtures, generated contracts, verification inventory, 174 CLI diagnostic cases, documentation links, frontend checks and production documentation build                                                                                                                                                                                                                                                     |
+| `zig build test-query -Doptimize=ReleaseSafe`         | Passed staging, sealing, publication and partial-consumption recovery over real disk Ursula: 41 rows, six current nested IPC segments, 21,296 bytes, exact retries and receiver credit                                                                                                                                                                                                                                                           |
+| `zig build test-arrow`                                | Independent PyArrow validated current scalar/state encoding, 13 malformed schema/state cases, all eight page widths, exact aggregates and 167-byte checkpoints; a 70-row text result occupied 38,296 bytes over 11 segments                                                                                                                                                                                                                      |
+| SQL grammar/compiler proofs                           | Three parsers agreed on 103 SELECT cases; 86 current plans matched the independent encoding/result oracle. Unified results covered three source bases and all eight page widths                                                                                                                                                                                                                                                                  |
+| Unified Table shell/Board/browser/lifecycle           | Passed frozen upload/restart, same signed retries, current grants, explicit cancellation, released-version refusal, finite draft budgets, complete coverage and retirement: 41 rows, six segments, 251.59 seconds                                                                                                                                                                                                                                |
+| Interactive Table/KV/Document queries                 | Passed fresh cuts, bounded frames, zero durable updates, cancellation and current denial: 3.60 / 3.07 / 314.63 seconds                                                                                                                                                                                                                                                                                                                           |
+| Serving lifecycle                                     | Passed two-gateway exact retry, ordered cancel/timeout, late replies after restart, process/wait/resource limits and current revocation: 23.59 seconds                                                                                                                                                                                                                                                                                           |
+| Reactive browser view lifecycle                       | Passed shared-principal tabs, transport reconnection without replacing logical sessions, pagehide/expiry, explicit watch-generation reset/resnapshot and retirement: 61.61 seconds                                                                                                                                                                                                                                                               |
+| Local installation and replacement faults             | Passed exact recovery after five lost replies: spawn, worker rotation, copy admission, worker copy and activation admission; fault schedule 22.252 seconds                                                                                                                                                                                                                                                                                       |
+| Native client ABI and `just bindings::native`         | Passed canonical signatures, foreign/missing-definition rejection, saved-operation recovery, disk/host restart, revoked retry, scoped Station callbacks and independent decoding of six current query segments                                                                                                                                                                                                                                   |
+| `just bindings::python-test`                          | Passed clean installed client/Station/example artifacts, scope/lifetime ownership, retained query segments and HTTP/gRPC capture/replay/disposal; HTTP 65.05 seconds, gRPC 68.94 seconds                                                                                                                                                                                                                                                         |
+| Installed Node and Rust SDKs                          | Passed raw clients, Station callbacks/recovery, current nested Arrow ownership and HTTP/gRPC capture, disposal and follow-up rejection. Node HTTP/gRPC: 76.28 / 76.20 seconds; Rust: 106.17 / 107.77 seconds                                                                                                                                                                                                                                     |
+| Installed Ruby, C/C++, Java, .NET and BEAM SDKs       | Passed raw clients, Station scope/fencing/recovery, independent decoding and retained ownership of six current nested IPC segments, and HTTP/gRPC capture/replay/disposal. HTTP/gRPC seconds: Ruby 69.62 / 69.36; C 73.06 / 76.84; C++ 79.49 / 85.10; Java 83.89 / 83.29; .NET 72.01 / 73.90; Erlang 32.27 / 30.48; Elixir 35.72 / 32.15                                                                                                         |
+| Unified KV and Document shell/Board/browser           | Passed frozen retries, disk/worker recovery, scoped denial, complete nested results and retirement. KV: 41 rows, six segments, 170.91 seconds; Document: 12 rows, two segments, 509.39 seconds                                                                                                                                                                                                                                                   |
+| Transition properties, codecs and bounded models      | Passed 40 saved/generated authority traces (1,687 steps), codec corpus/allocation failures, the authority model with negative controls, and the delivery safety model                                                                                                                                                                                                                                                                            |
+| Runtime upgrade and reference workload                | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown                                                                                                                                                                                                                            |
+| Local and Compose counter launchers                   | Passed persistent restart, exact retry, artifact replacement, incompatible-definition refusal, courier recovery, Board evidence and foreground signal cleanup                                                                                                                                                                                                                                                                                    |
+| `just test::growing-capacity`                         | Real owned ext4 ENOSPC, physical control-reserve release and disk restart passed with 40 retained rows and one 8,544-byte resident page. Recovery created zero pages and issued only GET/HEAD requests                                                                                                                                                                                                                                           |
+| Unified KV and Document lifecycle/expiry              | Current-definition lifecycle schedules passed caller/source denial, cancellation, released-version refusal and bounded cleanup (76.70 / 364.63 seconds). Real-clock expiry denied prefix/complete reads, released pins and survived node/store restart (194.16 / 503.58 seconds)                                                                                                                                                                 |
+| Current reactive limits/client/refresh/view lifecycle | Passed finite sessions/streams, reserved renewal and health, signed cursors, malformed frames, reconnects, observer absence, expiry and retirement. Two gateways used 51,281,920 bytes RSS under the 256 MiB ceiling; health took 0.005 seconds. Shared client, durable refresh and browser lifecycle passed in 4.44 / 71.16 / 54.47 seconds                                                                                                     |
+| Current Flight faults                                 | Passed independent Arrow consumers, concurrent/control reads, one-byte HTTP/2 credit stalls, malformed framing, current ticket rights, worker/gateway/node/store restart and retirement. Sampled gateway RSS was 72,007,680 bytes                                                                                                                                                                                                                |
+| Local and Compose Station launchers                   | Passed registry routing, calls, current Arrow exchange, three-worker recovery/upgrades, Board provenance and persistent stop/start                                                                                                                                                                                                                                                                                                               |
+| Committed-source mutation controls                    | All four disabled guards—generation, resource revision, permission and view deadline—produced minimized engine counterexamples at `3ea81aaa`. Compilation failures were not counted as detections                                                                                                                                                                                                                                                |
+| Current Station                                       | Passed calls, two-resource turns, exact recovery, captured authorized nested Arrow, fencing and blocked-handler control; registry, supervision, late timeout closure and real-clock lifetime/reclamation survived disk restart                                                                                                                                                                                                                   |
+| Current public-query startup and Work Items           | Injected first-read 503 responses for both query hosts recovered before readiness; full public-query retry, recovery and denial passed. Native Work Items passed 19 rows, two fresh-key fenced replacements, disk restart and exact operator/worker retries in 15.36 seconds                                                                                                                                                                     |
+| Current Work Items browser                            | Passed complete pages, publication/schema changes, gateway replacement, saved upload recovery/cancellation, fresh query generation, current denial and responsive keyboard/axe checks in 93.48 seconds. Largest sampled gateway RSS was 28,954,624 bytes                                                                                                                                                                                         |
+| Reference Station and counter launchers               | Passed registry/calls/current Arrow, real pod loss with same-PID fresh activation, worker upgrades, Board provenance, authority restart and persistent stop/start. Counter also passed queued work through image replacement, logical suspension/provider stop and courier recovery                                                                                                                                                              |
+| Immutable page proof                                  | Current v1 roots/checkpoints, page writes, read-only recovery and trimming passed with 64 keys, 17,088 cache bytes and zero recovery writes                                                                                                                                                                                                                                                                                                      |
+| Current SDK unified matrix                            | All ten installed targets passed KV, Table and Document codecs and complete source schedules: frozen upload retry, worker/node/store recovery, current prefix denial and retired-source refusal. KV: 41 rows / six segments / 13,584 bytes / 231.00 seconds; Table: 41 / six / 13,584 / 248.59 seconds; Document: 12 / two / 9,880 / 1,742.66 seconds. These runs used disk-backed temporary storage and eight/eight/64 resident authority pages |
+| Current core service/caller follow-up                 | Passed signed service recovery, background expiry/checkpointing, effect uncertainty without replay dispatch, runtime upgrade fencing, runnable counter/byte-log examples, inspection and state APIs                                                                                                                                                                                                                                              |
+| Physical-disk phase measurements                      | Standalone readiness write/recover/checkpoint/trim recovery passed in 348.45 / 6.88 / 5.48 / 4.97 seconds. Kernel write/recover/checkpoint/trim recovery passed in 27.47 / 79.40 / 1.87 / 3.32 seconds. The shared-store schedule exceeded its previous 120-second phase budget; each phase now has a finite 600-second test limit and prints its actual cost                                                                                    |
+| Complete current disk schedule                        | All nine executables passed write, SIGKILL/recovery, checkpoint and trim recovery against one shared disk store. Readiness write took 395.33 seconds and kernel recovery took 100.96 seconds; every phase completed within the finite 600-second fixture budget                                                                                                                                                                                  |
 
 The earlier Table, interactive, serving, reactive and installation executions
 precede the later Station-format/definition change. The rows explicitly marked
@@ -516,18 +2579,18 @@ Board keeps private shared viewer admission and its separate query identity.
 The [compatibility matrix](../packages/zig/transit-serving/docs/compatibility.md)
 separates consumers, placements and unsupported protocols.
 
-| Proof | Executed evidence and measured cost |
-| --- | --- |
-| `just test::serving-http` and standalone HTTP tests | Real socket framing/chunking, duplicate/ambiguous headers, slow uploads, two blocked 8 MiB response writes, 413/503, reserved health, header/request deadlines and joined parent shutdown. Injected scheduling failure joins the already-started timer |
-| Board unit/service proof | Existing inspection flooding, revocation, trimming, storage outage and diagnostics pass; four stalled uploads exhaust data capacity while reserved health remains responsive (0.007s maximum control latency in that run) |
-| `just test::unified-ingress table` | Two actual Board instances, shell, generated client and Chromium; competing principal sequences, exact retries, durable active-upload quota, current prefix denial, nested Arrow/JSON pages and worker/node/store recovery. Final run: 290.33s; 331 cold objects / 31,238,036 bytes |
-| `just test::serving-capacity` | Real nginx 1.30.5 TLS, two gateways, per-caller fairness, eight stalled authorized reads, excess caller 429/data 503 and health 0.003s. Lost native admission, worker commits, destination delivery and reply-delivery receipts recover exact bytes. Accepted mutation exceeds the gateway deadline, then recovers. Final run: 15.74s |
-| `just test::serving-lifetimes` | Explicit cancel, authenticated timeout, duplicate observation, late replies after restart, finite process/wait bounds and hard resource expiry without observer delivery. Final run: 30.05s including real-clock waits |
-| `just test::serving-growth` | 128 additional retained operations, old point reads and exact original results with only 8 resident authority pages. Final run with explicit native ceiling/reserve: 501.27s |
-| `just examples::serving-compose` | Two TLS gateways, immutable results, current denial, physical worker/gateway/node/disk recovery and fresh ownership. Final cached-image run: 16.73s; 17 cold objects / 880,092 bytes |
-| `just examples::serving-reference` | Operator-attributed fresh Substrate worker keys and exact generations; private gateway Secrets, real egress-denial probes, two TLS gateways and physical recovery. Final cached-image run: 89.49s; 14 cold objects / 890,245 bytes |
-| `just launchers::compose::test` / `just launchers::reference::test-launcher` | Board and persistent launcher regressions pass in separately owned installations: isolated updates, same-PID replacement, queued outbox/reply evidence, authority/store restart, stop/start and missing-store refusal |
-| `just test::growing-quota` | Explicit quota exhaustion retains pending Station work/backlog, uses the control reserve and recovers from disk |
+| Proof                                                                        | Executed evidence and measured cost                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::serving-http` and standalone HTTP tests                          | Real socket framing/chunking, duplicate/ambiguous headers, slow uploads, two blocked 8 MiB response writes, 413/503, reserved health, header/request deadlines and joined parent shutdown. Injected scheduling failure joins the already-started timer                                                                                |
+| Board unit/service proof                                                     | Existing inspection flooding, revocation, trimming, storage outage and diagnostics pass; four stalled uploads exhaust data capacity while reserved health remains responsive (0.007s maximum control latency in that run)                                                                                                             |
+| `just test::unified-ingress table`                                           | Two actual Board instances, shell, generated client and Chromium; competing principal sequences, exact retries, durable active-upload quota, current prefix denial, nested Arrow/JSON pages and worker/node/store recovery. Final run: 290.33s; 331 cold objects / 31,238,036 bytes                                                   |
+| `just test::serving-capacity`                                                | Real nginx 1.30.5 TLS, two gateways, per-caller fairness, eight stalled authorized reads, excess caller 429/data 503 and health 0.003s. Lost native admission, worker commits, destination delivery and reply-delivery receipts recover exact bytes. Accepted mutation exceeds the gateway deadline, then recovers. Final run: 15.74s |
+| `just test::serving-lifetimes`                                               | Explicit cancel, authenticated timeout, duplicate observation, late replies after restart, finite process/wait bounds and hard resource expiry without observer delivery. Final run: 30.05s including real-clock waits                                                                                                                |
+| `just test::serving-growth`                                                  | 128 additional retained operations, old point reads and exact original results with only 8 resident authority pages. Final run with explicit native ceiling/reserve: 501.27s                                                                                                                                                          |
+| `just examples::serving-compose`                                             | Two TLS gateways, immutable results, current denial, physical worker/gateway/node/disk recovery and fresh ownership. Final cached-image run: 16.73s; 17 cold objects / 880,092 bytes                                                                                                                                                  |
+| `just examples::serving-reference`                                           | Operator-attributed fresh Substrate worker keys and exact generations; private gateway Secrets, real egress-denial probes, two TLS gateways and physical recovery. Final cached-image run: 89.49s; 14 cold objects / 890,245 bytes                                                                                                    |
+| `just launchers::compose::test` / `just launchers::reference::test-launcher` | Board and persistent launcher regressions pass in separately owned installations: isolated updates, same-PID replacement, queued outbox/reply evidence, authority/store restart, stop/start and missing-store refusal                                                                                                                 |
+| `just test::growing-quota`                                                   | Explicit quota exhaustion retains pending Station work/backlog, uses the control reserve and recovers from disk                                                                                                                                                                                                                       |
 
 Native timings exclude compilation. Placement timings include image preparation,
 deployment and the scenario, excluding final cleanup; first-use downloads/builds
@@ -586,14 +2649,14 @@ introduced. The detailed evidence below preserves each workload, configuration,
 failed attempt and scope; earlier component results do not imply later service
 coverage. Expanded hosted CI cost remains deferred under the agreed CI policy.
 
-| Final recovery schedule | Seconds | Cold objects / bytes | Resident authority pages |
-| --- | ---: | ---: | ---: |
-| KV shell, Board API/Chromium, lifecycle and example | 595.25 | 781 / 83,591,053 | 8 |
-| Table example with injected host read timeout | 193.33 | 210 / 19,269,554 | 8 |
-| Document shell, Board API/Chromium and lifecycle | 875.94 | 1,612 / 174,056,281 | 64 |
-| Document example and permanent source retirement | 670.95 | 1,327 / 122,898,144 | 64 |
-| Table Compose recovery/isolation | 100.76 | 136 / 11,572,217 | 8 |
-| Table Substrate recovery/isolation | 253.55 | 120 / 11,626,265 | 8 |
+| Final recovery schedule                             | Seconds | Cold objects / bytes | Resident authority pages |
+| --------------------------------------------------- | ------: | -------------------: | -----------------------: |
+| KV shell, Board API/Chromium, lifecycle and example |  595.25 |     781 / 83,591,053 |                        8 |
+| Table example with injected host read timeout       |  193.33 |     210 / 19,269,554 |                        8 |
+| Document shell, Board API/Chromium and lifecycle    |  875.94 |  1,612 / 174,056,281 |                       64 |
+| Document example and permanent source retirement    |  670.95 |  1,327 / 122,898,144 |                       64 |
+| Table Compose recovery/isolation                    |  100.76 |     136 / 11,572,217 |                        8 |
+| Table Substrate recovery/isolation                  |  253.55 |     120 / 11,626,265 |                        8 |
 
 All use 8 MiB hot Ursula storage with cold offload and ReleaseSafe executables.
 Native times include provisioning and exclude compilation. Placement times include
@@ -762,7 +2825,6 @@ in **547.72 seconds** (91 cold objects / 9,160,106 bytes), Rust in **570.84 seco
 three source codec fixtures. Rust additionally rejects overlapping mutable client
 borrows at compile time. All owned consumers close and join before these runs
 are counted; an earlier TypeScript run with a shutdown failure is excluded.
-
 
 The signed accepted-Document schedule also passes in **ReleaseSafe**, including
 installed Python sync/async callers, in **581.90 seconds** (478.34 seconds for
@@ -1876,16 +3938,16 @@ All artifacts below are version 0.2.0 on Linux x86_64 with their pinned Nix nati
 closure; the [runtime table](../bindings/README.md#build-and-verification) owns exact
 compiler/runtime versions.
 
-| Public target | Installed artifact | Optional host Arrow adapter |
-| --- | --- | --- |
-| Python | Separate client/Station/native wheels and examples wheel | PyArrow 23 |
-| Node.js/TypeScript | Separate public/native npm tarballs and examples package | Arrow JavaScript 21.2 |
-| Rust | Versioned crates with separate embedded-native crates and examples | Arrow Rust 59 |
-| Ruby | Separate client/Station/native gems and examples gem | None |
-| C/C++ | Independent pkg-config prefixes, headers/libraries and C11/C++17 binaries | None |
-| Java | Independent client/Station/native/example JARs and POM manifests | None |
-| .NET | Independent client/Station/native/example NuGet packages | None |
-| Erlang/Elixir | Separate compiled OTP core/wrapper/native/example applications | None |
+| Public target      | Installed artifact                                                        | Optional host Arrow adapter |
+| ------------------ | ------------------------------------------------------------------------- | --------------------------- |
+| Python             | Separate client/Station/native wheels and examples wheel                  | PyArrow 23                  |
+| Node.js/TypeScript | Separate public/native npm tarballs and examples package                  | Arrow JavaScript 21.2       |
+| Rust               | Versioned crates with separate embedded-native crates and examples        | Arrow Rust 59               |
+| Ruby               | Separate client/Station/native gems and examples gem                      | None                        |
+| C/C++              | Independent pkg-config prefixes, headers/libraries and C11/C++17 binaries | None                        |
+| Java               | Independent client/Station/native/example JARs and POM manifests          | None                        |
+| .NET               | Independent client/Station/native/example NuGet packages                  | None                        |
+| Erlang/Elixir      | Separate compiled OTP core/wrapper/native/example applications            | None                        |
 
 Public registry publication, Java Maven resolution, BEAM Hex/Rebar/Mix registry
 resolution, portable native distributions and foreign Substrate workers are
@@ -1941,17 +4003,17 @@ only runs library/protocol tests; `just test::build` separately compiles the
 application and probe entry points formerly hidden in that unit target. Core CI
 runs both and retains standalone package checks.
 
-| Evidence | What it proves |
-| --- | --- |
-| `just check`, `just test::packages` | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding |
-| `just test::callers`, `just contract::check` | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types |
-| `just test::storage` | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation |
-| `just test::state` | Signed KV/association reads, current independent grants, immutable read views, exact retry, two Zig caller activations, disk recovery, and clock-independent opted-in background reclamation |
-| `just test::service` | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
-| `just test::capacity` | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations |
-| `just test::deployments` | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment |
-| `just launchers::reference::infra-up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials |
-| `just test::runtime-upgrade`, `just launchers::reference::test-launcher` | Fenced same-PID workload changes, provider response loss, complete persistent reference startup, isolated service updates and state-preserving stop/start |
+| Evidence                                                                                                      | What it proves                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just check`, `just test::packages`                                                                           | Independent package composition; signed requests/current grants; one conditional successor; ordered input, invalid proposals and blocked failures; runtime fencing; bounded clocks, settlement, closure and outboxes; shared valid/invalid JSON traces and bounded view encoding                                           |
+| `just test::callers`, `just contract::check`                                                                  | Runnable counter and byte-log examples use the same generic node; opaque bytes, state revisions, atomic outputs, denied effects, lost commit responses, ownership replacement and restart recovery; generated schema matches public types                                                                                  |
+| `just test::storage`                                                                                          | Disk WAL SIGKILL/restart; competing authorities, lost receipts and revoked grants; 100 inputs beyond the 16-record window; checkpoint/trim with pending effect/outbox/control evidence; live authority catch-up; immutable payload deletion after a lost receipt; native long-poll/offset continuation                     |
+| `just test::state`                                                                                            | Signed KV/association reads, current independent grants, immutable read views, exact retry, two Zig caller activations, disk recovery, and clock-independent opted-in background reclamation                                                                                                                               |
+| `just test::service`                                                                                          | Real signed ingress/read revocation/key renewal, request deadlines and paused-worker fencing; Python/Zig wire vectors; actual-clock background expiry/trim; synthetic external I/O with paused dispatch, late results, unknown closure and no replay sends; background payload deletion preserving default-retention bytes |
+| `just test::capacity`                                                                                         | Real ENOSPC on an owned ext4 image; release of preallocated control space; closed admissions, preserved/drained backlog, revocation/expiry/closure/checkpoint and restart; completed maintenance issues no further storage mutations                                                                                       |
+| `just test::deployments`                                                                                      | Rendered/linted Transit Helm chart; explicit bootstrap, existing credential references, retained/reused PVCs, private services and network policies; unsupported values fail before deployment                                                                                                                             |
+| `just launchers::reference::infra-up`, `just launchers::reference::images`, `just launchers::reference::test` | Real provider setup; controller crash after creation; backlog wakeup, killed worker and fresh activation; Ursula/authority pod restart; opted-in expiry; blocked overflow stops replacement; gVisor egress/credential bypass denials                                                                                       |
+| `just test::runtime-upgrade`, `just launchers::reference::test-launcher`                                      | Fenced same-PID workload changes, provider response loss, complete persistent reference startup, isolated service updates and state-preserving stop/start                                                                                                                                                                  |
 
 The capacity proof uses a finite allocation and a measured physical reserve;
 online expansion and arbitrary write amplification are not promised. Retention
@@ -2524,18 +4586,18 @@ Its contracts are
 [catalog collection](../contracts/CATALOG_V1.md) and
 [lifecycle controls](../contracts/LIFECYCLE_V1.md).
 
-| Proof | Evidence and command |
-| --- | --- |
-| Authenticated origin | Core checks authority-derived external/process/effect envelopes, replay mutation rejection and retained origin after collection. Shared `inputs-v1.json` and canonical signed command fixtures are validated by `just check`. |
-| Actual caller exchange | `just test::callers` runs the counter and byte-log executables with `transit-delivery`, drops/malforms acknowledgements, checks exact retries and restarts the courier. Scoped delivery reads expose counts/sequence, not application payload. Core tests cover destination scope, revocation and terminal denial. Delayed counter activation stays within the bootstrap log bound even at debug verbosity. |
-| Sustained working catalogs | Unit and disk proofs allocate 257 outputs/effects and 65 process/resource identities while collecting eligible entries, exceeding the previous lifetime ceilings. Pending outputs, uncertain attempts, live dependencies and default unlimited retention remain protected; old IDs/results/owners cannot revive. |
-| Lifecycle recovery | Core tests cover lost creation/resource acknowledgements, missing required associations, scoped administration, exact failed-input retry, stale generations, suspension bounds and provider-stop/activation fencing. `tests/readiness.zig` restarts during initialization, completes it after recovery, checkpoints a blocked input, retries that head and expires a suspended process after trim/recovery. |
-| Disk/capacity | `just test::storage` runs readiness with disk Ursula, SIGKILL, checkpoint and prefix trim. `just test::capacity` fills an owned ext4 image: at admission ceiling 256, the reserve bound is **4385 records**, with control progress and restart verified. This replaces the pre-M8 reserve estimate for the current binary. |
-| Deployment | `tests/readiness_client.zig` imports the public client only. Local, Compose and reference launcher tests run it against real services: queue an output while delivery is stopped, restart courier and node, reject an identical externally submitted forged reply, accept the process-origin reply and inspect generic Board evidence. The harness never delivers that output. Reference qualification also queues input
-during a bounded logical suspension, confirms provider stop, replaces worker
-capacity and resumes the same PID/Actor with a fresh activation. Automatic pool
-recycling is outside the controller's current rights and this proof. |
-| Inspection | Core history queries preserve retained events for collected PIDs without inventing mailbox disposition. Board exposes lifecycle actions, initialization/suspension bounds and a collection warning. Generated OpenAPI/validators, API tests and the real browser suite check the shared surface. |
+| Proof                                                                           | Evidence and command                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Authenticated origin                                                            | Core checks authority-derived external/process/effect envelopes, replay mutation rejection and retained origin after collection. Shared `inputs-v1.json` and canonical signed command fixtures are validated by `just check`.                                                                                                                                                                                            |
+| Actual caller exchange                                                          | `just test::callers` runs the counter and byte-log executables with `transit-delivery`, drops/malforms acknowledgements, checks exact retries and restarts the courier. Scoped delivery reads expose counts/sequence, not application payload. Core tests cover destination scope, revocation and terminal denial. Delayed counter activation stays within the bootstrap log bound even at debug verbosity.              |
+| Sustained working catalogs                                                      | Unit and disk proofs allocate 257 outputs/effects and 65 process/resource identities while collecting eligible entries, exceeding the previous lifetime ceilings. Pending outputs, uncertain attempts, live dependencies and default unlimited retention remain protected; old IDs/results/owners cannot revive.                                                                                                         |
+| Lifecycle recovery                                                              | Core tests cover lost creation/resource acknowledgements, missing required associations, scoped administration, exact failed-input retry, stale generations, suspension bounds and provider-stop/activation fencing. `tests/readiness.zig` restarts during initialization, completes it after recovery, checkpoints a blocked input, retries that head and expires a suspended process after trim/recovery.              |
+| Disk/capacity                                                                   | `just test::storage` runs readiness with disk Ursula, SIGKILL, checkpoint and prefix trim. `just test::capacity` fills an owned ext4 image: at admission ceiling 256, the reserve bound is **4385 records**, with control progress and restart verified. This replaces the pre-M8 reserve estimate for the current binary.                                                                                               |
+| Deployment                                                                      | `tests/readiness_client.zig` imports the public client only. Local, Compose and reference launcher tests run it against real services: queue an output while delivery is stopped, restart courier and node, reject an identical externally submitted forged reply, accept the process-origin reply and inspect generic Board evidence. The harness never delivers that output. Reference qualification also queues input |
+| during a bounded logical suspension, confirms provider stop, replaces worker    |
+| capacity and resumes the same PID/Actor with a fresh activation. Automatic pool |
+| recycling is outside the controller's current rights and this proof.            |
+| Inspection                                                                      | Core history queries preserve retained events for collected PIDs without inventing mailbox disposition. Board exposes lifecycle actions, initialization/suspension bounds and a collection warning. Generated OpenAPI/validators, API tests and the real browser suite check the shared surface.                                                                                                                         |
 
 Run `just ci`, `just transit-board::browser`, `just test::capacity`,
 `just launchers::compose::test` and `just launchers::reference::test-launcher`.
@@ -2574,16 +4636,16 @@ The Linux x86_64 profile uses the locked Zig 0.17 compiler, the pinned
 authority/courier. Framework logic remains in Zig; no language-specific server
 route or second authoritative task/state store is introduced.
 
-| Proof | Evidence |
-| --- | --- |
-| `just test::station` | Three behavior roles, two-Table atomic turns, exact retry after receipt loss, worker/store restart, source-authenticated calls/replies, captured Arrow publication/consumer restart, service-policy revocation, registry rebind with the original PID retained, timed waits/late-result closure, poison-head supervision and independent lifecycle control |
-| `just test::station` lifetime schedule | Required PID-owned Table state survives recovery; suspension beyond a dependency is rejected; opted-in expiry permanently rejects activation and permits background reclamation, including after authority restart |
-| `just bindings::native` | C/C++/Python real callers; shared ABI exact frozen request recovery after every handle is lost; failed-turn rollback, stale/revoked/retired callers, wide correlations, malformed native-port input, asynchronous cancellation and owned cleanup |
-| `just bindings::native` materialization schedule | Duplicate source admission/commit, update/delete, physical checkpoint/trim, reinsertion in the tail, disk/node restart and an independent Arrow aggregate over only current rows |
-| `nix develop .#bindings --command just bindings::test` | C, C++, Rust, Python, Node, Java, .NET, Erlang and Elixir each run service and requester roles across language pairs; fresh hosts resume captured results; exact `9007199254740993` values survive Arrow; managed/port tests cover bounded input, busy handles, host/caller loss, responsive schedulers and cancellation/cleanup |
-| `just test::unit`, `just test::packages`, `just test::arrow` | Private batch rollback, capacity and schema checks, all admitted Arrow types/null/empty/overflow behavior, C Data/C Stream release ownership, exact source basis and no enabled rewrites, cancelled queries, maximum 672-byte captured reply, malformed/duplicate/missing fragments and no prefix completion |
-| `just transit-board::test`, `just transit-board::browser` | Versioned framework metadata with source PID/resource/key/revisions; unknown versions fall back safely; no application-state decoder |
-| `just launchers::local::test-station`, `just launchers::compose::test-station`, `just launchers::reference::test-station` | Same three-process scenario, scoped service roles, registry/call/Arrow exchange, Board provenance, worker recovery, compatible upgrades of all three workers with PIDs/state retained, no-op updates and persistent stop/start |
+| Proof                                                                                                                     | Evidence                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::station`                                                                                                      | Three behavior roles, two-Table atomic turns, exact retry after receipt loss, worker/store restart, source-authenticated calls/replies, captured Arrow publication/consumer restart, service-policy revocation, registry rebind with the original PID retained, timed waits/late-result closure, poison-head supervision and independent lifecycle control |
+| `just test::station` lifetime schedule                                                                                    | Required PID-owned Table state survives recovery; suspension beyond a dependency is rejected; opted-in expiry permanently rejects activation and permits background reclamation, including after authority restart                                                                                                                                         |
+| `just bindings::native`                                                                                                   | C/C++/Python real callers; shared ABI exact frozen request recovery after every handle is lost; failed-turn rollback, stale/revoked/retired callers, wide correlations, malformed native-port input, asynchronous cancellation and owned cleanup                                                                                                           |
+| `just bindings::native` materialization schedule                                                                          | Duplicate source admission/commit, update/delete, physical checkpoint/trim, reinsertion in the tail, disk/node restart and an independent Arrow aggregate over only current rows                                                                                                                                                                           |
+| `nix develop .#bindings --command just bindings::test`                                                                    | C, C++, Rust, Python, Node, Java, .NET, Erlang and Elixir each run service and requester roles across language pairs; fresh hosts resume captured results; exact `9007199254740993` values survive Arrow; managed/port tests cover bounded input, busy handles, host/caller loss, responsive schedulers and cancellation/cleanup                           |
+| `just test::unit`, `just test::packages`, `just test::arrow`                                                              | Private batch rollback, capacity and schema checks, all admitted Arrow types/null/empty/overflow behavior, C Data/C Stream release ownership, exact source basis and no enabled rewrites, cancelled queries, maximum 672-byte captured reply, malformed/duplicate/missing fragments and no prefix completion                                               |
+| `just transit-board::test`, `just transit-board::browser`                                                                 | Versioned framework metadata with source PID/resource/key/revisions; unknown versions fall back safely; no application-state decoder                                                                                                                                                                                                                       |
+| `just launchers::local::test-station`, `just launchers::compose::test-station`, `just launchers::reference::test-station` | Same three-process scenario, scoped service roles, registry/call/Arrow exchange, Board provenance, worker recovery, compatible upgrades of all three workers with PIDs/state retained, no-op updates and persistent stop/start                                                                                                                             |
 
 The reference proof additionally kills an actual Substrate worker pod, verifies
 a fresh activation/key while retaining the Actor UID, and upgrades versioned
@@ -2627,12 +4689,12 @@ binary hashes, revision/dirty state and timing boundaries. Six cases ran through
 the executable matrix. These are shared-host observations, not production SLOs.
 
 | Rows / cache pages / retained views | Write plus verification, seconds | Turn p99, ms | Full recovery verification, seconds | Maximum authority-driver RSS, KiB |
-| --- | ---: | ---: | ---: | ---: |
-| 64 / 1 / 1 | 54.86–57.31 | 952–978 | 4.21–4.58 | 12,596 |
-| 256 / 1 / 1 | 109.01–113.49 | 984–1,013 | 14.33–15.19 | 12,596 |
-| 1,024 / 1 / 1 | 366.91–366.94 | 1,166–1,315 | 61.64–62.37 | 12,660 |
-| 256 / 16 / 1 | 85.31–86.17 | 825–839 | 11.77–12.05 | 12,720 |
-| 256 / 16 / 8 | 91.08–92.72 | 780–1,792 | 15.66–15.89 | 12,744 |
+| ----------------------------------- | -------------------------------: | -----------: | ----------------------------------: | --------------------------------: |
+| 64 / 1 / 1                          |                      54.86–57.31 |      952–978 |                           4.21–4.58 |                            12,596 |
+| 256 / 1 / 1                         |                    109.01–113.49 |    984–1,013 |                         14.33–15.19 |                            12,596 |
+| 1,024 / 1 / 1                       |                    366.91–366.94 |  1,166–1,315 |                         61.64–62.37 |                            12,660 |
+| 256 / 16 / 1                        |                      85.31–86.17 |      825–839 |                         11.77–12.05 |                            12,720 |
+| 256 / 16 / 8                        |                      91.08–92.72 |    780–1,792 |                         15.66–15.89 |                            12,744 |
 
 The one-page cache remains **8,532 bytes** while retained application values grow
 from 16 to 256 KiB, alongside 70 PIDs, 21 principals, six resources and 69
@@ -2826,7 +4888,6 @@ mechanism and its observability. The additional
 [physical-capacity and service/Station proofs](#growing-physical-capacity)
 qualify the finite deployment profile separately.
 
-
 `just test::growing` runs the growing core against real Ursula and a single-page
 Transit cache. It crosses legacy process/principal/resource/row bounds, stages
 private candidates, rejects stale publication after revocation, injects failure
@@ -2837,7 +4898,6 @@ removes page storage in its disposable fixture to prove recovery fails closed.
 The [adapter guide](../packages/zig/transit-backend-ursula/docs/growing.md) owns
 measurement details and compatibility limits. This is authority/provider
 qualification, not node/client/Station support or a scale SLO.
-
 
 `just test::growing-service` runs an independent Zig caller using only
 `transit-client` against the real v3 node, with disk Ursula on one CPU. It uses a
@@ -3155,14 +5215,14 @@ proofs, not additions to M10's hosted PR lanes or evidence of a new hosted cost
 budget. The [compatibility matrix](../packages/zig/transit-serving/docs/compatibility.md)
 separates source, transport, client and placement; unavailable rows stay unavailable.
 
-| Proof | Executed evidence | Observed local cost |
-| --- | --- | --- |
-| `just test::reactive` | Independent Python/OpenSSL HTTP/SSE/RFC 6455 peers through real nginx TLS and two gateways; empty snapshot, Table progress/outcome, lost WebSocket reply with exact HTTP retry, signed resume, fences, challenge reuse, fragmented bootstrap/ping, declined compression, idle native/service revocation and full worker/gateway/node/store recovery | Expanded native trace 18.60 s |
-| `just test::reactive-browser` | Actual Chromium WebCrypto, same-origin WSS bootstrap without custom auth headers, exact HTTP fallback, incremental fetch SSE/event IDs, authenticated description digests and lossless minimum-i64 keys/maximum-i64 values | Browser plus native trace 28.47 s |
-| `just test::reactive-limits` | Four durable sessions and four held SSE responses, fifth data request refused, reserved health/renewal, idle grant revocation, validly signed future/foreign/incompatible cursors, malformed frames and close, escaped JSON member names, twelve reconnects, lease expiry without observer, and hard source expiry while the logical session lease remains valid | 106.75 s including native recovery; limits portion 87.54 s; health 0.003 s; two-gateway RSS 34,902,016 bytes against 256 MiB ceiling |
-| `just test::reactive-placement compose` | Two TLS gateways, WS command with lost acknowledgement and exact HTTP recovery, SSE replacement fence/cursor resume, physical workers/gateways/node/store recovery and publication retirement | 95.81 s; 21 cold objects / 1,438,542 bytes |
-| `just test::reactive-placement reference` | Same owned private placement with fresh worker keys/exact ownership, source/session history recovery and explicit new session after the lease elapsed during downtime | 168.88 s; 22 cold objects / 1,994,383 bytes |
-| `just test::reactive-descriptions` | Generated OpenAPI 3.2.1/schema-base and AsyncAPI 3.0, pinned official offline validators, shared schema parity, independent full-width fixtures and drift | No network schema resolution |
+| Proof                                     | Executed evidence                                                                                                                                                                                                                                                                                                                                                | Observed local cost                                                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `just test::reactive`                     | Independent Python/OpenSSL HTTP/SSE/RFC 6455 peers through real nginx TLS and two gateways; empty snapshot, Table progress/outcome, lost WebSocket reply with exact HTTP retry, signed resume, fences, challenge reuse, fragmented bootstrap/ping, declined compression, idle native/service revocation and full worker/gateway/node/store recovery              | Expanded native trace 18.60 s                                                                                                        |
+| `just test::reactive-browser`             | Actual Chromium WebCrypto, same-origin WSS bootstrap without custom auth headers, exact HTTP fallback, incremental fetch SSE/event IDs, authenticated description digests and lossless minimum-i64 keys/maximum-i64 values                                                                                                                                       | Browser plus native trace 28.47 s                                                                                                    |
+| `just test::reactive-limits`              | Four durable sessions and four held SSE responses, fifth data request refused, reserved health/renewal, idle grant revocation, validly signed future/foreign/incompatible cursors, malformed frames and close, escaped JSON member names, twelve reconnects, lease expiry without observer, and hard source expiry while the logical session lease remains valid | 106.75 s including native recovery; limits portion 87.54 s; health 0.003 s; two-gateway RSS 34,902,016 bytes against 256 MiB ceiling |
+| `just test::reactive-placement compose`   | Two TLS gateways, WS command with lost acknowledgement and exact HTTP recovery, SSE replacement fence/cursor resume, physical workers/gateways/node/store recovery and publication retirement                                                                                                                                                                    | 95.81 s; 21 cold objects / 1,438,542 bytes                                                                                           |
+| `just test::reactive-placement reference` | Same owned private placement with fresh worker keys/exact ownership, source/session history recovery and explicit new session after the lease elapsed during downtime                                                                                                                                                                                            | 168.88 s; 22 cold objects / 1,994,383 bytes                                                                                          |
+| `just test::reactive-descriptions`        | Generated OpenAPI 3.2.1/schema-base and AsyncAPI 3.0, pinned official offline validators, shared schema parity, independent full-width fixtures and drift                                                                                                                                                                                                        | No network schema resolution                                                                                                         |
 
 The placement rows use eight resident authority pages and an 8 MiB hot store;
 their times include their local image/preparation path. They create and remove
@@ -3213,15 +5273,15 @@ runtime-validated TypeScript transport and `LiveView`; Board's inspection,
 watch-control and query identities remain separate. KV/Document watches and
 continuous SQL are not qualified.
 
-| Executed proof | Evidence |
-| --- | --- |
-| `just test::reactive-client` | Actual TLS/disk hosts, frozen lost-reply recovery, scoped descriptions/clock, private Origin, reserved close, metadata-only reads, denial and 40 schema-validated envelopes; 7.52 s for the clock-policy extension |
-| `just test::reactive-refresh` | Two sessions sharing one requester, round-robin progress, lost follow reply, stopped source and replacement activations, exact accepted identity, full-width namespace and entry-read-only revocation; 224.56 s initial run, 153.08 s repeated regression |
-| Requester/component and frontend checks | Four-mutation copy turns, writes during capture, dirty successors, quiescence without self-triggering, start budgets, late-candidate fencing, queued pause, startup uncertainty, independent renewal and terminal control rejection |
-| `just test::reactive-views` | Real Chromium counter/Board over TLS, lost accepted upload, failing atlas plus route remount, exact recovery, complete 20-row verification with one eight-row resident page, distinct finite refresh and read-only revocation; 327.65 s |
-| `just test::reactive-views-lifecycle` | Shared-principal tabs, actual broken SSE/resume with unchanged sessions, pagehide/expiry, watch reset, explicit resnapshot and source retirement after displayed state; final run 89.03 s |
-| `just test::reactive-views-placement compose` | Full consumer schedule plus worker/gateway/node/disk restart, same-result recovery and denial between complete verification and visible-page reread; 389.04 s browser / 402.90 s including packaging |
-| `just test::reactive-views-placement reference` | Same extended schedule with fresh Substrate worker activations and confined gateways; 518.32 s browser / 663.06 s including packaging |
+| Executed proof                                  | Evidence                                                                                                                                                                                                                                                  |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::reactive-client`                    | Actual TLS/disk hosts, frozen lost-reply recovery, scoped descriptions/clock, private Origin, reserved close, metadata-only reads, denial and 40 schema-validated envelopes; 7.52 s for the clock-policy extension                                        |
+| `just test::reactive-refresh`                   | Two sessions sharing one requester, round-robin progress, lost follow reply, stopped source and replacement activations, exact accepted identity, full-width namespace and entry-read-only revocation; 224.56 s initial run, 153.08 s repeated regression |
+| Requester/component and frontend checks         | Four-mutation copy turns, writes during capture, dirty successors, quiescence without self-triggering, start budgets, late-candidate fencing, queued pause, startup uncertainty, independent renewal and terminal control rejection                       |
+| `just test::reactive-views`                     | Real Chromium counter/Board over TLS, lost accepted upload, failing atlas plus route remount, exact recovery, complete 20-row verification with one eight-row resident page, distinct finite refresh and read-only revocation; 327.65 s                   |
+| `just test::reactive-views-lifecycle`           | Shared-principal tabs, actual broken SSE/resume with unchanged sessions, pagehide/expiry, watch reset, explicit resnapshot and source retirement after displayed state; final run 89.03 s                                                                 |
+| `just test::reactive-views-placement compose`   | Full consumer schedule plus worker/gateway/node/disk restart, same-result recovery and denial between complete verification and visible-page reread; 389.04 s browser / 402.90 s including packaging                                                      |
+| `just test::reactive-views-placement reference` | Same extended schedule with fresh Substrate worker activations and confined gateways; 518.32 s browser / 663.06 s including packaging                                                                                                                     |
 
 The final placement runs measured the following single observations, including
 client scheduling, source observation and full verification. They are not peak
@@ -3229,13 +5289,13 @@ memory, latency percentiles or sustainable-rate guarantees. The visibility
 measurement starts at the mutation trigger, so it includes admission before the
 source commit; it is an upper bound on commit-to-visible delay in that run.
 
-| Measurement | Compose | Reference |
-| --- | ---: | ---: |
-| Counter trigger to visible snapshot | 7,563 ms | 6,223 ms |
-| Finite 20-row verified refresh | 126,895 ms | 155,111 ms |
-| Physical restart to authorized same-result read | 6,289 ms | 18,338 ms |
-| Observed Board / counter JS heap | 9,433,188 / 4,794,296 bytes | 10,397,376 / 4,637,604 bytes |
-| Retained cold objects / bytes | 493 / 49,035,893 | 504 / 57,849,285 |
+| Measurement                                     |                     Compose |                    Reference |
+| ----------------------------------------------- | --------------------------: | ---------------------------: |
+| Counter trigger to visible snapshot             |                    7,563 ms |                     6,223 ms |
+| Finite 20-row verified refresh                  |                  126,895 ms |                   155,111 ms |
+| Physical restart to authorized same-result read |                    6,289 ms |                    18,338 ms |
+| Observed Board / counter JS heap                | 9,433,188 / 4,794,296 bytes | 10,397,376 / 4,637,604 bytes |
+| Retained cold objects / bytes                   |            493 / 49,035,893 |             504 / 57,849,285 |
 
 The fixture checks a 128 MiB per-page heap ceiling. The implementation retains one
 visible page, one bounded candidate/verification page and one newest dirty
@@ -3397,7 +5457,6 @@ reject mixing full-body and half-chunk upload paths and prove that unsupported
 program bytes cannot become an active interface. Allocation/read failures do not
 become terminal caller rejections. Independent fixtures cover every command tag.
 
-
 `just test::application-browser` starts owned disk Ursula, an actual application
 worker and the embedded Board binary. It checks the disabled operator endpoint,
 exact Origin, invalid signatures, disallowed principals and complete-program
@@ -3417,7 +5476,6 @@ The shared native signing helper also agrees with independent Python Station/v3
 fixtures. Browser tests preserve one outstanding signature through export/import
 and refuse altered scopes before signing. Host compiler replies use the existing
 Station publication commitment; they do not invent a second digest format.
-
 
 M23's declared shell now passes the real native application browser proof with
 published custom routes and deep-link reload, old-client navigation replacement,
@@ -3709,10 +5767,10 @@ counted as passed.
 The same actual-command, PTY and explicit TLS proof also passes for KV and
 Document with their distinct source adapters:
 
-| Source | Combined native proof | Added console checks | Cold / warm completion | Terminal RSS high-water |
-| --- | --- | --- | --- | --- |
-| KV | 195.32 s | 123.43 s | 792.42 / 276.61 ms | 16,261,120 bytes |
-| Document | 738.32 s | 141.55 s | 356.81 / 57.08 ms | 16,265,216 bytes |
+| Source   | Combined native proof | Added console checks | Cold / warm completion | Terminal RSS high-water |
+| -------- | --------------------- | -------------------- | ---------------------- | ----------------------- |
+| KV       | 195.32 s              | 123.43 s             | 792.42 / 276.61 ms     | 16,261,120 bytes        |
+| Document | 738.32 s              | 141.55 s             | 356.81 / 57.08 ms      | 16,265,216 bytes        |
 
 Document provisioning accounts for 493.70 seconds of its total; the fixture
 retains twelve rows across two segments, 64 resident authority pages and
@@ -3771,7 +5829,6 @@ capacity fault schedule, not a storage throughput or zero-free-byte guarantee.
 M23/M24 committed-HEAD clean gate also passes, as recorded below. These focused
 tasks do not change M10's hosted CI budgets.
 
-
 ### Local gateway host alias checks
 
 [Issue #11](https://github.com/rupurt/rey/issues/11) adds the local host policy
@@ -3810,13 +5867,13 @@ against its committed `suite.json`. All five invocations exited successfully.
 The [retained report](verification/results/m23-m24-clean-2026-09-28.json) includes
 task timings, machine information and the original local evidence directories.
 
-| Lane | Tasks | Local lane task time |
-| --- | ---: | ---: |
-| Core | 17 | 385.38 s |
-| Growth | 18 | 1,970.07 s |
-| Experience | 6 | 341.32 s |
-| Launchers | 2 | 312.88 s |
-| Bindings | 16 | 3,943.77 s |
+| Lane       | Tasks | Local lane task time |
+| ---------- | ----: | -------------------: |
+| Core       |    17 |             385.38 s |
+| Growth     |    18 |           1,970.07 s |
+| Experience |     6 |             341.32 s |
+| Launchers  |     2 |             312.88 s |
+| Bindings   |    16 |           3,943.77 s |
 
 Lanes ran concurrently on one local machine, with tasks sequential within each
 lane. Times exclude clone/dependency installation; their 6,953.42-second sum is
@@ -3845,13 +5902,13 @@ with an empty `PATH`. Installation and domain operations use public CLI commands
 and exported connections; ordinary workflow steps never edit private manager
 records or use realm-root credentials.
 
-| Executed proof | Result |
-| --- | --- |
-| `test::server-applications` | 98.521 s; two applications, 19 migrated rows, three Table pages, 21 paged native provisioning/activation receipts, final worker generation 9 |
-| `test::server-application-faults` | 29.221 s; exact lost spawn/rotation/send/turn/activation replies, current revocation and denied/malformed management; reserved health 1 ms |
-| `test::server-application-capacity` | 16.40 s after fixture setup; accepted input across actual ext4 ENOSPC, same receipt/PID/resource after restart |
-| Existing `test::server-faults` | Core lifecycle 30.18 s, bootstrap/gateway/rollback faults 13.04 s; reserved health 5.20 ms |
-| Existing `test::server-capacity` | 17.28 s; accepted console query recovered after real ENOSPC |
+| Executed proof                      | Result                                                                                                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test::server-applications`         | 98.521 s; two applications, 19 migrated rows, three Table pages, 21 paged native provisioning/activation receipts, final worker generation 9 |
+| `test::server-application-faults`   | 29.221 s; exact lost spawn/rotation/send/turn/activation replies, current revocation and denied/malformed management; reserved health 1 ms   |
+| `test::server-application-capacity` | 16.40 s after fixture setup; accepted input across actual ext4 ENOSPC, same receipt/PID/resource after restart                               |
+| Existing `test::server-faults`      | Core lifecycle 30.18 s, bootstrap/gateway/rollback faults 13.04 s; reserved health 5.20 ms                                                   |
+| Existing `test::server-capacity`    | 17.28 s; accepted console query recovered after real ENOSPC                                                                                  |
 
 The application lifecycle proof interrupts provisioning, attaches twice without
 new identities, refuses conflicting intent/declarations, incompatible replacement,
@@ -3910,7 +5967,6 @@ built-in activation, and old worker readiness being displayed with a new fence
 generation. A generic JSON tuple needed its original array wire shape preserved.
 The capacity fixture initially paused before domain initialization; it now waits
 for public domain evidence. Failed schedules are not counted as passes.
-
 
 ## M27 local Board qualification
 
@@ -4206,18 +6262,18 @@ completion, current denial, private-CA trust, signal handling and output bounds.
 
 The working-tree checks recorded so far are:
 
-| Check | Executed outcome |
-| --- | --- |
-| `just test::cli-diagnostics` | 160 real command cases passed: partial defaults, project/home selection, explicit file selection and missing-file refusal, malformed YAML/JSON, nesting bounds, typed environment precedence, rc merge/relative paths, flag precedence, adjacent executable lookup before PATH and explicit executable overrides |
-| `just test::console table` | Passed in 301.26 s including 222.10 s of console checks; PTY cold/warm completion 1080.16/344.63 ms; 16,756,736-byte terminal RSS high-water |
-| `just test::console kv` | Passed in 415.14 s including 342.07 s of console checks; PTY cold/warm completion 600.78/590.67 ms; 17,444,864-byte terminal RSS high-water |
-| `just test::console document` | Passed in 827.56 s including 253.45 s of console checks; PTY cold/warm completion 322.35/69.79 ms; 17,195,008-byte terminal RSS high-water |
-| `just test::public-query` | Compatibility Table v1 dot commands, exact retry, cancellation, fenced recovery and current read denial passed |
-| `zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true` | Compatibility unified shell and native recovery passed in 148.18 s |
-| `just test::server-faults` | Core lifecycle 31.05 s; bootstrap/gateway/rollback schedules 18.16 s; independent automatic console query, exact provisioning recovery and identity/rollback refusal passed |
-| `just test::server-capacity` | Accepted automatic query, real ext4 ENOSPC, finite control/shutdown and recovery of the original query passed in 19.62 s |
-| `just check` | Passed core/contracts, 160 CLI cases, frontend checks/tests and the production documentation build |
-| `just doctor` | Passed; the existing absent `~/.cargo/bin` PATH entry was reported by kubectl's plugin listing |
+| Check                                                                                             | Executed outcome                                                                                                                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `just test::cli-diagnostics`                                                                      | 160 real command cases passed: partial defaults, project/home selection, explicit file selection and missing-file refusal, malformed YAML/JSON, nesting bounds, typed environment precedence, rc merge/relative paths, flag precedence, adjacent executable lookup before PATH and explicit executable overrides |
+| `just test::console table`                                                                        | Passed in 301.26 s including 222.10 s of console checks; PTY cold/warm completion 1080.16/344.63 ms; 16,756,736-byte terminal RSS high-water                                                                                                                                                                     |
+| `just test::console kv`                                                                           | Passed in 415.14 s including 342.07 s of console checks; PTY cold/warm completion 600.78/590.67 ms; 17,444,864-byte terminal RSS high-water                                                                                                                                                                      |
+| `just test::console document`                                                                     | Passed in 827.56 s including 253.45 s of console checks; PTY cold/warm completion 322.35/69.79 ms; 17,195,008-byte terminal RSS high-water                                                                                                                                                                       |
+| `just test::public-query`                                                                         | Compatibility Table v1 dot commands, exact retry, cancellation, fenced recovery and current read denial passed                                                                                                                                                                                                   |
+| `zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true` | Compatibility unified shell and native recovery passed in 148.18 s                                                                                                                                                                                                                                               |
+| `just test::server-faults`                                                                        | Core lifecycle 31.05 s; bootstrap/gateway/rollback schedules 18.16 s; independent automatic console query, exact provisioning recovery and identity/rollback refusal passed                                                                                                                                      |
+| `just test::server-capacity`                                                                      | Accepted automatic query, real ext4 ENOSPC, finite control/shutdown and recovery of the original query passed in 19.62 s                                                                                                                                                                                         |
+| `just check`                                                                                      | Passed core/contracts, 160 CLI cases, frontend checks/tests and the production documentation build                                                                                                                                                                                                               |
+| `just doctor`                                                                                     | Passed; the existing absent `~/.cargo/bin` PATH entry was reported by kubectl's plugin listing                                                                                                                                                                                                                   |
 
 The first offline package build exposed a stale frontend dependency-store hash
 that omitted dependencies already present in the workspace lockfile. Refreshing
@@ -4462,14 +6518,14 @@ trace, not a new benchmark or a predicted speedup from removing an operation.
 
 Controlled first-query experiments, each on a fresh installation:
 
-| Page cache | Worker/courier idle interval | Diagnostic change | Elapsed | Page misses |
-| ---: | ---: | --- | ---: | ---: |
-| 8 | 100 ms | Baseline | 12.96 s | 31,466 |
-| 8 | 20 ms | Faster polling | 15.52 s | 36,604 |
-| 64 | 20 ms | Larger cache | 5.50 s | 624 |
-| 8 | 200 ms | Slower polling | 15.67 s | 31,642 |
-| 8 | 100 ms | LRU replacement | 12.50 s | 27,397 |
-| 8 | 100 ms | Stop scans at the catalog range boundary | 11.99 s | 24,548 |
+| Page cache | Worker/courier idle interval | Diagnostic change                        | Elapsed | Page misses |
+| ---------: | ---------------------------: | ---------------------------------------- | ------: | ----------: |
+|          8 |                       100 ms | Baseline                                 | 12.96 s |      31,466 |
+|          8 |                        20 ms | Faster polling                           | 15.52 s |      36,604 |
+|         64 |                        20 ms | Larger cache                             |  5.50 s |         624 |
+|          8 |                       200 ms | Slower polling                           | 15.67 s |      31,642 |
+|          8 |                       100 ms | LRU replacement                          | 12.50 s |      27,397 |
+|          8 |                       100 ms | Stop scans at the catalog range boundary | 11.99 s |      24,548 |
 
 LRU and range-bounded scans reduce reads but do not resolve multi-second empty
 queries. These single elapsed samples are subject to host variance and do not
@@ -4551,7 +6607,6 @@ Physical reclamation remains unsupported. Deterministic snapshot tests cover
 lease expiry/restart/epoch and concurrent source changes; these console proofs
 do not establish a multi-node session service or host power-loss behavior.
 
-
 ### Bounded tree mutations and immutable page batches
 
 On 2026-09-29, the unit suite passes bounded range termination, an independent
@@ -4600,7 +6655,6 @@ durable recovery, controlling-PTY input/editing/interrupt behavior, command/file
 stdin stopping rules and private-CA/hostname checks. The complete run took about
 290 seconds including provisioning and query worker/node/store restart.
 
-
 ### Interactive Table access paths
 
 The unit suite compares every primary-key and value-column comparison against
@@ -4613,7 +6667,6 @@ directions, COUNT with equality, maximum-key exhaustion, empty LIMIT, distinct
 sessions, interrupted reads, closed output and denial after a prefix.
 Full scans make 174 native attempts; each selected key/range query makes 14 and
 no durable updates. The elapsed samples overlap qualification and are not SLOs.
-
 
 ### Final interactive performance qualification
 
@@ -4827,3 +6880,1427 @@ Executed for this documentation change:
 
 These checks validate documentation and rendering. They do not rerun bundle
 builds, application installation, provider recovery or deployment qualification.
+
+## SQL performance iteration
+
+`just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
+five independent process samples after one warm-up. Four compile cases each run
+10,000 times; count and sum each consume 8,192 rows in eight-row pages, 100 times.
+The aggregate probe validates completion and row coverage, and sum's exact value.
+Independent Arrow correctness remains in `just test::sql`.
+
+The JSON report at `.cache/verification/sql/benchmark.json` records raw durations,
+per-case median/range, source revision, dirty state, compiler, host and executable
+SHA-256. `--samples N` and `--output PATH` select repetitions and report location.
+The compiler uses a reset 16 KiB arena; execution uses the existing 4 MiB Arrow
+workspace and 64 KiB output buffer. These are supplied budgets, not measured RSS.
+There is no timing assertion. Run controls without competing builds; compare the
+same cases and optimization mode. These measurements exclude source adapters,
+authorization, network, storage, result publication and rendering.
+
+The wider projection iteration passes `just test::sql`: 104 Zig/ANTLR/PostgreSQL
+AST comparisons, 91 Table plans, 16 unified results across three source bases
+and eight page widths, plus nine unified rejection/failure cases. The added
+cases cover eight-column reversed output, a wider derived input, duplicates,
+unknown names and a ninth column. Canonical plans and result layouts are unchanged.
+`just check` also passes for this iteration, including generated contract parity,
+shared native/port codecs, CLI diagnostics, frontend checks and the documentation
+build. Five local performance samples put compilation at 0.393–0.897 µs per
+statement across the four cases and 8,192-row count/sum at 0.772/0.788 ms.
+A documentation build overlapped this sample, so it is not a controlled speedup
+claim; the raw report is `.cache/verification/sql/projection.json`.
+
+The typed-filter iteration passes `just test::sql` (24 unified results across
+three source bases and eight page widths) and `just test::unit`. New unit cases
+check exact state tags, canonical plan agreement, full uint64 range, signed zero
+through the plan codec, malformed/non-finite literals and type mismatches. Cursor
+fixtures cover numeric operators, typed literals and all five state suggestions.
+`just check` and `just test::interactive-query --source table` pass. The real
+console selects 41 values and zero missing/type-error/conflict keys with eight
+native read attempts per full scan and no durable updates; the same fixture
+checks cancellation, fresh cuts, complete framing and current denial. Individual
+new-predicate samples took 32–39 ms with sampled console RSS of 16.2–16.4 MiB;
+these are local observations, not latency percentiles. An initial optimized build
+failed on duplicate Arrow C objects; reusing the root Fuze dependency in the
+benchmark build fixed it before the successful fixture run.
+
+The aggregate-copy iteration skips row projection materialization for count/sum;
+row validation, source-order matching, overflow, cancellation and checkpoint
+validation remain on the same path. `just test::sql` and `just test::unit` pass.
+Nine alternating ReleaseSafe control/candidate samples over 8,192 rows measured
+count at 0.776/0.753 ms and sum at 0.788/0.765 ms (about 2.9% lower medians).
+A second nine-pair run measured 1.037/0.903 ms and 0.970/0.894 ms with overlapping
+ranges and substantial variation in unchanged compiler cases. These local runs
+establish reduced copying and intact results, not a reliable deployment speedup.
+Both controls use source `c8583767`; frozen binary hashes, candidate diff and raw
+samples are in `.cache/verification/sql/aggregate-comparison.json` and
+`.cache/verification/sql/aggregate-paired.json`.
+
+For an alternating comparison, preserve the baseline executable, then run:
+
+```sh
+just test::sql-benchmark --samples 9 --control /path/to/frozen-probe \
+  --control-revision BASE_COMMIT --output .cache/verification/sql/comparison.json
+```
+
+The runner rejects mismatched case/workload shapes, alternates process order and
+retains both sets of samples and executable hashes. Use the actual baseline
+revision and a frozen probe built with the same optimization and toolchain.
+
+### Scoped SQL inspection iteration
+
+The inspection change adds shared Fuze parsing, validated output schemas and the
+query owner's `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` operations. Before
+rebasing onto the protocol-consolidation revision, `just check` (including the
+full docs build), `just test::unit` and `just test::sql` pass: 104 SELECT ASTs, 16 syntax exclusions, 14 extensions,
+44 documentation examples, 91 executable Table fixtures and 24 unified results
+across three source bases and eight page widths. Neutral inspection fixtures
+cover operator order, output types, literal redaction, exact names, full-width
+limits/policy revisions, empty KV listings, initial/final denial and reduced
+final budgets. Browser fixtures consume the same JSON and reject impossible
+operator order, duplicate projections, overflow and foreign Table names.
+
+`just test::interactive-query` completes Table and KV cases against disk Ursula
+with 41 rows. Each of the three inspection statements uses five native reads,
+zero snapshots and zero durable writes. Table wall times are 15.1–21.0 ms and
+KV times 16.6–17.7 ms, including process startup; sampled console peak RSS is
+8.4–9.4 MiB. Revocation returns no metadata. Existing finite-query fresh-cut,
+cancellation and current-denial checks pass for both kinds. The Document run is
+stopped during provisioning to apply the user's requested protocol rebase; it
+is incomplete and establishes no Document execution evidence for inspection.
+
+Five pure benchmark samples record compile medians 0.45–0.97 microseconds and
+8192-row count/sum medians 0.789/0.808 ms. The raw report records dirty source
+state and the executable digest; these are local observations, not a paired
+performance improvement claim. All of this evidence predates the protocol
+rebase and must be rechecked on the consolidated implementation.
+
+### SQL integration after protocol consolidation
+
+The SQL branch is rebased onto `3ea81aaa`, retaining the consolidated native
+contract definition and the removal of the older Fuze compiler/executor.
+`Unified.Sql`, `Unified.Plan`, `Unified.Codec` and `Unified.Stream` remain the
+single lowering/execution path; generated ABI/browser resources are regenerated
+from the merged Zig types. The duplicate-projection fixture now expects the
+current compiler's `DuplicateProjection`, instead of the removed Table
+compiler's width error.
+
+`just check`, the independent SQL proof and a further `just test::unit` pass.
+The SQL proof covers 104 AST cases, 86 executable current plans, 16 syntax
+exclusions, 14 extensions, 44 documentation examples and 24 independent unified
+results across three source bases and eight page widths. Rebuilt Table/KV
+runtime inspection again uses five reads, no snapshots and no durable writes;
+revocation and the existing interactive controls pass. Individual inspection
+wall times are 16.9–19.5 ms in this run. The Document fixture also completes:
+12 rows, 14 native reads per inspection, no snapshots or durable writes and
+current denial without output. DESCRIBE, SHOW and EXPLAIN take 50.25, 34.98 and
+35.12 ms respectively, including console startup; sampled peak RSS is 10.3 MiB.
+The Document fixture including provisioning and existing interactive checks
+takes 299.69 s. These are single-run observations, not comparative speedup claims.
+
+`just bindings::node-check` initially fails in this fresh worktree because
+Station imports the client package's `dist` exports, which the task only
+checked with `--noEmit`. The task now builds that direct dependency first.
+The standalone check then passes strict types, formatting/lint and all ten
+Node handler/ownership tests. This is a task-dependency correction, not a
+substitute for installed-SDK runtime qualification.
+
+### Installed SQL inspection callers
+
+Python sync/async `inspect_sql` and TypeScript `inspectSql` expose owned typed
+description, Table-list and explanation results through the shared native owner.
+Python type checking and `just bindings::node-check` pass. After rebuilding the
+installed wheels/tarballs, `zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node -Dunified-source=table` passes the disk-backed recovery
+schedule in 62.05 s: 41 rows, six segments, eight resident authority pages and
+an 8 MiB hot store. All five native/port/installed callers agree on inspection
+details, full-width limits, output types and redacted literals without query
+admission; current revocation and permanent source retirement reject disclosure.
+The existing frozen retry, worker/node/store restart and released-pin checks pass.
+
+The first run reaches retirement but fails an incomplete assertion: typed SDKs
+preserve the authority's `StateResourceExpired` code, while native results also
+carry the mapped `ResourceUnavailable` error. The assertion now accepts that
+specific retirement rejection; no production error translation is changed.
+Other language SDKs and installed KV/Document inspection are not covered by
+this run.
+
+### Current Document metadata batching
+
+`UnifiedClient` shares the current metadata key selection between inspection and
+interactive snapshots. Document description batches policy, lifecycle head and
+accepted revision records at one current resource revision, then uses the same
+`UnifiedSource.checkCurrent` checks as before. The reader caches protocol support,
+never permissions or source state.
+
+`just test::unit` passes, including current batch checks for exact Document
+identity, missing requested keys, access denial, reclaimed history and permanent
+retirement. `just test::interactive-query` passes all three source kinds. Each
+inspection now requires exactly five native requests, enforced by the fixture:
+one capability read plus source/requester reads before and after resolution.
+The earlier Document baseline used 14 requests. No snapshots or writes occur;
+current denial, bounded results, fresh cuts and cancellation remain verified.
+
+Document DESCRIBE/SHOW/EXPLAIN wall times are 27.75/16.03/17.35 ms, with sampled
+peak RSS 9.5–10.2 MiB; the full Document fixture takes 304.08 s. The corresponding
+earlier statement times were 50.25/34.98/35.12 ms. These separate local runs
+establish the nine-request reduction, not a paired latency or memory claim.
+
+### Ruby and Rust SQL inspection
+
+The Ruby and Rust packages add typed inspection over the same native operation.
+Ruby syntax checks and Rust formatting/type checks pass. Rebuilt installed
+gems/crates participate with Python sync/async, TypeScript, native and port
+callers in `zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust`. KV and Table complete the full disk-backed
+schedule in 113.60 and 226.46 s respectively. Seven callers agree on description,
+listing, count schema, comparison redaction, all/state predicate variants and
+zero/full-width limits. Revocation and permanent retirement reject inspection
+and results; frozen upload retry and worker/node/store recovery pass.
+
+Two pre-existing negative codec fixtures incorrectly select decoder version 1;
+they now select unsupported version 2. An earlier clean Rust build exhausts
+shared `/tmp`, so the successful KV/Table run uses a dedicated disk temporary
+directory outside the workspace. Document setup then receives HTTP 503 from the
+cold-store bucket creation before provisioning. Document is not passed by this
+run and requires its own continuation. These fixture timings include concurrent
+host load and are not performance comparisons.
+
+### Java and .NET SQL inspection
+
+Rebuilt JAR and NuGet packages expose immutable inspection details through their
+existing bounded future/task workers. Installed consumers compile with warnings
+as errors. `zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=java,dotnet` completes KV and Table in 76.10 and 81.29 s: four
+native/port/SDK callers agree on the same metadata and predicate cases, reject
+revoked and retired disclosure, and preserve the full signed recovery schedule.
+The Java test adapter now treats an omitted cursor as no cursor, allowing the
+existing final retirement probe to reach the public SDK. The Document continuation
+also passes: 12 rows, two segments, 64 resident authority pages, an 8 MiB hot
+store and the same four-caller inspection/denial/recovery checks. Provisioning
+takes 1409.61 s and the complete Document fixture takes 1562.99 s under concurrent
+host load. These are fixture costs, not query latency or improvement claims.
+
+### C and C++ SQL inspection
+
+`just bindings::c-build` compiles the independent archives, C11/C++17 examples
+and C++ ownership checks. The public C result contains bounded inline metadata
+with no borrowed pointers; C++ returns owned strings, vectors and variants.
+`zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=c,cpp
+-Dunified-source=table` passes in 159.85 s, including four-caller metadata
+agreement, predicate variants, redaction, zero/full-width limits, zeroed C error
+output, current denial, permanent retirement and the existing disk recovery
+schedule. The test adapters normalize public typed results through a shared
+fixture printer; they do not invoke the raw inspection action. KV and Document
+installed coverage remain outstanding for this increment.
+
+### Erlang and Elixir SQL inspection
+
+`just bindings::beam-build` compiles the OTP applications and Elixir structs.
+`zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=erlang,elixir
+-Dunified-source=table` passes in 157.89 s. The installed adapters use public
+records/structs and normalize their results for comparison with native and port
+callers. The same description/list/plan, redaction, state/limit, current denial,
+retirement and signed disk recovery checks pass. Atom conversion uses fixed
+allowlists. The controller now handles omitted page cursors for the final
+retirement probe. KV/Document installed coverage remains outstanding.
+
+### Bounded application-owned Table mutations
+
+The shared lexer/parser and typed Fuze compiler accept literal INSERT and
+primary-key UPDATE/DELETE. Station applies the validated plan within an explicitly
+supplied private writer turn. This increment does not add public admission or a
+query-client mutation route. Typed validation and SQL use the same three-row,
+exact-type and duplicate-key rules; no native/storage definition changes.
+
+`just test::unit` passes, including atomic proposal rollback after a later duplicate
+or exhausted budget, missing/same-value affected counts, full-width keys, all four
+Table value types, cross-resource/schema rejection and sticky read failure after
+an earlier row change. `just test::sql` passes its existing 104 SELECT ASTs,
+86 current plans and 24 unified results across three bases/eight page widths.
+The new corpus adds 24 ANTLR/Postgres mutation AST comparisons and 31 independent
+storage-byte/outcome or rejection cases. All 49 public SQL examples parse. These
+private-turn fixtures do not establish native mutation admission, disk recovery,
+current revocation or language-SDK mutation coverage; those remain required.
+
+The ReleaseSafe performance probe now includes 10,000 compilations each of a
+three-row insert, key update and key delete, with five independent process samples.
+Their median costs are 1.081, 0.627 and 0.447 microseconds respectively. The
+independent outcome probe observes at most nine private point reads for three-row
+insertion and five for an existing-row update. This is a baseline for compiler
+and helper work, excluding authority, network and disk. Raw samples, executable
+hash, dirty-source flag and compiler identity remain in the generated report;
+no end-to-end performance improvement is inferred.
+
+`just check` passes, including the production documentation build; a further
+`just test::unit` passes after the 220-byte literal boundary cases are added.
+The first broad check exposes a catalog omission in the rebased CI consolidation:
+`bindings::test` remains an invariant owner but was removed from lane membership.
+It is now listed as an external aggregate, preserving the once-per-lane SDK run.
+
+### Avoid repeated mutation selection
+
+After the initial mutation baseline, the Station helper uses `Table.upsert` only
+after finding the existing row in the same private view. It retains descriptor,
+type and write validation without repeating the existence lookup. The independent
+oracle now asserts exactly three private point reads for each existing-row update,
+down from five, with identical proposed bytes and affected counts. This is a
+40% reduction in those callback reads, not a network or commit-latency claim.
+`just test::unit test::sql` passes again, including rollback, sticky read failure,
+all 31 mutation cases and the unchanged query corpus. Inserts remain at most
+nine private point reads for three rows.
+
+### Cold-store setup readiness
+
+Repeated SQL ingress attempts observe an owned MinIO health response followed by
+HTTP 503 from bucket creation, before any authority/source setup. The fixture now
+includes the signed empty PutBucket in its existing 30-second readiness deadline.
+It retries that 503 and accepts only an explicit `BucketAlreadyOwnedByYou`
+conflict when recovering a completed creation. Other conflicts and authorization
+failures still reject. Three fresh pinned MinIO fixtures pass readiness, a second
+creation of the same owned bucket and cleanup. This qualifies setup only; the
+interrupted query/browser runs are not passing evidence.
+
+### Worksheet SQL inspection
+
+The worksheet adds explicit Inspect SQL submission and a separate metadata/plan
+region, bound to the inspected draft and observed source/policy revisions. The
+real Board API rejects unsupported catalogs and malformed explicit numeric
+literals with 400 `UnsupportedQuery`; these errors formerly fell through to 503.
+The fixture now preserves and retries the exact frozen submission body after a
+503, still requiring the original receipt and its current disclosure checks.
+
+`just transit-board::check` and the broader `just check` pass. The real Table
+API/Chromium run (`zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-source=table -Dunified-board=true -Dunified-browser=true`) passes in
+524.40 s. It verifies DESCRIBE, SHOW TABLES and EXPLAIN without query admission,
+operator/output-column presentation, stale-draft labeling, failed-inspection
+clearing and current revocation clearing. Existing uncertain submission, cross-
+instance retry, finite Live draft recovery and worker/node/store recovery pass.
+Two Board result readers peak at 41,209,856 combined RSS bytes in the API probe;
+that measurement excludes Chromium. The run uses 41 rows, six segments, eight
+resident authority pages and an 8 MiB hot store. These are whole-fixture costs,
+not comparative inspection latency. KV/Document browser coverage remains open.
+
+### Canonical Table mutation requests
+
+`TableMutationRequest` binds the current native definition, realm, writer,
+resource, Table descriptor and typed operation in at most 799 owned bytes.
+It reuses Station's Table value codecs and immutable publication commitments;
+it does not admit work or add a query-client write route.
+
+`just test::unit` passes with five independently encoded fixtures across four
+Table value types, full-width signed keys and nullable/Unicode/binary values.
+The Zig checks compare canonical bytes, overwrite the input buffer before using
+the decoded value, reject every truncated fixture and reject missing/foreign
+definitions, query-bundle magic, trailing input, invalid identities/operation
+counts and foreign publication records. The maximum-size fixture occupies
+exactly 799 bytes and a one-byte-short output rejects. The ownership/bound
+catalog and `just transit-docs::check` also pass. Public mutation admission,
+revocation and durable outcome recovery remain subsequent proof boundaries.
+
+### Remaining KV callers and browser
+
+`zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=kv
+-Dunified-sdk=c,cpp,erlang,elixir -Dunified-board=true -Dunified-browser=true`
+passes in 191.17 s. Six native/port/installed callers agree on SQL inspection;
+revocation, permanent retirement, frozen retry and worker/node/store recovery
+pass. The real browser additionally verifies the empty SHOW TABLES listing,
+read-only plan/description display, stale draft, error clearing and current
+revocation clearing alongside the existing finite-query recovery flow. The two
+Board reader processes peak at 41,189,376 combined RSS bytes; Chromium is excluded.
+This completes the installed KV inspection set across all ten SDKs when combined
+with the earlier language runs. The remaining eight SDK Document callers and
+Document browser are still being verified.
+
+### Application-composed Table mutation admission
+
+`TableMutationAdmission` passes `just test::unit` and the independent package
+`zig build test`. It uses the existing publication/half-chunk components and
+an explicit per-principal/Table policy. Begin uses four private mutations;
+application of three rows uses three row mutations plus one result. A terminal
+active pointer is replaced on the next begin without discarding the old result.
+
+Reference-store schedules cover interrupted/repeated halves and owner
+reconstruction, identical recomputed pre-commit proposals, repeated terminal
+apply/cancel with the original input identity, conflicting/foreign namespaces,
+forged process origin, another principal, busy uploads, conditional policy
+updates, zero-mask revocation, same-mask revision fencing and per-operation
+permissions. INSERT conflict leaves every row unchanged; same-value UPDATE
+counts one and missing UPDATE/DELETE count zero. Declaration drift rejects.
+A read failure on the second insert restores the first proposed row and leaves
+sticky read poison; no terminal record is fabricated. Foreign definition bytes
+with a valid publication commitment produce an invalid-request result, while
+post-publication chunk corruption propagates as an integrity error.
+
+The independent Python contract oracle additionally encodes the source
+fingerprint, publication commitment, one policy, five status phases and six
+commands. Zig matches their bytes and rejects truncated fixed records/commands,
+inconsistent terminal fields, permission bits, part flags and exceeded part
+bounds. These are private-turn/model checks, not native durability, transport
+uncertainty or public mutation-client proofs. The supplied query hosts still
+reject mutation messages; the native integration is the next proof boundary.
+`just check`, including generated-contract, frontend and documentation checks,
+passes for this increment. The verification catalog also passes.
+
+### SQL worktree main rebase
+
+The SQL worktree is rebased from `3ea81aaa` onto `2c1a9d2d`. One retired-source
+fixture conflict was resolved by keeping the explicit null cursor and concrete
+authority errors together with SQL inspection denial checks. Main's bounded
+startup/browser retries, installed SDK ready/reconcile schedules and current
+Arrow fixtures are retained. Its ten-language source evidence above qualifies
+the base query path; it is not substituted for the new inspection assertions.
+
+The remaining-eight-SDK Document/browser run was interrupted during provisioning
+to avoid mixing source revisions during the rebase. It had completed installed
+codec checks, but no source/browser success was reported. It is not a pass and
+will be rerun from the rebased worktree. The unfinished native mutation proof was
+saved and restored intact. Post-rebase `just check` and `just test::sql` pass.
+The transport package's formatting/lint, TypeScript check and eight focused
+transport tests pass. The added inspection schedule checks upstream's exact
+500/1000/2000 ms availability backoff, identical request bodies and immediate
+termination at current denial. Its first draft used an invalid request field
+and failed before dispatch; the corrected request passes without unhandled
+promises. Public-query and Document integration reruns remain in progress.
+
+### Native Table mutation visibility and recovery
+
+`just test::table-mutation` passes in **7.890 s** against owned disk-backed Ursula
+and the real native node, with eight resident authority pages. The test
+application calls the public mutation admission owner through ordinary Station
+casts. It does not add a supplied host, CLI or SDK write route.
+
+The schedule stages a multi-chunk UTF-8/null request and confirms no rows exist
+before the final native commit. All three rows and the terminal result then have
+the same resource revision, the original terminal input identity is retained,
+and native input progress is consumed. The proxy removes the accepted commit's
+receipt; after process exit and node/store SIGKILL/restart, the unchanged frozen
+signed proposal returns the original receipt and unchanged rows/result. A changed
+signed retry rejects. A new apply of the same namespace returns the original
+result without row writes.
+
+A two-row INSERT conflict after the first absent key leaves that key absent and
+the existing rows unchanged. An earlier resource revision cannot open a captured
+view after intervening staging commits. A prepared update from an older writer
+generation rejects without changing rows/result, then the fresh fenced writer
+resumes the original admitted input. Revoking native write rights rejects an
+already frozen delete; restoring rights permits that exact saved request.
+Separate application-policy revocation records a denied result with no row
+change, and revoked read rights prevent inspection of an earlier result.
+
+The proxy observed **555 read requests** and **26 successful turn responses**,
+including exact receipt retries; these are transport counts, not 26 unique
+accepted mutations. The largest proposal has four mutations and the largest
+stored value has 256 bytes. Runtime includes the fixture's provisioning,
+inspection, fault injection and recovery, but excludes compilation. This is one
+local schedule, not a statement-latency target or a paired performance comparison.
+The fixture freezes and hashes both executables before running. Unit/catalog
+checks and the independent SQL oracle retain their own evidence above.
+
+The initial schedule also passed before adding the stale-resource-view case;
+the final schedule above is the qualifying result. The ordinary growth lane now
+owns `test::table-mutation`, and invariant `SQL-MUTATION-01` maps its contracts,
+implementation, SQL oracle and native proof. Native integration does not complete
+the remaining supplied-host and public caller work.
+
+### Installed mutation operation profiles
+
+`just test::table-mutation` runs seven profiles for the native ABI, port and
+real CLI. Each selected `--sdk` adds the same profiles through independently
+installed public language APIs; Python adds both synchronous and asynchronous
+callers. Build the selected packages with their `bindings::*-build` tasks first;
+`bindings::c-build` covers C/C++ and `bindings::beam-build` covers Erlang/Elixir.
+The complete selection is:
+
+```sh
+just test::table-mutation --cold --sdk python --sdk node --sdk rust --sdk ruby \
+  --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir
+```
+
+The profiles cover UPDATE, DELETE of an existing row, DELETE and UPDATE of an
+absent row, INSERT with reversed column order, conflicting two-row INSERT and
+cancellation after a committed upload part. Each caller compares current rows
+with independent expectations, including NULL versus absence and rollback
+of an earlier private insert when a later key conflicts. The conflicting batch
+must leave that earlier key absent. Missing-row operations and rejected or
+cancelled operations preserve all row revisions. A successful insert shares its
+revision with the durable result.
+
+The proxy loses the begin receipt for UPDATE and the final apply/cancel receipt
+for each added profile. The caller closes and is recreated, then resubmits the
+exact saved command before selecting a successor. Repeated explicit apply and
+cancel controls preserve the original terminal outcome, input and result
+revision. All retained outcomes are checked again across physical node/store
+restart and denied after current read revocation. Per-profile intervals include
+recovery and assertions; they are functional schedule timings, not statement
+latencies or language performance rankings. The success record is emitted only
+after fixture cleanup and retains the source, dirty state, runner and binary hashes.
+
+`--cold` selects the existing owned S3 fixture with an 8 MiB hot-store limit and
+8 MiB cold cache, requires actual persisted cold chunks and records their count
+and filesystem bytes. Eight resident authority pages, four mutations and all
+operation deadlines stay unchanged. The installed profiles use one UTF-8 Table;
+wider literals and three-row bounds retain their private-turn/native proofs.
+Upload cancellation does not implement SQL transactions or undo applied rows.
+
+The initial native/port/CLI expansion passes **21 profiles** in **197.977 s**,
+with **6120 reads**, **150 turn responses** and **23 lost receipts**. That run
+cancels immediately after begin, before the subsequent partial-upload extension;
+it does not qualify that extension or the optional cold/installed-SDK schedule.
+Its log is `/tmp/transit-sql-installed-mutation-profiles-native.log`.
+
+The complete cold-storage selection above passes at clean source `207003bf`:
+**98 profiles across fourteen caller variants in 988.246 s**, including
+**42.403 s** of installed-consumer setup. It records **25,692 reads**, **582 turn
+responses**, **677 mutation-send responses** and **100 lost receipts** (99 caller
+receipts and one writer receipt). All retained outcomes survive physical
+node/store restart and current read revocation denies every selected status.
+Row/revision assertions run before that restart; the native application cases
+separately check atomic row/result recovery. Cleanup completes before the final
+success marker. The store records **604 cold objects / 71,935,123 filesystem
+bytes**, including provider metadata. Four mutations, 256-byte values and eight
+resident authority pages remain the observed maxima. The log and full report are
+`/tmp/transit-sql-installed-mutation-profiles-all.log` and
+`/tmp/transit-sql-installed-mutation-profiles-all.json`. The runner SHA-256 is
+`a18888ead65bd90e49300be94231afd82cb83e531e30954369f2cc27da719a02`;
+the report records every frozen binary digest. All ten SDK package builds and
+full `just check` also pass at this source.
+
+The separate committed-head clean growth run at `207003bf` remains **failed**:
+Arrow, pages and growing authority pass, then `test::growing-service` exceeds the
+query delivery subprocess's **180-second** deadline. That task takes **598.71 s**;
+the lane takes **792.65 s**, with its remaining **17 tasks unrun**, including the
+changed mutation schedule. The isolated checkout and lane records remain at
+`/var/tmp/transit-ci-i4cuegoj/src`; the log is
+`/tmp/transit-sql-installed-mutation-profiles-ci-clean-growth.log`.
+
+That run uses Debug binaries. The unchanged focused schedule
+`zig build test-query -Doptimize=ReleaseSafe` passes at the same source: write
+**9.986 s**, seal **7.731 s**, recover **13.546 s**, publish **1.768 s** and deliver
+**79.959 s**. It verifies **41 rows / 21,296 bytes**, exact retries, bounded Arrow
+validation, cancellation and retained acknowledgement. Its log is
+`/tmp/transit-sql-growth-query-release-safe.log`. These are separate build-profile
+observations, not a diagnosis of the Debug timeout or an engine speedup claim.
+The growing service and focused query recipes now explicitly select ReleaseSafe,
+as other installed integration proofs do. Safety checks, workload, fault
+injections, timeouts and resident limits remain unchanged; Debug remains
+available through the direct Zig commands. A new committed-head clean run is
+required to qualify the recipe change.
+
+### Full-reference mutation command cutover
+
+Mutation parts, seal, apply and cancel now carry the complete 68-byte immutable
+publication reference. Unit schedules reject a different resource with the same
+writer/principal/Table/namespace/policy revision, changed request length/digest,
+and changed references to terminal results. Namespace-only payloads reject.
+The largest part is 205 bytes; native frame, request, row and turn bounds remain.
+
+The shared native/ABI definition is replaced with `b17eab6aefacb9013afbbcfebf9eededea9f57dcd8be304bab4a18e5d41cd016`.
+Generated native/install schemas, ABI/binding resources, browser schemas and
+independent request/query/serving/signing fixtures are regenerated together.
+Existing missing/foreign-definition and canonical saved-request checks remain.
+`just check`, the package-local query tests, the independent mutation fixture
+check and application signing check pass. The first root check caught two
+hard-coded native signing digests; independently recomputing their current
+canonical bytes corrected the fixtures. An initial package invocation using
+`--build-file` failed configuration; running from the package directory passes.
+
+`just test::table-mutation` passes on this definition in **7.682 s**, with the
+same 555 read requests, 26 successful turn responses (including exact retries),
+four-mutation maximum, 256-byte maximum stored value and eight resident authority
+pages. The fixture persists the original reference alongside its required
+definition before staging, then loads that reference for later apply/cancel.
+It never resolves a replacement reference from the current namespace.
+The frozen node digest is `a511cb9f1f8996f93a94cdb795fece1d8cbdbb46bf2663e2fa2b034947362835`;
+the proof digest is `6d1b6ce699f80e0f09d28ec5c6e54f66b3a8f99c10106e121698a3259fa404ee`.
+These independent runs are not a paired performance comparison.
+
+The earlier rebased Document schedule completed on the preceding definition:
+Python, Node, Ruby, Rust, C, C++, Erlang and Elixir plus native/port/CLI inspection
+agree, and real Board API/browser checks pass. Combined with the previously
+recorded Java/.NET schedule, all ten SDK source sets are covered on that
+revision. The final Document run takes **1805.83 s**, including **1436.92 s**
+provisioning; it produces 12 rows in two segments (9880 bytes), uses 64 resident
+authority pages, and retains 1255 cold objects (139076558 bytes). Two concurrent
+Board readers sample 45101056 bytes RSS, excluding Chromium. Worker/node/store
+restart, prefix revocation, released source pins, current denial and exact
+uncertain retries pass. This completed earlier-build evidence is not substituted
+for post-cutover caller qualification.
+
+The first committed-HEAD `just ci-clean` run, at `d3fab512`, passed the core lane
+and growth Arrow/page proofs, then failed in `test::growing` with
+`LegacyAcceptedGrowthHistory`. The old assertion expected the now-consolidated
+current adapter to reject its own history. Later clean-CI lanes did not run.
+The isolated checkout and failure evidence remain at
+`/var/tmp/transit-ci-rb8z_6yk`. A replacement current-owner definition-rejection
+proof and new committed-HEAD validation are tracked separately; the failed run
+is not a clean pass.
+
+### Consolidated storage definition rejection
+
+`just test::growing` passes after replacing the obsolete legacy-adapter assertion.
+A fresh current adapter reads valid genesis history. Separate disk-backed fixture
+journals with a missing or foreign head definition reject through both `Store.read`
+and `Engine.open`, before and after provider restart. Their tails and stored bytes
+remain unchanged. The first replacement compared append-input ordering to Ursula's
+canonical JSON and failed; the corrected proof captures the stored bytes before
+rejection and compares them after, preserving the intended no-rewrite assertion.
+
+The final write/recover/checkpoint/trim-recover phases take **115.883 / 3.918 /
+6.575 / 3.734 s** with one resident page, 64 rows and 1011 catalog records before
+the checkpoint. All existing root, mailbox, captured-view, grant, exact-receipt,
+trim and missing-page checks remain. This focused pass does not turn the earlier
+incomplete clean-CI run into a pass.
+
+On the replacement definition, `just test::client-abi` and `just bindings::native`
+also pass canonical signing, missing/foreign-definition refusal, seedless exact
+recovery after host/store restart, current revocation, poisoned-read controls,
+shared local codecs and six independently decoded query segments. Installed
+language/browser cutover schedules and complete committed-HEAD CI remain separate.
+
+### Shared signed Table mutation client
+
+`TableMutationClient` now owns current metadata/SQL compilation, one-command
+preparation, canonical save/restore, explicit submit, processed-input observation,
+reference-bound status and bounded upload resumption. Package tests prove owned
+saved bytes, required outer/nested definitions, canonical framing, and target or
+signature rejection before touching the transport. The first test compile caught
+a slice binding that should be `const`; correcting the binding preserves the
+intentional mutation of its allocated bytes in the ownership test.
+
+The expanded `just test::table-mutation` passes in **9.711 s**. It exercises the
+shared client through real native commands, recreates each writer between stage
+commands, and checks pending/processed input progress. The proxy removes the
+accepted caller-send receipt, then the process exits and node/store restart.
+The restored signed command returns the same admission position; only after that
+receipt is reconciled and its original input processed does upload continue.
+The separate accepted writer-commit receipt loss/restart proof remains intact.
+Conflicting namespace preparation cannot overwrite the fixture's saved reference,
+a busy active upload cannot admit a second begin, and policy denial prevents new
+compilation. Cancelling a terminal denied request retains its original result.
+
+The proxy counts **674 reads**, **25 successful mutation-send responses** and
+**27 successful turn responses**, including exact retries. Bounds remain four
+mutations, 256-byte values and eight resident authority pages. The frozen node
+digest is `a511cb9f1f8996f93a94cdb795fece1d8cbdbb46bf2663e2fa2b034947362835`;
+the proof digest is `5e45e18b7f74d9fc117093f41c78476d8cad741c4b386882f620c3066dd02c2e`.
+This expanded schedule adds a second node/store restart, explicit stage progress
+reads, failed preparations and duplicate cancellation, so its totals are not an
+equivalent-workload comparison with the earlier admission-only proof.
+
+Metadata acquisition requests at most six keys in one native batch. Replacing
+a terminal active pointer needs one additional prior-status batch; immutable
+feature support is cached, while current credentials, grants, source metadata
+and policy are not. Saved retry submission performs no metadata read or new
+signing. Supplied host/CLI/language SDK write integration remains outstanding.
+
+### Consolidated service capability follow-up
+
+The second committed-HEAD `just ci-clean`, at `775b4bc9`, passed core and the
+corrected growing-storage proof, then failed in `test::growing-service`: its old
+assertion expected Station and runtime bindings to be unavailable. The current
+service advertises both. The focused `just test::growing-service` passes after
+requiring those capabilities together with batched reads, retained versions and
+worker rotation. It preserves signed reads/turns, current denial, exact retry,
+maintenance faults, disk restart and quota/backlog checks. Station write/recover
+takes **55.584 / 16.132 s**; the retained query publishes 41 rows / 21296 bytes
+through write/seal/recover/publish/deliver phases. This is a focused pass; later
+clean-CI lanes did not run. The failed checkout remains at
+`/var/tmp/transit-ci-zzrnm6qv`.
+
+### Supplied Table mutation writer
+
+The explicit `table_writer` host role composes the same mutation admission owner
+and requires an authorized initializer, an immutable stored configuration and
+separate per-principal policy. Independent bytes cover configuration, initializer
+commitment, policy changes and all twelve input rejection reasons. Package tests
+cover the four-slot initialization boundary, changed configuration/resource,
+unauthorized/stale policy changes, namespace conflicts, rollback, poisoned reads
+and corrupt status. Rejected inputs have a retained disposition and do not
+replace a request's terminal result.
+
+`just test::table-mutation` passes in **12.481 s** using the actual supplied host,
+including termination during upload, fresh fenced ownership, premature-apply
+rejection, continued upload/application and activation-marker reuse refusal.
+The caller reads a processed input's reference-bound rejection separately from
+its mutation result. The first run exposed a missing fixture activation directory;
+creating that owned directory fixes startup without changing host recovery gates.
+All earlier caller-send and writer-commit receipt-loss/restart, atomicity,
+conflicting retry, current grant/policy and duplicate-result schedules remain.
+
+The expanded schedule records **1010 reads**, **30 successful mutation-send
+responses** and **33 successful turn responses**, including retries. Bounds stay
+at four mutations, 256-byte values and eight resident authority pages. The node
+SHA256 is `a511cb9f1f8996f93a94cdb795fece1d8cbdbb46bf2663e2fa2b034947362835`,
+the proof SHA256 is `af0313622dc0bd760d7684b42899e3fca22ae27ac109216358edfcc29e1294b7`,
+and the host SHA256 is `2e620499a4df9b472cc8f52b90e8a9e0855cff8b062430e14515a1f1a0a9b0fe`.
+These totals add host polling and rejection/recovery work; they are not a paired
+performance comparison. CLI/language SDK mutation entry points and a combined
+query-source/writer host remain outstanding.
+
+### Main relational and verification integration
+
+The SQL branch is rebased onto `5e0efd19`, retaining the new delivery simulation,
+SDK administrative exact retries, disk-backed language-ring storage and actual
+CPU-affinity reporting. Storage conflicts retain main's no-page-request/no-page-
+creation gates and add direct current Store-read rejection. The service proof
+requires Station/runtime support plus batching, retained versions and rotation.
+The pre-rebase supplied-writer tree passes full `just check`, independent mutation
+bytes, documentation and the verification catalog. Rebased committed-HEAD clean
+qualification is a separate run; no unexecuted lane is reported as passed.
+
+### Neutral Table mutation caller
+
+The post-rebase supplied-host schedule passes at `8314f17b` in **12.407 s** with
+1008 reads, the same node/proof/host digests as the preceding host run and unchanged
+native bounds. Full clean CI at that committed revision is tracked separately.
+
+`TableMutationBridge` adds owned neutral actions and results above the shared Zig
+caller. Package tests match all six independently encoded commands, five request
+variants and five stored phases. They preserve full-width namespaces, safe-counter
+policy revision bounds, owned cells/strings and rejection before transport of
+changed references, malformed saved commands and truncated references. An initial
+test incorrectly gave policy revision the full u64 namespace range; the corrected
+case uses its existing native safe-counter bound rather than widening the contract.
+
+The real native proof now drives the supplied host through serialized neutral
+compile/prepare/next/submit/observe/rejection/status actions. Compiled bytes and
+opaque prepared text survive caller recreation and host replacement; premature
+apply preserves upload status, terminal cancellation preserves the original result,
+and current read revocation stops neutral status lookup. All earlier atomicity,
+caller-send/writer-commit receipt loss, disk restart and fencing schedules remain.
+The pass takes **12.347 s**, with **1063 reads**, **31 mutation-send responses**,
+**34 turn responses**, two lost receipts, four mutations maximum and eight resident
+authority pages. Its proof SHA256 is
+`5c4d0ce1f6edea1c8faba49a8688012f75afea3e6eac10504e162cfcf7ef6e58`;
+node and host digests remain those in the supplied-writer record. Extra metadata,
+status and terminal-cancellation observations make this a different workload,
+not a paired performance improvement. Package tests, independent wire fixtures
+and documentation checks pass. Native ABI/port and installed SDK/CLI exposure
+remain separate integration work.
+
+### Mutation ABI and port callers
+
+The explicit `station_table_mutation_create/call/destroy` API and
+`mutation_client` port profile delegate to the neutral Zig bridge. Schemas and
+all generated language resources are regenerated from public types. A structural
+comparison confirms that existing exported signatures and all existing standalone
+schemas remain unchanged; only HostConfig/HostRequest gain the new optional
+profile/action, with three new mutation schemas. No existing wire or stored
+meaning changes in this additive export.
+
+Binding package tests pass current-target/signature validation before dispatch,
+malformed recovery rejection, bounded handle overlap, unconfirmed transport
+classification and buffers that outlive their client. The native schedule also
+checks conflicting local/query/mutation profiles and read-query refusal of
+mutation actions. The header generator initially needed the new opaque handle
+name registered; generated declarations now include it in C and foreign resources.
+
+`just test::table-mutation` passes in **16.044 s**. In addition to the earlier
+native/host schedule, real C ABI and port callers each compile, stage and apply
+an UPDATE, lose its accepted admission receipt, replace their handle/child, and
+recover the identical saved command. Both read their original durable result,
+and both stop after current native read revocation. Three caller receipts and one
+writer-commit receipt are lost independently. The schedule records **1406 reads**,
+**41 mutation-send responses** and **42 turn responses**, retaining four mutations,
+256-byte values and eight resident authority pages. These additional callers and
+faults expand the workload; the elapsed time is not a paired speedup comparison.
+
+The port SHA256 is `85ca4859050fc68e0859c4a446464c488ee747b11e29c787b7e0fb15a6e2c436`
+and library SHA256 is `b1bf78601f65df27a1038ee993fc8596ce0c770bb010a50905054a66e5dd603b`.
+The node, proof and writer digests match the preceding neutral-caller record.
+Actual idiomatic SDK callers, CLI integration and combined read/write source
+composition remain separate boundaries; generated declarations alone do not
+qualify them.
+
+The final mutation tree also passes full `just check`, `just bindings::check`,
+`just bindings::native`, documentation and the verification catalog. The broader
+binding regression preserves local-codec/native-port parity, scoped controls,
+poisoned reads, exact disk/host recovery, six independently decoded query segments,
+current denial and materialization update/delete/reinsert behavior.
+
+The separate committed-HEAD clean run at `8314f17b` passed core, growing authority,
+service/maintenance and Station recovery, then exceeded the existing **180 s**
+query-delivery deadline inside `test::growing-service`. The last recorded native
+history position was 560 and commands were still succeeding; no assertion proved
+incorrect results. This is an incomplete proof, not a pass or evidence that the
+deadline is sufficient under shared-host contention. The failure checkout remains
+`/var/tmp/transit-ci-n_3e42w_`. A focused `just test::query` rerun on that frozen
+revision, after the binding regression finished, passed with the same binaries
+and original deadline: write **7.550 s**, seal **11.852 s**, recovery **31.933 s**,
+publication **3.586 s**, delivery **146.497 s**. It independently decoded 41 rows,
+21,296 bytes and six IPC segments through exact retry and disk restarts during
+staging, sealing, publication and partial consumption. The initial rerun stopped
+before testing because Nix could not recreate a cached shell derivation; disabling
+Nix's evaluation cache allowed the pinned bindings shell to start. This focused
+pass does not convert the preceding incomplete clean run into a pass.
+
+### Installed Python Table mutation callers
+
+`just test::table-mutation --sdk python` passes with independently installed
+0.2.0 wheels in a clean environment outside the checkout. Both public synchronous
+and asynchronous callers compile an UPDATE, preserve opaque prepared bytes, lose
+the admitted send receipt, close and recreate their caller, recover that exact
+receipt, finish staging, and read the durable one-row result. Both stop status
+disclosure after current native read revocation. Their exception adapters check
+that uncertainty retains the exact original recovery bytes. The earlier native,
+ABI, port and supplied-writer schedules remain in the same run.
+
+The expanded schedule takes **22.645 s**, including **1.628 s** for installation.
+The synchronous and asynchronous caller intervals take **2.455 s** and **2.444 s**;
+they include caller creation, replacement, upload and result checks. The proxy
+records **1791 reads**, **51 mutation-send responses**, **50 turn responses** and
+six lost receipts (five caller sends plus one writer commit). The bounds remain
+four mutations, 256-byte stored values and eight resident authority pages. Native
+binary digests match the preceding ABI/port record. These are unpaired workload
+measurements, not comparative SDK throughput claims.
+
+An initial wrapper omitted Just's positional-arguments attribute, so its green
+run exercised only native/port callers; it is excluded from Python evidence.
+The corrected schedule prints its selected SDKs and per-caller completion.
+Its first actual Python run exposed a test-adapter result-key mismatch; the
+adapter now preserves the bridge's `observation` field. Both modes pass after
+that correction. Shared native cases cover INSERT/UPDATE/DELETE; this installed
+Python extension exercises UPDATE recovery, not an independent full SQL corpus.
+The public Python API passes strict type checking across 21 source files, and
+the complete repository `just check` passes. `bindings::python-test` owns
+the installed mutation schedule, and `bindings::mutation-python` provides its
+focused entry point. Other language mutation clients and the CLI remain separate
+integration work.
+
+The final `just bindings::mutation-python` rebuild/install/type-check rerun also
+passes: **23.170 s**, **1777 reads**, unchanged send/turn/lost-receipt counts and
+native digests, with **1.731 s** installation and **2.322/2.421 s** Python caller
+intervals. Poll-dependent read counts and shared-host timings vary between runs.
+
+### Installed TypeScript Table mutation caller
+
+`just bindings::mutation-node` builds and installs the public/native packages
+outside the checkout, passes strict TypeScript and formatting/lint checks, then
+runs the same disk-backed mutation schedule through typed promise methods.
+Its UPDATE uses namespace **18446744073709551615**, preserving the full uint64
+through `bigint`, owned request/reference buffers, caller replacement and exact
+admission retry. Current read revocation denies the original result afterward.
+The caller's uncertainty object retains the original prepared text.
+
+Seven boundary tests pass mutable-input/getter ownership, malformed saved text,
+cross-realm targets, three unconfirmed receipt responses, a foreign status phase,
+and missing/foreign contract definitions with otherwise matching v1 labels. The
+shared Node Station port now checks its generated definition before caller work,
+using the existing native capability owner. A version label alone never qualifies
+a different native build. Generated schemas validate response variants at runtime;
+semantic receipt validation also rejects position zero while retaining uncertainty.
+
+The final focused schedule takes **22.768 s**, including **2.753 s** installation
+and **3.796 s** for the installed Node caller interval. It records **1686 reads**,
+**46 mutation-send responses**, **46 turn responses**, four lost caller receipts
+and one lost writer-commit receipt. The four-mutation, 256-byte-value and
+eight-resident-page bounds and native binary digests match the preceding ABI
+record. The earlier installed trial took 23.433 s with 1680 reads; these unpaired
+runs do not establish a performance improvement. The first focused task stopped
+on Markdown formatting before its proof; the formatted guide and complete rerun
+pass. The verification catalog and local documentation links pass.
+
+`bindings::node-sdk-test` owns the installed mutation schedule, and the ordinary
+Node checks include its runtime boundary tests. The installed mutation extension
+exercises UPDATE; the shared native fixture remains the independent
+INSERT/UPDATE/DELETE and rollback oracle. Remaining language adapters, CLI
+integration and read-query/writer composition remain separate work.
+
+The broader `just bindings::node-sdk-test` also passes with the shared definition
+check: raw-client owned I/O and revoked exact retry; runner scope/gates, poisoned
+reads, fencing/expiry, exact disk/host recovery, retained Tables and six owned IPC
+segments; ordinary installed HTTP (**76.74 s**) and RPC (**77.52 s**) with staged
+recovery, binary TLS, current denial and authenticated disposal/followup. Its
+final mutation rerun takes **22.589 s** with 1685 reads and unchanged send/turn/
+fault counts and native digests. No skipped case is counted as passed.
+
+The next committed-HEAD `just ci-clean`, at
+`d5f909864d11025849c76da28b1c9c48d2745b16`, also exceeded the unchanged **180 s**
+query-delivery deadline in `test::growing-service`. Core, growing authority,
+signed service/maintenance and Station recovery completed first. The failed
+service task took 452.48 s; later lanes did not run. The retained clean checkout
+is `/var/tmp/transit-ci-ljgt0r26`. This is incomplete clean evidence for the
+Python/TypeScript checkpoint, not qualification of subsequent Ruby/Rust commits.
+No timeout or authority bound was relaxed.
+
+### Installed Ruby Table mutation caller
+
+`just bindings::mutation-ruby` rebuilds and installs the public/native gems in
+an external consumer, checks Ruby syntax, and passes the shared native schedule.
+Typed value constructors copy and freeze request/reference bytes; the consumer
+mutates the original strings and verifies that the saved request is unchanged.
+The UPDATE uses namespace **9223372036854775825**, survives a lost admission
+receipt and caller replacement, recovers the exact original send, observes the
+durable one-row result, and stops disclosure after current read revocation.
+The native ABI, port and Ruby callers also reject a changed complete request
+commitment before preparing a valid stage. No adapter reconstructs that identity.
+
+The final focused run takes **19.970 s**, including **1.810 s** installation and
+**2.325 s** for the Ruby caller interval. It records **1592 reads**, **46 send
+responses**, **46 turn responses**, four lost caller receipts and one lost writer
+receipt. Four mutations, 256-byte stored values, eight resident authority pages
+and all five native artifact digests match the ABI/port record. The initial
+installed trial before the altered-commitment case took 20.861 s with 1617 reads.
+These are unpaired shared-host measurements with poll-dependent counts; no
+comparative throughput improvement is claimed. The installed extension exercises
+UPDATE recovery; shared native cases cover INSERT/UPDATE/DELETE and rollback.
+
+Block-based acquisition reuses the existing all-interrupt mask so its ensure
+clause owns worker/child cleanup before caller interruption can arrive. The port
+uses the existing generated definition and action/result validation. The ordinary
+Ruby SDK task now includes the mutation schedule; this focused evidence does not
+claim that the entire Ruby runner/connector regression was rerun for this additive
+adapter. CLI and seven other typed language mutation clients remain outstanding.
+
+### Installed Rust Table mutation caller
+
+`just bindings::mutation-rust` builds the public/native crates and an external
+consumer without source-checkout artifact overrides. The installed blocking
+client uses namespace **9223372036854775826**, rejects an altered full request
+commitment, preserves the borrowed prepared command across receipt loss, replaces
+its native caller and recovers the identical admitted send. It observes the
+one-row UPDATE result, then stops disclosure after current native read revocation.
+A separate compiler check rejects overlapping mutable borrows of the client.
+The executable runs after its consumer source, vendor directory and build outputs
+are removed, so its embedded native dependency owns execution.
+
+The focused schedule passes in **30.939 s**, including **12.434 s** for external
+compilation/installation and **2.311 s** for the Rust caller interval. It records
+**1587 reads**, **46 send responses**, **46 turn responses**, four lost caller
+receipts and one lost writer receipt. Four mutations, 256-byte stored values,
+eight resident authority pages and all five native artifact digests match the
+ABI/port record. These unpaired measurements include compilation and polling;
+they do not establish comparative SDK throughput. This installed extension
+exercises UPDATE recovery; shared native cases cover INSERT/UPDATE/DELETE and
+rollback.
+
+The first installed attempt stopped at a test-only lockfile equality assertion
+before mutation execution: Cargo pruned the unused optional Arrow dependency
+graph. No registry package version or checksum changed or was added. The consumer
+now requires every retained registry identity to match the packaged lock, rejects
+an unexpected Arrow dependency and builds with `--locked --offline` after that
+check. A source development check initially lacked embedded native artifacts;
+selecting the documented local native-directory override allowed it to pass.
+Neither initial failure is counted as mutation evidence.
+
+The ordinary Rust SDK task now includes this schedule. This focused result does
+not claim a rerun of the entire Rust runner/connector regression. CLI and six
+other typed language mutation clients remain outstanding.
+
+### Installed C and C++ Table mutation callers
+
+`just bindings::mutation-c` rebuilds the public/native archives and compiles C11
+and C++17 consumers outside the checkout using installed pkg-config discovery.
+Their UPDATE namespaces are **9223372036854775827** and **9223372036854775828**.
+Each rejects a changed complete request commitment, replaces its caller after an
+accepted-but-lost receipt, retries the original saved bytes, observes application
+and stops disclosure after current read revocation. Imports copy caller buffers;
+the consumers overwrite those buffers and verify unchanged compiled/prepared
+values. Saved prepared commands remain readable after native client close. C
+failure outputs clear, and C++ client copying rejects during compilation.
+
+The focused schedule passes in **24.933 s**, including **4.196 s** for installed
+consumer compilation and **2.214/2.245 s** for the C/C++ caller intervals. It
+records **1768 reads**, **51 send responses**, **50 turn responses**, five lost
+caller receipts and one lost writer receipt. Four mutations, 256-byte stored
+values, eight resident authority pages and all five native artifact digests match
+the ABI/port record. The command ran with CPU affinity 2–47, separate from the
+concurrent clean run's first allowed CPU. Timings and polling counts are unpaired
+observations, not comparative throughput claims. The installed extension exercises
+UPDATE; shared native cases remain the INSERT/UPDATE/DELETE and rollback oracle.
+
+The ordinary C/C++ SDK task includes the mutation schedule. Java, .NET, Erlang,
+Elixir and CLI mutation clients remain separate implementation boundaries.
+
+The C/C++ tree passes full `just check`, including native contract drift, unit
+checks, the verification catalog, frontend checks and documentation build. The
+broader installed runner/connector regression is recorded separately when complete.
+
+The broader `just bindings::c-sdk-test` also passes after loading the added native
+mutation entry points through the shared C bridge. Both installed raw clients
+preserve owned I/O, exact seedless recovery and current denial. Both Station
+runners preserve scope/gates, callback errors, poisoned reads, fencing/expiry,
+exact disk/host recovery, retained Tables and six owned IPC segments. Installed
+C/C++ HTTP schedules pass in **75.51/78.73 s**, and gRPC in **79.47/86.94 s**,
+including staged recovery, binary TLS, current denial and authenticated disposal
+and followup. The final mutation rerun passes in **24.968 s** with 1776 reads,
+unchanged send/turn/fault counts and native artifact digests. No skipped case is
+counted as passed. This working-tree regression is separate from committed-HEAD
+clean qualification.
+
+### Installed Java Table mutation caller
+
+`just bindings::mutation-java` builds the public/native JARs with the pinned Java
+21 compiler, then compiles an external consumer using `-Xlint:all -Werror`.
+Immutable values retain full-width namespace **9223372036854775829**. The caller
+rejects a changed full request commitment, preserves owned input/getter copies,
+replaces its port/worker after receipt loss, recovers the exact admitted send,
+observes the one-row result and stops status disclosure after current native
+read revocation. Saved prepared bytes remain unchanged on success or uncertainty.
+Generated request/result schemas and the existing bounded worker remain shared.
+
+The focused schedule passes in **19.824 s**, including **0.936 s** for installed
+consumer compilation and **2.964 s** for the Java caller interval. It records
+**1628 reads**, **46 send responses**, **46 turn responses**, four lost caller
+receipts and one lost writer receipt. Four mutations, 256-byte stored values,
+eight resident authority pages and all five native artifact digests match the
+ABI/port record. The command ran on allowed CPUs 3–47. These unpaired shared-host
+measurements do not establish comparative throughput; this installed extension
+exercises UPDATE, while native cases cover INSERT/UPDATE/DELETE and rollback.
+
+The first consumer compilation stopped on missing optional Error Prone annotations
+referenced by Gson's `JsonParser` class. Using the same `Gson.fromJson` test-frame
+reader as the existing installed consumers resolves that warning without adding
+dependencies or relaxing lint. This compile-only failure is not mutation evidence.
+The ordinary Java SDK task now includes the schedule; no full Java runner/connector
+regression rerun is claimed for this additive adapter. .NET, Erlang, Elixir and
+CLI mutation callers remain outstanding.
+
+The Java increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build. Its installed consumer passes strict Java 21 compilation.
+
+### Installed .NET Table mutation caller
+
+`just bindings::mutation-dotnet` builds the public/native NuGet packages and
+restores an external .NET 8 consumer from only those exact local artifacts.
+Compilation treats warnings as errors. The executable runs after its source and
+restore cache are removed, without a checkout native-library override. Immutable
+values retain namespace **9223372036854775830**, copy input/output arrays and
+expose read-only column names. The caller rejects a changed request commitment,
+replaces its worker after receipt loss, recovers the exact admitted send, observes
+the one-row result and rejects current status disclosure after read revocation.
+Prepared bytes survive both successful and uncertain submission unchanged.
+
+The focused schedule passes in **21.404 s**, including **2.577 s** for installed
+consumer restore/compilation and **2.560 s** for the .NET caller interval. It
+records **1598 reads**, **46 send responses**, **46 turn responses**, four lost
+caller receipts and one lost writer receipt. Four mutations, 256-byte stored
+values, eight resident authority pages and all five native digests match the
+ABI/port record. The command ran on allowed CPUs 2–47. These unpaired shared-host
+measurements do not establish comparative throughput. The installed extension
+exercises UPDATE; native cases cover INSERT/UPDATE/DELETE and rollback.
+
+The adapter uses the existing bounded worker's cancellation and joined disposal
+semantics. This schedule observes asynchronous disposal and caller replacement;
+it does not independently inject cancellation into every mutation method. The
+ordinary .NET SDK task now includes the schedule. No full .NET runner/connector
+regression rerun is claimed for this additive adapter. Erlang, Elixir and CLI
+mutation callers remain outstanding.
+
+The .NET increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build.
+
+### Installed Erlang and Elixir Table mutation callers
+
+`just bindings::mutation-beam` builds separate public/native OTP applications,
+checks Elixir formatting and compiles external consumers with warnings as errors.
+The callers run after their source is removed, without a checkout native-host
+override. Erlang records and Elixir structs preserve immutable binaries and
+full-width namespaces **9223372036854775831** and **9223372036854775832**.
+Both reject changed request commitments, retain the original prepared value in
+uncertain results, replace their caller after receipt loss, recover the exact
+admitted send and observe the one-row result. Saved values remain readable after
+close; current read revocation denies status disclosure. Generated validation
+and the existing bounded worker/port own every crossing.
+
+The focused schedule passes in **23.190 s**, including **2.151 s** for installed
+consumer compilation and **2.462 / 2.610 s** for the Erlang/Elixir caller intervals.
+It records **1790 reads**, **51 send responses**, **50 turn responses**, five lost
+caller receipts and one lost writer receipt. Four mutations, 256-byte stored
+values, eight resident authority pages and all five native digests match the
+ABI/port record. The command ran on allowed CPUs 2–47. These unpaired shared-host
+measurements do not establish comparative throughput. Installed extensions
+exercise UPDATE; native cases cover INSERT/UPDATE/DELETE and rollback.
+
+The ordinary BEAM SDK task includes both schedules. No full BEAM runner/connector
+regression rerun or new process-death injection is claimed for these adapters;
+they reuse the existing worker's ownership and joined cleanup. Ten language SDKs
+now expose the bounded mutation profile. CLI composition, broader SQL operations
+and post-cutover inspection qualification remain outstanding.
+
+The BEAM increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build. The installed consumers pass Erlang and Elixir compilation
+with warnings as errors.
+
+### Standards-main rebase and clean CI boundary
+
+The SQL branch rebases through main `f481f2b9`, including `c50ee96a`'s standards,
+multi-model and historical-schema analysis. Runtime, fixtures, generated contracts
+and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
+the roadmap index and the independently added M38: main's standards/branching M38
+is preserved, and the SQL continuation becomes M39 at that checkpoint (now
+[M40](../docs/roadmap/M40.md) after inserting the type-system prerequisite). Original author and committer
+dates are preserved by `git rebase --committer-date-is-author-date`.
+
+The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
+It passed core and the growing-service schedule in **428.16 s**, including query
+delivery in **148.517 s** under its unchanged 180-second bound. Public query,
+publication, native mutation, HTTP/gRPC libraries/transport/server and Flight
+metadata also passed. The ordinary gRPC worker proof passed in **736.96 s**
+(**726.53 s** excluding compilation), with nine sends and eight applications.
+
+`test::grpc-faults` then failed after **402.84 s**, after its preparation,
+dispatch, completion and observation recovery cases. During preparation of the
+second finite-lifetime exchange, an accepted send was followed by a native read
+returning HTTP 503 `DeadlineUncertain`, surfaced as `AuthorityUnavailable`.
+This is in the scenario that provisions a 60-second work cutoff before staging
+two exchanges; it did not reach the blocked-peer/control assertions. The log
+does not establish a generic transport outage. Deadlines and authority gates
+remain unchanged. The retained checkout is `/var/tmp/transit-ci-zlmded5l`, with
+the command log at `/tmp/transit-sql-rust-ci-clean.log`. Later suite tasks did
+not run. This failure is not a pass and the frozen checkpoint does not qualify
+the later C/C++, Java, .NET or BEAM mutation adapters.
+
+A separate `just test::grpc-faults` rerun in that same frozen checkout passes in
+**191.38 s** excluding compilation, on allowed CPUs 2–47. It covers all four
+recovery boundaries, current dispatch revocation, the work cutoff, forged
+observation, blocked-peer closure and retirement. It records five sends and five
+applications, an 8 MiB hot budget, and 402 cold objects totaling 40,130,309 bytes.
+The log is `/tmp/transit-sql-rust-frozen-grpc-faults.log`. This focused pass does
+not complete the failed full clean run or qualify later code.
+
+### Explicit CLI Table mutation caller
+
+`just test::table-mutation` now includes the real `transit mutate` executable in
+the native/port fault schedule. Every command runs in a fresh process. The CLI
+compiles UPDATE with namespace **9223372036854775833**, saves new private 0600
+artifacts and refuses an existing output path without replacing its bytes.
+Altered commitments reject. After an accepted-but-lost receipt, another process
+locates the original prepared file and recovers the same receipt. Observation,
+separate input rejection and durable status remain distinct. Explicit apply
+before sealing rejects; cancellation after application preserves the terminal
+result. Current read revocation denies status disclosure. Input artifact bytes
+remain unchanged on success and uncertainty.
+
+The schedule passes in **19.383 s**, with **1657 reads**, **48 send responses**,
+**48 turn responses**, four lost caller receipts and one lost writer receipt.
+Native, port and CLI intervals are **1.625 / 1.848 / 2.999 s**. Four mutations,
+256-byte stored values, eight resident authority pages and the five native
+artifact digests match the ABI/port record. The CLI ReleaseSafe digest is
+`9c82e91ef5180c1ce6fde4e578262b03ed65a1150f91fb3a09f536a55629a0bb`.
+Commands ran on allowed CPUs 2–47. These unpaired shared-host measurements are
+not comparative throughput evidence. The CLI extension exercises UPDATE;
+native cases cover INSERT/DELETE/rollback. This does not establish combined
+read/write sessions or a power-loss proof for local artifact persistence.
+
+`just test::cli-diagnostics` passes **237 real-command cases**, including offline
+mutation help/capabilities, strict options and numeric bounds, version and URL
+validation, and malformed local artifacts rejecting before credential loading.
+The log is `/tmp/transit-sql-cli-mutation-diagnostics.log`; the mutation schedule
+is `/tmp/transit-sql-cli-mutation-proof.log`.
+
+After tightening the test adapter to require a CLI-created prepared artifact
+instead of permitting a reconstructed fallback file, the schedule passes again
+in **18.423 s**, with **1653 reads**, the same 48 send/turn responses, lost-receipt
+counts, bounds and artifact digests. Caller intervals are **1.575 / 1.800 /
+2.742 s**. The log is `/tmp/transit-sql-cli-mutation-final.log`.
+
+The CLI increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build. The log is `/tmp/transit-sql-cli-mutation-check.log`.
+
+### CLI checkpoint clean validation
+
+Committed `42325495` ran `just ci-clean --lane core`. Foundation checks,
+properties, simulation, independent package builds, ABI, Station and disk
+storage recovery passed. The service proof failed at its first worker Table
+turn after an accepted view: HTTP 503 `AuthorityUnavailable` replaced the
+expected success (`tests/service.py:146`). Later core tasks did not run. No
+deadline or authority bound was relaxed. The checkout remains at
+`/var/tmp/transit-ci-66hrmfd0/src`; the log is
+`/tmp/transit-sql-cli-ci-clean.log`. A separate `just test::service` in that
+unchanged frozen checkout passes, including scoped revocation, worker fencing,
+disk recovery, retirement/trim and uncertain dispatch closure/replay. Its log is
+`/tmp/transit-sql-cli-frozen-service.log`. This focused pass does not complete
+the failed clean lane.
+
+### Publication domains and coordinated caller cutover
+
+The current native definition is
+`2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5`.
+Publication keys include a required domain; SPF1 references are 72 bytes.
+This separates query results from mutation requests with the same full-width
+namespace and record ID. Native SDK publication actions and caller-staged
+HTTP/RPC/Document bodies use the application domain. Generated definitions,
+neutral resources, signing fixtures and all ten SDK reference validators change
+together. Earlier proof entries retain their original definition and evidence.
+
+Full `just check` passes, including contract drift, independent wire fixtures,
+237 CLI diagnostics, frontend checks and the documentation build. After adding
+the index-cache isolation regression, `just test::unit` passes again. Unit
+schedules cover independent budgets/content/cleanup/cursors at equal full-width
+IDs, missing/old-length references, upload-marker retargeting, typed domain
+rejection before resource reads and a cached node that cannot conceal a missing
+chunk in another domain. Logs are
+`/tmp/transit-sql-publication-domains-check.log` and
+`/tmp/transit-sql-publication-domains-unit-final.log`.
+
+`just test::publication` passes with a 64 KiB record and 41 additional retained
+records, four killed workers, exact append/publication/cleanup retries and
+one-page recovery. Stage/seal/publish/cleanup/finish intervals are
+**33.816 / 2.926 / 20.478 / 14.006 / 87.795 s**. It records **2447 reads** and
+**309 turns**, at most four mutations and 256-byte values. The record's logical
+key/value size is **72579 bytes**, with **59 bytes** per domain/namespace
+budget. The first attempt exposed an outdated fault-injector key offset, now
+corrected. The next attempt failed on an expired-view read with HTTP 503
+`DeadlineUncertain` surfaced as `AuthorityUnavailable`, instead of the expected
+`StateViewExpired` rejection. An unchanged rerun passed all phases; this is
+not a deadline reliability guarantee. Logs are
+`/tmp/transit-sql-publication-domains-native.log` and
+`/tmp/transit-sql-publication-domains-native-rerun.log`.
+
+All SDK package builds pass. `just test::table-mutation --sdk python --sdk node
+--sdk rust --sdk ruby --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang
+--sdk elixir` passes native/port/CLI and every installed language caller,
+including both Python schedules. The native case still covers INSERT/UPDATE/
+DELETE and rollback; installed extensions cover UPDATE recovery. It completes
+in **78.473 s**, with **3859 reads**, **103 send responses**, **92 turn responses**,
+15 lost caller receipts and one lost writer receipt. Four mutations, 256-byte
+values and eight resident pages remain the bounds. SDK installation takes
+**29.975 s**. Caller intervals range from **1.654 s** (native) to **3.841 s**
+(Node); these expanded, unpaired intervals do not establish comparative
+throughput. The log is `/tmp/transit-sql-publication-domains-mutations.log`.
+The proof freezes and hashes its ReleaseSafe artifacts before the schedule:
+
+| Artifact       | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| Node           | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Mutation proof | `0c78c1dbf03eec1f793f6dfb89ed9bd53b719e1cca3efcc4a93ce505c1a4f264` |
+| Supplied host  | `dcc9d8410d9e42d896c54561b589353079a177c7fdf37f2976a4827481e9ebef` |
+| Native port    | `e27d4229e22812c09e74bfcec9224231cee323d7d596f04ea1d44e7752551196` |
+| Shared library | `946c36f43c9736e6905309bf21ed1374bdb858f740360c866f87b1e012753992` |
+| CLI            | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
+
+The domain prerequisite does not enable a combined query/writer host. Separate
+read/write policies, bounded initialization and interleaved snapshot/mutation
+proofs remain M36 work. Query and other owner recovery qualifications are
+recorded separately from the mutation schedule; it does not prove them.
+
+`just test::build` compiles all application and integration entry points with the
+required domains, including HTTP request readers and the application proof.
+`just test::application` passes signed publication, exact append/final receipt
+recovery, three worker kills, disk restart with one resident page and current
+policy/resource denial. Its stage/seal/publish/finish intervals are **0.956 /
+1.058 / 0.507 / 0.817 s**, with **195 reads** and **20 turns**, at most four
+mutations and 256-byte values. The independent fault selector now checks the
+application-definition domain and the new record offset. Logs are
+`/tmp/transit-sql-publication-domains-build.log` and
+`/tmp/transit-sql-publication-domains-owners-final.log`.
+
+`just test::reactive-refresh` passes in **70.95 s**, including two shared-principal
+views, one active admission, exact lost follow receipt, worker replacement,
+full-width identities and entry-read denial while metadata remains readable.
+An initial run timed out because the independent UQU1 decoder still selected
+the old phase offset; the corrected decoder selects the phase after the 72-byte
+reference. The successful log is
+`/tmp/transit-sql-publication-domains-refresh-document.log`.
+
+The separate clean bindings run at pre-cutover `f6698e0c` has passed Python,
+Node, Rust, Ruby and C/C++ complete SDK regression tasks in **594.61 / 714.73 /
+795.18 / 467.73 / 1018.21 s**, respectively. It continues with Java and later
+tasks in `/var/tmp/transit-ci-aupu5a9d/src`. These completed tasks qualify that
+frozen definition only; neither the unfinished lane nor these earlier runtime
+artifacts qualify the publication-domain cutover. The log is
+`/tmp/transit-sql-ten-sdk-ci-clean.log`.
+
+`just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir` passes all
+three source schedules on the new definition. Each agrees on SQL inspection
+across thirteen enabled native/port/SDK caller variants, retries the frozen
+upload, restarts both workers, node and disk store after segment staging, reads
+verified results, enforces prefix revocation and checks released source pins.
+Each installed SDK also runs independent Arrow/schema/cell-state codec cases.
+
+| Source   | Rows / segments / IPC bytes | Resident pages | Schedule seconds |
+| -------- | --------------------------- | -------------- | ---------------- |
+| KV       | 41 / 6 / 13584              | 8              | 139.07           |
+| Table    | 41 / 6 / 13584              | 8              | 147.78           |
+| Document | 12 / 2 / 9880               | 64             | 431.70           |
+
+The source intervals include isolated SDK installation and provisioning; they
+are not query-latency or cross-source performance comparisons. Every schedule
+uses an 8 MiB hot-store budget with persisted cold objects. The log is
+`/tmp/transit-sql-publication-domains-query.log`. Shell/Board/browser options
+were not selected by this run.
+
+`just test::http-worker` passes disk recovery, exact native retry, credential-free
+replay, cleanup, explicit/public followups and disposal, caller termination,
+name rebinding and partial-capture loss: **16 sends**, **8 remote applications**,
+**2 cancellation requests**, **526.93 s** excluding compilation. Its 8 MiB hot
+store leaves **1087 cold objects / 129751880 object-store bytes**. The log is
+`/tmp/transit-sql-publication-domains-http.log`. Final `just check-core` also
+passes after the owner and test-adapter corrections; its log is
+`/tmp/transit-sql-publication-domains-core-final.log`.
+
+`just test::document` passes staged index, acceptance, checkpoint and terminal
+cleanup recovery, with exact lost receipts at all four boundaries. Its independent
+fault selector uses the Document publication domain and new key offsets.
+Stage/accept/checkpoint/finish take **6.394 / 56.199 / 89.802 / 209.724 s**;
+the final phase recovers with one resident authority page. It records **8984
+reads**, **361 turns**, three killed workers, at most four mutations and 256-byte
+values. The 8 MiB hot store leaves **460 cold objects / 43721160 bytes**. The
+log is `/tmp/transit-sql-publication-domains-refresh-document.log`.
+
+The committed-HEAD clean core run at `fd929ddc` passed foundation checks,
+properties, simulation, codecs, deployment/telemetry, independent package builds
+and compute. It then failed in the raw client ABI's signing vectors: the SDK
+operation fixture's canonical definition had changed but its expected digest
+and signature were stale. This is a fixture defect, not a passing ABI proof.
+Later core tasks did not run. The source/log evidence is retained at
+`/var/tmp/transit-ci-uwms4hww/src` and
+`/tmp/transit-sql-publication-domains-ci-clean.log`.
+
+The two SDK operation digests and Ed25519 signatures are regenerated from the
+fixture's public test seed using independent SHA-256 and OpenSSL signing.
+The foundation verification check now checks their definition, canonical JSON
+and digest before native builds. `just test::client-abi` then passes standalone
+port checks, canonical signatures, full-width growing identities, disk/host
+restart, exact uncertain recovery, current revocation and malformed replies.
+The log is `/tmp/transit-sql-publication-domains-client-abi.log`. This focused
+pass does not complete the earlier failed clean lane.
+
+After the fixture correction, **`just ci-clean --lane core` passes at committed
+`79b648b2`** without inherited workspace build outputs. All core tasks complete,
+including foundation/CLI checks (**74.24 s**), properties/simulation, independent
+package builds (**136.52 s**), raw client ABI (**6.32 s**), Station (**149.86 s**),
+disk storage (**390.85 s**), signed service (**64.94 s**), runtime upgrade,
+runnable callers (**22.81 s**), inspection (**7.50 s**) and state (**17.61 s**).
+The readiness write takes **241.79 s** within the existing fixture bound. The
+log is `/tmp/transit-sql-publication-domains-ci-clean-fixed.log`; completion
+evidence is `.cache/ci/clean/79b648b2c3ed-transit-ci-vz30niqm`. This is a complete
+core-lane pass, not a full-suite pass.
+
+`just test::unified-ingress table` and `just test::unified-ingress kv` pass the
+actual SQL shell, generated Board client, concurrent Board instances and browser
+worksheet on this definition. They preserve frozen signed retries, separate
+inspection/query grants, current prefix denial, complete results, retirement and
+draft/view separation. Table also proves finite Live draft budgets and exact
+saved recovery. The full source schedules take **212.76 / 177.37 s**, each with
+41 rows, six IPC segments and eight resident authority pages. Two Board instances
+use **42582016 / 40566784 bytes RSS** in the respective samples. The Table draft
+budget schedule takes **17.25 s**. The log is
+`/tmp/transit-sql-publication-domains-ingress-rerun.log`. Document ingress also
+passes: **12 rows / 2 segments / 9880 bytes**, 64 resident pages, **501.78 s**
+including provisioning, and **45400064 bytes** for the two-Board RSS sample.
+Its independent browser checks cover SQL inspection, exact uncertain retry,
+current denial and provenance. The first invocation failed before execution
+on a missing cached Nix shell derivation. Disabling the Nix evaluation cache
+recreates the pinned shell; no toolchain or lockfile changes are involved.
+
+The older clean bindings lane at `f6698e0c` finishes the individual Java,
+.NET and BEAM suites in **506.37 / 480.87 / 1173.37 s**. All selected language
+suites pass at that earlier definition. Cross-language `bindings::sdk-interop`
+then fails after **298.97 s**: MinIO returns HTTP 507 `XMinioStorageFull`, Ursula
+cannot stage pages and the exact delivery retry reaches its existing deadline
+with `AuthorityUnavailable`. This is a failed lane; later tasks did not run.
+The checkout and evidence remain at `/var/tmp/transit-ci-aupu5a9d` and
+`/tmp/transit-sql-ten-sdk-ci-clean.log`. Only ignored compiler caches in other
+inactive proof clones are removed to recover disk capacity; retained source and
+failure logs remain. These older language passes do not qualify the current
+publication-domain definition.
+
+After restoring disk capacity, the unchanged frozen-checkout
+`just bindings::sdk-interop` rerun passes all **ten different-language pairs**
+in **462.5 s**, including isolated consumer installation, lost receipts, worker
+restart, typed Table/query results and owned IPC. Its log is
+`/tmp/transit-sql-ten-sdk-interop-rerun.log`. This focused pass does not complete
+the failed bindings lane or qualify the current definition.
+
+### Combined Table owner component checks
+
+`TableQueryWriter`'s independent configuration/state/control vectors and five
+component schedules pass with the pinned compiler. They model four-mutation
+initialization phases, replacement of the in-memory owner, duplicate and forged
+continuations, early ingress, independent policy revisions, whole-proposal
+rollback and poisoned reads. These in-memory tests are not native durability
+evidence. `just check-core` passes with the supplied `table_query_writer` role.
+
+The existing `just test::table-mutation` native/port/CLI schedule also passes
+after extracting the shared two-write declaration helper: **19.287 s**, **1661
+reads**, **48 turns**, four lost caller receipts plus one lost writer receipt,
+eight resident authority pages, four mutations and 256-byte values. This proves
+the existing standalone host still recovers; it does not yet prove the new
+combined host's two-turn or interleaved query/mutation schedule. Logs are
+`/tmp/transit-sql-combined-table-unit.log` and
+`/tmp/transit-sql-combined-table-check.log`.
+
+`just test::table-query-writer` now passes against the actual supplied host,
+disk-backed Ursula and public ABI/CLI callers. It loses each initialization
+commit's receipt, kills the worker, restarts node/storage, recovers the original
+signed commit, and requires fresh ownership while refusing activation reuse.
+The staged phase has neither initial policy; the ready phase has both. Repeated
+initialization leaves their revisions unchanged.
+
+The schedule admits a durable query, pauses its self continuation, opens an
+interactive console snapshot, then commits a CLI UPDATE using the durable
+query's **same numeric publication namespace**. Both earlier snapshots contain
+the old row; subsequent durable and interactive queries contain the new row.
+Query-policy revocation prevents old-result disclosure while separately
+authorized mutations still succeed. Mutation-policy revocation rejects new
+mutations while new queries succeed. Native read revocation finally prevents
+disclosure. Independent PyArrow decoding verifies the complete typed cell
+envelopes and values.
+
+The schedule takes **54.355 s**, including provisioning/recovery, with **5303
+reads**, **70 accepted turn responses**, two recovered initialization receipts,
+at most four mutations, 256-byte values and eight resident authority pages.
+It uses an 8 MiB hot store with disk-backed cold storage. Read counts include
+10 ms worker polling and the fixture's explicit one-output delivery scans;
+this is not a query latency or operator throughput benchmark. The log is
+`/tmp/transit-sql-combined-table-cli-leases.log`. ReleaseSafe binary SHA-256 values:
+
+| Binary                 | SHA-256                                                            |
+| ---------------------- | ------------------------------------------------------------------ |
+| Node                   | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Query host             | `12abd330c24290badb25df477fe5133613a726c46394e702b6525ce7d872c1a6` |
+| Proof                  | `f59d9965cc31aa9aeddeaf14ce3052a600a5b1fa99c3ab8bcf286075c5524380` |
+| Shared Station library | `946c36f43c9736e6905309bf21ed1374bdb858f740360c866f87b1e012753992` |
+| CLI                    | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
+
+Earlier attempts exposed fixture defects: its delivery scan failed to reacquire
+an expired read, its first result assertion expected flat values instead of the
+shared Arrow cell envelopes, and its command runner expected JSON from a void
+revocation command. These attempts remain failures in
+`/tmp/transit-sql-combined-table-native{,-rerun,-final}.log`; correcting them did
+not change the combined owner's implementation or relax its bounds. Full
+`just check` also passes, including frontend validation/tests and the documentation
+site build (`/tmp/transit-sql-combined-table-full-check.log`). The new native
+schedule is registered in the growth lane; it is separate from a committed-HEAD
+clean run and from the installed SDK matrix.
+
+The optional combined-host mutation SDK matrix also passes:
+`just test::table-query-writer --sdk python --sdk node --sdk rust --sdk ruby
+--sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir`.
+All ten installed SDKs (eleven caller variants with Python sync/async) resume
+the exact saved command after losing an admitted send receipt and replacing the
+caller, then observe one applied full-width-namespace UPDATE. Current native
+read revocation prevents each caller from disclosing its earlier status. The
+same run includes the initialization and durable/interactive CLI snapshot cases
+above. Query result reads here use the public native ABI and console; installed
+query SDK source coverage is recorded in the preceding query matrix.
+
+This larger schedule takes **132.498 s**, including **29.646 s** isolated SDK
+installation, **8736 reads**, **114 accepted turn responses** and eleven lost
+SDK admission receipts in addition to the two initialization receipts. Caller
+intervals span **2.894–4.279 s** and include upload, deliberate failure, caller
+replacement and status checks; they are not statement execution timings. The
+four-mutation, 256-byte and eight-page bounds hold. Frozen native binary hashes
+match the table above. The log is `/tmp/transit-sql-combined-table-sdks.log`.
+
+**`just ci-clean --lane core` passes at committed `a3c40a0d`** in a fresh
+checkout without inherited build outputs. It completes foundation checks
+(**68.31 s**), properties/simulation, independent package builds (**137.49 s**),
+client ABI (**6.20 s**), Station (**147.94 s**), disk storage (**212.77 s**),
+signed service (**44.19 s**), runtime upgrade (**4.94 s**), callers (**16.99 s**),
+inspection (**4.23 s**) and state (**11.08 s**). Readiness write takes **129.48 s**;
+these unpaired runs do not establish a performance improvement. The log is
+`/tmp/transit-sql-combined-table-ci-clean.log`; copied timing/completion evidence
+is `.cache/ci/clean/a3c40a0d6006-transit-ci-ux_5ezz5`. Later commits add the optional
+SDK test schedule and documentation, with the production source unchanged.
+This is a complete core-lane pass plus the separately executed combined-host
+proofs, not a complete clean-suite pass.

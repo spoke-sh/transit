@@ -83,12 +83,38 @@ typedef struct transit_station_unified_description {
     bool has_active; uint64_t active;
     size_t bundle_bytes, segment_bytes, batch_rows;
 } transit_station_unified_description;
+typedef enum transit_station_unified_inspection_kind { TRANSIT_UNIFIED_DESCRIPTION, TRANSIT_UNIFIED_TABLES, TRANSIT_UNIFIED_EXPLANATION } transit_station_unified_inspection_kind;
+typedef enum transit_station_unified_inspection_operator { TRANSIT_UNIFIED_SCAN, TRANSIT_UNIFIED_FILTER, TRANSIT_UNIFIED_INPUT_LIMIT, TRANSIT_UNIFIED_PROJECT, TRANSIT_UNIFIED_COUNT, TRANSIT_UNIFIED_SUM } transit_station_unified_inspection_operator;
+typedef struct transit_station_unified_inspected_column { char name[33]; transit_station_unified_type type; } transit_station_unified_inspected_column;
+typedef struct transit_station_unified_source_description { transit_station_unified_inspected_column columns[8]; size_t column_count; } transit_station_unified_source_description;
+typedef struct transit_station_unified_table_listing { char names[1][33]; size_t count; } transit_station_unified_table_listing;
+typedef struct transit_station_unified_explanation {
+    transit_station_unified_inspection_operator operators[4]; size_t operator_count;
+    transit_station_unified_predicate_kind predicate;
+    char column[33]; transit_station_unified_state state;
+    transit_station_comparison comparison; transit_station_unified_type type;
+    char projection[8][33]; size_t projection_count;
+    bool has_limit; uint64_t limit; transit_station_aggregate aggregate;
+    transit_station_unified_source_description output;
+    transit_station_unified_budgets budgets;
+} transit_station_unified_explanation;
+/* Entirely caller-owned, with no borrowed pointers or destroy operation.
+ * Bounds describe one configured source, not a fixed-size realm catalog. */
+typedef struct transit_station_unified_inspection {
+    char name[33]; transit_sdk_resource resource; transit_station_unified_source_kind source_kind;
+    uint8_t source_digest[32], schema_digest[32]; uint64_t resource_revision, policy_revision;
+    transit_station_unified_inspection_kind kind;
+    union { transit_station_unified_source_description description; transit_station_unified_table_listing tables; transit_station_unified_explanation explanation; } details;
+} transit_station_unified_inspection;
 /* No activation or writer ownership. One in-flight operation; close joins.
  * Join all caller threads before destroying any public owner. */
 transit_sdk_error transit_station_unified_open(const transit_sdk_config *, const transit_sdk_credential *, transit_station_unified_connection, transit_station_unified_client **out);
 transit_sdk_error transit_station_unified_close(transit_station_unified_client *);
 void transit_station_unified_client_destroy(transit_station_unified_client *);
 transit_sdk_error transit_station_unified_describe(transit_station_unified_client *, const transit_station_unified_source *, transit_station_unified_description *out);
+/* Current scoped metadata; no snapshot, query admission or literal disclosure.
+ * Name/SQL are bounded UTF-8 strings; output is zeroed on failure. */
+transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *, const transit_station_unified_source *, const char *name, const char *sql, transit_station_unified_budgets, transit_station_unified_inspection *out);
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *, uint64_t namespace_id, const transit_station_unified_bundle *, transit_station_unified_prepared **out); /* NULL: inspect status, not completion. */
 typedef enum transit_station_unified_control { TRANSIT_UNIFIED_CANCEL, TRANSIT_UNIFIED_RETIRE, TRANSIT_UNIFIED_COLLECT } transit_station_unified_control;
 transit_sdk_error transit_station_unified_prepare_control(transit_station_unified_client *, transit_station_unified_control, uint64_t namespace_id, transit_station_unified_prepared **out);
@@ -103,13 +129,13 @@ typedef enum transit_station_unified_phase {
 } transit_station_unified_phase;
 typedef struct transit_station_unified_status {
     bool found; transit_station_unified_phase phase; uint64_t correlation;
-    uint8_t reference[68], manifest[68]; bool has_manifest, collected;
+    uint8_t reference[72], manifest[72]; bool has_manifest, collected;
 } transit_station_unified_status;
 transit_sdk_error transit_station_unified_status_read(transit_station_unified_client *, uint64_t namespace_id, transit_station_unified_status *out);
 typedef enum transit_station_unified_finished { TRANSIT_UNIFIED_SOURCE_END, TRANSIT_UNIFIED_LIMIT } transit_station_unified_finished;
 typedef struct transit_station_unified_manifest {
     uint64_t job; transit_station_read_version source; transit_sdk_process requester;
-    uint64_t correlation, policy_revision; uint8_t request[68];
+    uint64_t correlation, policy_revision; uint8_t request[72];
     transit_station_unified_source_kind source_kind; transit_sdk_resource resource; uint64_t revision;
     uint8_t source_digest[32], schema_digest[32], plan_digest[32];
     uint64_t pages, scanned, selected, segments, rows, byte_count;

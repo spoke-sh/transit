@@ -71,12 +71,34 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
+| `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/benchmarks/README.md) |
+| `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
+| `just test::table-mutation` | Prove atomic Table rows/results, frozen receipt recovery after disk restart, stale views/writers and current grants through an explicit native application, native ABI/port and saved-file CLI |
+| `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise the combined Table host's two initialization commits, lost receipts and disk recovery, retained query cuts across same-namespace mutations, and independent query/write policies; optionally use installed mutation SDKs |
+| `just test::catalog [--sdk python\|node\|rust\|ruby ...]` | Prove atomic named Table creation, shared Zig/C ABI/native-port/CLI callers, supplied-host initialization/creation receipt recovery after disk restart, conditional policy/disposition outcomes, fresh ownership and current native grants |
+| `just test::catalog-growth` | Create 65 additional Tables on disk with eight resident pages; check nine ordered metadata pages, changed cursors, current disclosure rights and node/store restart; larger counts use `test::catalog --grow N` |
+| `just bindings::catalog-python` | Build/install Python wheels outside the checkout; prove typed sync/async catalog controls, exact creation recovery and current denial, plus value/response/cancellation checks |
+| `just bindings::catalog-node` | Build/install TypeScript packages outside the checkout; validate generated boundaries, bigint values, exact saved catalog recovery and current denial |
+| `just bindings::catalog-rust` | Build/install Rust crates outside the checkout; verify exclusive caller borrows, full-width values, malformed receipt uncertainty and saved catalog recovery |
+| `just bindings::catalog-ruby` | Build/install Ruby gems outside the checkout; verify frozen values, saved catalog recovery, malformed-child uncertainty and joined cancellation |
+| `just bindings::catalog-c` | Build/install C11/C++17 packages; verify owned values, copied-owner rejection, exact saved catalog recovery and current denial |
+| `just bindings::catalog-java` | Build/install Java JARs; verify immutable values, exact catalog recovery, uncertain replies and joined native-port cancellation |
+| `just bindings::catalog-dotnet` | Build/install .NET NuGets; verify immutable values, exact catalog recovery, strict receipt decoding and joined native ABI read cancellation |
+| `just bindings::catalog-beam` | Build/install Erlang/Elixir OTP applications; verify immutable values, exact catalog recovery, malformed replies and joined waiting-process loss |
+| `just bindings::mutation-python` | Build and install Python wheels outside the checkout; prove sync/async mutation caller replacement, exact retry and current denial through the shared native schedule |
+| `just bindings::mutation-rust` | Install Rust crates outside the checkout; verify exclusive caller borrows, full-width mutation identity and exact saved recovery |
+| `just bindings::mutation-c` | Build and install C11/C++17 consumers; prove copied buffers, saved-command lifetime, full-width namespaces and exact recovery |
+| `just bindings::mutation-java` | Install Java JARs outside the checkout; verify immutable values, full-width mutation identity and exact caller replacement recovery |
+| `just bindings::mutation-dotnet` | Restore installed NuGet packages outside the checkout; verify immutable values, asynchronous disposal and exact mutation recovery |
+| `just bindings::mutation-beam` | Install Erlang/Elixir OTP artifacts outside the checkout; verify immutable recovery values, full-width namespaces and current status denial |
+| `just bindings::mutation-ruby` | Build and install Ruby gems outside the checkout; prove immutable requests, full-width namespace recovery and current read denial |
+| `just bindings::mutation-node` | Build and install TypeScript packages outside the checkout; check owned mutation values, runtime response validation and exact receipt recovery with a full-width namespace |
 | `just test::sql-grammar`, `just test::sql-rewrites` | Regenerate the SQL reference parser, compare covered PostgreSQL ASTs, and type-check named Lean proofs with pinned optional tools |
 | `just test::model [--tail N]` | Checks the finite TLA+ model, removed guards and concrete Zig counterexample schedules |
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
-| `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh and runtime contract schedules and qualify their assertions with real-code mutations |
+| `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh, runtime and catalog contract schedules and qualify their assertions with real-code mutations |
 | `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and disk Ursula; preserve histories and cleanup evidence |
 | `just test::vortex-profile sdk\|application\|query\|reactive` | Qualify installed Python/Node hosts, local installation/migration, distinct query lifetimes or browser refresh through existing owned rigs |
 | `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |
@@ -91,7 +113,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
 | `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and an owned Docker cold store; retains each sample |
-| `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU |
+| `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
+| `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
@@ -115,6 +138,13 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::runtime-upgrade` | Proves provider-switch fencing and recovery after a lost provider response |
 | `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
+
+The growing service and focused query recipes select ReleaseSafe explicitly,
+retaining runtime safety checks with the same fault schedules, deadlines and
+resident bounds. `test::growing-service-release` selects that same profile.
+Use `zig build test-growing-service -Doptimize=Debug` or
+`zig build test-query -Doptimize=Debug` to reproduce those integration schedules
+in Debug. Unit tests retain their default Debug build.
 
 Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer

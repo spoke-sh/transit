@@ -60,6 +60,51 @@ function columns(values: Column[]): boolean {
 export function validateUnifiedQuery(input: unknown): input is UnifiedQueryResponse {
   if (!schema(input)) return false;
   const value = input as UnifiedQueryResponse;
+  if ("inspection" in value) {
+    const result = value.inspection;
+    const name = (s: string) => /^[A-Za-z_][A-Za-z_0-9]{0,31}$/.test(s);
+    if (
+      result.version !== 1 ||
+      result.resource === 0 ||
+      !name(result.name) ||
+      !unsigned(result.policy_revision, false)
+    )
+      return false;
+    const details = result.details;
+    if ("description" in details) return columns(details.description.columns);
+    if ("tables" in details)
+      return (
+        details.tables.length === (result.source_kind === "table" ? 1 : 0) &&
+        details.tables.every((n) => n === result.name)
+      );
+    const plan = details.explanation;
+    const expected = [
+      "scan",
+      ...("all" in plan.predicate ? [] : ["filter"]),
+      ...(plan.limit === null ? [] : ["limit"]),
+      plan.aggregate === "rows" ? "project" : plan.aggregate,
+    ];
+    return (
+      columns(plan.columns) &&
+      JSON.stringify(plan.operators) === JSON.stringify(expected) &&
+      plan.projection.length > 0 &&
+      plan.projection.length <= 8 &&
+      new Set(plan.projection).size === plan.projection.length &&
+      plan.projection.every(name) &&
+      (plan.limit === null || unsigned(plan.limit)) &&
+      Object.values(plan.budgets).every((s) => unsigned(s, false)) &&
+      ("all" in plan.predicate ||
+        ("state" in plan.predicate
+          ? name(plan.predicate.state.column)
+          : name(plan.predicate.compare.column))) &&
+      (plan.aggregate === "rows"
+        ? plan.columns.map((c) => c.name).join(",") === plan.projection.join(",")
+        : plan.projection.length === 1 &&
+          plan.columns.length === 1 &&
+          plan.columns[0]!.name === plan.aggregate &&
+          plan.columns[0]!.type === (plan.aggregate === "count" ? "uint64" : "int64"))
+    );
+  }
   if ("assistance" in value) {
     const assistance = value.assistance;
     return (
