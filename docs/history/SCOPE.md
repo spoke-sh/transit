@@ -176,7 +176,7 @@ qualified first with a separately compiled Zig consumer. [Publication M33](../ro
 tagged Transit artifacts installable through Nix, a shell installer, Homebrew,
 Docker/OCI and Helm, with GitHub release publication and an explicit SDK/library
 inventory. M25 is complete for its trusted local Linux/Zig profile; publication
-remains planned. [M34](../roadmap/M34.md) extends their authority and recovery proofs
+remains planned. [M35](../roadmap/M35.md) extends their authority and recovery proofs
 across cluster topologies. Station,
 connectors and query services add authorized Board metadata as their primitives land.
 These outcomes define the [roadmap](../roadmap/README.md).

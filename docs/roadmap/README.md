@@ -41,9 +41,9 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M31](M31.md) | Protocol consolidation and v1 hard cutover | In progress; one current definition per owned protocol, legacy removal and coordinated consumer/proof updates |
 | [M32](M32.md) | Public Internals and scientific documentation | Complete: nine scientific accounts, separate roadmap/design/history owners, source checks and root/prefixed browser proofs |
 | [M33](M33.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
-| [M34](M34.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
-| [M35](M35.md) | SQL language completeness and declarative dataflows | Proposed; scoped inspection, bounded Table mutations, typed declarations, maintained queries and recorded effect bindings |
-| [M36](M36.md) | Simulation and external fault verification | In progress; authority/delivery simulation first, broader deterministic and Vortex-style real-binary testing planned |
+| [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
+| [M36](M36.md) | SQL language completeness and declarative dataflows | Proposed; scoped inspection, bounded Table mutations, typed declarations, maintained queries and recorded effect bindings |
+| [M37](M37.md) | Simulation and external fault verification | In progress; authority/delivery simulation first, broader deterministic and Vortex-style real-binary testing planned |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -103,7 +103,7 @@ removing superseded code and migrating consumers before release publication.
 [M32](M32.md) publishes Internals as a public technical section and establishes
 the scientific standard for architecture and engineering accounts.
 [M33](M33.md) publishes versioned Transit artifacts through tag-triggered GitHub
-release workflows and qualified installation channels. [M34](M34.md) then
+release workflows and qualified installation channels. [M35](M35.md) then
 qualifies these boundaries across broader authority/runtime topologies. Fuze
 remains Zig throughout; SQL or RPC transport never replaces durable authority.
 
@@ -112,7 +112,7 @@ their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
 
 M15–M18 now have executed qualification within their declared profiles. The
-M19–M34 plans carry those findings forward; a planned server, watch or cluster
+M19–M35 plans carry those findings forward; a planned server, watch or cluster
 contract is still not an implemented dependency. Provider-specific integrations
 compose the existing components without a new durability model or application
 policy in the kernel.
@@ -123,7 +123,7 @@ as later milestones expand the supported profiles. Detailed proof results stay
 in the [test guide](../../tests/README.md); implementation and operating details
 stay with their [owning components](../history/ARCHITECTURE.md#planned-monorepo-decomposition).
 
-## M15–M18 handoff to M19–M34
+## M15–M18 handoff to M19–M35
 
 The [query compatibility matrix](../../packages/zig/transit-query/docs/compatibility.md)
 and [proof ledger](../../tests/README.md#m18-qualification) are the baseline for
@@ -136,7 +136,7 @@ int64 Table reactive profiles. M21/M22 are complete for their selected Table
 consumer and finite Flight profiles. M23/M24 are complete for their selected
 application, local server and terminal profiles, with focused and clean
 qualification recorded. M28 implements the accepted CLI presentation review;
-M29 implements the accepted unified CLI direction; M33–M34 remain planned.
+M29 implements the accepted unified CLI direction; M33–M35 remain planned.
 
 | Milestone | Reuse first | New qualification boundary |
 | --- | --- | --- |
@@ -153,7 +153,7 @@ M29 implements the accepted unified CLI direction; M33–M34 remain planned.
 | [M31](M31.md#baseline-and-owners) | Growing authority, unified queries, installed SDKs and existing recovery/authorization proofs | One current v1 definition per protocol, rejection of incompatible artifacts and removal of superseded code |
 | [M32](M32.md#scope-and-owners) | Existing Markdown owners, site catalog, source checks and browser proofs | Public Internals navigation/search, source migration and scientific documentation standard |
 | [M33](M33.md#baseline-and-owners) | Pinned builds, installed SDKs, existing images/chart and M24 commands | Tagged artifact identity, GitHub publication, verified installation and data-preserving upgrades per channel/platform |
-| [M34](M34.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
+| [M35](M35.md#baseline-after-m18) | Exact bootstrap generations, retained evidence, cleanup and existing fault schedules | Growing runtime support and authority transfer/revocation under partition, measured per source/topology |
 
 At each entry, run the relevant existing proof unchanged, then extend it at the
 new boundary. Preserve accepted-but-lost receipts, changed-intent rejection,
