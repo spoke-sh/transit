@@ -55,7 +55,7 @@
     ],
     "bindings": [
       "bindings::check",
-      "bindings::test",
+      "bindings::native",
       "bindings::python-test",
       "bindings::node-sdk-test",
       "bindings::rust-sdk-test",
