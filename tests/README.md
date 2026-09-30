@@ -1390,6 +1390,42 @@ on `a65c4285`. Empty-final-page validation here is a value test, not an observed
 final native page. This focused run does not qualify the six remaining metadata
 SDKs or establish a latency comparison.
 
+### C/C++ catalog metadata
+
+C adds bounded inline definition, cursor and eight-entry page values through the
+existing native worker; C++ exposes owned strings, vectors and optional values.
+C output values clear on failure, and lookup/list accept their input name/cursor
+from the same output value by copying it before clearing. Installed tests exercise
+both alias cases, foreign/missing cursor definitions, retained metadata after
+close and independent C++ copies. Existing compiler rejection of copied C++
+client/recovery owners remains in the schedule. Known metadata shape, scope,
+identity, ordering and continuation checks do not establish rejection of every
+unknown JSON field by the C parser.
+
+The first installed attempt fails in the fixture with `KeyError: next_hex`: its
+inherited query adapter expects a hex query cursor on catalog pages. The corrected
+catalog adapter decodes only saved command bytes and uses typed catalog cursors.
+That failed attempt remains at
+`/tmp/transit-sql-catalog-c-metadata-native-failed.json` and
+`/tmp/transit-sql-catalog-c-metadata-native.log`; no production compatibility
+fallback is added.
+
+Rebuilt installed packages pass `just test::catalog --sdk c --sdk cpp --grow 17`
+in **122.816 s**, including **6.856 s** installation. They agree with
+Zig/ABI/port/CLI on **24 definitions, three full pages and an empty final page**,
+point reads and absence before/after disk-backed node/store restart. Changed
+cursors and current catalog/native denial reject; creation/control recovery
+retains seven lost caller replies and three lost owner replies. Counts are
+5976 reads, 3138 caller reads and 59 turn responses; bounds remain four mutations,
+133-byte values and eight resident pages. Native binary hashes are unchanged.
+
+Source is development based on `a65c4285`; package hashes/report are
+`/tmp/transit-sql-catalog-c-metadata-native.json`, build log is
+`/tmp/transit-sql-catalog-c-metadata-build.log`, and completed native log is
+`/tmp/transit-sql-catalog-c-metadata-native-fixed.log`. Shared-host elapsed time is
+not a paired latency comparison. Java/.NET/Erlang/Elixir metadata remains outside
+this evidence.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

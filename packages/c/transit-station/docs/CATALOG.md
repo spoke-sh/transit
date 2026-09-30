@@ -28,6 +28,26 @@ Canonical review bytes are bounded to 256 bytes; saved signed commands to 8192.
 Metadata, requests and statuses own their fields inline. Absent results have
 `found == false`; output pointers/structures clear on failure.
 
+`transit_station_catalog_lookup` reads an exact name, validating its binding and
+live Table schema. `transit_station_catalog_definition_read` takes positive
+full-width object/revision IDs and reads immutable metadata without requiring
+the current Table to match. Both return an inline `transit_station_catalog_definition`
+with `found`, scope, object/revision/name, Table source/schema and original
+principal/operation/input attribution.
+
+`transit_station_catalog_list` takes a null cursor for a fresh read or the exact
+previous continuation. Its page owns `resource_revision`, `count` dense ordered
+entries (at most eight), `has_next` and inline `next`. An empty final page is
+possible. Every cursor field is required on restoration, including the exact
+64-character current `definition`; never default missing compatibility fields.
+The input cursor may be the output page's `next`: the caller copies continuation
+before clearing outputs. Lookup similarly permits the output's name array as input.
+
+Metadata checks current catalog inspection policy and native grants. A changed
+scope/revision returns a conflict; discard the old partial result before starting
+a fresh listing. Cursors confer no authority and retain no snapshot. Reads submit
+no command. Returned metadata is independent of the client lifetime.
+
 One bounded worker owns each client. Calls block; overlap returns `BUSY`; close
 joins active native work. Join caller threads before destroying handles or their
 borrowed inputs. Closing does not cancel accepted work. The

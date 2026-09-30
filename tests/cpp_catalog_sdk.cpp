@@ -10,6 +10,14 @@ static transit_station_catalog_create_table c_request(const cat::CreateTable &v)
     transit_station_catalog_create_table out{};out.scope=c_scope(v.scope);out.operation=v.operation;out.object=v.object;out.table=v.table;
     copy_name(out.name,v.name.c_str());copy_name(out.schema.names[0],v.schema.names[0].c_str());copy_name(out.schema.names[1],v.schema.names[1].c_str());out.schema.value_type=static_cast<transit_station_cell_kind>(1+static_cast<int>(v.schema.value_type));return out;
 }
+static transit_station_catalog_definition c_definition(const cat::Definition &v){
+    transit_station_catalog_definition out{};out.found=true;out.scope=c_scope(v.scope);out.object=v.object;out.revision=v.revision;copy_name(out.name,v.name.c_str());
+    out.source.table=v.source.table;for(size_t i=0;i<2;++i)copy_name(out.source.schema.names[i],v.source.schema.names[i].c_str());out.source.schema.value_type=static_cast<transit_station_cell_kind>(1+static_cast<int>(v.source.schema.value_type));
+    out.principal=v.principal;out.operation=v.operation;out.input=v.input;return out;
+}
+static transit_station_catalog_cursor c_cursor(const cat::Cursor &v){
+    transit_station_catalog_cursor out{};assert(v.definition.size()==64);memcpy(out.definition,v.definition.data(),64);out.scope=c_scope(v.scope);out.resource_revision=v.resource_revision;copy_name(out.after,v.after.c_str());return out;
+}
 int main(int argc,char **argv){
     assert(argc==8);setvbuf(stdout,nullptr,_IOLBF,0);const auto realm=number(argv[3]);
     bool rejected=false;try{cat::Prepared::recover({});}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
@@ -20,6 +28,9 @@ int main(int argc,char **argv){
     auto config=ClientConfig::growing(argv[1]).timeout(10000);
     Credential credential(realm,number(argv[4]),argv[2]);cat::Connection connection{ProcessRef(realm,number(argv[5])),{ResourceRef(realm,number(argv[6])),number(argv[7])}};
     auto client=cat::Client::open(config,credential,connection);std::optional<cat::Prepared> retained;Bytes retained_bytes;std::optional<cat::Compiled> compiled;
+    std::optional<cat::Definition> retained_definition;
+    rejected=false;try{client.list(cat::Cursor{"",connection.scope,1,"items"});}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
+    rejected=false;try{client.list(cat::Cursor{std::string(64,'0'),connection.scope,1,"items"});}catch(const Error &e){rejected=e.detail().kind==TRANSIT_SDK_INVALID_ARGUMENT;}assert(rejected);
     puts("{\"ready\":true}");
     while(read_command() && strcmp(args[0],"close")){
         const char *command=args[0];
@@ -29,6 +40,14 @@ int main(int argc,char **argv){
                 out.initialize=v.initialize;out.create_table=v.create_table;out.conditional_policy=v.conditional_policy;out.current_metadata=v.current_metadata;out.max_saved_bytes=v.max_saved_bytes;out.table_columns=v.table_columns;emit_capabilities(&out);
             }else if(!strcmp(command,"describe")){
                 auto v=client.describe();transit_station_catalog_description out{{c_scope(v.configuration.scope),{v.configuration.owner.realm(),v.configuration.owner.pid()},v.configuration.administrator},{c_scope(v.policy.scope),v.policy.principal,v.policy.revision,v.policy.inspect,v.policy.create},v.resource_revision};emit_description(&out);
+            }else if(!strcmp(command,"lookup") || !strcmp(command,"definition")){
+                auto v=!strcmp(command,"lookup")?client.lookup(args[1]):client.definition(number(args[1]),number(args[2]));transit_station_catalog_definition out{};
+                if(v){out=c_definition(*v);retained_definition=*v;v->name="changed";assert(retained_definition->name==out.name);}emit_definition(&out);
+            }else if(!strcmp(command,"list")){
+                std::optional<cat::Cursor> previous;if(args[1]){auto p=cursor();previous=cat::Cursor{p.definition,cpp_scope(p.scope),p.resource_revision,p.after};}
+                auto v=client.list(previous);auto copied=v;v.entries.clear();transit_station_catalog_page out{};out.resource_revision=copied.resource_revision;out.count=static_cast<uint8_t>(copied.entries.size());
+                for(size_t i=0;i<copied.entries.size();++i)out.entries[i]=c_definition(copied.entries[i]);
+                if(copied.next){out.has_next=true;out.next=c_cursor(*copied.next);}emit_page(&out);
             }else if(!strcmp(command,"compile")){
                 auto sql=unhex(args[1]);std::string statement(reinterpret_cast<const char *>(sql.data),sql.size);free((void *)sql.data);
                 auto v=client.compile_sql(statement,number(args[2]),number(args[3]),static_cast<uint32_t>(number(args[4])));auto r=v.request();auto canonical=v.canonical();auto wire=c_request(r);
@@ -57,5 +76,6 @@ int main(int argc,char **argv){
     }
     client.close();bool closed=false;try{client.describe();}catch(const Error &e){closed=e.detail().kind==TRANSIT_SDK_CLOSED;}assert(closed);
     if(retained)assert(retained->data()==retained_bytes);if(compiled)assert(compiled->request().object && !compiled->canonical().empty());
+    if(retained_definition)assert(retained_definition->object && !retained_definition->name.empty() && !retained_definition->source.schema.names[0].empty());
     puts("{\"closed\":true}");
 }

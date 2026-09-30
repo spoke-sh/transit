@@ -20,6 +20,10 @@ struct Capabilities {
     uint16_t max_saved_bytes; uint8_t table_columns;
 };
 struct Description { Configuration configuration; Policy policy; uint64_t resource_revision; };
+struct TableSource { uint32_t table; Schema schema; };
+struct Definition { Scope scope; uint64_t object, revision; std::string name; TableSource source; uint64_t principal, operation, input; };
+struct Cursor { std::string definition; Scope scope; uint64_t resource_revision; std::string after; };
+struct Page { uint64_t resource_revision; std::vector<Definition> entries; std::optional<Cursor> next; };
 struct Receipt { CreateTable request; uint64_t principal, input; Outcome outcome; };
 struct Disposition { Scope scope; Origin origin; uint64_t principal, input; std::array<uint8_t,32> payload; DispositionOutcome outcome; };
 namespace detail {
@@ -47,6 +51,14 @@ inline transit_station_catalog_create_table native(const CreateTable &v) {
 inline CreateTable from(const transit_station_catalog_create_table &v) {
     return {from(v.scope),v.operation,v.object,v.table,v.name,{{v.schema.names[0],v.schema.names[1]},static_cast<Type>(v.schema.value_type-1)}};
 }
+inline Definition from(const transit_station_catalog_definition &v) {
+    return {from(v.scope),v.object,v.revision,v.name,{v.source.table,{{v.source.schema.names[0],v.source.schema.names[1]},static_cast<Type>(v.source.schema.value_type-1)}},v.principal,v.operation,v.input};
+}
+inline transit_station_catalog_cursor native(const Cursor &v) {
+    transit_station_catalog_cursor out{};checked_string(v.definition);if(v.definition.size()!=64)invalid();
+    std::copy(v.definition.begin(),v.definition.end(),out.definition);out.scope=native(v.scope);out.resource_revision=v.resource_revision;name(v.after,out.after);return out;
+}
+inline Cursor from(const transit_station_catalog_cursor &v) { return {v.definition,from(v.scope),v.resource_revision,v.after}; }
 }
 class Compiled {
     std::unique_ptr<transit_station_catalog_compiled,decltype(&transit_station_catalog_compiled_destroy)> value_;
@@ -95,6 +107,19 @@ public:
     }
     Description describe() {
         transit_station_catalog_description out{};check(transit_station_catalog_describe(value_.get(),&out));return {detail::from(out.configuration),detail::from(out.policy),out.resource_revision};
+    }
+    std::optional<Definition> lookup(const std::string &name) {
+        checked_string(name);transit_station_catalog_definition out{};check(transit_station_catalog_lookup(value_.get(),name.c_str(),&out));if(!out.found)return {};return detail::from(out);
+    }
+    std::optional<Definition> definition(uint64_t object,uint64_t revision) {
+        transit_station_catalog_definition out{};check(transit_station_catalog_definition_read(value_.get(),object,revision,&out));if(!out.found)return {};return detail::from(out);
+    }
+    Page list(const std::optional<Cursor> &cursor={}) {
+        transit_station_catalog_cursor previous{};if(cursor)previous=detail::native(*cursor);
+        transit_station_catalog_page out{};check(transit_station_catalog_list(value_.get(),cursor?&previous:nullptr,&out));
+        Page result{out.resource_revision,{}, {}};result.entries.reserve(out.count);
+        for(size_t i=0;i<out.count;++i)result.entries.push_back(detail::from(out.entries[i]));
+        if(out.has_next)result.next=detail::from(out.next);return result;
     }
     Compiled compile_sql(const std::string &sql,uint64_t operation,uint64_t object,uint32_t table) {
         checked_string(sql);transit_station_catalog_compiled *out=nullptr;check(transit_station_catalog_compile_sql(value_.get(),sql.c_str(),operation,object,table,&out));return Compiled(out);

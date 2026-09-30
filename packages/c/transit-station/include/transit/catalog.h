@@ -37,6 +37,19 @@ typedef struct transit_station_catalog_capabilities {
 typedef struct transit_station_catalog_description {
     transit_station_catalog_configuration configuration; transit_station_catalog_policy policy; uint64_t resource_revision;
 } transit_station_catalog_description;
+typedef struct transit_station_catalog_table_source { uint32_t table; transit_station_catalog_schema schema; } transit_station_catalog_table_source;
+typedef struct transit_station_catalog_definition {
+    bool found; transit_station_catalog_scope scope; uint64_t object, revision; char name[17];
+    transit_station_catalog_table_source source; uint64_t principal, operation, input;
+} transit_station_catalog_definition;
+/* All cursor fields are mandatory when restoring; never default definition. */
+typedef struct transit_station_catalog_cursor {
+    char definition[65]; transit_station_catalog_scope scope; uint64_t resource_revision; char after[17];
+} transit_station_catalog_cursor;
+typedef struct transit_station_catalog_page {
+    uint64_t resource_revision; uint8_t count; transit_station_catalog_definition entries[8];
+    bool has_next; transit_station_catalog_cursor next;
+} transit_station_catalog_page;
 typedef struct transit_station_catalog_receipt {
     bool found; transit_station_catalog_create_table request; uint64_t principal, input; transit_station_catalog_outcome outcome;
 } transit_station_catalog_receipt;
@@ -65,6 +78,11 @@ transit_sdk_error transit_station_catalog_close(transit_station_catalog_client *
 void transit_station_catalog_client_destroy(transit_station_catalog_client *);
 transit_sdk_error transit_station_catalog_capabilities_read(transit_station_catalog_client *, transit_station_catalog_capabilities *out);
 transit_sdk_error transit_station_catalog_describe(transit_station_catalog_client *, transit_station_catalog_description *out);
+/* Metadata is owned inline; failure clears out. NULL cursor starts a listing.
+ * Continuation requires unchanged revision and current grants. */
+transit_sdk_error transit_station_catalog_lookup(transit_station_catalog_client *, const char *name, transit_station_catalog_definition *out);
+transit_sdk_error transit_station_catalog_definition_read(transit_station_catalog_client *, uint64_t object, uint64_t revision, transit_station_catalog_definition *out);
+transit_sdk_error transit_station_catalog_list(transit_station_catalog_client *, const transit_station_catalog_cursor *, transit_station_catalog_page *out);
 transit_sdk_error transit_station_catalog_compile_sql(transit_station_catalog_client *, const char *sql, uint64_t operation, uint64_t object, uint32_t table, transit_station_catalog_compiled **out);
 transit_sdk_error transit_station_catalog_prepare_initialize(transit_station_catalog_client *, const transit_station_catalog_configuration *, transit_station_catalog_prepared **out);
 transit_sdk_error transit_station_catalog_prepare_create(transit_station_catalog_client *, const transit_station_catalog_create_table *, transit_station_catalog_prepared **out);

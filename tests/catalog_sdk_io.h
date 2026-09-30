@@ -53,6 +53,21 @@ static inline void emit_description(const transit_station_catalog_description *v
     printf(",\"principal\":%llu,\"revision\":\"%llu\",\"inspect\":%s,\"create\":%s},\"resource_revision\":%llu}}}\n",(unsigned long long)v->policy.principal,(unsigned long long)v->policy.revision,v->policy.inspect?"true":"false",v->policy.create?"true":"false",(unsigned long long)v->resource_revision);
 }
 static inline void emit_capabilities(const transit_station_catalog_capabilities *v){printf("{\"status\":0,\"value\":{\"capabilities\":{\"version\":%u,\"definition\":\"%s\",\"initialize\":%s,\"create_table\":%s,\"conditional_policy\":%s,\"current_metadata\":%s,\"max_saved_bytes\":%u,\"table_columns\":%u}}}\n",v->version,v->definition,v->initialize?"true":"false",v->create_table?"true":"false",v->conditional_policy?"true":"false",v->current_metadata?"true":"false",v->max_saved_bytes,v->table_columns);}
+static inline transit_station_catalog_cursor cursor(void){
+    transit_station_catalog_cursor v;memset(&v,0,sizeof(v));assert(args[1] && strlen(args[1])==64);strcpy(v.definition,args[1]);v.scope=scope(2);v.resource_revision=number(args[5]);copy_name(v.after,args[6]);return v;
+}
+static inline void emit_definition_value(const transit_station_catalog_definition *v){
+    if(!v->found){printf("null");return;}
+    printf("{\"scope\":");emit_scope(v->scope);
+    printf(",\"object\":\"%llu\",\"revision\":\"%llu\",\"name\":\"%s\",\"source\":{\"table\":{\"id\":%u,\"schema\":{\"names\":[\"%s\",\"%s\"],\"value_type\":\"%s\"}}},\"principal\":%llu,\"operation\":\"%llu\",\"input\":%llu}",
+        (unsigned long long)v->object,(unsigned long long)v->revision,v->name,v->source.table,v->source.schema.names[0],v->source.schema.names[1],type_name(v->source.schema.value_type),(unsigned long long)v->principal,(unsigned long long)v->operation,(unsigned long long)v->input);
+}
+static inline void emit_definition(const transit_station_catalog_definition *v){printf("{\"status\":0,\"value\":{\"definition\":");emit_definition_value(v);puts("}}");}
+static inline void emit_page(const transit_station_catalog_page *v){
+    assert(v->count<=8);printf("{\"status\":0,\"value\":{\"page\":{\"resource_revision\":%llu,\"entries\":[",(unsigned long long)v->resource_revision);
+    for(size_t i=0;i<8;++i){if(i)printf(",");if(i<v->count){assert(v->entries[i].found);emit_definition_value(&v->entries[i]);}else printf("null");}
+    printf("],\"next\":");if(v->has_next){printf("{\"definition\":\"%s\",\"scope\":",v->next.definition);emit_scope(v->next.scope);printf(",\"resource_revision\":%llu,\"after\":\"%s\"}",(unsigned long long)v->next.resource_revision,v->next.after);}else printf("null");puts("}}}");
+}
 static inline void emit_status(const transit_station_catalog_receipt *v){
     const char *names[]={"applied","name_conflict","object_conflict","table_conflict"};printf("{\"status\":0,\"value\":{\"status\":");
     if(v->found){assert(v->outcome<=TRANSIT_CATALOG_TABLE_CONFLICT);printf("{\"request\":");emit_request(&v->request);printf(",\"principal\":%llu,\"input\":%llu,\"outcome\":\"%s\"}",(unsigned long long)v->principal,(unsigned long long)v->input,names[v->outcome]);}else printf("null");puts("}}");

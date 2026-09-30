@@ -10,7 +10,7 @@ import sys
 import tarfile
 import tomllib
 import zipfile
-from sdk_unified import Consumer, CConsumer
+from sdk_unified import Consumer
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -165,7 +165,15 @@ def install_ruby(target):
     return 'ruby', create
 
 
-class CatalogCConsumer(CConsumer):
+class CatalogCConsumer(Consumer):
+    def read(self):
+        result = super().read()
+        value = result.get('value', {})
+        if 'prepared_hex' in value:
+            encoded = value.pop('prepared_hex')
+            value['prepared'] = bytes.fromhex(encoded).decode() if encoded is not None else None
+        return result
+
     def send(self, action):
         name, value = next(iter(action.items()))
         def scope(v): return f"{v['realm']} {v['resource']} {v['catalog']}"
@@ -181,6 +189,15 @@ class CatalogCConsumer(CConsumer):
         elif name == 'submit': command = 'submit ' + value.encode().hex()
         elif name in ('observe', 'input_disposition'): command = f"{name} {value['prepared'].encode().hex()} {value['input']}"
         elif name == 'status': command = 'status ' + request(value)
+        elif name == 'lookup':
+            assert value.isascii() and value.isidentifier() and len(value) <= 16
+            command = 'lookup ' + value
+        elif name == 'definition': command = f"definition {value['object']} {value['revision']}"
+        elif name == 'list':
+            if value is None: command = 'list'
+            else:
+                assert value['after'].isascii() and value['after'].isidentifier() and len(value['after']) <= 16
+                command = f"list {value['definition']} {scope(value['scope'])} {value['resource_revision']} {value['after']}"
         else:
             assert name in ('capabilities', 'describe', 'close')
             command = name

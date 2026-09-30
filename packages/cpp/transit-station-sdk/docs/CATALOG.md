@@ -25,6 +25,23 @@ overlapping calls reject with `BUSY`. Join caller threads before destroying the
 client or borrowed commands. Errors preserve their native category/status;
 closing does not cancel accepted work or dispatch a durable control.
 
+`lookup(name)` and `definition(object, revision)` return optional owned
+`Definition` values. Name lookup checks the current binding and live Table schema;
+exact object/revision lookup reads immutable metadata without requiring the
+current Table to match. Definitions retain their scope, identities, name, typed
+`TableSource`/schema and original principal/operation/input attribution.
+
+`list()` returns an owned `Page` with `resource_revision`, a dense vector of at
+most eight ordered `entries` and optional `next`. Continue with `list(page.next)`
+only when `next` is present. An empty final page is possible. `Cursor` contains
+the mandatory current `definition`, scope, resource revision and last name; keep
+all fields when persisting it. Missing/foreign definitions reject.
+
+Each read checks current catalog inspection policy and native grants. Changed
+scope/revision returns a conflict; discard the partial result before a fresh
+listing. Cursors confer no authority and retain no snapshot. Metadata reads
+submit no command. Copied metadata and page vectors outlive the native caller.
+
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 supported schemas, policies, bounds and conditional publication. Installed
 recovery and ownership checks are recorded in the
