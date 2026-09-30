@@ -191,6 +191,13 @@ jobs:
             .cache/verification/simulation/*.json
             .cache/verification/simulation-mutations/*.json
             .cache/verification/simulation-mutations/*.log
+            .cache/verification/resource-simulation/
+            .cache/verification/resource-simulation-mutations/
+            .cache/verification/scheduler-simulation/
+            .cache/verification/scheduler-simulation-mutations/
+            .cache/verification/domain-simulation/
+            .cache/verification/domain-simulation-mutations/
+            .cache/verification/vortex/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
