@@ -14,8 +14,10 @@ Ruby exposes [typed synchronous methods](../packages/ruby/transit-station/docs/C
 C exposes [owned handles and inline values](../packages/c/transit-station/docs/CATALOG.md),
 C++ exposes [typed move-only callers](../packages/cpp/transit-station-sdk/docs/CATALOG.md),
 Java exposes [typed futures](../packages/java/transit-station-sdk/docs/CATALOG.md),
-and .NET exposes [typed tasks](../packages/dotnet/transit-station-sdk/docs/CATALOG.md).
-SQL query transports and other language SDKs expose no catalog administration route.
+.NET exposes [typed tasks](../packages/dotnet/transit-station-sdk/docs/CATALOG.md),
+Erlang exposes [typed records](../packages/beam/transit-station-sdk/docs/catalog.md),
+and Elixir exposes [typed structs](../packages/beam/transit-station-elixir/docs/catalog.md).
+SQL query transports expose no catalog administration route.
 
 The implementation supports the two-column Table profile. KV/Document definitions
 compile [offline](STATE_DECLARATION_V1.md) but have no catalog creation operation.

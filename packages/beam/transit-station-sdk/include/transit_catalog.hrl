@@ -1,0 +1,17 @@
+-ifndef(TRANSIT_CATALOG_HRL).
+-define(TRANSIT_CATALOG_HRL, true).
+-include("transit_station_sdk.hrl").
+-record(transit_catalog_scope, {resource :: #transit_resource{}, catalog :: pos_integer()}).
+-record(transit_catalog_connection, {owner :: #transit_process{}, scope :: #transit_catalog_scope{}}).
+-record(transit_catalog_configuration, {scope :: #transit_catalog_scope{}, owner :: #transit_process{}, administrator :: pos_integer()}).
+-record(transit_catalog_schema, {names = [] :: [binary()], value_type :: int64 | boolean | utf8 | binary}).
+-record(transit_catalog_create_table, {scope :: #transit_catalog_scope{}, operation :: pos_integer(), object :: pos_integer(), table :: pos_integer(), name :: binary(), schema :: #transit_catalog_schema{}}).
+-record(transit_catalog_policy, {scope :: #transit_catalog_scope{}, principal :: non_neg_integer(), revision :: pos_integer(), inspect :: boolean(), create :: boolean()}).
+-record(transit_catalog_policy_change, {expected_revision :: non_neg_integer(), policy :: #transit_catalog_policy{}}).
+-record(transit_catalog_compiled, {request :: #transit_catalog_create_table{}, canonical :: binary()}).
+-record(transit_catalog_prepared, {bytes :: binary()}).
+-record(transit_catalog_capabilities, {version, definition, initialize, create_table, conditional_policy, current_metadata, max_saved_bytes, table_columns}).
+-record(transit_catalog_description, {configuration :: #transit_catalog_configuration{}, policy :: #transit_catalog_policy{}, resource_revision :: non_neg_integer()}).
+-record(transit_catalog_receipt, {request :: #transit_catalog_create_table{}, principal :: non_neg_integer(), input :: pos_integer(), outcome :: applied | name_conflict | object_conflict | table_conflict}).
+-record(transit_catalog_disposition, {scope :: #transit_catalog_scope{}, origin :: external | process | effect, principal :: non_neg_integer(), input :: pos_integer(), payload :: binary(), outcome :: initialized | policy_applied | invalid_command | denied | identity_conflict | stale_policy}).
+-endif.

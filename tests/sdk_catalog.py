@@ -19,6 +19,9 @@ def install(root, languages):
     root.mkdir()
     factories = []
     for language in languages:
+        if language in ('erlang', 'elixir'):
+            factories.append(install_beam(root / language, language))
+            continue
         if language == 'dotnet':
             factories.append(install_dotnet(root / language))
             continue
@@ -123,10 +126,10 @@ def install_rust(target):
     shutil.copy2(target / 'target/debug/transit-catalog-proof', executable)
     (target / 'src/main.rs').write_text('fn overlap(client: &mut transit_station_sdk::catalog::Client) { let a = &mut *client; let b = &mut *client; a.describe().unwrap(); b.describe().unwrap(); } fn main() {}')
     rejected = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=target, env=environment, capture_output=True, text=True)
-    assert rejected.returncode and 'cannot borrow `*client` as mutable more than once' in rejected.stderr
+    assert rejected.returncode and 'cannot borrow `*client` as mutable more than once' in rejected.stderr, (rejected.returncode, rejected.stderr[-4096:])
     (target / 'src/main.rs').write_text('fn reused(client: transit_station_sdk::catalog::Client) { client.close().unwrap(); client.close().unwrap(); } fn main() {}')
     rejected = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=target, env=environment, capture_output=True, text=True)
-    assert rejected.returncode and 'use of moved value: `client`' in rejected.stderr
+    assert rejected.returncode and 'use of moved value: `client`' in rejected.stderr, (rejected.returncode, rejected.stderr[-4096:])
     shutil.rmtree(target / 'vendor'); shutil.rmtree(target / 'target'); shutil.rmtree(target / 'src')
     def create(url, connection, state):
         config = target / 'client.json'
@@ -240,7 +243,7 @@ def install_java(target):
     with zipfile.ZipFile(library / 'transit-native-station-0.2.0.jar') as archive:
         (faults / 'native-host').write_bytes(archive.read('io/transit/nativestation/transit-station-host'))
     (faults / 'native-host').chmod(0o700)
-    shutil.copy2(ROOT / 'tests/catalog_java_host.py', faults / 'host')
+    shutil.copy2(ROOT / 'tests/catalog_port_host.py', faults / 'host')
     (faults / 'host').chmod(0o700)
     classpath = str(classes) + os.pathsep + str(library / '*')
     subprocess.run(['java', '-cp', classpath, 'io.transit.sdk.station.JavaCatalogValues', str(faults)], cwd=target, env=environment, check=True, timeout=90)
@@ -291,3 +294,48 @@ def install_dotnet(target):
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
         return Consumer(['dotnet', str(app / 'Consumer.dll'), str(config)], environment, target)
     return 'dotnet', create
+
+
+def install_beam(target, language):
+    target.mkdir()
+    library = target / 'lib'
+    library.mkdir()
+    classes = target / 'classes'
+    classes.mkdir()
+    names = ['transit_native_client', 'transit_client', 'transit_native_station', 'transit_station_sdk']
+    if language == 'elixir': names += ['transit_client_elixir', 'transit_station_elixir']
+    artifacts = {}
+    for name in names:
+        filename = f'{name}-0.2.0.tar.gz'
+        path = target / filename
+        shutil.copy2(ROOT / '.cache/bindings/beam' / filename, path)
+        artifacts[filename] = hashlib.sha256(path.read_bytes()).hexdigest()
+        with tarfile.open(path) as archive: archive.extractall(library, filter='data')
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    environment = {k:v for k,v in os.environ.items() if k not in ('ERL_LIBS', 'ERL_FLAGS', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
+    environment.update(ERL_LIBS=str(library), ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1')
+    for name in ('beam_catalog_controller.erl', 'beam_catalog_values.erl'):
+        source = target / name
+        shutil.copy2(ROOT / 'tests' / name, source)
+        subprocess.run(['erlc', '-Werror', '-o', str(classes), str(source)], cwd=target, env=environment, check=True)
+        source.unlink()
+    if language == 'elixir':
+        source = target / 'elixir_catalog_adapter.ex'
+        shutil.copy2(ROOT / 'tests' / source.name, source)
+        subprocess.run(['elixirc', '--warnings-as-errors', '-pa', str(classes), '-o', str(classes), str(source)], cwd=target, env=environment, check=True)
+        source.unlink()
+        def command(module): return ['elixir', '-pa', str(classes), '-e', f':{module}.main(ElixirCatalogAdapter, System.argv())', '--']
+    else:
+        def command(module): return ['erl', '-noshell', '-pa', str(classes), '-eval', f'{module}:main(transit_catalog, init:get_plain_arguments()), halt().', '-extra']
+    faults = target / 'faults'
+    faults.mkdir()
+    shutil.copy2(library / 'transit_native_station-0.2.0/priv/transit-station-host', faults / 'native-host')
+    shutil.copy2(ROOT / 'tests/catalog_port_host.py', faults / 'host')
+    (faults / 'host').chmod(0o700)
+    subprocess.run([*command('beam_catalog_values'), str(faults)], cwd=target, env=environment, check=True, timeout=90)
+    shutil.rmtree(faults)
+    def create(url, connection, state):
+        config = target / 'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
+        return Consumer([*command('beam_catalog_controller'), str(config)], environment, target)
+    return language, create

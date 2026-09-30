@@ -390,11 +390,11 @@
     {
       "id": "catalog-saved-command-recovery",
       "steps": [
-        "Install matching Python wheels/Node packages outside the checkout and copy immutable full-width caller values",
+        "Install matching artifacts for all ten SDKs outside the checkout and copy immutable full-width caller values",
         "Prepare typed initialization and conditional controls; compile and prepare named Table creation",
         "Lose the creation admission reply, replace caller/node/store and retry original saved bytes",
         "Observe processing and original creation outcome, then revoke catalog/native disclosure",
-        "Cancel only an await in a blocked adapter test; retain busy ownership and join cleanup"
+        "Abandon only the local wait in injected or actual owned-host checks; retain busy ownership and join cleanup"
       ],
       "expected": {
         "exact_receipt_recovered": true,
@@ -403,7 +403,11 @@
         "uncertain_response_retains_prepared": true,
         "cancelled_await_keeps_owner": true,
         "exclusive_rust_borrows": true,
-        "cancelled_ruby_wait_keeps_owner": true
+        "cancelled_ruby_wait_keeps_owner": true,
+        "cpp_owners_not_copyable": true,
+        "cancelled_java_future_keeps_owner": true,
+        "cancelled_dotnet_read_keeps_owner": true,
+        "dead_beam_waiter_keeps_owner": true
       },
       "proofs": [
         {
@@ -455,9 +459,34 @@
           "task": "bindings::catalog-ruby",
           "source": "tests/ruby_catalog_values.rb",
           "anchor": "A cancelled waiting thread must not release the worker's active operation."
+        },
+        {
+          "task": "bindings::catalog-c",
+          "source": "tests/sdk_catalog.py",
+          "anchor": "('Client', 'Compiled', 'Prepared')"
+        },
+        {
+          "task": "bindings::catalog-c",
+          "source": "tests/catalog_native.py",
+          "anchor": "admitted == json.loads(fault['receipt'])"
+        },
+        {
+          "task": "bindings::catalog-java",
+          "source": "tests/JavaCatalogValues.java",
+          "anchor": "Close abandoned active native work"
+        },
+        {
+          "task": "bindings::catalog-dotnet",
+          "source": "tests/DotnetCatalogValues.cs",
+          "anchor": "Close abandoned native work"
+        },
+        {
+          "task": "bindings::catalog-beam",
+          "source": "tests/beam_catalog_values.erl",
+          "anchor": "error(abandoned_native_work)"
         }
       ],
-      "limits": "Python sync/async, TypeScript, Rust and Ruby callers. Actual disk recovery uses the shared catalog host. Python cancelled-await and malformed native-response cases use injected blocking/reply adapters; TypeScript malformed responses use a real owned port with an injected host; Rust malformed receipts exercise the response parser and an injected admitted-worker panic preserves uncertainty. Ruby malformed-response/allocation and cancelled-wait checks use injected adapters, with actual child loss and generated response validation through owned native ports. Twelve applied Tables over two resources do not establish native growth, host power-loss recovery or the other six SDKs."
+      "limits": "Actual disk recovery uses the shared catalog host. Python cancellation/malformed-response checks use injected adapters; TypeScript malformed responses use an owned port with an injected host; Rust malformed receipts exercise parser/panic injection; Ruby uses injected wait/allocation adapters plus actual child loss. C/C++ checks owner copies and saved buffers, without catalog-specific allocator or cancellation injection. Java and BEAM use actual owned ports with post-handshake injected faults and blocked submissions; .NET uses installed decoder checks and actual native HTTP read cancellation, without admitted-mutation cancellation or allocator injection. Table counts and exact selected artifact identities are recorded in tests/README.md; these schedules do not establish native catalog growth or host power-loss recovery."
     }
   ]
 }

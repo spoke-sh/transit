@@ -20,6 +20,9 @@ def stop_native():
 try:
     for line in sys.stdin:
         request = json.loads(line)
+        if 'shutdown' in request:
+            print(json.dumps({'status': 0, 'value': {'closed': True}}), flush=True)
+            break
         if 'submit' in request.get('catalog', {}):
             mode = json.loads((root / 'mode.json').read_text())
             (root / 'entered').write_text('1')

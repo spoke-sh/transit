@@ -206,7 +206,8 @@
       "bindings::catalog-ruby",
       "bindings::catalog-c",
       "bindings::catalog-java",
-      "bindings::catalog-dotnet"
+      "bindings::catalog-dotnet",
+      "bindings::catalog-beam"
     ]
   },
   "nested_tasks": {

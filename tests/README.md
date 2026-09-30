@@ -884,6 +884,90 @@ This is the expanded core lane plus the focused checks above, not the full clean
 suite. Erlang/Elixir catalog callers remain. The following commit records only
 this clean evidence.
 
+### Erlang/Elixir catalog callers and combined installed schedule
+
+`transit_catalog` and `Transit.Station.Sdk.Catalog` expose immutable records and
+structs through the existing BEAM worker/native port. Full-width identities,
+fixed allowed atoms, generated boundary schemas and exact original-request
+matching preserve the shared catalog contract. Signing, authorization and
+recovery remain in Zig. An uncertain submit returns the original prepared value;
+native rejection retains its category, status and code. `close` joins admitted
+work after a waiting process dies.
+
+Executed in the pinned bindings shell on development source based on `7ec2e0e1`:
+
+- `just bindings::beam-build` compiles OTP applications and real examples with
+  warnings as errors. The focused installed schedule copies/hashes four Erlang
+  artifacts and six Elixir artifacts, compiles consumers outside the checkout,
+  removes consumer source files and uses the installed native host. Elixir
+  formatting checks pass.
+- Installed value checks compile maximum-width catalog/operation/object/Table
+  IDs and reject invalid integers and saved bytes. Real owned ports use native
+  handshakes, join that helper, then inject malformed replies, child loss,
+  explicit denial and a blocked successful submit. Uncertainty retains the
+  identical prepared record/struct. Killing the waiting process retains `busy`;
+  close waits for explicit release, and the child is gone after cleanup. The
+  Java fixture is renamed `catalog_port_host.py` for shared use and handles
+  explicit shutdown. Java's installed fault checks pass with the shared fixture.
+  These cases do not prove general allocator exhaustion or remote cancellation.
+- The focused Erlang/Elixir catalog schedule passes in **21.772 s**, including
+  **5.334 s** installation: 1574 reads, 42 turn responses, seven lost caller
+  receipts and three lost owner receipts. It creates nine Tables. The final
+  combined run below uses rebuilt artifacts including the published guides.
+- **All ten SDKs** pass the combined catalog schedule in **108.574 s**, including
+  **43.699 s** installation: **4095 reads, 69 turn responses, sixteen lost caller
+  receipts and three lost owner receipts**. Python includes both sync and async
+  callers. Every selected caller recovers its original creation after
+  caller/node/store replacement and respects current catalog/native disclosure
+  denial. The native ABI, native port and CLI cases also pass. Eighteen Tables
+  across two resources do not establish native catalog growth. Bounds remain
+  four mutations, 134-byte observed values and eight resident authority pages.
+  These local timings include installation and recovery while independent
+  repository/regression checks run; they are not cross-language latency rankings.
+- The existing Erlang/Elixir mutation regression passes in **28.509 s**, including
+  **2.159 s** installation, 2127 reads, 56 turn responses and seven lost receipts.
+  Exact UPDATE recovery and current denial remain intact through the shared port.
+- Full `just check` passes unit/generated-contract and CLI checks, frontend
+  checks and the documentation build. Direct checks cover 4625 links across 486
+  files, 56 invariants, 53 bounds and 13 SDK scenarios. The SDK proof inventory
+  now records C/C++/Java/.NET/BEAM ownership evidence and its distinct limits.
+
+The initial combined run stopped during Rust's compile-rejection assertion while
+`/tmp` was under disk pressure; the captured output reports Ursula disk pressure,
+but the assertion did not preserve compiler stderr. The concurrent full check
+failed copying the CLI binary with `ENOSPC`. Both attempts remain failed. The
+Rust fixture now includes compiler exit/stderr on an unexpected result. Repeating
+both checks with `TMPDIR=/var/tmp` passes; no deployment quotas or resident bounds
+were raised. The failure does not establish a Rust ownership regression or a
+catalog recovery pass.
+
+Logs are `/tmp/transit-sql-catalog-beam-build.log`,
+`/tmp/transit-sql-catalog-beam-final-build.log`,
+`/tmp/transit-sql-catalog-beam-native.log`,
+`/tmp/transit-sql-catalog-beam-mutation-regression.log`,
+`/tmp/transit-sql-catalog-all-ten-native.log` (failed),
+`/tmp/transit-sql-catalog-all-ten-native-var.log`,
+`/tmp/transit-sql-catalog-beam-full-check.log` (failed) and
+`/tmp/transit-sql-catalog-beam-full-check-var.log`. Reports are copied to
+`/tmp/transit-sql-catalog-beam-native.json` and
+`/tmp/transit-sql-catalog-all-ten-native.json`. The combined report retains all
+selected package hashes; earlier eight SDK identities and native binary hashes
+match the recorded checkpoints above/below. Final BEAM artifacts:
+
+| OTP artifact | SHA-256 |
+| --- | --- |
+| `transit_native_client-0.2.0.tar.gz` | `c4436c6ec88f4e0a838e88c0214521cced7d527a1bca8343a2eb43c5e0712529` |
+| `transit_client-0.2.0.tar.gz` | `7ef15b4c716177372dc39dcca2230ef2878e118bdf430176ce86e8e15a26e0aa` |
+| `transit_native_station-0.2.0.tar.gz` | `8e8aba003040a0924bc78b3383fcee833f3652ccf115f76c7a48de35b799c6d2` |
+| `transit_station_sdk-0.2.0.tar.gz` | `b60cb4c0eee515d4d8af515d23843a0fb54525e03d2fdb30668fc5d0a386493e` |
+| `transit_client_elixir-0.2.0.tar.gz` | `adc379bfc22a4027c5caf26bc2c03062981b2a4cc50500bc50d32d413a830b36` |
+| `transit_station_elixir-0.2.0.tar.gz` | `5a72442a18d3527740e4571f07ae0438c7a464b7c04f97b4d97298aa30de564d` |
+
+`bindings::catalog-beam` owns the focused installed schedule; the regular BEAM
+SDK regression also includes it. All ten SDKs expose this catalog profile;
+committed-HEAD clean validation, native catalog growth/paged callers and broader
+declaration operations remain.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

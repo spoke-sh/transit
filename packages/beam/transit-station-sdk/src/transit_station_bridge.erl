@@ -1,7 +1,7 @@
 %% Internal host boundary; the shared Zig implementation owns durable transitions.
 -module(transit_station_bridge).
 -include("transit_station_sdk.hrl").
--export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2,
+-export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2, catalog/3, catalog_call/3,
          pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2, query/3, unified_codec/2, unified_query/3, mutation/3, table_mutation/3]).
 -record(bridge, {port, caps}).
 open(#transit_service{client = #transit_config{url = Url, profile = native_v1, timeout_ms = Timeout, native_host = Override},
@@ -34,6 +34,11 @@ mutation(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_hos
     {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),
     create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
         <<"mutation_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
+catalog(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host=Override},
+        #transit_credential{seed_file=Seed},Connection) ->
+    {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),
+    create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
+        <<"catalog_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
 create(Config, Override) ->
     case application:load(transit_client) of ok -> ok; {error, {already_loaded, transit_client}} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package) end,
     case application:get_key(transit_client, vsn) of {ok, "0.2.0"} -> ok; _ -> transit_sdk_value:fail(incompatible_native, client_package_version) end,
@@ -79,6 +84,8 @@ unified_query(#bridge{port=Port},Action,Mutation) ->
     transit_sdk_port:request(Port,#{<<"unified_query">>=>Action},unified_query,Mutation,<<"UnifiedQueryResult">>).
 table_mutation(#bridge{port=Port},Action,Mutation) ->
     transit_sdk_port:request(Port,#{<<"table_mutation">>=>Action},table_mutation,Mutation,<<"TableMutationResult">>).
+catalog_call(#bridge{port=Port},Action,Mutation) ->
+    transit_sdk_port:request(Port,#{<<"catalog">>=>Action},catalog,Mutation,<<"CatalogResult">>).
 close(#bridge{port = Port}) -> transit_sdk_port:close(Port).
 prepare(#bridge{port = Port}) -> transit_sdk_port:request(Port, #{<<"growing_prepare">> => erlang:system_time(millisecond) + 30000}, prepare_turn, false, <<"GrowingEvent">>).
 apply(#bridge{port = Port}, Scope, Action) -> transit_sdk_port:request(Port, #{<<"growing_apply">> => #{<<"scope">> => Scope, <<"action">> => Action}}, apply, false, <<"GrowingResult">>).

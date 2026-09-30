@@ -42,10 +42,12 @@ Ruby provides [block-scoped synchronous callers](../../packages/ruby/transit-sta
 C provides [owned handles and inline values](../../packages/c/transit-station/docs/CATALOG.md);
 C++ provides [typed values and move-only owners](../../packages/cpp/transit-station-sdk/docs/CATALOG.md);
 Java provides [immutable values and bounded futures](../../packages/java/transit-station-sdk/docs/CATALOG.md);
-.NET provides [immutable values and bounded tasks](../../packages/dotnet/transit-station-sdk/docs/CATALOG.md).
+.NET provides [immutable values and bounded tasks](../../packages/dotnet/transit-station-sdk/docs/CATALOG.md);
+Erlang provides [immutable records and an owned worker](../../packages/beam/transit-station-sdk/docs/catalog.md);
+Elixir provides [structs over the Erlang caller](../../packages/beam/transit-station-elixir/docs/catalog.md).
 These support initialization, conditional policy, named Table creation and exact
 saved recovery through the shared [native catalog boundary](../../packages/zig/transit-station-bindings/docs/catalog.md),
-retaining full-width identities. Other language SDKs have no idiomatic catalog methods. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
+retaining full-width identities. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
 Zig owner; query connections do not enable administration.
 
 ## Table mutation callers

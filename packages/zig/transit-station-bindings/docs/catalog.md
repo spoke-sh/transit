@@ -14,8 +14,9 @@ Ruby exposes [typed synchronous methods](../../../ruby/transit-station/docs/CATA
 C exposes [owned typed handles](../../../c/transit-station/docs/CATALOG.md);
 C++ exposes [typed move-only callers](../../../cpp/transit-station-sdk/docs/CATALOG.md);
 Java exposes [typed futures](../../../java/transit-station-sdk/docs/CATALOG.md);
-.NET exposes [typed tasks](../../../dotnet/transit-station-sdk/docs/CATALOG.md).
-Other language SDK administrative methods remain separate integration work.
+.NET exposes [typed tasks](../../../dotnet/transit-station-sdk/docs/CATALOG.md);
+Erlang exposes [typed records](../../../beam/transit-station-sdk/docs/catalog.md);
+Elixir exposes [typed structs](../../../beam/transit-station-elixir/docs/catalog.md).
 
 Creation takes ABI version one, an explicit authority URL, a 32-byte signing seed
 and JSON configuration containing `connection` and optional `timeout_ms` (default

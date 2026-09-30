@@ -183,6 +183,7 @@ beam-sdk-test: beam-build
     python3 -B tests/beam_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/beam zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language beam
     just test::table-mutation --sdk erlang --sdk elixir
+    just test::catalog --sdk erlang --sdk elixir
 
 # Every public language serves and requests a foreign peer through installed APIs.
 sdk-interop: python-build node-build rust-build ruby-build c-build java-build dotnet-build beam-build
@@ -357,3 +358,8 @@ catalog-java: java-build
 # Installed .NET catalog tasks, generated ABI validation and joined ownership.
 catalog-dotnet: dotnet-build
     just test::catalog --sdk dotnet
+
+# Installed Erlang/Elixir catalog values and joined native-port ownership.
+catalog-beam: beam-build
+    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station-elixir/lib/catalog.ex tests/elixir_catalog_adapter.ex
+    just test::catalog --sdk erlang --sdk elixir
