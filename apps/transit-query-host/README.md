@@ -53,11 +53,12 @@ for exact two-turn recovery and native metadata visibility.
 
 The `catalog` role uses [transit-catalog](../../packages/zig/transit-catalog/README.md)
 and its [declarative catalog contract](../../contracts/DECLARATIVE_CATALOG_V1.md).
-Send a cast with `(Model.Command{ .initialize = configuration }).encode()` from the
-configured administrator before allowing untrusted ingress. Initialization and
+Use the shared caller's `prepareInitialize(configuration)`, save the returned
+command and explicitly submit it from the configured administrator before
+allowing untrusted ingress. Initialization and
 creation each fit four mutations. The signed catalog client creates compatible
 empty two-column Tables and reads original operation receipts; it does not make
-them query sources or grant mutation access implicitly. Typed `set_policy`
+them query sources or grant mutation access implicitly. Shared `preparePolicy`
 controls change separate create/inspect rights with a conditional revision.
 Control outcomes and rejected inputs have input-bound dispositions. Exact
 initialization repeats preserve revoked rights; fresh workers preserve the

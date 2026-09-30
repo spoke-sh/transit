@@ -34,6 +34,7 @@ def run(node, proof, catalog_host):
             ursula_url=fixture.url, bucket='catalog', journal='authority', port=port,
             resident_pages=8, request_timeout_ms=10000)))
         faults = {name: dict(lose=False, body=None, receipt=None, recovered=False) for name in ('send', 'turn')}
+        faults['initialize_send'] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
         for name in ('host_initialize', 'host_create'):
             faults[name] = dict(command='turn', lose=False, body=None, receipt=None, recovered=False, blocked=False)
         failures = []
@@ -261,7 +262,16 @@ def run(node, proof, catalog_host):
             # A fresh resource uses the supplied GenServer host, not the manual
             # fixture application. Lose both initialization and creation commits.
             host_config = invoke('provision-host')
-            initialized = invoke('send-initialize')['position']
+            invoke('send-policy', 1, 'true', 'true', error='CatalogNotInitialized')
+            faults['initialize_send']['lose'] = True
+            invoke('send-initialize', error='InvalidAuthorityResponse')
+            saved_control = (root / 'control.json').read_bytes()
+            restart()
+            initial_receipt = invoke('retry-control')
+            assert initial_receipt == json.loads(faults['initialize_send']['receipt'])
+            assert (root / 'control.json').read_bytes() == saved_control
+            initialized = initial_receipt['position']
+            assert invoke('observe-control', initialized) == 'pending'
             assert invoke('initial-snapshot', initialized)['entries'] == [None] * 4
             faults['host_initialize']['lose'] = True
             start_worker()
@@ -276,6 +286,7 @@ def run(node, proof, catalog_host):
             initial_disposition = (b'TCA1e' + definition + expected_scope + struct.pack('<BQQ', 1, 1234, initialized)
                                    + hashlib.sha256(b'transit.catalog.input.v1\0' + control_payload).digest() + b'\1')
             assert bytes.fromhex(initial['entries'][3]['value']) == initial_disposition
+            assert invoke('control-disposition', initialized)['outcome'] == 'initialized'
             stop_worker()
             restart()
             frozen = dict(definition=definition.hex(), signed=json.loads(faults['host_initialize']['body']))
@@ -289,7 +300,7 @@ def run(node, proof, catalog_host):
             invoke('write-host')
             start_worker()
             duplicate = invoke('send-initialize')['position']
-            assert await_value(lambda: invoke('disposition', duplicate))['outcome'] == 'initialized'
+            assert await_value(lambda: invoke('control-disposition', duplicate))['outcome'] == 'initialized'
             assert invoke('initial-snapshot', initialized)['entries'][1:3] == initial['entries'][1:3]
 
             invoke('prepare-send', maximum, maximum, 9, statement)
@@ -308,9 +319,15 @@ def run(node, proof, catalog_host):
             assert invoke('status') == created_status
             invoke('reown')
             invoke('write-host')
-            start_worker()
             denied = invoke('send-policy', 2, 'false', 'true')['position']
-            assert await_value(lambda: invoke('disposition', denied))['outcome'] == 'policy_applied'
+            denied_control = (root / 'control.json').read_bytes()
+            # Both commands prepare at policy revision one. The second must
+            # retain a stale outcome when the first applies before it.
+            stale = invoke('send-policy', 2, 'true', 'true')['position']
+            start_worker()
+            assert await_value(lambda: invoke('control-disposition', stale))['outcome'] == 'stale_policy'
+            (root / 'control.json').write_bytes(denied_control)
+            assert await_value(lambda: invoke('control-disposition', denied))['outcome'] == 'policy_applied'
             other = statement.replace('items', 'other')
             invoke('prepare-send', 2, 2, 10, other, error='CatalogDenied')
             invoke('prepare-raw', 2, 2, 10, other)
@@ -321,13 +338,32 @@ def run(node, proof, catalog_host):
             assert invoke('status') is None and invoke('observe', rejected) == 'processed'
             assert invoke('snapshot')['entries'] == [None] * 4
             restored = invoke('send-policy', 3, 'true', 'true')['position']
-            assert await_value(lambda: invoke('disposition', restored))['outcome'] == 'policy_applied'
+            assert await_value(lambda: invoke('control-disposition', restored))['outcome'] == 'policy_applied'
+            separate = invoke('send-policy', 1, 'false', 'false', 4321)['position']
+            assert await_value(lambda: invoke('control-disposition', separate))['outcome'] == 'policy_applied'
+            separate = invoke('send-policy', 2, 'false', 'true', 4321)['position']
+            assert await_value(lambda: invoke('control-disposition', separate))['outcome'] == 'policy_applied'
             invoke('prepare-send', 2, 2, 10, other)
             accepted = invoke('submit-send')['position']
             status = await_value(lambda: invoke('status'))
             assert status['outcome'] == 'applied' and status['input'] == accepted
             (root / 'prepared.json').write_bytes(rejected_prepared)
             assert invoke('input-disposition', rejected) == denied_status
+            # Administrative control survives self-revocation, while result
+            # disclosure and creation remain independently denied.
+            revoked = invoke('send-policy', 4, 'false', 'false')['position']
+            await_value(lambda: invoke('observe-control', revoked) == 'processed')
+            invoke('control-disposition', revoked, error='CatalogDenied')
+            invoke('prepare-send', 3, 3, 11, statement.replace('items', 'hidden'), error='CatalogDenied')
+            duplicate = invoke('send-initialize')['position']
+            await_value(lambda: invoke('observe-control', duplicate) == 'processed')
+            invoke('control-disposition', duplicate, error='CatalogDenied')
+            restored = invoke('send-policy', 5, 'true', 'true')['position']
+            await_value(lambda: invoke('observe-control', restored) == 'processed')
+            assert await_value(lambda: invoke('control-disposition', restored))['outcome'] == 'policy_applied'
+            duplicate = invoke('send-policy', 5, 'true', 'true')['position']
+            assert await_value(lambda: invoke('control-disposition', duplicate))['outcome'] == 'policy_applied'
+            invoke('send-policy', 4, 'false', 'false', error='CatalogPolicyConflict')
             invoke('revoke-reader')
             invoke('input-disposition', rejected, error='AccessDenied')
             stop_worker()
@@ -336,7 +372,7 @@ def run(node, proof, catalog_host):
             report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                           dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
                           seconds=round(time.monotonic() - started, 3), resident_pages=8, counts=counts,
-                          lost_caller_receipts=1, lost_writer_receipts=3,
+                          lost_caller_receipts=2, lost_writer_receipts=3,
                           binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host')})
             destination = ROOT / '.cache/verification/catalog/native.json'
             destination.parent.mkdir(parents=True, exist_ok=True)

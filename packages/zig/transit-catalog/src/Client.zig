@@ -35,7 +35,7 @@ pub const Prepared = struct {
     connection: Connection,
     signed: g.SignedRequest,
     pub const max_saved_bytes = 8192;
-    pub fn request(self: Prepared) !m.CreateTable {
+    pub fn command(self: Prepared) !m.Command {
         if (self.version != 1) return error.InvalidCatalogPrepared;
         try self.connection.validate();
         try g.validate(self.signed.request);
@@ -44,12 +44,19 @@ pub const Prepared = struct {
         if (envelope.realm != self.connection.scope.realm or envelope.principal != self.connection.principal or envelope.command.send.pid != self.connection.owner) return error.CatalogIdentityConflict;
         const frame = try s.Frame.decode(envelope.command.send.value);
         if (frame.kind != .cast) return error.InvalidCatalogPrepared;
-        const result = try r.decode(m.CreateTable, 'q', frame.payload);
-        if (!std.meta.eql(result.scope, self.connection.scope)) return error.CatalogScopeChanged;
+        const result = try m.Command.decode(frame.payload);
+        if (!std.meta.eql(result.scope(), self.connection.scope)) return error.CatalogScopeChanged;
+        if (result == .initialize and (result.initialize.owner != self.connection.owner or result.initialize.administrator != self.connection.principal)) return error.CatalogIdentityConflict;
         return result;
     }
+    pub fn request(self: Prepared) !m.CreateTable {
+        return switch (try self.command()) {
+            .create_table => |value| value,
+            else => error.InvalidCatalogPrepared,
+        };
+    }
     pub fn save(self: Prepared, allocator: std.mem.Allocator) ![]u8 {
-        _ = try self.request();
+        _ = try self.command();
         return std.json.Stringify.valueAlloc(allocator, self, .{});
     }
     /// Complete canonical input, mandatory definitions and owned values. This
@@ -58,7 +65,7 @@ pub const Prepared = struct {
         if (bytes.len == 0 or bytes.len > max_saved_bytes) return error.InvalidCatalogPrepared;
         const parsed = std.json.parseFromSlice(Prepared, allocator, bytes, .{}) catch |err| return if (err == error.OutOfMemory) err else error.InvalidCatalogPrepared;
         defer parsed.deinit();
-        _ = parsed.value.request() catch return error.InvalidCatalogPrepared;
+        _ = parsed.value.command() catch return error.InvalidCatalogPrepared;
         const canonical = try parsed.value.save(allocator);
         defer allocator.free(canonical);
         if (!std.mem.eql(u8, bytes, canonical)) return error.InvalidCatalogPrepared;
@@ -91,9 +98,13 @@ fn batchKeys(self: *Self, keys: []const p.Value) !wire.ResourceReader.Batch {
     if (result.resource.id != self.connection.scope.resource or result.resource.writer != self.connection.owner or result.resource.phase != .active) return error.CatalogOwnerChanged;
     return result;
 }
-fn describeBatch(self: *Self, source: *const wire.ResourceReader.Batch) !Description {
+fn configuration(self: *Self, source: *const wire.ResourceReader.Batch) !m.Configuration {
     const config = try r.decode(m.Configuration, 'c', (try source.read(self.address('c', 0, 0))) orelse return error.CatalogNotInitialized);
     if (!std.meta.eql(config.scope, self.connection.scope) or config.owner != self.connection.owner) return error.CatalogConfigurationChanged;
+    return config;
+}
+fn describeBatch(self: *Self, source: *const wire.ResourceReader.Batch) !Description {
+    const config = try self.configuration(source);
     const policy = try r.decode(m.Policy, 'p', (try source.read(self.address('p', self.connection.principal, 0))) orelse return error.CatalogDenied);
     if (!std.meta.eql(policy.scope, config.scope) or policy.principal != self.connection.principal) return error.InvalidCatalogPolicy;
     if (!policy.create and !policy.inspect) return error.CatalogDenied;
@@ -123,17 +134,49 @@ pub fn prepareCreate(self: *Self, request: m.CreateTable) !Prepared {
     const current = try self.batch(request.operation);
     if (!(try self.describeBatch(&current)).policy.create) return error.CatalogDenied;
     _ = try self.receiptFrom(&current, request);
+    return self.sign(.{ .create_table = request });
+}
+/// Provisioning is explicit. Missing configuration permits a proposal only;
+/// the supplied owner still checks empty state and the authenticated administrator.
+pub fn prepareInitialize(self: *Self, config: m.Configuration) !Prepared {
+    try self.connection.validate();
+    try config.validate();
+    if (!std.meta.eql(config.scope, self.connection.scope)) return error.CatalogScopeChanged;
+    if (config.owner != self.connection.owner or config.administrator != self.connection.principal) return error.CatalogIdentityConflict;
+    const current = try self.batchKeys(&.{self.address('c', 0, 0)});
+    if (try current.read(self.address('c', 0, 0))) |_| {
+        if (!std.meta.eql(config, try self.configuration(&current))) return error.CatalogConfigurationChanged;
+    }
+    return self.sign(.{ .initialize = config });
+}
+/// Administrator authority is independent of that principal's create/inspect
+/// policy. The owner rechecks this conditional transition at application time.
+pub fn preparePolicy(self: *Self, change: m.PolicyChange) !Prepared {
+    try self.connection.validate();
+    try change.validate();
+    if (!std.meta.eql(change.policy.scope, self.connection.scope)) return error.CatalogScopeChanged;
+    const address_policy = self.address('p', change.policy.principal, 0);
+    const current = try self.batchKeys(&.{ self.address('c', 0, 0), address_policy });
+    if ((try self.configuration(&current)).administrator != self.connection.principal) return error.CatalogDenied;
+    if (try current.read(address_policy)) |bytes| {
+        const previous = try r.decode(m.Policy, 'p', bytes);
+        if (!std.meta.eql(previous.scope, self.connection.scope) or previous.principal != change.policy.principal) return error.InvalidCatalogPolicy;
+        if (!std.meta.eql(previous, change.policy) and previous.revision != change.expected_revision) return error.CatalogPolicyConflict;
+    } else if (change.expected_revision != 0) return error.CatalogPolicyConflict;
+    return self.sign(.{ .set_policy = change });
+}
+fn sign(self: *Self, command: m.Command) !Prepared {
     const sequence = (try self.resources().query(.capabilities)).principal_sequence;
     return .{ .version = 1, .definition = g.current_definition, .connection = self.connection, .signed = try g.sign(.{
         .realm = self.connection.scope.realm,
         .principal = self.connection.principal,
         .sequence = try std.math.add(u64, sequence, 1),
-        .command = .{ .send = .{ .pid = self.connection.owner, .value = try (s.Frame{ .kind = .cast, .payload = try r.encode('q', request) }).encode() } },
+        .command = .{ .send = .{ .pid = self.connection.owner, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } },
     }, self.key) };
 }
 pub fn validate(self: *Self, prepared: Prepared) !void {
     if (!std.meta.eql(self.connection, prepared.connection)) return error.CatalogIdentityConflict;
-    try self.checkRequest(try prepared.request());
+    _ = try prepared.command();
     try p.Ed25519.Signature.fromBytes(prepared.signed.signature).verify(&try g.digest(prepared.signed.request), self.key.public_key);
 }
 /// Exactly one transport attempt with the original signature/sequence. It makes

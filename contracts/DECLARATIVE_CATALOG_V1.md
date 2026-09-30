@@ -115,8 +115,9 @@ below owns signed sends.
 
 `Client` borrows the public native transport and owns a connection and signing
 key. The connection binds realm/resource/catalog scope, owner PID and caller
-principal. Configure an application that dispatches the `q` request record to
-`Catalog.createTable`; the caller does not provision or start that application.
+principal. The supplied catalog host accepts initialization, creation and policy
+commands; a custom application must explicitly dispatch those commands to the
+same owning helpers. The caller does not provision or start that application.
 
 `describe()` reads configuration and the caller's policy in one current native
 batch. It checks the active resource's writer and exact scope before returning
@@ -127,16 +128,35 @@ reads the principal sequence and signs one Station cast without submitting it.
 Concurrent handles sharing a principal must coordinate their native sequences.
 The owner independently rechecks current create policy when applying the input.
 
+`prepareInitialize(configuration)` requires the exact connection scope, owner
+and caller as administrator. One current batch checks the active native writer
+and any existing configuration. Absent configuration permits preparation only;
+the host still checks authorization and refuses orphan state. Exact repeated
+initialization never resets policy. `preparePolicy(change)` reads configuration
+and the target policy together, requires the configured administrator and checks
+the expected revision. An already equal target policy permits an exact application
+duplicate. A different current revision rejects preparation. The host independently
+checks the conditional transition when processing the input.
+
+Administrator control does not require catalog create/inspect rights. An
+administrator can restore a revoked application policy while retaining the
+required native read/send grants. This grants no exception to current result
+inspection policy. All preparation methods sign but do not submit, reserve a
+sequence, acquire a retained view or promise that a later input will apply.
+
 `Prepared` owns version one, the mandatory current contract definition, the
 complete connection and signed native send. `save` writes canonical JSON;
 `restore` accepts complete canonical input of at most 8192 bytes, validates both
-required definitions, frame/request structure and scope, and returns owned
+required definitions, frame/command structure and scope, and returns owned
 fields. Missing/foreign definitions, altered connection binding, unknown fields
 and noncanonical bytes reject. The record contains no private key. Saved bytes
 remain opaque recovery material to foreign languages; full-width application
 identities must not pass through an inexact JSON-number conversion.
+`command()` returns the typed initialization, creation or policy command;
+`request()` returns a creation request and rejects controls. Existing creation
+commands keep their exact encoded and saved bytes.
 
-`submit(prepared)` validates the connection, complete request and signature
+`submit(prepared)` validates the connection, complete command and signature
 before transport access, then attempts the exact signed send once. It performs
 no metadata acquisition, re-signing or automatic retry. Preserve the original
 prepared value across uncertainty and caller replacement. A native receipt
@@ -157,7 +177,7 @@ never reused across acquisitions. No retained snapshot or implicit input is
 created by metadata or status reads.
 
 `inputDisposition(prepared, input)` reads a supplied behavior's disposition for
-that original creation send under current inspect rights. It verifies the exact
+that original control or creation send under current inspect rights. It verifies the exact
 scope, external principal, input position and complete frame fingerprint. A
 missing disposition is not a successful creation: successful creation uses its
 operation receipt instead. Preserve each send's original prepared value and
@@ -171,9 +191,10 @@ GenServer. The supplied `transit-query-host` `catalog` role takes the exact
 its resource must match the required association. Native provisioning, grants
 and ownership are explicit prerequisites. Configuration files grant no authority.
 
-Before exposing untrusted ingress, send a Station cast containing
-`Model.Command{ .initialize = configuration }`, encoded with `encode()`, from
-the configured administrator.
+Before exposing untrusted ingress, prepare, save and explicitly submit
+`Client.prepareInitialize(configuration)` from the configured administrator.
+Its Station cast contains `Model.Command{ .initialize = configuration }`,
+encoded with `encode()`.
 Its payload is the canonical `c` configuration record. Initial publication has
 four atomic writes: Station's framework descriptor, catalog configuration,
 administrator create/inspect policy and an input-bound `initialized` disposition.

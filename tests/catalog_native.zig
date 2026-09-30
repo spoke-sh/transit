@@ -79,8 +79,11 @@ fn request(init: std.process.Init, directory: []const u8) !c.Model.CreateTable {
     return c.Records.decode(c.Model.CreateTable, 'q', (try s.Frame.decode(saved.signed.request.command.send.value)).payload);
 }
 fn restored(init: std.process.Init, directory: []const u8) !c.Client.Prepared {
+    return restoredFile(init, directory, "prepared.json");
+}
+fn restoredFile(init: std.process.Init, directory: []const u8, name: []const u8) !c.Client.Prepared {
     const a = init.arena.allocator();
-    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try std.fmt.allocPrint(a, "{s}/prepared.json", .{directory}), a, .limited(c.Client.Prepared.max_saved_bytes));
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try std.fmt.allocPrint(a, "{s}/{s}", .{ directory, name }), a, .limited(c.Client.Prepared.max_saved_bytes));
     return c.Client.Prepared.restore(a, bytes);
 }
 fn hostConfig(init: std.process.Init, url: []const u8, directory: []const u8, config: Config) !void {
@@ -128,16 +131,23 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "status")) return print(init, try caller.status(try request(init, directory)));
     if (std.mem.eql(u8, mode, "observe")) return print(init, try caller.observe(try restored(init, directory), try std.fmt.parseInt(u64, args[4], 10)));
     if (std.mem.eql(u8, mode, "input-disposition")) return print(init, try caller.inputDisposition(try restored(init, directory), try std.fmt.parseInt(u64, args[4], 10)));
+    if (std.mem.eql(u8, mode, "retry-control")) return print(init, try caller.submit(try restoredFile(init, directory, "control.json")));
+    if (std.mem.eql(u8, mode, "control-disposition")) return print(init, try caller.inputDisposition(try restoredFile(init, directory, "control.json"), try std.fmt.parseInt(u64, args[4], 10)));
+    if (std.mem.eql(u8, mode, "observe-control")) return print(init, try caller.observe(try restoredFile(init, directory, "control.json"), try std.fmt.parseInt(u64, args[4], 10)));
     if (std.mem.eql(u8, mode, "send-initialize") or std.mem.eql(u8, mode, "send-policy")) {
         const control: c.Model.Command = if (std.mem.eql(u8, mode, "send-initialize")) .{ .initialize = owner(config).configuration } else blk: {
-            if (args.len != 7) return error.Usage;
+            if (args.len != 7 and args.len != 8) return error.Usage;
             const revision = try std.fmt.parseInt(u64, args[4], 10);
             if (revision == 0) return error.InvalidCatalogPolicy;
-            break :blk .{ .set_policy = .{ .expected_revision = revision - 1, .policy = .{ .scope = caller.connection.scope, .principal = 1234, .revision = revision, .create = std.mem.eql(u8, args[5], "true"), .inspect = std.mem.eql(u8, args[6], "true") } } };
+            break :blk .{ .set_policy = .{ .expected_revision = revision - 1, .policy = .{ .scope = caller.connection.scope, .principal = if (args.len == 8) try std.fmt.parseInt(u64, args[7], 10) else 1234, .revision = revision, .create = std.mem.eql(u8, args[5], "true"), .inspect = std.mem.eql(u8, args[6], "true") } } };
         };
-        const frozen: Frozen = .{ .definition = g.current_definition, .signed = try send(&wire, config, try control.encode()) };
-        try save(init, directory, "control.json", frozen);
-        return print(init, try wire.submit(frozen.signed));
+        const prepared = switch (control) {
+            .initialize => |value| try caller.prepareInitialize(value),
+            .set_policy => |value| try caller.preparePolicy(value),
+            else => unreachable,
+        };
+        try save(init, directory, "control.json", prepared);
+        return print(init, try caller.submit(prepared));
     }
     if (std.mem.eql(u8, mode, "write-host")) {
         try hostConfig(init, args[1], directory, config);

@@ -13,13 +13,17 @@ create/inspect policies gate publication and metadata. `lookup`, `definition`,
 `receipt` and `list` expose bounded metadata; list cursors bind resource revisions.
 Catalog cardinality is independent of resident page size.
 
-`Client` supplies current metadata, `prepareCreate`, explicit signed submission,
+`Client` supplies current metadata, `prepareInitialize`, `prepareCreate`,
+`preparePolicy`, explicit signed submission,
 input observation and original-request status. Its owned `Prepared` values save
 and restore exact canonical bytes with mandatory definition checks. Submission
 does not re-sign uncertain work. Current create and inspect policies remain
 independent; admission, processing and application are separate outcomes.
-`inputDisposition` separately reads a supplied behavior's rejected-input outcome
-under current inspection rights, bound to the original send and input position.
+`inputDisposition` separately reads a supplied behavior's control or rejected-input
+outcome under current inspection rights, bound to the original send and input
+position. Conditional policy control requires the configured administrator,
+independently of create/inspect policy. Self-revocation still denies result
+inspection; it does not prevent policy restoration under current native grants.
 
 An application supplies an already authorized Station turn, explicit catalog
 configuration and native commit/recovery handling. Initialize in a separate turn.

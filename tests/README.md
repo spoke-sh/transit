@@ -205,6 +205,55 @@ completion and per-task results are retained under
 changes no production source. This is a clean core-lane pass plus the focused
 host proof above, not a full clean suite or administrative CLI/SDK qualification.
 
+### Signed initialization and policy controls
+
+The shared catalog caller now prepares initialization and conditional policy
+commands, using the same owned `Prepared` envelope, exact submission, input
+observation and current-policy disposition reads as creation. Initialization
+checks its connection/configuration binding; policy preparation reads the exact
+configuration and target policy in one current native batch. The configured
+administrator can restore application rights after self-revocation, while
+disposition inspection remains denied until the restoration applies. Existing
+creation bytes, native/ABI definitions and stored record layouts are unchanged.
+
+On development source based on `3dea7fad`, standalone catalog tests pass **18
+named component cases** (19 including the root import test). The saved-command
+matrix now covers initialization, creation and full-width policy revisions,
+owned restoration, missing/foreign definitions, altered identities and canonical
+input. Invalid administrator/owner/scope and policy revisions reject before
+transport. Full **`just check` passes**, including generated contracts, frontend
+checks/tests and the production documentation build; later proof/documentation
+edits receive their focused checks.
+
+The final **`just test::catalog` passes in 9.918 seconds**, with **776 reads**,
+**25 accepted turn responses**, two lost caller receipts and three lost owner
+receipts. It restores a saved initialization send after caller/node/store
+replacement, then preserves the supplied host's initialization/creation recovery
+schedule. Two controls prepared at the same policy revision queue before the host
+starts: the second records `stale_policy` after the first changes policy. Separate
+target principals, absent-policy creation, exact policy duplicates and stale
+preparation checks pass. Self-revocation denies creation and disposition reads;
+duplicate initialization cannot restore those rights, but an explicit next policy
+can. Four Tables, eight resident authority pages, four mutations and the fixture's
+127-byte maximum value remain unchanged. The added controls, restart and polling
+make this an expanded recovery schedule, not an equivalent-workload speed result.
+
+The first control run returned `CatalogDenied` when the fixture attempted result
+inspection before restoration had been processed. The fixture now waits for
+explicit input observation before acquiring a newly authorized disposition;
+the caller's current-policy rejection is preserved. The ordered run passes, then
+the final run above adds independent target-principal cases. Logs are
+`/tmp/transit-sql-catalog-controls-components.log`,
+`/tmp/transit-sql-catalog-controls-check.log`,
+`/tmp/transit-sql-catalog-controls-native.log` (failed),
+`/tmp/transit-sql-catalog-controls-native-ordered.log` and
+`/tmp/transit-sql-catalog-controls-native-targets.log` (final pass).
+The proof binary SHA-256 is
+`3d7ac8adf5b9a0d4d782b40c48bfbd3d26529f3c6bf882595cca550dfa3c798e`;
+node and host hashes match the supplied-host entry above. This development result
+does not extend that earlier clean checkpoint or qualify neutral administrative
+bindings, CLI/SDK routes or general SQL grants.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
