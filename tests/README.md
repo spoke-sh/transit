@@ -1616,6 +1616,43 @@ unique durable commits. Metrics contain no request bodies or credential values.
 Compare native request counts and phase costs at equivalent workload boundaries;
 shared-host durations do not establish percentiles or throughput guarantees.
 
+The first instrumented disk runs use runner SHA-256
+`63fa35689262d5fce12b5a303fcf390f3812931cf9a64a6375e7e76e3eb47fbe`
+and the same six native binaries, with eight resident authority pages. The
+65-additional-Table run at committed `d681181d` passes in **233.028 s**, lists
+70 named definitions in nine pages, and repeats the metadata checks after
+node/store restart. Cleanup joins. Growth itself takes **112.669 s**:
+
+| Phase | Calls | Seconds | Caller reads |
+| --- | ---: | ---: | ---: |
+| Compile | 65 | 0.010 | 0 |
+| Prepare | 65 | 1.923 | 130 |
+| Admit | 65 | 10.595 | 0 |
+| Await application | 65 | 99.922 | 1089 |
+
+Growth-only upstream observations include 65 owner turns (**41.125 s**), 845
+owner entry reads (**38.810 s**) and 1170 caller entry reads (**89.375 s**).
+These overlapping durations include serialized authority/provider work and
+contention; they are not additive phase costs. Validation runs share the host.
+
+The 257-additional-Table attempt at committed `05454efd` fails in **508.687 s**
+after **138** additions apply. The next send is admitted, then index 138 remains
+in `await_application` at the unchanged twenty-second progress deadline. Owner
+turns repeatedly report `AuthorityUnavailable`. Cleanup joins, but the final
+listing/restart checks are not reached and the pending operation's outcome is
+not established. This attempt supplies failure attribution, not a larger-growth
+pass. Both reports retain complete binary hashes and source identities; later
+rebases preserve the runner's content.
+
+Committed-head clean experience runs at `1c4d91e1` (source tree `3d38f5a7`,
+matching the merged implementation) and `0dc49100` (tree `6216f338`, matching
+the rebased attribution increment `c79c4307`) each pass six of seven tasks.
+Board query inspection passes in **103.43 s** and **101.79 s** respectively.
+Both fail `launchers::local::test-station` waiting for the requester Arrow reply,
+after **275.54 s** and **277.76 s**. Private fixture logs and WALs are retained
+for diagnosis. Neither is a clean experience pass; these runs do not supersede
+the separate full `just check` passes or establish all clean-suite gates.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
