@@ -4750,3 +4750,29 @@ Five pure benchmark samples record compile medians 0.45–0.97 microseconds and
 state and the executable digest; these are local observations, not a paired
 performance improvement claim. All of this evidence predates the protocol
 rebase and must be rechecked on the consolidated implementation.
+
+### SQL integration after protocol consolidation
+
+The SQL branch is rebased onto `3ea81aaa`, retaining the consolidated native
+contract definition and the removal of the older Fuze compiler/executor.
+`Unified.Sql`, `Unified.Plan`, `Unified.Codec` and `Unified.Stream` remain the
+single lowering/execution path; generated ABI/browser resources are regenerated
+from the merged Zig types. The duplicate-projection fixture now expects the
+current compiler's `DuplicateProjection`, instead of the removed Table
+compiler's width error.
+
+`just check`, the independent SQL proof and a further `just test::unit` pass.
+The SQL proof covers 104 AST cases, 86 executable current plans, 16 syntax
+exclusions, 14 extensions, 44 documentation examples and 24 independent unified
+results across three source bases and eight page widths. Rebuilt Table/KV
+runtime inspection again uses five reads, no snapshots and no durable writes;
+revocation and the existing interactive controls pass. Individual inspection
+wall times are 16.9–19.5 ms in this run. The Document fixture remains in progress
+and is not counted as passed.
+
+`just bindings::node-check` initially fails in this fresh worktree because
+Station imports the client package's `dist` exports, which the task only
+checked with `--noEmit`. The task now builds that direct dependency first.
+The standalone check then passes strict types, formatting/lint and all ten
+Node handler/ownership tests. This is a task-dependency correction, not a
+substitute for installed-SDK runtime qualification.
