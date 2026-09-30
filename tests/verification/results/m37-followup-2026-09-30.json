@@ -22,7 +22,7 @@
     "diagnostic_script_sha256": "89e13972522bcbce37a3f8aa9316ef2eb12fa9e1059c6fd88eaef377cff4a36b",
     "log_sha256": "8fcc125aa8c28f8398df6139c2f8617564e394ae23f910cba26d1df62797ddeb",
     "backtrace_sha256": "318db250d544e8cef67acee20bf22d4284e75a518427ceeb677fb5cde26b19b1",
-    "private_artifacts": "Core, executable and full logs remain in ignored .cache/rust-crash; not published"
+    "private_artifacts": "Originally retained in ignored .cache/rust-crash; later removed by the external worktree deletion. The committed diagnosis, summaries and hashes survive; see clean_ee4770c9_checkpoint workspace recovery."
   },
   "negative_control": {
     "completed": true,
@@ -6467,5 +6467,124 @@
       "tests/verification/suite.json"
     ],
     "issue_26_remains_open": true
+  },
+  "experience_ee4770c9_failure": {
+    "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+    "completed": false,
+    "metadata": {
+      "version": 1,
+      "revision": "ee4770c92accc56fa38d0f40a493e16f0335fd63",
+      "tier": "experience",
+      "completed": false,
+      "expected_tasks": [
+        "transit-board::check",
+        "transit-docs::check",
+        "bindings::node-check",
+        "test::observability",
+        "transit-board::test",
+        "transit-board::query-test",
+        "launchers::local::test-station"
+      ],
+      "seconds": 209.81,
+      "run_id": null,
+      "run_attempt": null,
+      "machine": {
+        "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+        "logical_cpus": 48,
+        "affinity": [
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "runner": null,
+        "runner_arch": null
+      }
+    },
+    "tasks": [
+      {
+        "lane": "experience",
+        "task": "transit-board::check",
+        "seconds": 66.33,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "transit-docs::check",
+        "seconds": 69.86,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "bindings::node-check",
+        "seconds": 3.88,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "test::observability",
+        "seconds": 15.42,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "transit-board::test",
+        "seconds": 12.11,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "transit-board::query-test",
+        "seconds": 42.21,
+        "exit_code": 1
+      }
+    ],
+    "log_sha256": "90efa19606ecf5ce724347078070c336042c654a336337ccfee2fc91148afd88",
+    "failure": "Board status read returned HTTP 503 Unavailable; observation retry covered receipt observation but not status polling. Five tasks passed; final launcher task unrun. Later launchers/core lanes were not started."
+  },
+  "integrated_read_polling": {
+    "base_revision": "60a1db88a29efa13ce7c4c878264381c33ae7a39",
+    "main_revision": "dca324f38636c4fe76bc951914c74224c9a51b4f",
+    "dirty": true,
+    "ordinary_task_count": 68,
+    "ordinary_complete": false,
+    "source_sha256": {
+      "tests/board_query.py": "16db4e9d63f8a3ab13372f991769a1b00c4fb6c9f357094dfe61bf95ad7fd83a",
+      "tests/cold_storage.py": "164d7a918067bd79da64ef57b2514183dfbe30a1896de284fd9017efc50d435a",
+      "tests/state_api.py": "4dc1d865518b10aab7d67d78891644589dfd4597b887249761e3bddea4fc1813",
+      "tests/verification/suite.json": "b1f773fc30ba601372acd8f4adbdfcb0278a8f625a2b6ab59a21103074f65fdd",
+      "bindings/generate.py": "1227e1f099b0bca4668f3e9feb51695d27310c0b7b5728b97a5bb3402f9be48a"
+    },
+    "board_first_attempt": {
+      "completed": false,
+      "failure": "Final current Atlas read returned HTTP 503 Unavailable after query operations; no complete proof",
+      "log_sha256": "128435480e3535e961c116011738f3dba9f8d3c1edfec64582a8923f0426c21c"
+    },
+    "board_corrected": {
+      "completed": true,
+      "command": "just transit-board::query-test",
+      "log_sha256": "4f3eb9e762a9605612de3b48713d66d8b5f1a7b43a5a6b5c4608a3158373d952",
+      "retry_limits": "Eight query reads/twelve Atlas reads; original 60-second receipt and 120-second result deadlines; same query identity"
+    },
+    "repository_checks": {
+      "completed": true,
+      "command": "just check",
+      "log_sha256": "19c2c24b6b0e2a239582983ee7bf105fa24f71cdb62bac0ba2ee0131410a1264"
+    },
+    "cold_readiness": {
+      "completed": true,
+      "driver": "import io\nimport json\nfrom pathlib import Path\nimport sys\nimport time\nimport urllib.error\n\nsys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))\nfrom cold_storage import ColdStore\n\nclass Responses:\n    def __init__(self, values):\n        self.values = iter(values)\n        self.requests = []\n\n    def open(self, request, timeout):\n        self.requests.append((request.full_url, request.data, dict(request.headers)))\n        assert 0 < timeout <= 5\n        code, body = next(self.values, (503, b''))\n        if code != 200:\n            raise urllib.error.HTTPError(request.full_url, code, 'injected', {}, io.BytesIO(body))\n        reply = io.BytesIO()\n        reply.status = code\n        return reply\n\ndef scenario(values, failure=None):\n    fixture = ColdStore()\n    fixture.http = Responses(values)\n    try:\n        fixture.create_bucket(time.monotonic() + 0.18)\n        assert failure is None, failure\n    except BaseException as exc:\n        assert failure is not None and isinstance(exc, failure), repr(exc)\n    finally:\n        fixture.directory.cleanup()\n    requests = fixture.http.requests\n    assert requests and all(request == requests[0] for request in requests)\n    return len(requests)\n\nowned = b'<Error><Code>BucketAlreadyOwnedByYou</Code></Error>'\ncases = {\n    'temporary_unavailable_then_created': scenario([(503, b''), (200, b'')]),\n    'accepted_but_unavailable_then_owned': scenario([(503, b''), (409, owned)]),\n    'foreign_bucket_rejected': scenario([(409, b'<Error><Code>BucketAlreadyExists</Code></Error>')], urllib.error.HTTPError),\n    'malformed_conflict_rejected': scenario([(409, b'bad xml')], urllib.error.HTTPError),\n    'denial_not_retried': scenario([(403, b'')], urllib.error.HTTPError),\n    'persistent_unavailable_hits_original_deadline': scenario([], TimeoutError),\n}\nwith ColdStore() as fixture:\n    fixture.create_bucket(time.monotonic() + 5)\n    cases['real_owned_bucket_repeat'] = True\nprint(json.dumps(cases, indent=2))\n",
+      "driver_sha256": "061693a85400e47e80acacaf546dfb4259af6c852832da0787aa81173f0f684e",
+      "log_sha256": "74de453f4beda0dddca396f574e63e9ed4d2779f1bbd5a340b62a846f5c52939",
+      "observations": "Cold-store bucket readiness: 1 temporary HTTP 503 responses before creation.\n{\n  \"temporary_unavailable_then_created\": 2,\n  \"accepted_but_unavailable_then_owned\": 2,\n  \"foreign_bucket_rejected\": 1,\n  \"malformed_conflict_rejected\": 1,\n  \"denial_not_retried\": 1,\n  \"persistent_unavailable_hits_original_deadline\": 4,\n  \"real_owned_bucket_repeat\": true\n}\n"
+    },
+    "hosted": {
+      "executed": false,
+      "run_id": 36791485446,
+      "check_id": 110145155409,
+      "reason": "The job was not started because recent account payments have failed or your spending limit needs to be increased."
+    }
   }
 }

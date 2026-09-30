@@ -44,12 +44,14 @@ def run(node, host, proof, board, browser=False):
             config.write_text(json.dumps(options))
             serving = start("board", [board, str(config)])
             wait_ready(fixture.http, serving, origin + "/health")
-            def request(path, operation=None, *, status=200, headers=None):
+            def request(path, operation=None, *, status=200, headers=None, deadline=None):
                 time.sleep(0.12)
+                remaining = 10 if deadline is None else deadline - time.monotonic()
+                assert remaining > 0, "Board observation exceeded its existing deadline"
                 body = None if operation is None else json.dumps(operation).encode()
                 supplied = {"Origin": origin, "Content-Type": "application/json"} | (headers or {})
                 req = urllib.request.Request(origin + path, body, supplied, method="GET" if operation is None else "POST")
-                try: response = fixture.http.open(req, timeout=10)
+                try: response = fixture.http.open(req, timeout=min(10, remaining))
                 except urllib.error.HTTPError as err: response = err
                 with response:
                     data = response.read()
@@ -57,8 +59,9 @@ def run(node, host, proof, board, browser=False):
                         return json.loads(data)
                     if status == 200 and response.status == 409 and path == "/api/v1/atlas":
                         return json.loads(data)
-                    if (status == 200 and response.status == 503 and path == "/api/v1/query" and
-                            operation is not None and next(iter(operation)) == "observe" and
+                    if (status == 200 and response.status == 503 and
+                            (path == "/api/v1/atlas" or (path == "/api/v1/query" and
+                             operation is not None and next(iter(operation)) in ("describe", "status", "page", "observe"))) and
                             json.loads(data).get("err") == "Unavailable"):
                         return json.loads(data)
                     assert response.status == status, (response.status, data[:500])
@@ -67,7 +70,13 @@ def run(node, host, proof, board, browser=False):
             def api(operation, **kwargs):
                 for _ in range(8):
                     value = request("/api/v1/query", operation, **kwargs)
-                    if kwargs.get("status", 200) != 200 or value.get("err") != "QueryExpired": return value
+                    if kwargs.get("status", 200) != 200: return value
+                    # Repeat only an unavailable/current-conflict read. Keep
+                    # the same namespace/page and never re-prepare a command.
+                    transient = value.get("err") == "QueryExpired" or (
+                        next(iter(operation)) in ("describe", "status", "page") and
+                        value.get("err") == "Unavailable")
+                    if not transient: return value
                     time.sleep(0.1)
                 raise AssertionError("resource observation did not stabilize within read retry budget")
             def current_atlas():
@@ -75,7 +84,7 @@ def run(node, host, proof, board, browser=False):
                 # cleanup. Retry the whole read, never reuse a changed cut.
                 for _ in range(12):
                     value = request("/api/v1/atlas")
-                    if value.get("err") != "QueryExpired": return value
+                    if value.get("err") not in ("QueryExpired", "Unavailable"): return value
                     time.sleep(0.1)
                 raise AssertionError("atlas did not stabilize within read retry budget")
             caps = request("/api/v1/capabilities")
@@ -133,7 +142,7 @@ def run(node, host, proof, board, browser=False):
                 assert api({"submit": prepared})["receipt"] == receipt
                 until = time.monotonic() + 60
                 while True:
-                    response = api({"observe": receipt["position"]})
+                    response = api({"observe": receipt["position"]}, deadline=until)
                     # An unavailable receipt read says nothing new about the
                     # frozen submission. Observe the same receipt again without
                     # preparing or submitting another mutation.
@@ -156,7 +165,7 @@ def run(node, host, proof, board, browser=False):
             upload("1", compiled["bundle"])
             deadline = time.monotonic() + 120
             while True:
-                observation = api({"status": "1"})["status"]
+                observation = api({"status": "1"}, deadline=deadline)["status"]
                 if observation["phase"] == "complete": break
                 assert time.monotonic() < deadline, observation
                 assert all(process.poll() is None for process in processes)

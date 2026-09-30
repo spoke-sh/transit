@@ -2233,6 +2233,32 @@ were removed with the worktree; their committed result summaries, embedded repor
 and hashes remain in the follow-up record. This event is recorded separately from
 test outcomes.
 
+The next clean experience attempt at `ee4770c9` passes five tasks, then fails
+Board query qualification on HTTP 503 `Unavailable` while reading query status.
+The final Station launcher task does not run. This remains an incomplete lane.
+Integration with main at `dca324f3` preserves its definition/layout cutover and
+catalog/mutation proof registrations; the integrated ordinary inventory has
+68 tasks. Earlier results do not qualify this changed source by inheritance.
+
+The integrated Board fixture repeats only the same unavailable status,
+description, page or Atlas read. It retains the existing eight-query/twelve-Atlas
+attempt limits, the 60-second receipt window and 120-second result window;
+individual read timeouts cannot exceed the remaining window. It never prepares
+or submits a replacement mutation. A first focused run passes query operations,
+then fails on an unavailable final Atlas read. After including that read in its
+existing retry loop, the complete real Board proof passes. Expected denial,
+expired cuts and malformed-command checks remain in that proof. Full `just check`
+and generated binding checks also pass on the integrated development source.
+
+The merged cold-store fixture passes temporary-unavailability recovery,
+accepted-but-unavailable then already-owned recovery, foreign/malformed conflict
+rejection, immediate denial and exhaustion of the original startup deadline.
+Repeated attempts retain identical signed requests. A real owned MinIO bucket
+also accepts repeated creation. These focused checks and the Board failure logs
+are retained in the follow-up record; clean integrated qualification remains
+separate. A fresh hosted check still does not start because GitHub reports the
+account payments/spending-limit restriction.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
