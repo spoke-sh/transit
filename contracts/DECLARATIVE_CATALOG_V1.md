@@ -323,6 +323,15 @@ cache is created. A cursor is a local continuation value, not a bearer grant;
 catalog inspection authorization precedes continuation validation. Native
 ABI/port, CLI and language SDK metadata mappings do not yet expose these methods.
 
+Shared neutral conversion types represent object/revision/operation IDs as
+canonical decimal strings. `Bridge.Definition` retains scope, name, typed Table
+source and creation attribution. `Bridge.Cursor` requires the current contract
+definition, scope, native resource revision and last normalized name; decoding
+cannot default a missing compatibility field. `Bridge.Page` owns eight optional
+entries and an optional cursor. Conversion rejects holes, non-increasing names,
+mixed scopes and continuation that does not match the last entry and revision.
+These conversions introduce no additional executable neutral actions by themselves.
+
 Resident work holds one native page, at most eight definitions and bounded point
 reads for those definitions and Table descriptors. Durable names, definitions and
 receipts live in paged KV state with no fixed total-cardinality array. Native

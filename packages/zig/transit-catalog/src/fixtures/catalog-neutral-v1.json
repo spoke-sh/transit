@@ -97,5 +97,87 @@
     "input": 2,
     "payload": "968f7ea7ee80bd16a852f75debc59f15b99722313c7a3e7f4c88f901ae24fdf6",
     "outcome": "initialized"
+  },
+  "metadata": {
+    "scope": {
+      "realm": 1,
+      "resource": 7,
+      "catalog": "18446744073709551615"
+    },
+    "object": "18446744073709551615",
+    "revision": "1",
+    "name": "items",
+    "source": {
+      "table": {
+        "id": 9,
+        "schema": {
+          "names": [
+            "id",
+            "value"
+          ],
+          "value_type": "utf8"
+        }
+      }
+    },
+    "principal": 17,
+    "operation": "18446744073709551615",
+    "input": 2
+  },
+  "cursor": {
+    "definition": "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5",
+    "scope": {
+      "realm": 1,
+      "resource": 7,
+      "catalog": "18446744073709551615"
+    },
+    "resource_revision": 2,
+    "after": "items"
+  },
+  "page": {
+    "resource_revision": 2,
+    "entries": [
+      {
+        "scope": {
+          "realm": 1,
+          "resource": 7,
+          "catalog": "18446744073709551615"
+        },
+        "object": "18446744073709551615",
+        "revision": "1",
+        "name": "items",
+        "source": {
+          "table": {
+            "id": 9,
+            "schema": {
+              "names": [
+                "id",
+                "value"
+              ],
+              "value_type": "utf8"
+            }
+          }
+        },
+        "principal": 17,
+        "operation": "18446744073709551615",
+        "input": 2
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "next": {
+      "definition": "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5",
+      "scope": {
+        "realm": 1,
+        "resource": 7,
+        "catalog": "18446744073709551615"
+      },
+      "resource_revision": 2,
+      "after": "items"
+    }
   }
 }

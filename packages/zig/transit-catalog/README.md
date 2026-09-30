@@ -42,6 +42,11 @@ identities retain their safe-integer bounds. Offline compilation returns both
 typed fields and canonical request bytes. Prepared commands stay opaque and all
 remote operations delegate to `Client`. Native conversions own their fields;
 result strings belong to the supplied allocator.
+`Bridge.Definition`, `Cursor` and `Page` provide owned neutral metadata
+conversions. Cursors require the current definition, scope, resource revision and
+last normalized name. Page conversion checks order, dense entries, shared scope
+and continuation consistency. These value types do not yet add metadata actions
+to the native ABI/port or language SDKs.
 The [catalog ABI/port](../transit-station-bindings/docs/catalog.md) composes these
 values with explicit native handle ownership and transport uncertainty.
 

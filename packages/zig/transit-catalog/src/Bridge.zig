@@ -134,6 +134,97 @@ pub const Disposition = struct {
         return .{ .scope = try Scope.fromNative(allocator, value.scope), .origin = value.origin, .principal = value.principal, .input = value.input, .payload = try .init(&value.payload), .outcome = value.outcome };
     }
 };
+/// Neutral metadata owns its text through the supplied allocator. These values
+/// carry no authorization; each reader independently enforces current rights.
+pub const Definition = struct {
+    scope: Scope,
+    object: []const u8,
+    revision: []const u8,
+    name: []const u8,
+    source: union(enum) { table: struct { id: u32, schema: Schema } },
+    principal: u64,
+    operation: []const u8,
+    input: u64,
+    pub fn native(self: Definition) !m.Definition {
+        const value: m.Definition = .{
+            .scope = try self.scope.native(),
+            .object = try unsigned(self.object),
+            .revision = try unsigned(self.revision),
+            .name = try .init(self.name),
+            .source = switch (self.source) {
+                .table => |table| .{ .table = .{ .id = table.id, .schema = try table.schema.native() } },
+            },
+            .principal = self.principal,
+            .operation = try unsigned(self.operation),
+            .input = self.input,
+        };
+        try value.validate();
+        return value;
+    }
+    pub fn fromNative(allocator: Allocator, value: m.Definition) !Definition {
+        try value.validate();
+        return .{
+            .scope = try Scope.fromNative(allocator, value.scope),
+            .object = try decimal(allocator, value.object),
+            .revision = try decimal(allocator, value.revision),
+            .name = try allocator.dupe(u8, value.name.slice()),
+            .source = switch (value.source) {
+                .table => |table| .{ .table = .{ .id = table.id, .schema = try Schema.fromNative(allocator, table.schema) } },
+            },
+            .principal = value.principal,
+            .operation = try decimal(allocator, value.operation),
+            .input = value.input,
+        };
+    }
+};
+pub const Cursor = struct {
+    // Mandatory on decode, including a cursor retained by a foreign host.
+    definition: p.Growth.Definition,
+    scope: Scope,
+    resource_revision: u64,
+    after: []const u8,
+    pub fn native(self: Cursor) !c.Inspection.Cursor {
+        try m.nativeId(self.resource_revision);
+        const name = try c.fuze.model.Name.init(self.after);
+        try m.validName(name);
+        return .{ .scope = try self.scope.native(), .resource_revision = self.resource_revision, .after = name };
+    }
+    pub fn fromNative(allocator: Allocator, value: c.Inspection.Cursor) !Cursor {
+        try m.nativeId(value.resource_revision);
+        try m.validName(value.after);
+        return .{ .definition = p.Growth.current_definition, .scope = try Scope.fromNative(allocator, value.scope), .resource_revision = value.resource_revision, .after = try allocator.dupe(u8, value.after.slice()) };
+    }
+};
+pub const Page = struct {
+    resource_revision: u64,
+    entries: [p.Growth.page_size]?Definition,
+    next: ?Cursor,
+    pub fn fromNative(allocator: Allocator, value: c.Inspection.Page) !Page {
+        try m.nativeId(value.resource_revision);
+        var result: Page = .{ .resource_revision = value.resource_revision, .entries = @splat(null), .next = null };
+        var previous: ?m.Definition = null;
+        var ended = false;
+        for (value.entries, 0..) |slot, index| {
+            const entry = slot orelse {
+                ended = true;
+                continue;
+            };
+            if (ended) return error.InvalidCatalogPage;
+            try entry.validate();
+            if (previous) |old| {
+                if (!std.meta.eql(old.scope, entry.scope) or std.mem.order(u8, old.name.slice(), entry.name.slice()) != .lt) return error.InvalidCatalogPage;
+            }
+            result.entries[index] = try Definition.fromNative(allocator, entry);
+            previous = entry;
+        }
+        if (value.next) |cursor| {
+            const last = previous orelse return error.InvalidCatalogPage;
+            if (!std.meta.eql(last.scope, cursor.scope) or !std.meta.eql(last.name, cursor.after) or cursor.resource_revision != value.resource_revision) return error.InvalidCatalogPage;
+            result.next = try Cursor.fromNative(allocator, cursor);
+        }
+        return result;
+    }
+};
 pub const Capabilities = struct {
     version: u8 = 1,
     definition: p.Growth.Definition = p.Growth.current_definition,

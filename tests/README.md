@@ -1062,6 +1062,18 @@ a distinct lower operation ID fixes the test. Failed logs are
 links, 56 invariants, 53 classified bounds and 13 SDK scenarios. Neither fixture
 failure establishes a successful production check.
 
+### Neutral catalog metadata values
+
+Shared definition/cursor/page conversions match independently assembled metadata
+and binary definition fixtures. Root unit checks verify full-width decimal
+identities, owned text, mandatory current cursor definitions and rejection of
+missing/foreign definitions, unsafe revisions, page holes, mixed scopes and
+inconsistent continuation. The generated native/ABI/host contracts remain
+unchanged: these conversion types alone expose no new executable actions.
+The pinned-shell logs are `/tmp/transit-sql-catalog-neutral-metadata-unit.log`
+and `/tmp/transit-sql-catalog-neutral-metadata-contracts.log`. Native ABI/port,
+CLI and SDK metadata actions and installed-caller evidence remain.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

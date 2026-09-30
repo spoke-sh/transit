@@ -11,6 +11,9 @@ const Fixture = struct {
     compiled: b.Compiled,
     receipt: b.Receipt,
     disposition: b.Disposition,
+    metadata: b.Definition,
+    cursor: b.Cursor,
+    page: b.Page,
 };
 test "neutral catalog values match independent records and preserve owned wide identities" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
@@ -75,4 +78,74 @@ test "neutral catalog commands reject unsafe numbers and malformed recovery with
     var connection = fixture.connection;
     connection.principal = p.max_counter + 1;
     try t.expectError(error.InvalidCatalogIdentity, connection.native());
+}
+
+test "neutral metadata agrees with independent definitions and owns full-width cursor fields" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const fixture = (try p.Json.parseFromSlice(Fixture, a, @embedFile("fixtures/catalog-neutral-v1.json"))).value;
+    const records = (try std.json.parseFromSlice(std.json.Value, a, @embedFile("fixtures/catalog-v1.json"), .{})).value.object.get("records").?.object;
+    const encoded = try p.Json.valueAlloc(a, try c.Records.encode('d', try fixture.metadata.native()));
+    try t.expectEqualStrings(try p.Json.valueAlloc(a, records.get("definition").?.string), encoded);
+    var native = try fixture.metadata.native();
+    const definition = try b.Definition.fromNative(a, native);
+    try t.expectEqualDeep(fixture.metadata, definition);
+    native.name = try .init("changed");
+    native.source.table.schema.names[1] = try .init("changed");
+    try t.expectEqualStrings("items", definition.name);
+    try t.expectEqualStrings("value", definition.source.table.schema.names[1]);
+    native = try fixture.metadata.native();
+    native.revision = std.math.maxInt(u64);
+    const wide = try b.Definition.fromNative(a, native);
+    try t.expectEqualStrings("18446744073709551615", wide.revision);
+    try t.expectEqualDeep(native, try wide.native());
+    var cursor = try fixture.cursor.native();
+    try t.expectEqualDeep(fixture.cursor, try b.Cursor.fromNative(a, cursor));
+    const owned = try b.Cursor.fromNative(a, cursor);
+    cursor.after = try .init("changed");
+    try t.expectEqualStrings("items", owned.after);
+    var page: c.Inspection.Page = .{ .resource_revision = 2, .next = try fixture.cursor.native() };
+    page.entries[0] = try fixture.metadata.native();
+    try t.expectEqualDeep(fixture.page, try b.Page.fromNative(a, page));
+}
+
+test "neutral metadata rejects malformed page structure and incompatible saved cursors" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const fixture = (try p.Json.parseFromSlice(Fixture, a, @embedFile("fixtures/catalog-neutral-v1.json"))).value;
+    var page: c.Inspection.Page = .{ .resource_revision = 2, .next = try fixture.cursor.native() };
+    try t.expectError(error.InvalidCatalogPage, b.Page.fromNative(a, page));
+    page.entries[0] = try fixture.metadata.native();
+    page.next.?.resource_revision += 1;
+    try t.expectError(error.InvalidCatalogPage, b.Page.fromNative(a, page));
+    page.next = try fixture.cursor.native();
+    page.next.?.scope.catalog -= 1;
+    try t.expectError(error.InvalidCatalogPage, b.Page.fromNative(a, page));
+    page.next = null;
+    page.entries[2] = page.entries[0];
+    try t.expectError(error.InvalidCatalogPage, b.Page.fromNative(a, page));
+    page.entries[2] = null;
+    page.entries[1] = page.entries[0];
+    try t.expectError(error.InvalidCatalogPage, b.Page.fromNative(a, page));
+    page.entries[1].?.name = try .init("later");
+    page.entries[1].?.scope.catalog -= 1;
+    try t.expectError(error.InvalidCatalogPage, b.Page.fromNative(a, page));
+    var cursor = fixture.cursor;
+    cursor.resource_revision = 0;
+    try t.expectError(error.InvalidCatalogIdentity, cursor.native());
+    cursor.resource_revision = p.max_counter + 1;
+    try t.expectError(error.InvalidCatalogIdentity, cursor.native());
+    for (0..2) |case| {
+        var tree = (try std.json.parseFromSlice(std.json.Value, a, try p.Json.valueAlloc(a, fixture.cursor), .{})).value;
+        if (case == 0) {
+            try t.expect(tree.object.swapRemove("definition"));
+        } else tree.object.getPtr("definition").?.* = .{ .string = "foreign-v1-definition" };
+        const bytes = try std.json.Stringify.valueAlloc(a, tree, .{});
+        if (p.Json.parseFromSlice(b.Cursor, a, bytes)) |parsed| {
+            parsed.deinit();
+            return error.TestUnexpectedResult;
+        } else |_| {}
+    }
 }

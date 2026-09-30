@@ -56,11 +56,17 @@ def neutral(encoded):
     disposition = dict(scope=scope, origin='external', principal=17, input=2,
                        payload=hashlib.sha256(b'transit.catalog.input.v1\0catalog-command').hexdigest(),
                        outcome='initialized')
+    metadata = dict(scope=scope, object=str(2**64 - 1), revision='1', name='items',
+                    source=dict(table=dict(id=9, schema=request['schema'])),
+                    principal=17, operation=str(2**64 - 1), input=2)
+    cursor = dict(definition=json.loads(encoded)['native_definition'], scope=scope,
+                  resource_revision=2, after='items')
     return json.dumps(dict(connection=dict(scope=scope, owner=3, principal=17),
                            configuration=configuration, policy=policy, change=change,
                            compiled=dict(request=request, canonical=records['request']),
                            receipt=dict(request=request, principal=17, input=2, outcome='applied'),
-                           disposition=disposition), indent=2) + '\n'
+                           disposition=disposition, metadata=metadata, cursor=cursor,
+                           page=dict(resource_revision=2, entries=[metadata] + [None] * 7, next=cursor)), indent=2) + '\n'
 
 
 if __name__ == '__main__':
