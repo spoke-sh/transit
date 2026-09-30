@@ -517,7 +517,15 @@ scenarios, frontend checks and documentation build
 (`/tmp/transit-sql-catalog-node-full-check.log`). The focused
 `bindings::catalog-node` recipe and regular `bindings::node-sdk-test` include
 installed catalog recovery. These are development and focused checks; the other
-eight catalog SDKs and committed-HEAD clean validation for this increment remain.
+eight catalog SDKs remain.
+
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at
+`6ba60509162e57d3c0c6bfbe17ce9da0e768e788` in 718.92 s**. The clone inherits
+no workspace build outputs. Completion and per-task timings are recorded in
+`.cache/ci/clean/6ba60509162e-transit-ci-lpweqipr/core.meta.json` and `core.json`;
+the log is `/tmp/transit-sql-catalog-node-ci-clean.log`. This qualifies the core
+lane plus the focused TypeScript/Python schedule, not a full clean suite or
+the remaining catalog SDKs. The following commit records evidence only.
 
 ## Offline state declaration compiler
 
