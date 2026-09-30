@@ -4699,3 +4699,26 @@ new-predicate samples took 32–39 ms with sampled console RSS of 16.2–16.4 Mi
 these are local observations, not latency percentiles. An initial optimized build
 failed on duplicate Arrow C objects; reusing the root Fuze dependency in the
 benchmark build fixed it before the successful fixture run.
+
+The aggregate-copy iteration skips row projection materialization for count/sum;
+row validation, source-order matching, overflow, cancellation and checkpoint
+validation remain on the same path. `just test::sql` and `just test::unit` pass.
+Nine alternating ReleaseSafe control/candidate samples over 8,192 rows measured
+count at 0.776/0.753 ms and sum at 0.788/0.765 ms (about 2.9% lower medians).
+A second nine-pair run measured 1.037/0.903 ms and 0.970/0.894 ms with overlapping
+ranges and substantial variation in unchanged compiler cases. These local runs
+establish reduced copying and intact results, not a reliable deployment speedup.
+Both controls use source `c8583767`; frozen binary hashes, candidate diff and raw
+samples are in `.cache/verification/sql/aggregate-comparison.json` and
+`.cache/verification/sql/aggregate-paired.json`.
+
+For an alternating comparison, preserve the baseline executable, then run:
+
+```sh
+just test::sql-benchmark --samples 9 --control /path/to/frozen-probe \
+  --control-revision BASE_COMMIT --output .cache/verification/sql/comparison.json
+```
+
+The runner rejects mismatched case/workload shapes, alternates process order and
+retains both sets of samples and executable hashes. Use the actual baseline
+revision and a frozen probe built with the same optimization and toolchain.

@@ -110,9 +110,11 @@ pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []
             .conflict => return error.QueryConflict,
             .value => |value| next.sum = try std.math.add(i64, next.sum orelse 0, value.int64),
         };
-        for (bound.plan.projection, 0..) |column, index| cells[count][index] = row.cells[column];
-        selected[count] = .{ .cells = cells[count][0..bound.plan.projection.len] };
-        count += 1;
+        if (bound.plan.aggregate == .rows) {
+            for (bound.plan.projection, 0..) |column, index| cells[count][index] = row.cells[column];
+            selected[count] = .{ .cells = cells[count][0..bound.plan.projection.len] };
+            count += 1;
+        }
     }
     next.finished = if (bound.plan.limit != null and next.selected == bound.plan.limit.?) .limit else if (page.end) .source_end else null;
     var columns: [m.max_columns]m.Column = undefined;
