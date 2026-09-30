@@ -169,7 +169,7 @@ Each remote read checks current catalog inspection policy and native grants.
 Cursors confer no authority. Continuation requires the exact resource revision;
 `CatalogCursorChanged` means start a fresh listing without `--file` and discard
 the old partial result. These are current reads, not retained snapshots. Listing
-does not create a view or submit a command. Python and TypeScript have equivalent
+does not create a view or submit a command. Python, TypeScript and Rust have equivalent
 metadata methods; other SDK metadata mappings remain separate from their
 existing creation/control methods.
 

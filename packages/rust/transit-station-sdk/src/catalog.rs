@@ -46,6 +46,19 @@ fn name(value: String) -> Result<String> {
         Ok(value)
     }
 }
+fn catalog_name(value: &str) -> Result<()> {
+    let bytes = value.as_bytes();
+    if bytes.is_empty()
+        || bytes.len() > 16
+        || !(bytes[0].is_ascii_alphabetic() || bytes[0] == b'_')
+        || !bytes
+            .iter()
+            .all(|v| v.is_ascii_alphanumeric() || *v == b'_')
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Scope {
@@ -407,6 +420,209 @@ pub struct Description {
     pub policy: Policy,
     pub resource_revision: u64,
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TableSource {
+    pub table: u32,
+    pub schema: Schema,
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Definition {
+    pub scope: Scope,
+    pub object: u64,
+    pub revision: u64,
+    pub name: String,
+    pub source: TableSource,
+    pub principal: u64,
+    pub operation: u64,
+    pub input: u64,
+}
+impl Definition {
+    fn parse(value: &Value) -> Result<Self> {
+        object(
+            value,
+            &[
+                "scope",
+                "object",
+                "revision",
+                "name",
+                "source",
+                "principal",
+                "operation",
+                "input",
+            ],
+        )?;
+        let source = field(value, "source")?;
+        object(source, &["table"])?;
+        let table = field(source, "table")?;
+        object(table, &["id", "schema"])?;
+        let schema = Schema::parse(field(table, "schema")?)?;
+        for name in schema.names() {
+            catalog_name(name)?;
+        }
+        if schema.names()[0] == schema.names()[1] {
+            return Err(malformed());
+        }
+        let name = string(field(value, "name")?, "name")?;
+        catalog_name(name)?;
+        Ok(Self {
+            scope: Scope::parse(field(value, "scope")?)?,
+            object: positive(wide(field(value, "object")?)?)?,
+            revision: positive(wide(field(value, "revision")?)?)?,
+            name: name.to_owned(),
+            source: TableSource {
+                table: number(field(table, "id")?, "table", false)?
+                    .try_into()
+                    .map_err(|_| malformed())?,
+                schema,
+            },
+            principal: number(field(value, "principal")?, "principal", true)?,
+            operation: positive(wide(field(value, "operation")?)?)?,
+            input: number(field(value, "input")?, "input", false)?,
+        })
+    }
+}
+/// Exact local continuation. Restoring it requires the original definition field.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Cursor {
+    definition: String,
+    scope: Scope,
+    resource_revision: u64,
+    after: String,
+}
+impl Cursor {
+    pub fn new(
+        definition: String,
+        scope: Scope,
+        resource_revision: u64,
+        after: String,
+    ) -> Result<Self> {
+        if definition != abi::ABI_DEFINITION {
+            return Err(malformed());
+        }
+        native(resource_revision, false)?;
+        catalog_name(&after)?;
+        Ok(Self {
+            definition,
+            scope,
+            resource_revision,
+            after,
+        })
+    }
+    pub fn definition(&self) -> &str {
+        &self.definition
+    }
+    pub fn scope(&self) -> Scope {
+        self.scope
+    }
+    pub fn resource_revision(&self) -> u64 {
+        self.resource_revision
+    }
+    pub fn after(&self) -> &str {
+        &self.after
+    }
+    fn wire(&self) -> Value {
+        json!({"definition":self.definition,"scope":self.scope.wire(),"resource_revision":self.resource_revision,"after":self.after})
+    }
+    fn parse(value: &Value) -> Result<Self> {
+        object(
+            value,
+            &["definition", "scope", "resource_revision", "after"],
+        )?;
+        Self::new(
+            string(field(value, "definition")?, "definition")?.to_owned(),
+            Scope::parse(field(value, "scope")?)?,
+            number(
+                field(value, "resource_revision")?,
+                "resource-revision",
+                false,
+            )?,
+            string(field(value, "after")?, "after")?.to_owned(),
+        )
+    }
+}
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Page {
+    pub resource_revision: u64,
+    pub entries: Vec<Definition>,
+    pub next: Option<Cursor>,
+}
+impl Page {
+    fn parse(value: &Value, scope: Scope, previous: Option<&Cursor>) -> Result<Self> {
+        object(value, &["resource_revision", "entries", "next"])?;
+        let resource_revision = number(
+            field(value, "resource_revision")?,
+            "resource-revision",
+            false,
+        )?;
+        let slots = field(value, "entries")?
+            .as_array()
+            .filter(|v| v.len() == 8)
+            .ok_or_else(malformed)?;
+        let mut entries: Vec<Definition> = Vec::with_capacity(8);
+        let mut ended = false;
+        for slot in slots {
+            if slot.is_null() {
+                ended = true;
+                continue;
+            }
+            let entry = Definition::parse(slot)?;
+            if ended
+                || entry.scope != scope
+                || entries.last().is_some_and(|last| last.name >= entry.name)
+            {
+                return Err(malformed());
+            }
+            entries.push(entry);
+        }
+        let next = match field(value, "next")? {
+            Value::Null => None,
+            cursor => Some(Cursor::parse(cursor)?),
+        };
+        if let Some(next) = &next {
+            let last = entries.last().ok_or_else(malformed)?;
+            if next.scope != scope
+                || next.after != last.name
+                || next.resource_revision != resource_revision
+            {
+                return Err(malformed());
+            }
+        }
+        if let Some(previous) = previous {
+            if resource_revision != previous.resource_revision
+                || entries
+                    .first()
+                    .is_some_and(|first| first.name <= previous.after)
+            {
+                return Err(malformed());
+            }
+        }
+        Ok(Self {
+            resource_revision,
+            entries,
+            next,
+        })
+    }
+}
+fn resolved(
+    value: &Value,
+    scope: Scope,
+    name: Option<&str>,
+    identity: Option<(u64, u64)>,
+) -> Result<Option<Definition>> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let result = Definition::parse(value)?;
+    if result.scope != scope
+        || name.is_some_and(|name| result.name != name)
+        || identity.is_some_and(|(object, revision)| {
+            result.object != object || result.revision != revision
+        })
+    {
+        return Err(malformed());
+    }
+    Ok(Some(result))
+}
 #[derive(Clone, Debug)]
 pub struct Receipt {
     pub request: CreateTable,
@@ -516,6 +732,36 @@ impl Client {
             policy: Policy::parse(field(v, "policy")?)?,
             resource_revision: number(field(v, "resource_revision")?, "revision", true)?,
         })
+    }
+    pub fn lookup(&mut self, name: &str) -> Result<Option<Definition>> {
+        catalog_name(name)?;
+        let response = self.call(json!({"lookup":name}))?;
+        resolved(
+            result(&response, "definition")?,
+            self.connection.scope,
+            Some(name),
+            None,
+        )
+        .map_err(|_| malformed())
+    }
+    pub fn definition(&mut self, object: u64, revision: u64) -> Result<Option<Definition>> {
+        positive(object)?;
+        positive(revision)?;
+        let response = self.call(
+            json!({"definition":{"object":object.to_string(),"revision":revision.to_string()}}),
+        )?;
+        resolved(
+            result(&response, "definition")?,
+            self.connection.scope,
+            None,
+            Some((object, revision)),
+        )
+        .map_err(|_| malformed())
+    }
+    pub fn list(&mut self, cursor: Option<&Cursor>) -> Result<Page> {
+        let response = self.call(json!({"list":cursor.map(Cursor::wire)}))?;
+        Page::parse(result(&response, "page")?, self.connection.scope, cursor)
+            .map_err(|_| malformed())
     }
     pub fn compile_sql(
         &mut self,
@@ -647,6 +893,77 @@ impl Client {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn metadata_owns_wide_identity_and_rejects_inconsistent_pages() {
+        let scope = Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap();
+        let definition = json!({"scope":scope.wire(),"object":u64::MAX.to_string(),"revision":u64::MAX.to_string(),"name":"items",
+            "source":{"table":{"id":u32::MAX,"schema":{"names":["id","value"],"value_type":"utf8"}}},"principal":17,"operation":u64::MAX.to_string(),"input":2});
+        let cursor = Cursor::new(abi::ABI_DEFINITION.into(), scope, 3, "items".into()).unwrap();
+        let page = json!({"resource_revision":3,"entries":[definition,null,null,null,null,null,null,null],"next":cursor.wire()});
+        let parsed = Page::parse(&page, scope, None).unwrap();
+        assert_eq!(parsed.entries[0].object, u64::MAX);
+        assert_eq!(parsed.entries[0].revision, u64::MAX);
+        assert_eq!(parsed.entries[0].source.table, u32::MAX);
+        let retained = parsed.clone();
+        drop(parsed);
+        assert_eq!(retained.next.as_ref().unwrap(), &cursor);
+        assert_eq!(retained.entries[0].source.schema.names(), &["id", "value"]);
+        assert_eq!(
+            resolved(&definition, scope, Some("items"), None)
+                .unwrap()
+                .as_ref(),
+            retained.entries.first()
+        );
+        assert!(resolved(&definition, scope, Some("other"), None).is_err());
+        assert!(resolved(&definition, scope, None, Some((1, 1))).is_err());
+        assert!(resolved(&Value::Null, scope, None, None).unwrap().is_none());
+        for defect in 0..10 {
+            let mut bad = page.clone();
+            match defect {
+                0 => {
+                    bad["entries"][1] = bad["entries"][0].take();
+                }
+                1 => {
+                    bad["entries"][1] = definition.clone();
+                }
+                2 => {
+                    bad["entries"][0]["scope"]["catalog"] = json!("1");
+                }
+                3 => {
+                    bad["next"]["resource_revision"] = json!(4);
+                }
+                4 => {
+                    bad["next"]["after"] = json!("other");
+                }
+                5 => {
+                    bad["next"].as_object_mut().unwrap().remove("definition");
+                }
+                6 => {
+                    bad["next"]["definition"] = json!("0".repeat(64));
+                }
+                7 => {
+                    bad["entries"][0]["object"] = json!(u64::MAX);
+                }
+                8 => {
+                    bad["entries"][0]["source"] = json!({"document":{}});
+                }
+                _ => {
+                    bad["entries"].as_array_mut().unwrap().push(Value::Null);
+                }
+            }
+            assert!(Page::parse(&bad, scope, None).is_err(), "defect {defect}");
+        }
+        assert!(Page::parse(&page, scope, Some(&cursor)).is_err());
+        let mut end = json!({"resource_revision":3,"entries":[null,null,null,null,null,null,null,null],"next":null});
+        assert!(
+            Page::parse(&end, scope, Some(&cursor))
+                .unwrap()
+                .entries
+                .is_empty()
+        );
+        end["resource_revision"] = json!(4);
+        assert!(Page::parse(&end, scope, Some(&cursor)).is_err());
+    }
     #[test]
     fn owned_wide_values_and_strict_decoding() {
         let scope = Scope::new(ResourceRef::new(46, 7).unwrap(), u64::MAX).unwrap();

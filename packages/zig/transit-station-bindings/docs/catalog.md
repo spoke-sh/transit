@@ -86,7 +86,7 @@ Metadata calls check current catalog inspection policy and native grants, includ
 when continuing an earlier page. They acquire no view and submit no command.
 Dependent definition/Table batches stay at the initial revision and recheck
 native grants. These actions add no handle-layout or saved-command changes.
-Python and TypeScript expose typed metadata methods; other public SDK metadata
+Python, TypeScript and Rust expose typed metadata methods; other public SDK metadata
 methods remain separate from existing typed controls.
 
 ## Port configuration

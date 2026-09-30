@@ -1281,6 +1281,34 @@ Report/package hashes and log are
 source based on `2ec18f51`, with unchanged native binary hashes. Other eight
 language metadata mappings remain outside this evidence.
 
+### Rust catalog metadata
+
+Rust adds owned definitions, Table sources, dense page vectors and explicit
+checked cursors through mutable blocking caller methods. Four catalog tests pass
+at `/tmp/transit-sql-catalog-rust-metadata-unit-fixed.log`, including full-width
+identity, independent cloned ownership, response matching and ten malformed-page
+cases. The first source test at
+`/tmp/transit-sql-catalog-rust-metadata-unit.log` fails before execution because
+native artifacts are not selected; the rerun supplies the built library directory
+explicitly. No package dependency or search fallback changes are made.
+
+Rebuilt installed crates pass `just test::catalog --sdk rust --grow 17` in
+**72.367 s**, including **16.278 s** installation. Their packaged unit tests and
+compiler rejection of overlapping mutable callers/use after close pass. Rust
+agrees with Zig/ABI/port/CLI for **23 definitions over three pages**, all point
+reads and absence before/after node/store restart. Changed cursors and current
+catalog/native denial reject, retaining six lost caller replies and three lost
+owner replies in the existing creation/control recovery schedule. Counts are
+4968 reads, 2629 caller reads and 56 turn responses; bounds remain four mutations,
+133-byte values and eight resident pages. All seven successful Rust listings
+cost four signed reads with already negotiated batch support.
+
+Report/package hashes and log are
+`/tmp/transit-sql-catalog-rust-metadata-native.json` and
+`/tmp/transit-sql-catalog-rust-metadata-native.log`. Source is development based
+on `9c6ca374`; native binary hashes are unchanged. Seven language metadata
+mappings remain outside this evidence.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

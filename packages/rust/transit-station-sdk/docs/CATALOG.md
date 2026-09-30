@@ -86,3 +86,26 @@ Protocol, signing, policy and recovery semantics remain in the shared Zig
 implementation. The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md)
 defines atomic publication and authority; the [proof ledger](../../../../tests/README.md)
 records installed-package, compiler rejection and malformed-response checks.
+
+## Definition reads and pages
+
+`lookup(name)` returns `Option<Definition>` after exact-name binding and live
+Table schema checks. `definition(object, revision)` takes two positive `u64`
+identities and reads immutable metadata without requiring the current Table to
+match. Definitions own their scope, object/revision/name, `TableSource` (physical
+`table` and schema), original principal, operation and input position.
+
+`list(None)` returns a `Page`: its `resource_revision`, an owned dense vector of
+at most eight ordered `entries`, and optional `next`. Continue with
+`list(Some(&cursor))` only when `next` exists. An empty final page is possible.
+Restore a cursor with `Cursor::new(definition, scope, resource_revision, after)`;
+all original fields are required, and a missing/foreign definition rejects.
+Borrowed cursor getters expose the fields for application-owned persistence.
+
+Each call checks current catalog inspection policy and native grants. A cursor
+confers no authority and retains no snapshot. Changed scope/revision returns a
+conflict; discard the partial result before beginning a fresh listing. Strict
+decoding checks requested identity, page shape/order/scope and continuation;
+malformed metadata returns `ErrorKind::IncompatibleNative`. Calls submit no
+command and perform no automatic retry. Definitions/pages/cursors can be cloned
+and retained after closing the native caller.

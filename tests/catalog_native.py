@@ -513,7 +513,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             report['revoked_during_metadata_read'] = True
             # These callers share the neutral bridge. SDK metadata mappings
             # join this set as their typed public methods are implemented.
-            metadata_surfaces = {'abi', 'port', 'cli', 'python-sync', 'python-async', 'node'}
+            metadata_surfaces = {'abi', 'port', 'cli', 'python-sync', 'python-async', 'node', 'rust'}
             metadata_clients = [(name, result[0]) for (name, _), result in zip(factories, caller_results) if name in metadata_surfaces]
             report['metadata_surfaces'] = [name for name, _ in metadata_clients]
             def metadata_call(name, client, action, expected_error=None):

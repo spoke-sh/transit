@@ -87,6 +87,14 @@ fn request(v: &Value) -> Result<m::CreateTable> {
 fn request_json(v: &m::CreateTable) -> Value {
     json!({"scope":scope_json(v.scope()),"operation":v.operation().to_string(),"object":v.object().to_string(),"table":v.table(),"name":v.name(),"schema":{"names":v.schema().names(),"value_type":tag(v.schema().value_type())}})
 }
+fn definition_json(v: m::Definition) -> Value {
+    json!({"scope":scope_json(v.scope),"object":v.object.to_string(),"revision":v.revision.to_string(),"name":v.name,
+        "source":{"table":{"id":v.source.table,"schema":{"names":v.source.schema.names(),"value_type":tag(v.source.schema.value_type())}}},
+        "principal":v.principal,"operation":v.operation.to_string(),"input":v.input})
+}
+fn cursor_json(v: &m::Cursor) -> Value {
+    json!({"definition":v.definition(),"scope":scope_json(v.scope()),"resource_revision":v.resource_revision(),"after":v.after()})
+}
 fn call(client: &mut m::Client, action: &Value) -> Result<Value> {
     Ok(if action.get("capabilities").is_some() {
         let v = client.capabilities()?;
@@ -94,6 +102,25 @@ fn call(client: &mut m::Client, action: &Value) -> Result<Value> {
     } else if action.get("describe").is_some() {
         let v = client.describe()?;
         json!({"description":{"configuration":configuration_json(&v.configuration),"policy":policy_json(&v.policy),"resource_revision":v.resource_revision}})
+    } else if let Some(v) = action.get("lookup") {
+        json!({"definition":client.lookup(v.as_str().unwrap())?.map(definition_json)})
+    } else if let Some(v) = action.get("definition") {
+        json!({"definition":client.definition(wide(v,"object"),wide(v,"revision"))?.map(definition_json)})
+    } else if let Some(v) = action.get("list") {
+        let cursor = if v.is_null() {
+            None
+        } else {
+            Some(m::Cursor::new(
+                text(v, "definition").into(),
+                scope(&v["scope"])?,
+                number(v, "resource_revision"),
+                text(v, "after").into(),
+            )?)
+        };
+        let v = client.list(cursor.as_ref())?;
+        let mut entries: Vec<Value> = v.entries.into_iter().map(definition_json).collect();
+        entries.resize(8, Value::Null);
+        json!({"page":{"resource_revision":v.resource_revision,"entries":entries,"next":v.next.as_ref().map(cursor_json)}})
     } else if let Some(v) = action.get("compile") {
         let v = client.compile_sql(
             text(v, "sql"),
