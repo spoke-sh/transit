@@ -258,7 +258,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         owner.call({'page': {'namespace': '1'}})
                         raise AssertionError('retired source disclosed a completed result')
                     except Failure as failure:
-                        assert failure.detail['err'] in ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied'), failure
+                        # SDK error types preserve the authority's concrete
+                        # protocol rejection when the ABI also supplies it.
+                        assert failure.detail['err'] in ('QuerySourceUnavailable', 'ResourceUnavailable', 'StateResourceExpired', 'Rejected', 'AccessDenied'), failure
                 assert cold.data_objects() > 0
                 print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:

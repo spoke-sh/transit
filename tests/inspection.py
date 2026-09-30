@@ -5,19 +5,21 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from storage import Fixture, free_port, wait_ready
 
 
 class System:
-    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False):
+    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800):
         self.node, self.cli = node, cli
         self.store = Fixture()
         self.children, self.logs = [], []
         self.sequence = 0
         self.clock_error_ms = clock_error_ms
         self.allow_history_trim = allow_history_trim
+        self.request_timeout_ms = request_timeout_ms
 
     def __enter__(self):
         self.store.__enter__()
@@ -28,7 +30,7 @@ class System:
         self.config = self.root / "node.json"
         self.config.write_text(json.dumps({"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
                                          "ursula_url": self.store.url, "bucket": "inspection", "journal": "authority",
-                                         "port": self.port, "request_timeout_ms": 800}))
+                                         "port": self.port, "request_timeout_ms": self.request_timeout_ms}))
         self.authority = self.start(self.node, self.config, "--bootstrap")
         wait_ready(self.store.http, self.authority, self.url + "/health")
         return self
@@ -69,7 +71,7 @@ class System:
     def post(self, path, value, status=200):
         request = urllib.request.Request(self.url + path, json.dumps(value).encode(), {"Content-Type": "application/json"})
         try:
-            response = self.store.http.open(request, timeout=5)
+            response = self.store.http.open(request, timeout=max(5, self.request_timeout_ms / 1000 + 1))
         except urllib.error.HTTPError as error:
             response = error
         with response:
@@ -80,12 +82,24 @@ class System:
 
     def command(self, command):
         self.sequence += 1
-        return self.post("/v1/command", self.signed(command, self.sequence))["position"]
+        # Keep the signed bytes and sequence fixed after an uncertain result.
+        return self.available_post("/v1/command", self.signed(command, self.sequence))["position"]
+
+    def available_post(self, path, signed):
+        deadline = time.monotonic() + 10
+        while True:
+            status, body = self.post(path, signed, status=None)
+            if status == 200: return body
+            assert (status == 503 and body.get("err") in
+                    ("AuthorityUnavailable", "AuthorityTimeout", "HttpCapacity") and
+                    time.monotonic() < deadline), (status, body)
+            time.sleep(.05)
 
     def native_query(self, kind, principal=0, seed=None, status=200):
         path = self.root / "native-query.json"
         path.write_text(json.dumps({"realm": 72, "principal": principal, "kind": kind}))
-        return self.post("/v1/query", self.invoke("sign-query", seed or self.seed, path), status)
+        signed = self.invoke("sign-query", seed or self.seed, path)
+        return self.available_post("/v1/query", signed) if status == 200 else self.post("/v1/query", signed, status)
 
     def query(self, resource, pid=None, principal=0, seed=None, **options):
         path = self.root / "query.json"

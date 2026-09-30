@@ -21,7 +21,9 @@ def frame(payload, kind=1, correlation=0):
 
 
 def run(node, cli, worker, courier):
-    with System(node, cli, clock_error_ms=10000) as s:
+    # Capturing the current query format stages durable catalog pages. Use the
+    # paged SDK fixture's request budget, independent of inspection deadlines.
+    with System(node, cli, clock_error_ms=10000, request_timeout_ms=5000) as s:
         def value(resource, key):
             revision = s.native_query({'resource': resource})['body']['resource']['revision']
             entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]

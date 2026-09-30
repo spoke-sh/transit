@@ -14,6 +14,7 @@ import tempfile
 import time
 from client_abi import Native
 from client_abi_growing import GrowingSystem
+from arrow import simple_rows
 from station import frame
 from sdk_scenarios import check
 
@@ -97,7 +98,9 @@ def run(node, cli, library, artifacts, report_path=None):
             assert select.select([child.stdout], [], [], 90)[0], 'Public mixed-language runner timed out'
             line = child.stdout.readline()
             assert line, f'Public worker exited with {child.poll()}'
-            return json.loads(line)['event']
+            result = json.loads(line)
+            assert result['event'] in ('Committed', 'Idle'), result
+            return result['event']
         def close(child):
             child.stdin.write('close\n'); child.stdin.flush()
             assert json.loads(child.stdout.readline()) == {'closed': True}
@@ -150,7 +153,7 @@ def run(node, cli, library, artifacts, report_path=None):
             manifest = json.loads(manifest_file.read_bytes())
             assert (manifest['rows'], manifest['source'], manifest['destination'], manifest['resource']) == (3, table['pid'], query['pid'], table['resource'])
             segments = [Path(query['output'], f'{i}.arrow').read_bytes() for i in range(manifest['segments'])]
-            rows = [row for ipc in segments for row in pa.ipc.open_stream(ipc).read_all().to_pylist()]
+            rows = [row for ipc in segments for row in simple_rows(pa.ipc.open_stream(ipc).read_all())]
             assert rows == expected and sum(map(len, segments)) == manifest['bytes']
             pair = f'{service[0]} -> {requester[0]}'
             pairs.append(pair)
