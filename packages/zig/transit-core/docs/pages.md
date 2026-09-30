@@ -56,6 +56,17 @@ reference is checked against its expected digest before becoming a candidate. De
 empty subtrees and collapses a one-child root; internal one-child pages retain
 their height. It does not yet rebalance sparse siblings. This can amplify storage
 and lookup work after churn, which the growing-profile measurements must expose.
+
+`getMany` reads at most eight keys at one immutable root and returns their values
+in caller order. It groups requests by child so shared paths are loaded once per
+batch. The pending work list partitions the requested keys and holds at most
+eight references; traversal holds one decoded page and eight owned result values,
+without a recursive stack of ancestor pages. Invalid keys reject before page I/O;
+an unavailable or corrupt selected page fails the whole observation. It stages
+no pages and does not retain permission decisions. Native `read_entries` uses
+this traversal after its existing current scope, grant, lifetime and revision
+checks, and preserves the final authority-tail fence.
+
 Continuation scans seek strictly after an opaque key; `scanFrom` supplies an
 inclusive initial lower bound for catalog ranges. `scanRange` also takes an
 exclusive upper bound, so catalog namespace scans avoid unrelated leaves. Scans

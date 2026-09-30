@@ -222,6 +222,48 @@ pub fn Tree(comptime Store: type) type {
             }
             return error.InvalidPageHeight;
         }
+        /// One bounded immutable observation, in caller order. Pending paths
+        /// partition the requested keys, so at most page_entries references and
+        /// one decoded page are resident; ancestors are not retained recursively.
+        pub fn getMany(self: Self, root: ?Reference, keys: []const Key) ![page_entries]?Value {
+            if (keys.len > page_entries) return error.PageReadBudget;
+            for (keys) |key| try key.validate();
+            var values: [page_entries]?Value = @splat(null);
+            if (keys.len == 0 or root == null) return values;
+            const Work = struct { reference: Reference, height: ?u8, selected: [page_entries]bool };
+            var pending: [page_entries]Work = undefined;
+            pending[0] = .{ .reference = root.?, .height = null, .selected = @splat(false) };
+            @memset(pending[0].selected[0..keys.len], true);
+            var count: usize = 1;
+            while (count != 0) {
+                count -= 1;
+                const work = pending[count];
+                const page = try self.load(work.reference, work.height);
+                switch (page.body) {
+                    .leaf => |entries| for (keys, 0..) |key, i| {
+                        if (!work.selected[i]) continue;
+                        for (entries[0..page.count]) |slot| if (order(&slot.?.key, &key) == .eq) {
+                            values[i] = slot.?.value;
+                            break;
+                        };
+                    },
+                    .branch => |children| for (children[0..page.count], 0..) |slot, child| {
+                        var next: Work = .{ .reference = slot.?.reference, .height = page.height - 1, .selected = @splat(false) };
+                        var selected = false;
+                        for (keys, 0..) |key, i| if (work.selected[i] and childIndex(&page, &key) == child) {
+                            next.selected[i] = true;
+                            selected = true;
+                        };
+                        if (selected) {
+                            std.debug.assert(count < keys.len);
+                            pending[count] = next;
+                            count += 1;
+                        }
+                    },
+                }
+            }
+            return values;
+        }
         pub fn put(self: Self, root: ?Reference, key: Key, value: Value) !Reference {
             try key.validate();
             try value.validate();
