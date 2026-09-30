@@ -40,3 +40,6 @@ with explicit signed recovery, owned nested Arrow and current-source checks.
 
 The [Table mutation caller](docs/TABLE_MUTATIONS.md) provides explicit SQL writes,
 move-only request/command owners and exact recovery through the public C SDK.
+
+The [catalog caller](docs/CATALOG.md) provides owned typed declarations and
+move-only creation/control commands through the same shared native worker.

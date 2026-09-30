@@ -3,12 +3,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
 import tarfile
 import tomllib
-from sdk_unified import Consumer
+from sdk_unified import Consumer, CConsumer
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,6 +18,9 @@ def install(root, languages):
     root.mkdir()
     factories = []
     for language in languages:
+        if language in ('c', 'cpp'):
+            factories.append(install_c(root / language, language))
+            continue
         if language == 'node':
             factories.append(install_node(root / language))
             continue
@@ -149,3 +153,58 @@ def install_ruby(target):
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
         return Consumer(['ruby', str(script), str(config)], environment, target)
     return 'ruby', create
+
+
+class CatalogCConsumer(CConsumer):
+    def send(self, action):
+        name, value = next(iter(action.items()))
+        def scope(v): return f"{v['realm']} {v['resource']} {v['catalog']}"
+        def request(v):
+            names = [v['name'], *v['schema']['names']]
+            assert all(name.isascii() and name.isidentifier() and len(name) <= 16 for name in names)
+            return f"{scope(v['scope'])} {v['operation']} {v['object']} {v['table']} {' '.join(names)} {v['schema']['value_type']}"
+        if name == 'compile': command = f"compile {value['sql'].encode().hex()} {value['operation']} {value['object']} {value['table']}"
+        elif name == 'prepare_initialize': command = f"initialize {scope(value['scope'])} {value['owner']} {value['administrator']}"
+        elif name == 'prepare_create': command = 'create ' + request(value)
+        elif name == 'prepare_policy':
+            v = value['policy']; command = f"policy {scope(v['scope'])} {v['principal']} {v['revision']} {int(v['inspect'])} {int(v['create'])} {value['expected_revision']}"
+        elif name == 'submit': command = 'submit ' + value.encode().hex()
+        elif name in ('observe', 'input_disposition'): command = f"{name} {value['prepared'].encode().hex()} {value['input']}"
+        elif name == 'status': command = 'status ' + request(value)
+        else:
+            assert name in ('capabilities', 'describe', 'close')
+            command = name
+        self.child.stdin.write(command + '\n'); self.child.stdin.flush()
+
+
+def install_c(target, language):
+    target.mkdir()
+    prefix = target / 'installed'
+    artifacts = {}
+    for source in sorted((ROOT / '.cache/bindings/c').glob('*.tar.gz')):
+        if source.name.startswith('transit-sdk-examples-'): continue
+        artifact = target / source.name
+        shutil.copy2(source, artifact)
+        artifacts[source.name] = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        with tarfile.open(artifact) as archive: archive.extractall(prefix, filter='data')
+    assert len(artifacts) == 6
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH', 'CPATH', 'CPLUS_INCLUDE_PATH', 'C_INCLUDE_PATH')}
+    environment['PKG_CONFIG_PATH'] = str(prefix / 'lib/pkgconfig')
+    flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'transit-station-c' if language == 'c' else 'transit-station-cpp'], text=True, env=environment))
+    source = target / ('c_catalog_sdk.c' if language == 'c' else 'cpp_catalog_sdk.cpp')
+    shutil.copy2(ROOT / 'tests' / source.name, source)
+    shutil.copy2(ROOT / 'tests/catalog_sdk_io.h', target / 'catalog_sdk_io.h')
+    executable = target / 'consumer'
+    subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', str(source), *flags, '-lpthread', '-o', str(executable)], cwd=target, env=environment, check=True)
+    if language == 'cpp':
+        for name in ('Client', 'Compiled', 'Prepared'):
+            source.write_text(f'#include <transit/catalog.hpp>\nvoid copy(transit::sdk::station::catalog::{name} &value) {{ auto other = value; }}')
+            rejected = subprocess.run(['zig', 'c++', '-std=c++17', '-fsyntax-only', str(source), f'-I{prefix / "include"}'], cwd=target, env=environment, capture_output=True, text=True)
+            assert rejected.returncode and 'deleted' in rejected.stderr
+    source.unlink(); (target / 'catalog_sdk_io.h').unlink()
+    def create(url, connection, state):
+        s = connection['scope']
+        arguments = [str(executable), url, str(state / 'caller.seed'), str(s['realm']), str(connection['principal']), str(connection['owner']), str(s['resource']), str(s['catalog'])]
+        return CatalogCConsumer(arguments, environment, target)
+    return language, create

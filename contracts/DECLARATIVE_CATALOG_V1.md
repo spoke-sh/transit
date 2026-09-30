@@ -10,7 +10,9 @@ integration API with shared Zig/C ABI/native-port callers and an explicit
 Python exposes [typed sync/async catalog callers](../packages/python/transit-station/docs/catalog.md),
 TypeScript exposes [typed promise methods](../packages/ts/transit-station-sdk/docs/catalog.md),
 Rust exposes [typed blocking methods](../packages/rust/transit-station-sdk/docs/CATALOG.md),
-and Ruby exposes [typed synchronous methods](../packages/ruby/transit-station/docs/CATALOG.md).
+Ruby exposes [typed synchronous methods](../packages/ruby/transit-station/docs/CATALOG.md),
+C exposes [owned handles and inline values](../packages/c/transit-station/docs/CATALOG.md),
+and C++ exposes [typed move-only callers](../packages/cpp/transit-station-sdk/docs/CATALOG.md).
 SQL query transports and other language SDKs expose no catalog administration route.
 
 The implementation supports the two-column Table profile. KV/Document definitions

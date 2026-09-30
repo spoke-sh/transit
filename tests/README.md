@@ -656,6 +656,72 @@ sources match the working files. Logs are
 `/tmp/transit-sql-catalog-ruby-ci-clean.log`. This predates the PR #33 rebase and
 does not qualify its expanded 22-task core lane. The other six catalog SDKs remain.
 
+### C and C++ catalog callers
+
+`transit/catalog.h` adds typed C11 catalog values and explicit owned handles;
+`transit/catalog.hpp` adds C++17 owned values, optional outcomes and move-only
+callers/commands. Both use the existing bounded C worker and shared Zig catalog
+ABI. No protocol/schema definition changes. Saved bytes remain borrowed unchanged
+on submission; malformed successful receipts and post-dispatch result-copy
+failure retain uncertainty through the existing native result boundary. Metadata
+and status outputs publish only after complete parsing; failures clear C outputs.
+
+Executed on development source based on `08fd00a6` (with evidence-only
+`12c892e9` subsequently recording the simulation checkpoint), in the pinned
+bindings shell:
+
+- `just bindings::c-build` builds independent C/C++ packages and example binaries.
+  Installed consumers are compiled as C11/C++17 with warnings treated as errors,
+  using only copied archives and their pkg-config dependencies. Source fixtures
+  are removed before execution. All six selected archives are hashed. C++
+  compiler checks reject copies of `Client`, `Compiled` and `Prepared`.
+- Value checks cover maximum-width catalog/operation/object/Table IDs, owned
+  request/canonical/saved data after the source changes, oversized/empty commands,
+  unterminated C names, unsupported schema types and access after moving an owner.
+  Prepared and compiled owners remain readable after native close. C failure
+  outputs clear before return; exact borrowed commands survive uncertain sends.
+- `just test::catalog --sdk c --sdk cpp` passes in **21.896 s**, including
+  **6.669 s** installation: **1452 reads, 42 accepted turn responses, seven lost
+  caller receipts and three lost owner receipts**. The installed callers prepare
+  initialization/policy, compile creation, recover original admission and result
+  after caller/node/store replacement and preserve current catalog/native denial.
+  Nine Tables across two resources do not establish native growth. Bounds remain
+  four mutations, 133-byte values and eight resident authority pages.
+- The existing `just test::table-mutation --sdk c --sdk cpp` regression passes in
+  **27.884 s**, including **4.341 s** installation, 2028 reads, 56 turn responses
+  and seven lost receipts. The same C library handles saved UPDATE recovery,
+  caller replacement and current denial. This interval includes native/port/CLI
+  cases and provisioning; it is not a C-versus-C++ latency comparison.
+- Full `just check` passes, including generated contracts, unit/CLI checks,
+  frontend tests and the documentation build. Final ownership/doc checks pass
+  56 invariants, 53 bounds, 13 SDK scenarios and 4596 local links across 482 files.
+
+An initial installed C++ fixture failed compilation on aggregate initializer
+warnings and use of C fields as accessor methods. The fixture was corrected;
+that failed attempt is not recovery evidence. Logs are
+`/tmp/transit-sql-catalog-cpp-native.log`,
+`/tmp/transit-sql-catalog-cpp-native-rerun.log`,
+`/tmp/transit-sql-catalog-cpp-native-fixed.log`,
+`/tmp/transit-sql-catalog-cpp-final-native.log` and
+`/tmp/transit-sql-catalog-cpp-full-check.log`. The final report is copied to
+`/tmp/transit-sql-catalog-cpp-final-native.json`. Native binary hashes match the
+rebased four-language report below. Final SDK archive SHA-256 values:
+
+| Archive | SHA-256 |
+| --- | --- |
+| `transit-client-c-0.2.0-linux-x86_64.tar.gz` | `90c820a934d5a0d2a8aea65e70a6f1ec28dd5f0044c351f80bc156cbdcd3d4a0` |
+| `transit-client-cpp-0.2.0.tar.gz` | `24b3d7944ae2899f914dce09edfbbb00744579d3e76dceaee973f23f7dd86f99` |
+| `transit-native-client-c-0.2.0-linux-x86_64.tar.gz` | `a435721d4ee2561818adde127a0a098f4d49daf69176c192f305294a83f5857e` |
+| `transit-native-station-c-0.2.0-linux-x86_64.tar.gz` | `fbd4acaf89f0e8d6aaf4b5819a3c1af4162594cf9a9a2fa5b6ab532bcbf3690f` |
+| `transit-station-c-0.2.0-linux-x86_64.tar.gz` | `84594774cd5c7de7efd4b94ba9d2be35b6e3d21c90792a8d00aa62ca70a346fd` |
+| `transit-station-cpp-0.2.0.tar.gz` | `04be1174bd6ccd8137de0972027ec10a092a885291bc874a58dfeb6bbb5ce152` |
+
+`bindings::catalog-c` owns this focused installed schedule; the regular C SDK
+regression also includes it. These are development and focused passes. Clean
+validation of this implementation and Java/.NET/Erlang/Elixir catalog callers
+remain. No catalog-specific host cancellation or allocator-fault injection is
+claimed by these C/C++ fixtures.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

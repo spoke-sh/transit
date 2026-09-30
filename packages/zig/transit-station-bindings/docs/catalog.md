@@ -10,7 +10,9 @@ signed caller used by native applications and the
 [catalog CLI](../../../../apps/transit-cli/docs/catalog.md). Python exposes [typed sync/async catalog methods](../../../python/transit-station/docs/catalog.md);
 TypeScript exposes [typed promise methods](../../../ts/transit-station-sdk/docs/catalog.md);
 Rust exposes [typed blocking methods](../../../rust/transit-station-sdk/docs/CATALOG.md);
-Ruby exposes [typed synchronous methods](../../../ruby/transit-station/docs/CATALOG.md).
+Ruby exposes [typed synchronous methods](../../../ruby/transit-station/docs/CATALOG.md);
+C exposes [owned typed handles](../../../c/transit-station/docs/CATALOG.md);
+C++ exposes [typed move-only callers](../../../cpp/transit-station-sdk/docs/CATALOG.md).
 Other language SDK administrative methods remain separate integration work.
 
 Creation takes ABI version one, an explicit authority URL, a 32-byte signing seed

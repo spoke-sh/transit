@@ -1423,7 +1423,12 @@
         "packages/ruby/transit-station/lib/transit/station/bridge.rb",
         "tests/ruby_catalog_sdk.rb",
         "tests/ruby_catalog_values.rb",
-        "packages/zig/transit-catalog/src/simulation_test.zig"
+        "packages/zig/transit-catalog/src/simulation_test.zig",
+        "packages/c/transit-station/src/catalog.cpp",
+        "packages/cpp/transit-station-sdk/include/transit/catalog.hpp",
+        "tests/c_catalog_sdk.c",
+        "tests/cpp_catalog_sdk.cpp",
+        "tests/catalog_sdk_io.h"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
@@ -1435,7 +1440,8 @@
         "bindings::catalog-rust",
         "bindings::catalog-ruby",
         "test::domain-simulation",
-        "test::domain-simulation-mutations"
+        "test::domain-simulation-mutations",
+        "bindings::catalog-c"
       ],
       "scenarios": [
         "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
@@ -1456,9 +1462,10 @@
         "TypeScript frozen catalog values and bigint identities, generated port request/response validation, malformed-success uncertainty and original-request status matching; installed package saved creation recovery after caller/node/store replacement and current denial",
         "Installed Rust catalog crates preserve owned full-width values and borrowed saved commands; compiler rejects overlapping mutable borrows and reuse after close; malformed success receipts and an injected admitted-worker panic remain uncertain; creation recovers after caller/node/store replacement with current disclosure denial",
         "Installed Ruby catalog gems retain immutable full-width values and exact saved recovery after caller/node/store replacement; generated port validation, malformed replies, child loss and allocation failure retain uncertain commands; cancelled waiting threads preserve busy ownership and joined cleanup",
-        "Seeded private-turn schedules compare all accepted receipts, definitions and pages against an independent ledger; compiling current-policy and original-receipt defects must fail executed assertions"
+        "Seeded private-turn schedules compare all accepted receipts, definitions and pages against an independent ledger; compiling current-policy and original-receipt defects must fail executed assertions",
+        "Installed C11/C++17 catalog handles retain copied full-width values and exact saved commands after native close, use cleared failure outputs and reject copying C++ owners; creation recovers after caller/node/store replacement under current policy"
       ],
-      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking and Ruby synchronous methods; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, twelve with the optional Python sync/async, TypeScript, Rust and Ruby schedule and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous and C11/C++17 blocking methods; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, twelve with the optional Python sync/async, TypeScript, Rust and Ruby schedule (the separate C/C++ schedule creates nine) and is not a native catalog growth or host power-loss proof.",
       "model": null,
       "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python/TypeScript/Rust/Ruby and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }

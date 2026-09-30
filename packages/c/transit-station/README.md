@@ -52,3 +52,6 @@ with explicit signed recovery, owned nested Arrow and current-source checks.
 
 The [Table mutation caller](docs/TABLE_MUTATIONS.md) provides explicit SQL writes,
 owned requests and saved commands, exact retry and separate input/result observations.
+
+The [catalog caller](docs/CATALOG.md) provides typed conditional Table creation,
+initialization and policy controls with exact saved-command recovery.

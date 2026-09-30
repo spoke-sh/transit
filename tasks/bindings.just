@@ -143,6 +143,7 @@ c-sdk-test: c-build
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
     just test::table-mutation --sdk c --sdk cpp
+    just test::catalog --sdk c --sdk cpp
 
 # Build independent Java JARs and POM manifests with the pinned JDK/Gson.
 java-build: build
@@ -342,3 +343,7 @@ catalog-rust: rust-build
 catalog-ruby: ruby-build
     ruby -c packages/ruby/transit-station/lib/transit/station/catalog.rb
     just test::catalog --sdk ruby
+
+# Installed C11/C++17 catalog callers with owned values and saved recovery.
+catalog-c: c-build
+    just test::catalog --sdk c --sdk cpp
