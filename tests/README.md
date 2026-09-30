@@ -5647,3 +5647,51 @@ remain unchanged. The retained checkout is `/var/tmp/transit-ci-zlmded5l`, with
 the command log at `/tmp/transit-sql-rust-ci-clean.log`. Later suite tasks did
 not run. This failure is not a pass and the frozen checkpoint does not qualify
 the later C/C++, Java, .NET or BEAM mutation adapters.
+
+A separate `just test::grpc-faults` rerun in that same frozen checkout passes in
+**191.38 s** excluding compilation, on allowed CPUs 2–47. It covers all four
+recovery boundaries, current dispatch revocation, the work cutoff, forged
+observation, blocked-peer closure and retirement. It records five sends and five
+applications, an 8 MiB hot budget, and 402 cold objects totaling 40,130,309 bytes.
+The log is `/tmp/transit-sql-rust-frozen-grpc-faults.log`. This focused pass does
+not complete the failed full clean run or qualify later code.
+
+### Explicit CLI Table mutation caller
+
+`just test::table-mutation` now includes the real `transit mutate` executable in
+the native/port fault schedule. Every command runs in a fresh process. The CLI
+compiles UPDATE with namespace **9223372036854775833**, saves new private 0600
+artifacts and refuses an existing output path without replacing its bytes.
+Altered commitments reject. After an accepted-but-lost receipt, another process
+locates the original prepared file and recovers the same receipt. Observation,
+separate input rejection and durable status remain distinct. Explicit apply
+before sealing rejects; cancellation after application preserves the terminal
+result. Current read revocation denies status disclosure. Input artifact bytes
+remain unchanged on success and uncertainty.
+
+The schedule passes in **19.383 s**, with **1657 reads**, **48 send responses**,
+**48 turn responses**, four lost caller receipts and one lost writer receipt.
+Native, port and CLI intervals are **1.625 / 1.848 / 2.999 s**. Four mutations,
+256-byte stored values, eight resident authority pages and the five native
+artifact digests match the ABI/port record. The CLI ReleaseSafe digest is
+`9c82e91ef5180c1ce6fde4e578262b03ed65a1150f91fb3a09f536a55629a0bb`.
+Commands ran on allowed CPUs 2–47. These unpaired shared-host measurements are
+not comparative throughput evidence. The CLI extension exercises UPDATE;
+native cases cover INSERT/DELETE/rollback. This does not establish combined
+read/write sessions or a power-loss proof for local artifact persistence.
+
+`just test::cli-diagnostics` passes **237 real-command cases**, including offline
+mutation help/capabilities, strict options and numeric bounds, version and URL
+validation, and malformed local artifacts rejecting before credential loading.
+The log is `/tmp/transit-sql-cli-mutation-diagnostics.log`; the mutation schedule
+is `/tmp/transit-sql-cli-mutation-proof.log`.
+
+After tightening the test adapter to require a CLI-created prepared artifact
+instead of permitting a reconstructed fallback file, the schedule passes again
+in **18.423 s**, with **1653 reads**, the same 48 send/turn responses, lost-receipt
+counts, bounds and artifact digests. Caller intervals are **1.575 / 1.800 /
+2.742 s**. The log is `/tmp/transit-sql-cli-mutation-final.log`.
+
+The CLI increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build. The log is `/tmp/transit-sql-cli-mutation-check.log`.

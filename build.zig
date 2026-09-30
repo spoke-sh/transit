@@ -881,6 +881,7 @@ pub fn build(b: *std.Build) void {
     mutation_native_test.addArtifactArg(query_host);
     mutation_native_test.addArtifactArg(station_host);
     mutation_native_test.addArtifactArg(station_bindings.artifact("transit_station"));
+    mutation_native_test.addArtifactArg(query_shell);
     mutation_native_test.addPassthruArgs();
     mutation_native_test.has_side_effects = true;
     mutation_native_test.stdio = .inherit;

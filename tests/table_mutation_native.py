@@ -12,11 +12,12 @@ import time
 
 from storage import Fixture, free_port, wait_ready
 from table_mutation_abi import Native, Port, Failure, check_profiles
+from table_mutation_cli import Cli
 
 
-def run(node, proof, host, port_host, library, *, sdks=()):
+def run(node, proof, host, port_host, library, cli, *, sdks=()):
     started = time.monotonic()
-    print('Mutation SDK selection: '+(', '.join(sdks) if sdks else 'native/port only'),flush=True)
+    print('Mutation SDK selection: '+(', '.join(sdks) if sdks else 'native/port/CLI'),flush=True)
     with Fixture() as fixture:
         root = fixture.root
         installed = []
@@ -26,10 +27,11 @@ def run(node, proof, host, port_host, library, *, sdks=()):
             installed = install(root/'installed',sdks)
         sdk_install_seconds = round(time.monotonic()-install_started,3) if sdks else 0
         # Keep a matched build through worker/node/store restarts.
-        for name, original in [('node', node), ('proof', proof), ('host', host), ('port',port_host), ('library.so',library)]:
+        for name, original in [('node', node), ('proof', proof), ('host', host), ('port',port_host), ('library.so',library), ('cli',cli)]:
             shutil.copy2(original, root/name)
         node, proof, host = str(root/'node'), str(root/'proof'), str(root/'host')
         port_host, library = str(root/'port'), str(root/'library.so')
+        cli = str(root/'cli')
         clients = []
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         port = free_port()
@@ -304,7 +306,7 @@ def run(node, proof, host, port_host, library, *, sdks=()):
             caller_seed.chmod(0o600)
             connection = dict(realm=46,principal=1234,writer=json.loads((root/'mutation.json').read_text())['writer']['pid'],resource=description['resource'],table=1)
             check_profiles(port_host,root,proxy_url,connection)
-            factories = [('native',lambda: Native(library,proxy_url,connection)),('port',lambda: Port(port_host,root,proxy_url,connection))]
+            factories = [('native',lambda: Native(library,proxy_url,connection)),('port',lambda: Port(port_host,root,proxy_url,connection)),('cli',lambda: Cli(cli,root,proxy_url,connection))]
             factories += [(label,lambda factory=factory: factory(proxy_url,connection,root)) for label,factory in installed]
             foreign_statuses = []
             caller_timings = []
@@ -318,6 +320,7 @@ def run(node, proof, host, port_host, library, *, sdks=()):
                 if label == 'dotnet': namespace = (1 << 63)+22
                 if label == 'erlang': namespace = (1 << 63)+23
                 if label == 'elixir': namespace = (1 << 63)+24
+                if label == 'cli': namespace = (1 << 63)+25
                 caller_started = time.monotonic()
                 owner = factory(); clients.append(owner)
                 assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3
@@ -340,6 +343,12 @@ def run(node, proof, host, port_host, library, *, sdks=()):
                 assert saved.read_text() == token
                 receipt = owner.call({'submit':saved.read_text()})['receipt']
                 assert send_fault['recovered'] and receipt['position'] == send_fault['receipt']['position']
+                if label == 'cli':
+                    processed(receipt['position'])
+                    premature = owner.call({'prepare':{'apply':operation['reference']}})['prepared']
+                    premature_receipt = owner.call({'submit':premature})['receipt']
+                    processed(premature_receipt['position'])
+                    assert owner.call({'rejection':dict(prepared=premature,input=premature_receipt['position'])}) == {'rejection':'not_sealed'}
                 for _ in range(16):
                     processed(receipt['position'])
                     observation = dict(prepared=token,input=receipt['position'])
@@ -352,6 +361,11 @@ def run(node, proof, host, port_host, library, *, sdks=()):
                 else: raise AssertionError('Foreign mutation caller exceeded bounded stage count')
                 result = owner.call({'status':operation['reference']})['status']
                 assert result['phase'] == 'applied' and result['affected_rows'] == 1
+                if label == 'cli':
+                    cancel = owner.call({'prepare':{'cancel':operation['reference']}})['prepared']
+                    cancellation = owner.call({'submit':cancel})['receipt']
+                    processed(cancellation['position'])
+                    assert owner.call({'status':operation['reference']})['status'] == result
                 snapshot(namespace,'applied',[('replacement',),(label,),(None,)],1)
                 foreign_statuses.append((owner,operation['reference'],result))
                 caller_timings.append(dict(caller=label,seconds=round(time.monotonic()-caller_started,3)))
@@ -373,9 +387,11 @@ def run(node, proof, host, port_host, library, *, sdks=()):
                 'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest(),
                 'host_sha256':hashlib.sha256(Path(host).read_bytes()).hexdigest(),
                 'port_sha256':hashlib.sha256(Path(port_host).read_bytes()).hexdigest(),
-                'library_sha256':hashlib.sha256(Path(library).read_bytes()).hexdigest()}),flush=True)
+                'library_sha256':hashlib.sha256(Path(library).read_bytes()).hexdigest(),
+                'cli_sha256':hashlib.sha256(Path(cli).read_bytes()).hexdigest()}),flush=True)
             print('Table mutation native: shared client preparation/observation/resumption, exact caller-send and writer-commit lost-receipt disk recovery, atomic rows/result/input, conflicting retry, duplicate outcome, batch rollback, fenced writer and current native/application grants passed.',flush=True)
             print('Native mutation ABI and port: shared actions, lost admission receipts, caller recreation, exact retry, durable status and current denial passed.',flush=True)
+            print('Mutation CLI: private non-replacing artifacts, full-width SQL identity, altered commitment rejection, exact saved retry in fresh processes and current read denial passed.',flush=True)
             print('Supplied Table writer: explicit configuration, fresh-fenced restart during upload, recorded input rejection, continued application, exact status and activation reuse refusal passed.',flush=True)
         except BaseException:
             log.flush(); log.seek(0); sys.stderr.write(log.read()[-5000:])
@@ -398,7 +414,7 @@ def run(node, proof, host, port_host, library, *, sdks=()):
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('node','proof','host','port_host','library'): parser.add_argument(name)
+    for name in ('node','proof','host','port_host','library','cli'): parser.add_argument(name)
     parser.add_argument('--sdk',action='append',default=[])
     args = parser.parse_args()
-    run(args.node,args.proof,args.host,args.port_host,args.library,sdks=args.sdk)
+    run(args.node,args.proof,args.host,args.port_host,args.library,args.cli,sdks=args.sdk)

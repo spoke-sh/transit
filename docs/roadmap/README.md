@@ -43,7 +43,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M33](M33.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M34](M34.md) | Relational guarantees, joins and aggregation | Proposed; explicit source vectors, finite Table joins/grouping, maintained revisions and semantic gates for reshuffling |
 | [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
-| [M36](M36.md) | SQL language completeness and declarative dataflows | In progress: finite projections/filters, shared inspection, explicit mutation writer and ten SDK mutation callers; CLI writes, declarations and maintained dataflows remain |
+| [M36](M36.md) | SQL language completeness and declarative dataflows | In progress: finite projections/filters, shared inspection, explicit mutation writer, ten SDK callers and saved-file CLI mutations; read/write composition, declarations and maintained dataflows remain |
 | [M37](M37.md) | Simulation and external fault verification | Implemented deterministic and Vortex-style profiles; repository-wide clean and hosted qualification remain open |
 | [M38](M38.md) | Standards, multi-model dataflows and schema branching | Proposed; standards ledger, graph/foreign relations, historical catalogs, isolated branches and reviewed merges |
 | [M39](M39.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |

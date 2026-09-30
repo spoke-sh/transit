@@ -8,8 +8,8 @@ and the same writer, policy, upload and result contracts as Zig callers.
 The generated `TableMutationConfig`, `TableMutationAction` and
 `TableMutationResult` schemas come from those public types.
 [Typed SDK callers](../../../../docs/reference/sdks.md#table-mutation-callers)
-use this boundary. The CLI and other language mutation APIs remain
-unsupported.
+use this boundary. The [mutation CLI](../../../../apps/transit-cli/docs/mutations.md)
+uses the same shared Zig client with explicit saved-file recovery.
 
 Creation takes the ABI version, explicit authority URL and seed, and a JSON
 configuration containing `connection` (realm, principal, writer, resource, Table)

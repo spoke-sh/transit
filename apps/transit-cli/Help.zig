@@ -11,6 +11,7 @@ pub const root =
     \\  server    Run a local server
     \\  console   Open an SQL console
     \\  app       Manage installed applications
+    \\  mutate    Prepare, submit and observe SQL Table mutations
     \\
     \\Options:
     \\  --help     Show this help

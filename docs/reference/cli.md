@@ -1,7 +1,7 @@
 # Transit CLI reference
 
 `transit` starts a local server, manages installed applications and opens signed
-query sessions. It is separate from the retained `rey-cli` administration utility
+query sessions and explicit Table mutation commands. It is separate from the retained `rey-cli` administration utility
 and `kubectl-transit` runtime tooling. Commands assume `transit` is on `PATH`.
 Use the [local quickstart](../guides/quickstart.md) for prerequisites and startup.
 
@@ -14,7 +14,7 @@ transit serve [--config FILE] [--initialize] [--no-ui]
 transit server [--config FILE] [--initialize] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
-transit query FILE
+transit mutate COMMAND [OPTIONS]
 transit app install --config FILE --file DECLARATION --operation ID
 transit app replace --config FILE --file REPLACEMENT --operation ID
 transit app retry --config FILE --operation ID
@@ -26,8 +26,8 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | --- | --- |
 | `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
-| `query` | Compatibility: original single-line Table v1 shell and positional configuration |
-| `query` | Compatibility: single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
+| `query` | Single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
+| `mutate` | Compile, save, explicitly submit and observe bounded SQL commands through an authorized Table writer |
 | `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
 | `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
 | `app retry` | Retry the original frozen management request after uncertainty |
@@ -84,7 +84,8 @@ or submits an operation.
 ### Help hierarchy
 
 Bare `transit` and `transit --help` list commands with short descriptions.
-`transit app --help` lists application operations. Command help, including
+`transit app --help` lists application operations; `transit mutate --help` lists
+explicit mutation operations. Command help, including
 `transit app install --help` and each other application operation, shows its
 supported options, defaults and configuration guide. `server` is the canonical
 name in server help; `serve` is listed as an alias.
@@ -92,7 +93,7 @@ name in server help; `serve` is listed as an alias.
 Help requires no configuration file, credentials, network or running server.
 It skips required-option checks but still rejects malformed supplied arguments,
 unknown options and duplicates. Help and version output exit successfully on
-stdout. The query shells accept their existing standalone `--help` invocation.
+stdout. The query shell accepts its standalone `--help` invocation.
 Configuration links in help name repository guides; installed bundles need not
 contain those relative paths. The CLI has no `--verbose` option.
 
@@ -109,9 +110,9 @@ contain those relative paths. The CLI has no `--verbose` option.
 | Listener cannot be bound | Configuration file, port field and exact loopback address/port |
 | Server role cannot reach readiness | Installation path, role and underlying failure; check that role's configured executable, port and storage permissions before restarting |
 
-Invocation diagnostics cover `server`/`serve`, `console`, `app` subcommands and
-both query shells. File decoding coordinates cover server, console and application
-management configuration. Server/console startup adds validated field coordinates,
+Invocation diagnostics cover `server`/`serve`, `console`, `app` and `mutate`
+subcommands, and the query shell. File decoding coordinates cover server, console,
+application management and mutation configuration/artifacts. Server/console startup adds validated field coordinates,
 listener failures and recovery advice. Other failures retain the useful command or
 file context and an explanation or untranslated error identifier; the CLI does
 not claim a more specific cause than it can establish. Query-shell configuration and in-session result formats
@@ -176,9 +177,23 @@ SQL uses a fresh leased snapshot by default and executes locally without durable
 query state. In `execution: durable` mode, SQL chooses a fresh identity, records
 exact intent, advances its upload and prints verified results. Recovery commands
 apply to durable mode. `.new`, `.retry`, `.advance`, `.next` and
-manual recovery exports are not console commands. `query` and `query` remain
-callable compatibility shells with their own explicit protocols and dot commands;
+manual recovery exports are not console commands. `query` remains a callable
+shell with its explicit protocol and dot commands;
 root help advertises `console` as the query interface.
+
+## Table mutation commands
+
+`transit mutate` uses the shared mutation client and an explicitly provisioned
+writer. `capabilities` is offline; `describe` reads current metadata. `compile`
+saves a canonical request, `next` prepares one upload step, and `prepare` saves
+an explicit apply/cancel control. Only `submit` dispatches a saved command.
+`observe`, `rejection` and `status` distinguish input processing from row changes.
+
+Preparation requires a new private output file and refuses to replace existing
+paths. An unknown outcome requires the same saved command and connection for
+exact retry. There is no automatic retry or sequence coordinator. See the
+[mutation guide](../../apps/transit-cli/docs/mutations.md) for flags, connection
+fields, file bounds and the explicit preparation/submission workflow.
 
 ## Configuration, output and recovery
 

@@ -21,7 +21,7 @@ explains future language targets without expanding the supported interface.
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
 | Find a function or operator | [Functions and operators](sql/expressions.md) |
-| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer, shared Zig/native ABI/port and [typed SDK callers](sdks.md#table-mutation-callers) |
+| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer, shared Zig/native ABI/port and [typed SDK callers](sdks.md#table-mutation-callers), or [mutation CLI](../../apps/transit-cli/docs/mutations.md) |
 | Inspect definitions and plans | [DESCRIBE](sql/describe.md), [SHOW TABLES](sql/show.md), [EXPLAIN](sql/explain.md) within the configured source scope |
 | Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
 | Define an application interface | [Application declarations](sql/application.md) |

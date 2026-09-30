@@ -1449,13 +1449,16 @@
         "packages/dotnet/transit-station-sdk/Internal/Bridge.cs",
         "packages/beam/transit-station-sdk/src/transit_mutations.erl",
         "packages/beam/transit-station-sdk/src/transit_station_bridge.erl",
-        "packages/beam/transit-station-elixir/lib/mutations.ex"
+        "packages/beam/transit-station-elixir/lib/mutations.ex",
+        "apps/transit-cli/MutationOptions.zig",
+        "apps/transit-cli/Mutations.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1/table-mutation-v1",
       "tasks": [
         "test::unit",
         "test::sql",
         "test::table-mutation",
+        "test::cli-diagnostics",
         "bindings::python-test",
         "bindings::node-sdk-test",
         "bindings::ruby-sdk-test",
@@ -1482,11 +1485,12 @@
         "Installed C11/C++17 full-width namespaces, copied buffers, saved commands after native close, exact lost-receipt recovery, changed commitment rejection and current read denial",
         "Installed Java full-width namespace, immutable inputs, altered commitment rejection, caller replacement, exact admitted retry and current status denial",
         "Installed .NET full-width namespace, immutable inputs, altered commitment rejection, asynchronous caller replacement, exact admitted retry and current status denial",
-        "Installed Erlang/Elixir full-width namespaces, immutable recovery values retained in uncertain results, altered commitment rejection, caller replacement, exact admitted retry and current status denial"
+        "Installed Erlang/Elixir full-width namespaces, immutable recovery values retained in uncertain results, altered commitment rejection, caller replacement, exact admitted retry and current status denial",
+        "Real CLI subprocess UPDATE with full-width identity, private non-replacing artifacts, changed commitment rejection, exact saved recovery after lost receipt, premature apply rejection, terminal cancellation semantics and current read denial"
       ],
-      "limits": "Explicit supplied writer host and shared Zig/native ABI/port and ten language SDK callers; CLI mutation integration remains. Installed mutation extensions cover UPDATE recovery, with INSERT/DELETE/rollback in native cases. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
+      "limits": "Explicit supplied writer host and shared Zig/native ABI/port and ten language SDK callers plus an explicit saved-file CLI; read/write composition remains. Installed SDK/CLI mutation extensions cover UPDATE recovery, with INSERT/DELETE/rollback in native cases. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
       "model": null,
-      "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed ten-language mutation schedules; CLI integration and post-cutover inspection requalification remain separate boundaries."
+      "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed ten-language/real-CLI mutation schedules; read/write composition and post-cutover inspection requalification remain separate boundaries."
     }
   ]
 }
