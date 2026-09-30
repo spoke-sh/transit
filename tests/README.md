@@ -717,10 +717,13 @@ rebased four-language report below. Final SDK archive SHA-256 values:
 | `transit-station-cpp-0.2.0.tar.gz` | `04be1174bd6ccd8137de0972027ec10a092a885291bc874a58dfeb6bbb5ce152` |
 
 `bindings::catalog-c` owns this focused installed schedule; the regular C SDK
-regression also includes it. These are development and focused passes. Clean
-validation of this implementation and Java/.NET/Erlang/Elixir catalog callers
-remain. No catalog-specific host cancellation or allocator-fault injection is
-claimed by these C/C++ fixtures.
+regression also includes it. Committed-HEAD `just ci-clean --lane core` passes
+all **22 tasks at `4ecef2ff` in 737.81 s**, from an isolated clone without inherited
+build outputs. Evidence is `.cache/ci/clean/4ecef2ffe5f1-transit-ci-78lwlq08/` and
+`/tmp/transit-sql-catalog-cpp-ci-clean.log`. This is the expanded core lane plus
+focused installed catalog/mutation proofs, not the full clean suite. The four
+Java/.NET/Erlang/Elixir catalog callers remain. No catalog-specific host
+cancellation or allocator-fault injection is claimed by these C/C++ fixtures.
 
 ## SQL branch integration of seeded simulations
 
