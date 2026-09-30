@@ -1922,6 +1922,64 @@ matching `.log`. The private fixture includes credentials and must not be
 published. PRs #40 and #41 are merged; merge status does not qualify this failed
 schedule or establish a performance improvement under native cold storage.
 
+### Shared reads for catalog mutation counts
+
+The `perf/sql-catalog-mutation-reads` continuation starts from merged #41 at
+`d5541301` in its own `rey-sql-catalog-mutation-reads` worktree. Catalog mutation
+counting now uses the existing bounded `Tree.getMany` before staging the new
+candidate. It validates all keys, values and duplicate keys before page I/O,
+reads the original immutable cut, and updates the root and count together only
+after successful staging. The eight-key bound and current v1 formats are unchanged.
+
+The standalone core suite passes **64 tests**. An eight-operation fixture over
+64 existing records mixes inserts, replacement, deletes and no-ops in unsorted
+caller order. It records **45 page loads** with separate existence reads versus
+**23** with shared traversal, including the same subsequent tree mutation in
+both counts. Both produce the same immutable candidate root. Independent expected
+values check all 130 addresses in the selected range and the retained old cut;
+the new count is 65. Every observed read failure and staging failure/lost
+acknowledgement preserves the original candidate root and count. Corrupt pages
+reject; empty/no-op batches do not stage; malformed and oversized batches reject
+before reads or writes. The log is
+`/tmp/transit-sql-catalog-mutation-batch-unit-final.log`.
+
+This is component I/O evidence, not a native latency improvement. The earlier
+shared-point-read cold recovery failure remains open: a status observation times
+out after 213 additions, while the original accepted turn has recovered. Its
+retained node log shows the final read spending almost ten seconds waiting
+behind an `open_view` write that also reaches its deadline. The batching change
+reduces demonstrated repeated work; it does not by itself diagnose that provider
+stall or qualify the full native recovery schedule. Full checks, resource-fault
+simulation and native/committed-head clean evidence are recorded separately.
+
+At committed `68794bd7`, full `just check` passes, including generated contracts,
+CLI, frontend and documentation checks. The eight-seed resource simulation
+passes **798 traces / 15,496 events / 1,598 executions**, with identical replay
+in **450.845 s**. Its report records dirty source based on `d5541301`; the
+production source was committed unchanged as `68794bd7`. Committed-head
+`just ci-clean --lane core --work-root /var/tmp` passes all **22 tasks** in
+**1254.78 s**, without inherited workspace build outputs. Evidence is retained
+under `.cache/ci/clean/68794bd70102-transit-ci-w03ie6wa` and in
+`/tmp/transit-sql-catalog-mutation-batch-resource-simulation.json`.
+
+The native cold-recovery schedule at that same committed revision **fails after
+149 applied additions / 944.550 s** on an application-status `AuthorityTimeout`.
+Original input **538** recovers as receipt **540** without resubmission. Joined
+cleanup succeeds. Eight authority pages, four mutations, the 8 MiB hot store
+and 8 MiB cold cache remain the bounds. The full 257-addition continuation,
+later metadata/restart and disclosure checks are unqualified for this candidate.
+The record is `/tmp/transit-sql-catalog-mutation-batch-cold-recovery.json`; the
+private failure fixture remains under
+`.cache/verification/catalog/recovery-failures/1790809229338501922`.
+
+Its final node events distinguish a turn reaching the ten-second deadline
+(52 cache hits / 912 misses) from the following read spending **9.950 s**
+waiting and **0.050 s** working before its own deadline. A later turn is logged
+successful at position **573**, but the interrupted proof did not observe its
+application status. Neither that log nor component page-load savings qualifies
+the missing end-to-end assertions or establishes the storage stall's cause.
+The complete native run remains failed; no deadline has been increased.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
