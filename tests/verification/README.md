@@ -523,6 +523,12 @@ caller after receipt loss, recovers the original command and enforces current
 status denial. A separate compiler check rejects overlapping mutable borrows.
 `bindings::mutation-rust` selects this schedule independently.
 
+`bindings::c-sdk-test` adds installed C11 and C++17 mutation callers at full-width
+namespaces. It checks copied request/prepared buffers, saved commands after native
+client close, cleared C failure outputs, caller replacement after receipt loss,
+exact retry and current status denial. C++ copy attempts reject during compilation.
+`bindings::mutation-c` selects the shared mutation schedule independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

@@ -137,6 +137,7 @@ c-sdk-test: c-build
     python3 -B tests/c_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c
     python3 -B tests/c_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/c zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language c
+    just test::table-mutation --sdk c --sdk cpp
 
 # Build independent Java JARs and POM manifests with the pinned JDK/Gson.
 java-build: build
@@ -254,6 +255,10 @@ mutation-ruby: ruby-build
 mutation-rust: rust-build
     cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
     just test::table-mutation --sdk rust
+
+# Installed C11/C++17 mutation callers, owned buffers and exact recovery.
+mutation-c: c-build
+    just test::table-mutation --sdk c --sdk cpp
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

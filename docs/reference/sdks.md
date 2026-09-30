@@ -46,6 +46,8 @@ Read-query clients do not confer mutation access.
 | TypeScript | [Promise methods and owned native port](../../packages/ts/transit-station-sdk/docs/mutations.md) |
 | Ruby | [Blocking client with owned worker and immutable values](../../packages/ruby/transit-station/docs/MUTATIONS.md) |
 | Rust | [Blocking client with exclusive borrows and owned requests](../../packages/rust/transit-station-sdk/docs/MUTATIONS.md) |
+| C | [Owned handles, buffers and typed observations](../../packages/c/transit-station/docs/TABLE_MUTATIONS.md) |
+| C++ | [Move-only clients and saved commands](../../packages/cpp/transit-station-sdk/docs/TABLE_MUTATIONS.md) |
 
 Other language SDKs do not yet expose typed Table mutation clients. The
 [native ABI/port](../../packages/zig/transit-station-bindings/docs/table-mutations.md)

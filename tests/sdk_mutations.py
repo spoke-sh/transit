@@ -2,12 +2,13 @@
 import json
 import os
 from pathlib import Path
+import shlex
 import shutil
 import subprocess
 import sys
 import tarfile
 import tomllib
-from sdk_unified import Consumer
+from sdk_unified import Consumer, CConsumer
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -21,6 +22,9 @@ def install(root, languages):
             continue
         if language == 'ruby':
             factories.append(install_ruby(root/'ruby'))
+            continue
+        if language in ('c','cpp'):
+            factories.append(install_c(root/language,language))
             continue
         if language == 'rust':
             factories.append(install_rust(root/'rust'))
@@ -124,3 +128,45 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
         config.write_text(json.dumps(dict(url=url,connection=connection,seed_file=str(state/'caller.seed'))))
         return Consumer([str(executable),str(config)],environment,target)
     return 'rust',create
+
+
+class MutationCConsumer(CConsumer):
+    def send(self, action):
+        name,value = next(iter(action.items()))
+        if name == 'compile': command = f"compile {value['name'].encode().hex()} {value['sql'].encode().hex()} {value['namespace']}"
+        elif name == 'next': command = f"next {value['request']} {value['reference']}"
+        elif name == 'prepare':
+            control,reference = next(iter(value.items())); command = f'prepare {control} {reference}'
+        elif name == 'submit': command = 'submit '+value.encode().hex()
+        elif name in ('observe','rejection'): command = f"{name} {value['prepared'].encode().hex()} {value['input']}"
+        elif name == 'status': command = 'status '+value
+        else:
+            assert name in ('capabilities','describe','close')
+            command = name
+        self.child.stdin.write(command+'\n'); self.child.stdin.flush()
+
+
+def install_c(target,language):
+    target.mkdir()
+    prefix = target/'installed'
+    for artifact in sorted((ROOT/'.cache/bindings/c').glob('*.tar.gz')):
+        with tarfile.open(artifact) as archive: archive.extractall(prefix,filter='data')
+    environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR','LD_LIBRARY_PATH','LIBRARY_PATH','CPATH','CPLUS_INCLUDE_PATH','C_INCLUDE_PATH')}
+    environment['PKG_CONFIG_PATH'] = str(prefix/'lib/pkgconfig')
+    flags = shlex.split(subprocess.check_output(['pkg-config','--cflags','--libs','transit-station-c' if language == 'c' else 'transit-station-cpp'],text=True,env=environment))
+    filename = 'c_mutation_sdk.c' if language == 'c' else 'cpp_mutation_sdk.cpp'
+    source = target/filename
+    shutil.copy2(ROOT/'tests'/filename,source)
+    shutil.copy2(ROOT/'tests/mutation_sdk_io.h',target/'mutation_sdk_io.h')
+    executable = target/'consumer'
+    subprocess.run(['zig','cc' if language == 'c' else 'c++','-std=c11' if language == 'c' else '-std=c++17','-Wall','-Wextra','-Werror',str(source),*flags,'-lpthread','-o',str(executable)],cwd=target,env=environment,check=True)
+    if language == 'cpp':
+        source.write_text('#include <transit/table_mutation.hpp>\nvoid copy(transit::sdk::station::mutations::Client &client) { auto other = client; }')
+        rejected = subprocess.run(['zig','c++','-std=c++17','-fsyntax-only',str(source),f'-I{prefix / "include"}'],cwd=target,env=environment,capture_output=True,text=True)
+        assert rejected.returncode and 'deleted' in rejected.stderr
+    source.unlink(); (target/'mutation_sdk_io.h').unlink()
+    def create(url,connection,state):
+        arguments = [str(executable),url,str(state/'caller.seed')]
+        arguments += [str(connection[key]) for key in ('realm','principal','writer','resource','table')]
+        return MutationCConsumer(arguments,environment,target)
+    return language,create

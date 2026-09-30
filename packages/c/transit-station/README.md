@@ -49,3 +49,6 @@ with explicit owned values and bounded continuations.
 
 M18 adds [typed unified KV/Table/Document queries](docs/UNIFIED_QUERY.md),
 with explicit signed recovery, owned nested Arrow and current-source checks.
+
+The [Table mutation caller](docs/TABLE_MUTATIONS.md) provides explicit SQL writes,
+owned requests and saved commands, exact retry and separate input/result observations.

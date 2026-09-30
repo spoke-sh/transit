@@ -5481,3 +5481,32 @@ Neither initial failure is counted as mutation evidence.
 The ordinary Rust SDK task now includes this schedule. This focused result does
 not claim a rerun of the entire Rust runner/connector regression. CLI and six
 other typed language mutation clients remain outstanding.
+
+### Installed C and C++ Table mutation callers
+
+`just bindings::mutation-c` rebuilds the public/native archives and compiles C11
+and C++17 consumers outside the checkout using installed pkg-config discovery.
+Their UPDATE namespaces are **9223372036854775827** and **9223372036854775828**.
+Each rejects a changed complete request commitment, replaces its caller after an
+accepted-but-lost receipt, retries the original saved bytes, observes application
+and stops disclosure after current read revocation. Imports copy caller buffers;
+the consumers overwrite those buffers and verify unchanged compiled/prepared
+values. Saved prepared commands remain readable after native client close. C
+failure outputs clear, and C++ client copying rejects during compilation.
+
+The focused schedule passes in **24.933 s**, including **4.196 s** for installed
+consumer compilation and **2.214/2.245 s** for the C/C++ caller intervals. It
+records **1768 reads**, **51 send responses**, **50 turn responses**, five lost
+caller receipts and one lost writer receipt. Four mutations, 256-byte stored
+values, eight resident authority pages and all five native artifact digests match
+the ABI/port record. The command ran with CPU affinity 2–47, separate from the
+concurrent clean run's first allowed CPU. Timings and polling counts are unpaired
+observations, not comparative throughput claims. The installed extension exercises
+UPDATE; shared native cases remain the INSERT/UPDATE/DELETE and rollback oracle.
+
+The ordinary C/C++ SDK task includes the mutation schedule. Java, .NET, Erlang,
+Elixir and CLI mutation clients remain separate implementation boundaries.
+
+The C/C++ tree passes full `just check`, including native contract drift, unit
+checks, the verification catalog, frontend checks and documentation build. The
+broader installed runner/connector regression is recorded separately when complete.

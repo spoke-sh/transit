@@ -312,6 +312,8 @@ def run(node, proof, host, port_host, library, *, sdks=()):
                 if label == 'node': namespace = (1 << 64)-1
                 if label == 'ruby': namespace = (1 << 63)+17
                 if label == 'rust': namespace = (1 << 63)+18
+                if label == 'c': namespace = (1 << 63)+19
+                if label == 'cpp': namespace = (1 << 63)+20
                 caller_started = time.monotonic()
                 owner = factory(); clients.append(owner)
                 assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3
