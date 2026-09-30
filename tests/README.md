@@ -19,11 +19,17 @@ reuses the existing installed-consumer/real-authority fixture with fresh
 malformed inputs. It checks the failure marker, unchanged input progress and
 empty resource after each case. The case argument is bounded to 1–1024 and
 defaults to 128; this is a selected host schedule, not deterministic OS replay.
+The installed consumer is reused across independent fixtures of at most 32 cases,
+with each history verified before joined cleanup. An initial 256-case attempt in
+one history exhausted the fixture's 64 MiB hot-storage quota during provisioning.
+It did not complete and is not lifetime evidence for all 256 cases. Quotas remain
+unchanged; the batched profile keeps this host-lifetime proof within its scope.
 
 Qualification of the correction is in progress. An initial corrected run passed
 the raw-client regression but could not compile the Station consumer because
 the shared `/tmp` filesystem ran out of space. That incomplete run is not a pass;
 subsequent work uses an owned disk-backed `TMPDIR`.
+The full corrected installed Rust client, Station, HTTP and gRPC suite then passed.
 
 The [follow-up record](verification/results/m37-followup-2026-09-30.json)
 retains hashes and separates incomplete, passing and unexecuted profiles.

@@ -149,6 +149,9 @@ def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, f
             value = child.stdout.readline()
             assert value, f'Worker failed with {child.poll()}'
             return json.loads(value)
+        def expect_one(child, *events):
+            observed = one(child)
+            assert observed['event'] in events, {'expected': events, 'observed': observed}
         def close(child):
             child.stdin.write('close\n'); child.stdin.flush()
             assert json.loads(child.stdout.readline()) == {'closed': True}
@@ -202,7 +205,7 @@ def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, f
             send(source, b'TSC\x01\x01' + (2**64-1).to_bytes(8, 'little'))
             service = worker(source)
             fault['drop'] = True
-            assert one(service)['event'] == 'NeedsRecovery'
+            expect_one(service, 'NeedsRecovery')
             accepted = fault['commands'][-1]
             service.kill(); service.wait(timeout=10); children.remove(service)
             system.authority.kill(); system.authority.wait(timeout=10)
@@ -219,7 +222,7 @@ def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, f
             own(source)
             send(requester, b'TSC\x01\x03')
             caller = worker(requester)
-            assert one(caller)['event'] == 'Committed'
+            expect_one(caller, 'Committed')
             waiting = read({'process': requester['pid']})['body']['process']
             close(caller)
             own(requester)
@@ -260,28 +263,28 @@ def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, f
             table['peer'], query_cfg['peer'] = query_cfg['pid'], table['pid']
             service, caller = worker(table), worker(query_cfg)
             send(table, b'TSQ\x01\x01')
-            assert one(service)['event'] == 'Committed'
+            expect_one(service, 'Committed')
             for index in range(41):
                 key = -(2**63) if index == 0 else index
                 value = None if index % 5 == 0 else 2**63-1 if index == 1 else 2**53+1
                 payload = b'TSQ\x01\x02' + key.to_bytes(8, 'little', signed=True)
                 payload += b'\0' if value is None else b'\1' + value.to_bytes(8, 'little', signed=True)
                 send(table, payload)
-                assert one(service)['event'] == 'Committed'
+                expect_one(service, 'Committed')
             send(table, b'TSQ\x01\x03')
-            assert one(service)['event'] == 'Committed'
+            expect_one(service, 'Committed')
             send(table, b'TSQ\x01\x01')
-            assert one(service)['event'] == 'Committed'
+            expect_one(service, 'Committed')
             send(query_cfg, b'TSQ\x01\x04')
-            assert one(caller)['event'] == 'Committed'
+            expect_one(caller, 'Committed')
             close(caller)
             own(query_cfg)
             caller = worker(query_cfg)
             manifest_file = Path(query_cfg['output']) / 'manifest.json'
             for _ in range(150):
                 deliver()
-                assert one(service)['event'] in ('Committed', 'Idle')
-                assert one(caller)['event'] in ('Committed', 'Idle')
+                expect_one(service, 'Committed', 'Idle')
+                expect_one(caller, 'Committed', 'Idle')
                 if manifest_file.exists(): break
             else: raise AssertionError('Public query did not complete')
             close(service); close(caller)
