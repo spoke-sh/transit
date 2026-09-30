@@ -2,7 +2,8 @@
 
 Deletion by primary-key equality is available through the explicit mutation
 writer, shared Zig/native ABI/port callers and
-[Python mutation clients](../../../packages/python/transit-station/docs/mutations.md). The
+[Python](../../../packages/python/transit-station/docs/mutations.md) and
+[TypeScript mutation clients](../../../packages/ts/transit-station-sdk/docs/mutations.md). The
 [caller guide](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
 defines signed preparation, exact recovery and durable result observation.
 Applications can also compose `station.TableMutation.applySql` in a private turn. The console, Board query workspace,

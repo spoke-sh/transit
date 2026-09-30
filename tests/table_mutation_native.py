@@ -309,6 +309,7 @@ def run(node, proof, host, port_host, library, *, sdks=()):
             foreign_statuses = []
             caller_timings = []
             for namespace,(label,factory) in enumerate(factories,7):
+                if label == 'node': namespace = (1 << 64)-1
                 caller_started = time.monotonic()
                 owner = factory(); clients.append(owner)
                 assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3

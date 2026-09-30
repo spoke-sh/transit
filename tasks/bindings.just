@@ -32,7 +32,7 @@ node-check:
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -59,7 +59,7 @@ node-sdk-test: node-build
     vp exec --filter @transit/client tsc --noEmit
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker
@@ -67,6 +67,7 @@ node-sdk-test: node-build
     zig build transit-station-grpc-worker
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
+    just test::table-mutation --sdk node
 
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
@@ -233,6 +234,13 @@ document-beam: beam-build
 mutation-python: python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
     just test::table-mutation --sdk python
+
+# Installed TypeScript mutation client, runtime validation and exact saved recovery.
+mutation-node: node-build
+    cd packages/ts/transit-station-sdk && vp check
+    vp exec --filter @transit/station tsc --noEmit
+    vp exec --filter @transit/station node --test src/mutations.test.ts
+    just test::table-mutation --sdk node
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

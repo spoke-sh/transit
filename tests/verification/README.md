@@ -504,6 +504,12 @@ UPDATE, replaces its caller after an accepted-but-lost receipt, retries the
 original saved bytes, observes application and rejects disclosure after current
 grant revocation. `bindings::mutation-python` selects this schedule independently.
 
+`bindings::node-sdk-test` runs the installed TypeScript mutation caller with the
+same lost-receipt and current-grant schedule at namespace `18446744073709551615`.
+It also checks generated response validation, byte ownership and preservation of
+uncertainty on unconfirmed submit responses. `bindings::mutation-node` selects
+these checks independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

@@ -6,8 +6,11 @@ and accepts `table_mutation` actions. These profiles use
 [neutral mutation values](../../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
 and the same writer, policy, upload and result contracts as Zig callers.
 The generated `TableMutationConfig`, `TableMutationAction` and
-`TableMutationResult` schemas come from those public types. Idiomatic language
-SDK and CLI mutation entry points have separate integration work.
+`TableMutationResult` schemas come from those public types.
+[Python](../../../python/transit-station/docs/mutations.md) and
+[TypeScript](../../../ts/transit-station-sdk/docs/mutations.md) expose typed
+callers over this boundary. The CLI and other language mutation APIs remain
+unsupported.
 
 Creation takes the ABI version, explicit authority URL and seed, and a JSON
 configuration containing `connection` (realm, principal, writer, resource, Table)

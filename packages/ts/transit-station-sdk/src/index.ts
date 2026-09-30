@@ -21,6 +21,7 @@ export type {
 } from "./values.ts";
 export { Runner } from "./runner.ts";
 export * as unified from "./unified.ts";
+export * as mutations from "./mutations.ts";
 export type { Handler, RunnerOptions } from "./runner.ts";
 export { Turn, State, Source } from "./turn.ts";
 export { TableSchema, Table } from "./table.ts";

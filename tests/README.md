@@ -5366,3 +5366,45 @@ The final `just bindings::mutation-python` rebuild/install/type-check rerun also
 passes: **23.170 s**, **1777 reads**, unchanged send/turn/lost-receipt counts and
 native digests, with **1.731 s** installation and **2.322/2.421 s** Python caller
 intervals. Poll-dependent read counts and shared-host timings vary between runs.
+
+### Installed TypeScript Table mutation caller
+
+`just bindings::mutation-node` builds and installs the public/native packages
+outside the checkout, passes strict TypeScript and formatting/lint checks, then
+runs the same disk-backed mutation schedule through typed promise methods.
+Its UPDATE uses namespace **18446744073709551615**, preserving the full uint64
+through `bigint`, owned request/reference buffers, caller replacement and exact
+admission retry. Current read revocation denies the original result afterward.
+The caller's uncertainty object retains the original prepared text.
+
+Seven boundary tests pass mutable-input/getter ownership, malformed saved text,
+cross-realm targets, three unconfirmed receipt responses, a foreign status phase,
+and missing/foreign contract definitions with otherwise matching v1 labels. The
+shared Node Station port now checks its generated definition before caller work,
+using the existing native capability owner. A version label alone never qualifies
+a different native build. Generated schemas validate response variants at runtime;
+semantic receipt validation also rejects position zero while retaining uncertainty.
+
+The final focused schedule takes **22.768 s**, including **2.753 s** installation
+and **3.796 s** for the installed Node caller interval. It records **1686 reads**,
+**46 mutation-send responses**, **46 turn responses**, four lost caller receipts
+and one lost writer-commit receipt. The four-mutation, 256-byte-value and
+eight-resident-page bounds and native binary digests match the preceding ABI
+record. The earlier installed trial took 23.433 s with 1680 reads; these unpaired
+runs do not establish a performance improvement. The first focused task stopped
+on Markdown formatting before its proof; the formatted guide and complete rerun
+pass. The verification catalog and local documentation links pass.
+
+`bindings::node-sdk-test` owns the installed mutation schedule, and the ordinary
+Node checks include its runtime boundary tests. The installed mutation extension
+exercises UPDATE; the shared native fixture remains the independent
+INSERT/UPDATE/DELETE and rollback oracle. Remaining language adapters, CLI
+integration and read-query/writer composition remain separate work.
+
+The broader `just bindings::node-sdk-test` also passes with the shared definition
+check: raw-client owned I/O and revoked exact retry; runner scope/gates, poisoned
+reads, fencing/expiry, exact disk/host recovery, retained Tables and six owned IPC
+segments; ordinary installed HTTP (**76.74 s**) and RPC (**77.52 s**) with staged
+recovery, binary TLS, current denial and authenticated disposal/followup. Its
+final mutation rerun takes **22.589 s** with 1685 reads and unchanged send/turn/
+fault counts and native digests. No skipped case is counted as passed.
