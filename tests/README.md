@@ -194,6 +194,17 @@ No existing native/ABI definition or
 stored record layout changes; commands/dispositions and the explicit source are
 additive, and existing creation requests keep their exact bytes.
 
+
+At committed `fefb42c3`, **`just ci-clean --lane core` passes all 18 tasks**
+for the supplied host and explicit committed source in **727.49 seconds**.
+Independent package builds take 142.97 seconds, Station 148.36 seconds and disk
+storage 230.44 seconds. The readiness write takes 147.48 seconds. Exact revision,
+completion and per-task results are retained under
+`.cache/ci/clean/fefb42c33b92-transit-ci-2j8mr2ji/`; the log is
+`/tmp/transit-sql-catalog-host-ci-clean.log`. The following evidence-only commit
+changes no production source. This is a clean core-lane pass plus the focused
+host proof above, not a full clean suite or administrative CLI/SDK qualification.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
