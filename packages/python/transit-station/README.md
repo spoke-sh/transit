@@ -67,3 +67,7 @@ owned nested Arrow pages. Qualification is tracked per source and SDK.
 The [Table mutation guide](docs/mutations.md) covers explicit signed SQL writes,
 owned compiled references, exact prepared-command recovery and separate durable
 result/input-rejection observations through synchronous and asynchronous callers.
+
+The [catalog guide](docs/catalog.md) covers typed sync/async initialization,
+conditional policy, named Table creation, exact saved-command recovery and current
+authorized outcomes through the shared native caller.

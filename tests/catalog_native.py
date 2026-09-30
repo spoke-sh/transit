@@ -1,4 +1,5 @@
 """Real catalog Table creation, exact receipt recovery and native fencing."""
+import argparse
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
@@ -18,11 +19,17 @@ from catalog_cli import Cli
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, proof, catalog_host, port_host, library, cli):
+def run(node, proof, catalog_host, port_host, library, cli, languages=()):
     started = time.monotonic()
     counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0)
     with Fixture() as fixture:
         root = fixture.root
+        installation_started = time.monotonic()
+        installed = []
+        if languages:
+            from sdk_catalog import install
+            installed = install(root / 'catalog-sdks', languages)
+        install_seconds = round(time.monotonic() - installation_started, 3)
         for name, binary in [('node', node), ('proof', proof), ('host', catalog_host), ('port', port_host), ('library.so', library), ('cli', cli)]:
             shutil.copy2(binary, root / name)
         node, proof = str(root / 'node'), str(root / 'proof')
@@ -41,7 +48,7 @@ def run(node, proof, catalog_host, port_host, library, cli):
             resident_pages=8, request_timeout_ms=10000)))
         faults = {name: dict(lose=False, body=None, receipt=None, recovered=False) for name in ('send', 'turn')}
         faults['initialize_send'] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
-        for name in ('abi_create', 'port_create', 'cli_create'):
+        for name in ['abi_create', 'port_create', 'cli_create', *[name + '_create' for name, _ in installed]]:
             faults[name] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
         for name in ('host_initialize', 'host_create'):
             faults[name] = dict(command='turn', lose=False, body=None, receipt=None, recovered=False, blocked=False)
@@ -376,10 +383,11 @@ def run(node, proof, catalog_host, port_host, library, cli):
                               owner=host_config['writer']['pid'], principal=1234)
             check_profiles(port_host, root, proxy_url, connection)
             caller_results = []
-            for index, name in enumerate(('abi', 'port', 'cli')):
-                factory = {'abi': lambda: Native(library, proxy_url, connection),
-                           'port': lambda: Port(port_host, root, proxy_url, connection),
-                           'cli': lambda: Cli(cli, root, proxy_url, connection)}[name]
+            factories = [('abi', lambda: Native(library, proxy_url, connection)),
+                         ('port', lambda: Port(port_host, root, proxy_url, connection)),
+                         ('cli', lambda: Cli(cli, root, proxy_url, connection))]
+            factories += [(name, lambda factory=factory: factory(proxy_url, connection, root)) for name, factory in installed]
+            for index, (name, factory) in enumerate(factories):
                 client = factory()
                 clients.append(client)
                 caps = client.call({'capabilities': {}})['capabilities']
@@ -388,7 +396,7 @@ def run(node, proof, catalog_host, port_host, library, cli):
                 assert description['configuration']['scope'] == connection['scope'] and description['policy']['revision'] == '5'
                 # JSON type rejection belongs to ABI/port; CLI argument/artifact
                 # types and offline rejection are covered by cli_diagnostics.py.
-                invalid_actions = [] if name == 'cli' else [
+                invalid_actions = [] if name not in ('abi', 'port') else [
                     {'compile': dict(operation=maximum, object='1', table=1, sql=statement)},
                     {'compile': dict(operation='1', object='1', table='1', sql=statement)},
                     {'submit': '{}'}]
@@ -404,7 +412,7 @@ def run(node, proof, catalog_host, port_host, library, cli):
                 control = client.call({'prepare_policy': dict(expected_revision='0', policy=dict(scope=connection['scope'], principal=6000 + index, revision='1', inspect=True, create=False))})['prepared']
                 position = client.call({'submit': control})['receipt']['position']
                 assert await_value(lambda: client.call({'input_disposition': dict(prepared=control, input=position)})['disposition'])['outcome'] == 'policy_applied'
-                sql_name = name + '_items'
+                sql_name = name + '_items' if name in ('abi', 'port', 'cli') else f'sdk_{index}_items'
                 identity = maximum - 100 - index
                 table_id = 30 + index
                 compiled = client.call({'compile': dict(operation=str(identity), object=str(identity), table=table_id, sql=statement.replace('items', sql_name))})['compiled']
@@ -469,7 +477,9 @@ def run(node, proof, catalog_host, port_host, library, cli):
             report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                           dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
                           seconds=round(time.monotonic() - started, 3), resident_pages=8, counts=counts,
-                          lost_caller_receipts=5, lost_writer_receipts=3,
+                          lost_caller_receipts=5 + len(installed), lost_writer_receipts=3,
+                          selected_sdks=list(languages), sdk_install_seconds=install_seconds,
+                          sdk_artifacts={language: json.loads((root / 'catalog-sdks' / language / 'artifacts.json').read_text()) for language in languages},
                           binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host', 'port', 'library.so', 'cli')})
             destination = ROOT / '.cache/verification/catalog/native.json'
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -503,4 +513,8 @@ def run(node, proof, catalog_host, port_host, library, cli):
 
 
 if __name__ == '__main__':
-    run(*sys.argv[1:])
+    parser = argparse.ArgumentParser()
+    for binary in ('node', 'proof', 'catalog_host', 'port_host', 'library', 'cli'): parser.add_argument(binary)
+    parser.add_argument('--sdk', choices=['python'], action='append', default=[])
+    args = parser.parse_args()
+    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk)

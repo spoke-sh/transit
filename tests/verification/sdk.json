@@ -386,6 +386,36 @@
         }
       ],
       "limits": "Native allocation enumeration uses an injected accepted transport; disk/HTTP and host schedulers have separate proofs."
+    },
+    {
+      "id": "catalog-saved-command-recovery",
+      "steps": [
+        "Install matching Python wheels outside the checkout and copy immutable full-width caller values",
+        "Prepare typed initialization and conditional controls; compile and prepare named Table creation",
+        "Lose the creation admission reply, replace caller/node/store and retry original saved bytes",
+        "Observe processing and original creation outcome, then revoke catalog/native disclosure",
+        "Cancel only an await in a blocked adapter test; retain busy ownership and join cleanup"
+      ],
+      "expected": {
+        "exact_receipt_recovered": true,
+        "original_request_preserved": true,
+        "revoked_status_denied": true,
+        "uncertain_response_retains_prepared": true,
+        "cancelled_await_keeps_owner": true
+      },
+      "proofs": [
+        {
+          "task": "bindings::catalog-python",
+          "source": "tests/catalog_native.py",
+          "anchor": "admitted == json.loads(fault['receipt'])"
+        },
+        {
+          "task": "bindings::catalog-python",
+          "source": "tests/python_catalog_values.py",
+          "anchor": "async def cancellation():"
+        }
+      ],
+      "limits": "Python sync/async callers only. Actual disk recovery uses the shared catalog host; cancelled-await and malformed native-response cases use injected blocking/reply adapters. Nine applied Tables over two resources do not establish native catalog growth, host power-loss recovery or other language SDK compatibility."
     }
   ]
 }

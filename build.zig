@@ -897,6 +897,7 @@ pub fn build(b: *std.Build) void {
     catalog_native.addArtifactArg(station_host);
     catalog_native.addArtifactArg(station_bindings.artifact("transit_station"));
     catalog_native.addArtifactArg(query_shell);
+    catalog_native.addPassthruArgs();
     catalog_native.has_side_effects = true;
     catalog_native.stdio = .inherit;
     b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);

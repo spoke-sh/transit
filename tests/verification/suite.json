@@ -199,7 +199,8 @@
       "test::server-board",
       "test::server-board-package",
       "transit-docs::browser",
-      "test::resource-simulation"
+      "test::resource-simulation",
+      "bindings::catalog-python"
     ]
   },
   "nested_tasks": {

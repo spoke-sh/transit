@@ -33,6 +33,15 @@ use separate generated, runtime-validated [query](../../packages/ts/transit-quer
 [application](../../packages/ts/transit-application/README.md) packages; the Node
 native client is not a browser credential adapter.
 
+## Catalog callers
+
+Python provides [typed synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md)
+for initialization, conditional policy changes, named Table creation and exact
+saved-command recovery. They use the shared [native catalog boundary](../../packages/zig/transit-station-bindings/docs/catalog.md)
+and retain full-width identities. Other language SDKs have no idiomatic catalog
+methods. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
+Zig owner; query connections do not enable administration.
+
 ## Table mutation callers
 
 Typed mutation clients provide SQL compilation, explicit staging, exact saved

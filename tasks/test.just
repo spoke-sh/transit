@@ -292,8 +292,9 @@ table-mutation *args:
     zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
 
 # Catalog Table publication, exact receipt recovery and native fencing on disk.
-catalog:
-    zig build test-catalog -Doptimize=ReleaseSafe
+[positional-arguments]
+catalog *args:
+    zig build test-catalog -Doptimize=ReleaseSafe -- "$@"
 
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]

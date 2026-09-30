@@ -7,7 +7,8 @@ grants, ownership, fencing and atomic commit. This is an explicit application
 integration API with shared Zig/C ABI/native-port callers and an explicit
 `catalog` role in `transit-query-host`. The explicit
 [catalog CLI](../apps/transit-cli/docs/catalog.md) composes the same caller.
-SQL query transports and idiomatic language SDKs expose no catalog administration route.
+Python also exposes [typed catalog callers](../packages/python/transit-station/docs/catalog.md).
+SQL query transports and other language SDKs expose no catalog administration route.
 
 The implementation supports the two-column Table profile. KV/Document definitions
 compile [offline](STATE_DECLARATION_V1.md) but have no catalog creation operation.

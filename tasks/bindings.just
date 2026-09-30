@@ -48,6 +48,7 @@ python-test: python-build
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
     just test::table-mutation --sdk python
+    just test::catalog --sdk python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
@@ -318,3 +319,8 @@ unified-beam source="table": beam-build
 # All ten installed SDKs against each of the three current source services.
 unified-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir
+
+# Installed Python sync/async catalog clients and exact saved command recovery.
+catalog-python: python-build
+    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
+    just test::catalog --sdk python

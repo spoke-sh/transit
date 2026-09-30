@@ -406,6 +406,56 @@ The following evidence-only commit changes no production code. This qualifies
 the CLI core lane and focused recovery above, not idiomatic catalog SDKs or a
 complete clean suite.
 
+### Python catalog callers
+
+The typed Python `catalog.Client` and `AsyncClient` compose the shared catalog
+ABI. Immutable owned values retain full-width application IDs, current native
+bounds and exact opaque prepared bytes. Both callers separate admission, input
+processing, control/rejection dispositions and original creation receipts.
+Cancellation of an await leaves the native worker owned; close joins cleanup.
+
+On development source based on `e107fe7d`, strict mypy passes **22 source files**,
+matching Python wheels build, and **`just test::catalog --sdk python` passes in
+22.855 seconds**, including **1.859 seconds** of isolated package installation.
+The script copies and hashes four wheels into the fixture, installs without
+checkout imports, and uses both public synchronous and asynchronous APIs.
+Initialization and conditional policy controls precede full-width creation;
+lost admission recovery replaces caller/node/store and restores original saved
+commands. Original-request status, current catalog-policy denial and current
+native denial pass through every caller.
+
+The combined schedule performs **1515 reads**, **42 accepted turn responses**,
+**seven lost caller receipts** and **three lost owner receipts**. It creates nine
+applied Tables across two resources, with **four mutations**, **133-byte maximum
+fixture values** and **eight resident authority pages**. These times include
+installation, provisioning and recovery; they do not establish latency targets,
+equivalent-workload speedups, native catalog growth or host power-loss recovery.
+All six frozen executable hashes match the preceding CLI schedule. The package
+hashes in `.cache/verification/catalog/native.json` are:
+
+| Wheel | SHA-256 |
+| --- | --- |
+| `transit-station` | `7bd67ecab612be7df8204b181d2c1a5cdb37288c09d0da3fab6b3fbed3e23da5` |
+| `transit-native-station` | `5380949f2c664d9418734f2f348fe37a304763fda1de9b4b341fe975d95ef022` |
+| `transit-client` | `be974f85e6ba910846dad633b5cdbb390e619a88bccbbefea72a83f865a48cc7` |
+| `transit-native-client` | `72ee6e0924bb4f9479fe630450dcefddd5f6d450d9489429f38a9b45b1252ba3` |
+
+The installed value test independently checks byte/name ownership, canonical
+full-width response strings and numeric types, malformed success responses and
+injected response allocation failure preserving submission uncertainty. A blocked
+adapter verifies cancelled-await overlap rejection and joined destruction. Those
+injected cases establish Python ownership/error behavior, not authority outcomes;
+the real disk schedule establishes exact admitted-command recovery separately.
+
+Full **`just check` passes**, including generated resources, 346 CLI diagnostics,
+4544 local links across 477 files, 52 invariants, 53 classified bounds, 13 SDK
+scenarios, frontend checks and documentation build. Logs are
+`/tmp/transit-sql-catalog-python-final-native.log` and
+`/tmp/transit-sql-catalog-python-check.log`. The focused
+`just bindings::catalog-python` recipe builds and runs this installed schedule;
+`bindings::python-test` also includes it. Other nine idiomatic catalog SDKs and
+committed-HEAD clean qualification for this Python increment remain separate.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
