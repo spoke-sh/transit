@@ -536,3 +536,8 @@ vortex-profile profile:
 fuze-types:
     python3 -B tests/fuze_types.py
     zig test packages/zig/transit-fuze/src/Types.zig
+
+# Independent CSV/JSONL records, schema binding, denial and allocation schedules.
+fuze-sources:
+    python3 -B tests/fuze_sources.py
+    zig test packages/zig/transit-fuze/src/FileSource.zig

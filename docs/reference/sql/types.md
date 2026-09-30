@@ -20,8 +20,10 @@ positive/negative floating zero.
 
 These are local type/codec APIs. SQL, native query plans, catalogs, stored Tables,
 Arrow query transports and SDK queries accept the narrower profiles below.
-Recursive comparison/hash operations, general SQL casts and file-source execution
-are not enabled by a descriptor. See the [type contract](../../../contracts/FUZE_TYPES_V1.md)
+Recursive comparison/hash operations and general SQL casts are not enabled by a
+descriptor. Fuze's local Zig [file-source API](../../../packages/zig/transit-fuze/docs/file-sources.md)
+supplies explicit, sampled, full and raw CSV/JSONL discovery/decoding. Native
+query transports and SQL do not acquire those sources. See the [type contract](../../../contracts/FUZE_TYPES_V1.md)
 for precise admitted conversions, temporal representations and resident bounds.
 
 ## Scalar types
@@ -53,7 +55,8 @@ Decoded SQL text/binary literal cells have a 220-byte bound. See
 [syntax and literals](syntax.md#query-literals) for escaping and parser bounds.
 
 SQL has no `DECIMAL`, date, time, timestamp, interval, array, map or JSON type
-syntax. CSV and JSONL/NDJSON file readers and schema inference are unsupported.
+syntax. SQL file readers and schema inference are unsupported; local Zig callers use
+the separately scoped file-source API above.
 Accepted Document fields can be exposed through an explicit scalar
 projection; this does not add JSON path expressions to SQL. The interface does
 not choose a fixed-point representation for application monetary values.
@@ -86,8 +89,8 @@ by native query v1 does not imply support through every SQL transport. See
 
 ## Planned type system and schema discovery
 
-**Status: source discovery and query-surface expansion are planned.** The local
-logical descriptor and codec APIs above implement the type foundation. The objective is a comprehensive shared
+**Status: public query-surface expansion is planned.** The local logical
+descriptor, codec and file-source APIs above implement bounded discovery/decoding. The objective is a comprehensive shared
 type system that also makes ad hoc CSV and JSONL queries useful without requiring
 an import or a complete handwritten schema first. Schema on demand means
 deriving a bounded, explicit interpretation when opening a source. It does not

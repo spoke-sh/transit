@@ -19,6 +19,12 @@ The [logical type contract](../../../contracts/FUZE_TYPES_V1.md) specifies codec
 budgets and capability limits. These APIs do not extend SQL, persisted Tables,
 native query plans or Flight. Run `just test::fuze-types` for independent fixtures.
 
+`FileSource` implements bounded CSV/JSONL discovery and decoding over immutable
+host-provided bytes. Explicit, sampled, full and raw modes freeze one schema;
+`SourceCodec` saves/restores its exact binding under current source access.
+The [file-source guide](docs/file-sources.md) owns modes, ownership, cancellation,
+framing, limits and the separate acquisition/durable-job boundary.
+
 `Unified` implements the [finite query v1 contract](../../../contracts/UNIFIED_QUERY_V1.md):
 up to eight typed columns, full-width signed/unsigned values, finite float64,
 UTF-8/binary, five cell states and preserved conflict alternatives. Its canonical

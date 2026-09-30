@@ -61,6 +61,7 @@ check-core:
     nixfmt --check flake.nix nix/*.nix
     actionlint .github/workflows/*.yml
     python3 -B tests/benchmarks/test_runner.py
+    python3 -B tests/fuze_sources.py
     python3 -B tests/fuze_types.py
     python3 -B tests/ci_runner.py
     python3 -B tests/reference_launcher_state.py

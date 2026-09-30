@@ -19,7 +19,10 @@ cannot discover or grant access to an undeclared source. The query cell model ke
 value, null, missing, type error and conflict distinct through Arrow and language
 bindings. Do not coerce missing/conflict into null or a successful empty result.
 
-CSV/JSONL sources and schema inference are unsupported. The
+Native query transports do not admit CSV/JSONL sources. Fuze's local Zig
+[file-source API](../../packages/zig/transit-fuze/docs/file-sources.md) supports
+bounded discovery/decoding over host-authorized immutable bytes; it does not
+acquire files or create a durable query job. The
 [type system and schema discovery plan](sql/types.md#planned-type-system-and-schema-discovery)
 describes proposed file-source binding, richer types and preserved cell states;
 it does not extend the current source contract.

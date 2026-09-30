@@ -9150,3 +9150,27 @@ service/client/caller/inspection/state proofs. This clean result applies to that
 contract-only commit, not subsequent type or reader implementation. One focused
 shell entry failed due to a missing cached Nix derivation; retrying with
 `--option eval-cache false` resolved the environment failure without changing pins.
+
+## Fuze bounded file sources
+
+`just test::fuze-sources` passes 23 focused Zig tests, including the nine type
+checks. Six independent Python csv/json/Decimal cases compare exact schema and
+neutral value bytes at chunk widths 1, 2, 3, 7 and 8192. Separate framing schedules
+split a quoted/BOM/newline corpus at every width. The tests cover partial and raw
+schemas, multi-file names, sparse/nested values, integer precision, late outliers,
+unknown fields, malformed/ragged input, work limits, option ownership, changed
+content, current denial, cancellation, failed-prefix completion, binding
+truncation/definition rejection and exhaustive allocator-failure cleanup.
+
+These callbacks use in-memory fixture sources. They establish neither physical
+file/capture durability nor installed caller, compression, Arrow or DuckDB
+performance qualification. Full checks and clean CI for the source checkpoint
+are recorded when executed; the earlier contract-only clean run does not qualify
+this implementation.
+
+The source checkpoint passes full `just check`, including generated contract
+checks, Zig units, CLI diagnostics, frontend tests and the documentation build.
+A subsequent focused rerun of all 23 source/type tests passes after centralizing
+saved-binding metadata validation. Logs are `/tmp/rey-fuze-sources-check.log`
+and `/tmp/rey-fuze-source-final-test.log`; these local paths are not portable
+artifacts or independent durability evidence.
