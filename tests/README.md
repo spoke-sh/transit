@@ -340,8 +340,14 @@ installed catalog SDK qualification. Final docs/inventory/format checks pass
 4521 local links across 475 files, 52 invariants, 53 classified bounds and 12 SDK
 scenarios (`/tmp/transit-sql-catalog-abi-final-checks.log`).
 
-These development checks do not qualify idiomatic catalog SDKs, a catalog CLI or
-the previous committed clean checkpoint's extension to this ABI.
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at `2ecf2457`**
+with no inherited workspace build outputs, in **701.65 seconds**. Independent
+packages take 141.20 s, Station 147.35 s and disk storage 213.40 s. Evidence is
+`.cache/ci/clean/2ecf24572ae5-transit-ci-62kkqyq2/core.json` and
+`core.meta.json`; the full log is `/tmp/transit-sql-catalog-abi-ci-clean.log`.
+The following evidence-only commit changes no production code. This is a clean
+core lane plus the focused native/port schedule above; it does not qualify
+idiomatic catalog SDKs, a catalog CLI or a complete clean suite.
 
 ## Offline state declaration compiler
 
