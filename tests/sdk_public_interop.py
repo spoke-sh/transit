@@ -17,6 +17,7 @@ import threading
 import time
 from client_abi import Native
 from client_abi_growing import GrowingSystem
+from cold_storage import ColdStore
 from arrow import simple_rows
 from station import frame
 from sdk_scenarios import check
@@ -25,9 +26,13 @@ from sdk_scenarios import check
 def run(node, cli, library, artifacts, report_path=None):
     started = time.monotonic()
     artifacts = Path(artifacts).resolve()
-    fixture = GrowingSystem(node, cli)
-    fixture.resident_pages = 64
-    with ExitStack() as stack, fixture as system:
+    with ColdStore() as cold, ExitStack() as stack:
+        # The complete nested-Arrow ring retains more than the hot-only store's
+        # finite capacity. Flush to owned disk-backed cold storage while keeping
+        # both the provider hot cache and authority page cache bounded.
+        fixture = GrowingSystem(node, cli, storage_config=cold.config())
+        fixture.resident_pages = 64
+        system = stack.enter_context(fixture)
         clients = []
         def install(_node, _cli, _library, installer, label):
             target = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix='transit-public-pair-')))
@@ -255,6 +260,7 @@ def run(node, cli, library, artifacts, report_path=None):
             print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, typed Table/query and owned original IPC passed.', flush=True)
         assert fault['lost'] == fault['unavailable_reads'] == len(clients)
         assert fault['delivery_lost'] == 1 and admin_retries > 0
+        assert cold.data_objects() > 0
         check('public-language-ring', {'pairs': pairs, 'reply_value': str(2**64-1), 'query_rows_per_pair': 3,
                                       'fresh_requesters': True, 'owned_ipc_after_close': not children})
         elapsed = time.monotonic()-started
@@ -269,6 +275,8 @@ def run(node, cli, library, artifacts, report_path=None):
                       'injected_lost_receipts': fault['lost'],
                       'transient_read_retries': read_retries, 'injected_unavailable_reads': fault['unavailable_reads'],
                       'admin_exact_retries': admin_retries, 'injected_lost_delivery_receipts': fault['delivery_lost'],
+                      'storage': {'hot_bytes_limit': 8 * 1024 * 1024, 'resident_pages': fixture.resident_pages,
+                                  'cold_objects': cold.data_objects(), 'cold_file_bytes': cold.file_bytes()},
                       'limits': 'Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement.'}
             Path(report_path).parent.mkdir(parents=True, exist_ok=True)
             Path(report_path).write_text(json.dumps(report, indent=2) + '\n')
