@@ -114,6 +114,36 @@ this model. See the [harness guide](../../tests/verification/README.md#resource-
 for reproducible commands and the [proof ledger](../../tests/README.md) for executed
 results and costs.
 
+## Shared-client scheduling
+
+The [scheduler driver](../../tests/scheduler_simulation.zig) instantiates the
+production `SessionWithTransport` with a signed in-process transport and invokes
+the same courier step as the delivery executable. A worker event either captures
+a private proposal or submits its previously frozen request. Scheduling can
+interleave other actors, policy/ownership changes or restart between those steps.
+The transport distinguishes loss before a query/submit from loss after processing;
+it validates responses but does not implement HTTP or native client deadlines.
+
+The [checker](../../tests/verification/scheduler_simulation.py) constructs admitted
+input sequences from trace commands independently of the core. Each consumed
+prefix must account for the original outputs; each delivered output must account
+for exactly one destination input with its original provenance. Denials cannot
+advance authority, terminal output dispositions cannot reopen, and an uncertain
+pending request must retain its digest until reconciliation or explicit host loss.
+Saved rejection schedules challenge Session fencing and current authorization.
+A separate finite-lifetime schedule exercises recorded turn permits through the
+work cutoff, expiry maintenance, trim/recovery and untrusted/rolled-back clocks.
+
+Generated fault-heavy schedules stop admitting work, then explicitly grant twenty
+round-robin opportunities to the two Sessions and courier. Each has a bounded
+initial workload of four inputs; preparation and submission take separate
+opportunities. A final drain assertion tests progress under that supplied fair
+schedule. It establishes neither OS fairness nor async cancellation/join safety.
+Cold recovery and complete replay must agree after every event. Shared-code
+mutations remove Session activation validation or discard an uncertain courier
+request, challenging the checks separately from transport fidelity. The real
+caller/courier integration proof retains responsibility for the actual binaries.
+
 ## Reproducibility
 
 Record the source/toolchain/provider revisions, commands, environment, workload,

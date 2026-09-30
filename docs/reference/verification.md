@@ -56,6 +56,14 @@ recovery must preserve the same logical state without staging pages. Its journal
 is atomic and its pages remain in memory. These checks do not establish physical
 storage durability or authorize page garbage collection.
 
+The shared-client simulation schedules actual Session preparation/submission and
+courier steps over an in-process signed transport. It distinguishes lost requests
+from lost responses, retains exact uncertain operations, replaces activations and
+checks current permission. A finite-lifetime profile exercises recorded turn
+permits, settlement, expiry maintenance and clock refusal. Independent input,
+output and provenance checks run after each event. Network framing, operating
+system scheduling and host await-cancellation require the external suites.
+
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
 current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,

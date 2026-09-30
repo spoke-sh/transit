@@ -54,7 +54,13 @@ RESOURCE_MUTANTS = {
     "input_progress": ("growing_state.zig", "process.consumed += 1;",
                        "process.consumed += 0; // Mutation: publish state/output without input progress."),
 }
+SCHEDULER_MUTANTS = {
+    "courier_pending": ("delivery.zig", "        return err;", "        pending.* = null; return err; // Mutation: discard uncertain identity."),
+    "session_activation": ("Session.zig", "if (process.owner != self.principal or process.generation != self.generation) return error.StaleActivation;", "// Mutation: omit Session activation validation."),
+}
 MODES = {
+    "scheduler": ("test-scheduler-simulation", ["--seeds", "1", "--steps", "1"], "scheduler-simulation-mutations", SCHEDULER_MUTANTS,
+                  "Scheduler simulation:", "Scheduler simulation failed (invariant)", "scheduler-simulation/minimized.json"),
     "properties": ("test-properties", ["--seeds", "1", "--steps", "1"], "mutations", MUTANTS,
                    "Transition properties passed:", "Transition invariant failed; minimized replay at", "transitions/failure.json"),
     "simulation": ("test-simulation", ["--seeds", "1", "--steps", "1"], "simulation-mutations", SIMULATION_MUTANTS,
@@ -79,10 +85,11 @@ def execute(checkout, mode):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group()
+    group.add_argument('--scheduler', action='store_true', help='qualify shared Session/courier checks')
     group.add_argument('--resource', action='store_true', help='qualify resource/input atomicity checkers')
     group.add_argument('--simulation', action='store_true', help='qualify delivery order and provenance checkers')
     args = parser.parse_args()
-    mode = "resource" if args.resource else "simulation" if args.simulation else "properties"
+    mode = "scheduler" if args.scheduler else "resource" if args.resource else "simulation" if args.simulation else "properties"
     _, _, artifact, mutants, passed, marker, minimized = MODES[mode]
     # Snapshot semantics are deliberate. Running dirty source under an old
     # revision would make the recorded experiment misleading.
@@ -102,7 +109,7 @@ def main():
             if code or passed not in output:
                 raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
             for name, (filename, guard, replacement) in mutants.items():
-                source = checkout / CORE / filename
+                source = checkout / (Path("packages/zig/transit-client/src") if mode == "scheduler" else CORE) / filename
                 original = source.read_text()
                 assert original.count(guard) == 1, f"review changed guard: {name}"
                 source.write_text(original.replace(guard, replacement))

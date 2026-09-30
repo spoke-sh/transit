@@ -1,5 +1,21 @@
 # Validation and milestone evidence
 
+## Shared-client scheduling simulation
+
+The shared Session/courier driver runs production preparation, frozen retry,
+activation checks and courier selection against controlled signed transport.
+Its [guide](verification/README.md#shared-client-scheduling-simulation) defines
+faults, invariants and limits. At dirty source based on `b6626cae`, the ordinary
+run passed four saved and four generated schedules: eight traces / 542 events,
+each replayed identically, in 15.876 seconds. The finite case exercised recorded
+permits through settlement, expiry maintenance, trim/recovery, clock rollback and
+untrusted time. The standalone client package tests and `just test::callers`
+also passed, including real counter/byte-log programs, automatic courier delivery,
+exact retries, stale activation and disk recovery. The proxy printed a broken-pipe
+diagnostic during its interruption scenario; the complete caller task exited zero.
+These are shared-host development observations, not hosted cost or OS scheduling
+qualification. Compiler/binary/oracle identities are retained in the artifacts.
+
 ## Resource publication simulation
 
 The resource profile adds numbered page staging/read faults, a two-page cache,
@@ -10,7 +26,9 @@ owns commands and model limits. On the shared Linux host with pinned Zig
 passed 99 traces / 1,923 events, each replayed identically, in 53.290 seconds.
 After adding the saved corpus, `just test::resource-simulation-smoke` passed
 six traces / 112 events in 3.409 seconds. Both were dirty development runs;
-metadata records binary/oracle identity. These in-memory observations do not
+metadata records binary/oracle identity. At committed `b6626cae`, both actual
+core mutants were detected: omitted resource writes in 2.128 seconds and omitted
+input progress in 2.079 seconds, including bounded minimization. These in-memory observations do not
 establish actual WAL durability, physical page reclamation, full CI completion
 or hosted cost. Compiling core mutation qualification is a separate command.
 

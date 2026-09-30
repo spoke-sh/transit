@@ -470,3 +470,11 @@ server-board:
 server-board-package:
     nix build .#transit-local --out-link .cache/transit-board-package
     python3 -B tests/server_board_package.py .cache/transit-board-package
+
+# Deterministic shared-client and courier schedules.
+scheduler-simulation *args:
+    zig build test-scheduler-simulation -- {{args}}
+
+# Defects in the actual shared Session and courier code must be observed.
+scheduler-simulation-mutations:
+    python3 -B tests/verification/mutations.py --scheduler

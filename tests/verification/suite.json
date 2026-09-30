@@ -6,6 +6,7 @@
       "test::properties",
       "test::simulation",
       "test::resource-simulation-smoke",
+      "test::scheduler-simulation",
       "test::codecs",
       "test::dev-environment",
       "test::kubectl-transit",
@@ -131,7 +132,8 @@
     "discovery": [
       "test::mutations",
       "test::simulation-mutations",
-      "test::resource-simulation-mutations"
+      "test::resource-simulation-mutations",
+      "test::scheduler-simulation-mutations"
     ],
     "focused": [
       "test::packages",

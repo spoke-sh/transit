@@ -334,6 +334,19 @@ pub fn build(b: *std.Build) void {
     const board_contract = b.addExecutable(.{ .name = "transit-board-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-board-api/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_board_api", .module = transit_board_api.module("transit_board_api") }} }) });
     b.step("transit-board-contract", "Export Board OpenAPI to stdout").dependOn(&b.addRunArtifact(board_contract).step);
     const client = b.dependency("transit_client", .{ .target = target, .optimize = optimize });
+    const scheduler_driver = b.addExecutable(.{ .name = "transit-scheduler-simulation", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/scheduler_simulation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_core", .module = core.module("transit_core") }, .{ .name = "transit_client", .module = client.module("transit_client") } },
+    }) });
+    const scheduler = b.addSystemCommand(&.{ "python3", "-B" });
+    scheduler.addFileArg(b.path("tests/verification/scheduler_simulation.py"));
+    scheduler.addArtifactArg(scheduler_driver);
+    scheduler.addPassthruArgs();
+    scheduler.has_side_effects = true;
+    scheduler.stdio = .inherit;
+    b.step("test-scheduler-simulation", "Schedule shared Sessions/courier with faults, clocks and maintenance").dependOn(&scheduler.step);
     const installation_fixture = b.addRunArtifact(client.artifact("transit-application-installation-contract"));
     installation_fixture.addArg("--fixture");
     b.step("application-installation-fixture", "Export a shared application signing fixture").dependOn(&installation_fixture.step);

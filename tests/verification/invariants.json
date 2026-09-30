@@ -1340,6 +1340,31 @@
       "limits": "At most 512 events per trace. In-memory provider with atomic append and retained immutable pages; no physical WAL, deletion/GC, corruption or disk capacity claim. Ordinary exploration samples first/middle/last I/O boundaries; exhaustive enumeration is explicit.",
       "model": null,
       "qualification": "See tests/README.md and .cache/verification/resource-simulation.json for executed scope and completeness."
+    },
+    {
+      "id": "SIM-03",
+      "claim": "Shared Sessions and the courier retain uncertain operation identity, fence stale activations, preserve input/output provenance and respect recorded settlement and retirement under controlled scheduling",
+      "owner": "docs/reference/callers.md",
+      "implementation": [
+        "packages/zig/transit-client/src/Session.zig",
+        "packages/zig/transit-client/src/delivery.zig",
+        "tests/scheduler_simulation.zig"
+      ],
+      "profile": "two producer Sessions and a courier with signed in-process transport; finite settlement profile and explicit trusted time",
+      "tasks": [
+        "test::scheduler-simulation",
+        "test::scheduler-simulation-mutations"
+      ],
+      "scenarios": [
+        "Request loss versus response loss across preparation/submission scheduling boundaries",
+        "Session ownership replacement, current permission denial and volatile host loss",
+        "Recorded turn permit through ordinary-work cutoff, expiry maintenance, checkpoint/trim, rollback and untrusted clock refusal",
+        "Independent accepted-input/output/provenance conservation and identical replay",
+        "Finite healthy round-robin schedule drains eligible accepted work"
+      ],
+      "limits": "At most 512 events. Transport calls are synchronous deterministic boundaries; HTTP/TLS, OS scheduling and host await-cancellation are separate external tests. Fairness is a supplied finite schedule, not a theorem.",
+      "model": null,
+      "qualification": "Execution and remaining external limits are recorded in tests/README.md and scheduler-simulation artifacts."
     }
   ]
 }

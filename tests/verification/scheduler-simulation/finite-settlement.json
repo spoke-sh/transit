@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "profile": "scheduler",
+  "finite": true,
+  "actions": [
+    {
+      "kind": "send",
+      "value": 19
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 99,
+        "error_ms": 2
+      }
+    },
+    {
+      "kind": "send",
+      "expected_error": "DeadlineUncertain"
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 110
+      }
+    },
+    {
+      "kind": "worker"
+    },
+    {
+      "kind": "send",
+      "expected_error": "DeadlineExpired"
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 151
+      }
+    },
+    {
+      "kind": "maintenance"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "worker",
+      "expected_error": "ProcessExpired"
+    },
+    {
+      "kind": "own",
+      "expected_error": "RetiredProcess"
+    },
+    {
+      "kind": "checkpoint"
+    },
+    {
+      "kind": "trim"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "assert_drained"
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 90
+      }
+    },
+    {
+      "kind": "send",
+      "source": 1,
+      "expected_error": "ClockRollback"
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 152,
+        "error_ms": 3
+      }
+    },
+    {
+      "kind": "send",
+      "source": 1,
+      "expected_error": "UntrustedTime"
+    }
+  ]
+}
