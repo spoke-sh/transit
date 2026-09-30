@@ -41,6 +41,7 @@ export const sections: Section[] = [
     label: "SQL",
     pages: [
       reference("sql", "SQL reference"),
+      reference("sql/grammar-surface", "Grammar surface: implemented and planned"),
       reference("sql/syntax", "Syntax, names and literals"),
       reference("sql/types", "Data types and cell states"),
       reference("sql/expressions", "Functions and operators"),

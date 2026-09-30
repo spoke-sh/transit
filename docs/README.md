@@ -16,18 +16,19 @@ and operations remain shared references below those entry points.
 | Interface | Start here |
 | --- | --- |
 | CLI | [Commands](reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md) |
-| SQL | [Statements and support](reference/sql.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
+| SQL | [Statements and support](reference/sql.md), [implemented and planned grammar](reference/sql/grammar-surface.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
 | SDKs | [Language SDKs](reference/sdks.md), [caller semantics](reference/callers.md) |
 | HTTP APIs | [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
 | Reactive APIs | [AsyncAPI](reference/asyncapi.md), [sessions and watches](reference/reactive.md) |
 | Analytical clients | [Flight SQL and ADBC](reference/flight.md) |
 | Native protocol | [Signed operations](reference/native.md) |
 
-The SQL statement index covers the complete checked grammar, including
-administrative forms that remain grammar-only, executable inspection and bounded
-Table mutations. It also indexes absent operations with their current application
-API alternatives. Each statement's page explains its supported forms and enabled
-caller interfaces before giving examples.
+The SQL statement index covers the complete checked grammar, including explicit
+Table mutations, offline definitions and administrative forms that remain
+grammar-only. The grammar surface inventory also labels planned relational,
+graph, foreign-relation and historical-schema operations, separating proposed
+syntax from forms whose syntax is undecided. Each statement's page explains its
+support boundary before giving examples.
 
 | Topic | Public documentation |
 | --- | --- |
@@ -71,7 +72,7 @@ preserve the actual support boundary.
 | Location | Ownership |
 | --- | --- |
 | `docs/guides/` | Runnable user and contributor workflows |
-| `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled workload priorities and performance improvement plans |
+| `docs/reference/` | Current concepts, architecture overview, guarantees, interface semantics, limits and compatibility; explicitly labeled grammar targets, workload priorities and performance improvement plans |
 | Package/app READMEs and `docs/` | Exact component APIs, configuration and substantial integration/recovery guides; linked directly from the handbook |
 | [contracts/](../contracts) | Versioned wire/ABI formats, neutral schemas and shared fixtures; generated descriptions keep their implementation owners |
 | [examples/](../examples/README.md) | Complete applications and commands that exercise the public APIs |

@@ -2,11 +2,11 @@
 
 SQL reads the types in an explicitly declared query source. It does not infer a
 schema from application bytes or create a resource. Query types, SQL literal
-syntax and grammar-only declaration types have different coverage.
+syntax, offline declaration types and published Table schemas have different coverage.
 
 ## Scalar types
 
-| Query v1 type | Read a declared column | SQL comparison literal | Grammar-only DDL token |
+| Query v1 type | Read a declared column | SQL comparison literal | Offline declaration token |
 | --- | --- | --- | --- |
 | int64 | Yes | Signed decimal integer, such as `-42` | `INT64` |
 | uint64 | Yes | `'18446744073709551615'::uint64` | None |
@@ -16,8 +16,10 @@ syntax and grammar-only declaration types have different coverage.
 | binary | Yes | Hex bytes, such as `'\x00ff'::bytea` | `BINARY` |
 
 The last column applies to [CREATE TABLE](create-table.md) and
-[CREATE KV](create-kv.md), which do not execute. Types available to a typed query
-plan do not automatically acquire SQL literal or DDL syntax. There are no
+[CREATE KV](create-kv.md). Both compile offline; compatible two-column Tables
+also publish through the explicit catalog caller. KV publication is unavailable.
+Types available to a typed query plan do not automatically acquire SQL literal
+or DDL syntax. There are no
 implicit conversions; a comparison must match the column's exact scalar type.
 
 The signed integer range is -9223372036854775808 through 9223372036854775807.

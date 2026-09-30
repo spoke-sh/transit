@@ -3,6 +3,12 @@
 The public [SQL statement reference](../../docs/reference/sql.md#statement-forms)
 covers every statement below with syntax, examples and execution limits, including
 the separate [historical-read fragment](../../docs/reference/sql/as-of.md).
+The [grammar surface inventory](../../docs/reference/sql/grammar-surface.md)
+separates implemented profiles, checked grammar, proposed syntax and undecided
+syntax. Proposed graph, foreign-relation and historical-selector examples are
+not inputs to this checked grammar. The integer system-time fragment has no
+execution semantics; the intended language reserves that spelling for SQL
+temporal meaning and uses separate typed Transit selectors.
 
 The reference grammar covers finite `SELECT`, bounded literal Table mutations
 and administrative extension syntax. `TransitExtensions.g4` is the checked reference;
