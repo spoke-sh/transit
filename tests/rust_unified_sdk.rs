@@ -122,7 +122,7 @@ fn codecs(config: &Value) -> AnyResult<()> {
         resource,
         prefix: vec![],
         key: q::Decoder {
-            version: 1,
+            version: 2,
             value_type: q::Type::Binary,
         },
         value: q::Decoder::v1(q::Type::Utf8),

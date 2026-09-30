@@ -21,7 +21,7 @@ def codecs(config)
     check(bundle.data.frozen?)
   end
   begin
-    Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 1), value: Q::Decoder.new(type: :utf8)),
+    Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 2), value: Q::Decoder.new(type: :utf8)),
       Q::Plan.new(projection: [0]), Q::Budgets.new(pages: 1, segments: 1, result_bytes: 1))
     raise 'Unsupported decoder accepted'
   rescue Transit::Error
