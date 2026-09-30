@@ -4967,10 +4967,25 @@ it does not admit work or add a query-client write route.
 
 `just test::unit` passes with five independently encoded fixtures across four
 Table value types, full-width signed keys and nullable/Unicode/binary values.
-The Zig checks compare canonical bytes, release the input buffer before using
+The Zig checks compare canonical bytes, overwrite the input buffer before using
 the decoded value, reject every truncated fixture and reject missing/foreign
 definitions, query-bundle magic, trailing input, invalid identities/operation
 counts and foreign publication records. The maximum-size fixture occupies
 exactly 799 bytes and a one-byte-short output rejects. The ownership/bound
 catalog and `just transit-docs::check` also pass. Public mutation admission,
 revocation and durable outcome recovery remain subsequent proof boundaries.
+
+
+### Remaining KV callers and browser
+
+`zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source=kv
+-Dunified-sdk=c,cpp,erlang,elixir -Dunified-board=true -Dunified-browser=true`
+passes in 191.17 s. Six native/port/installed callers agree on SQL inspection;
+revocation, permanent retirement, frozen retry and worker/node/store recovery
+pass. The real browser additionally verifies the empty SHOW TABLES listing,
+read-only plan/description display, stale draft, error clearing and current
+revocation clearing alongside the existing finite-query recovery flow. The two
+Board reader processes peak at 41,189,376 combined RSS bytes; Chromium is excluded.
+This completes the installed KV inspection set across all ten SDKs when combined
+with the earlier language runs. The remaining eight SDK Document callers and
+Document browser are still being verified.
