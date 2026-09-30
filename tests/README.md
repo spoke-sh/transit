@@ -4821,3 +4821,23 @@ Document DESCRIBE/SHOW/EXPLAIN wall times are 27.75/16.03/17.35 ms, with sampled
 peak RSS 9.5–10.2 MiB; the full Document fixture takes 304.08 s. The corresponding
 earlier statement times were 50.25/34.98/35.12 ms. These separate local runs
 establish the nine-request reduction, not a paired latency or memory claim.
+
+### Ruby and Rust SQL inspection
+
+The Ruby and Rust packages add typed inspection over the same native operation.
+Ruby syntax checks and Rust formatting/type checks pass. Rebuilt installed
+gems/crates participate with Python sync/async, TypeScript, native and port
+callers in `zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust`. KV and Table complete the full disk-backed
+schedule in 113.60 and 226.46 s respectively. Seven callers agree on description,
+listing, count schema, comparison redaction, all/state predicate variants and
+zero/full-width limits. Revocation and permanent retirement reject inspection
+and results; frozen upload retry and worker/node/store recovery pass.
+
+Two pre-existing negative codec fixtures incorrectly select decoder version 1;
+they now select unsupported version 2. An earlier clean Rust build exhausts
+shared `/tmp`, so the successful KV/Table run uses a dedicated disk temporary
+directory outside the workspace. Document setup then receives HTTP 503 from the
+cold-store bucket creation before provisioning. Document is not passed by this
+run and requires its own continuation. These fixture timings include concurrent
+host load and are not performance comparisons.

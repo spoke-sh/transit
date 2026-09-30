@@ -122,7 +122,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 scope = json.loads((root / 'shell.json').read_text())['workspace']
                 inspection_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
                     'DESCRIBE items;', 'SHOW TABLES;', 'EXPLAIN SELECT count(*) FROM items;',
-                    "EXPLAIN SELECT value FROM items WHERE value = 'redacted-literal' LIMIT 18446744073709551615;")]
+                    "EXPLAIN SELECT value FROM items WHERE value = 'redacted-literal' LIMIT 18446744073709551615;",
+                    'EXPLAIN SELECT value FROM items WHERE value IS TYPE_ERROR LIMIT 0;')]
                 sends = fault['console_sends']
                 for action in inspection_requests:
                     expected = None
@@ -138,6 +139,9 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         if 'explanation' in expected:
                             plan = expected['explanation']
                             if plan['aggregate'] == 'count': assert plan['columns'] == [{'name': 'count', 'type': 'uint64'}]
+                            elif 'state' in plan['predicate']:
+                                assert plan['limit'] == '0' and plan['predicate'] == {'state': {'column': 'value', 'value': 'type_error'}}
+                                assert plan['operators'] == ['scan', 'filter', 'limit', 'project']
                             else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project']
                 assert sends == fault['console_sends'], 'inspection submitted query work'
                 print(f"Unified {kind}: SQL inspection agrees across {len(inspectors)} enabled native/port/SDK callers", flush=True)

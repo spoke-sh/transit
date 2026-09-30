@@ -148,7 +148,7 @@ def install_ruby(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer(['ruby', script, 'serve', config], env, root)]
+        return [Consumer(['ruby', script, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 
@@ -191,7 +191,7 @@ serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer([executable, 'serve', config], env, root)]
+        return [Consumer([executable, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 

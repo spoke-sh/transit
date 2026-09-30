@@ -524,6 +524,180 @@ pub enum SourceKind {
     Table,
     Document,
 }
+impl SourceKind {
+    fn parse(value: &Value) -> Result<Self> {
+        Ok(match string(value, "source-kind")? {
+            "kv" => Self::KV,
+            "table" => Self::Table,
+            "document" => Self::Document,
+            _ => return Err(malformed()),
+        })
+    }
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InspectionOperator {
+    Scan,
+    Filter,
+    Limit,
+    Project,
+    Count,
+    Sum,
+}
+/// Predicate structure only. Inspection never returns the query's literal.
+#[derive(Clone, Debug)]
+pub enum InspectedPredicate {
+    All,
+    State {
+        column: String,
+        state: State,
+    },
+    Compare {
+        column: String,
+        comparison: Comparison,
+        value_type: Type,
+    },
+}
+#[derive(Clone, Debug)]
+pub enum InspectionDetails {
+    Description {
+        columns: Vec<Column>,
+    },
+    Tables {
+        names: Vec<String>,
+    },
+    Explanation {
+        operators: Vec<InspectionOperator>,
+        predicate: InspectedPredicate,
+        projection: Vec<String>,
+        limit: Option<u64>,
+        aggregate: Aggregate,
+        columns: Vec<Column>,
+        budgets: Budgets,
+    },
+}
+/// Owned current metadata for one configured source; not a retained query cut.
+#[derive(Clone, Debug)]
+pub struct Inspection {
+    pub name: String,
+    pub resource: ResourceRef,
+    pub source_kind: SourceKind,
+    pub source_digest: [u8; 32],
+    pub schema_digest: [u8; 32],
+    pub resource_revision: u64,
+    pub policy_revision: u64,
+    pub details: InspectionDetails,
+}
+impl Inspection {
+    fn parse(v: &Value, resource: ResourceRef) -> Result<Self> {
+        if v["version"] != 1
+            || v["scope"] != "configured_source"
+            || v["resource"] != resource.resource()
+        {
+            return Err(malformed());
+        }
+        fn names(v: &Value) -> Result<Vec<String>> {
+            array(v)?
+                .iter()
+                .map(|name| Ok(string(name, "inspection-name")?.to_owned()))
+                .collect()
+        }
+        fn columns(v: &Value) -> Result<Vec<Column>> {
+            array(field(v, "columns")?)?
+                .iter()
+                .map(Column::parse)
+                .collect()
+        }
+        let (kind, data) = tag(field(v, "details")?)?;
+        let details = match kind {
+            "description" => InspectionDetails::Description {
+                columns: columns(data)?,
+            },
+            "tables" => InspectionDetails::Tables {
+                names: names(data)?,
+            },
+            "explanation" => {
+                let operators = array(field(data, "operators")?)?
+                    .iter()
+                    .map(|op| {
+                        Ok(match string(op, "inspection-operator")? {
+                            "scan" => InspectionOperator::Scan,
+                            "filter" => InspectionOperator::Filter,
+                            "limit" => InspectionOperator::Limit,
+                            "project" => InspectionOperator::Project,
+                            "count" => InspectionOperator::Count,
+                            "sum" => InspectionOperator::Sum,
+                            _ => return Err(malformed()),
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                if !(2..=4).contains(&operators.len()) {
+                    return Err(malformed());
+                }
+                let (kind, selection) = tag(field(data, "predicate")?)?;
+                let predicate = match kind {
+                    "all" => InspectedPredicate::All,
+                    "state" => InspectedPredicate::State {
+                        column: string(field(selection, "column")?, "inspection-column")?
+                            .to_owned(),
+                        state: match string(field(selection, "value")?, "inspection-state")? {
+                            "missing" => State::Missing,
+                            "null" => State::Null,
+                            "type_error" => State::TypeError,
+                            "value" => State::Value,
+                            "conflict" => State::Conflict,
+                            _ => return Err(malformed()),
+                        },
+                    },
+                    "compare" => InspectedPredicate::Compare {
+                        column: string(field(selection, "column")?, "inspection-column")?
+                            .to_owned(),
+                        comparison: match string(field(selection, "op")?, "inspection-comparison")?
+                        {
+                            "eq" => Comparison::Eq,
+                            "ne" => Comparison::Ne,
+                            "lt" => Comparison::Lt,
+                            "le" => Comparison::Le,
+                            "gt" => Comparison::Gt,
+                            "ge" => Comparison::Ge,
+                            _ => return Err(malformed()),
+                        },
+                        value_type: Type::parse(field(selection, "type")?)?,
+                    },
+                    _ => return Err(malformed()),
+                };
+                InspectionDetails::Explanation {
+                    operators,
+                    predicate,
+                    projection: names(field(data, "projection")?)?,
+                    limit: if field(data, "limit")?.is_null() {
+                        None
+                    } else {
+                        Some(wide(field(data, "limit")?)?)
+                    },
+                    aggregate: match string(field(data, "aggregate")?, "inspection-aggregate")? {
+                        "rows" => Aggregate::Rows,
+                        "count" => Aggregate::Count,
+                        "sum" => Aggregate::Sum,
+                        _ => return Err(malformed()),
+                    },
+                    columns: columns(data)?,
+                    budgets: Budgets::parse(field(data, "budgets")?)?,
+                }
+            }
+            _ => return Err(malformed()),
+        };
+        Ok(Self {
+            name: string(field(v, "name")?, "inspection-name")?.to_owned(),
+            resource,
+            source_kind: SourceKind::parse(field(v, "source_kind")?)?,
+            source_digest: digest(field(v, "contract")?)?,
+            schema_digest: digest(field(v, "schema")?)?,
+            resource_revision: number(field(v, "resource_revision")?, "revision", true)?,
+            policy_revision: wide(field(v, "policy_revision")?)?,
+            details,
+        })
+    }
+}
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Finished {
     SourceEnd,
@@ -593,12 +767,7 @@ impl Page {
             correlation: wide(field(m, "correlation")?)?,
             policy_revision: wide(field(m, "policy_revision")?)?,
             request: unhex(string(field(m, "request")?, "request")?, 68)?,
-            source_kind: match string(field(basis, "kind")?, "kind")? {
-                "kv" => SourceKind::KV,
-                "table" => SourceKind::Table,
-                "document" => SourceKind::Document,
-                _ => return Err(malformed()),
-            },
+            source_kind: SourceKind::parse(field(basis, "kind")?)?,
             resource: ResourceRef::new(
                 realm,
                 number(field(basis, "resource")?, "resource", false)?,
@@ -695,6 +864,19 @@ impl Client {
             segment_bytes: number(field(caps, "segment_bytes")?, "bound", false)?,
             batch_rows: number(field(caps, "batch_rows")?, "bound", false)?,
         })
+    }
+    pub fn inspect_sql(
+        &mut self,
+        source: &Source,
+        name: &str,
+        sql: &str,
+        budgets: Budgets,
+    ) -> Result<Inspection> {
+        if source.resource() != self.connection.resource || name.len() > 32 || sql.len() > 4096 {
+            return Err(invalid());
+        }
+        let response = self.call(json!({"inspect":{"scope":{"source":source.wire()?,"name":name,"limits":budgets.wire()?},"sql":sql}}))?;
+        Inspection::parse(field(&response, "inspection")?, self.connection.resource)
     }
     pub fn prepare_next(&mut self, namespace: u64, bundle: &Bundle) -> Result<Option<Prepared>> {
         if namespace == 0 {

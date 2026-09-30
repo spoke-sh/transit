@@ -156,6 +156,12 @@ module Transit
       Status = Data.define(:phase, :correlation, :reference, :manifest, :collected)
       Observation = Data.define(:state, :reason)
       Description = Data.define(:resource_revision, :policy_revision, :limits, :active, :bundle_bytes, :segment_bytes, :batch_rows)
+      InspectedState = Data.define(:column, :state)
+      InspectedComparison = Data.define(:column, :comparison, :type)
+      SourceDescription = Data.define(:columns)
+      TableListing = Data.define(:names)
+      Explanation = Data.define(:operators, :predicate, :projection, :limit, :aggregate, :columns, :budgets)
+      Inspection = Data.define(:name, :resource, :source_kind, :source_digest, :schema_digest, :resource_revision, :policy_revision, :details)
       Manifest = Data.define(:job, :source, :requester, :correlation, :policy_revision, :request, :source_kind, :resource, :revision,
         :source_digest, :schema_digest, :plan_digest, :pages, :scanned, :selected, :segments, :rows, :byte_count, :sum, :finished, :chain)
       Page = Data.define(:manifest, :columns, :ordinal, :rows, :ipc, :next) do
@@ -170,6 +176,36 @@ module Transit
         end
         def source!(value)
           raise ArgumentError, 'Expected declared source' unless value.is_a?(KVSource) || value.is_a?(TableSource) || value.is_a?(DocumentSource)
+        end
+        def columns(values) = values.map { |c| Column.new(name: c.fetch('name'), type: c.fetch('type').to_sym) }.freeze
+        def inspection(v, resource)
+          unless v.fetch('version') == 1 && v.fetch('scope') == 'configured_source' && v.fetch('resource') == resource.resource
+            raise IncompatibleNative, 'Invalid SQL inspection scope'
+          end
+          variant, data = v.fetch('details').first
+          details = case variant
+          when 'description' then SourceDescription.new(columns: columns(data.fetch('columns')))
+          when 'tables' then TableListing.new(names: data.map { |name| Internal.text(name, 32).freeze }.freeze)
+          when 'explanation'
+            kind, predicate = data.fetch('predicate').first
+            selection = case kind
+            when 'all' then nil
+            when 'state' then InspectedState.new(column: Internal.text(predicate.fetch('column'), 32).freeze, state: predicate.fetch('value').to_sym)
+            when 'compare' then InspectedComparison.new(column: Internal.text(predicate.fetch('column'), 32).freeze,
+              comparison: predicate.fetch('op').to_sym, type: predicate.fetch('type').to_sym)
+            else raise IncompatibleNative, 'Invalid inspected predicate'
+            end
+            limits = data.fetch('budgets')
+            Explanation.new(operators: data.fetch('operators').map(&:to_sym).freeze, predicate: selection,
+              projection: data.fetch('projection').map { |name| Internal.text(name, 32).freeze }.freeze,
+              limit: data.fetch('limit').nil? ? nil : Value.wide(data.fetch('limit')), aggregate: data.fetch('aggregate').to_sym,
+              columns: columns(data.fetch('columns')), budgets: Budgets.new(pages: Value.wide(limits.fetch('pages')),
+                segments: Value.wide(limits.fetch('segments')), result_bytes: Value.wide(limits.fetch('result_bytes'))))
+          else raise IncompatibleNative, 'Invalid SQL inspection details'
+          end
+          Inspection.new(name: Internal.text(v.fetch('name'), 32).freeze, resource: resource, source_kind: v.fetch('source_kind').to_sym,
+            source_digest: Value.digest(v.fetch('contract')), schema_digest: Value.digest(v.fetch('schema')),
+            resource_revision: Internal.integer(v.fetch('resource_revision'), min: 0), policy_revision: Value.wide(v.fetch('policy_revision'), min: 1), details: details)
         end
         def codec(action, native_host)
           worker = Internal::Worker.new { Bridge.local(native_host) }
@@ -257,6 +293,14 @@ module Transit
           Description.new(resource_revision: v.fetch('resource_revision'), policy_revision: Value.wide(v.fetch('policy_revision')),
             limits: Budgets.new(pages: Value.wide(limits.fetch('pages')), segments: Value.wide(limits.fetch('segments')), result_bytes: Value.wide(limits.fetch('result_bytes'))),
             active: v.fetch('active').nil? ? nil : Value.wide(v.fetch('active')), bundle_bytes: caps.fetch('bundle_bytes'), segment_bytes: caps.fetch('segment_bytes'), batch_rows: caps.fetch('batch_rows'))
+        end
+        def inspect_sql(source, name, sql, budgets)
+          Values.source!(source)
+          raise ArgumentError, 'Source differs from the connection' unless source.resource == connection.resource
+          raise ArgumentError, 'Expected Budgets' unless budgets.is_a?(Budgets)
+          result = call({ 'inspect' => { 'scope' => { 'source' => source.wire, 'name' => Internal.text(name, 32),
+            'limits' => budgets.wire }, 'sql' => Internal.text(sql, 4096) } })
+          Values.inspection(result.fetch('inspection'), connection.resource)
         end
         def prepare_next(namespace, bundle)
           raise ArgumentError, 'Expected Bundle' unless bundle.is_a?(Bundle)

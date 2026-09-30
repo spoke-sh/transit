@@ -75,7 +75,33 @@ def serve(config)
       action = JSON.parse(line)
       break if action.key?('close')
       begin
-        result = if action.key?('next')
+        result = if action.key?('inspect')
+          request = action.fetch('inspect')
+          scope = request.fetch('scope')
+          limits = scope.fetch('limits')
+          value = client.inspect_sql(source, scope.fetch('name'), request.fetch('sql'), Q::Budgets.new(
+            pages: Integer(limits.fetch('pages')), segments: Integer(limits.fetch('segments')), result_bytes: Integer(limits.fetch('result_bytes'))))
+          check(value.resource == resource && value.source_kind.to_s == config.fetch('kind'))
+          check(value.source_digest.frozen? && value.schema_digest.frozen? && value.details.frozen?)
+          data = value.details
+          details = case data
+          when Q::SourceDescription then { description: { columns: data.columns.map(&:to_h) } }
+          when Q::TableListing then { tables: data.names }
+          when Q::Explanation
+            predicate = case data.predicate
+            when nil then { all: {} }
+            when Q::InspectedState then { state: { column: data.predicate.column, value: data.predicate.state } }
+            else { compare: { column: data.predicate.column, op: data.predicate.comparison, type: data.predicate.type } }
+            end
+            check(data.columns.frozen? && data.projection.frozen? && data.operators.frozen?)
+            { explanation: { operators: data.operators, predicate: predicate, projection: data.projection, limit: data.limit&.to_s,
+              aggregate: data.aggregate, columns: data.columns.map(&:to_h), budgets: data.budgets.to_h.transform_values(&:to_s) } }
+          else raise 'Unknown SQL inspection result'
+          end
+          { inspection: { version: 1, scope: 'configured_source', name: value.name, resource: resource.resource,
+            source_kind: value.source_kind, contract: value.source_digest.bytes, schema: value.schema_digest.bytes,
+            resource_revision: value.resource_revision, policy_revision: value.policy_revision.to_s, details: details } }
+        elsif action.key?('next')
           value = action.fetch('next')
           prepared = client.prepare_next(Integer(value.fetch('namespace')), Q::Bundle.new(data: [value.fetch('bundle')].pack('H*')))
           { prepared: prepared&.data }
