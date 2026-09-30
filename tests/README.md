@@ -118,6 +118,15 @@ the node hash is unchanged. Logs are `/tmp/transit-sql-catalog-client-components
 `/tmp/transit-sql-catalog-client-check.log`. This development evidence does not
 extend the preceding committed clean checkpoint to the caller changes.
 
+At committed `149bbe41`, **`just ci-clean --lane core` passes all 18 tasks**
+for the signed caller in **717.91 seconds**. Package checks take 141.36 seconds,
+Station 146.71 seconds and disk storage 229.67 seconds. Exact revision,
+completion and per-task evidence are retained under
+`.cache/ci/clean/149bbe41f0a0-transit-ci-l0fprhu0/`; the log is
+`/tmp/transit-sql-catalog-client-ci-clean.log`. The following evidence-only commit
+changes no production source. This qualifies the core lane and the focused caller
+schedule above, not a full clean suite or a supplied catalog host.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
