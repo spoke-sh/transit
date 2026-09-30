@@ -5990,3 +5990,16 @@ intervals span **2.894–4.279 s** and include upload, deliberate failure, calle
 replacement and status checks; they are not statement execution timings. The
 four-mutation, 256-byte and eight-page bounds hold. Frozen native binary hashes
 match the table above. The log is `/tmp/transit-sql-combined-table-sdks.log`.
+
+**`just ci-clean --lane core` passes at committed `a3c40a0d`** in a fresh
+checkout without inherited build outputs. It completes foundation checks
+(**68.31 s**), properties/simulation, independent package builds (**137.49 s**),
+client ABI (**6.20 s**), Station (**147.94 s**), disk storage (**212.77 s**),
+signed service (**44.19 s**), runtime upgrade (**4.94 s**), callers (**16.99 s**),
+inspection (**4.23 s**) and state (**11.08 s**). Readiness write takes **129.48 s**;
+these unpaired runs do not establish a performance improvement. The log is
+`/tmp/transit-sql-combined-table-ci-clean.log`; copied timing/completion evidence
+is `.cache/ci/clean/a3c40a0d6006-transit-ci-ux_5ezz5`. Later commits add the optional
+SDK test schedule and documentation, with the production source unchanged.
+This is a complete core-lane pass plus the separately executed combined-host
+proofs, not a complete clean-suite pass.
