@@ -5187,3 +5187,17 @@ a terminal active pointer needs one additional prior-status batch; immutable
 feature support is cached, while current credentials, grants, source metadata
 and policy are not. Saved retry submission performs no metadata read or new
 signing. Supplied host/CLI/language SDK write integration remains outstanding.
+
+### Consolidated service capability follow-up
+
+The second committed-HEAD `just ci-clean`, at `775b4bc9`, passed core and the
+corrected growing-storage proof, then failed in `test::growing-service`: its old
+assertion expected Station and runtime bindings to be unavailable. The current
+service advertises both. The focused `just test::growing-service` passes after
+requiring those capabilities together with batched reads, retained versions and
+worker rotation. It preserves signed reads/turns, current denial, exact retry,
+maintenance faults, disk restart and quota/backlog checks. Station write/recover
+takes **55.584 / 16.132 s**; the retained query publishes 41 rows / 21296 bytes
+through write/seal/recover/publish/deliver phases. This is a focused pass; later
+clean-CI lanes did not run. The failed checkout remains at
+`/var/tmp/transit-ci-zzrnm6qv`.

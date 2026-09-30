@@ -191,6 +191,7 @@ pub fn main(init: std.process.Init) !void {
     if (writing) {
         const capabilities = (try root.query(.{ .capabilities = {} })).body.capabilities;
         try t.expect(capabilities.station and capabilities.runtime_bindings and capabilities.history_reclamation);
+        try t.expect(capabilities.resource_read_batch and capabilities.retained_read_versions and capabilities.worker_rotation);
         try t.expectEqual(.unlimited, capabilities.retained_history);
         try t.expectError(error.Rejected, root.submit(.{ .checkpoint = {} }));
         _ = try root.submit(.{ .grant = .{ .subject = 65536, .public_key = worker.key.public_key.toBytes(), .permissions = p.all_permissions } });
