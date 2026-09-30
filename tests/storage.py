@@ -105,10 +105,11 @@ def run(binaries):
             if index:
                 fixture.start()
             for binary in binaries:
-                # Readiness reclaims 65 effect/output chains and 65 process/
-                # resource pairs through durable paged transactions. Its disk
-                # schedule has a separate finite budget from the small proofs.
-                budget = 600 if binary.name == "transit-readiness-proof" else 120
+                # These phases include hundreds of durable paged transactions:
+                # reclamation and draining recovered input both exceed the old
+                # bounded-profile budget on physical disk. Keep a finite cap
+                # and record each phase's actual cost.
+                budget = 600
                 started = time.monotonic()
                 subprocess.run([str(binary), fixture.url, phase], env=fixture.env, check=True, timeout=budget)
                 print(f"Disk {binary.name}/{phase}: {time.monotonic()-started:.2f}s", flush=True)
