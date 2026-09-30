@@ -80,10 +80,16 @@ finite schedules, not a complete cutover qualification or performance guarantee.
 | Runtime upgrade and reference workload | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown |
 | Local and Compose counter launchers | Passed persistent restart, exact retry, artifact replacement, incompatible-definition refusal, courier recovery, Board evidence and foreground signal cleanup |
 | `just test::growing-capacity` | Real owned ext4 ENOSPC, physical control-reserve release and disk restart passed with 40 retained rows and one 8,544-byte resident page. Recovery created zero pages and issued only GET/HEAD requests |
+| Unified KV and Document lifecycle/expiry | Current-definition lifecycle schedules passed caller/source denial, cancellation, released-version refusal and bounded cleanup (76.70 / 364.63 seconds). Real-clock expiry denied prefix/complete reads, released pins and survived node/store restart (194.16 / 503.58 seconds) |
+| Current reactive limits/client/refresh/view lifecycle | Passed finite sessions/streams, reserved renewal and health, signed cursors, malformed frames, reconnects, observer absence, expiry and retirement. Two gateways used 51,281,920 bytes RSS under the 256 MiB ceiling; health took 0.005 seconds. Shared client, durable refresh and browser lifecycle passed in 4.44 / 71.16 / 54.47 seconds |
+| Current Flight faults | Passed independent Arrow consumers, concurrent/control reads, one-byte HTTP/2 credit stalls, malformed framing, current ticket rights, worker/gateway/node/store restart and retirement. Sampled gateway RSS was 72,007,680 bytes |
+| Local and Compose Station launchers | Passed registry routing, calls, current Arrow exchange, three-worker recovery/upgrades, Board provenance and persistent stop/start |
+| Committed-source mutation controls | All four disabled guards—generation, resource revision, permission and view deadline—produced minimized engine counterexamples at `3ea81aaa`. Compilation failures were not counted as detections |
 
-The Table, interactive, serving, reactive and installation executions precede
-the later Station-format/definition change; they qualify those consumer paths,
-while the current native/Station/Python proofs qualify the new definition.
+The earlier Table, interactive, serving, reactive and installation executions
+precede the later Station-format/definition change. The rows explicitly marked
+current, the KV/Document schedules and installed-language executions use the new
+definition; earlier results are not substituted for those reruns.
 The remaining installed-language, source/browser, launcher/reference and final
 committed-HEAD checks are still in progress. No skipped schedule or earlier
 historical result is counted as a pass for the replacement.

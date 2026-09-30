@@ -183,7 +183,7 @@
           "anchor": "check('query-abi'"
         }
       ],
-      "limits": "Explicit growing C/port handles on disk Ursula with 64 resident pages, one 1 MiB workspace per query-enabled handle and 8192-byte segment bounds. Public SDK runners and optional Arrow adapters have separate qualification."
+      "limits": "Native v1 C/port handles on disk Ursula with 64 resident pages, one 4 MiB workspace per query-enabled handle and 8192-byte segment bounds. Public SDK runners and optional Arrow adapters have separate qualification."
     },
     {
       "id": "growing-profile-abi",
