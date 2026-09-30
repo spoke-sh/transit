@@ -7134,6 +7134,52 @@ owns `test::table-mutation`, and invariant `SQL-MUTATION-01` maps its contracts,
 implementation, SQL oracle and native proof. Native integration does not complete
 the remaining supplied-host and public caller work.
 
+### Installed mutation operation profiles
+
+`just test::table-mutation` runs seven profiles for the native ABI, port and
+real CLI. Each selected `--sdk` adds the same profiles through independently
+installed public language APIs; Python adds both synchronous and asynchronous
+callers. Build the selected packages with their `bindings::*-build` tasks first;
+`bindings::c-build` covers C/C++ and `bindings::beam-build` covers Erlang/Elixir.
+The complete selection is:
+
+```sh
+just test::table-mutation --cold --sdk python --sdk node --sdk rust --sdk ruby \
+  --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir
+```
+
+The profiles cover UPDATE, DELETE of an existing row, DELETE and UPDATE of an
+absent row, INSERT with reversed column order, conflicting two-row INSERT and
+cancellation after a committed upload part. Each caller compares current rows
+with independent expectations, including NULL versus absence and rollback
+of an earlier private insert when a later key conflicts. The conflicting batch
+must leave that earlier key absent. Missing-row operations and rejected or
+cancelled operations preserve all row revisions. A successful insert shares its
+revision with the durable result.
+
+The proxy loses the begin receipt for UPDATE and the final apply/cancel receipt
+for each added profile. The caller closes and is recreated, then resubmits the
+exact saved command before selecting a successor. Repeated explicit apply and
+cancel controls preserve the original terminal outcome, input and result
+revision. All retained outcomes are checked again across physical node/store
+restart and denied after current read revocation. Per-profile intervals include
+recovery and assertions; they are functional schedule timings, not statement
+latencies or language performance rankings. The success record is emitted only
+after fixture cleanup and retains the source, dirty state, runner and binary hashes.
+
+`--cold` selects the existing owned S3 fixture with an 8 MiB hot-store limit and
+8 MiB cold cache, requires actual persisted cold chunks and records their count
+and filesystem bytes. Eight resident authority pages, four mutations and all
+operation deadlines stay unchanged. The installed profiles use one UTF-8 Table;
+wider literals and three-row bounds retain their private-turn/native proofs.
+Upload cancellation does not implement SQL transactions or undo applied rows.
+
+The initial native/port/CLI expansion passes **21 profiles** in **197.977 s**,
+with **6120 reads**, **150 turn responses** and **23 lost receipts**. That run
+cancels immediately after begin, before the subsequent partial-upload extension;
+it does not qualify that extension or the optional cold/installed-SDK schedule.
+Its log is `/tmp/transit-sql-installed-mutation-profiles-native.log`.
+
 ### Full-reference mutation command cutover
 
 Mutation parts, seal, apply and cancel now carry the complete 68-byte immutable

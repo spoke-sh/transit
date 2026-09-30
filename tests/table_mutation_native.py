@@ -1,4 +1,5 @@
 """Native Table mutation rows/results, exact receipt recovery and writer fencing."""
+from contextlib import nullcontext
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
@@ -11,14 +12,19 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 from table_mutation_abi import Native, Port, Failure, check_profiles
 from table_mutation_cli import Cli
 
 
-def run(node, proof, host, port_host, library, cli, *, sdks=()):
+def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
     started = time.monotonic()
+    source_root = Path(__file__).resolve().parents[1]
+    identity = dict(revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=source_root,text=True).strip(),
+        dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=source_root,text=True).strip()),
+        runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())
     print('Mutation SDK selection: '+(', '.join(sdks) if sdks else 'native/port/CLI'),flush=True)
-    with Fixture() as fixture:
+    with ColdStore() if cold else nullcontext() as cold_store, Fixture(cold_store.config() if cold_store else None) as fixture:
         root = fixture.root
         installed = []
         install_started = time.monotonic()
@@ -310,7 +316,9 @@ def run(node, proof, host, port_host, library, cli, *, sdks=()):
             factories += [(label,lambda factory=factory: factory(proxy_url,connection,root)) for label,factory in installed]
             foreign_statuses = []
             caller_timings = []
-            for namespace,(label,factory) in enumerate(factories,7):
+            profile_measurements = []
+            for caller_index,(label,factory) in enumerate(factories):
+                namespace = caller_index + 7
                 if label == 'node': namespace = (1 << 64)-1
                 if label == 'ruby': namespace = (1 << 63)+17
                 if label == 'rust': namespace = (1 << 63)+18
@@ -367,12 +375,103 @@ def run(node, proof, host, port_host, library, cli, *, sdks=()):
                     processed(cancellation['position'])
                     assert owner.call({'status':operation['reference']})['status'] == result
                 snapshot(namespace,'applied',[('replacement',),(label,),(None,)],1)
-                foreign_statuses.append((owner,operation['reference'],result))
+                history = [(operation['reference'],result)]
+                profile_measurements.append(dict(caller=label,profile='update',namespace=str(namespace),
+                    seconds=round(time.monotonic()-caller_started,3),phase=result['phase'],affected_rows=1))
+                # Every installed caller executes the same profiles through its
+                # public mutation API. Python only drives the schedule and
+                # compares independent row/result expectations; Zig still owns
+                # parsing, signing, staging, policy and application semantics.
+                profiles = [
+                    ('delete', 'DELETE FROM items WHERE id=2', 'applied', 'none', 1, None),
+                    ('delete_missing', 'DELETE FROM items WHERE id=2', 'applied', 'none', 0, None),
+                    ('update_missing', "UPDATE items SET value='absent' WHERE id=2", 'applied', 'none', 0, None),
+                    ('insert', f"INSERT INTO items (value,id) VALUES('{label}',2)", 'applied', 'none', 1, (label,)),
+                    ('insert_conflict', "INSERT INTO items (id,value) VALUES(0,'rollback'),(2,'conflict')", 'rejected', 'row_exists', 0, (label,)),
+                    ('cancel_upload', "INSERT INTO items (id,value) VALUES(0,'cancelled')", 'cancelled', 'none', 0, (label,)),
+                ]
+                for profile_index,(profile,sql,phase,reason,affected,value) in enumerate(profiles):
+                    profile_started = time.monotonic()
+                    # Keep the existing full-width UPDATE namespaces and give
+                    # additional profiles distinct, explicit durable identities.
+                    profile_namespace = 1000 + caller_index * 16 + profile_index
+                    previous_rows = invoke('inspect',namespace)['rows']
+                    request = owner.call({'compile':dict(name='items',sql=sql,namespace=str(profile_namespace))})['compiled']
+                    assert owner.call({'status':request['reference']})['status'] is None
+                    prepared = owner.call({'next':request})['prepared']
+                    saved = root/f'{label}-{profile}-prepared.txt'
+                    recovered = False
+                    for step in range(16):
+                        assert prepared is not None, (label,profile,step)
+                        current = owner.call({'status':request['reference']})['status']
+                        current_phase = current['phase'] if current else None
+                        # Begin and at least one data part have committed before
+                        # cancellation; abandoning an empty descriptor alone
+                        # would not test disposal of partially staged input.
+                        cancel_now = profile == 'cancel_upload' and current_phase == 'uploading' and step >= 2
+                        if cancel_now:
+                            prepared = owner.call({'prepare':{'cancel':request['reference']}})['prepared']
+                        saved.write_text(prepared)
+                        # Lose the APPLY admission receipt (or CANCEL during
+                        # upload), then recreate the caller. Never select a
+                        # successor or re-sign before reconciling this send.
+                        lose = not recovered and (cancel_now if profile == 'cancel_upload' else current_phase == 'sealed')
+                        if lose:
+                            send_fault.update(lose=True,recovered=False)
+                            try: owner.call({'submit':prepared})
+                            except Failure as error: assert error.status == 6, (label,profile,error)
+                            else: raise AssertionError((label,profile,'Lost admission receipt reported success'))
+                            assert send_fault['receipt'] is not None and not send_fault['lose']
+                            owner.close(); clients.remove(owner)
+                            owner = factory(); clients.append(owner)
+                            assert saved.read_text() == prepared
+                        receipt = owner.call({'submit':saved.read_text()})['receipt']
+                        if lose:
+                            assert send_fault['recovered'] and receipt['position'] == send_fault['receipt']['position']
+                            recovered = True
+                        processed(receipt['position'])
+                        observation = dict(prepared=prepared,input=receipt['position'])
+                        assert owner.call({'observe':observation}) == {'observation':'processed'}
+                        assert owner.call({'rejection':observation}) == {'rejection':None}
+                        prepared = owner.call({'next':request})['prepared']
+                        if prepared is None: break
+                    else: raise AssertionError((label,profile,'Bounded stage count exceeded'))
+                    assert recovered, (label,profile,'Recovery injection was not reached')
+                    outcome = owner.call({'status':request['reference']})['status']
+                    assert outcome['reference'] == request['reference']
+                    assert (outcome['phase'],outcome['reason'],outcome['affected_rows']) == (phase,reason,affected), (label,profile,outcome)
+                    rows = snapshot(profile_namespace,phase,[('replacement',),value,(None,)],affected)
+                    assert rows['reason'] == reason and rows['input'] == receipt['position']
+                    assert rows['rows'][0] == previous_rows[0] and rows['rows'][2] == previous_rows[2]
+                    if affected == 0: assert rows['rows'] == previous_rows, (label,profile,'No-op or rollback changed rows')
+                    if profile == 'insert': assert rows['rows'][1]['revision'] == rows['result_revision']
+                    # Later explicit controls cannot rewrite an applied,
+                    # rejected or cancelled terminal result or its input basis.
+                    for control in ('apply','cancel'):
+                        terminal = owner.call({'prepare':{control:request['reference']}})['prepared']
+                        terminal_receipt = owner.call({'submit':terminal})['receipt']
+                        processed(terminal_receipt['position'])
+                        assert owner.call({'rejection':dict(prepared=terminal,input=terminal_receipt['position'])}) == {'rejection':None}
+                        assert owner.call({'status':request['reference']})['status'] == outcome
+                    repeated = snapshot(profile_namespace,phase,[('replacement',),value,(None,)],affected)
+                    assert all(repeated[key] == rows[key] for key in ('rows','input','result_revision'))
+                    history.append((request['reference'],outcome))
+                    profile_measurements.append(dict(caller=label,profile=profile,namespace=str(profile_namespace),
+                        seconds=round(time.monotonic()-profile_started,3),phase=phase,affected_rows=affected,
+                        recovered_input=receipt['position']))
+                    print(f'Mutation caller {label}: {profile}, exact saved recovery and terminal identity passed.',flush=True)
+                foreign_statuses.extend((owner,reference,status) for reference,status in history)
                 caller_timings.append(dict(caller=label,seconds=round(time.monotonic()-caller_started,3)))
-                print(f'Mutation caller {label}: exact lost-receipt recovery and durable application passed.',flush=True)
+                print(f'Mutation caller {label}: all seven profiles passed.',flush=True)
             for reader,reference,result in foreign_statuses:
                 assert reader.call({'status':reference})['status'] == result
             writer.kill(); writer.wait(timeout=10); writer = None
+            # Retain all installed-callers' exact outcomes across a physical
+            # store/node restart, independently of their local handle lifetime.
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start(); start()
+            for reader,reference,result in foreign_statuses:
+                assert reader.call({'status':reference})['status'] == result
             invoke('revoke-reader')
             mutation({'status':compiled['reference']},error='AccessDenied')
             invoke('inspect',1,error='AccessDenied')
@@ -381,14 +480,20 @@ def run(node, proof, host, port_host, library, cli, *, sdks=()):
                 except Failure as error: assert error.status == 4, error
                 else: raise AssertionError('Foreign status reader ignored current revocation')
             assert counts['max_mutations'] == 4
-            print(json.dumps({'proof':'Table mutation native admission','elapsed_seconds':round(time.monotonic()-started,3),
-                **counts,'selected_sdks':list(sdks),'sdk_install_seconds':sdk_install_seconds,'caller_timings':caller_timings,'resident_authority_pages':8,'lost_receipts':counts['lost_caller_receipts']+1,
+            if cold_store:
+                assert cold_store.data_objects() > 0, 'Mutation history did not spill to cold storage'
+            report = {'proof':'Table mutation native admission',**identity,'elapsed_seconds':round(time.monotonic()-started,3),
+                **counts,'selected_sdks':list(sdks),'sdk_install_seconds':sdk_install_seconds,'caller_timings':caller_timings,
+                'profiles':profile_measurements,'resident_authority_pages':8,'lost_receipts':counts['lost_caller_receipts']+1,
+                'storage':dict(cold=cold,hot_bytes_limit=(8 if cold else 64)*1024*1024,
+                    cold_objects=cold_store.data_objects() if cold_store else 0,
+                    cold_file_bytes=cold_store.file_bytes() if cold_store else 0),
                 'node_sha256':hashlib.sha256(Path(node).read_bytes()).hexdigest(),
                 'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest(),
                 'host_sha256':hashlib.sha256(Path(host).read_bytes()).hexdigest(),
                 'port_sha256':hashlib.sha256(Path(port_host).read_bytes()).hexdigest(),
                 'library_sha256':hashlib.sha256(Path(library).read_bytes()).hexdigest(),
-                'cli_sha256':hashlib.sha256(Path(cli).read_bytes()).hexdigest()}),flush=True)
+                'cli_sha256':hashlib.sha256(Path(cli).read_bytes()).hexdigest()}
             print('Table mutation native: shared client preparation/observation/resumption, exact caller-send and writer-commit lost-receipt disk recovery, atomic rows/result/input, conflicting retry, duplicate outcome, batch rollback, fenced writer and current native/application grants passed.',flush=True)
             print('Native mutation ABI and port: shared actions, lost admission receipts, caller recreation, exact retry, durable status and current denial passed.',flush=True)
             print('Mutation CLI: private non-replacing artifacts, full-width SQL identity, altered commitment rejection, exact saved retry in fresh processes and current read denial passed.',flush=True)
@@ -409,6 +514,9 @@ def run(node, proof, host, port_host, library, cli, *, sdks=()):
                 authority.wait(timeout=10)
             proxy.shutdown(); proxy.server_close(); thread.join(timeout=5)
             log.close()
+    # Only a completed schedule and successful fixture cleanup emit a result.
+    report['completed'] = True
+    print(json.dumps(report),flush=True)
 
 
 if __name__ == '__main__':
@@ -416,5 +524,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('node','proof','host','port_host','library','cli'): parser.add_argument(name)
     parser.add_argument('--sdk',action='append',default=[])
+    parser.add_argument('--cold',action='store_true',help='use the owned S3 cold tier with an 8 MiB hot-store limit')
     args = parser.parse_args()
-    run(args.node,args.proof,args.host,args.port_host,args.library,args.cli,sdks=args.sdk)
+    run(args.node,args.proof,args.host,args.port_host,args.library,args.cli,sdks=args.sdk,cold=args.cold)
