@@ -183,6 +183,45 @@ missing disposition is not a successful creation: successful creation uses its
 operation receipt instead. Preserve each send's original prepared value and
 native receipt position separately from its application operation ID.
 
+## Neutral caller values
+
+`Bridge` exposes the signed caller through shared typed `Action` and `Result`
+values. The connection contains `scope`, `owner` and `principal`; scope contains
+`realm`, `resource` and `catalog`. Native identities and resource revisions are
+safe-integer JSON numbers. Catalog IDs, object/operation IDs, policy revisions
+and expected revisions are canonical unsigned decimal strings, retaining the
+full u64 range. Signs, leading zeroes, whitespace and overflow reject. Native
+identity bounds still apply. Schema names are exactly two strings and
+`value_type` is `int64`, `boolean`, `utf8` or `binary`.
+
+| Action | Input and result |
+| --- | --- |
+| `capabilities` | Local supported operations, current definition and saved-command/Table bounds; no authority lookup |
+| `compile` | SQL, operation/object strings and physical Table ID; returns the typed request plus canonical `q` record hex; offline, with no policy or admission claim |
+| `describe` | Current configuration, caller policy and resource revision |
+| `prepare_initialize` | Exact configuration; returns the owned opaque prepared string |
+| `prepare_create` | Complete typed original request; returns the owned opaque prepared string |
+| `prepare_policy` | Expected revision string and complete target policy; returns the owned opaque prepared string |
+| `submit` | Original prepared string; returns native admission receipt |
+| `observe` | Original prepared string and native input position; returns pending/processed |
+| `input_disposition` | Original prepared string and native input position; returns optional current-authorized control/rejection disposition |
+| `status` | Complete typed creation request; returns optional original operation receipt under current inspection policy |
+
+Typed creation requests contain scope, operation, object, Table ID, normalized
+name and schema. Receipts retain that complete request, external principal,
+native input position and original outcome. Dispositions retain scope, source
+classification, external principal where applicable, native input, the 32-byte
+frame digest as hex and the original outcome. Null results remain absent; they
+are not interpreted as success. Prepared strings retain their canonical bytes
+without foreign JSON decoding/re-encoding or loss of full-width fields.
+
+All native conversion validates the existing owning model. Decoded native values
+own their bounded fields; returned strings belong to the supplied result
+allocator. The shared protocol JSON codec checks reflected wire shapes. The
+bridge performs no independent signing, authorization or recovery transition and
+creates no host task or resource. Native transport and idiomatic language routes
+are separate integration steps.
+
 ## Supplied catalog behavior and host
 
 `Behavior.interface()` and `guard()` compose the private catalog with Station's

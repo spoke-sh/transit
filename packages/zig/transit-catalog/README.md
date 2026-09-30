@@ -25,6 +25,13 @@ position. Conditional policy control requires the configured administrator,
 independently of create/inspect policy. Self-revocation still denies result
 inspection; it does not prevent policy restoration under current native grants.
 
+`Bridge.Action` and `Bridge.Result` provide shared neutral caller values. Catalog,
+operation/object IDs and policy revisions use canonical decimal strings; native
+identities retain their safe-integer bounds. Offline compilation returns both
+typed fields and canonical request bytes. Prepared commands stay opaque and all
+remote operations delegate to `Client`. Native conversions own their fields;
+result strings belong to the supplied allocator.
+
 An application supplies an already authorized Station turn, explicit catalog
 configuration and native commit/recovery handling. Initialize in a separate turn.
 Initialization needs a page reader and permits unrelated private framework setup;

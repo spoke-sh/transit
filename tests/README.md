@@ -254,6 +254,25 @@ node and host hashes match the supplied-host entry above. This development resul
 does not extend that earlier clean checkpoint or qualify neutral administrative
 bindings, CLI/SDK routes or general SQL grants.
 
+### Neutral catalog caller values
+
+The shared `Bridge.Action`/`Result` now covers offline creation compilation,
+description, signed initialization/creation/policy preparation, exact submission,
+observation and separate application/disposition reads. Full-width IDs and policy
+revisions cross JSON as canonical decimal strings; native counters remain bounded
+numbers and saved commands remain opaque. It delegates remote behavior to the
+existing signed client and defines no new native/stored format.
+
+Standalone catalog tests pass **21 total tests** including the root import test
+on development source based on `98ddd4cb`. Two new bridge cases compare typed
+neutral values with independently generated Python records, preserve owned names
+and full-width values after source mutation, and reject numeric application IDs,
+quoted native IDs, malformed decimal strings, changed scope and invalid saved
+commands before transport. The local compile/capabilities cases use no transport.
+The generated fixture owner is `tests/catalog_contract.py`; component output is
+`/tmp/transit-sql-catalog-bridge-components.log`. Native ABI/port and idiomatic
+language reachability are not established by these component tests.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned

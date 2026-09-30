@@ -7,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'packages/zig/transit-catalog/src/fixtures/catalog-v1.json'
+NEUTRAL = FIXTURE.with_name('catalog-neutral-v1.json')
 
 
 def generate():
@@ -44,13 +45,34 @@ def generate():
                            keys={k: v.hex() for k, v in keys.items()}), indent=2) + '\n'
 
 
+def neutral(encoded):
+    records = json.loads(encoded)['records']
+    scope = dict(realm=1, resource=7, catalog=str(2**64 - 1))
+    configuration = dict(scope=scope, owner=3, administrator=17)
+    policy = dict(scope=scope, principal=17, revision='1', inspect=True, create=True)
+    request = dict(scope=scope, operation=str(2**64 - 1), object=str(2**64 - 1), table=9,
+                   name='items', schema=dict(names=['id', 'value'], value_type='utf8'))
+    change = dict(expected_revision='0', policy=policy)
+    disposition = dict(scope=scope, origin='external', principal=17, input=2,
+                       payload=hashlib.sha256(b'transit.catalog.input.v1\0catalog-command').hexdigest(),
+                       outcome='initialized')
+    return json.dumps(dict(connection=dict(scope=scope, owner=3, principal=17),
+                           configuration=configuration, policy=policy, change=change,
+                           compiled=dict(request=request, canonical=records['request']),
+                           receipt=dict(request=request, principal=17, input=2, outcome='applied'),
+                           disposition=disposition), indent=2) + '\n'
+
+
 if __name__ == '__main__':
     expected = generate()
+    expected_neutral = neutral(expected)
     if sys.argv[1:] == ['--write']:
         FIXTURE.parent.mkdir(parents=True, exist_ok=True)
         FIXTURE.write_text(expected)
+        NEUTRAL.write_text(expected_neutral)
     elif sys.argv[1:]:
         raise SystemExit('usage: catalog_contract.py [--write]')
     else:
         assert FIXTURE.read_text() == expected, 'catalog v1 fixtures drift; regenerate explicitly'
-        print('Catalog v1: independent configuration, policy, request, definition, binding, receipts, keys and digest passed.')
+        assert NEUTRAL.read_text() == expected_neutral, 'catalog neutral fixtures drift; regenerate explicitly'
+        print('Catalog v1: independent records, keys, digests and neutral caller values passed.')
