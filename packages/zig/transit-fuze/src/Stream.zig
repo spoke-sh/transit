@@ -92,7 +92,7 @@ pub const Progress = struct {
     pub fn encode(self: Progress) ![progress_bytes]u8 {
         if (self.version != 1) return error.InvalidQueryProgress;
         var bytes: [progress_bytes]u8 = @splat(0);
-        bytes[0..4].* = "FZS1".*;
+        bytes[0..4].* = "FTP1".*;
         std.mem.writeInt(u64, bytes[4..12], self.basis.resource, .little);
         std.mem.writeInt(u64, bytes[12..20], self.basis.revision, .little);
         bytes[20..52].* = self.basis.schema;
@@ -110,7 +110,7 @@ pub const Progress = struct {
         return bytes;
     }
     pub fn decode(bytes: []const u8) !Progress {
-        if (bytes.len != progress_bytes or !std.mem.eql(u8, bytes[0..4], "FZS1") or bytes[124] > 1 or bytes[133] > 1) return error.InvalidQueryProgress;
+        if (bytes.len != progress_bytes or !std.mem.eql(u8, bytes[0..4], "FTP1") or bytes[124] > 1 or bytes[133] > 1) return error.InvalidQueryProgress;
         var result: Progress = .{
             .basis = .{ .resource = std.mem.readInt(u64, bytes[4..12], .little), .revision = std.mem.readInt(u64, bytes[12..20], .little), .schema = bytes[20..52].* },
             .plan = bytes[52..84].*,

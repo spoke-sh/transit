@@ -17,7 +17,7 @@ def run(node, caller, *, resident_pages=64):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        config.write_text(json.dumps({"profile": "growing_v3", "genesis": {
+        config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 43, "root_key": public, "max_clock_error_ms": 10000},
             "ursula_url": fixture.url, "bucket": "growing-station", "journal": "authority",
             "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
@@ -38,7 +38,7 @@ def run(node, caller, *, resident_pages=64):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/query":
+                    if self.path == "/v1/query":
                         query = envelope["query"]
                         retained = "version_entries" in query["kind"]
                         entries = query["kind"].get("version_entries" if retained else "entries")
@@ -56,12 +56,12 @@ def run(node, caller, *, resident_pages=64):
                                 changed["realm"] += 1
                                 data = json.dumps(changed).encode()
                                 fault["read"] = True
-                    elif self.path == "/v3/command" and "send" in envelope["request"]["command"]:
+                    elif self.path == "/v1/command" and "send" in envelope["request"]["command"]:
                         sent = envelope["request"]["command"]["send"]["value"]
                         if sent == (b"STN1\x01" + bytes(8) + b"scan").hex():
                             assert envelope["request"]["principal"] == 0
                             fault["scan_allowed"] = True
-                    elif self.path == "/v3/command" and "turn" in envelope["request"]["command"]:
+                    elif self.path == "/v1/command" and "turn" in envelope["request"]["command"]:
                         if fault["pending"] is None:
                             assert response.status == 200
                             fault["pending"], fault["receipt"] = body, data

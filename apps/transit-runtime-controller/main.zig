@@ -1,7 +1,8 @@
 //! One PID's reference reconciler. Backlog scans are authoritative; notifications
 //! and provider state cannot create execution rights. --once advances one step.
 const std = @import("std");
-const transit = wire.protocol;
+const transit = wire.protocol.Growth;
+const View = struct { process: transit.Process, principal_sequence: u64 };
 const wire = @import("transit_client");
 const observations = wire.observability;
 const telemetry = observations.telemetry;
@@ -9,21 +10,21 @@ const substrate = @import("transit_runtime_substrate");
 const Config = struct {
     url: []const u8,
     realm: u64,
-    principal: u8,
+    principal: u64,
     seed_file: []const u8,
     pid: u64,
-    worker: u8,
+    worker: u64,
     provider: substrate.Config,
 };
 const Controller = struct {
     config: Config,
     client: *wire.Client,
     provider: substrate.Adapter,
-    key: transit.Ed25519.KeyPair,
+    key: wire.protocol.Ed25519.KeyPair,
     generation: ?u64 = null,
     binding_revision: ?u64 = null,
 
-    fn send(self: *Controller, view: wire.View, command: transit.Command) !void {
+    fn send(self: *Controller, view: View, command: transit.Command) !void {
         _ = try self.client.submit(try transit.sign(.{
             .realm = self.config.realm,
             .principal = self.config.principal,
@@ -31,7 +32,7 @@ const Controller = struct {
             .command = command,
         }, self.key));
     }
-    fn intent(self: *Controller, view: wire.View, stopped: bool) !void {
+    fn intent(self: *Controller, view: View, stopped: bool) !void {
         try self.send(view, .{ .runtime_intent = .{
             .pid = self.config.pid,
             .expected_revision = if (view.process.binding) |b| b.revision else 0,
@@ -41,7 +42,7 @@ const Controller = struct {
             .desired = if (stopped) .stopped else .running,
         } });
     }
-    fn observe(self: *Controller, view: wire.View, uid: ?[16]u8, stopped: bool) !void {
+    fn observe(self: *Controller, view: View, uid: ?[16]u8, stopped: bool) !void {
         const b = view.process.binding.?;
         try self.send(view, .{ .runtime_observe = .{
             .pid = self.config.pid,
@@ -51,13 +52,12 @@ const Controller = struct {
             .outcome = if (stopped) .stopped else .ready,
         } });
     }
+    fn currentView(self: *Controller) !View {
+        const response = try self.client.query(.{ .realm = self.config.realm, .principal = self.config.principal, .kind = .{ .process = self.config.pid } }, self.key);
+        return .{ .process = response.body.process.process, .principal_sequence = response.principal_sequence };
+    }
     fn step(self: *Controller) !enum { idle, intent, created, reverted, resumed, observed, activated, suspended, switched } {
-        const view = try self.client.view(.{
-            .realm = self.config.realm,
-            .principal = self.config.principal,
-            .sequence = 0,
-            .command = .{ .inspect = self.config.pid },
-        }, self.key);
+        const view = try self.currentView();
         const p = view.process;
         self.generation = p.generation;
         self.binding_revision = if (p.binding) |binding| binding.revision else null;
@@ -192,7 +192,7 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     };
     try controller.provider.validate();
     if (check) {
-        const view = try client.view(.{ .realm = config.realm, .principal = config.principal, .sequence = 0, .command = .{ .inspect = config.pid } }, controller.key);
+        const view = try controller.currentView();
         if (view.process.binding) |binding| {
             if (!std.meta.eql(binding.instance, config.provider.instance) or
                 !std.meta.eql(binding.resource, controller.provider.resource()) or

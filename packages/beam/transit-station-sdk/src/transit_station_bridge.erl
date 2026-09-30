@@ -4,13 +4,13 @@
 -export([open/2, local/1, close/1, caps/1, prepare/1, apply/3, finish/3, discard/2,
          pending/2, dispatch/1, confirmation/2, matches/2, frame/3, http_codec/2, http_read/2, grpc_codec/2, grpc_read/2, document_codec/2, document_read/2, query/3, unified_codec/2, unified_query/3]).
 -record(bridge, {port, caps}).
-open(#transit_service{client = #transit_config{url = Url, profile = growing_v3, timeout_ms = Timeout, native_host = Override},
+open(#transit_service{client = #transit_config{url = Url, profile = native_v1, timeout_ms = Timeout, native_host = Override},
     activation = #transit_activation{process = #transit_process{realm = Realm, pid = Pid}, generation = Generation,
     credential = #transit_credential{realm = Realm, principal = Principal, seed_file = Seed} = Credential}, association = Association, query_results = Queries}, Failure) ->
     transit_sdk_value:counter(Realm), transit_sdk_value:counter(Pid), transit_sdk_value:counter(Principal, 0), transit_sdk_value:counter(Generation),
-    {ok, _} = transit_client:config(Url, growing_v3, #{timeout_ms => Timeout, native_host => Override}),
+    {ok, _} = transit_client:config(Url, native_v1, #{timeout_ms => Timeout, native_host => Override}),
     Config = #{<<"url">> => Url, <<"timeout_ms">> => Timeout, <<"seed_file">> => transit_sdk_value:text(Seed, 4096),
-        <<"growing_server">> => #{<<"profile">> => <<"growing_v3">>, <<"realm">> => Realm, <<"principal">> => Principal,
+        <<"growing_server">> => #{<<"profile">> => <<"native_v1">>, <<"realm">> => Realm, <<"principal">> => Principal,
         <<"pid">> => Pid, <<"generation">> => Generation, <<"association">> => transit_sdk_value:text(Association, 256),
         <<"timeout_ms">> => Timeout, <<"failure_policy">> => transit_station_value:enum(Failure, [stop, block_input]), <<"query_results">> => transit_sdk_value:boolean(Queries)}},
     Bridge = create(Config, Override),
@@ -24,9 +24,9 @@ open(#transit_service{client = #transit_config{url = Url, profile = growing_v3, 
     catch Class:Reason:Stack -> catch close(Bridge), erlang:raise(Class, Reason, Stack) end;
 open(_, _) -> transit_sdk_value:fail(invalid_argument, service_config).
 local(Override) -> create(#{<<"local_codec">> => true}, Override).
-query(#transit_config{url=Url,profile=growing_v3,timeout_ms=Timeout,native_host=Override},
+query(#transit_config{url=Url,profile=native_v1,timeout_ms=Timeout,native_host=Override},
       #transit_credential{seed_file=Seed}, Connection) ->
-    {ok,_}=transit_client:config(Url,growing_v3,#{timeout_ms=>Timeout,native_host=>Override}),
+    {ok,_}=transit_client:config(Url,native_v1,#{timeout_ms=>Timeout,native_host=>Override}),
     create(#{<<"url">>=>Url,<<"seed_file">>=>transit_sdk_value:text(Seed,4096),<<"timeout_ms">>=>Timeout,
         <<"query_client">>=>#{<<"connection">>=>Connection,<<"timeout_ms">>=>Timeout}},Override).
 create(Config, Override) ->
@@ -40,7 +40,7 @@ create(Config, Override) ->
         #{<<"host_version">> := 1, <<"station_version">> := 1, <<"transit_version">> := 1} = Hello = transit_sdk_port:request(Port, #{<<"hello">> => #{}}, hello, false, undefined),
         true = map_size(Hello) =:= 3,
         Caps = transit_sdk_port:request(Port, #{<<"growing_capabilities">> => #{}}, capabilities, false, <<"GrowingCapabilities">>),
-        #{<<"version">> := 1, <<"profile">> := <<"growing_v3">>} = Caps,
+        #{<<"version">> := 1, <<"profile">> := <<"native_v1">>} = Caps,
         Required = [<<"gated_dispatch">>, <<"retained_confirmation">>, <<"scoped_turns">>, <<"paged_state">>, <<"tables">>, <<"retained_sources">>],
         case lists:all(fun(Key) -> maps:get(Key, Caps) end, Required) of true -> ok; false -> transit_sdk_value:fail(unsupported_capability, native_capabilities) end,
         #bridge{port = Port, caps = Caps}

@@ -7,7 +7,7 @@ const x = rpc.exchange;
 const s = x.station;
 const p = x.p;
 const g = p.Growth;
-const Server = s.GrowingGenServer;
+const Server = s.GenServer;
 const capture_limits: x.Limits = .{ .segment_bytes = 8192, .capture_bytes = 393216, .segments = 256 };
 const Credential = struct { binding: []const u8, version: u64, metadata: []const u8, file: []const u8 };
 const Config = struct {

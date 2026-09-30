@@ -6,7 +6,7 @@ Strictly typed counter/requester and Table/query handlers use the
 handling. The library exports the handlers, schemas, keys and role-specific codecs.
 
 The installed CLI is `transit-rust-counter CONFIG service --commits 1`
-(or `requester`). CONFIG supplies `url`, explicit `profile: "growing_v3"`, realm,
+(or `requester`). CONFIG supplies `url`, explicit `profile: "native_v1"`, realm,
 PID, principal, generation, seed file and peer PID. Provision ownership, grants
 and the `data` association first. The example requires fresh ownership after
 host loss; applications needing exact crash recovery provide persistence hooks.

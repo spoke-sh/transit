@@ -70,14 +70,21 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     const principal = try engine.principal(query.principal);
     const public = p.Ed25519.PublicKey.fromBytes(principal.grant.public_key) catch return error.Unauthorized;
     p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.queryDigest(query), public) catch return error.Unauthorized;
-    if (principal.grant.permissions & p.permission(.inspect) == 0) return error.Forbidden;
+    if (principal.grant.permissions & p.permission(if (query.kind == .delivery) .delivery else .inspect) == 0) return error.Forbidden;
     if (query.kind == .snapshot_read) return @import("growing_snapshot_read.zig").read(engine, principal, query.realm, query.kind.snapshot_read);
     const position = engine.head.position;
     var current = try engine.state();
     const body: @FieldType(g.Response, "body") = switch (query.kind) {
         .snapshot_read => unreachable,
+        .delivery => blk: {
+            const scoped = principal.grant.pid;
+            const batch = try current.scan(u64, if (scoped) |pid| .{ .namespace = .pending_destination, .major = pid } else .{ .namespace = .pending_output }, null);
+            const next: ?u64 = if (batch.records[0]) |r| if (scoped != null) r.value else std.mem.readInt(u64, r.key.data[1..9], .big) else null;
+            break :blk .{ .delivery = .{ .next = next } };
+        },
+        .inspection => |q| .{ .inspection = try @import("growing_inspection.zig").read(engine, principal, q) },
         .identity => .{ .identity = .{ .principal = query.principal, .permissions = principal.grant.permissions, .pid = principal.grant.pid, .policy_revision = principal.revision } },
-        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
+        .capabilities => .{ .capabilities = .{ .required_resources_per_process = engine.genesis.required_dependencies, .dependency_validation_vertices = engine.genesis.dependency_vertices, .association_lookup = true, .scoped_retry = true, .retained_read_versions = true, .resource_read_access = true, .resource_read_batch = true, .leased_snapshots = engine.snapshot_epoch != null and engine.clock != null, .snapshot_read = engine.snapshot_epoch != null and engine.clock != null, .worker_rotation = true, .runtime_bindings = true, .station = true, .history_reclamation = true, .retained_history = if (engine.genesis.allow_history_trim) .checkpointed else .unlimited, .admission_ceiling = engine.genesis.admission_ceiling, .control_reserve = engine.genesis.control_reserve } },
         .open_snapshot => |q| blk: {
             const now = try snapshotTime(engine);
             try snapshotAccess(engine, principal, q.resource, now);
@@ -129,7 +136,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             try scope(principal, pid);
             const process = try engine.process(pid);
             var input: ?g.Input = null;
-            if (process.lifecycle == .running and process.failure == null) {
+            if (g.processReady(process)) {
                 try engine.executable(process, try sample(engine), true);
                 if (process.consumed < process.admitted) input = (try current.get(g.Input, try c.key(.mailbox, pid, process.consumed + 1, ""))) orelse return error.IncompleteHistory;
             }
@@ -245,8 +252,12 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             break :blk .{ .entries = .{ .view = captured, .resource = resource, .page = result } };
         },
         .processes => |q| blk: {
-            if (principal.grant.pid != null) return error.Forbidden;
             try at(q.position, position);
+            if (principal.grant.pid) |pid| {
+                var result: g.Batch(g.Process, u64) = .{};
+                if (q.after == null or q.after.? < pid) result.entries[0] = try engine.process(pid);
+                break :blk .{ .processes = result };
+            }
             const batch = try current.scan(g.Process, .{ .namespace = .process }, if (q.after) |id| address(.process, id) else null);
             var result: g.Batch(g.Process, u64) = .{};
             for (batch.records, 0..) |slot, i| if (slot) |record| {
@@ -256,12 +267,15 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             break :blk .{ .processes = result };
         },
         .resources => |q| blk: {
-            if (principal.grant.pid != null) return error.Forbidden;
             try at(q.position, position);
             const batch = try current.scan(g.Resource, .{ .namespace = .resource }, if (q.after) |id| address(.resource, id) else null);
             var result: g.Batch(g.Resource, u64) = .{};
             var count: usize = 0;
             for (batch.records) |slot| if (slot) |record| {
+                resourceScope(engine, principal, record.value.id) catch |err| {
+                    if (err == error.Forbidden) continue;
+                    return err;
+                };
                 state.allowed(engine, record.value.id, query.principal, p.State.permission(.inspect)) catch |err| {
                     if (err == error.Forbidden) continue;
                     return err;
@@ -321,7 +335,7 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
     // Linearize permission/cut validation against the same authority tail. A
     // concurrent revocation or publication never yields a success-shaped mixed cut.
     if (try engine.journal.tail() != position) return error.Conflict;
-    return .{ .realm = query.realm, .position = position, .principal_sequence = principal.sequence, .body = body };
+    return .{ .realm = query.realm, .position = position, .definition = g.current_definition, .principal_sequence = principal.sequence, .body = body };
 }
 
 fn entries(basis: anytype, resource: u64, point: ?p.Value, continuation: ?p.Value) !g.Batch(g.Entry, p.Value) {

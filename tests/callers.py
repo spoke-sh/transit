@@ -30,7 +30,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
-        config.write_text(json.dumps({"genesis": {"realm": 61, "root_key": public}, "ursula_url": store.url,
+        config.write_text(json.dumps({"genesis": {"realm": 61, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": store.url,
                                       "bucket": "caller-proof", "journal": "authority", "port": port}))
         sequence = 0
         def command(value):
@@ -57,7 +57,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
                 envelope = json.loads(body)
                 request = envelope.get("request", envelope.get("query"))
                 principal = request["principal"]
-                if self.path == "/v2/view" and principal in malformed_views:
+                if self.path == "/v1/query" and principal in malformed_views:
                     malformed_views.remove(principal)
                     self.unavailable()
                     return
@@ -66,7 +66,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if response.status == 200 and any(kind in request.get("command", {}) for kind in ("turn", "deliver_next")):
+                    if response.status == 200 and any(kind in request.get("command", {}) for kind in ("turn", "deliver")):
                         if principal not in dropped:
                             dropped[principal] = (body, data, request["sequence"])
                             self.close_connection = True
@@ -93,17 +93,22 @@ def run(node, cli, counter, byte_log, probe, delivery):
             authority = start()
             # Workload identifiers and data are caller-defined. The node binary
             # and configuration remain identical for both applications.
-            pids = [command({"spawn": {"code": 101, "initial_state": b"0".hex()}}),
-                    command({"spawn": {"code": 202, "initial_state": b"seed:".hex()}})]
+            pids = [command({"spawn": {"code": 101}}),
+                    command({"spawn": {"code": 202}})]
             sink = command({"spawn": {}})
             configs = []
-            for index, (pid, initial, expected) in enumerate(zip(pids, [b"7", b"alpha\0"], [b"7", b"seed:alpha\0"]), 1):
+            for index, (pid, initial, expected) in enumerate(zip(pids, [b"7", b"alpha\0"], [b"7", b"alpha\0"]), 1):
                 seed, public = key(f"worker-{index}.key")
                 command({"grant": {"subject": index, "public_key": public, "permissions": 88, "pid": pid}})
-                command({"own": {"pid": pid, "expected_generation": 0, "worker": index}})
+                resource = command({"create_resource": {"writer": pid}})
+                command({"grant_resource": {"resource": resource, "subject": index, "permissions": 7}})
+                command({"grant_resource": {"resource": resource, "subject": 0, "permissions": 7}})
+                association = "counter" if index == 1 else "data"
+                command({"associate": {"pid": pid, "name": association.encode().hex(), "resource": resource}})
+                command({"own": {"pid": pid, "expected_generation": 1, "worker": index}})
                 command({"send": {"pid": pid, "value": initial.hex()}})
                 configs.append({"url": f"http://127.0.0.1:{proxy.server_port}", "realm": 61, "principal": index,
-                                "pid": pid, "publish_to": pids[1] if index == 1 else sink, "generation": 1, "seed_file": str(seed),
+                                "pid": pid, "publish_to": pids[1] if index == 1 else sink, "generation": 2, "state_association": association, "seed_file": str(seed),
                                 "expected_state": expected.hex(), "consumed": 1})
             def check(index, phase):
                 path = store.root / f"probe-{index}.json"
@@ -152,10 +157,10 @@ def run(node, cli, counter, byte_log, probe, delivery):
             courier = subprocess.Popen([str(delivery), str(courier_config)], stdout=courier_log, stderr=subprocess.STDOUT)
             children.append(courier)
             read = store.root / "sink.json"
-            read.write_text(json.dumps({"realm": 61, "principal": 0, "sequence": 0, "command": {"inspect": sink}}))
+            read.write_text(json.dumps({"realm": 61, "principal": 0, "kind": {"process": sink}}))
             deadline = time.monotonic() + 20
             while True:
-                sink_view = json.loads(subprocess.check_output([str(cli), "view", str(root), str(read), url], timeout=10))
+                sink_view = json.loads(subprocess.check_output([str(cli), "query", str(root), str(read), url], timeout=10))["body"]["process"]
                 if sink_view["process"]["admitted"] == 1 and 3 in verified_retries:
                     break
                 assert courier.poll() is None and time.monotonic() < deadline, "courier failed to make progress"
@@ -166,24 +171,24 @@ def run(node, cli, counter, byte_log, probe, delivery):
             subprocess.run([str(delivery), str(courier_config), "--check"], check=True, timeout=10)
             subprocess.run([str(delivery), str(courier_config), "--once"], check=True, timeout=10)
             status_query = store.root / "delivery-status.json"
-            status_query.write_text(json.dumps({"realm": 61, "principal": 3}))
-            status = json.loads(subprocess.check_output([str(cli), "delivery", str(seed), str(status_query), url], timeout=10))
-            assert status["pending"] == 0 and status["principal_sequence"] == 2, status
-            source = sink_view["input"]["origin"]["source"]["process"]
+            status_query.write_text(json.dumps({"realm": 61, "principal": 3, "kind": {"delivery": {}}}))
+            status = json.loads(subprocess.check_output([str(cli), "query", str(seed), str(status_query), url], timeout=10))
+            assert status["body"]["delivery"]["next"] is None and status["principal_sequence"] == 2, status
+            source = sink_view["input"]["origin"]["process"]
             assert source["pid"] == pids[1] and source["output"] == 2
             assert sink_view["process"]["admitted"] == 1
-            assert sink_view["input"]["value"] == b"seed:alpha\0".hex()
+            assert sink_view["input"]["value"] == b"alpha\0".hex()
             command({"send": {"pid": pids[0], "value": b"5".hex()}})
             authority.kill()
             authority.wait(timeout=10)
             store.stop()
             store.start()
             authority = start()
-            for index, expected in enumerate([b"12", b"seed:alpha\x007"]):
-                command({"own": {"pid": pids[index], "expected_generation": 1, "worker": index+1}})
+            for index, expected in enumerate([b"12", b"alpha\x007"]):
+                command({"own": {"pid": pids[index], "expected_generation": 2, "worker": index+1}})
                 check(index, "stale")
                 call(index, expected_error="StaleActivation")
-                configs[index].update(generation=2, expected_state=expected.hex(), consumed=2)
+                configs[index].update(generation=3, expected_state=expected.hex(), consumed=2)
                 check(index, "reject")
                 call(index)
                 check(index, "verify")

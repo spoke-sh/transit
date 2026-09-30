@@ -7,7 +7,7 @@ pub const Saved = struct { pid: u64, resource: u64, generation: u64 = 2 };
 const Handler = struct {
     initialize: bool,
     binding: ?s.Registry.Binding = null,
-    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Handler = @ptrCast(@alignCast(raw.?));
         if (self.initialize) {
             try s.Registry.create(turn, 1);
@@ -28,7 +28,7 @@ pub fn apply(init: std.process.Init, admin: *Admin, saved: *?Saved, operation: @
     }
     const request: s.Registry.Request = .{ .scope = 1, .name = try s.Registry.Name.init("http-caller"), .operation = operation, .destination = destination, .expected_revision = revision };
     _ = try admin.submit(.{ .send = .{ .pid = saved.*.?.pid, .value = try (s.Frame{ .kind = .cast, .payload = try request.encode() }).encode() } });
-    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65538, .pid = saved.*.?.pid, .generation = saved.*.?.generation, .key = key }, "state");
+    var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65538, .pid = saved.*.?.pid, .generation = saved.*.?.generation, .key = key }, "state");
     var handler: Handler = .{ .initialize = initialize };
     for (0..32) |_| switch (try server.step(.{ .context = &handler, .handle = Handler.handle }, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000)) {
         .committed => return handler.binding orelse error.MissingRegistryResult,

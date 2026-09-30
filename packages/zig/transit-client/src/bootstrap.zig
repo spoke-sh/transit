@@ -27,7 +27,7 @@ fn growingOwned(process: wire.protocol.Growth.Process, principal: u64, generatio
 }
 /// No provider calls, key persistence or authority mutation. A trusted operator
 /// must authenticate the physical registration, grant this key/resource access
-/// and record `own`. This is distinct from v2 provider-bound activation below.
+/// and record `own`. This is distinct from v1 provider-bound activation below.
 pub fn awaitGrowingOwnership(client: *wire.Client, registration: GrowingRegistration, key: wire.protocol.Ed25519.KeyPair, timeout_ms: u32) !void {
     if (registration.version != 1 or registration.realm == 0 or registration.realm > wire.protocol.max_counter or registration.pid == 0 or registration.pid > wire.protocol.max_counter or registration.principal == 0 or registration.principal > wire.protocol.max_counter or registration.generation == 0 or registration.generation > wire.protocol.max_counter or timeout_ms == 0 or timeout_ms > 300000 or !std.mem.eql(u8, &registration.public_key, &key.public_key.toBytes())) return error.InvalidGrowingBootstrap;
     const io = client.http.io;
@@ -46,7 +46,7 @@ pub fn awaitGrowingOwnership(client: *wire.Client, registration: GrowingRegistra
         const elapsed = started.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds();
         if (elapsed >= timeout_ms) return error.BootstrapTimeout;
         client.timeout_ms = @min(request_timeout, timeout_ms - @as(u32, @intCast(@max(0, elapsed))));
-        const response = client.queryGrowing(.{ .realm = registration.realm, .principal = registration.principal, .kind = .{ .process = registration.pid } }, key) catch |err| switch (err) {
+        const response = client.query(.{ .realm = registration.realm, .principal = registration.principal, .kind = .{ .process = registration.pid } }, key) catch |err| switch (err) {
             error.AccessDenied, error.AuthorityTimeout, error.AuthorityUnavailable, error.HttpConnectionClosing => {
                 try io.sleep(.fromMilliseconds(100), .awake);
                 continue;
@@ -76,7 +76,7 @@ test "growing registration pins expected ownership without adopting successors" 
     try t.expectError(error.BlockedProcess, growingOwned(process, 65536, 6));
 }
 
-pub fn awaitActivation(client: *wire.Client, realm: u64, pid: u64, principal: u8, key: wire.protocol.Ed25519.KeyPair) !u64 {
+pub fn awaitActivation(client: *wire.Client, realm: u64, pid: u64, principal: u64, key: wire.protocol.Ed25519.KeyPair) !u64 {
     const io = client.http.io;
     // Bootstrap logs have a bounded provider transport. Expected authentication
     // denials must not push the sole public registration out of that window.
@@ -89,10 +89,11 @@ pub fn awaitActivation(client: *wire.Client, realm: u64, pid: u64, principal: u8
     try writer.interface.writeByte('\n');
     try writer.interface.flush();
     while (true) {
-        const view = client.view(.{ .realm = realm, .principal = principal, .sequence = 0, .command = .{ .inspect = pid } }, key) catch {
+        const response = client.query(.{ .realm = realm, .principal = principal, .kind = .{ .process = pid } }, key) catch {
             try io.sleep(.fromMilliseconds(200), .awake);
             continue;
         };
+        const view = response.body.process;
         if (view.process.lifecycle != .running) return error.StaleActivation;
         if (view.process.owner == principal and view.process.binding != null and view.process.binding.?.activation != null) {
             // Pin exactly once. A later ownership change must fence this host,

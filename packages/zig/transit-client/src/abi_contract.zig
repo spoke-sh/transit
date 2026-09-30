@@ -26,6 +26,7 @@ pub fn main(init: std.process.Init) !void {
     try json.beginObject();
     try json.objectField("version");
     try json.write(abi.version);
+    try p.Schema.field(&json, "definition", p.Growth.current_definition);
     try p.Schema.field(&json, "minimum_stack_bytes", abi.minimum_stack_bytes);
     try p.Schema.field(&json, "limits", .{ .max_counter = p.max_counter, .value_bytes = p.Value.max_bytes, .max_body = p.max_body, .host_line_bytes = abi.host.max_line_bytes, .host_config_bytes = abi.host.max_config_bytes });
     inline for (.{ "statuses", "kinds" }, .{ abi.Status, abi.Kind }) |name, T| {

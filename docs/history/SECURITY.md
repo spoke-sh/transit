@@ -10,7 +10,7 @@ Provision identity, permissions and worker ownership separately. Start with the
 [Board access](../reference/board-api.md) for private inspection.
 
 Status: required security boundaries with a bounded M1 implementation. The
-[v2 protocol](../../contracts/TRANSIT_V2.md) and [service contract](../../contracts/SERVICE_V2.md)
+[v2 protocol](../../contracts/TRANSIT_V1.md) and [service contract](../../contracts/SERVICE_V1.md)
 specify signed requests, grants, revocation, and scoped reads; [state v1](../../contracts/STATE_V1.md) adds
 resource grants and read-view authority.
 [The proof guide](../../tests/README.md#service-and-reference-evidence) records
@@ -83,13 +83,13 @@ body, change its lifetime, or delegate the receiver's rights.
 Durable admissions and public handler inputs carry an authority-derived,
 versioned origin: external principal/policy revision, source PID/turn/output, or
 effect/attempt/executor. Payloads cannot select this evidence. General delegation
-is not implemented. The [input contract](../../contracts/TRANSIT_V2.md) and shared
+is not implemented. The [input contract](../../contracts/TRANSIT_V1.md) and shared
 fixtures define the envelope; origin survives eligible catalog collection.
 
 Automatic delivery uses a dedicated principal with the delivery capability,
 optionally scoped to a destination PID. Its separate current send grant determines
 whether admission is accepted or terminally denied. The courier can read pending
-counts and its sequence through [the signed delivery endpoint](../../contracts/SERVICE_V2.md);
+counts and its sequence through [the signed delivery endpoint](../../contracts/SERVICE_V1.md);
 it needs no mailbox values, execution rights, root seed or storage access.
 Receiving a message does not automatically grant the sender's permissions to
 the receiver or let the sender use all of the receiver's privileges. Delegation
@@ -108,7 +108,7 @@ Resource revocation fences reads, commits and receipt reconciliation even after
 a read view has been released; see the [state contract](../../contracts/STATE_V1.md).
 
 Metadata inspection does not establish entry-read authority. The growing
-profile's capability-gated [`read_access` observation](../../contracts/TRANSIT_V3.md)
+profile's capability-gated [`read_access` observation](../../contracts/TRANSIT_V1.md)
 checks current inspect/read grants, PID association scope and lifetime without
 disclosing entries. A host may retain the caller's signature for repeated checks,
 but must submit it to current authority each time; the response is not a bearer
@@ -267,7 +267,7 @@ one second; these disclosure bounds are not instantaneous revocation. Expired
 leases stop reads even without an observer. Physical recovery and cursor signing
 key reuse cannot extend a lease or restore a revoked grant.
 
-M13's [public Table query profile](../../contracts/PUBLIC_QUERY_V1.md) uses a
+M13's [public Table query profile](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) uses a
 separate configured query identity, durable requester binding and source peer
 policy. Inspection credentials remain read-only. Board's optional POST route
 requires exact Origin/JSON checks and accepts only bounded query operations;

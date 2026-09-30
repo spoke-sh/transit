@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 module Transit
   module Station
-    # Typed callers over the shared signed v2 query implementation.
+    # Typed callers over the shared signed v1 query implementation.
     module Unified
       TYPES = %i[int64 uint64 float64 boolean utf8 binary].freeze
       STATES = %i[missing null type_error value conflict].freeze
@@ -49,7 +49,7 @@ module Transit
           raise ArgumentError, 'Expected resource and decoders' unless resource.is_a?(ResourceRef) && key.is_a?(Decoder) && value.is_a?(Decoder)
           super(resource: resource, prefix: Internal.bytes(prefix, 32).freeze, key: key, value: value)
         end
-        def wire = { 'version' => 2, 'resource' => resource.resource, 'source' => { 'kv' => {
+        def wire = { 'version' => 1, 'resource' => resource.resource, 'source' => { 'kv' => {
           'prefix' => prefix.unpack1('H*'), 'key' => key.wire, 'value' => value.wire } } }
       end
       TableSource = Data.define(:resource, :table, :names, :value_type) do
@@ -58,7 +58,7 @@ module Transit
           super(resource: resource, table: Internal.integer(table, max: (1 << 32)-1),
             names: names.map { |name| Internal.text(name, 64).freeze }.freeze, value_type: value_type)
         end
-        def wire = { 'version' => 2, 'resource' => resource.resource, 'source' => { 'table' => {
+        def wire = { 'version' => 1, 'resource' => resource.resource, 'source' => { 'table' => {
           'id' => table, 'names' => names, 'value_type' => value_type.to_s } } }
       end
       Projection = Data.define(:column, :path, :relative, :mode, :text_bytes, :text_steps) do
@@ -78,7 +78,7 @@ module Transit
         def resource = reference.resource
         def wire
           ref = reference
-          { 'version' => 2, 'resource' => resource.resource, 'source' => { 'document' => {
+          { 'version' => 1, 'resource' => resource.resource, 'source' => { 'document' => {
             'reference' => { 'resource' => resource.resource, 'document' => ref.document.to_s, 'epoch' => ref.epoch.to_s,
               'type_revision' => ref.type_revision, 'revision' => ref.revision.to_s }, 'change_format' => 1,
             'expand' => expand, 'projections' => projections.map(&:wire) } } }
@@ -106,7 +106,7 @@ module Transit
           super(projection: projection.map { |v| Internal.integer(v, min: 0, max: 7) }.freeze, predicate: predicate,
             limit: limit.nil? ? nil : Internal.integer(limit, min: 0, max: U64_MAX), aggregate: aggregate)
         end
-        def wire = { 'version' => 2, 'projection' => projection, 'predicate' => predicate&.wire || { 'all' => {} },
+        def wire = { 'version' => 1, 'projection' => projection, 'predicate' => predicate&.wire || { 'all' => {} },
           'limit' => limit&.to_s, 'aggregate' => aggregate.to_s }
       end
       Budgets = Data.define(:pages, :segments, :result_bytes) do
@@ -241,7 +241,7 @@ module Transit
               'query_client' => { 'connection' => connection.wire(credential.principal), 'timeout_ms' => config.timeout_ms } }, config.native_host)
             begin
               caps = bridge.unified_query({ 'capabilities' => {} }).fetch('capabilities')
-              raise UnsupportedCapability, 'Native query caller lacks v2 sources' unless caps['version'] == 2 && %w[kv table document].all? { |kind| caps[kind] }
+              raise UnsupportedCapability, 'Native query caller lacks v1 sources' unless caps['version'] == 1 && %w[kv table document].all? { |kind| caps[kind] }
               bridge
             rescue Exception
               bridge.close

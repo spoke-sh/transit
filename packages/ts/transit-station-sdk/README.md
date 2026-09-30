@@ -31,7 +31,7 @@ try {
 }
 ```
 
-`config` explicitly selects `growing_v3`, URL, activation, association and optional
+`config` explicitly selects `native_v1`, URL, activation, association and optional
 query-result support. `Activation(ProcessRef, principal, generation, seedFile)`
 does not read its seed; opening the owned native host does. `nativeHost` overrides
 installed executable discovery. Both host versions and authority capabilities
@@ -51,6 +51,6 @@ The [Document guide](docs/documents.md) covers typed structured/text edits,
 scoped writer jobs and asynchronous current-policy reads. `bigint` identities,
 owned bytes and validated native responses preserve the shared Zig contract.
 
-The [unified query guide](docs/unified-query.md) covers explicit v2 sources,
+The [unified query guide](docs/unified-query.md) covers explicit v1 sources,
 persisted admission commands, current-policy results and owned nested Arrow.
 Qualification is tracked per source and SDK.

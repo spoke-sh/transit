@@ -23,7 +23,7 @@ const Context = struct {
         std.debug.print("gateway transport: {s}\n", .{@errorName(err)});
     }
     pub fn isControl(_: *Context, request: *std.http.Server.Request) bool {
-        return std.mem.eql(u8, request.head.target, "/v3/command") or
+        return std.mem.eql(u8, request.head.target, "/v1/command") or
             (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
     }
     pub fn handle(self: *Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
@@ -39,7 +39,7 @@ const Context = struct {
             break :control true;
         } else false;
         const health = request.head.method == .GET and std.mem.eql(u8, request.head.target, "/health");
-        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v3/command") or std.mem.eql(u8, request.head.target, "/v3/query"))))
+        if (!health and !(request.head.method == .POST and (std.mem.eql(u8, request.head.target, "/v1/command") or std.mem.eql(u8, request.head.target, "/v1/query"))))
             return http.respond(request, .not_found, "{\"err\":\"NotFound\"}");
         // Reading a request body invalidates Head string slices. Own the target
         // before that boundary, including for a bodyless health request.

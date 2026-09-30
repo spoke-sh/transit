@@ -1,6 +1,5 @@
 """Independent maintenance deletes opted-in immutable payloads, keeping evidence."""
 import json
-from wire_values import encode_command, decode_view
 from pathlib import Path
 import subprocess
 import sys
@@ -23,12 +22,12 @@ def run(node, cli, proof):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
-        config.write_text(json.dumps({"genesis": {"realm": 54, "root_key": public, "retry_policy": "last_per_principal"},
+        config.write_text(json.dumps({"genesis": {"realm": 54, "root_key": public, "allow_history_trim": True},
             "ursula_url": store.url, "bucket": "transit-deletion", "journal": "authority", "port": port,
             "maintenance": {"principal": 0, "seed_file": str(seed), "interval_ms": 50, "checkpoint_every_records": 4}}))
         request = store.root / "request.json"
-        request.write_text(json.dumps({"realm": 54, "principal": 0, "sequence": 0, "command": {"inspect": 1}}))
-        signed = subprocess.check_output([str(cli), "sign", str(seed), str(request)], timeout=10)
+        request.write_text(json.dumps({"realm": 54, "principal": 0, "kind": {"inspection": {"resource": "payloads", "pid": 1}}}))
+        signed = subprocess.check_output([str(cli), "sign-query", str(seed), str(request)], timeout=10)
         children, logs = [], []
         try:
             for args in ([], ["--maintain"]):
@@ -39,18 +38,17 @@ def run(node, cli, proof):
             limit = time.monotonic() + 20
             while True:
                 try:
-                    response = store.http.open(urllib.request.Request(url + "/v2/view", signed,
+                    response = store.http.open(urllib.request.Request(url + "/v1/query", signed,
                         {"Content-Type": "application/json"}), timeout=5)
                 except urllib.error.HTTPError as error:
                     assert error.code == 409
                     time.sleep(0.05)
                     continue
                 with response:
-                    view = decode_view(json.load(response))
+                    view = json.load(response)["body"]["inspection"]
                 payloads = {value["id"]: value for value in view["payloads"] if value}
                 if payloads[2]["phase"] == "deleted":
                     assert payloads[3]["phase"] == "ready"
-                    assert view["process"]["lifecycle"] == "terminated"
                     break
                 assert all(child.poll() is None for child in children)
                 assert time.monotonic() < limit, view

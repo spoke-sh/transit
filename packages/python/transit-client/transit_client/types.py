@@ -84,8 +84,8 @@ class ClientConfig:
     timeout_ms: int = 5000
     native_directory: Path | None = field(default=None, repr=False)
     def __post_init__(self) -> None:
-        if self.profile != 'growing_v3':
-            raise ValueError('The public client requires explicit growing_v3; legacy operations use the raw binding')
+        if self.profile != 'native_v1':
+            raise ValueError('The public client requires explicit native_v1; legacy operations use the raw binding')
         if not isinstance(self.url, str):
             raise TypeError('url must be text')
         if len(self.url) > MAX_BODY or len(self.url.encode()) > MAX_BODY:

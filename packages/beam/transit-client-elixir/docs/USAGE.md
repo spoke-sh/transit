@@ -12,7 +12,7 @@ Elixir 1.18 and the pinned Nix native closure form the baseline.
 ```elixir
 alias Transit.Client
 
-{:ok, config} = Client.config("http://127.0.0.1:18101", :growing_v3)
+{:ok, config} = Client.config("http://127.0.0.1:18101", :native_v1)
 {:ok, peer} = Client.process(72, durable_pid)
 {:ok, credential} = Client.credential(72, principal, seed_file)
 {:ok, client} = Client.open(config)

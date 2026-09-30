@@ -24,10 +24,10 @@ pub const Name = struct {
 };
 pub const Column = struct { name: Name, type: Type };
 pub const Schema = struct {
-    version: u8 = 2,
+    version: u8 = 1,
     columns: []const Column,
     pub fn validate(self: Schema) !void {
-        if (self.version != 2) return error.UnsupportedSchema;
+        if (self.version != 1) return error.UnsupportedSchema;
         if (self.columns.len == 0 or self.columns.len > max_columns) return error.InvalidColumnCount;
         for (self.columns, 0..) |item, index| {
             if (item.name.len > 32 or !std.meta.eql(item.name, try Name.init(item.name.slice()))) return error.InvalidColumnName;
@@ -41,7 +41,7 @@ pub const Schema = struct {
     pub fn fingerprint(self: Schema) ![32]u8 {
         try self.validate();
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.fuze.schema.v2\x00");
+        hash.update("transit.fuze.schema.v1\x00");
         hash.update(&.{@intCast(self.columns.len)});
         for (self.columns) |item| {
             hash.update(&.{ item.name.len, @backingInt(item.type) });

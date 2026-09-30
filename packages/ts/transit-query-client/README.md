@@ -23,7 +23,7 @@ The supplied read adapter owns transport and must validate its responses.
 type errors and concurrent alternatives. A source/result contract is evidence,
 not an access grant.
 
-Board now consumes the package for v2 transport, semantic values and full-result
+Board now consumes the package for v1 transport, semantic values and full-result
 verification. Focused types/transport/coverage checks and the actual native Table
 API/browser regression pass. `DraftSession` now owns one coalesced edit, one accepted finite query and one
 frozen native input above route lifetimes. Explicit enable/resume uses the recorded

@@ -37,6 +37,133 @@ const Journal = struct {
 };
 const Engine = growing.Engine(Journal, PageStore);
 
+test "incompatible v1 signatures and persisted heads cannot alter accepted history" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    // Independent old canonical bytes: the public v1 label is unchanged, but
+    // these bytes do not bind the current contract definition.
+    const old = "{\"version\":1,\"realm\":42,\"principal\":0,\"sequence\":1,\"command\":{\"spawn\":{\"allow_collection\":false,\"code\":1,\"work_before_ms\":null,\"settle_before_ms\":null}}}";
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update(g.request_domain);
+    hash.update(old);
+    const signed: g.SignedRequest = .{
+        .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } },
+        .signature = (try f.root_key.sign(&hash.finalResult(), null)).toBytes(),
+    };
+    const before = f.engine.head;
+    const writes = f.pages.writes;
+    try t.expectError(error.SignatureVerificationFailed, f.engine.submit(signed));
+    try t.expect(std.meta.eql(before, f.engine.head));
+    try t.expectEqual(writes, f.pages.writes);
+    try t.expectEqual(@as(u64, 1), try f.journal.tail());
+    try t.expectEqual(@as(u64, 0), (try f.engine.principal(0)).sequence);
+
+    const encoded = try std.json.Stringify.valueAlloc(t.allocator, before, .{});
+    defer t.allocator.free(encoded);
+    const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, encoded, .{});
+    defer parsed.deinit();
+    var head = parsed.value;
+    head.object.getPtr("definition").?.* = .{ .string = "previous-v1-definition" };
+    const foreign = try std.json.Stringify.valueAlloc(t.allocator, head, .{});
+    defer t.allocator.free(foreign);
+    try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(growing.Head, t.allocator, foreign, .{}));
+    _ = head.object.swapRemove("definition");
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, head, .{});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, std.json.parseFromSlice(growing.Head, t.allocator, missing, .{}));
+    const recovered = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expect(std.meta.eql(before, recovered.head));
+    try t.expectEqual(writes, f.pages.writes);
+}
+
+test "paged managed readiness and suspension preserve backlog and required recovery state" {
+    const Clock = struct {
+        now: core.Time.Sample = .{ .unix_ms = 10 },
+        fn read(context: *anyopaque) anyerror!core.Time.Sample {
+            return @as(*@This(), @ptrCast(@alignCast(context))).now;
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var clock: Clock = .{};
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const name = try core.Value.init("state");
+    const pid = try f.root(.{ .create = .{ .required = .{ name, null, null, null } } });
+    const input = try f.root(.{ .send = .{ .pid = pid, .value = .{} } });
+    try t.expectEqual(@as(?g.Input, null), (try f.query(0, .{ .process = pid })).body.process.input);
+    try t.expectError(error.InvalidLifecycle, f.root(.{ .own = .{ .pid = pid, .expected_generation = 0, .worker = 0 } }));
+    try t.expectError(error.MissingRequiredAssociation, f.root(.{ .initialize = .{ .pid = pid, .expected_generation = 0 } }));
+    const resource = try f.root(.{ .create_resource = .{ .writer = pid, .deadline_ms = 100 } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = core.protocol.State.all_permissions } });
+    _ = try f.root(.{ .associate = .{ .pid = pid, .name = name, .resource = resource } });
+    _ = try f.root(.{ .initialize = .{ .pid = pid, .expected_generation = 1 } });
+    _ = try f.root(.{ .own = .{ .pid = pid, .expected_generation = 2, .worker = 0 } });
+    try t.expectError(error.StateResourceExpired, f.root(.{ .@"suspend" = .{ .pid = pid, .expected_generation = 3, .resume_before_ms = 101 } }));
+    _ = try f.root(.{ .@"suspend" = .{ .pid = pid, .expected_generation = 3, .resume_before_ms = 90 } });
+    try t.expectEqual(@as(?g.Input, null), (try f.query(0, .{ .process = pid })).body.process.input);
+    try t.expectEqual(@as(u64, 0), (try f.engine.process(pid)).consumed);
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    try t.expectError(error.StaleGeneration, f.root(.{ .@"resume" = .{ .pid = pid, .expected_generation = 3 } }));
+    _ = try f.root(.{ .@"resume" = .{ .pid = pid, .expected_generation = 4 } });
+    try t.expectEqual(input, (try f.query(0, .{ .process = pid })).body.process.input.?.position);
+    _ = try f.root(.{ .@"suspend" = .{ .pid = pid, .expected_generation = 5, .resume_before_ms = 90 } });
+    clock.now = .{ .unix_ms = 90 };
+    try t.expectError(error.DeadlineExpired, f.root(.{ .@"resume" = .{ .pid = pid, .expected_generation = 6 } }));
+    _ = try f.root(.{ .expire_suspension = pid });
+    try t.expectEqual(.expired, (try f.engine.process(pid)).lifecycle);
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).cancelled);
+}
+
+test "paged runtime binding fences owners, retains resource reservations and recovers activation" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const other = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.execute) | core.permission(.inspect), .pid = pid } });
+    const resource = try f.root(.{ .create_resource = .{ .writer = pid } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 65536, .permissions = 1 } });
+    const epoch = (try f.engine.principal(65536)).epoch;
+    const intent: core.protocol.Runtime.Intent = .{ .pid = pid, .expected_revision = 0, .instance = @splat(1), .resource = @splat(2), .workload = @splat(3) };
+    const operation = try f.root(.{ .runtime_intent = intent });
+    try t.expectEqual(@as(u64, 1), (try f.engine.process(pid)).generation);
+    try t.expectError(error.RuntimeActivationRequired, f.root(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65536 } }));
+    var duplicate = intent;
+    duplicate.pid = other;
+    try t.expectError(error.ResourceAlreadyBound, f.root(.{ .runtime_intent = duplicate }));
+    const fresh = try core.Ed25519.KeyPair.generateDeterministic(@splat(9));
+    const activate: g.Command = .{ .activate = .{ .pid = pid, .revision = 1, .expected_generation = 1, .worker = 65536, .public_key = fresh.public_key.toBytes(), .worker_incarnation = @splat(5) } };
+    try t.expectError(error.ProviderNotReady, f.root(activate));
+    _ = try f.root(.{ .runtime_observe = .{ .pid = pid, .revision = 1, .operation = operation, .incarnation = @splat(4), .outcome = .ready } });
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = activate }, f.root_key);
+    f.journal.fail = .after;
+    try t.expectError(error.LostAcknowledgement, f.engine.submit(signed));
+    f.journal.fail = .none;
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    _ = try f.engine.submit(signed);
+    f.root_sequence += 1;
+    const active = try f.engine.process(pid);
+    try t.expectEqual(@as(?u64, 65536), active.owner);
+    try t.expectEqual(@as(u64, 2), active.generation);
+    try t.expectEqual(epoch, (try f.engine.principal(65536)).epoch);
+    try t.expectEqual(@as(u64, 0), (try f.engine.principal(65536)).sequence);
+    try t.expectError(error.AlreadyActivated, f.root(activate));
+    const stopped = try f.root(.{ .runtime_intent = .{ .pid = pid, .expected_revision = 1, .instance = intent.instance, .resource = intent.resource, .workload = intent.workload, .desired = .stopped } });
+    try t.expectEqual(@as(?u64, null), (try f.engine.process(pid)).owner);
+    _ = try f.root(.{ .runtime_observe = .{ .pid = pid, .revision = 2, .operation = stopped, .incarnation = @splat(4), .outcome = .stopped } });
+    const upgrade = try f.root(.{ .runtime_upgrade = .{ .pid = pid, .expected_revision = 2, .expected_workload = intent.workload, .workload = @splat(6), .expected_code = 1, .expected_state_revision = 0 } });
+    try t.expectError(error.InvalidBinding, f.root(.{ .runtime_observe = .{ .pid = pid, .revision = 3, .operation = upgrade, .incarnation = @splat(4), .outcome = .ready } }));
+    _ = try f.root(.{ .runtime_observe = .{ .pid = pid, .revision = 3, .operation = upgrade, .incarnation = @splat(4), .outcome = .stopped } });
+    _ = try f.root(.{ .terminate = pid });
+    try t.expectError(error.ResourceAlreadyBound, f.root(.{ .runtime_intent = duplicate }));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectEqual(.terminated, (try f.engine.process(pid)).lifecycle);
+    try t.expectError(error.RetiredProcess, f.root(activate));
+}
+
 test "growing maintenance bounds each pass and preserves terminal work during clock failure" {
     const work = @import("growing_work.zig");
     const state = @import("growing_state.zig");
@@ -653,7 +780,9 @@ test "growing captured reads retain a version but never retain permission or own
     // Narrowing principal scope invalidates all old resource grants by epoch.
     _ = try fixture.root(.{ .grant = .{ .subject = 65536, .public_key = fixture.worker_key.public_key.toBytes(), .permissions = core.all_permissions, .pid = reader } });
     try t.expectError(error.Forbidden, fixture.query(65536, .{ .process = writer }));
-    try t.expectError(error.Forbidden, fixture.query(65536, .{ .processes = .{} }));
+    const scoped = try fixture.query(65536, .{ .processes = .{} });
+    try t.expectEqual(reader, scoped.body.processes.entries[0].?.pid);
+    try t.expectEqual(@as(?g.Process, null), scoped.body.processes.entries[1]);
     try t.expectError(error.Forbidden, fixture.query(65536, .{ .entries = .{ .resource = resource, .revision = revision } }));
     fixture.pages.missing = true;
     try t.expectError(error.PageUnavailable, fixture.query(0, .{ .process = reader }));
@@ -1527,4 +1656,221 @@ test "snapshot ranges obey byte budgets and preserve exact continuation" {
     try t.expectEqual(@as(usize, 17), count);
     fixture.now = result.snapshot.deadline_ms;
     try t.expectError(error.QueryExpired, f.query(0, .{ .snapshot_read = .{ .snapshot = .{ .existing = result.snapshot.id }, .finish = true } }));
+}
+
+test "native inspection pages preserve scoped history, backlog and current authorization" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.initProfile(16, 64, true);
+    const pid = try f.root(.{ .spawn = .{} });
+    const hidden = try f.root(.{ .spawn = .{} });
+    for (0..g.page_size + 3) |n| _ = try f.root(.{ .send = .{ .pid = pid, .value = core.Value.integer(@intCast(n)) } });
+    _ = try f.root(.{ .send = .{ .pid = hidden, .value = try core.Value.init("secret") } });
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.inspect), .pid = pid } });
+    const first = (try f.query(65536, .{ .inspection = .{ .resource = .mailbox, .pid = pid } })).body.inspection;
+    try t.expectEqual(@as(u16, g.page_size), first.scanned);
+    try t.expect(!first.complete and first.next != null);
+    const second = (try f.query(65536, .{ .inspection = .{ .resource = .mailbox, .pid = pid, .after = first.next.?, .cut = first.cut } })).body.inspection;
+    try t.expect(second.complete);
+    try t.expectEqual(@as(u16, 3), second.scanned);
+    const catalog = (try f.query(65536, .{ .processes = .{} })).body.processes;
+    try t.expectEqual(pid, catalog.entries[0].?.pid);
+    try t.expectEqual(null, catalog.entries[1]);
+    try t.expectError(error.Forbidden, f.query(65536, .{ .inspection = .{ .resource = .history, .pid = hidden } }));
+    const history = (try f.query(65536, .{ .inspection = .{ .resource = .history, .pid = pid } })).body.inspection;
+    try t.expectEqual(.spawn, history.events[0].?.kind);
+    try t.expect(history.events[1].?.admitted);
+    _ = try f.root(.{ .checkpoint = {} });
+    try t.expectError(error.HistoryReclaimed, f.query(65536, .{ .inspection = .{ .resource = .history, .pid = pid, .cut = history.cut } }));
+    const backlog = (try f.query(65536, .{ .inspection = .{ .resource = .mailbox, .pid = pid } })).body.inspection;
+    try t.expect(backlog.events[0].?.admitted);
+    try t.expectEqual(.pending, backlog.events[0].?.mailbox_status.?);
+    try t.expectEqual(.prefix_reclaimed, backlog.history);
+    f.journal.race_at = f.journal.tail_calls + 2;
+    try t.expectError(error.Conflict, f.query(65536, .{ .inspection = .{ .resource = .process, .pid = pid } }));
+    f.journal.race_at = null;
+    _ = try f.root(.{ .revoke = 65536 });
+    try t.expectError(error.Forbidden, f.query(65536, .{ .inspection = .{ .resource = .process, .pid = pid } }));
+}
+
+test "native standalone payloads require creation identity, retirement opt-in and deletion evidence" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const payload = try f.root(.{ .declare_payload = .{ .pid = pid, .sha256 = @splat(9), .bytes = 32, .allow_delete = true } });
+    const ref: core.protocol.PayloadRef = .{ .pid = pid, .payload = payload };
+    _ = try f.root(.{ .grant = .{ .subject = 65536, .public_key = f.worker_key.public_key.toBytes(), .permissions = core.permission(.admin) | core.permission(.inspect), .pid = pid } });
+    try t.expectError(error.Forbidden, f.engine.submit(try f.worker(1, .{ .payload_ready = ref })));
+    _ = try f.root(.{ .payload_ready = ref });
+    try t.expectError(error.PayloadInUse, f.root(.{ .retire_payload = ref }));
+    try t.expectError(error.PayloadPhase, f.root(.{ .payload_deleted = ref }));
+    const kept = try f.root(.{ .declare_payload = .{ .pid = pid, .sha256 = @splat(8), .bytes = 8 } });
+    _ = try f.root(.{ .payload_ready = .{ .pid = pid, .payload = kept } });
+    _ = try f.root(.{ .terminate = pid });
+    try t.expectError(error.RetentionNotEnabled, f.root(.{ .retire_payload = .{ .pid = pid, .payload = kept } }));
+    _ = try f.root(.{ .retire_payload = ref });
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    const retiring = (try f.query(65536, .{ .inspection = .{ .resource = .payloads, .pid = pid } })).body.inspection;
+    try t.expectEqual(.retiring, retiring.payloads[0].?.phase);
+    try t.expectEqual(null, retiring.payloads[0].?.deleted_at);
+    _ = try f.root(.{ .payload_deleted = ref });
+    const deleted = (try f.query(65536, .{ .inspection = .{ .resource = .payloads, .pid = pid } })).body.inspection;
+    try t.expectEqual(.deleted, deleted.payloads[0].?.phase);
+    try t.expect(deleted.payloads[0].?.deleted_at != null);
+}
+
+test "opted-in catalog collection preserves pending admissions, permanent identity and exact receipts" {
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const ordinary = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .terminate = ordinary });
+    try t.expectError(error.RetentionNotEnabled, f.root(.{ .collect = .{ .pid = ordinary, .id = ordinary, .kind = .process } }));
+    const source = try f.root(.{ .spawn = .{ .allow_collection = true } });
+    const destination = try f.root(.{ .spawn = .{} });
+    _ = try f.root(.{ .own = .{ .pid = source, .worker = 0, .expected_generation = 0 } });
+    const turn = try f.emit(source, .{ .{ .pid = destination, .value = try core.Value.init("accepted") }, null, null, null }, null);
+    const output = (try f.query(0, .{ .outputs = .{} })).body.outputs.entries[0].?;
+    try t.expectError(error.PendingWork, f.root(.{ .collect = .{ .pid = source, .id = output.id, .kind = .output } }));
+    const delivered = try f.root(.{ .deliver = output.id });
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .collect = .{ .pid = source, .id = output.id, .kind = .output } } }, f.root_key);
+    const receipt = try f.engine.submit(signed);
+    f.root_sequence += 1;
+    _ = try f.root(.{ .terminate = source });
+    while (true) {
+        _ = try f.root(.{ .collect = .{ .pid = source, .id = source, .kind = .process } });
+        _ = f.engine.process(source) catch |err| {
+            try t.expectEqual(error.RetiredProcess, err);
+            break;
+        };
+    }
+    try t.expectEqual(receipt, try f.engine.submit(signed));
+    const input = (try f.query(0, .{ .process = destination })).body.process.input.?;
+    try t.expectEqual(delivered, input.position);
+    try t.expectEqualDeep(g.Origin{ .process = .{ .pid = source, .turn = turn, .output = output.id } }, input.origin);
+    try t.expectEqualStrings("accepted", input.value.slice());
+    try t.expectError(error.RetiredProcess, f.root(.{ .send = .{ .pid = source, .value = .{} } }));
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    try t.expectError(error.RetiredProcess, f.engine.process(source));
+    try t.expectEqual(receipt, try f.engine.submit(signed));
+}
+
+test "resource collection is paged and cannot erase a live consumer association" {
+    const Clock = struct {
+        fn read(_: *anyopaque) anyerror!core.Time.Sample {
+            return .{ .unix_ms = 10 };
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    var clock: u8 = 0;
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const owner = try f.root(.{ .spawn = .{ .allow_collection = true } });
+    const reader = try f.root(.{ .spawn = .{} });
+    const resource = try f.root(.{ .create_resource = .{ .writer = owner, .owned = false, .history_ms = 0 } });
+    _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = 7 } });
+    _ = try f.root(.{ .associate = .{ .pid = reader, .name = try core.Value.init("optional"), .resource = resource, .required = false } });
+    _ = try f.root(.{ .associate = .{ .pid = owner, .name = try core.Value.init("state"), .resource = resource } });
+    _ = try f.root(.{ .own = .{ .pid = owner, .worker = 0, .expected_generation = 1 } });
+    for (0..3) |batch| {
+        const input = try f.root(.{ .send = .{ .pid = owner, .value = .{} } });
+        const process = try f.engine.process(owner);
+        const metadata = (try f.query(0, .{ .resource = resource })).body.resource;
+        const view = try f.root(.{ .open_view = .{ .pid = owner, .generation = 2, .input = input, .expected_revision = process.revision, .resource = resource, .revision = metadata.revision, .deadline_ms = 100 } });
+        var turn: g.Turn = .{ .pid = owner, .generation = 2, .input = input, .expected_revision = process.revision, .views = .{ view, null, null, null }, .write_view = view };
+        for (&turn.mutations, 0..) |*mutation, index| mutation.* = .{ .key = try core.Value.init(&.{@intCast(batch * 4 + index)}), .value = core.Value.integer(@intCast(index)) };
+        _ = try f.root(.{ .turn = turn });
+    }
+    _ = try f.root(.{ .terminate = owner });
+    _ = try f.root(.{ .retire_resource = resource });
+    const request: g.Collection = .{ .pid = owner, .id = resource, .kind = .resource };
+    try t.expectError(error.PendingWork, f.root(.{ .collect = request }));
+    _ = try f.root(.{ .reclaim_resource = resource }); // At most eight entries.
+    try t.expectEqual(@as(u64, 4), (try f.query(0, .{ .resource = resource })).body.resource.entries);
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    _ = try f.root(.{ .reclaim_resource = resource }); // Four remaining entries.
+    try t.expectEqual(@as(u64, 0), (try f.query(0, .{ .resource = resource })).body.resource.entries);
+    try t.expectError(error.StateResourceInUse, f.root(.{ .collect = request }));
+    _ = try f.root(.{ .terminate = reader });
+    _ = try f.root(.{ .collect = request }); // Detach retired associations.
+    try t.expectEqual(@as(?g.Association, null), (try f.query(0, .{ .association = .{ .pid = reader, .name = try core.Value.init("optional") } })).body.association);
+    _ = try f.root(.{ .collect = request }); // Current grants.
+    _ = try f.root(.{ .collect = request }); // Resource metadata and indexes.
+    try t.expectError(error.Forbidden, f.query(0, .{ .resource = resource }));
+    // Restarted maintenance rotates six families and resumes one bounded page
+    // per family at a time; the schedule must still finish in finite work.
+    var scan: growing.Maintenance = .{};
+    for (0..256) |_| {
+        if (try scan.next(&f.engine, null)) |command| _ = try f.root(command);
+        _ = f.engine.process(owner) catch |err| {
+            try t.expectEqual(error.RetiredProcess, err);
+            break;
+        };
+    }
+    try t.expectError(error.RetiredProcess, f.engine.process(owner));
+}
+
+test "resource history is unlimited by default and minimum age uses trusted uncertainty bounds" {
+    const Clock = struct {
+        now: core.Time.Sample = .{ .unix_ms = 100, .error_ms = 5 },
+        fn read(raw: *anyopaque) anyerror!core.Time.Sample {
+            return @as(*@This(), @ptrCast(@alignCast(raw))).now;
+        }
+    };
+    var f: Fixture = .{};
+    defer f.deinit();
+    try f.init();
+    const pid = try f.root(.{ .spawn = .{} });
+    const unlimited = try f.root(.{ .create_resource = .{ .writer = pid } });
+    try t.expectError(error.ClockUnavailable, f.root(.{ .create_resource = .{ .writer = pid, .history_ms = 20 } }));
+    var clock: Clock = .{};
+    f.engine.clock = .{ .context = &clock, .read = Clock.read };
+    const finite = try f.root(.{ .create_resource = .{ .writer = pid, .history_ms = 20 } });
+    _ = try f.root(.{ .retire_resource = unlimited });
+    _ = try f.root(.{ .retire_resource = finite });
+    try t.expectError(error.HistoryPinned, f.root(.{ .reclaim_resource = unlimited }));
+    clock.now.unix_ms = 129; // lower=124, creation upper+age=125.
+    try t.expectError(error.HistoryPinned, f.root(.{ .reclaim_resource = finite }));
+    clock.now.unix_ms = 130;
+    const signed = try g.sign(.{ .realm = 42, .principal = 0, .sequence = f.root_sequence, .command = .{ .reclaim_resource = finite } }, f.root_key);
+    const receipt = try f.engine.submit(signed);
+    f.engine = try Engine.open(&f.journal, &f.pages, f.genesis);
+    // Recovered exact receipt requires neither a clock nor re-execution.
+    try t.expectEqual(receipt, try f.engine.submit(signed));
+    try t.expectEqual(.reclaimed, (try @import("growing_state.zig").resource(&f.engine, finite)).phase);
+    try t.expectEqual(.retired, (try @import("growing_state.zig").resource(&f.engine, unlimited)).phase);
+}
+
+test "owned resource reads and required borrowers obey owner deadlines before maintenance" {
+    for ([_]bool{ false, true }) |suspension| {
+        var f: Fixture = .{};
+        defer f.deinit();
+        try f.init();
+        var now: u64 = 100;
+        const Clock = struct {
+            fn read(context: *anyopaque) !core.Time.Sample {
+                return .{ .unix_ms = @as(*u64, @ptrCast(@alignCast(context))).* };
+            }
+        };
+        f.engine.clock = .{ .context = &now, .read = Clock.read };
+        const owner = try f.root(.{ .spawn = if (suspension) .{} else .{ .work_before_ms = 200, .settle_before_ms = 300 } });
+        const resource = try f.root(.{ .create_resource = .{ .writer = owner } });
+        _ = try f.root(.{ .grant_resource = .{ .resource = resource, .subject = 0, .permissions = 7 } });
+        const borrower = try f.root(.{ .spawn = .{} });
+        _ = try f.root(.{ .associate = .{ .pid = borrower, .resource = resource, .name = try core.Value.init("required") } });
+        if (suspension) _ = try f.root(.{ .@"suspend" = .{ .pid = owner, .expected_generation = 0, .resume_before_ms = 300 } });
+        now = 250;
+        _ = try f.query(0, .{ .read_access = resource });
+        const before = f.engine.head.position;
+        now = 300;
+        try t.expectError(error.StateResourceExpired, f.query(0, .{ .read_access = resource }));
+        try t.expectError(error.StateResourceExpired, f.root(.{ .send = .{ .pid = borrower, .value = .{} } }));
+        try t.expectEqual(before, f.engine.head.position);
+        try t.expectEqual(.running, (try f.engine.process(owner)).lifecycle);
+        try t.expectEqual(.running, (try f.engine.process(borrower)).lifecycle);
+        _ = try f.root(.{ .expire = borrower });
+        try t.expectEqual(.expired, (try f.engine.process(borrower)).lifecycle);
+    }
 }

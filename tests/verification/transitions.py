@@ -124,10 +124,10 @@ class Model:
 
 
 class ResourceModel(Model):
-    """One retained KV value and one captured view, independent of engine pages.
+    """Independent one-key oracle with separately recorded captured views.
 
-    Time belongs to validation, not publication: an unchanged prepared tail can
-    still win after its view deadline. A retry requiring fresh validation cannot.
+    The selected view is the latest still open for this activation/revision.
+    Preparation validates time; publishing its unchanged tail does not re-read it.
     """
     def __init__(self):
         super().__init__()
@@ -135,7 +135,14 @@ class ResourceModel(Model):
                           resource_value=None, resource_permissions=7,
                           view=None, time_floor=0)
         self.now = dict(unix_ms=10, error_ms=0)
-        self.view = None
+        self.views = {}
+
+    def selected(self):
+        s = self.state
+        usable = [v for v in self.views.values() if not v['closed'] and
+                  v['generation'] == s['generation'] and v['revision'] == s['revision']
+                  and s['lifecycle'] == 'running']
+        return max(usable, key=lambda v: v['id']) if usable else None
 
     def time_error(self):
         if self.now.get("error_ms", 0) > 2:
@@ -151,12 +158,21 @@ class ResourceModel(Model):
             return "DeadlineUncertain"
 
     def validate(self, candidate):
-        s, view = self.state, self.view
+        s = self.state
         if not s["permissions"]:
             return "Forbidden"
         if failure := self.time_error():
             return failure
-        if view is None or candidate["view"] != view["id"]:
+        if s["lifecycle"] != "running":
+            return "RetiredProcess"
+        if s["owner"] != 1 or candidate["generation"] != s["generation"]:
+            return "StaleGeneration"
+        if candidate["revision"] != s["revision"]:
+            return "StaleState"
+        if s["consumed"] == len(self.inputs) or candidate["input"] != self.inputs[s["consumed"]]:
+            return "InvalidInput"
+        view = self.views.get(candidate['view'])
+        if view is None or view['closed']:
             return "StateViewExpired"
         if any(candidate[field] != view[field] for field in ("generation", "revision", "input")):
             return "InvalidStateView"
@@ -166,19 +182,12 @@ class ResourceModel(Model):
             return "Forbidden"
         if view["resource_revision"] != s["resource_revision"]:
             return "StaleStateResource"
-        if s["lifecycle"] != "running":
-            return "RetiredProcess"
-        if s["owner"] != 1 or candidate["generation"] != s["generation"]:
-            return "StaleGeneration"
-        if candidate["revision"] != s["revision"]:
-            return "StaleState"
-        if s["consumed"] == len(self.inputs) or candidate["input"] != self.inputs[s["consumed"]]:
-            return "InvalidInput"
 
     def step(self, action):
         s = self.state
         kind, slot = action["kind"], action.get("slot", 0)
         failure = receipt = None
+        selected = self.selected()
         if kind == "clock":
             self.now = action.get("time", dict(unix_ms=10))
         elif kind == "resource_grant":
@@ -186,48 +195,51 @@ class ResourceModel(Model):
             receipt = s["position"]
             s["position"] += 1
         elif kind == "close_view":
-            if self.view is None:
+            if selected is None:
                 failure = "NoView"
+            elif not s['permissions']:
+                failure = 'Forbidden'
             else:
-                self.view = s["view"] = None
+                selected['closed'] = True
                 receipt = s["position"]
-                s["position"] += 1
+                s.update(position=receipt + 1, sequence=s['sequence'] + 1)
+                self.receipts[s['sequence']] = (None, receipt)
         elif kind == "open_view":
             deadline = action.get("deadline_ms", 50)
             if s["consumed"] + s["cancelled"] == len(self.inputs):
                 failure = "NoInput"
-            elif not s["permissions"] or s["resource_permissions"] & 3 != 3:
+            elif not s["permissions"]:
                 failure = "Forbidden"
             elif failure := self.time_error():
                 pass
             elif s["owner"] != 1:
                 failure = "StaleGeneration"
-            elif deadline > max(0, self.now["unix_ms"] - self.now.get("error_ms", 0)) + 60000:
-                failure = "InvalidLifetime"
+            elif s['resource_permissions'] & 3 != 3:
+                failure = 'Forbidden'
             elif failure := self.deadline_error(deadline, "DeadlineExpired"):
                 pass
-            elif self.view is not None:
-                failure = "StateViewInUse"
+            elif deadline > max(0, self.now["unix_ms"] - self.now.get("error_ms", 0)) + 60000:
+                failure = "InvalidLifetime"
             else:
                 receipt = s["position"]
-                self.view = dict(id=receipt, deadline=deadline, generation=s["generation"],
-                                 revision=s["revision"], input=self.inputs[s["consumed"]],
-                                 resource_revision=s["resource_revision"])
-                s.update(view=receipt, position=receipt + 1, sequence=s["sequence"] + 1,
+                self.views[receipt] = dict(id=receipt, closed=False, deadline=deadline,
+                    generation=s["generation"], revision=s["revision"],
+                    input=self.inputs[s["consumed"]], resource_revision=s["resource_revision"])
+                s.update(position=receipt + 1, sequence=s["sequence"] + 1,
                          time_floor=self.now["unix_ms"])
                 self.receipts[s["sequence"]] = (None, receipt)
         elif kind == "prepare":
             self.prepared.pop(slot, None)
             if s["consumed"] + s["cancelled"] == len(self.inputs):
                 failure = "NoInput"
-            elif self.view is None:
+            elif selected is None:
                 failure = "NoView"
             else:
                 candidate = dict(position=s["position"], sequence=s["sequence"] + 1,
                     generation=s["generation"] + int(action.get("stale_generation", False)),
                     revision=s["revision"] + int(action.get("stale_revision", False)),
                     input=self.inputs[s["consumed"]], value=action.get("value", 1),
-                    view=self.view["id"], time=self.now["unix_ms"])
+                    view=selected["id"], time=self.now["unix_ms"])
                 failure = self.validate(candidate)
                 if failure is None:
                     self.prepared[slot] = candidate
@@ -251,21 +263,25 @@ class ResourceModel(Model):
             else:
                 receipt = self.publish(dict(candidate, time=self.now["unix_ms"]))
         else:
+            if kind in {'send', 'own'} and (failure := self.time_error()):
+                return dict(s, failure=failure, receipt=None)
             result = super().step(action)
+            failure, receipt = result['failure'], result['receipt']
             if kind in {"revoke", "grant"}:
                 s["resource_permissions"] = 0
-                result["resource_permissions"] = 0
-            if kind in {"own", "terminate"} and result["failure"] is None:
-                self.view = s["view"] = result["view"] = None
-            return result
+            if kind in {'send', 'own'} and failure is None:
+                s['time_floor'] = self.now['unix_ms']
+        selected = self.selected()
+        s['view'] = selected['id'] if selected else None
         return dict(s, failure=failure, receipt=receipt)
 
     def publish(self, candidate):
         receipt = super().publish(candidate)
-        self.view = None
+        self.views[candidate['view']]['closed'] = True
         self.state.update(resource_value=candidate["value"], resource_revision=receipt,
                           view=None, time_floor=candidate["time"])
         return receipt
+
 
 
 def generated(seed, count, resource=False):
@@ -305,7 +321,7 @@ def generated(seed, count, resource=False):
             action["deadline_ms"] = (50, 100, 200)[draw(3)]
         actions.append(action)
     return {"version": 1, "seed": seed,
-            "profile": "resource" if resource else "inline_state", "actions": actions}
+            "profile": "resource" if resource else "effects", "actions": actions}
 
 
 def compare(trace, lines):

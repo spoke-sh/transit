@@ -85,17 +85,16 @@ fn catalogMatches(value: ?[]const u8) bool {
     return if (value) |v| std.mem.eql(u8, v, catalog) else true;
 }
 
-/// Returns IPC from an empty synthetic source using the existing compiler and
-/// engine. This is schema derivation only; it never accepts or executes a query.
+/// Compile through the current query grammar and derive the same primitive
+/// schema used when adapting verified captured rows. No admission or source I/O.
 pub fn querySchema(name: []const u8, schema: f.model.Schema, sql: []const u8, output: []u8, workspace: []u8) ![]const u8 {
-    if (schema.value_type != .int64) return error.UnsupportedFlightType;
-    const plan = f.Sql.plan(sql, .{ .name = try .init(name), .schema = schema }) catch return error.UnsupportedQuery;
-    const basis: f.model.Basis = .{ .resource = 1, .revision = 0, .schema = try schema.fingerprint() };
-    const bound = try plan.bind(basis, schema);
-    const cancellation: f.execution.Cancellation = .init(false);
-    const step = try f.Stream.step(bound, bound.start(), .{ .ordinal = 0, .source = .{ .basis = basis, .schema = schema, .rows = &.{} }, .end = true }, workspace, output, &cancellation);
-    const ipc = try root.Ipc.parts(step.segment.?.bytes, workspace);
-    return ipc.schema_message;
+    var fixed: std.heap.FixedBufferAllocator = .init(workspace);
+    const bundle = root.query.Bundle.fromSql(fixed.allocator(), .{ .resource = 1, .source = .{ .table = .{ .id = 1, .schema = schema } } }, try .init(name), sql, .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 }) catch return error.UnsupportedQuery;
+    // Layout owns the names and nullability before the Arrow workspace is reused.
+    const layout = try root.TableResult.init(schema, bundle.plan);
+    const rows: f.Unified.Inspect.Batch = .{ .columns = layout.len };
+    const bytes = try layout.encode(&rows, output, workspace);
+    return (try root.Ipc.parts(bytes, workspace)).schema_message;
 }
 
 pub fn encode(command: w.Any, name: []const u8, schema: f.model.Schema, output: []u8, workspace: []u8) ![]const u8 {

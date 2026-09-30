@@ -1,4 +1,4 @@
-//! Owned identities and borrowed declaration arrays. Canonical UQS2 binds every
+//! Owned identities and borrowed declaration arrays. Canonical UQS1 binds every
 //! decoder and projection; source definitions never grant access or execution.
 const std = @import("std");
 const q = @import("root.zig");
@@ -7,7 +7,7 @@ const m = q.fuze.Unified;
 const d = q.document.Model;
 const Self = @This();
 pub const max_bytes = 8192;
-version: u8 = 2,
+version: u8 = 1,
 resource: u64,
 source: union(m.SourceKind) {
     kv: struct { prefix: p.Value, key: Decoder, value: Decoder },
@@ -42,7 +42,7 @@ fn validatePath(path: []const d.Name, empty: bool) !void {
     }
 }
 pub fn schema(self: Self, output: *[m.max_columns]m.Column) !m.Schema {
-    if (self.version != 2) return error.UnsupportedSource;
+    if (self.version != 1) return error.UnsupportedSource;
     if (self.resource == 0 or self.resource > p.max_counter) return error.InvalidQuerySource;
     const count: usize = switch (self.source) {
         .kv => |kv| blk: {
@@ -93,7 +93,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     var columns: [m.max_columns]m.Column = undefined;
     _ = try self.schema(&columns);
     var writer: std.Io.Writer = .fixed(output);
-    try writer.writeAll("UQS2");
+    try writer.writeAll("UQS1");
     try writer.writeInt(u64, self.resource, .little);
     try writer.writeByte(@backingInt(std.meta.activeTag(self.source)));
     switch (self.source) {
@@ -138,7 +138,7 @@ pub fn fingerprint(self: Self) ![32]u8 {
     var bytes: [max_bytes]u8 = undefined;
     const encoded = try self.encode(&bytes);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.query.source.v2\x00");
+    hash.update("transit.query.source.v1\x00");
     hash.update(encoded);
     return hash.finalResult();
 }
@@ -146,7 +146,7 @@ pub fn fingerprint(self: Self) ![32]u8 {
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len > max_bytes) return error.SourceDefinitionTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
-    if (!std.mem.eql(u8, try reader.take(4), "UQS2")) return error.InvalidSourceEncoding;
+    if (!std.mem.eql(u8, try reader.take(4), "UQS1")) return error.InvalidSourceEncoding;
     var result: Self = .{ .resource = try reader.takeInt(u64, .little), .source = undefined };
     result.source = switch (try reader.takeByte()) {
         1 => .{ .kv = .{

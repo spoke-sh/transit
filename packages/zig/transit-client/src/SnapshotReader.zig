@@ -19,18 +19,17 @@ pub fn open(client: root.ResourceReader, resource: u64, nonce: [16]u8) !Self {
 /// and a restarted authority can reject an unsupported operation normally.
 pub fn support(client: root.ResourceReader) !Support {
     const capabilities = (try client.query(.capabilities)).body.capabilities;
-    if (!capabilities.leased_snapshots) return error.InteractiveQueriesUnavailable;
-    return .{ .client = client, .batched = capabilities.snapshot_read };
+    if (!capabilities.leased_snapshots or !capabilities.snapshot_read) return error.InteractiveQueriesUnavailable;
+    return .{ .client = client };
 }
 pub const Support = struct {
     client: root.ResourceReader,
-    batched: bool,
     pub fn open(self: Support, resource: u64, nonce: [16]u8) !Self {
         const snapshot = (try self.client.query(.{ .open_snapshot = .{ .resource = resource, .nonce = nonce } })).body.open_snapshot;
         return .{ .client = self.client, .snapshot = snapshot, .view = .{ .resource = resource, .revision = snapshot.resource.revision } };
     }
     pub fn acquire(self: Support, request: g.SnapshotRead.Query) !struct { reader: Self, result: g.SnapshotRead.Result } {
-        if (!self.batched or request.snapshot != .open) return error.InteractiveQueriesUnavailable;
+        if (request.snapshot != .open) return error.InteractiveQueriesUnavailable;
         const result = (try self.client.query(.{ .snapshot_read = request })).body.snapshot_read;
         return .{ .reader = .{ .client = self.client, .snapshot = result.snapshot, .view = .{ .resource = result.snapshot.resource.id, .revision = result.snapshot.resource.revision } }, .result = result };
     }

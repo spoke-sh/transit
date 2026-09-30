@@ -4,6 +4,7 @@ pub const grpc = @import("transit_grpc");
 pub const query = @import("transit_query");
 pub const serving = @import("transit_serving");
 pub const Wire = @import("Wire.zig");
+pub const TableResult = @import("TableResult.zig");
 pub const Ipc = @import("Ipc.zig");
 pub const Gateway = @import("Gateway.zig");
 pub const Metadata = @import("Metadata.zig");
@@ -12,6 +13,7 @@ pub const method_prefix = "/arrow.flight.protocol.FlightService/";
 pub const command_prefix = "type.googleapis.com/arrow.flight.protocol.sql.";
 test {
     _ = Ipc;
+    _ = TableResult;
     _ = Ticket;
     _ = Metadata;
     _ = Gateway;

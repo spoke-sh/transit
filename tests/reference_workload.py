@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Deploy the M1 slice on the owned reference cluster and kill real workers."""
+"""Deploy native v1 on the owned reference cluster and kill real workers."""
 import json
-from wire_values import encode_command, decode_view
+from wire_values import encode_command
 import os
 from pathlib import Path
 import subprocess
@@ -61,16 +61,14 @@ def run():
     authority_url = f"http://{authority_host}:8080"
     sequence = 0
 
-    def post(path, command, seq):
-        revision = view(command["turn"]["pid"])["process"]["revision"] if "turn" in command else 0
-        command = encode_command(command, revision)
+    def post(path, body, signing):
         request_file = directory / "request.json"
-        request_file.write_text(json.dumps({"realm": 49, "principal": 0, "sequence": seq, "command": command}))
-        signed = ref.run([cli, "sign", root_key, request_file], capture=True).encode()
+        request_file.write_text(json.dumps(body))
+        signed = ref.run([cli, signing, root_key, request_file], capture=True).encode()
         for attempt in range(20):
             try:
                 with http.open(urllib.request.Request(url + path, signed, {"Content-Type": "application/json"}), timeout=8) as response:
-                    return decode_view(json.load(response))
+                    return json.load(response)
             except urllib.error.HTTPError as error:
                 if error.code not in (409, 503):
                     raise RuntimeError((error.code, error.read().decode())) from error
@@ -82,10 +80,18 @@ def run():
     def command(value):
         nonlocal sequence
         sequence += 1
-        return post("/v2/command", value, sequence)["position"]
+        return post("/v1/command", {"realm": 49, "principal": 0, "sequence": sequence,
+                                   "command": encode_command(value)}, "sign")["position"]
+
+    def query(kind):
+        return post("/v1/query", {"realm": 49, "principal": 0, "kind": kind}, "sign-query")["body"]
 
     def view(pid):
-        return post("/v2/view", {"inspect": pid}, 0)
+        return {"process": query({"inspection": {"resource": "process", "pid": pid}})["inspection"]["processes"][0]}
+
+    def counter():
+        entries = query({"read_entries": {"resource": resource, "keys": [b"value".hex()] + [None]*7}})["read_entries"]["entries"]
+        return int(bytes.fromhex(entries[0]["value"]).decode()) if entries[0] else 0
 
     def apply(value):
         ref.kube(s, ["apply", "-f", "-"], input=json.dumps(value))
@@ -95,7 +101,7 @@ def run():
         while time.monotonic() < deadline:
             try:
                 value = view(pid)
-                if value["process"]["state"] == expected:
+                if counter() == expected:
                     return value
             except (RuntimeError, TimeoutError):
                 pass
@@ -105,7 +111,7 @@ def run():
     def actor():
         return json.loads(ref.ate(s, ["get", "actor", actor_name, "-a", namespace, "-o", "json"], capture=True))
 
-    config = {"genesis": {"realm": 49, "root_key": root_public, "retry_policy": "last_per_principal", "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
+    config = {"genesis": {"realm": 49, "root_key": root_public, "allow_history_trim": True, "max_clock_error_ms": 2000}, "ursula_url": f"http://ursula.{namespace}.svc.cluster.local:8080",
               "bucket": "rey-reference", "journal": "authority", "listen": "0.0.0.0", "port": 8080, "request_timeout_ms": 3000, "accept_trace_parent": True}
     from reference_chart import Chart
     chart = Chart(s, directory, namespace, images, config)
@@ -118,9 +124,13 @@ def run():
         forward, _ = start(["kubectl", "--kubeconfig", ref.CACHE / "kubeconfig", "--context", "kind-" + s["cluster"],
                             "-n", namespace, "port-forward", "service/transit", f"{port}:8080"], "port-forward")
         time.sleep(1)
-        pid = command({"spawn": {"allow_trim": True}})
+        pid = command({"spawn": {}})
         command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
         command({"grant": {"subject": 2, "public_key": controller_public, "permissions": 17, "pid": pid}})
+        resource = command({"create_resource": {"writer": pid}})
+        for subject in (0, 1):
+            command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
+        command({"associate": {"pid": pid, "name": b"counter".hex(), "resource": resource}})
         for value in range(1, 18):
             command({"send": {"pid": pid, "value": value}})
         chart.deploy(workerPool={"enabled": True, "labels": {"workload": namespace},
@@ -191,9 +201,9 @@ def run():
         assert await_state(pid, 1153)["process"]["pid"] == pid
         # Independent maintenance survives lack of incoming requests and trims
         # while the original authority stays running. No key reaches workers.
-        command({"grant": {"subject": 3, "public_key": maintenance_public, "permissions": 33}})
+        command({"grant": {"subject": 3, "public_key": maintenance_public, "permissions": 161}})
         deadline = int(time.time() * 1000) + 5000
-        finite_pid = command({"spawn": {"allow_trim": True, "deadline_ms": deadline, "settle_before_ms": deadline + 1000}})
+        finite_pid = command({"spawn": {"work_before_ms": deadline, "settle_before_ms": deadline + 1000}})
         command({"send": {"pid": finite_pid, "value": 99}})
         apply({"apiVersion": "v1", "kind": "Secret", "metadata": {"name": "maintenance", "namespace": namespace},
                "stringData": {"seed": maintenance_key.read_text()}})
@@ -212,7 +222,8 @@ def run():
         assert await_state(pid, 1153)["process"]["pid"] == pid
         assert view(finite_pid)["process"]["lifecycle"] == "expired"
         assert board.process(finite_pid)["lifecycle"] == "expired"
-        assert board.process(pid)["state"] == b"1153".hex()
+        assert counter() == 1153
+        assert "state" not in board.process(pid), "Board must not decode application state"
         from reference_isolation import run as isolation
         isolation_evidence = isolation(s, directory, namespace, authority_host, images, template)
         # A deterministic poison input must stop replacement, not turn worker
@@ -225,7 +236,7 @@ def run():
                 break
             assert time.monotonic() < limit, "Handler failure was not durably blocked/stopped"
             time.sleep(0.2)
-        assert blocked["failure"]["input"] == failed_input and blocked["state"] == 1153
+        assert blocked["failure"] == failed_input and counter() == 1153
         time.sleep(2)
         assert view(pid)["process"]["generation"] == blocked["generation"]
         command({"terminate": pid})

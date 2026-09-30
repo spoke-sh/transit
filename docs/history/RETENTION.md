@@ -305,7 +305,7 @@ does not provision physical capacity or authorize expiry.
 The growing (`transit-v3`) engine now accepts the same opt-in shape —
 `admission_ceiling` plus an explicit `control_reserve` — closing admission
 accounting for that engine specifically; see
-[Growing profile: an explicit control reserve](../../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)
+[Growing profile: an explicit control reserve](../../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity)
 for why growing's unbounded catalogs rule out reusing the legacy formula. The
 signed `capabilities` query now returns the configured ceiling/reserve so
 remaining headroom is directly readable, not just inferable from errors. What

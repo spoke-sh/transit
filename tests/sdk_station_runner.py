@@ -49,7 +49,16 @@ def run(node, cli, raw_library, install, label):
             nonlocal sequence
             sequence += 1
             op = native.prepare(6, private, {'realm': 72, 'principal': 0, 'sequence': sequence, 'command': body})
-            try: return native.call(admin, op)['position']
+            try:
+                deadline = time.monotonic() + 30
+                while True:
+                    status, response = native.exchange(admin, op)
+                    if status == 0:
+                        return response['position']
+                    assert status in (6, 7) and time.monotonic() < deadline, (status, response)
+                    # An ambiguous acknowledgement retains this exact signed
+                    # operation; fixture recovery never allocates a new sequence.
+                    time.sleep(.05)
             finally: native.lib.transit_operation_destroy(op)
         def read(kind):
             op = native.prepare(7, private, {'realm': 72, 'principal': 0, 'kind': kind})
@@ -68,7 +77,7 @@ def run(node, cli, raw_library, install, label):
                     conn.request('POST', target, body, {'Content-Type': 'application/json'})
                     result = conn.getresponse()
                     data = result.read()
-                    if self.path == '/v3/command':
+                    if self.path == '/v1/command':
                         fault['commands'].append(body)
                         mutation = json.loads(body)['request']['command']
                         if ('turn' in mutation or 'turn_with_versions' in mutation) and result.status == 200:
@@ -79,7 +88,7 @@ def run(node, cli, raw_library, install, label):
                                 fault['drop'] = False
                                 self.close_connection = True
                                 return
-                    elif fault['poison'] and not fault['poisoned'] and self.path == '/v3/query':
+                    elif fault['poison'] and not fault['poisoned'] and self.path == '/v1/query':
                         query = json.loads(body)['query']['kind']
                         if 'entries' in query and query['entries'].get('key') == b'total'.hex():
                             parsed = json.loads(data)
@@ -110,7 +119,7 @@ def run(node, cli, raw_library, install, label):
             output = target / f'output-{pid}'
             output.mkdir()
             cfg = {'url': url, 'realm': 72, 'principal': principal, 'pid': pid, 'generation': 2,
-                'seed_file': str(seed), 'profile': 'growing_v3', 'peer': pid, 'role': role, 'resource': resource,
+                'seed_file': str(seed), 'profile': 'native_v1', 'peer': pid, 'role': role, 'resource': resource,
                 'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(codec_fixture), 'http_fixtures': str(http_fixture), 'http_release_fixtures': str(http_release_fixture),
                 'query_results': role in ('table', 'query'), 'work_before_ms': now+lifetime_ms if finite else None}
             return cfg
@@ -196,6 +205,7 @@ def run(node, cli, raw_library, install, label):
             send(requester, b'TSC\x01\x03')
             caller = worker(requester)
             assert one(caller)['event'] == 'Committed'
+            waiting = read({'process': requester['pid']})['body']['process']
             close(caller)
             own(requester)
             deliver()
@@ -208,6 +218,11 @@ def run(node, cli, raw_library, install, label):
             entries = read({'entries': {'resource': requester['resource'], 'revision': revision, 'key': b'observed'.hex()}})['body']['entries']['page']['entries']
             observed = next(entry for entry in entries if entry)
             assert bytes.fromhex(observed['value']) == b'TSU\x01' + (2**64-1).to_bytes(8, 'little')
+            check('durable-continuation', {
+                'observed_wide_integer': str(int.from_bytes(bytes.fromhex(observed['value'])[4:], 'little')),
+                'source_admitted': waiting['process']['admitted'] == 1,
+                'source_turn_completed_before_reply': waiting['process']['consumed'] == 1 and waiting['input'] is None,
+            })
             old = dict(source)
             own(source)
             invoke('stale', old)

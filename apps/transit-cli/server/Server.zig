@@ -21,7 +21,6 @@ processes: [9]Process = @splat(.{}),
 active_role: Role = .cold,
 pub fn run(init: std.process.Init, options: @import("../Options.zig").Options, diagnostic: *Diagnostic) !void {
     const config = try Config.load(init, options.path, diagnostic);
-    if (!options.no_ui and config.board == null) return diagnostic.invalidField("version", "must be 3 to start Board", "Use --no-ui for headless versions 1/2. Retained installations require their recorded configuration.");
     const executable = try std.process.executablePathAlloc(init.io, init.arena.allocator());
     const identity = try config.identities(init, executable, diagnostic);
     // The sibling lock also serializes first initialization before the directory exists.
@@ -130,7 +129,7 @@ fn cycle(self: *Self) !void {
     try self.start(allocator, .store, &.{ config.executables.ursula, "server", "--config", store_config }, &.{ .{ .name = "RUST_LOG", .value = "error" }, .{ .name = "TOKIO_WORKER_THREADS", .value = "2" } }, false);
     try self.ready(try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/__ursula/ready", .{config.ports.store}));
     const node_config = try installation.path("node.json");
-    try Files.json(self.init.io, allocator, node_config, .{ .profile = "growing_v3", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 8, .request_timeout_ms = 2000, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
+    try Files.json(self.init.io, allocator, node_config, .{ .profile = "native_v1", .genesis = .{ .realm = config.realm, .root_key = installation.record.root_public, .max_clock_error_ms = 10000, .admission_ceiling = config.admission_ceiling, .control_reserve = config.control_reserve }, .ursula_url = try Provider.url(allocator, config.ports.store), .bucket = "transit", .journal = "authority", .port = config.ports.node, .resident_pages = 8, .request_timeout_ms = 2000, .maintenance = .{ .principal = Installation.maintenance, .seed_file = try installation.path("maintenance.seed"), .interval_ms = 1000, .operation_timeout_ms = 2000 } });
     const node_args = [_][]const u8{ config.executables.node, node_config, "--bootstrap" };
     try self.start(allocator, .node, node_args[0..if (installation.record.genesis_observed) @as(usize, 2) else 3], &.{}, false);
     const node_health = try std.fmt.allocPrint(allocator, "http://127.0.0.1:{d}/health", .{config.ports.node});

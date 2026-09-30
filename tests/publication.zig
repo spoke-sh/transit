@@ -5,8 +5,8 @@ const client = station.client;
 const p = station.protocol;
 const g = p.Growth;
 const Pub = station.Publication;
-const Server = station.GrowingGenServer;
-const Turn = station.GrowingTurn;
+const Server = station.GenServer;
+const Turn = station.Turn;
 const t = std.testing;
 const Realm = 46;
 const Principal = 65536;
@@ -265,7 +265,7 @@ pub fn main(init: std.process.Init) !void {
         saved.phase = phase;
         try reown(&admin, &saved);
         if (saved.stale) |request| {
-            try t.expectError(error.Rejected, wire.submitGrowing(request));
+            try t.expectError(error.Rejected, wire.submit(request));
             try t.expectEqual(.StaleGeneration, wire.last_rejection.?);
             saved.stale = null;
         }

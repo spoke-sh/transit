@@ -46,7 +46,7 @@ test "one typed plan binds all source kinds and exact contract and schema eviden
     try t.expectError(error.UnsupportedAggregate, (m.Plan{ .projection = &.{0}, .aggregate = .sum }).bind(try basis(.kv), schema));
     try t.expectError(error.DuplicateProjection, (m.Plan{ .projection = &.{ 0, 0 } }).bind(try basis(.kv), schema));
 }
-test "canonical FZP2 preserves wide literals negative zero binary and larger plans" {
+test "canonical FZP1 preserves wide literals negative zero binary and larger plans" {
     const long: [512]u8 = @splat('x');
     const values = [_]m.Scalar{ .{ .int64 = std.math.minInt(i64) }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = false }, .{ .utf8 = "🙂" }, .{ .binary = &.{ 0, 255 } }, .{ .utf8 = &long } };
     for (values) |value| {

@@ -1,7 +1,7 @@
 # Unified state queries
 
 Include `transit_unified_query.hrl` and call `transit_unified_query` for the explicit
-v2 KV/Table/accepted-Document profile. Public records are separate from generated
+v1 KV/Table/accepted-Document profile. Public records are separate from generated
 wire schemas. Shared Zig owns validation, codecs, signed operations and query
 semantics; the Erlang SDK owns immutable values and a bounded native-port worker.
 

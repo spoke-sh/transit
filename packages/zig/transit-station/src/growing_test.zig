@@ -1,58 +1,12 @@
 const std = @import("std");
 const t = std.testing;
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Table = @import("Table.zig");
 const Frame = @import("Frame.zig");
 const Waiting = @import("Waiting.zig");
 const Registry = @import("Registry.zig");
-const Store = struct {
-    entries: [128]?p.State.Entry = @splat(null),
-    reads: usize = 0,
-    fail: bool = false,
-    pages: usize = 0,
-    fail_page: bool = false,
-    fn read(context: *anyopaque, view: p.Growth.View, key: p.Value) anyerror!?p.Value {
-        const self: *Store = @ptrCast(@alignCast(context));
-        self.reads += 1;
-        try t.expectEqual(@as(u64, 6), view.id);
-        if (self.fail) return error.Unavailable;
-        for (self.entries) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
-        return null;
-    }
-    fn turn(self: *Store, value: p.Value) !Turn {
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = 4, .ordinal = 1, .value = value, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = 6, .pid = 2, .principal = 65536, .generation = 3, .input = 4, .process_revision = 0, .resource = 7, .revision = 0, .deadline_ms = 100 }, .{ .context = self, .read = read, .page = page });
-    }
-    fn page(raw: *anyopaque, _: p.Growth.View, after: ?p.Value) anyerror!@import("Turn.zig").Page {
-        const self: *Store = @ptrCast(@alignCast(raw));
-        self.pages += 1;
-        if (self.fail_page) return error.Unavailable;
-        // Simple independent fixture ordering, not the production page index.
-        var ordered: [128]p.State.Entry = undefined;
-        var len: usize = 0;
-        for (self.entries) |slot| if (slot) |entry| {
-            ordered[len] = entry;
-            len += 1;
-        };
-        std.mem.sort(p.State.Entry, ordered[0..len], {}, struct {
-            fn less(_: void, a: p.State.Entry, b: p.State.Entry) bool {
-                return std.mem.order(u8, a.key.slice(), b.key.slice()) == .lt;
-            }
-        }.less);
-        var result: @import("Turn.zig").Page = .{};
-        var count: usize = 0;
-        for (ordered[0..len]) |entry| {
-            if (after) |key| if (std.mem.order(u8, entry.key.slice(), key.slice()) != .gt) continue;
-            if (count == result.entries.len) {
-                result.next = result.entries[count - 1].?.key;
-                break;
-            }
-            result.entries[count] = .{ .key = entry.key, .value = entry.value, .revision = entry.revision };
-            count += 1;
-        }
-        return result;
-    }
-};
+const Store = @import("TestStore.zig");
 
 test "growing registry reads stay bounded across names with full-width scoped principals" {
     var store: Store = .{};
@@ -197,7 +151,7 @@ test "growing Table point operations share codecs and atomic rollback without a 
     try t.expect(std.meta.eql(before, turn.decision));
     try table.insert(&turn, .{ .key = 200, .value = .null });
     try turn.validate(); // 129th retained key is not a resident-array limit.
-    try t.expect(@TypeOf(turn.entries) == void);
+    try t.expect(!@hasField(Turn, "entries"));
     try t.expectEqual(@as(i64, 100), std.mem.readInt(i64, store.entries[100].?.value.data[2..10], .little));
 }
 
@@ -221,7 +175,7 @@ test "caught growing read failures poison private proposals without hiding uncer
 }
 
 test "growing behavior finish distinguishes incomplete reads from application failure" {
-    const Server = @import("GenServer.zig").Growing;
+    const Server = @import("GenServer.zig");
     var wire: @import("transit_client").Client = undefined;
     var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
     var store: Store = .{};
@@ -247,7 +201,7 @@ test "growing behavior finish distinguishes incomplete reads from application fa
 }
 
 test "gated preparation never dispatches or discards frozen control and turn requests" {
-    const Server = @import("GenServer.zig").Growing;
+    const Server = @import("GenServer.zig");
     // An uninitialized client deliberately makes any accidental I/O invalid.
     var wire: @import("transit_client").Client = undefined;
     var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
@@ -275,7 +229,7 @@ test "gated preparation never dispatches or discards frozen control and turn req
 }
 
 test "stop policy and explicit discard drop private work without a failure mutation" {
-    const Server = @import("GenServer.zig").Growing;
+    const Server = @import("GenServer.zig");
     var wire: @import("transit_client").Client = undefined;
     var host = try Server.init(.{ .client = &wire, .realm = 1, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
     var store: Store = .{};
@@ -306,8 +260,12 @@ test "growing waits preserve wide observer identities and authenticate closure" 
     const correlation = try caller.callWithTimer(8, .{}, 150, 65536);
     const encoded = (try caller.waiting(correlation)).?.encode();
     try t.expectEqual(@as(?u64, 65536), (try Turn.Wait.decode(encoded)).observer);
-    try t.expectError(error.InvalidWait, @import("Turn.zig").Legacy.Wait.decode(encoded));
-    try t.expectError(error.InvalidWait, Turn.Wait.decode((@import("Turn.zig").Legacy.Wait{ .target = 8 }).encode()));
+    var obsolete = encoded;
+    obsolete.data[0] = 2;
+    try t.expectError(error.InvalidWait, Turn.Wait.decode(obsolete));
+    obsolete = encoded;
+    obsolete = try p.Value.init(encoded.slice()[0..27]);
+    try t.expectError(error.InvalidWait, Turn.Wait.decode(obsolete));
     store.entries[0] = .{ .key = Turn.waitKey(correlation), .value = encoded, .revision = 1 };
     var next = try store.turn(.{});
     const timeout = try Waiting.observation(correlation, 150);

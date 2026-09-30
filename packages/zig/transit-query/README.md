@@ -3,29 +3,14 @@
 Shared Zig finite-query clients and application-side Station behaviors. Board
 and `transit` share source declarations, the Fuze compiler and Arrow codecs.
 The console uses fresh interactive snapshots by default; explicitly durable
-queries retain frozen request and result recovery. The [v1 contract](../../../contracts/PUBLIC_QUERY_V1.md)
+queries retain frozen request and result recovery. The [v1 contract](../../../contracts/UNIFIED_QUERY_V1.md)
 owns authorization, wire encodings, admission, cancellation and limits.
 
-- `Model` owns connection, source, prepared submission, status, typed page and
-  Board's opaque frozen-token transport. Tokens preserve full-width SQL literals.
-- `Client.describe/prepare/submit/status/page` use current signed Transit reads
-  and commands. Retain `Prepared` on uncertain submission; its receipt identifies
-  the requester correlation. A page's strings borrow the supplied request arena.
-- `Client.prepareCancel/submitCancel` preserve explicit cancellation identity.
-- `Client.prepareSequence/submitSequence` support adapters with an explicit
-  native sequence and published schema. Pure preparation reconstructs canonical
-  signed bytes after host loss; submission still checks current authorization.
-  Neither a sequence observation nor matching SQL reserves a query identity.
-- `Client.segment` exposes one verified raw IPC segment in caller-owned buffers.
-  It uses the same retained manifest/transfer checks as typed pages and rechecks
-  current source/requester rights after copying. Consumers must verify ordered
-  complete coverage before claiming a complete result; a returned prefix is not
-  success. The Flight adapter uses this seam without an alternate result store.
-- `Behavior.Requester` binds one query principal/source and admits one active
-  query. Initialize it with a separate `PQI1` cast from that principal.
-- `Behavior.Source` serves one declared Table to one configured peer under
-  Station's current revisioned policy. The Table and policy must already exist.
-  Both behaviors need a host-owned growing query context.
+`UnifiedClient` owns signed description, finite upload, frozen submission,
+committed-input observation, status, cancellation and verified result pages.
+`UnifiedBehavior.Requester` binds one query principal/source and admits one active
+upload/query; `UnifiedBehavior.Source` captures a declared KV, Table or Document
+source under current policy. Both execute in separately provisioned Station hosts.
 
 This package imports Station's and Document's public modules and has no kernel, storage or
 provider dependency. SQL compiles in Fuze. Interactive execution runs over a
@@ -35,7 +20,7 @@ may return a conflict if a resource changes during a bounded observation; caller
 may retry the read, but must never regenerate uncertain mutations automatically.
 
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::public-query`; [tests](../../../tests/README.md) record evidence.
+is `just test::unified-query`; [tests](../../../tests/README.md) record evidence.
 
 `Interactive.open/next/close` owns one finite statement over a fresh
 `transit-client.SnapshotReader`. The caller supplies a fresh 16-byte nonce,
@@ -53,26 +38,26 @@ never reopens a new cut. The [interactive contract](../../../contracts/INTERACTI
 owns quotas, lifetime, cancellation and incomplete-result semantics;
 `just test::interactive-query` exercises the real console for all source kinds.
 
-`UnifiedClient` adds signed v2 description, finite upload, frozen submission,
+`UnifiedClient` adds signed v1 description, finite upload, frozen submission,
 committed-input observation, status and verified result pages. The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
-cancellation. `transit-query-host` composes its v2 requester/source behaviors;
+cancellation. `transit-query-host` composes its requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.
-`TableSource` is the M24 local composition for an explicitly configured empty
+`TableSource` is the local composition for an explicitly configured empty
 int64 Table. Its owning Station activation atomically creates the Table, native
 source configuration and revision-one peer policy in three mutations. It rejects
 existing Table metadata and delegates execution to `UnifiedBehavior.Source`.
 This initializer has no kernel/provider dependency and grants no native resource
 rights. Automatic local lifecycle qualification remains separate server work.
-`Bundle.fromSql` compiles the [v2 SQL profile](../transit-fuze/docs/unified-sql.md)
+`Bundle.fromSql` compiles the [SQL profile](../transit-fuze/docs/unified-sql.md)
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`
 first verifies current source policy. The [compatibility matrix](docs/compatibility.md)
-describes both public versions and the transport handoff boundary.
+describes the source, result and transport boundaries.
 
 `Workspace` constrains explicit SQL ingress to one configured source and budgets.
 It uses `Values`/`Bridge` for finite bundles, frozen commands, committed-input
-observation and verified nested pages. The shell's `query-v2` and Board's
-separately credentialed `query_v2` use this interface; their integration
+observation and verified nested pages. The shell's `query` and Board's
+separately credentialed `query` use this interface; their integration
 qualification is recorded in the proof guide.
 
 `Values` owns the neutral JSON source/plan/cell codecs; `Bridge` owns frozen-token
@@ -82,8 +67,8 @@ Returned slices belong to the supplied allocator. This keeps shell/Board ingress
 and language bindings on one representation without importing the bindings into
 the query package or duplicating their protocol semantics.
 
-M18 adds `SourceDefinition`, `Decoder` and `UnifiedSource` under the separate
-[v2 contract](../../../contracts/UNIFIED_QUERY_V2.md). Canonical `UQS2` definitions
+`SourceDefinition`, `Decoder` and `UnifiedSource` implement the
+[v1 contract](../../../contracts/UNIFIED_QUERY_V1.md). Canonical `UQS1` definitions
 bind resource identity, declared KV decoder versions, exact Table schemas and
 accepted Document references/projections. `UnifiedSource.page` fills a caller-owned
 batch from supplied captured/retained public readers; cell byte slices borrow the
@@ -97,20 +82,16 @@ and have explicit per-projection byte/step bounds. Unsupported expansions and
 exhausted budgets reject; values are never truncated. Decoding errors are typed
 cells while unknown decoder versions reject the definition.
 
-Component tests qualify these adapters and the current Document floor/retirement
-checks with in-memory private turns. `UnifiedCapture` now supplies resumable
-retained capture, publication, closure and cleanup; see its
-[capture guide](docs/unified-capture.md). Signed submission, verified reads, all ten SDKs and disk/worker recovery are
-qualified across the three source kinds. Lifecycle/expiry covers all three; physical
-Compose/Substrate recovery covers Table. The existing `Client` and
-`Behavior` still serve public Table v1 queries.
+`UnifiedCapture` supplies resumable retained capture, publication, closure and
+cleanup; see its [capture guide](docs/unified-capture.md). The
+[proof ledger](../../../tests/README.md) records executed recovery, lifecycle and
+placement checks separately from component tests.
 
 `Bundle` owns the bounded canonical source/plan request and explicit page,
 segment and result-byte budgets. `UnifiedRecords` owns versioned policies,
 jobs, checkpoints, segment commitments and final manifests. Bundle decoding
 borrows the input and caller arena. Independent Python fixtures cover all three
 source bundles, including a 512-byte predicate and their Publication commitments.
-These codecs alone do not advertise an executable public v2 service.
 
 `UnifiedResult.open/page` verifies the original request/call route, current source
 policy, Document lifecycle, publication publisher and complete manifest. Pages
@@ -118,15 +99,13 @@ validate nested Arrow and ordered row/byte/digest coverage, rechecking current
 access before return. `Cursor` is owned continuation state, never a bearer token.
 Returned Arrow borrows the supplied output buffer; schema/scalar bytes belong to
 the supplied result allocator, and decoded conflicts borrow the fixed `Batch`.
-An error invalidates the entire page. All ten SDKs pass the signed service
-matrix across all three source kinds; see the [proof guide](../../../tests/README.md#m18-qualification).
+An error invalidates the entire page. The [proof guide](../../../tests/README.md)
+records independent consumer and installed-SDK execution.
 
 `UnifiedRequest`, `UnifiedUpload` and `UnifiedBehavior` compose authenticated
 finite uploads with the source capture and original-call reply. The
 [upload guide](docs/unified-upload.md) documents initialization, duplicate parts,
-cancellation, cleanup and logical admission. Component tests and signed worker/node/store recovery pass across all source
-kinds. The proof guide records all-source lifecycle/expiry and Table physical
-placement, including failed attempts and qualification limits.
+cancellation, cleanup and logical admission.
 
 Test builds expose `testing.Store`, the existing private-turn reference model,
 for dependent-package composition tests. It tracks entry revisions and retained
@@ -143,21 +122,14 @@ A missing process diagnostic is not proof that the worker is healthy. Finite
 protocol adapters retain their own waiting deadline without cancelling accepted
 work or inventing a query failure.
 
-`Model.Source.contract()` computes the full Table `UQS2` commitment for application
-bindings. Board's additive `contract` request returns it alongside the current
-source and column-schema hash; existing `describe` and result shapes are unchanged.
-Clients compare Table identity and schema in retained v1 manifests before binding
-an old result to a newly published interface.
-
-`Draft` adds an explicit finite generation above the existing v2 requester. Its
+`Draft` adds an explicit finite generation above the requester. Its
 four-write submission atomically debits an intent and creates the ordinary query
 call. `UnifiedClient.draft` and `prepareNextWithDraft` preserve point-addressed
 history and exact admission recovery; `Workspace` exposes `draft_open`,
 `draft_close`, `draft_status` and `next_draft`. The selected
 [draft contract](../../../contracts/QUERY_DRAFT_V1.md) documents wire formats,
-eight-intent groups, current authority and closure. Native Table host and coalescing browser tests pass, including saved recovery
-after browser reload and two-intent exhaustion. Existing Run, SDK and
-Follow profiles retain their separate contracts and qualification matrices.
+eight-intent groups, current authority and closure. Run, SDK and Follow retain
+their explicit admission and lifetime boundaries.
 
 `transit-query-api` exports the standalone workspace JSON Schema from the owning
 public types. Board consumes the same schema options; `just transit-board::contract`
@@ -172,10 +144,9 @@ Every candidate lowers through the real Fuze compiler. Checked sums are offered
 only for int64 columns; editing a candidate does not admit a query. This is a
 bounded complete-draft catalog, not a speculative parser or cross-source search.
 
-M24 adds the [v1 cursor-assistance request](../../../contracts/QUERY_ASSISTANCE_V1.md)
-to `Workspace`. `Assistance` obtains grammar expectations from Fuze's production
-parser and filters them against the caller's declared schema and the existing
-v2 executable type profile. The host checks current source/requester rights both
+The [v1 cursor-assistance request](../../../contracts/QUERY_ASSISTANCE_V1.md)
+belongs to `Workspace`. `Assistance` obtains grammar expectations from Fuze's production
+parser and filters them against the caller's declared schema and the executable type profile. The host checks current source/requester rights both
 before and after computation; completion prepares no native input. One bounded
 response retains at most eight items and a byte replacement range. Independent
 fixtures cover quoted/qualified names, suffix replacement, hidden/foreign names,

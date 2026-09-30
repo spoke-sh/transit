@@ -16,23 +16,24 @@ Configuration is the generated `HostConfig` in Station's
 {
   "url": "http://127.0.0.1:18101",
   "seed_file": "/private/worker.key",
-  "server": {"realm": 72, "principal": 1, "pid": 1, "generation": 3, "association": "data"},
+  "growing_server": {"profile": "native_v1", "realm": 72, "principal": 1, "pid": 1, "generation": 3, "association": "data", "failure_policy": "stop"},
   "timeout_ms": 5000
 }
 ```
 
 The key is 64 hexadecimal characters. Provision identity/grants/ownership before
-starting a behavior; this executable does not allocate them. Omitting `server`
-and `growing_server`/`query_client` creates a raw client port without reading a Station credential. Raw request
+starting a behavior; this executable does not allocate them. Omitting `growing_server` and `query_client` creates a raw client port without reading a Station credential. Raw request
 preparation takes an explicit key path. The host performs no credential discovery.
 
 Send one JSON request per stdin line and await one stdout line before the next
-request. Begin with `{"hello":{}}` and verify all three returned versions are 1.
+request. Begin with `{"hello":{}}` and verify all returned versions are 1 and the full definition identifier matches
+the generated local contract. Version numbers alone do not prove compatibility.
 Responses are `{"status":0,"value":...}`; nonzero statuses use the generated ABI
 codes. Logs and metrics go to stderr so stdout remains machine-readable. Adapters
 must inherit/drain stderr and enforce bounded requests, responses and pending work.
 
-`next`, `apply`, `finish`, `pending`, `frame` and `arrow_cell` use Station's shared
+`growing_prepare`, `growing_apply`, `growing_finish`, `growing_pending`,
+`frame` and `growing_arrow_cell` use Station's shared
 exports; `prepare` and `call` use the raw client. Schemas come from Zig, not a
 second handwritten contract. Canonical pending/prepare results are strings:
 retain those exact bytes instead of parsing and re-encoding signed requests.
@@ -47,7 +48,7 @@ New raw-only SDKs can use that executable without importing Station.
 
 For pure framing and owned IPC decoding, select `{"local_codec":true}`. This
 mode creates no authority clients or behavior handles and accepts no endpoint,
-seed path or server configuration. `frame`, `arrow_cell`, `growing_arrow_cell`,
+seed path or server configuration. `frame`, `growing_arrow_cell`,
 hello and local growing capabilities remain available; authority operations
 return `not_ready`. A missing endpoint without this explicit mode still rejects.
 SDK encoders can therefore use shared native codecs without inventing an endpoint
@@ -60,13 +61,12 @@ activation before recomputing. There is no automatic retry under a new identity.
 The [shared binding guide](../../packages/zig/transit-station-bindings/docs/bindings.md)
 defines proposal, allocation and lifetime semantics.
 
-## Explicit growing profile
+## Station behavior profile
 
-M11 adds `growing_server` using the generated `GrowingConfig`. Supply
-`profile: "growing_v3"` and an explicit `failure_policy` (`stop` or `block_input`)
-with the ordinary activation/association fields. Principals retain the full
-public range. Supplying both `server` and `growing_server` rejects; no implicit
-profile fallback occurs. The original hello response stays unchanged for M9.
+`growing_server` uses generated `GrowingConfig` with `profile: "native_v1"`
+and an explicit `failure_policy` (`stop` or `block_input`). Principals retain the
+full public range. Station behavior and `query_client` are mutually exclusive.
+Unknown fields and incompatible profiles reject without a fallback.
 
 `growing_capabilities` reports this local adapter's support. `growing_prepare`,
 `growing_pending`, `growing_dispatch`, `growing_apply`, `growing_finish` and
@@ -76,7 +76,7 @@ control mutations. Growing actions require the ready event's scope token.
 This slice supplies bounded KV/Table pages and retained-source access. Set
 `query_results: true` to enable native capture/delivery and complete manifest/IPC
 segment actions with one bounded 1 MiB workspace. Result completion is a framework
-event, not an application-codec payload. Public language runners remain separate work.
+event, not an application-codec payload. Language runners use this same dispatch boundary.
 
 ## Joined shutdown
 
@@ -90,7 +90,7 @@ Prepared requests and result continuations are opaque strings. Retain the exact
 prepared string before dispatch; replacing a child process cannot resolve an
 uncertain submission or renew a revoked grant.
 
-`shutdown` explicitly destroys all legacy/growing Station, query and raw-client handles,
+`shutdown` explicitly destroys all Station, query and raw-client handles,
 then responds with `{"closed":true}` and exits without waiting for stdin EOF.
 This works in authority and local-codec modes. Await the acknowledgement and
 successful child exit when joining cleanup; loss of either is a cleanup failure.

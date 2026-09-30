@@ -51,7 +51,7 @@ history when a validated checkpoint preserves recovery.
 ## Query and observe
 
 The finite v1 Table query profile has a declared int64 key and nullable scalar
-value. Unified v2 adds wider declared schemas/source adapters, not unrestricted
+value. Query v1 adds wider declared schemas/source adapters, not unrestricted
 SQL. Source revision and data watermark have different meanings: data progress
 can exclude framework bookkeeping writes. A reply must identify the basis it
 actually used.
@@ -64,6 +64,6 @@ snapshot refresh. Continuous materialized SQL is unsupported.
 For APIs use [Station](../../packages/zig/transit-station/README.md) and the
 [query host](../../apps/transit-query-host/README.md). Exact contracts are
 [Tables v1](../../contracts/STATION_V1.md),
-[query v1](../../contracts/PUBLIC_QUERY_V1.md) and
-[query v2](../../contracts/STATION_QUERY_V2.md). [State](state.md),
+[query v1](../../contracts/UNIFIED_QUERY_V1.md) and
+[query v1](../../contracts/STATION_QUERY_V1.md). [State](state.md),
 [queries](queries.md) and [Arrow](arrow.md) explain shared lifetime rules.

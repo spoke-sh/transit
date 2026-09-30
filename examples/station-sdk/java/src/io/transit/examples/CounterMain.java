@@ -48,9 +48,9 @@ public final class CounterMain {
         String text = Files.readString(Path.of(args[0]), StandardCharsets.UTF_8);
         if (text.length() > 8192) throw new IllegalArgumentException("Configuration exceeds its bound");
         JsonObject cfg = config(text);
-        if (!cfg.get("profile").getAsString().equals("growing_v3")) throw new IllegalArgumentException("Select growing_v3");
+        if (!cfg.get("profile").getAsString().equals("native_v1")) throw new IllegalArgumentException("Select native_v1");
         long realm = number(cfg, "realm");
-        var client = new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3);
+        var client = new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1);
         var activation = new Activation(new ProcessRef(realm, number(cfg, "pid")), number(cfg, "generation"),
             new Credential(realm, number(cfg, "principal"), Path.of(cfg.get("seed_file").getAsString())));
         var peer = new ProcessRef(realm, number(cfg, "peer"));

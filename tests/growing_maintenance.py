@@ -20,7 +20,7 @@ def run(node, caller):
         seed = fixture.root / "maintenance.key"
         seed.write_text("09" * 32)
         seed.chmod(0o600)
-        config = {"profile": "growing_v3", "genesis": {
+        config = {"profile": "native_v1", "genesis": {
             "realm": 42, "root_key": public, "max_clock_error_ms": 10000,
             "allow_history_trim": True}, "ursula_url": fixture.url,
             "bucket": "growing-maintenance", "journal": "authority", "port": port,

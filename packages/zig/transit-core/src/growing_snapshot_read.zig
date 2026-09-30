@@ -98,7 +98,7 @@ pub fn read(engine: anytype, principal: growth.Principal, realm: u64, query: g.S
             slot.* = renewed;
             if (fresh) engine.snapshot_serial = stored.meta.id.serial;
         }
-        return .{ .realm = realm, .position = position, .principal_sequence = current_principal.sequence, .body = .{ .snapshot_read = result } };
+        return .{ .realm = realm, .position = position, .definition = g.current_definition, .principal_sequence = current_principal.sequence, .body = .{ .snapshot_read = result } };
     }
     return error.Conflict;
 }

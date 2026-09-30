@@ -92,7 +92,7 @@ export class PendingSend extends Pending<SendInfo> {}
 export class PendingMutation extends Pending<MutationInfo> {}
 export async function recoverSend(port: Port, frozen: Uint8Array): Promise<PendingSend> {
   const info = await metadata(port, frozen);
-  if (info.profile !== "growing_v3" || info.kind !== "growing_command" || info.command !== "send") {
+  if (info.profile !== "native_v1" || info.kind !== "growing_command" || info.command !== "send") {
     throw new UnsupportedCapability("Recovery material is not a growing send");
   }
   return new PendingSend(
@@ -107,7 +107,7 @@ export async function recoverSend(port: Port, frozen: Uint8Array): Promise<Pendi
 }
 export async function recoverMutation(port: Port, frozen: Uint8Array): Promise<PendingMutation> {
   const info = await metadata(port, frozen);
-  if (info.profile !== "growing_v3" || info.kind !== "growing_command" || !info.command) {
+  if (info.profile !== "native_v1" || info.kind !== "growing_command" || !info.command) {
     throw new UnsupportedCapability("Recovery material is not a growing mutation");
   }
   return new PendingMutation(
@@ -146,7 +146,7 @@ export async function authorityCapabilities(
     await port.request({ call: frozenText(operation) }, { phase: "authority-capabilities" }),
   );
   const caps = record(record(value.body).capabilities);
-  if (value.version !== 3 || caps.version !== 3 || caps.profile !== "growing_v1") {
+  if (value.version !== 1 || caps.version !== 1 || caps.profile !== "growing_v1") {
     throw new UnsupportedCapability("Authority does not advertise the explicit growing profile");
   }
   if (

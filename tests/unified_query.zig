@@ -39,7 +39,7 @@ const Seed = struct {
     requests: u64,
     done: bool = false,
     freeze: bool = false,
-    fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
+    fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         switch (self.kind) {
             .kv => {},
@@ -64,7 +64,7 @@ const Seed = struct {
         }
         return out;
     }
-    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Seed = @ptrCast(@alignCast(raw.?));
         const command = try frame.payload.asInteger();
         self.done = false;
@@ -106,7 +106,7 @@ const Seed = struct {
         }
     }
 };
-fn drive(init: std.process.Init, server: *s.GrowingGenServer, handler: s.GrowingGenServer.Handler) !void {
+fn drive(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler) !void {
     for (0..20) |_| switch (try server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000)) {
         .committed => return,
         .blocked => return server.handler_error orelse error.Blocked,
@@ -152,7 +152,7 @@ fn inspectJob(transport: *s.client.Client, root: p.Ed25519.KeyPair, connection: 
     const resource_client: s.client.ResourceReader = .{ .wire = transport, .realm = 46, .principal = 0, .key = root };
     var reader = try resource_client.open(connection.resource);
     const index = (try reader.read(q.UnifiedRecords.key('i', connection.requester, correlation))) orelse return .{};
-    const job = try q.UnifiedCapture.job(&reader, try q.Request.readIdentity(index));
+    const job = try q.UnifiedCapture.job(&reader, try q.UnifiedRecords.readIdentity(index));
     return .{ .job = job, .checkpoint = try q.UnifiedCapture.checkpoint(&reader, job.id) };
 }
 pub fn main(init: std.process.Init) !void {
@@ -187,9 +187,9 @@ pub fn main(init: std.process.Init) !void {
         for ([_]u64{ writer.resource, requester.resource }) |resource| {
             if (resource != 0) _ = try admin.submit(.{ .grant_resource = .{ .resource = resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
         }
-        var server = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
+        var server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
         var seed: Seed = .{ .kind = kind, .rows = rows, .peer = requester.pid, .requests = requester.resource };
-        const handler: s.GrowingGenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
+        const handler: s.GenServer.Handler = .{ .context = &seed, .initialize = Seed.initialize, .handle = Seed.handle };
         try admin.send(writer.pid, -1);
         try drive(init, &server, handler);
         if (kind == .document) {
@@ -239,14 +239,14 @@ pub fn main(init: std.process.Init) !void {
             writer.generation += 1;
             seed.requests = requester.resource;
             seed.freeze = false;
-            server = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
+            server = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65536, .pid = writer.pid, .generation = writer.generation, .key = writer_key }, "state");
             try drive(init, &server, handler);
         }
         try admin.send(writer.pid, -2);
         try drive(init, &server, handler);
-        var requests = try s.GrowingGenServer.init(.{ .client = &transport, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
+        var requests = try s.GenServer.init(.{ .client = &transport, .realm = 46, .principal = 65537, .pid = requester.pid, .generation = requester.generation, .key = requester_key }, "state");
         var behavior: q.UnifiedBehavior.Requester = .{ .principal = 1234, .source = writer.pid };
-        _ = try transport.submitGrowing(try p.Growth.sign(.{ .realm = 46, .principal = 1234, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try q.UnifiedRequest.Command.encode(.initialize) }).encode() } } }, caller_key));
+        _ = try transport.submit(try p.Growth.sign(.{ .realm = 46, .principal = 1234, .sequence = 1, .command = .{ .send = .{ .pid = requester.pid, .value = try (s.Frame{ .kind = .cast, .payload = try q.UnifiedRequest.Command.encode(.initialize) }).encode() } } }, caller_key));
         try drive(init, &requests, behavior.interface());
         _ = try admin.submit(.{ .own = .{ .pid = writer.pid, .expected_generation = writer.generation, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = requester.pid, .expected_generation = requester.generation, .worker = 65537 } });
@@ -347,7 +347,7 @@ pub fn main(init: std.process.Init) !void {
         const versions = (try admin.query(.{ .read_versions = .{ .pid = config.connection.source } })).body.read_versions;
         for (versions.entries) |slot| if (slot) |version| {
             if (version.released_at != null) {
-                _ = transport.queryGrowing(.{ .realm = 46, .principal = 65536, .kind = .{ .version_entries = .{ .id = version.id, .generation = (try admin.query(.{ .process = config.connection.source })).body.process.process.generation } } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(8))) catch {
+                _ = transport.query(.{ .realm = 46, .principal = 65536, .kind = .{ .version_entries = .{ .id = version.id, .generation = (try admin.query(.{ .process = config.connection.source })).body.process.process.generation } } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(8))) catch {
                     if (transport.last_rejection != .ReadVersionReleased) return error.WrongVersionRejection;
                     return print(init, .{ .released_read_denied = true });
                 };

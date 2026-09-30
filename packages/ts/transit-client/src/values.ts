@@ -86,15 +86,15 @@ export class MutationReceipt {
 }
 export interface ClientConfig {
   readonly url: string;
-  readonly profile: "growing_v3";
+  readonly profile: "native_v1";
   readonly timeoutMs?: number;
   readonly nativeHost?: string;
 }
 export function configuration(
   value: ClientConfig,
 ): Readonly<Required<Omit<ClientConfig, "nativeHost">> & Pick<ClientConfig, "nativeHost">> {
-  if (value === null || typeof value !== "object" || value.profile !== "growing_v3") {
-    throw new TypeError("Select the explicit growing_v3 profile");
+  if (value === null || typeof value !== "object" || value.profile !== "native_v1") {
+    throw new TypeError("Select the explicit native_v1 profile");
   }
   const url = text(value.url);
   const parsed = new URL(url);

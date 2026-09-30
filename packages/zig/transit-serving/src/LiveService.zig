@@ -5,7 +5,7 @@ const root = @import("root.zig");
 const s = root.station;
 const q = root.query;
 const p = root.protocol;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 const Self = @This();
 pub const Configuration = struct { service: root.Model.Configuration, query_principal: u64, source: u64 };
 configuration: Configuration,
@@ -14,10 +14,10 @@ scratch: []u8,
 /// Qualified conservative wall-clock bound supplied by the host per dispatch.
 upper_ms: u64,
 
-pub fn interface(self: *Self) s.GrowingGenServer.Handler {
+pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }
-pub fn guard(self: *Self) s.GrowingGenServer.InputGuard {
+pub fn guard(self: *Self) s.GenServer.InputGuard {
     return .{ .context = self, .reject = rejectInput };
 }
 fn service(self: Self) root.Service {

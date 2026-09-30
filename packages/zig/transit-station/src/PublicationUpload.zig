@@ -2,7 +2,7 @@
 //! The adapter must bind every record spec and policy field in its frozen marker.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Publication = @import("Publication.zig");
 pub const Record = struct { id: u64, bytes: []const u8, spec: Publication.Spec };
 pub const Input = struct {

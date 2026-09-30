@@ -27,7 +27,7 @@ CREATE TABLE events (id INT64 NOT NULL, label UTF8, active BOOL, body BINARY);
 
 The wider schema in the second example does not establish executable Table DDL.
 The production Table v1 query profile still uses its declared two-column schema;
-unified v2's wider query schema does not implement this creation statement.
+query v1's wider query schema does not implement this creation statement.
 
 ## Meaning and current interface
 

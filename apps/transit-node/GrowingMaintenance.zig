@@ -1,7 +1,8 @@
-//! Separate, bounded v3 maintenance process. Its cursors are disposable hints;
+//! Separate, bounded native maintenance process. Its cursors are disposable hints;
 //! only signed conditional transitions and committed floors authorize cleanup.
 const std = @import("std");
 const core = @import("transit_core");
+const backend = @import("transit_backend_ursula");
 const wire = @import("transit_client");
 const observations = @import("transit_observability");
 const g = wire.protocol.Growth;
@@ -51,7 +52,17 @@ fn step(engine: anytype, config: Config, key: core.Ed25519.KeyPair, progress: *P
         request.command = value;
         observation.event.operation = @tagName(value);
         observation.event.pid = g.commandPid(value);
-        _ = try engine.submit(try g.sign(request, key));
+        const signed = try g.sign(request, key);
+        if (value == .payload_deleted) {
+            const prepared = try engine.prepare(signed);
+            var state = try engine.state();
+            const payload = (try state.get(g.Payload, core.growing.address(.payload, value.payload_deleted.payload))) orelse return error.UnknownPayload;
+            var payloads: backend.PayloadStore = .{ .journal = &engine.journal.journal };
+            try payloads.reclaimPayload(payload);
+            // Conflict or lost acknowledgement leaves the original durable
+            // retirement intent for a later bounded scan and confirmed 404.
+            _ = try engine.commit(prepared);
+        } else _ = try engine.submit(signed);
         return .transition;
     }
     if (config.checkpoint_every_records) |interval| {

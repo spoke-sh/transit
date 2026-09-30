@@ -3,7 +3,7 @@
 Native growing Station query worker, separate from Board and Transit authority.
 Build with `zig build transit-query-host`, then run
 `zig-out/bin/transit-query-host CONFIG.json`. It uses only public client APIs.
-The [public query contract](../../contracts/PUBLIC_QUERY_V1.md) owns limits and
+The [public query contract](../../contracts/UNIFIED_QUERY_V1.md) owns limits and
 permission boundaries; [transit-query](../../packages/zig/transit-query/README.md)
 owns the reusable behaviors.
 
@@ -23,16 +23,14 @@ durable work is noticed; interactive reads do not wait for these workers.
 
 | Role | Configuration | Provisioning |
 | --- | --- | --- |
-| Source | `{"source":{"table":1,"peer":REQUESTER_PID}}` | Existing typed Table and revisioned Station peer policy; fenced source writer with inspect/execute/publish and resource access |
-| Requester | `{"requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource and inspect/execute/publish worker; separate first `PQI1` initialization cast from the query principal |
-| Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v2 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
-| Empty Table source | `{"table_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL,"requests":RESOURCE,"limits":{"pages":1000,"segments":100,"result_bytes":1048576}}}` | M24 local composition initializes an empty int64 Table and its peer policy in the owning activation; defaults `table: 1`, `key_name: "id"`, `value_name: "value"`; existing metadata rejects |
-| Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI2` cast, authenticating the configured principal |
-| Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | M22 opt-in composition with current M19 policy/publication, one active v1 query and the same durable result transfer; qualification in progress |
+| Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v1 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
+| Empty Table source | `{"table_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL,"requests":RESOURCE,"limits":{"pages":1000,"segments":100,"result_bytes":1048576}}}` | The local composition initializes an empty int64 Table and its peer policy in the owning activation; defaults `table: 1`, `key_name: "id"`, `value_name: "value"`; existing metadata rejects |
+| Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI1` cast, authenticating the configured principal |
+| Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | Composition with current service policy/publication and one active finite query |
 | Courier | `{"courier":{"destinations":[SOURCE_PID,REQUESTER_PID]}}` | Dedicated unscoped inspect/delivery/send principal; no execution/storage credentials |
 
-Each OS worker owns one activation. V1 uses a bounded 1 MiB query workspace;
-v2 uses a 4 MiB Arrow workspace and the source adds a 1 MiB adapter arena. The
+Each OS worker owns one activation. Query execution uses a 4 MiB Arrow
+workspace; the source adds a 1 MiB adapter arena. The
 courier walks eight-output public pages and preserves exact pending delivery
 requests. It scans retained output history on restart; startup cost can grow
 with history, while resident memory stays bounded. The destination pair is an
@@ -57,9 +55,9 @@ The real provisioning/proof uses a separate public-API caller and these actual
 binaries (`just test::public-query`), with disk Ursula, an authority, two workers
 and the scoped courier. It is not a production deployment launcher.
 
-The separate [v2 contract](../../contracts/UNIFIED_QUERY_V2.md) and
+The [v1 contract](../../contracts/UNIFIED_QUERY_V1.md) and
 [caller guide](../../packages/zig/transit-query/docs/unified-client.md) cover
-finite uploads and result publications. V2 workers preserve frozen pending
+finite uploads and result publications. Workers preserve frozen pending
 commits and retry transient read timeouts and stale reads before preparation. Request-resource access
 denial closes through the original call; source-resource failure stops the host.
 Initialize associations before activation because association changes advance

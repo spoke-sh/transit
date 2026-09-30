@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { QueryResponse as validate } from '../packages/ts/transit-board-client/src/validators.js';
+import { UnifiedQueryResponse as validate } from '../packages/ts/transit-board-client/src/validators.js';
 const value = JSON.parse(readFileSync(0, 'utf8'));
 for (const [tag, data] of Object.entries(value)) assert(validate({ [tag]: data }), `${tag}: ${JSON.stringify(validate.errors)}`);
 const changed = structuredClone(value.page);
-changed.rows[0][0] = { int64: 9007199254740994 };
+changed.cells[0][0] = { value: { int64: 9007199254740994 } };
 assert(!validate({ page: changed }), 'numeric int64 must never replace a lossless string');
 const incomplete = structuredClone(value.page);
-incomplete.rows.pop();
-assert(!validate({ page: incomplete }), 'fixed bounded page shape is required');
-assert(value.prepared.frozen.token.includes('9007199254740994'));
+incomplete.cells = Array(9).fill(incomplete.cells[0]);
+assert(!validate({ page: incomplete }), 'bounded owned row count is required');
+assert(JSON.stringify(value.compiled.plan).includes('9007199254740994'));
 console.log('Generated query client validates real pages, frozen plans and lossless integer cells.');

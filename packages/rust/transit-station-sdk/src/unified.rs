@@ -286,7 +286,7 @@ impl Source {
                     "change_format":1,"expand":expand.as_deref().map(path).transpose()?,"projections":projections}})
             }
         };
-        Ok(json!({"version":2,"resource":self.resource().resource(),"source":source}))
+        Ok(json!({"version":1,"resource":self.resource().resource(),"source":source}))
     }
 }
 #[derive(Clone, Default)]
@@ -326,7 +326,7 @@ impl Plan {
             }
         };
         Ok(
-            json!({"version":2,"projection":self.projection,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum"}}),
+            json!({"version":1,"projection":self.projection,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum"}}),
         )
     }
 }

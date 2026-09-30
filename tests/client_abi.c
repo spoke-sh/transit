@@ -14,7 +14,7 @@ int main(void) {
     transit_operation *operation = NULL;
     assert(transit_operation_prepare(99, seed, request, sizeof(request) - 1, &operation) == TRANSIT_STATUS_INVALID_ARGUMENT);
     assert(operation == NULL);
-    assert(transit_operation_prepare(TRANSIT_KIND_COMMAND, seed, request, sizeof(request) - 1, &operation) == TRANSIT_STATUS_OK);
+    assert(transit_operation_prepare(TRANSIT_KIND_GROWING_COMMAND, seed, request, sizeof(request) - 1, &operation) == TRANSIT_STATUS_OK);
     transit_buffer *saved = NULL;
     assert(transit_operation_export(operation, &saved) == TRANSIT_STATUS_OK);
     transit_operation_destroy(operation);

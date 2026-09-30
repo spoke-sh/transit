@@ -70,7 +70,7 @@ async function serve() {
     kind: 'compare', column: config.kind === 'document' ? 0 : 1, comparison: 'ne', value: {type: 'utf8', value: 'x'.repeat(512)},
   }}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
   assert.equal(hex(bundle.data), hex(await readFile(config.bundle)));
-  const client = await q.Client.open({url: config.url, profile: 'growing_v3', timeoutMs: 10000},
+  const client = await q.Client.open({url: config.url, profile: 'native_v1', timeoutMs: 10000},
     new Credential(v.realm, v.principal, config.seed_file), connection);
   try {
     const description = await client.describe(source);

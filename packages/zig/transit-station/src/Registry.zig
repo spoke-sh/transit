@@ -2,7 +2,7 @@
 //! lifetime. Binding revisions and tombstones are durable, not worker caches.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Legacy;
+const Turn = @import("Turn.zig");
 const Frame = @import("Frame.zig");
 pub const Subject = union(enum) { principal: u64, process: u64 };
 pub const Rights = packed struct(u8) { lookup: bool = false, mutate: bool = false, _reserved: u6 = 0 };
@@ -160,13 +160,14 @@ pub fn route(turn: anytype, registry_pid: u64, frame: Frame, payload: p.Value) !
     var bytes: [32]u8 = undefined;
     std.mem.writeInt(u64, bytes[0..8], registry_pid, .little);
     @memcpy(bytes[8..32], binding.encode().slice());
-    try turn.write(@import("Query.zig").key('r', frame.correlation, 0), try p.Value.init(&bytes));
+    try turn.write(@import("QueryPolicy.zig").key('r', frame.correlation, 0), try p.Value.init(&bytes));
     try turn.cast(destination, payload);
     return destination;
 }
 
 test "scoped grants, conditional rebind and retained tombstones survive a reconstructed worker" {
-    var turn = try Turn.fixture(.{});
+    var turn_store: @import("TestStore.zig") = .{};
+    var turn = try turn_store.turn(.{});
     try create(&turn, 1);
     try grant(&turn, 1, .{ .principal = 0 }, .{ .lookup = true, .mutate = true });
     const name = try Name.init("ledger");
@@ -177,12 +178,13 @@ test "scoped grants, conditional rebind and retained tombstones survive a recons
     try std.testing.expectEqual(@as(?u64, 9), changed.destination);
     try std.testing.expectError(error.RegistryRevisionConflict, apply(&turn, .{ .scope = 1, .name = name, .operation = .unregister, .expected_revision = 1 }));
     _ = try apply(&turn, .{ .scope = 1, .name = name, .operation = .unregister, .expected_revision = 2 });
-    var recovered = try Turn.fixture(.{});
+    var recovered_store: @import("TestStore.zig") = .{};
+    var recovered = try recovered_store.turn(.{});
     for (turn.decision.mutations, 0..) |slot, i| if (slot) |mutation| {
-        recovered.entries[i] = .{ .key = mutation.key, .value = mutation.value.?, .revision = 3 };
+        recovered_store.entries[i] = .{ .key = mutation.key, .value = mutation.value.?, .revision = 3 };
     };
     const absent = try apply(&recovered, .{ .scope = 1, .name = name, .operation = .lookup });
     try std.testing.expect(absent.destination == null and absent.revision == 3);
-    recovered.delivery.input.origin.source = .{ .process = .{ .pid = 8, .turn = 5, .output = 0 } };
+    recovered.delivery.input.origin = .{ .process = .{ .pid = 8, .turn = 5, .output = 0 } };
     try std.testing.expectError(error.RegistryDenied, apply(&recovered, .{ .scope = 1, .name = name, .operation = .lookup }));
 }

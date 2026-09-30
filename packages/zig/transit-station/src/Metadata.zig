@@ -6,25 +6,25 @@ const Table = @import("Table.zig");
 const Query = @import("Query.zig");
 const Registry = @import("Registry.zig");
 const Supervisor = @import("Supervisor.zig");
-const Turn = @import("Turn.zig").Legacy;
+const Turn = @import("Turn.zig");
 pub const Detail = union(enum) {
     behavior: enum { genserver },
     table: struct { id: u32, schema_version: u8, columns: [2]Column, fingerprint: [32]u8 },
     registry_scope: struct { id: u32 },
     registry_binding: struct { scope: u32, name: p.Value, revision: u64, destination: ?u64 },
     child: struct { pid: u64, generation: u64, phase: Supervisor.Phase, attempts: u8, limit: u8, retry_at_ms: u64, successor: ?u64 },
-    query: struct { id: u64, correlation: p.Value, destination: u64, table: u32, source_resource: u64, source_revision: u64, schema: [32]u8, bytes: u16, rows: u8, phase: Query.Phase, direction: enum { outgoing, incoming } },
-    wait: struct { correlation: p.Value, target: u64, phase: @FieldType(Turn.Wait, "phase"), deadline_ms: ?u64, observer: ?u8, resolution_input: u64 },
+    query: struct { id: u64, correlation: p.Value, destination: u64, table: u32, source_resource: u64, source_revision: u64, schema: [32]u8, bytes: u64, rows: u64, phase: Query.records.Phase, direction: enum { outgoing, incoming } },
+    wait: struct { correlation: p.Value, target: u64, phase: @FieldType(Turn.Wait, "phase"), deadline_ms: ?u64, observer: ?u64, resolution_input: u64 },
 };
 pub const Column = struct { name: p.Value, data_type: @import("transit_fuze").model.Type, nullable: bool };
 fn integer(value: u64) !p.Value {
     var buffer: [20]u8 = undefined;
     return p.Value.init(try std.fmt.bufPrint(&buffer, "{d}", .{value}));
 }
-pub fn decode(writer: u64, resource: u64, entry: p.State.Entry) ?Detail {
+pub fn decode(writer: u64, resource: u64, entry: p.Growth.Entry) ?Detail {
     return decodeChecked(writer, resource, entry) catch null;
 }
-fn decodeChecked(writer: u64, resource: u64, entry: p.State.Entry) !?Detail {
+fn decodeChecked(writer: u64, resource: u64, entry: p.Growth.Entry) !?Detail {
     try p.State.key(entry.key);
     try entry.value.validate();
     if (entry.key.eql(try p.Value.init("\x00station"))) return if (entry.value.eql(try p.Value.init("station.genserver.v1"))) .{ .behavior = .genserver } else null;
@@ -53,13 +53,12 @@ fn decodeChecked(writer: u64, resource: u64, entry: p.State.Entry) !?Detail {
             if (child.pid != std.mem.readInt(u64, key.data[2..10], .little) or child.generation > p.max_counter or child.retry_at_ms > p.max_counter or (child.successor != null and child.successor.? > p.max_counter)) return null;
             return .{ .child = .{ .pid = child.pid, .generation = child.generation, .phase = child.phase, .attempts = child.attempts, .limit = child.limit, .retry_at_ms = child.retry_at_ms, .successor = child.successor } };
         },
-        'q', 'i' => {
-            if (key.len != 11 or key.data[10] != (if (key.data[1] == 'q') @as(u8, 0) else @as(u8, 3))) return null;
+        'Q' => {
+            if (key.len != 21 or key.data[2] != 'z') return null;
             const manifest = try Query.Manifest.decode(entry.value);
-            const identity = std.mem.readInt(u64, key.data[2..10], .little);
-            if (identity != (if (key.data[1] == 'q') manifest.result else manifest.correlation)) return null;
-            if (manifest.result > p.max_counter or manifest.destination > p.max_counter or manifest.basis.resource > p.max_counter or manifest.basis.revision > p.max_counter) return null;
-            return .{ .query = .{ .id = manifest.result, .correlation = try integer(manifest.correlation), .destination = manifest.destination, .table = manifest.table, .source_resource = manifest.basis.resource, .source_revision = manifest.basis.revision, .schema = manifest.basis.schema, .bytes = manifest.bytes, .rows = manifest.rows, .phase = manifest.phase, .direction = if (key.data[1] == 'q') .outgoing else .incoming } };
+            const identity = std.mem.readInt(u64, key.data[3..11], .big);
+            if (identity != manifest.result) return null;
+            return .{ .query = .{ .id = manifest.result, .correlation = try integer(manifest.correlation), .destination = manifest.destination, .table = manifest.table, .source_resource = manifest.basis.resource, .source_revision = manifest.basis.revision, .schema = manifest.basis.schema, .bytes = manifest.bytes, .rows = manifest.rows, .phase = .published, .direction = .outgoing } };
         },
         'w' => {
             if (key.len != 10) return null;
@@ -72,13 +71,13 @@ fn decodeChecked(writer: u64, resource: u64, entry: p.State.Entry) !?Detail {
 }
 
 test "metadata never guesses application values or unknown descriptor versions" {
-    const entry: p.State.Entry = .{ .key = try p.Value.init("\x00station"), .value = try p.Value.init("station.genserver.v2"), .revision = 1 };
+    const entry: p.Growth.Entry = .{ .key = try p.Value.init("\x00station"), .value = try p.Value.init("station.genserver.v2"), .revision = 1 };
     try std.testing.expect(decode(2, 7, entry) == null);
     var known = entry;
     known.value = try p.Value.init("station.genserver.v1");
     try std.testing.expect(decode(2, 7, known).? == .behavior);
     known.key = try p.Value.init("application");
     try std.testing.expect(decode(2, 7, known) == null);
-    const wait: p.State.Entry = .{ .key = Turn.waitKey(std.math.maxInt(u64)), .value = (Turn.Wait{ .target = 8 }).encode(), .revision = 2 };
+    const wait: p.Growth.Entry = .{ .key = Turn.waitKey(std.math.maxInt(u64)), .value = (Turn.Wait{ .target = 8 }).encode(), .revision = 2 };
     try std.testing.expectEqualStrings("18446744073709551615", decode(2, 7, wait).?.wait.correlation.slice());
 }

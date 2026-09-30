@@ -27,7 +27,7 @@ Native commands and existing snapshot signing domains remain unchanged.
 ## Generic leased snapshots
 
 The additive growing capability `leased_snapshots` enables signed operations on
-`/v3/query`, using the existing query domain and current principal identity:
+`/v1/query`, using the existing query domain and current principal identity:
 
 | Operation | Request | Response |
 | --- | --- | --- |

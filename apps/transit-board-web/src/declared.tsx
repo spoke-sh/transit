@@ -4,7 +4,6 @@ import { Atlas } from "./atlas";
 import { Activity, Operations } from "./foundations";
 import { DefinitionEditor } from "./definition";
 import { UnifiedWorkspace } from "./unified-workspace";
-import { QueryWorkspace } from "./query-workspace";
 /** Component artifacts interpret one whole validated declaration generation. */
 export function DeclaredView() {
   const current = useInterface();
@@ -59,28 +58,18 @@ export function DeclaredView() {
       view = (
         <main>
           <h1>{screen.label}</h1>
-          {query.profile === "unified_v2" ? (
-            <UnifiedWorkspace
-              followLabel={
-                definition.actions.find(
-                  (action) => "follow" in action.target && action.target.follow === binding.name,
-                )?.label
-              }
-              binding={query}
-              resource={query.resource}
-              mode="browse"
-              visible
-              onBack={() => history.back()}
-            />
-          ) : (
-            <QueryWorkspace
-              binding={query}
-              resource={query.resource}
-              mode="browse"
-              visible
-              onBack={() => history.back()}
-            />
-          )}
+          <UnifiedWorkspace
+            followLabel={
+              definition.actions.find(
+                (action) => "follow" in action.target && action.target.follow === binding.name,
+              )?.label
+            }
+            binding={query}
+            resource={query.resource}
+            mode="browse"
+            visible
+            onBack={() => history.back()}
+          />
         </main>
       );
       break;

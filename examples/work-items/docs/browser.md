@@ -50,7 +50,7 @@ policy and publication policy are checked independently.
 
 `GET /api/v1/interface` reads the current publication.
 `POST /api/v1/application` exposes the shared signed operator host.
-`POST /api/v1/query-v2` exposes the shared finite query workspace. Query compilation,
+`POST /api/v1/query` exposes the shared finite query workspace. Query compilation,
 new admission and page reads must match both the published binding and active
 data contract. Exact pending submission, observation and cancellation remain
 available independently of the current interface, so migration cannot erase

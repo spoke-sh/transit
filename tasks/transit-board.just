@@ -20,6 +20,7 @@ generate:
     vp exec node packages/ts/transit-board-client/validators.mjs
     zig build serving-api
     zig-out/bin/transit-serving-api client > packages/zig/transit-serving/api/client.json
+    python3 -B tests/reactive_descriptions.py zig-out/bin/transit-serving-api --write
     python3 -B packages/ts/transit-reactive-client/generate.py
     vp exec node packages/ts/transit-reactive-client/validators.mjs
     zig build transit-app

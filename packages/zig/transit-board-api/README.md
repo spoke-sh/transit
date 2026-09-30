@@ -41,8 +41,7 @@ the shared query client.
 | `HttpResponse` / `Http.project` | Selected HTTP policy/timing/omission/completion metadata and its committed member references |
 | `GrpcResponse` / `Grpc.project` | Selected RPC shape/schema, directional counts, half-close and terminal evidence without protobuf interpretation |
 | `DocumentResponse` / `Document.project` | Accepted identity, profile, revision, retained floor and bounded register conflict counts, without field or text values |
-| `QueryRequest`, `QueryResponse` | Optional Table query operations, opaque frozen submissions and verified typed pages |
-| `UnifiedQueryRequest`, `UnifiedQueryResponse` | Optional v2 scoped SQL, finite upload, frozen retry and nested pages through `transit-query.Workspace` |
+| `UnifiedQueryRequest`, `UnifiedQueryResponse` | Optional v1 scoped SQL, finite upload, frozen retry and nested pages through `transit-query.Workspace` |
 | `Json.write` | Schema-consistent JSON: fixed byte arrays stay arrays, text slices stay strings |
 | `Capabilities`, `Error` | Board build capabilities and its finite error vocabulary |
 | [export.zig](src/export.zig) | OpenAPI generation over the public typed definitions |
@@ -79,7 +78,7 @@ this is not a full transcript replay or a decoded application body.
 Change the types/projection and tests here, then run `just transit-board::generate`
 and `just transit-board::contract` from the repository root. Update service
 routing and frontend validation in the same change. The
-[Board compatibility guide](../../../apps/transit-board/docs/configuration.md#board-v1-schema-compatibility)
+[Board compatibility guide](../../../apps/transit-board/docs/configuration.md#board-v1-compatibility)
 and app state section describe schema changes and client update requirements.
 
 `zig build transit-board-contract` at the repository root generates the
@@ -87,10 +86,10 @@ and app state section describe schema changes and client update requirements.
 Transit schema writer. Board output fields are required, and integers are bounded
 to JavaScript's exact safe range. Query int64 cells use decimal strings; opaque frozen tokens preserve signed
 requests without JavaScript parsing their full-width literals. The query route
-exposes only the [public query profile](../../../contracts/PUBLIC_QUERY_V1.md),
+exposes only the [public query profile](../../../contracts/UNIFIED_QUERY_V1.md),
 not arbitrary Transit commands.
 
-The additive `/api/v1/query-v2` route has its own generated schemas. Dynamic
+The additive `/api/v1/query` route has its own generated schemas. Dynamic
 row/column/path/conflict arrays are bounded to eight, and full-width counts,
 identities and scalars remain strings. Atlas identifies the configured query
 version only when its resource appears in the authorized inspection page.

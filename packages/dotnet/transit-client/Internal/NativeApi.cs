@@ -3,7 +3,11 @@ using System.Runtime.InteropServices;
 namespace Transit.Client.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
+    internal const string Definition = "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679";
     internal const int MinimumStackBytes = 8388608;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint transit_client_abi_definition_matchesDelegate([In] byte[] arg0, nuint arg1);
+    internal readonly transit_client_abi_definition_matchesDelegate transit_client_abi_definition_matches;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint transit_client_abi_versionDelegate();
     internal readonly transit_client_abi_versionDelegate transit_client_abi_version;
@@ -47,6 +51,7 @@ internal sealed class NativeApi {
     internal delegate void transit_buffer_destroyDelegate(IntPtr arg0);
     internal readonly transit_buffer_destroyDelegate transit_buffer_destroy;
     internal NativeApi(IntPtr library) {
+        transit_client_abi_definition_matches = Marshal.GetDelegateForFunctionPointer<transit_client_abi_definition_matchesDelegate>(NativeLibrary.GetExport(library, "transit_client_abi_definition_matches"));
         transit_client_abi_version = Marshal.GetDelegateForFunctionPointer<transit_client_abi_versionDelegate>(NativeLibrary.GetExport(library, "transit_client_abi_version"));
         transit_client_supports_kind = Marshal.GetDelegateForFunctionPointer<transit_client_supports_kindDelegate>(NativeLibrary.GetExport(library, "transit_client_supports_kind"));
         transit_json_extract = Marshal.GetDelegateForFunctionPointer<transit_json_extractDelegate>(NativeLibrary.GetExport(library, "transit_json_extract"));

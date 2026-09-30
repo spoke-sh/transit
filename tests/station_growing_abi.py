@@ -13,8 +13,10 @@ import time
 from client_abi_growing import GrowingSystem
 from storage import wait_ready
 from station import frame
-from station_abi import ROOT, rejects
-from transit_station import Client, TransitError, _Library, _json, _seed
+from abi_support import rejects
+from sdk_scenarios import check
+ROOT = Path(__file__).resolve().parents[1]
+from abi_support import Client, TransitError, _Library, _json, _seed
 
 
 class Native:
@@ -102,12 +104,12 @@ def run(node, cli, library, raw_library, host):
             nonlocal sequence
             sequence += 1
             return root_client.call(root_client.prepare(6, system.seed, {
-                'version': 3, 'realm': 72, 'principal': 0, 'sequence': sequence,
+                'version': 1, 'realm': 72, 'principal': 0, 'sequence': sequence,
                 'command': body}))['position']
 
         def query(kind):
             return root_client.call(root_client.prepare(7, system.seed, {
-                'version': 3, 'realm': 72, 'principal': 0, 'kind': kind}))['body']
+                'version': 1, 'realm': 72, 'principal': 0, 'kind': kind}))['body']
 
         def provision(principal, spawn=None):
             pid = command({'spawn': spawn or {}})
@@ -133,13 +135,13 @@ def run(node, cli, library, raw_library, host):
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == '/v3/command':
+                    if self.path == '/v1/command':
                         fault['commands'].append(body)
                         if fault['drop'] and response.status == 200:
                             fault['drop'] = False
                             self.close_connection = True
                             return
-                    elif self.path == '/v3/query' and fault['bad_read'] and response.status == 200:
+                    elif self.path == '/v1/query' and fault['bad_read'] and response.status == 200:
                         fault['bad_read'] = False
                         result = json.loads(data)
                         result['realm'] += 1
@@ -200,7 +202,7 @@ def run(node, cli, library, raw_library, host):
 
         try:
             pid, resource, seed = provision(65536)
-            config = {'profile': 'growing_v3', 'realm': 72, 'principal': 65536,
+            config = {'profile': 'native_v1', 'realm': 72, 'principal': 65536,
                 'pid': pid, 'generation': 2, 'failure_policy': 'stop'}
             for invalid in ({**config, 'profile': 'legacy_v2'}, {**config, 'principal': 2**53},
                             {key: value for key, value in config.items() if key != 'profile'}):
@@ -400,7 +402,7 @@ def run(node, cli, library, raw_library, host):
             assert int(released) > int(correlation)
             finish(server, scope)
             position = root_client.call(root_client.prepare(7, system.seed, {
-                'version': 3, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
+                'version': 1, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
             disposal = next(item for item in query({'outputs': {'after': outgoing['id'], 'position': position}})['outputs']['entries'] if item and item['source'] == caller)
             release_fixture = json.loads((Path(__file__).resolve().parents[1] / 'packages/zig/transit-station-http/src/release-fixtures.json').read_text())
             assert disposal['destination'] == destination
@@ -418,7 +420,7 @@ def run(node, cli, library, raw_library, host):
             document = _json({'followup': {k: v for k, v in followup.items() if k != 'pid'}})
             encoded = server.api.call('station_http_codec', document, len(document))['followup']
             position = root_client.call(root_client.prepare(7, system.seed, {
-                'version': 3, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
+                'version': 1, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
             linked_output = next(item for item in query({'outputs': {'after': disposal['id'], 'position': position}})['outputs']['entries'] if item and item['source'] == caller)
             assert linked_output['destination'] == destination
             assert bytes.fromhex(linked_output['value'])[13:] == bytes.fromhex(encoded)
@@ -520,7 +522,7 @@ def run(node, cli, library, raw_library, host):
             # Pages use a stable authority position; never assume all historical
             # outputs fit in a single page as this schedule grows.
             position = root_client.call(root_client.prepare(7, system.seed, {
-                'version': 3, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
+                'version': 1, 'realm': 72, 'principal': 0, 'kind': {'capabilities': {}}}))['position']
             after, found = None, {}
             while True:
                 page = query({'outputs': {'after': after, 'position': position}})['outputs']
@@ -535,6 +537,42 @@ def run(node, cli, library, raw_library, host):
             assert found[calls[1]][:4] == b'GRU1'
             assert found[calls[1]][21:] == bytes.fromhex(prepared['reference'])
             assert found[calls[2]] == b'GRD1' + (7).to_bytes(8, 'little') + (2**64-1).to_bytes(8, 'little')
+
+            # A malformed framework envelope fails before handler dispatch. The
+            # declared block policy records failure without consuming its input
+            # or publishing any private initialization/state writes.
+            server.close()
+            server = None
+            malformed_pid, malformed_resource, malformed_seed = provision(65539)
+            command({'send': {'pid': malformed_pid, 'value': b'bad-frame'.hex()}})
+            before = query({'process': malformed_pid})['process']
+            before_resource = query({'resource': malformed_resource})['resource']
+            server = Native(libraries, url, malformed_seed, {
+                'profile': 'native_v1', 'realm': 72, 'principal': 65539,
+                'pid': malformed_pid, 'generation': 2, 'failure_policy': 'block_input',
+            })
+            blocked = 0
+            for _ in range(16):
+                event = server.prepare()['event']
+                if event == 'pending':
+                    server.dispatch()
+                elif event == 'blocked':
+                    blocked += 1
+                    if blocked == 2:
+                        break
+                else:
+                    assert event == 'progress', event
+            after = query({'process': malformed_pid})['process']
+            after_resource = query({'resource': malformed_resource})['resource']
+            mailbox = query({'inspection': {'resource': 'mailbox', 'pid': malformed_pid}})['inspection']
+            retained = next(event for event in mailbox['events'] if event)
+            assert after['input'] is None and after['process']['failure'] == before['input']['position']
+            check('decode-failure', {
+                'blocked_observations': blocked,
+                'input_unchanged': retained['position'] == before['input']['position'] and retained['value'] == before['input']['value'] and retained['mailbox_status'] == 'pending',
+                'state_unchanged': before_resource['revision'] == after_resource['revision'],
+                'consumed_inputs': after['process']['consumed'],
+            })
         finally:
             if port is not None:
                 port.close()

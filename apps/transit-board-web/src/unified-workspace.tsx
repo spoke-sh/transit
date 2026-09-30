@@ -474,7 +474,7 @@ export function UnifiedWorkspace({
     <section className="query-workspace" hidden={!visible} aria-label="Unified query workspace">
       <div className="atlas-toolbar">
         <button onClick={onBack}>← Neighborhood</button>
-        <span>Resource {resource} · separate v2 query capability</span>
+        <span>Resource {resource} · separate v1 query capability</span>
         <button
           disabled={working}
           onClick={() => {
@@ -524,7 +524,7 @@ export function UnifiedWorkspace({
           }
           cancel={() => control("cancel")}
           select={() => {
-            saveQueryReference("unified_v2", retained.resource, work.current.namespace);
+            saveQueryReference("unified_v1", retained.resource, work.current.namespace);
             retained.follow = false;
             retained.binding = bindingId;
             work.current = empty();
@@ -613,7 +613,7 @@ export function UnifiedWorkspace({
         }
         onClick={() => {
           if (work.current.namespace)
-            saveQueryReference("unified_v2", retained.resource, work.current.namespace);
+            saveQueryReference("unified_v1", retained.resource, work.current.namespace);
           retained.follow = false;
           work.current = { ...empty(), namespace: resume };
           setPage(null);

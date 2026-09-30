@@ -17,7 +17,7 @@ mode, config_file = ARGV
 cfg = JSON.parse(File.binread(config_file))
 check Gem.loaded_specs.fetch('transit-client').full_gem_path.start_with?(File.dirname(config_file))
 check !Gem.loaded_specs.key?('transit-station')
-config = Transit::ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3, timeout_ms: 3000)
+config = Transit::ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1, timeout_ms: 3000)
 credential = Transit::Credential.new(realm: 72, principal: 65_536, seed_file: cfg.fetch('seed'))
 peer = Transit::ProcessRef.new(realm: 72, pid: cfg.fetch('pid'))
 expect(ArgumentError) { Transit::ProcessRef.new(realm: 72, pid: true) }

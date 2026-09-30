@@ -4,7 +4,7 @@ The Flight gateway serves finite int64 Table queries to PyArrow and ADBC C/Pytho
 clients. The
 [compatibility matrix](../packages/zig/transit-flight/docs/compatibility.md)
 records supported client versions, bounds and excluded operations. This contract
-extends [serving](SERVING_V1.md) and [public Table query](PUBLIC_QUERY_V1.md);
+extends [serving](SERVING_V1.md) and [query v1](UNIFIED_QUERY_V1.md);
 it does not replace their authorization, admission or result evidence.
 
 ## Protocol and source
@@ -14,8 +14,10 @@ hashes beside `transit-flight`. Flight SQL commands are standard protobuf `Any`
 values in CMD descriptors. Start with one explicitly published Table per scoped
 caller mapping, primitive int64 key/value columns and the existing Fuze SQL
 subset. Key is non-null; value can be null. Projection, checked int64 sum, count,
-finite filters/limits and empty results retain the public v1 value semantics.
-The unified v2 nested cell representation is outside this profile.
+finite filters/limits and empty results use the current query plan and source
+contracts. Verified nested query cells are adapted to ordinary Arrow int64
+columns. The adapter rejects missing, conflicted and mistyped cells; it never
+coerces them to null. Count is checked before conversion from uint64 to int64.
 
 The gateway implements GetSchema, GetFlightInfo and server-streaming DoGet, with
 a single endpoint per finite result. Catalog metadata comprises GetCatalogs, GetDbSchemas,
@@ -47,13 +49,23 @@ publication cannot redirect a ticket to a new target. Ticket validation never
 grants access or turns an unavailable source into an empty result.
 
 A statement GetFlightInfo requires the decimal `x-transit-request-sequence`
-header. The configured published schema, SQL and exact sequence produce the
-canonical public-query signed request through `Client.prepareSequence`; native
-acceptance occurs through `submitSequence`. This sequence is an explicit caller
-choice, not a server-side reservation. Repeated SQL with a new sequence creates
-new work; the same sequence and canonical request is an exact retry. A changed
-request at an already-used sequence conflicts. No gateway chooses a successor
-after an unknown outcome or stores admissions in a separate retry database.
+header. It selects the first native sequence and the immutable upload namespace.
+The configured published schema, SQL and budgets produce one canonical request
+bundle. The gateway signs `begin`, bounded `part` commands, `seal` and `submit`
+with consecutive native sequences, waiting for each recorded requester outcome
+before sending the next command. The namespace is the first sequence. The
+principal must be dedicated to this admission stream; concurrent requests must
+not overlap their native sequence ranges.
+
+The same first sequence and canonical bundle reconstruct the same signed commands
+through gateway replacement. Changed bytes at a used sequence conflict. An unknown
+outcome retains the original sequence and SQL/schema; the gateway never chooses a
+new sequence automatically. Successful `FlightInfo.app_metadata` is JSON
+`{"version":1,"next_sequence":N}` identifying the sequence after the upload. A new
+statement uses that explicit next sequence; increasing the first sequence by one
+would overlap the previous upload. Flight clients that do not expose application
+metadata must obtain the next native sequence through their dedicated caller's
+capabilities only after the previous statement completes.
 
 GetSchema compiles only and never submits. GetFlightInfo waits within its finite
 deadline for the recorded query result. Disconnect or deadline does not cancel
@@ -94,7 +106,10 @@ length prefix; data_body is its corresponding record body. FlightInfo/GetSchema
 carry the serialized schema message with the standard prefix. Do not place a
 whole IPC stream inside data_body. The existing Arrow reader validates finite
 segments; complete coverage checks counts, ordered segment digests and manifest
-identity. One bounded batch is resident, not all retained result bytes.
+identity. One bounded batch is resident. Captured bytes and digests are verified before
+conversion. `FlightInfo.total_bytes` is -1 for statement results because the
+primitive Flight encoding differs from the retained cell encoding; total row
+count remains exact.
 
 ## Capacity and qualification
 

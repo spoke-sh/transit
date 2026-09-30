@@ -5,7 +5,7 @@ const q = @import("root.zig");
 const s = q.station;
 const r = q.UnifiedRecords;
 const wire = q.UnifiedRequest;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 const Pub = s.Publication;
 const Ref = s.PublicationReference;
 pub fn status(source: anytype, namespace: u64) !?wire.Status {
@@ -44,7 +44,7 @@ pub fn begin(turn: *Turn, reference: Ref) !void {
     const publication = try Pub.create(turn, reference.namespace, .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 });
     _ = try publication.begin(turn, reference.record, reference.spec);
     try store(turn, .{ .reference = reference });
-    try turn.write(r.key('a', 0, 0), q.Request.identity(reference.namespace));
+    try turn.write(r.key('a', 0, 0), q.UnifiedRecords.identityValue(reference.namespace));
 }
 pub fn part(turn: *Turn, value: @FieldType(wire.Command, "part")) !void {
     const before = turn.decision;
@@ -88,7 +88,7 @@ pub fn submitWithObserver(turn: *Turn, namespace: u64, destination: u64, observe
     current.correlation = try turn.callWithTimer(destination, try current.reference.encode(), deadline, if (deadline != null) observer else null);
     current.phase = .admitted;
     try store(turn, current);
-    try turn.write(r.key('i', current.correlation, 0), q.Request.identity(namespace));
+    try turn.write(r.key('i', current.correlation, 0), q.UnifiedRecords.identityValue(namespace));
     return current.correlation;
 }
 /// Station authenticates and closes the wait before invoking the handler.
@@ -117,7 +117,7 @@ pub fn reply(turn: *Turn, frame: s.Frame, expected_source: u64) !void {
     var current = try required(turn, namespace);
     if (current.correlation != frame.correlation) return error.UnexpectedQueryReply;
     if (current.phase != .admitted) return;
-    if (std.mem.eql(u8, frame.payload.slice(), "query.v2.denied")) current.phase = .denied else if (std.mem.eql(u8, frame.payload.slice(), "query.v2.cancelled")) current.phase = .cancelled else if (std.mem.eql(u8, frame.payload.slice(), "query.v2.failed") or std.mem.eql(u8, frame.payload.slice(), "query.v2.rejected")) current.phase = .rejected else {
+    if (std.mem.eql(u8, frame.payload.slice(), "query.v1.denied")) current.phase = .denied else if (std.mem.eql(u8, frame.payload.slice(), "query.v1.cancelled")) current.phase = .cancelled else if (std.mem.eql(u8, frame.payload.slice(), "query.v1.failed") or std.mem.eql(u8, frame.payload.slice(), "query.v1.rejected")) current.phase = .rejected else {
         current.manifest = try Ref.decode(frame.payload);
         current.phase = .complete;
     }

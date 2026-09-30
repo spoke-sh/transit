@@ -46,7 +46,7 @@ that application computation is compatible or honest.
 
 ## Board inspection extension
 
-Declaration version 2 supports at most sixteen explicit `inspection`
+Declaration version 1 supports at most sixteen explicit `inspection`
 entries, each naming a declared resource and metadata/read permissions (1–3).
 Only bits 1 and 2 are allowed; zero, duplicates and undeclared resources reject.
 These entries authorize the local manager to provision its dedicated Board
@@ -55,12 +55,12 @@ journal. They do not enable browser queries or operator actions. A headless
 installation can defer these grants until the retained Board principal exists.
 Completed grants are never reissued by worker replacement or manager restart.
 
-Version-1 declarations reject nonempty inspection scopes and retain their exact
-original serialization (no `inspection` field), preserving signed requests and
-retained declaration digests. Version 2 serializes this field after `initialize`.
-The generated schema accepts both declaration versions; semantic validation
-additionally enforces the version/scope relationship. Management requests and
-worker bootstrap remain version 1. Older managers reject version-2 declarations.
+The declaration always serializes `inspection` after `initialize`, including an
+empty list. Its signatures and retained digests use this current definition.
+Managers, declarations, worker bootstrap and caller exports are v1; previous
+encodings are not accepted through a fallback decoder. Persisted installation
+records require the native contract definition identifier before any provider
+work can resume.
 
 ## Management authentication and recovery
 

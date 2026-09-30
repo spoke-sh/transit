@@ -1,7 +1,7 @@
 # Signed unified query callers
 
 `UnifiedClient` uses the public Transit client and the separate
-[v2 contract](../../../../contracts/UNIFIED_QUERY_V2.md). Its connection fixes the
+[v1 contract](../../../../contracts/UNIFIED_QUERY_V1.md). Its connection fixes the
 realm, calling principal, source PID/resource and requester PID/resource.
 The caller needs current inspect/send authority and read/inspect access to both
 resources. No worker ownership or provider credential is used by this API.
@@ -9,7 +9,7 @@ resources. No worker ownership or provider credential is used by this API.
 Provision the source's declaration/policy, dedicated requester and both durable
 behavior configurations first. `describe(source)` verifies current source/schema
 availability, policy declaration, permitted work limits and the active requester
-slot. Its capabilities describe this v2 profile; they do not widen M13 Table v1.
+slot. Its capabilities describe the current v1 finite query interface.
 PID-scoped source workers additionally need a non-required association to the
 request resource, established before activation, and a separate current read
 grant. Associations do not grant access.

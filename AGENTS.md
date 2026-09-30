@@ -14,8 +14,8 @@ Follow the public explanations and exact contracts for the area you change:
 
 | Area | Required references |
 | --- | --- |
-| Protocol, processes, ownership | [Processes](docs/reference/processes.md), [v2 profile](contracts/TRANSIT_V2.md), [growing v3](contracts/TRANSIT_V3.md) |
-| Authentication, grants, credentials, trust | [Security](docs/reference/security.md), [service contract](contracts/SERVICE_V2.md) |
+| Protocol, processes, ownership | [Processes](docs/reference/processes.md), [native v1 contract](contracts/TRANSIT_V1.md) |
+| Authentication, grants, credentials, trust | [Security](docs/reference/security.md), [service contract](contracts/SERVICE_V1.md) |
 | Storage, delivery, producer/consumer behavior | [Streams](docs/reference/streams.md), [storage boundary](docs/reference/storage.md) |
 | State resources, associations, KV/Table/Document APIs | [State](docs/reference/state.md), [Tables](docs/reference/tables.md), [Documents](docs/reference/documents.md), [state contract](contracts/STATE_V1.md) |
 | Declarative interfaces and query execution | [SQL](docs/reference/sql.md), [queries](docs/reference/queries.md), [applications](docs/reference/applications.md), [grammar](contracts/sql/README.md) |
@@ -54,6 +54,11 @@ established behavior, limits and reasoning into the public owner with the change
   different builds. Reject incompatible peers, saved requests and stored formats
   before execution; never reinterpret old accepted work or silently reset data.
   Preserve existing safety/recovery checks while replacing their protocol inputs.
+  Replace the shared contract definition identifier on every incompatible
+  cutover, including stored framework semantics and ABI changes. Regenerate
+  schemas, binding resources and signing fixtures; preserve rejection checks
+  for missing or foreign definitions. Do not default a persisted compatibility
+  field to the current definition when reading old artifacts.
 - Keep the Transit kernel generic and Station above it. Reasoning loops, goals,
   delegation, and trading policy belong to applications; LLM/tool access belongs
   in connectors.
@@ -100,9 +105,8 @@ established behavior, limits and reasoning into the public owner with the change
   Durable backlog is not an in-memory queue. Never silently discard accepted work.
 - Keep durable collection size independent of resident memory. Bound pages,
   caches, operation batches and active work; enforce explicit deployment quotas.
-  Fixed total-cardinality arrays in the legacy profile are constraints to replace,
-  not the target programming model. Do not raise constants or require retention
-  opt-in as a substitute for the growing-state foundation required by M10.
+  Do not introduce fixed total-cardinality arrays, raise constants or require
+  retention opt-in as a substitute for the paged durable-state foundation.
 - Enforce current scoped authorization separately from PID ownership, including
   reads/replay. Preserve fencing, permanent retirement, and recorded destinations;
   provider state, names, and restored snapshots cannot grant execution rights.

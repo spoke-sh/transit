@@ -10,7 +10,7 @@ resolution and portable native binaries are not qualified. Native artifacts
 require their pinned Nix closure. Load starts no authority access or signing.
 
 Include `transit_station_sdk/include/transit_station_sdk.hrl` with `include_lib`.
-Construct the client with `transit_client:config(URL, growing_v3)`, the credential
+Construct the client with `transit_client:config(URL, native_v1)`, the credential
 with `transit_client:credential(Realm, Principal, SeedFile)`, and the durable
 process reference with `transit_client:process(Realm, Pid)`. A `#transit_service{}`
 combines that client, a `#transit_activation{process, generation, credential}`,
@@ -116,7 +116,6 @@ Public APIs require exact 0.2.0 client/native artifacts, host v1 and the support
 explicit growing profile. Missing/mismatched artifacts fail startup. A native
 path override is checked by the same hello/capability handshake. Generated
 `priv/contract.json` is internal and regenerated from shared public native types.
-The `transit_station` M9 low-level application remains separate; migrate to this
-SDK's runner/records and application codecs rather than translating generic
-poll/apply/finish actions in application code. The original M9 conformance APIs
-remain available for their qualified bounded v2 profile.
+Application code uses typed SDK callbacks, records and codecs. The shared native
+port owns protocol and Station semantics through the current v1 definition.
+Generated action schemas and transport calls remain internal adapter boundaries.

@@ -36,7 +36,7 @@ describe("generated reactive transport boundary", () => {
     const sent: string[] = [];
     const signed = {
       request: {
-        version: 3,
+        version: 1,
         realm: 49,
         principal: 65536,
         sequence: 1,
@@ -128,7 +128,7 @@ describe("generated reactive transport boundary", () => {
     async (status) => {
       const signed = {
         request: {
-          version: 3,
+          version: 1,
           realm: 49,
           principal: 65536,
           sequence: 1,

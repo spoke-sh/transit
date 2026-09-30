@@ -145,7 +145,7 @@ module Transit
   end
   ClientConfig = Data.define(:url, :profile, :timeout_ms, :native_host) do
     def initialize(url:, profile:, timeout_ms: 5000, native_host: nil)
-      raise ArgumentError, 'Select the explicit growing_v3 profile' unless profile == :growing_v3
+      raise ArgumentError, 'Select the explicit native_v1 profile' unless profile == :native_v1
       endpoint = Internal.text(url)
       parsed = URI.parse(endpoint)
       unless %w[http https].include?(parsed.scheme) && parsed.host && !parsed.userinfo && !parsed.query && !parsed.fragment

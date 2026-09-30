@@ -35,7 +35,7 @@ class Probe:
                 if before:
                     before(self.path, body)
                 labels = [self.command, 'request_bytes']
-                if native and self.path in ('/v3/query', '/v3/command'):
+                if native and self.path in ('/v1/query', '/v1/command'):
                     value = json.loads(body)
                     mutation = self.path.endswith('command')
                     envelope = value['request' if mutation else 'query']
@@ -65,7 +65,7 @@ class Probe:
                             owner.counts[label] += length if label == 'request_bytes' else 1
                         elapsed = time.monotonic_ns() - started
                         owner.counts['elapsed_ns'] += elapsed
-                        if native and self.path in ('/v3/query', '/v3/command'):
+                        if native and self.path in ('/v1/query', '/v1/command'):
                             owner.counts[classified + ':elapsed_ns'] += elapsed
                             owner.counts['principal:' + str(envelope['principal']) + ':' + classified + ':elapsed_ns'] += elapsed
                         owner.counts['response_bytes'] += len(data)

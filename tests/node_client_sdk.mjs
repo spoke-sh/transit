@@ -8,7 +8,7 @@ import { writeFile } from 'node:fs/promises';
 
 const [mode, configPath] = process.argv.slice(2);
 const cfg = JSON.parse(await readFile(configPath, 'utf8'));
-const options = { url: cfg.url, profile: 'growing_v3', timeoutMs: 3000 };
+const options = { url: cfg.url, profile: 'native_v1', timeoutMs: 3000 };
 const credential = new Credential(72, 65536, cfg.seed);
 const peer = new ProcessRef(72, cfg.pid);
 const require = createRequire(import.meta.url);

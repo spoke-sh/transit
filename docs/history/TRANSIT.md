@@ -11,11 +11,11 @@ The [native protocol reference](../reference/native.md) owns wire entry points;
 Status: foundational requirements established; record names and mechanisms below
 are the target protocol outline. An experimental signed-request/ownership/replay
 slice is implemented; its supported surface and limits are specified in
-[the v2 profile](../../contracts/TRANSIT_V2.md), with evidence in the
+[the v2 profile](../../contracts/TRANSIT_V1.md), with evidence in the
 [test guide](../../tests/README.md). M7 adds the [bounded associated KV profile](../../contracts/STATE_V1.md). General
 payloads and broader kernel lifecycle mechanisms remain design direction.
 Station behaviors and selected application migrations are implemented above the
-kernel; [growing v3](../../contracts/TRANSIT_V3.md) adds the separate paged profile.
+kernel; [growing v3](../../contracts/TRANSIT_V1.md) adds the separate paged profile.
 
 ## Boundary
 
@@ -105,7 +105,7 @@ After termination, reject new application admissions and turns while permitting
 authorized cleanup and recording of outstanding effect evidence only while its
 independent reconciliation contract remains open. Closure rejects new results.
 
-The implemented [same-PID upgrade](../../contracts/TRANSIT_V2.md) keeps the declared
+The implemented [same-PID upgrade](../../contracts/TRANSIT_V1.md) keeps the declared
 application/state contract unchanged. It performs no state conversion, renews no
 lifetime, and cannot revive a failed or retired process. Compatibility of edited
 application code remains the caller/deployer's responsibility.
@@ -163,9 +163,9 @@ ordering. The protocol must distinguish those two forms of control explicitly.
 An authoritative operation must order identity, payload, expected prior state,
 current policy, and its resulting receipt together. A timeout after acceptance
 leaves an uncertain acknowledgement; retry the same identity and recover the
-recorded result. The [core implementation](../../packages/zig/transit-core/README.md#authority-and-recovery)
+recorded result. The [core implementation](../../packages/zig/transit-core/README.md#state-and-recovery)
 uses one conditional realm journal for M1; its exact wire representation belongs
-to the [v2 profile](../../contracts/TRANSIT_V2.md).
+to the [v2 profile](../../contracts/TRANSIT_V1.md).
 
 Spawn is idempotent too: one authorized spawn identity produces one PID and
 initial state. A controller or supervisor recovering a lost reply must not
@@ -206,7 +206,7 @@ and execution caches remain disposable. A protocol checkpoint that replaces a
 reclaimed prefix must itself be durable and validated; it becomes part of the
 authoritative recovery basis with the retained tail.
 
-The [implemented turn format](../../contracts/TRANSIT_V2.md) makes opaque state and
+The [implemented turn format](../../contracts/TRANSIT_V1.md) makes opaque state and
 outputs atomically visible in one journal record. Pending cross-process delivery
 uses durable outboxes with stable identities and deduplicated admission; this
 provides no general multi-stream transaction. See [STREAMS.md](STREAMS.md).

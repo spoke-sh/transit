@@ -6,9 +6,9 @@ import time
 
 from client_abi_growing import GrowingSystem
 from station import frame
-from station_abi import rejects
+from abi_support import rejects
 from station_growing_abi import Native, Port
-from transit_station import Client, _json
+from abi_support import Client, _json
 
 
 class DocumentSystem(GrowingSystem):
@@ -29,7 +29,7 @@ def run(node, cli, library, raw_library, host):
             nonlocal sequence
             sequence += 1
             return root.call(root.prepare(6, system.seed, {
-                'version': 3, 'realm': 72, 'principal': 0, 'sequence': sequence,
+                'version': 1, 'realm': 72, 'principal': 0, 'sequence': sequence,
                 'command': body}))['position']
 
         pid = command({'spawn': {}})
@@ -42,7 +42,7 @@ def run(node, cli, library, raw_library, host):
             command({'grant_resource': {'resource': resource, 'subject': subject, 'permissions': permissions}})
         command({'associate': {'pid': pid, 'name': b'data'.hex(), 'resource': resource}})
         command({'own': {'pid': pid, 'worker': 65536, 'expected_generation': 1}})
-        config = {'profile': 'growing_v3', 'realm': 72, 'principal': 65536,
+        config = {'profile': 'native_v1', 'realm': 72, 'principal': 65536,
                   'pid': pid, 'generation': 2, 'failure_policy': 'stop', 'timeout_ms': 15000}
         native = Native(libraries, system.url, seed, config)
         reader = Native(libraries, system.url, reader_seed, {**config, 'principal': 65537})

@@ -14,7 +14,7 @@ export function attention(p: Process): string {
   if (p.lifecycle !== "running") return `${p.lifecycle} · permanently retired`;
   if (p.control?.phase === "initializing") return "Initializing · handler activation blocked";
   if (p.control?.phase === "suspended") return "Suspended · bounded resumption window";
-  if (p.failure) return `Blocked on input ${p.failure.input}`;
+  if (p.failure) return `Blocked on input ${p.failure}`;
   if (p.admitted > p.consumed + p.cancelled)
     return p.owner === null ? "Waiting · no owner" : "Waiting · admitted input";
   return "No pending input";
@@ -103,10 +103,10 @@ export function ProcessFacts({ process: p }: { process: Process }) {
         <dd>
           {p.work_before_ms ?? "Unlimited"} / {p.settle_before_ms ?? "Unlimited"}
         </dd>
-        <dt>History removal allowed</dt>
-        <dd>{p.allow_trim ? "Opted in" : "No"}</dd>
         <dt>Working catalog collection</dt>
-        <dd>{p.collection ? "Opted in · identities never reused" : "Retain catalog evidence"}</dd>
+        <dd>
+          {p.allow_collection ? "Opted in · identities never reused" : "Retain catalog evidence"}
+        </dd>
         <dt>Execution phase</dt>
         <dd>{p.control?.phase ?? "ready"}</dd>
         {p.control?.resume_before_ms != null && (
@@ -120,11 +120,11 @@ export function ProcessFacts({ process: p }: { process: Process }) {
           {p.turn_permit ? `Permit ${p.turn_permit.id}, input ${p.turn_permit.input}` : "None"}
         </dd>
       </dl>
-      <details>
-        <summary>Committed state · {p.state.length / 2} bytes</summary>
-        <pre>{text(p.state)}</pre>
-        <code>{p.state}</code>
-      </details>
+      <p>
+        <Link to="/processes/$pid" params={{ pid: String(p.pid) }} search={{ tab: "associations" }}>
+          Inspect committed state resources
+        </Link>
+      </p>
       <details>
         <summary>Runtime binding evidence</summary>
         {p.binding ? (
@@ -155,7 +155,6 @@ export function EventTable({ events }: { events: Event[] }) {
               <td>{event.position}</td>
               <td>
                 {event.kind}
-                {event.lifecycle_action ? ` · ${event.lifecycle_action}` : ""}
                 {event.failed ? " · failed" : ""}
               </td>
               <td>

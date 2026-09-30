@@ -121,7 +121,7 @@ class Client:
                 raise native_error(status, phase='capabilities')
             response = self._api.call('transit_client_call', self._handle, operation)
             caps = response['body']['capabilities']
-            if response['version'] != 3 or caps['version'] != 3 or caps['profile'] != 'growing_v1':
+            if response['version'] != 1 or caps['version'] != 1 or caps['profile'] != 'growing_v1':
                 raise UnsupportedCapability('Authority does not advertise the explicit growing profile')
             return Capabilities(response['realm'], response['position'], response['principal_sequence'],
                                 caps['page_entries'], caps['mutation_budget'], caps['output_budget'],
@@ -137,7 +137,7 @@ class Client:
 
     def _pending(self, operation: c.c_void_p, frozen: bytes) -> PendingSend:
         info = self._api.call('transit_operation_metadata', operation)
-        if (info['version'], info['kind'], info['profile'], info['command']) != (1, 'growing_command', 'growing_v3', 'send'):
+        if (info['version'], info['kind'], info['profile'], info['command']) != (1, 'growing_command', 'native_v1', 'send'):
             raise UnsupportedCapability('Recovery material is not a supported growing send')
         metadata = SendInfo(OperationIdentity(info['identity']), ProcessRef(info['realm'], info['destination']),
                             integer(info['principal'], 'principal', minimum=0), integer(int(info['sequence']), 'sequence'))
@@ -181,7 +181,7 @@ class Client:
 
     def _mutation(self, operation: c.c_void_p, frozen: bytes) -> PendingMutation:
         info = self._api.call('transit_operation_metadata', operation)
-        if (info['version'], info['kind'], info['profile']) != (1, 'growing_command', 'growing_v3'):
+        if (info['version'], info['kind'], info['profile']) != (1, 'growing_command', 'native_v1'):
             raise UnsupportedCapability('Recovery material is not a supported growing mutation')
         return PendingMutation(MutationInfo(OperationIdentity(info['identity']), info['realm'], info['principal'],
                                             int(info['sequence']), info['command']), frozen)

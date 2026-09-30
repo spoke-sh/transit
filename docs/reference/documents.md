@@ -62,7 +62,7 @@ reads return an item, continuation/progress or end; keep the exact snapshot and
 bound traversal work, including steps that do not yield a visible element.
 
 Each disclosure checks current policy and history/lifecycle bounds. Retaining an
-old reference does not bypass compaction or retirement. Unified [query v2](queries.md)
+old reference does not bypass compaction or retirement. Unified [query v1](queries.md)
 reads declared accepted projections with five-state cells; it does not include
 tentative edits or convert conflicts into arbitrary winners.
 

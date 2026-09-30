@@ -9,7 +9,7 @@ using StationBridge = Transit.Station.Sdk.Internal.Bridge;
 
 namespace Transit.Station.Sdk;
 
-/// <summary>Explicit v2 state queries over the shared signed Zig client.</summary>
+/// <summary>Explicit v1 state queries over the shared signed Zig client.</summary>
 public static class UnifiedQuery
 {
     private static ulong Positive(ulong v) => v == 0 ? throw new ArgumentException("Expected positive query identity/budget") : v;
@@ -72,7 +72,7 @@ public static class UnifiedQuery
         }
         internal JsonObject Wire() => V.Obj(("column",Column.Wire()),("path",UnifiedQuery.Path(Path)),("relative",Relative),("mode",Name(Mode)),("text_bytes",(uint)TextBytes),("text_steps",(uint)TextSteps));
     }
-    public abstract record Source { private protected Source() {} public abstract ResourceRef Resource { get; } internal abstract JsonObject Definition(); internal JsonObject Wire() => V.Obj(("version",2),("resource",Resource.Resource),("source",Definition())); }
+    public abstract record Source { private protected Source() {} public abstract ResourceRef Resource { get; } internal abstract JsonObject Definition(); internal JsonObject Wire() => V.Obj(("version",1),("resource",Resource.Resource),("source",Definition())); }
     public sealed record KvSource : Source {
         public override ResourceRef Resource { get; } public Bytes Prefix { get; } public Decoder Key { get; } public Decoder Value { get; }
         public KvSource(ResourceRef resource,Bytes prefix,Decoder key,Decoder value) {
@@ -105,7 +105,7 @@ public static class UnifiedQuery
         public Plan(IReadOnlyList<byte> projection,Predicate? predicate=null,QueryAggregate aggregate=QueryAggregate.Rows,ulong? limit=null) {
             Projection=Copy(projection,8); if(Projection.Count==0) throw new ArgumentException("Expected query projection"); foreach(byte n in Projection) Index(n); Predicate=predicate??new All(); _=Name(aggregate); Aggregate=aggregate; Limit=limit;
         }
-        internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); return V.Obj(("version",2),("projection",p),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
+        internal JsonObject Wire() { JsonArray p=new(); foreach(byte n in Projection) p.Add((uint)n); return V.Obj(("version",1),("projection",p),("predicate",Predicate.Wire()),("aggregate",Name(Aggregate)),("limit",Limit is {} limit?Turn.Decimal(limit):null)); }
     }
     public sealed record Budgets(ulong Pages,ulong Segments,ulong ResultBytes) { internal JsonObject Wire() => V.Obj(("pages",Turn.Decimal(Positive(Pages))),("segments",Turn.Decimal(Positive(Segments))),("result_bytes",Turn.Decimal(Positive(ResultBytes)))); }
     public sealed record Bundle {

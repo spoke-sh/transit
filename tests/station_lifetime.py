@@ -11,14 +11,14 @@ from storage import wait_ready
 def run(node, cli, worker):
     with System(node, cli, clock_error_ms=10000) as s:
         deadline = int(time.time() * 1000) + 120000
-        pid = s.command({"lifecycle": {"create": {"allow_trim": True, "required": [b"data".hex(), None, None, None]}}})
-        resource = s.command({"state": {"create": {"writer": pid, "deadline_ms": deadline, "history_ms": 0}}})
+        pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
+        resource = s.command({"create_resource": {"writer": pid, "deadline_ms": deadline, "history_ms": 0}})
         seed, public = s.key("worker")
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 88, "pid": pid}})
         for principal in (0, 1):
-            s.command({"state": {"grant": {"resource": resource, "subject": principal, "permissions": 7}}})
-        s.command({"state": {"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}}})
-        s.command({"lifecycle": {"initialize": {"pid": pid, "expected_generation": 1}}})
+            s.command({"grant_resource": {"resource": resource, "subject": principal, "permissions": 7}})
+        s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
+        s.command({"initialize": {"pid": pid, "expected_generation": 1}})
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 2}})
         config = s.root / "station.json"
 
@@ -31,12 +31,12 @@ def run(node, cli, worker):
             else: assert status == 0
 
         def query(kind, **values):
-            path = s.root / "read-state.json"
-            path.write_text(json.dumps({"realm": 72, "principal": 0, "kind": kind, "resource": resource, **values}))
-            return s.post("/v2/state", s.invoke("sign-state", s.seed, path))
+            metadata = s.native_query({'resource': resource})['body']['resource']
+            if kind == 'resources': return {'resources': [metadata]}
+            return s.native_query({'entries': {'resource': resource, 'revision': metadata['revision'], **values}})['body']['entries']['page']
 
         def rejection(command, name):
-            body = s.post("/v2/command", s.signed(command, s.sequence + 1), 422)
+            body = s.post("/v1/command", s.signed(command, s.sequence + 1), 422)
             assert body["err"] == name, body
 
         s.command({"send": {"pid": pid, "value": frame(b"init")}})
@@ -49,12 +49,12 @@ def run(node, cli, worker):
         s.authority = s.start(node, s.config)
         wait_ready(s.store.http, s.authority, s.url + "/health")
         assert query("entries") == captured
-        rejection({"lifecycle": {"suspend": {"pid": pid, "expected_generation": 3,
-            "resume_before_ms": deadline + 1}}}, "InvalidLifetime")
-        s.command({"lifecycle": {"suspend": {"pid": pid, "expected_generation": 3,
-            "resume_before_ms": int(time.time() * 1000) + 30000}}})
+        rejection({"suspend": {"pid": pid, "expected_generation": 3,
+            "resume_before_ms": deadline + 1}}, "StateResourceExpired")
+        s.command({"suspend": {"pid": pid, "expected_generation": 3,
+            "resume_before_ms": int(time.time() * 1000) + 30000}})
         s.command({"send": {"pid": pid, "value": frame(b"5")}})
-        s.command({"lifecycle": {"resume": {"pid": pid, "expected_generation": 4}}})
+        s.command({"resume": {"pid": pid, "expected_generation": 4}})
         s.command({"own": {"pid": pid, "worker": 1, "expected_generation": 5}})
         once(6)
         key = b"\x00r" + (1).to_bytes(4, "little") + ((1 << 63) + 1).to_bytes(8, "big")
@@ -63,13 +63,13 @@ def run(node, cli, worker):
         # Admission must also fit the full configured uncertainty bound, not
         # just the smaller error reported by a particular developer machine.
         bound = int(time.time() * 1000) + 15000
-        s.command({"lifecycle": {"suspend": {"pid": pid, "expected_generation": 6, "resume_before_ms": bound}}})
+        s.command({"suspend": {"pid": pid, "expected_generation": 6, "resume_before_ms": bound}})
         # The profile admits up to 10s of trusted-clock uncertainty. Wait beyond
         # that full bound; local wall time alone is not proof of known expiry.
         while int(time.time() * 1000) <= bound + 10050: time.sleep(.05)
         # PID-owned required state shares the expired suspension horizon; that
         # dependency is checked before the resume transition's own deadline.
-        rejection({"lifecycle": {"resume": {"pid": pid, "expected_generation": 7}}}, "StateResourceExpired")
+        rejection({"resume": {"pid": pid, "expected_generation": 7}}, "DeadlineExpired")
         maintenance_config = s.root / "maintenance.json"
         maintenance_config.write_text(json.dumps({**json.loads(s.config.read_text()), "maintenance": {
             "principal": 0, "seed_file": str(s.seed), "interval_ms": 25}}))

@@ -25,7 +25,7 @@ def run(node, provision, worker, library, board=None, browser=False):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         node_config = fixture.root / "node.json"
-        node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "http-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "http-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         requests = []
         applied = set()
         cancelled = set()
@@ -103,7 +103,7 @@ def run(node, provision, worker, library, board=None, browser=False):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/command" and response.status == 200:
+                    if self.path == "/v1/command" and response.status == 200:
                         request = json.loads(body)["request"]
                         command = request["command"]
                         selected = next((name for name in ("dispatch", "observe") if name in command), None)
@@ -115,7 +115,7 @@ def run(node, provision, worker, library, board=None, browser=False):
                             selected = "seal"
                         if any(o and b"HTK1" in bytes.fromhex(o["value"]) for o in turn.get("outputs", [])):
                             selected = "caller_release"
-                        if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXL2") for m in turn.get("mutations", [])):
+                        if any(m and m["value"] and bytes.fromhex(m["value"]).startswith(b"EXL1") for m in turn.get("mutations", [])):
                             selected = "caller_followup"
                         if request["principal"] == 65536:
                             if observation_kill_armed and "observe" in command and not terminal_commit.is_set():
@@ -458,13 +458,13 @@ def run(node, provision, worker, library, board=None, browser=False):
                 inspect_capture(fixture, admin, url, saved, board, provision, state, browser)
 
             from station_growing_abi import Native
-            from station_abi import rejects
+            from abi_support import rejects
             libraries = fixture.root / "libraries"
             libraries.mkdir()
             (libraries / "libtransit_station.so").symlink_to(library)
             caller_seed = fixture.root / "caller.seed"
             caller_seed.write_text("49" * 32)
-            reader = Native(libraries, url, caller_seed, {"profile": "growing_v3", "realm": 47, "principal": 65537, "pid": saved["caller"]["pid"], "generation": 3, "association": "state", "failure_policy": "stop"})
+            reader = Native(libraries, url, caller_seed, {"profile": "native_v1", "realm": 47, "principal": 65537, "pid": saved["caller"]["pid"], "generation": 3, "association": "state", "failure_policy": "stop"})
             try:
                 def native_read(action):
                     data = json.dumps(action).encode()
@@ -517,7 +517,7 @@ def run(node, provision, worker, library, board=None, browser=False):
             assert invoke()["phase"] == "complete"
             assert admin("receive-release") == disposed
             # Only the separately explicit retirement removes replay availability.
-            reader = Native(libraries, url, caller_seed, {"profile": "growing_v3", "realm": 47, "principal": 65537, "pid": saved["caller"]["pid"], "generation": 3, "association": "state", "failure_policy": "stop"})
+            reader = Native(libraries, url, caller_seed, {"profile": "native_v1", "realm": 47, "principal": 65537, "pid": saved["caller"]["pid"], "generation": 3, "association": "state", "failure_policy": "stop"})
             try:
                 held = native_read({"open": {"reference": reference}})["opened"]
                 assert native_read({"next": held})["part"]["bytes"]

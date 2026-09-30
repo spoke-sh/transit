@@ -1,6 +1,6 @@
 # Unified state queries
 
-`Transit.Station.Sdk.UnifiedQuery` exposes explicit v2 KV/Table/accepted-Document
+`Transit.Station.Sdk.UnifiedQuery` exposes explicit v1 KV/Table/accepted-Document
 sources, bounded projections, plans and nested Arrow results. Shared Zig owns
 encoding, validation, signatures, recovery and current-policy result verification;
 the original Table query profile remains separate.

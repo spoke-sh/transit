@@ -32,7 +32,7 @@ Revocation does not undo accepted history or prove that a previously authorized
 remote effect was canceled.
 
 Use the [native protocol](../native.md) and its
-[service contract](../../../contracts/SERVICE_V2.md) for supported commands.
+[service contract](../../../contracts/SERVICE_V1.md) for supported commands.
 See [security](../security.md) for current-policy rules and
 [connectors](../connectors.md#unknown-outcomes-and-closure) for remote uncertainty.
 

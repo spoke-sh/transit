@@ -76,6 +76,7 @@ pub const Page = struct {
     next: ?Cursor,
     arrow: []const u8,
     schema: m.Schema,
+    plan: m.Plan,
 };
 /// decoded must be at its final address; strings/columns belong to allocator,
 /// Arrow bytes borrow output. Any error invalidates all output storage. A null
@@ -108,5 +109,5 @@ pub fn page(reference: Ref, expected: Expected, cursor: ?Cursor, source: anytype
     // Recheck current policy, Document lifecycle, request and result disposition
     // after all reads/decoding, before the caller may disclose this page.
     try live(reference, expected, opened, source);
-    return .{ .manifest = manifest, .next = if (complete) null else next, .arrow = bytes, .schema = .{ .columns = try allocator.dupe(m.Column, schema.columns) } };
+    return .{ .manifest = manifest, .next = if (complete) null else next, .arrow = bytes, .schema = .{ .columns = try allocator.dupe(m.Column, schema.columns) }, .plan = opened.bundle.plan };
 }

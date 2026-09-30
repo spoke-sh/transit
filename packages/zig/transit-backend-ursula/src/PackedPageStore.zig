@@ -23,7 +23,7 @@ pub fn init(allocator: std.mem.Allocator, authority: adapter.Journal, resident_p
     const cache = try allocator.alloc(?Cached, resident_pages);
     @memset(cache, null);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.packed.pages.v2\x00");
+    hash.update("transit.packed.pages.v1\x00");
     hash.update(authority.stream.bucket);
     hash.update("\x00");
     hash.update(authority.stream.name);

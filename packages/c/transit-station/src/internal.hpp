@@ -10,7 +10,7 @@ namespace transit::sdk::station_detail {
 using namespace internal;
 struct Caps { size_t message, value, key, cell, name, page, segment; bool queries, http_requests, http_replay, http_release, http_followup, grpc_requests, grpc_replay, grpc_release, grpc_followup, document_codecs, document_owner, document_reads; };
 #define TRANSIT_STATION_FUNCTIONS(X) \
-    X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
+    X(station_abi_definition_matches) X(station_abi_version) X(station_growing_capabilities) X(station_growing_create) X(station_growing_destroy) \
     X(station_growing_prepare) X(station_growing_dispatch) X(station_growing_confirmation) X(station_growing_apply) \
     X(station_growing_finish_result) X(station_growing_discard) X(station_growing_pending) X(station_frame_encode) \
     X(station_buffer_data) X(station_buffer_size) X(station_buffer_destroy) X(station_http_codec) X(station_growing_http_read) X(station_grpc_codec) X(station_growing_grpc_read) X(station_document_codec) X(station_growing_document_read) \

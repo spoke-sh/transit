@@ -1,4 +1,4 @@
-//! Public v2 behaviors above Transit. Signed host retry/fencing remains Station's
+//! Public v1 behaviors above Transit. Signed host retry/fencing remains Station's
 //! responsibility; this layer owns query admission and explicit dispositions.
 const std = @import("std");
 const q = @import("root.zig");
@@ -7,13 +7,13 @@ const p = q.protocol;
 const r = q.UnifiedRecords;
 const wire = q.UnifiedRequest;
 const upload = q.UnifiedUpload;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 pub const adapter_bytes = 1024 * 1024;
 fn configuration(first: u64, second: u64) !p.Value {
     try r.identity(first);
     try r.identity(second);
     var bytes: [20]u8 = undefined;
-    bytes[0..4].* = "UQH2".*;
+    bytes[0..4].* = "UQH1".*;
     std.mem.writeInt(u64, bytes[4..12], first, .little);
     std.mem.writeInt(u64, bytes[12..20], second, .little);
     return p.Value.init(&bytes);
@@ -40,7 +40,7 @@ pub const Requester = struct {
     pub fn check(self: Requester, reader: anytype) !void {
         try initialized(reader, 'w', try configuration(self.principal, self.source));
     }
-    pub fn interface(self: *Requester) s.GrowingGenServer.Handler {
+    pub fn interface(self: *Requester) s.GenServer.Handler {
         return .{ .context = self, .initialize = initialize, .handle = handle };
     }
     fn initialize(raw: ?*anyopaque, turn: *Turn) !void {
@@ -107,7 +107,7 @@ pub const Source = struct {
     adapter: []u8,
     workspace: []u8,
     cancellation: *const q.fuze.execution.Cancellation,
-    pub fn interface(self: *Source) s.GrowingGenServer.Handler {
+    pub fn interface(self: *Source) s.GenServer.Handler {
         return .{ .context = self, .initialize = initialize, .handle = handle };
     }
     fn initialize(raw: ?*anyopaque, turn: *Turn) !void {
@@ -121,7 +121,7 @@ pub const Source = struct {
             // rejection envelope. Own-source read failure still poisons the turn
             // and cannot authorize a fabricated successful closure.
             if (turn.read_error == null and (err == error.Rejected or err == error.Conflict) and (self.resources.wire.last_rejection == .StateResourceExpired or self.resources.wire.last_rejection == .UnknownStateResource)) {
-                if (frame.kind == .call) return turn.reply(try p.Value.init("query.v2.denied"));
+                if (frame.kind == .call) return turn.reply(try p.Value.init("query.v1.denied"));
                 if (frame.kind == .cast and (s.Frame.source(turn.delivery.input) catch 0) == turn.delivery.pid) return q.UnifiedCapture.close(turn, (try r.Continuation.decode(frame.payload)).job, .denied);
             }
             return err;
@@ -136,19 +136,19 @@ pub fn dispatchSource(turn: *Turn, frame: s.Frame, peer: u64, initializer: u64, 
     var fixed = std.heap.FixedBufferAllocator.init(adapter);
     const origin = s.Frame.source(turn.delivery.input) catch 0;
     if (frame.kind == .call) {
-        if (origin != peer) return turn.reply(try p.Value.init("query.v2.denied"));
-        const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try p.Value.init("query.v2.rejected"));
+        if (origin != peer) return turn.reply(try p.Value.init("query.v1.denied"));
+        const ref = s.PublicationReference.decode(frame.payload) catch return turn.reply(try p.Value.init("query.v1.rejected"));
         _ = q.UnifiedCapture.start(turn, ref, resources, fixed.allocator()) catch |err| {
             if (turn.read_error != null) return err;
             const reason = disposition(err) orelse return err;
-            return turn.reply(try p.Value.init(if (reason == .denied) "query.v2.denied" else "query.v2.rejected"));
+            return turn.reply(try p.Value.init(if (reason == .denied) "query.v1.denied" else "query.v1.rejected"));
         };
         return;
     }
     if (frame.kind == .cancel) {
         if (origin != peer) return rejected(turn, "UnexpectedQueryPeer");
         const index = (try turn.read(r.key('i', peer, frame.correlation))) orelse return;
-        try q.UnifiedCapture.close(turn, try q.Request.readIdentity(index), .cancelled);
+        try q.UnifiedCapture.close(turn, try q.UnifiedRecords.readIdentity(index), .cancelled);
         return;
     }
     if (frame.kind != .cast or origin != turn.delivery.pid) return rejected(turn, "UnexpectedQueryContinuation");

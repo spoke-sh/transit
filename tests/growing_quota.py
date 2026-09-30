@@ -17,7 +17,7 @@ def run(node, caller):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        config.write_text(json.dumps({"profile": "growing_v3", "genesis": {
+        config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 45, "root_key": public, "max_clock_error_ms": 10000,
             "admission_ceiling": 24, "control_reserve": 4},
             "ursula_url": fixture.url, "bucket": "growing-quota", "journal": "authority",

@@ -1,6 +1,6 @@
 """Background expiry and reclamation while an independent authority stays live."""
 import json
-from wire_values import encode_command, decode_view
+from wire_values import encode_command
 import os
 from pathlib import Path
 import signal
@@ -29,7 +29,7 @@ def run(node, cli):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
-        genesis = {"realm": 51, "root_key": public, "retry_policy": "last_per_principal"}
+        genesis = {"realm": 51, "root_key": public, "allow_history_trim": True}
         if sys.platform == "linux":
             # A synchronized host can report >1s near the end of its NTP poll interval.
             genesis["max_clock_error_ms"] = 2000
@@ -51,24 +51,25 @@ def run(node, cli):
             nonlocal sequence
             if not read:
                 sequence += 1
-            revision = request({"inspect": command["turn"]["pid"]}, read=True)["process"]["revision"] if "turn" in command else 0
+            revision = request({"process": command["turn"]["pid"]}, read=True)["process"]["revision"] if "turn" in command else 0
             command = encode_command(command, revision)
             path = store.root / "request.json"
-            path.write_text(json.dumps({"realm": 51, "principal": 0, "sequence": 0 if read else sequence, "command": command}))
-            body = subprocess.check_output([str(cli), "sign", str(root), str(path)], timeout=10)
+            envelope = {"realm": 51, "principal": 0, "kind": {"inspection": {"resource": "process", "pid": command["process"]}}} if read else {"realm": 51, "principal": 0, "sequence": sequence, "command": command}
+            path.write_text(json.dumps(envelope))
+            body = subprocess.check_output([str(cli), "sign-query" if read else "sign", str(root), str(path)], timeout=10)
             for _ in range(40):
                 try:
-                    response = store.http.open(urllib.request.Request(url + ("/v2/view" if read else "/v2/command"), body,
+                    response = store.http.open(urllib.request.Request(url + ("/v1/query" if read else "/v1/command"), body,
                         {"Content-Type": "application/json"}), timeout=5)
                 except urllib.error.HTTPError as error:
                     response = error
                 with response:
-                    value = decode_view(json.load(response))
+                    value = json.load(response)
                     if response.status in (409, 503):
                         time.sleep(0.05)
                         continue
                     assert response.status == expected, (response.status, value)
-                    return value
+                    return {"process": value["body"]["inspection"]["processes"][0]} if read and response.status == 200 else value
             raise TimeoutError(f"Maintenance proof authority/clock unavailable: {value}")
 
         def retained():
@@ -85,11 +86,11 @@ def run(node, cli):
         try:
             authority = start("--bootstrap")
             wait_ready(store.http, authority, url + "/health")
-            request({"grant": {"subject": 1, "public_key": maint_public, "permissions": 33}})
-            policy = {"allow_trim": True}
+            request({"grant": {"subject": 1, "public_key": maint_public, "permissions": 161}})
+            policy = {}
             if sys.platform == "linux":
                 deadline = int(time.time() * 1000) + 5000
-                policy.update(deadline_ms=deadline, settle_before_ms=deadline + 1000)
+                policy.update(work_before_ms=deadline, settle_before_ms=deadline + 1000)
             pid = request({"spawn": policy})["position"]
             request({"send": {"pid": pid, "value": 7}})
             maintenance = start("--maintain")
@@ -97,7 +98,7 @@ def run(node, cli):
                 request({"terminate": pid})
             limit = time.monotonic() + 25
             while True:
-                view = request({"inspect": pid}, read=True)
+                view = request({"process": pid}, read=True)
                 if view["process"]["lifecycle"] != "running" and not retained():
                     break
                 assert time.monotonic() < limit, view
@@ -119,7 +120,7 @@ def run(node, cli):
                     time.sleep(0.05)
             finally:
                 store.server.send_signal(signal.SIGCONT)
-            assert request({"inspect": pid}, read=True)["process"] == view["process"]
+            assert request({"process": pid}, read=True)["process"] == view["process"]
             for child in (authority, maintenance):
                 child.kill()
                 child.wait(timeout=10)
@@ -127,7 +128,7 @@ def run(node, cli):
             store.start()
             authority = start()
             wait_ready(store.http, authority, url + "/health")
-            restored = request({"inspect": pid}, read=True)
+            restored = request({"process": pid}, read=True)
             assert restored["process"]["lifecycle"] == ("expired" if sys.platform == "linux" else "terminated")
             rejection = request({"own": {"pid": pid, "worker": 1, "expected_generation": 0}}, expected=422)
             assert rejection["err"] == "RetiredProcess", rejection

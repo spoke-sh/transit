@@ -1,4 +1,4 @@
-//! Explicit v2 SQL session; resident state is one finite bundle, one frozen
+//! Explicit v1 SQL session; resident state is one finite bundle, one frozen
 //! command and one result cursor. Completed rows die with each command arena.
 const std = @import("std");
 const q = @import("transit_query");

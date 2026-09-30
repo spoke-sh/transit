@@ -4,11 +4,11 @@ const std = @import("std");
 const s = @import("transit_station");
 const p = s.protocol;
 const a = @import("Actions.zig");
-const q = s.GrowingQuery;
+const q = s.Query;
 const grpc = @import("GrpcCodec.zig").grpc;
 const http = @import("HttpCodec.zig").http;
 const unsigned = @import("HttpCodec.zig").unsigned;
-fn publishedRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
+fn publishedRequest(turn: *s.Turn, wire: p.Value) !void {
     const reference = try http.RequestRecord.Reference.decode(wire);
     if (reference.resource != turn.view.resource) return error.InvalidHttpRequestReference;
     const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
@@ -16,7 +16,7 @@ fn publishedRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
     const body = try publication.open(turn, http.RequestRecord.body_id);
     if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.bodySpec())) return error.InvalidHttpRequestReference;
 }
-fn publishedGrpcRequest(turn: *s.GrowingTurn, wire: p.Value) !void {
+fn publishedGrpcRequest(turn: *s.Turn, wire: p.Value) !void {
     const reference = try grpc.RequestRecord.Reference.decode(wire);
     if (reference.resource != turn.view.resource) return error.InvalidGrpcRequestReference;
     const publication: s.Publication = .{ .resource = reference.resource, .namespace = reference.namespace };
@@ -53,17 +53,17 @@ pub const Action = union(enum) {
     document: @import("DocumentBridge.zig").Action,
     budgets: void,
     get: p.Value,
-    put: @FieldType(a.Action, "put"),
+    put: @FieldType(a.BasicAction, "put"),
     delete: p.Value,
-    cast: @FieldType(a.Action, "cast"),
+    cast: @FieldType(a.BasicAction, "cast"),
     call: struct { pid: u64, value: p.Value, deadline_ms: ?u64 = null, observer: ?u64 = null },
     reply: p.Value,
     cancel: []const u8,
     effect: p.Value,
-    table_create: @FieldType(a.Action, "table_create"),
-    table_get: @FieldType(a.Action, "table_get"),
-    table_write: @FieldType(a.Action, "table_write"),
-    table_delete: @FieldType(a.Action, "table_delete"),
+    table_create: @FieldType(a.BasicAction, "table_create"),
+    table_get: @FieldType(a.BasicAction, "table_get"),
+    table_write: @FieldType(a.BasicAction, "table_write"),
+    table_delete: @FieldType(a.BasicAction, "table_delete"),
     page: ?[]const u8,
     table_page: struct { id: u32, cursor: ?[]const u8 = null, version: ?p.Growth.ReadVersionId = null },
     table_schema: struct { id: u32, version: ?p.Growth.ReadVersionId = null },
@@ -72,7 +72,13 @@ pub const Action = union(enum) {
     version_get: struct { id: p.Growth.ReadVersionId, key: p.Value },
     version_page: struct { id: p.Growth.ReadVersionId, cursor: ?[]const u8 = null },
     version_table_get: struct { version: p.Growth.ReadVersionId, id: u32, key: []const u8 },
-    query_policy: @FieldType(a.Action, "query_policy"),
+    registry_create: u32,
+    registry_grant: struct { scope: u32, subject: s.Registry.Subject, lookup: bool, mutate: bool },
+    registry_handle: void,
+    registry_route: struct { registry: u64, payload: p.Value },
+    supervisor_register: s.Supervisor.Child,
+    supervisor_observe: void,
+    query_policy: @FieldType(a.BasicAction, "query_policy"),
     query_start: struct { id: u32, plan: Plan = .{} },
     query_close: struct { result: u64, reason: enum { cancelled, denied } },
     query_completed: []const u8,
@@ -155,9 +161,17 @@ fn tableSchema(allocator: std.mem.Allocator, source: anytype, id: u32) !Result {
         .basis = .{ .resource = source.view.resource, .revision = source.view.revision, .schema = try table.schema.fingerprint() },
     } };
 }
-pub fn apply(allocator: std.mem.Allocator, turn: *s.GrowingTurn, action: Action) !Result {
+pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Result {
     if (try a.basic(Result, allocator, turn, action)) |result| return result;
     switch (action) {
+        .registry_create => |scope| try s.Registry.create(turn, scope),
+        .registry_grant => |grant| try s.Registry.grant(turn, grant.scope, grant.subject, .{ .lookup = grant.lookup, .mutate = grant.mutate }),
+        .registry_handle => try s.Registry.handle(turn, try s.Frame.decode(turn.delivery.input.value)),
+        .registry_route => |route| {
+            _ = try s.Registry.route(turn, route.registry, try s.Frame.decode(turn.delivery.input.value), route.payload);
+        },
+        .supervisor_register => |child| try s.Supervisor.register(turn, child),
+        .supervisor_observe => try s.Supervisor.observe(turn, try s.Supervisor.Observation.decode(try s.Frame.decode(turn.delivery.input.value))),
         .document => |v| return .{ .document = try @import("DocumentBridge.zig").apply(allocator, turn, v) },
         .budgets => return .{ .budgets = .{ .mutations = remaining(turn.decision.mutations), .outputs = remaining(turn.decision.outputs), .views = remaining(turn.decision.views), .retained_reads = remaining(turn.decision.read_versions), .retains = remaining(turn.decision.retain), .releases = remaining(turn.decision.release) } },
         .publication_create => |v| {

@@ -98,7 +98,7 @@ and [client transport](../../packages/zig/transit-client/README.md#public-surfac
 ## Historical durable-query measurements
 
 The earlier workload is `SELECT * FROM items;` over an empty Table through the console's
-unified v2 captured-query path. Each controlled first query uses a fresh local
+captured-query path. Each controlled first query uses a fresh local
 disk-backed Ursula installation with MinIO cold storage. The optimized controls
 use the same ReleaseSafe binaries, with the server's 100 ms worker/courier idle
 interval and either eight or 64 resident cache pages.
@@ -207,7 +207,7 @@ substitute for reducing work or introducing appropriate wake-ups.
 The growing authority batches one turn's resource-entry changes before publishing
 its final catalog root. Shared paths are copied once. The packed backend sends
 bounded groups of immutable sibling pages, checks every provider acknowledgement
-and returns no references if any frame is uncertain. This retains page format 2,
+and returns no references if any frame is uncertain. This uses page format 1,
 old roots and the existing authority commit. Namespace scans stop at their upper
 boundary; the verified packed-page cache uses LRU replacement.
 

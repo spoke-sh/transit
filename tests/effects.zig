@@ -3,15 +3,17 @@ const core = @import("transit_core");
 const adapter = @import("transit_backend_ursula");
 const t = std.testing;
 
-const Engine = core.Engine(adapter.Store);
+const disk = @import("native_disk.zig");
+const g = disk.g;
+const Engine = disk.Engine;
 
 fn submit(e: *Engine, key: core.Ed25519.KeyPair, principal: u8, command: core.Command) !u64 {
     var current = command;
-    if (current == .turn) current.turn.expected_revision = (try e.state.process(current.turn.pid)).revision;
+    if (current == .turn) current.turn.expected_revision = (try e.process(current.turn.pid)).revision;
     return e.submit(try core.sign(.{
-        .realm = e.state.realm,
+        .realm = e.genesis.realm,
         .principal = principal,
-        .sequence = (try e.state.principal(principal)).sequence + 1,
+        .sequence = (try e.principal(principal)).sequence + 1,
         .command = current,
     }, key));
 }
@@ -24,12 +26,15 @@ pub fn main(init: std.process.Init) !void {
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 2 * 1024 * 1024 });
     defer client.deinit();
     for ([_]bool{ false, true }) |close_unknown| {
-        const genesis: core.Genesis = .{ .realm = if (close_unknown) 44 else 43, .root_key = root.public_key.toBytes(), .retry_policy = .last_per_principal };
+        const genesis: core.Genesis = .{ .realm = if (close_unknown) 44 else 43, .root_key = root.public_key.toBytes(), .allow_history_trim = true };
         var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-proof", .name = if (close_unknown) "closed-effects" else "effects" } } };
+        var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 8);
+        defer pages.deinit();
         if (std.mem.eql(u8, args[2], "write")) {
             try store.journal.create();
-            var e = try Engine.bootstrap(&store, genesis);
-            const pid = try submit(&e, root, 0, .{ .spawn = .{ .allow_trim = true } });
+            try pages.create();
+            var e = try Engine.bootstrap(&store, &pages, genesis);
+            const pid = try submit(&e, root, 0, .{ .spawn = .{ .allow_collection = true } });
             _ = try submit(&e, root, 0, .{ .grant = .{
                 .subject = 1,
                 .public_key = worker.public_key.toBytes(),
@@ -38,47 +43,47 @@ pub fn main(init: std.process.Init) !void {
             } });
             _ = try submit(&e, root, 0, .{ .own = .{ .pid = pid, .worker = 1, .expected_generation = 0 } });
             const input = try submit(&e, root, 0, .{ .send = .{ .pid = pid, .value = core.Value.integer(9) } });
-            const effect = try submit(&e, worker, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .result = core.Value.integer(9), .effect = core.Value.integer(9) } });
+            const effect = try submit(&e, worker, 1, .{ .turn = .{ .pid = pid, .generation = 1, .input = input, .expected_revision = 0, .effect = core.Value.integer(9) } });
             const attempt = try submit(&e, root, 0, .{ .dispatch = .{ .pid = pid, .effect = effect } });
             // The executor has authorization but no durable result. Restart must
             // preserve uncertainty, even if the worker actually paused before I/O.
             _ = try submit(&e, root, 0, .{ .observe = .{ .pid = pid, .effect = effect, .attempt = attempt, .result = null } });
             _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-            try store.publishCheckpoint(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
+            try disk.publish(&store);
         } else if (std.mem.eql(u8, args[2], "recover")) {
-            var e = try Engine.open(&store, genesis);
-            const effect = (try e.state.effect(5)).*;
+            var e = try Engine.open(&store, &pages, genesis);
+            const effect = (try disk.record(&e, g.Effect, .effect, 5));
             try t.expectEqual(.unknown, effect.phase);
             try t.expectEqual(@as(?u64, 6), effect.attempt);
             try t.expectError(error.AttemptAlreadyAuthorized, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
-            try store.maintain(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
+            try store.maintain(e.head);
             try t.expectError(error.HistoryReclaimed, store.read(0));
             if (close_unknown) {
-                const response = try core.sign(.{ .realm = e.state.realm, .principal = 0, .sequence = (try e.state.principal(0)).sequence + 1, .command = .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(10) } } }, root);
+                const response = try core.sign(.{ .realm = e.genesis.realm, .principal = 0, .sequence = (try e.principal(0)).sequence + 1, .command = .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(10) } } }, root);
                 const pending = try e.prepare(response);
-                var closer = try Engine.open(&store, genesis);
-                const close = try core.sign(.{ .realm = closer.state.realm, .principal = 0, .sequence = (try closer.state.principal(0)).sequence + 1, .command = .{ .close_effect = .{ .pid = 1, .effect = 5, .attempt = 6 } } }, root);
+                var closer = try Engine.open(&store, &pages, genesis);
+                const close = try core.sign(.{ .realm = closer.genesis.realm, .principal = 0, .sequence = (try closer.principal(0)).sequence + 1, .command = .{ .close_effect = .{ .pid = 1, .effect = 5, .attempt = 6 } } }, root);
                 const receipt = try closer.submit(close);
                 try t.expectError(error.Conflict, e.commit(pending));
-                e = try Engine.open(&store, genesis);
+                e = try Engine.open(&store, &pages, genesis);
                 try t.expectEqual(receipt, try e.submit(close));
                 _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-                try store.publishCheckpoint(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
+                try disk.publish(&store);
             } else {
                 _ = try submit(&e, root, 0, .{ .terminate = 1 });
             }
         } else if (std.mem.eql(u8, args[2], "checkpoint")) {
-            var e = try Engine.open(&store, genesis);
+            var e = try Engine.open(&store, &pages, genesis);
             if (close_unknown) {
-                try t.expectEqual(.running, (try e.state.process(1)).lifecycle);
-                try t.expectEqual(.closed_unknown, (try e.state.effect(5)).phase);
-                try t.expect((try e.state.effect(5)).closed_at != null);
-                try store.maintain(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
+                try t.expectEqual(.running, (try e.process(1)).lifecycle);
+                try t.expectEqual(.closed_unknown, (try disk.record(&e, g.Effect, .effect, 5)).phase);
+                try t.expect((try disk.record(&e, g.Effect, .effect, 5)).closed_at != null);
+                try store.maintain(e.head);
                 try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(10) } }));
                 try t.expectError(error.AttemptAlreadyAuthorized, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
             } else {
-                try t.expectEqual(.terminated, (try e.state.process(1)).lifecycle);
-                try t.expectEqual(.unknown, (try e.state.effect(5)).phase);
+                try t.expectEqual(.terminated, (try e.process(1)).lifecycle);
+                try t.expectEqual(.unknown, (try disk.record(&e, g.Effect, .effect, 5)).phase);
                 try t.expectError(error.RetiredProcess, submit(&e, root, 0, .{ .dispatch = .{ .pid = 1, .effect = 5 } }));
             }
             try t.expectError(error.InvalidAttempt, submit(&e, worker, 1, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(10) } }));
@@ -86,18 +91,18 @@ pub fn main(init: std.process.Init) !void {
             // deliver to a replacement process with a different PID.
             if (!close_unknown) _ = try submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(10) } });
             _ = try submit(&e, root, 0, .{ .checkpoint = {} });
-            try store.maintain(&(try core.Checkpoint.create(init.gpa, genesis, &e.state)));
+            try store.maintain(e.head);
         } else if (std.mem.eql(u8, args[2], "trim_recover")) {
             try t.expectError(error.HistoryReclaimed, store.read(0));
-            var e = try Engine.open(&store, genesis);
-            const p = (try e.state.process(1)).*;
+            var e = try Engine.open(&store, &pages, genesis);
+            const p = (try e.process(1));
             try t.expectEqual(@as(@TypeOf(p.lifecycle), if (close_unknown) .running else .terminated), p.lifecycle);
-            try t.expectEqual(@as(i64, 9), try p.state.asInteger());
+            try t.expectEqual(@as(i64, 9), try (try disk.record(&e, g.Effect, .effect, 5)).payload.asInteger());
             try t.expectEqual(@as(u64, 1), p.admitted);
-            const effect = (try e.state.effect(5)).*;
+            const effect = (try disk.record(&e, g.Effect, .effect, 5));
             try t.expectEqual(@as(@TypeOf(effect.phase), if (close_unknown) .closed_unknown else .observed), effect.phase);
             try t.expectEqual(if (close_unknown) @as(?i64, null) else 10, if (effect.result) |v| try v.asInteger() else null);
-            try t.expectEqual(@as(?core.Record, null), try e.nextInput(1, e.state.position));
+            try t.expectEqual(@as(?g.Input, null), try disk.input(&e, 1));
             try t.expectError(error.ReconciliationClosed, submit(&e, root, 0, .{ .observe = .{ .pid = 1, .effect = 5, .attempt = 6, .result = core.Value.integer(99) } }));
         } else return error.UnknownPhase;
     }

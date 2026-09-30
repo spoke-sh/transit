@@ -30,7 +30,7 @@ description/result contract; grammar acceptance supplies neither.
 
 Use the supported metadata commands in the
 [console guide](../../../apps/transit-cli/docs/console.md), the
-[Board API](../board-api.md), or the declared [query source schema](../queries.md#source-profiles).
+[Board API](../board-api.md), or the declared [query source schema](../queries.md#source-declarations).
 Current permissions still determine which metadata may be disclosed.
 
 Source: [`describeStatement`](../../../contracts/sql/TransitExtensions.g4).

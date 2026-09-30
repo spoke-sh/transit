@@ -20,7 +20,7 @@ final class Bridge implements Worker.State<Void> {
     static Bridge open(ServiceConfig config, FailurePolicy failure) {
         Activation activation = config.activation(); ClientConfig client = config.client();
         Bridge bridge = new Bridge(obj("url", client.endpoint().toString(), "seed_file", activation.credential().seedFile().toString(), "timeout_ms", client.timeoutMillis(),
-            "growing_server", obj("profile", "growing_v3", "realm", activation.process().realm(), "principal", activation.credential().principal(),
+            "growing_server", obj("profile", "native_v1", "realm", activation.process().realm(), "principal", activation.credential().principal(),
                 "pid", activation.process().pid(), "generation", activation.generation(), "association", config.association(), "timeout_ms", client.timeoutMillis(),
                 "failure_policy", failure == FailurePolicy.STOP ? "stop" : "block_input", "query_results", config.queryResults())), client.nativeHost());
         try {
@@ -40,7 +40,7 @@ final class Bridge implements Worker.State<Void> {
             if (!hello.keySet().equals(Set.of("host_version", "station_version", "transit_version"))) throw incompatible("station-version");
             for (String name : hello.keySet()) if (number(hello.get(name), 1) != 1) throw incompatible("station-version");
             caps = object(port.request(obj("growing_capabilities", obj()), "native-capabilities", false, "GrowingCapabilities"));
-            if (number(caps.get("version"), 1) != 1 || !"growing_v3".equals(string(caps.get("profile")))) throw incompatible("station-profile");
+            if (number(caps.get("version"), 1) != 1 || !"native_v1".equals(string(caps.get("profile")))) throw incompatible("station-profile");
             for (String name : List.of("gated_dispatch", "retained_confirmation", "scoped_turns", "paged_state", "tables", "retained_sources")) {
                 if (!bool(caps.get(name))) throw new TransitException(TransitException.Kind.UNSUPPORTED_CAPABILITY, "native-capabilities");
             }

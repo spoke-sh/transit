@@ -12,8 +12,8 @@ the guides below own API mappings, pinned behavior, integration findings, and op
 ## Guides
 
 - [Storage and recovery](docs/storage.md): disk startup, conditional append, checkpoint/trim, payload deletion, and ownership.
-- [Immutable pages](docs/pages.md): M10 page staging, bounded cache, root persistence and current integration limits.
-- [Growing authority](docs/growing.md): development v3 publication, root checkpoints, retained work and disk proof.
+- [Immutable pages](docs/pages.md): Page staging, bounded cache, root persistence and current integration limits.
+- [Growing authority](docs/growing.md): Native v1 publication, root checkpoints, retained work and disk proof.
 - [Upstream integration](docs/upstream.md): pinned server/client, cursor findings, unsupported APIs, and dependency updates.
 
 ## Security boundary
@@ -35,12 +35,13 @@ and [Transit's authority model](../../../docs/reference/security.md).
 
 [Journal](src/root.zig) wraps bounded upstream HTTP operations and copies the
 transport metadata it needs before releasing responses. [Store](src/Store.zig)
-implements core's immutable-position/tail/conditional-append interface, a bounded
-replay cache, checkpoint publication/loading, trim and immutable payload handling.
+implements core's immutable-position/tail/conditional-append interface, one cached journal entry, root checkpoint loading and authorized prefix trim.
+`PackedPageStore` owns bounded page caching; `PayloadStore` owns immutable payload
+publication, verification and deletion.
 Protocol validation belongs to core; storage success alone is not a legal turn.
 
-`Store.loadCheckpoint` returns an owned parsed pointer and its arena. Callers
-must release it with `deinit()` after copying the required state. See the
+`Store.loadCheckpoint` returns an optional owned checkpoint value. The parser
+arena is released before return; no borrowed response bytes escape. See the
 [ownership guide](docs/storage.md#checkpoint-ownership). Package tests do not
 prove the external server's durability or cursor semantics; use the real disk
 proof when changing this boundary.

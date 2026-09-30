@@ -2,7 +2,7 @@
 //! remains kernel-enforced and does not wait for this service to deliver.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Legacy;
+const Turn = @import("Turn.zig");
 const Frame = @import("Frame.zig");
 
 pub fn observation(correlation: u64, observed_ms: u64) !Frame {
@@ -34,7 +34,7 @@ pub fn dispatch(turn: anytype, frame: Frame) !bool {
     if (frame.kind != .timeout) return false;
     const wait = (try turn.waiting(frame.correlation)) orelse return error.UnknownCorrelation;
     const observer = wait.observer orelse return error.UnexpectedTimerObserver;
-    switch (if (@TypeOf(turn.delivery.input) == p.Input) turn.delivery.input.origin.source else turn.delivery.input.origin) {
+    switch (turn.delivery.input.origin) {
         .external => |origin| if (origin.principal != observer) return error.UnexpectedTimerObserver,
         else => return error.UnexpectedTimerObserver,
     }
@@ -45,18 +45,20 @@ pub fn dispatch(turn: anytype, frame: Frame) !bool {
 }
 
 test "timeouts require the configured observer and race by input order" {
-    var turn = try Turn.fixture(.{});
+    var turn_store: @import("TestStore.zig") = .{};
+    var turn = try turn_store.turn(.{});
     const correlation = try turn.callWithTimer(8, .{}, 100, 3);
-    var next = try Turn.fixture(.{});
-    next.entries[0] = .{ .key = Turn.waitKey(correlation), .value = (try turn.waiting(correlation)).?.encode(), .revision = 1 };
+    var next_store: @import("TestStore.zig") = .{};
+    var next = try next_store.turn(.{});
+    next_store.entries[0] = .{ .key = Turn.waitKey(correlation), .value = (try turn.waiting(correlation)).?.encode(), .revision = 1 };
     const timeout = try observation(correlation, 100);
     try std.testing.expectError(error.UnexpectedTimerObserver, dispatch(&next, timeout));
-    next.delivery.input.origin.source = .{ .external = .{ .principal = 3, .policy_revision = 1 } };
+    next.delivery.input.origin = .{ .external = .{ .principal = 3, .policy_revision = 1 } };
     try std.testing.expectError(error.PrematureTimer, dispatch(&next, try observation(correlation, 99)));
     try std.testing.expect(!try dispatch(&next, timeout));
     try std.testing.expect((try next.waiting(correlation)).?.phase == .timed_out);
     next.delivery.input.value = try (Frame{ .kind = .reply, .correlation = correlation, .payload = try p.Value.init("late") }).encode();
-    next.delivery.input.origin.source = .{ .process = .{ .pid = 8, .turn = 5, .output = 0 } };
+    next.delivery.input.origin = .{ .process = .{ .pid = 8, .turn = 5, .output = 0 } };
     try std.testing.expect(try next.acceptReply() == .closed);
     try std.testing.expect(!try cancel(&next, correlation));
 }

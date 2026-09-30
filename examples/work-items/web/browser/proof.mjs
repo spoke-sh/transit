@@ -16,7 +16,7 @@ const errors = [],
   observations = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("response", async (r) => {
-  if (!r.url().endsWith("/api/v1/query-v2")) return;
+  if (!r.url().endsWith("/api/v1/query")) return;
   const body = await r.json().catch(() => ({}));
   observations.push([
     Object.keys(r.request().postDataJSON())[0],
@@ -30,7 +30,7 @@ let fault = false,
   lost = null,
   retried = false;
 const namespaces = new Set();
-await page.route("**/api/v1/query-v2", async (route) => {
+await page.route("**/api/v1/query", async (route) => {
   const op = route.request().postDataJSON();
   if ("next_draft" in op) {
     step = true;

@@ -100,7 +100,7 @@ deleted registers and describe one page only. Field names, scalar values and tex
 are not interpreted. `validateRecords` also checks each recognized Document head
 against the corresponding authorized source entry.
 
-The unified `/api/v1/query-v2` route has a separate 1 MiB decoded JSON response
+The unified `/api/v1/query` route has a separate 1 MiB decoded JSON response
 bound: one at-most-64-KiB Arrow segment appears as hex alongside owned decoded
 cells, whose control characters may expand sixfold in JSON. Schema, conflict and
 provenance overhead stays bounded. The streaming limit applies before parsing,

@@ -35,7 +35,7 @@ const Control = union(enum) {
     collect: struct { job: u64, retired: bool, checkpoint: bool },
 };
 const Driver = struct {
-    server: s.GrowingGenServer,
+    server: s.GenServer,
     reader: s.client.ResourceReader,
     config: Config,
     io: std.Io,
@@ -49,7 +49,7 @@ const Driver = struct {
         for (self.config.policies) |allowed| if (allowed.caller == caller) return allowed;
         return .{ .caller = 0, .resource = 0, .replica = 0, .revision = 0 };
     }
-    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Driver = @ptrCast(@alignCast(raw.?));
         const service_ = self.service(turn.view.resource);
         self.complete = false;
@@ -131,7 +131,7 @@ const Driver = struct {
         const sequence = (try self.reader.query(.{ .capabilities = {} })).principal_sequence + 1;
         const signed = try p.Growth.sign(.{ .realm = self.config.realm, .principal = self.config.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init(writer.buffered()) }).encode() } } }, self.reader.key);
         for (0..3) |_| {
-            _ = self.reader.wire.submitGrowing(signed) catch |err| {
+            _ = self.reader.wire.submit(signed) catch |err| {
                 if (err == error.AccessDenied or err == error.StaleActivation or err == error.Rejected or err == error.Conflict) return err;
                 continue;
             };
@@ -172,7 +172,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer wire.deinit();
     wire.timeout_ms = 5000;
     wire.observer = diagnostics;
-    var driver: Driver = .{ .server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association), .reader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key }, .config = config, .io = init.io, .gpa = init.gpa };
+    var driver: Driver = .{ .server = try s.GenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association), .reader = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key }, .config = config, .io = init.io, .gpa = init.gpa };
     driver.server.failure_policy = .stop;
     _ = try driver.server.session.receive();
     const marker = try std.fmt.allocPrint(init.gpa, "{s}/{d}-{d}-{d}.activation", .{ config.activation_directory, config.realm, config.pid, config.generation });

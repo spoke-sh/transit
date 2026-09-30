@@ -31,10 +31,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     const config = parsed.value;
     if (config.local_codec) {
-        if (config.url != null or config.server != null or config.growing_server != null or config.query_client != null or config.seed_file != null) return error.ConflictingHostProfiles;
+        if (config.url != null or config.growing_server != null or config.query_client != null or config.seed_file != null) return error.ConflictingHostProfiles;
     } else if (config.url == null) return error.MissingAuthorityEndpoint;
-    if (config.server != null and config.growing_server != null) return error.ConflictingHostProfiles;
-    if (config.query_client != null and (config.server != null or config.growing_server != null)) return error.ConflictingHostProfiles;
+    if (config.query_client != null and config.growing_server != null) return error.ConflictingHostProfiles;
     var query_client: ?*abi.query_client.Client = null;
     defer abi.Api.station_unified_query_destroy(query_client);
     if (config.query_client) |options| {
@@ -46,8 +45,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         if (abi.Api.station_unified_query_create(1, url.ptr, url.len, &seed, json.ptr, json.len, &query_client) != .ok) return error.InvalidHostConfiguration;
         abi.query_client.observe(query_client.?, diagnostics);
     }
-    var server: ?*abi.Server = null;
-    defer abi.Api.station_server_destroy(server);
     var growing: ?*abi.growing.Server = null;
     defer abi.Api.station_growing_destroy(growing);
     if (config.growing_server) |options| {
@@ -58,15 +55,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         const url = config.url.?;
         if (abi.Api.station_growing_create(1, url.ptr, url.len, &seed, json.ptr, json.len, &growing) != .ok) return error.InvalidHostConfiguration;
         abi.growing.observe(growing.?, diagnostics);
-    }
-    if (config.server) |options| {
-        var seed = try readSeed(init, config.seed_file orelse return error.MissingSeedFile);
-        defer std.crypto.secureZero(u8, &seed);
-        const json = try std.json.Stringify.valueAlloc(init.gpa, options, .{});
-        defer init.gpa.free(json);
-        const url = config.url.?;
-        if (abi.Api.station_server_create(1, url.ptr, url.len, &seed, json.ptr, json.len, &server) != .ok) return error.InvalidHostConfiguration;
-        abi.observe(server.?, diagnostics);
     }
     var client: ?*raw.Client = null;
     defer raw.Api.transit_client_destroy(client);
@@ -88,8 +76,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         };
         defer request.deinit();
         if (request.value == .shutdown) {
-            abi.Api.station_server_destroy(server);
-            server = null;
             abi.Api.station_growing_destroy(growing);
             growing = null;
             abi.Api.station_unified_query_destroy(query_client);
@@ -99,24 +85,17 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             try respond(&output.interface, 0, "{\"closed\":true}");
             return;
         }
-        process(init, server, growing, query_client, client, request.value, arena.allocator(), &output.interface) catch |err| {
+        process(init, growing, query_client, client, request.value, arena.allocator(), &output.interface) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };
     }
 }
-fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     var buffer: ?*abi.Buffer = null;
     defer abi.Api.station_buffer_destroy(buffer);
     const status: abi.Status = switch (request) {
         .shutdown => return error.ShutdownRequiresOwner,
         .hello => return respond(out, 0, "{\"host_version\":1,\"station_version\":1,\"transit_version\":1}"),
-        .next => |deadline| if (server) |pointer| abi.Api.station_server_next(pointer, deadline, &buffer) else .not_ready,
-        .apply => |action| blk: {
-            const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
-            break :blk if (server) |pointer| abi.Api.station_server_apply(pointer, json.ptr, json.len, &buffer) else .not_ready;
-        },
-        .finish => |failed| if (server) |pointer| abi.Api.station_server_finish(pointer, @intFromBool(failed)) else .not_ready,
-        .pending => if (server) |pointer| abi.Api.station_server_pending(pointer, &buffer) else .not_ready,
         .growing_capabilities => abi.Api.station_growing_capabilities(&buffer),
         .http_codec => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
@@ -162,15 +141,9 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
         .growing_finish_result => |action| if (growing) |pointer| abi.Api.station_growing_finish_result(pointer, action.scope, @intFromBool(action.failed), &buffer) else .not_ready,
         .growing_discard => |scope| if (growing) |pointer| abi.Api.station_growing_discard(pointer, scope) else .not_ready,
         .growing_pending => if (growing) |pointer| abi.Api.station_growing_pending(pointer, &buffer) else .not_ready,
-        .arrow_cell => |arrow| blk: {
-            if (arrow.ipc.len > s.Query.max_bytes * 2) return error.InvalidArrowResult;
-            var bytes: [s.Query.max_bytes]u8 = undefined;
-            const decoded = try std.fmt.hexToBytes(&bytes, arrow.ipc);
-            break :blk abi.Api.station_arrow_cell(decoded.ptr, decoded.len, arrow.row, arrow.column, &buffer);
-        },
         .growing_arrow_cell => |arrow| blk: {
-            if (arrow.ipc.len > s.GrowingQuery.records.segment_bytes * 2) return error.InvalidArrowResult;
-            var bytes: [s.GrowingQuery.records.segment_bytes]u8 = undefined;
+            if (arrow.ipc.len > s.Query.records.segment_bytes * 2) return error.InvalidArrowResult;
+            var bytes: [s.Query.records.segment_bytes]u8 = undefined;
             const decoded = try std.fmt.hexToBytes(&bytes, arrow.ipc);
             break :blk abi.Api.station_growing_arrow_cell(decoded.ptr, decoded.len, arrow.row, arrow.column, &buffer);
         },
@@ -180,7 +153,7 @@ fn process(init: std.process.Init, server: ?*abi.Server, growing: ?*abi.growing.
         .metadata => |frozen| if (client) |pointer| return raw.host.process(init, pointer, .{ .metadata = frozen }, allocator, out) else .not_ready,
         .client_capabilities => if (client) |pointer| return raw.host.process(init, pointer, .{ .capabilities = {} }, allocator, out) else .not_ready,
     };
-    if ((request == .pending or request == .growing_pending) and buffer != null) {
+    if (request == .growing_pending and buffer != null) {
         const value = try std.json.Stringify.valueAlloc(allocator, abi.Api.station_buffer_data(buffer.?)[0..abi.Api.station_buffer_size(buffer.?)], .{});
         return respond(out, @backingInt(status), value);
     }

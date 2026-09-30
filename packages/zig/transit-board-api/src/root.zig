@@ -17,8 +17,8 @@ test {
 }
 pub const protocol = @import("transit_protocol");
 const p = protocol;
-const i = p.Inspection;
-pub const max_edges = 32;
+const i = p.Growth.Inspection;
+pub const max_edges = i.page_size * 2;
 pub const Reference = struct {
     realm: u64,
     pid: u64,
@@ -39,7 +39,29 @@ pub const Lens = struct {
     source: struct { realm: u64, pid: u64, resource: u64, key: p.Value, entry_revision: u64, resource_revision: u64, position: u64 },
     declaration: @import("transit_station").Metadata.Detail,
 };
-pub const StateResponse = struct { observation: p.State.Page, framework: [p.State.page_size]?Lens = @splat(null) };
+pub const StateQuery = struct {
+    kind: enum { resources, associations, entries },
+    pid: ?u64 = null,
+    resource: ?u64 = null,
+    cut: ?i.Cut = null,
+    after: u64 = 0,
+    after_key: ?p.Value = null,
+    revision: ?u64 = null,
+};
+pub const StatePage = struct {
+    version: u32 = 1,
+    realm: u64,
+    principal_sequence: u64,
+    reader: p.Growth.Identity,
+    kind: @FieldType(StateQuery, "kind"),
+    cut: i.Cut,
+    next: ?u64 = null,
+    next_key: ?p.Value = null,
+    resources: [p.Growth.page_size]?p.Growth.Resource = @splat(null),
+    associations: [p.Growth.page_size]?p.Growth.Association = @splat(null),
+    entries: [p.Growth.page_size]?p.Growth.Entry = @splat(null),
+};
+pub const StateResponse = struct { observation: StatePage, framework: [p.Growth.page_size]?Lens = @splat(null) };
 pub const ExchangeLens = struct { version: u8 = 1, source: @FieldType(Lens, "source"), declaration: Exchange.Detail };
 pub const RecordIdentity = struct { key: p.Value, revision: u64 };
 pub const RecordsResponse = struct {
@@ -79,7 +101,7 @@ test "growing metadata projection never returns captured or application values" 
 }
 pub const Capabilities = struct {
     version: u32 = 1,
-    profile: enum { legacy_v2, growing_v3 } = .legacy_v2,
+    profile: enum { native_v1 } = .native_v1,
     query_enabled: bool = false,
     realm: u64,
     scope_pid: ?u64,
@@ -100,8 +122,6 @@ pub const Capabilities = struct {
 };
 pub const Error = struct { err: enum { Forbidden, NotFound, InvalidQuery, QueryExpired, HistoryReclaimed, Unavailable, RateLimited, InvalidOrigin, UnsafePrincipal, StateResourceExpired, QueryDisabled, QueryBusy, UnsupportedQuery, QueryRequestTooLarge, IncompleteResult, InvalidQueryOrdinal, QueryConflict } };
 
-pub const QueryRequest = @import("transit_query").Model.Request;
-pub const QueryResponse = @import("transit_query").Model.Response;
 pub const UnifiedQueryRequest = @import("transit_query").Workspace.Request;
 pub const UnifiedQueryResponse = @import("transit_query").Workspace.Response;
 pub const unified_query_schema_options = @import("transit_query").Workspace.schema_options;
@@ -151,7 +171,7 @@ pub fn project(page: i.Page) error{InvalidObservation}!Response {
     };
     // JSON's fixed arrays bound bytes, but do not enforce resource exclusivity.
     // Reject malformed upstream projections before interpreting any evidence;
-    // one page then needs at most two edges for each of its sixteen facts.
+    // one page then needs at most two edges for each of its eight facts.
     inline for (.{ "processes", "events", "outbox", "effects", "payloads" }) |name| {
         if (!std.mem.eql(u8, name, collection)) for (@field(page, name)) |slot| {
             if (slot != null) return error.InvalidObservation;
@@ -179,7 +199,7 @@ pub fn project(page: i.Page) error{InvalidObservation}!Response {
 }
 
 test "journey edges are explicit and retained gaps do not fabricate history" {
-    var page: i.Page = .{ .realm = 1, .resource = .outbox, .pid = 3, .cut = .{ .position = 20, .policy_revision = 2, .retained_from = 10 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null }, .history = .prefix_reclaimed };
+    var page: i.Page = .{ .realm = 1, .resource = .outbox, .pid = 3, .cut = .{ .position = 20, .policy_revision = 2, .retained_from = 10 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null, .policy_revision = 2 }, .history = .prefix_reclaimed };
     page.outbox[0] = .{ .id = 1, .source = 3, .turn = 7, .index = 0, .destination = 4, .value = .{}, .phase = .delivered, .resolved_at = 12 };
     const view = try project(page);
     try std.testing.expectEqual(.reclaimed, view.edges[0].?.from_coverage);
@@ -192,7 +212,7 @@ test "journey edges are explicit and retained gaps do not fabricate history" {
 }
 
 test "malformed mixed resource pages cannot overflow or fabricate a journey" {
-    var page: i.Page = .{ .realm = 1, .resource = .history, .pid = 3, .cut = .{ .position = 30, .policy_revision = 2, .retained_from = 0 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null }, .history = .retained };
+    var page: i.Page = .{ .realm = 1, .resource = .history, .pid = 3, .cut = .{ .position = 30, .policy_revision = 2, .retained_from = 0 }, .reader = .{ .principal = 1, .permissions = 16, .pid = null, .policy_revision = 2 }, .history = .retained };
     page.events = @splat(.{ .position = 7, .pid = 3, .kind = .turn, .policy_revision = 2, .input = 5, .effect = 7 });
     const valid = try project(page);
     try std.testing.expect(valid.edges[max_edges - 1] != null);
@@ -203,13 +223,12 @@ test "malformed mixed resource pages cannot overflow or fabricate a journey" {
     try std.testing.expectError(error.InvalidObservation, project(page));
 }
 
-pub fn projectState(page: p.State.Page) !StateResponse {
-    if (page.version != 1 or page.view != null or page.capabilities != null) return error.InvalidObservation;
+pub fn projectState(page: StatePage) !StateResponse {
+    if (page.version != 1) return error.InvalidObservation;
     const collection = switch (page.kind) {
         .resources => "resources",
         .associations => "associations",
         .entries => "entries",
-        else => return error.InvalidObservation,
     };
     inline for (.{ "resources", "associations", "entries" }) |name| {
         if (!std.mem.eql(u8, collection, name) and !(page.kind == .entries and std.mem.eql(u8, name, "resources"))) {
@@ -230,7 +249,7 @@ pub fn projectState(page: p.State.Page) !StateResponse {
 }
 
 test "state projection cannot mix metadata-only associations with opaque values" {
-    var page: p.State.Page = .{ .realm = 1, .principal_sequence = 0, .kind = .associations, .reader = .{ .principal = 1, .permissions = 16, .pid = 2 }, .cut = .{ .position = 5, .policy_revision = 3, .retained_from = 0 } };
+    var page: StatePage = .{ .realm = 1, .principal_sequence = 0, .kind = .associations, .reader = .{ .principal = 1, .permissions = 16, .pid = 2, .policy_revision = 3 }, .cut = .{ .position = 5, .policy_revision = 3, .retained_from = 0 } };
     page.associations[0] = .{ .pid = 2, .name = try p.Value.init("opaque"), .resource = 3, .revision = 4, .required = true };
     try std.testing.expectEqual(page, (try projectState(page)).observation);
     page.entries[0] = .{ .key = try p.Value.init("key"), .value = try p.Value.init("private"), .revision = 4 };

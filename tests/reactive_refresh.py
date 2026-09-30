@@ -94,31 +94,31 @@ def run(env, _tls):
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)
     drained(ingress)
-    # Independent Table declaration and FZP2 all-rows plan; no SQL recompile.
+    # Independent Table declaration and FZP1 all-rows plan; no SQL recompile.
     table = b'TBL1\1\2id\5count'
-    source = b'UQS2' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
+    source = b'UQS1' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
     limits = struct.pack('<QQQ', 100, 100, 1048576)
-    declaration = hashlib.sha256(b'transit.query.source.v2\0' + source).digest()
-    cast(application, b'UQA2' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + limits)
+    declaration = hashlib.sha256(b'transit.query.source.v1\0' + source).digest()
+    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + limits)
     drained(application)
     mutate(1)
-    plan = b'FZP2\0\2\0\1\0' + struct.pack('<Q', 0) + b'\0'
-    bundle = b'UQB2' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
-    digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x32425155, len(bundle))).digest()
+    plan = b'FZP1\0\2\0\1\0' + struct.pack('<Q', 0) + b'\0'
+    bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+    digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
     for ordinal, offset in enumerate(range(0, len(bundle), 256)):
         part = bundle[offset:offset+256]
         digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', ordinal, len(part)) + part).digest()
-    reference = b'SPF1' + struct.pack('<QQQII', requests, 1, 1, 0x32425155, len(bundle)) + digest
-    cast(ingress, b'UQB2' + reference, principal)
+    reference = b'SPF1' + struct.pack('<QQQII', requests, 1, 1, 0x31425155, len(bundle)) + digest
+    cast(ingress, b'UQB1' + reference, principal)
     drained(ingress)
     for ordinal, offset in enumerate(range(0, len(bundle), 256)):
         part = bundle[offset:offset+256]
         for half in range(0, len(part), 128):
-            cast(ingress, b'UQP2' + struct.pack('<QIB', 1, ordinal, int(half != 0)) + part[half:half+128], principal)
+            cast(ingress, b'UQP1' + struct.pack('<QIB', 1, ordinal, int(half != 0)) + part[half:half+128], principal)
             drained(ingress)
-    cast(ingress, b'UQS2' + struct.pack('<Q', 1), principal)
+    cast(ingress, b'UQS1' + struct.pack('<Q', 1), principal)
     drained(ingress)
-    cast(ingress, b'UQX2' + struct.pack('<Q', 1), principal)
+    cast(ingress, b'UQX1' + struct.pack('<Q', 1), principal)
     wait(lambda: (current := status(1)) is not None and current[72] == 4)
     now = int(time.time() * 1000)
     cast(ingress, reactive(1, struct.pack('<Q', now)), 34)

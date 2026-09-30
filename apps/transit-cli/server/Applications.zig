@@ -16,6 +16,7 @@ const Pending = struct { signed: g.SignedRequest, effect: union(enum) { provisio
 const record_bytes = 256 * 1024;
 const Record = struct {
     version: u32 = 1,
+    definition: g.Definition,
     installation: [16]u8,
     declaration: A.Declaration,
     digest: [32]u8,
@@ -178,7 +179,7 @@ fn add(self: *Self, application: []const u8, roles: usize) !void {
 }
 fn identity(self: *Self, signed: g.SignedQuery, wire: *q.wire.Client) !g.Identity {
     if (signed.query.realm != self.installation.config.realm or signed.query.kind != .identity) return error.AccessDenied;
-    const response = try wire.call(g.Response, "/v3/query", signed);
+    const response = try wire.call(g.Response, "/v1/query", signed);
     try g.validateResponse(response, signed.query);
     return response.body.identity;
 }
@@ -289,7 +290,7 @@ fn install(self: *Self, allocator: std.mem.Allocator, signed: A.Signed) !void {
     const directory = try std.Io.Dir.cwd().openDir(self.init.io, directory_path, .{ .iterate = true });
     defer directory.close(self.init.io);
     for ([_][]const u8{ "requests", "receipts", "activations" }) |child| try directory.createDir(self.init.io, child, .fromMode(0o700));
-    var record: Record = .{ .installation = self.installation.record.installation, .declaration = declaration, .digest = digest, .installer = signed.identity };
+    var record: Record = .{ .definition = g.current_definition, .installation = self.installation.record.installation, .declaration = declaration, .digest = digest, .installer = signed.identity };
     for (declaration.roles, 0..) |_, i| {
         record.workers[i] = try self.randomPrincipal();
         var seed: [32]u8 = undefined;
@@ -403,7 +404,7 @@ fn submit(self: *Self, allocator: std.mem.Allocator, record: *Record, step: Step
         const i = std.mem.indexOfScalar(u64, &record.callers, step.principal) orelse return error.InvalidApplicationCatalog;
         key = try self.callerKey(allocator, record.declaration.application, i);
     }
-    const basis = try self.installation.wire.queryGrowing(.{ .realm = self.installation.config.realm, .principal = step.principal, .kind = .capabilities }, key);
+    const basis = try self.installation.wire.query(.{ .realm = self.installation.config.realm, .principal = step.principal, .kind = .capabilities }, key);
     if (basis.position < self.installation.record.position) return error.AuthorityRollback;
     if (!basis.body.capabilities.worker_rotation) return error.UnsupportedWorkerRotation;
     record.pending = .{ .signed = try g.sign(.{ .realm = self.installation.config.realm, .principal = step.principal, .sequence = try std.math.add(u64, basis.principal_sequence, 1), .command = step.command }, key), .effect = step.effect };
@@ -412,7 +413,7 @@ fn submit(self: *Self, allocator: std.mem.Allocator, record: *Record, step: Step
 }
 fn flush(self: *Self, allocator: std.mem.Allocator, record: *Record) !void {
     const pending = record.pending orelse return;
-    const accepted = try self.installation.wire.submitGrowing(pending.signed);
+    const accepted = try self.installation.wire.submit(pending.signed);
     const receipt: A.Receipt = .{ .index = record.receipt_count, .principal = pending.signed.request.principal, .sequence = pending.signed.request.sequence, .position = accepted.position, .digest = try g.digest(pending.signed.request) };
     const receipt_path = try self.path(allocator, record.declaration.application, try std.fmt.allocPrint(allocator, "receipts/{d}.json", .{receipt.index}));
     const previous = Files.read(A.Receipt, self.init.io, allocator, receipt_path) catch |err| value: {
@@ -613,7 +614,7 @@ fn pollRegistration(self: *Self, worker: *Worker) !?q.wire.bootstrap.GrowingRegi
 
 test "replacement checkpoint admission reserves recovery space for escaped configuration" {
     const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(7));
-    var record: Record = .{ .installation = @splat(1), .declaration = .{ .application = "items", .roles = &.{}, .resources = &.{}, .callers = &.{} }, .digest = @splat(2), .installer = try g.signQuery(.{ .realm = 1, .principal = 24, .kind = .identity }, key) };
+    var record: Record = .{ .definition = g.current_definition, .installation = @splat(1), .declaration = .{ .application = "items", .roles = &.{}, .resources = &.{}, .callers = &.{} }, .digest = @splat(2), .installer = try g.signQuery(.{ .realm = 1, .principal = 24, .kind = .identity }, key) };
     const configuration: [8192]u8 = @splat(0);
     const selected: Candidate = .{ .artifact = .{ .path = "/worker", .sha256 = @splat(3) }, .configuration = &configuration, .revision = @splat(4) };
     record.selected[0] = selected;

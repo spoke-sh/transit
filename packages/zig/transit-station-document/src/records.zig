@@ -47,7 +47,7 @@ pub fn snapshot(doc: Document) !p.Value {
 pub fn snapshotChange(doc: Document, request: u64) !p.Value {
     var bytes: [256]u8 = undefined;
     var w: c.Writer = .{ .bytes = &bytes };
-    try w.write("SDS2");
+    try w.write("SDS1");
     try writeDocument(&w, doc);
     try w.int(u64, request);
     return p.Value.init(bytes[0..w.offset]);
@@ -56,9 +56,8 @@ pub fn snapshotRecord(value: p.Value) !Snapshot {
     try value.validate();
     var r: c.Reader = .{ .bytes = value.slice() };
     const magic = try r.read(4);
-    const legacy = std.mem.eql(u8, magic, "SDS1");
-    if (!legacy and !std.mem.eql(u8, magic, "SDS2")) return error.InvalidDocumentEncoding;
-    const out: Snapshot = .{ .state = try readDocument(&r), .request = if (legacy) 0 else try r.int(u64) };
+    if (!std.mem.eql(u8, magic, "SDS1")) return error.InvalidDocumentEncoding;
+    const out: Snapshot = .{ .state = try readDocument(&r), .request = try r.int(u64) };
     try r.finish();
     return out;
 }
@@ -147,4 +146,14 @@ test "maximum root head fits unchanged kernel value and rejects malformed framin
     try t.expectEqual(@as(u16, 252), encoded.len);
     try t.expectEqualDeep(head, try Head.decode(encoded));
     for (0..encoded.len) |i| if (Head.decode(try p.Value.init(encoded.slice()[0..i]))) |_| return error.TruncatedHeadAccepted else |_| {};
+}
+
+test "snapshot records require the current request identity field" {
+    const current = try snapshotChange(.{ .document = 1 }, 7);
+    try std.testing.expectEqual(@as(u64, 7), (try snapshotRecord(current)).request);
+    const old = try p.Value.init(current.slice()[0 .. current.len - 8]);
+    try std.testing.expectError(error.InvalidDocumentEncoding, snapshotRecord(old));
+    var unsupported = current;
+    unsupported.data[3] = '2';
+    try std.testing.expectError(error.InvalidDocumentEncoding, snapshotRecord(unsupported));
 }

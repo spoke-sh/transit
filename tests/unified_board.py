@@ -15,10 +15,10 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     caller = json.loads((root/'shell.json').read_text())
     port = free_port()
     origin = f'http://127.0.0.1:{port}'
-    options = dict(upstream=caller['url'], realm=46, principal=55, profile='growing_v3',
+    options = dict(upstream=caller['url'], realm=46, principal=55, profile='native_v1',
                    seed_file=inspector['seed_file'], public_origin=origin, port=port,
                    request_timeout_ms=5000, upstream_timeout_ms=3500,
-                   query_v2={k: caller[k] for k in ('connection', 'seed_file', 'workspace')})
+                   query={k: caller[k] for k in ('connection', 'seed_file', 'workspace')})
     config = root/'board-v2.json'
     config.write_text(json.dumps(options))
     server = start('board-v2', [binary, str(config)])
@@ -50,15 +50,15 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
                 return data
         raise AssertionError('Board read did not stabilize')
 
-    def api(operation, **kwargs): return request('/api/v1/query-v2', operation, **kwargs)
+    def api(operation, **kwargs): return request('/api/v1/query', operation, **kwargs)
     caps = request('/api/v1/capabilities')
     assert caps['read_only'] and caps['query_enabled'] and caps['max_request_bytes'] == 49152
     atlas = request('/api/v1/atlas')
-    assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 2
+    assert atlas['identity']['permissions'] == 16 and atlas['query_version'] == 1
     assert atlas['query_resource'] == caller['connection']['resource']
     description = api({'describe': {}})['description']
     assisted = api({'assist': {'sql':'SELECT * FROM it','cursor':16,'generation':7}})['assistance']
-    assert assisted['version'] == 1 and assisted['generation'] == 7 and assisted['profile'] == 'unified_v2'
+    assert assisted['version'] == 1 and assisted['generation'] == 7 and assisted['profile'] == 'unified_v1'
     assert assisted['resource'] == caller['connection']['resource']
     assert assisted['range'] == dict(start=14,end=16,quoted=False)
     assert [item['text'] for item in assisted['items']] == ['"items"']
@@ -75,7 +75,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     api({'describe': {}}, headers={'Origin': 'https://untrusted.example'}, status=403)
     api({'compile': {'sql': 'DELETE FROM items'}}, status=400)
     api({'submit': {'token': '{}'}}, status=400)
-    request('/api/v1/query', {'describe': {}}, status=404)
+    request('/api/v2/query', {'describe': {}}, status=404)
     assert api({'status': '3'})['status'] is None
     first = api({'page': {'namespace': '1'}})['page']
     assert first['evidence']['next'] and first['cells']

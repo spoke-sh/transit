@@ -85,7 +85,7 @@ catalog. Activity shows one authorized page of per-PID counters, not an event lo
 or cross-process causal history. Operations distinguishes the current inspection
 identity from configured endpoint and declared dependency metadata.
 
-Worksheet bindings supply the initial SQL and the complete `UQS2` source contract
+Worksheet bindings supply the initial SQL and the complete `UQS1` source contract
 fingerprint in their `schema` field. This includes Table identity or KV/Document
 decoders, not merely column types. The owning Zig compiler supplies fingerprints;
 the browser compares them before admission and before presenting verified results.
@@ -146,7 +146,7 @@ must be reconciled before changing selection.
 
 ## Cursor assistance (M24)
 
-The v2 SQL editor uses the shared native grammar/capability/catalog assistance
+The v1 SQL editor uses the shared native grammar/capability/catalog assistance
 endpoint. Ctrl-Space or **Complete SQL** opens at the current cursor; arrows
 select, Tab/Enter accept, Escape dismisses, and Ctrl-Z undoes the last acceptance.
 Whole-token replacement preserves the suffix outside that token, and quoted

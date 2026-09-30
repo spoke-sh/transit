@@ -75,7 +75,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     wire.observer = diagnostics;
     wire.timeout_ms = config.request_timeout_ms;
     if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, 120000);
-    var host = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+    var host = try s.GenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
     _ = try host.session.receive();
     const marker = try std.fmt.allocPrint(init.gpa, "{s}/{d}-{d}-{d}.activation", .{ config.activation_directory orelse return error.MissingActivationDirectory, config.realm, config.pid, config.generation });
     defer init.gpa.free(marker);

@@ -16,8 +16,10 @@ SqlInfo schemas. The latter includes six dense-union children and the required
 list/map field names. At most 64 information IDs may be requested. Unknown IDs
 fail explicitly. Catalog optional presence remains distinct from an empty filter;
 name patterns use bounded ASCII `%`/`_` matching. Table schema derivation invokes
-the existing SQL/compiler and finite engine over an empty synthetic source,
-which performs no source read or query admission. Its workspace is 8 MiB.
+the current query SQL compiler and the same `TableResult` layout used for
+verified captured rows, without source reads or query admission. `TableResult`
+preserves projection nullability, checks count conversion and rejects missing,
+conflicted or mistyped cells. Its workspace is 8 MiB.
 
 `Ticket` signs bounded scope/result references with an explicit deployment key.
 Unit tests prove tamper detection, scope separation and expiry. Successful

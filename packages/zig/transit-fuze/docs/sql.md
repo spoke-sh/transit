@@ -1,7 +1,7 @@
 # Read-only Table SQL
 
-This page describes the original v1 compiler. `Unified.Sql` reuses the parser to
-target v2 KV/Table/Document plans; see [unified SQL](unified-sql.md) for its
+This page describes the specialized two-column Table compiler. `Unified.Sql`
+uses the same parser for public KV/Table/Document plans; see [unified SQL](unified-sql.md) for its
 separate capability, allocation and result rules.
 
 `transit_fuze.Sql` is the allocation-free Zig frontend for

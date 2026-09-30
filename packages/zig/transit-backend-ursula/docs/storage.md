@@ -86,8 +86,9 @@ infer which keys or effects are safe to discard.
 the pinned client with crashes between physical operations and durable outcomes.
 The [proof guide](../../../../tests/README.md) records tested schedules and limits.
 Native TTL and physical erasure of all historical copies are not claimed.
-M7 performs keyed compaction through core's validated whole-realm checkpoint;
-the adapter does not choose application keys or independent resource policies. The portable contract lives in [RETENTION.md](../../../../docs/reference/retention.md).
+Prefix trimming preserves the current catalog root; it does not reclaim catalog
+pages or choose application keys. The portable policy lives in
+[retention](../../../../docs/reference/retention.md).
 
 ## Persistence configuration
 
@@ -111,14 +112,14 @@ S3-compatible cold storage, backup/restore, and retention need explicit design
 and tests before broader use. Unread mailbox data must survive authorized
 suspension within its accepted lifetime; expiry must make recovery terminal.
 Benchmark realistic process backlogs and exchange groups rather than inheriting
-upstream throughput claims. M1's completed outcomes and limits live in [M1](../../../../docs/roadmap/M1.md).
+upstream throughput claims.
 
 ## Immutable payload deletion
 
-The initial resource catalog supports sixteen lifetime payload identities, each
-at most 64 KiB, owned by an unlimited-lifetime PID. They are immutable standalone
-bytes; the inline profile defines no protocol-recognized references from mailbox, state
-or effect fields to them.
+The paged catalog stores immutable standalone payload identities, each at most
+64 KiB, owned by an unlimited-lifetime PID. There is no fixed total count of
+payload slots. Mailbox, state and effect values do not acquire a payload
+dependency merely by containing its identifier.
 Finite owner/body lifetimes are rejected as unsupported rather than inferred.
 General reference admission, large body streams and connector replay dependencies
 need their own later contract.
@@ -131,8 +132,8 @@ closed stream and hash, then records readiness. Creation and publication are
 trusted control operations, not application handler capabilities. The publisher
 must be serialized and issue no duplicate PUT: a lost receipt or restarted
 publisher may only verify the original attempt. A missing stream stays uncertain;
-it is not recreated. An unresolved creation remains pinned, with bounded catalog
-and payload capacity; maintenance does not poll or discard it indefinitely.
+it is not recreated. An unresolved creation remains pinned, under explicit admission
+and storage quotas; maintenance does not poll or discard it indefinitely.
 
 Once the owner is permanently retired, an opted-in, positively published payload
 can enter `retiring`. That durable record removes logical availability before
@@ -151,9 +152,13 @@ that default-retention bytes remain readable by the trusted storage verifier.
 
 ## Checkpoint ownership
 
-`Store.loadCheckpoint` returns an optional owned parsed checkpoint. Its `value`
-is a pointer; callers must call `deinit()` after copying the needed state.
-Publication/verification, maintenance and core recovery release it on every
-success/error path. The bounded JSON parser writes large catalog fields into
-allocated storage, avoiding repeated large Debug stack copies. Wire bytes and
-checkpoint hashes are unchanged for inline-only histories.
+`Store.loadCheckpoint` returns an optional owned `Checkpoint` value containing
+one journal entry and its published head. Its JSON parser and provider response
+are released before return. No full catalog, borrowed response buffer or parsed
+arena escapes to the caller. Entry encoding is bounded at 64 KiB and includes the
+required current contract definition; missing or foreign definitions reject.
+
+`Store.maintain(head)` verifies the committed intent against current history,
+publishes and rereads the root checkpoint, then advances retention. It preserves
+all referenced pages. [Native persistence](growing.md) describes the publication
+boundary and the independent page-store lifetime.

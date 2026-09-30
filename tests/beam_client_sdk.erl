@@ -12,7 +12,7 @@ main() ->
     [Mode, Path] = init:get_plain_arguments(), Cfg = json:decode(read(Path)),
     check(lists:prefix(filename:dirname(Path), code:which(transit_client))),
     check(code:which(transit_station) =:= non_existing),
-    {ok, Config} = transit_client:config(maps:get(<<"url">>, Cfg), growing_v3, #{timeout_ms => 3000}),
+    {ok, Config} = transit_client:config(maps:get(<<"url">>, Cfg), native_v1, #{timeout_ms => 3000}),
     {ok, Credential} = transit_client:credential(72, 65536, maps:get(<<"seed">>, Cfg)),
     {ok, Peer} = transit_client:process(72, maps:get(<<"pid">>, Cfg)),
     {error, _} = transit_client:process(72, true), {error, _} = transit_client:process(72, 1 bsl 53),

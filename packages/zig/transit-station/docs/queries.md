@@ -1,22 +1,22 @@
 # Growing query capture and delivery
 
-The explicit Zig `GrowingQuery` API captures incremental Fuze results across
-ordinary growing turns. `QueryDelivery` publishes the captured segments, validates
-receiver completion and retains acknowledgements through the same turn boundary.
-This explicit M10 Zig profile requires a host-supplied query context. The M11
-[growing ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns) can own that context when
-explicitly enabled; legacy `Query` and foreign ABI result limits remain unchanged.
-The [v2 design and layout](../../../../contracts/STATION_QUERY_V2.md)
-owns the capture, delivery and credit contracts.
+The Zig `Query` API captures incremental Fuze results across ordinary paged
+turns. `QueryDelivery` publishes segments, validates receiver completion and
+retains acknowledgements through the same turn boundary. Hosts supply an explicit
+query context. The [binding ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns)
+owns this context when query results are enabled. The
+[v1 contract](../../../../contracts/STATION_QUERY_V1.md) specifies capture,
+delivery and credit. The public finite KV/Table/Document client composes its
+own source and upload protocol in [transit-query](../../transit-query/README.md).
 
-Set a revisioned peer/Table policy with `GrowingQuery.setPolicy`. A handler for
+Set a revisioned peer/Table policy with `Query.setPolicy`. A handler for
 an authenticated call invokes `start(turn, table, stream_plan)` after its behavior
 has already initialized. Start consumes all four mutations: job, owned plan,
 owned engine progress and peer/correlation index. It retains the committed source
 and emits a self-continuation. No source or result is an implicit lifetime owner;
 normal process/resource/grant rules still apply.
 
-Dispatch the recorded `GQC2` cast payload by decoding `GrowingQuery.Continuation`
+Dispatch the recorded `GQC1` cast payload by decoding `Query.Continuation`
 and calling `advance(turn, continuation, workspace, cancellation)`. It handles one
 bounded step, stages its next continuation, and returns `progress`, `captured`,
 `closed` or `duplicate`. The application supplies a per-step workspace; it must
@@ -42,14 +42,14 @@ state. End-to-end publication must still validate the complete ordered chain.
 
 ## Publication and receipt
 
-Configure both growing hosts with `server.query = .{ .workspace = workspace,
+Configure both hosts with `server.query = .{ .workspace = workspace,
 .cancellation = &cancellation }`, keeping the borrowed workspace and flag alive
 through each poll/finish operation. Without that opt-in, result frames fail with
-`UnsupportedGrowingQuery`. The host does not allocate an unbounded result buffer
+`UnsupportedQuery`. The host does not allocate an unbounded result buffer
 or advertise the complete Station service family.
 
 After capture, call `QueryDelivery.begin(turn, result_id)` in a fresh turn. It
-records a self-continuation; subsequent `GrowingGenServer` polls dispatch
+records a self-continuation; subsequent `GenServer` polls dispatch
 publication, incoming result fragments, completion and acknowledgement through
 `QueryDelivery`. Standalone private-turn runners can call `dispatch` explicitly.
 The sender uses retained sealed segments after the source is released. Each
@@ -58,7 +58,7 @@ and the complete manifest before closing its durable wait and acknowledging.
 Receiver-issued credit permits at most two uncredited segments. Only committed
 segment seals grant new credit; a stalled receiver backpressures the sender.
 
-`GrowingQuery.completed(reader, correlation)` reads the retained complete
+`Query.completed(reader, correlation)` reads the retained complete
 manifest. `completedSegment(reader, correlation, ordinal, buffer)` returns one
 verified segment using a caller-owned bounded buffer. Missing or incomplete
 evidence fails explicitly. Duplicate delivery cannot reopen a closed wait;
@@ -72,10 +72,10 @@ exact resource cut and check current rights; the adapter must also enforce the
 source's current query policy. [transit-query](../../transit-query/README.md)
 uses this interface so frontends share the framework's manifest/fragment checks.
 
+Foreign handles enable these capture/delivery actions with `query_results: true`.
 The [native query host](../../../../apps/transit-query-host/README.md) runs the
-M13 public query behaviors with an explicit context. Growing foreign handles
-continue to opt in through `query_results: true`; legacy launchers do not change
-profiles implicitly.
+public finite KV/Table/Document behaviors through `transit-query`, with its own
+bundle and result-publication contract.
 
 Read failures poison the private turn; catching one cannot authorize publishing
 partial work. `close(turn, result_id, .cancelled)` is an explicit owner decision
@@ -91,5 +91,5 @@ In-memory private-turn checks cover 70 retained rows, interruptions before each
 proposal, changed staging, duplicate/future/forged continuations, policy revocation,
 sticky source failure, explicit close, and missing/corrupted captured fragments.
 They use an injected reader and do not establish real authority or disk recovery.
-`just test::growing-query` owns the real caller/node/provider proof and independent
+`just test::query` owns the real caller/node/provider proof and independent
 Arrow decoding; its evidence is recorded in the [test guide](../../../../tests/README.md).

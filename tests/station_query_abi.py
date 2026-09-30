@@ -12,11 +12,11 @@ import pyarrow as pa
 
 from client_abi_growing import GrowingSystem
 from station import frame
-from station_abi import rejects
+from abi_support import rejects
 from station_growing_abi import Native, Port
 from storage import wait_ready
 from sdk_scenarios import check
-from transit_station import Client, TransitError
+from abi_support import Client, TransitError
 
 
 def run(node, cli, library, raw_library, host):
@@ -52,7 +52,7 @@ def run(node, cli, library, raw_library, host):
                 command({'grant_resource': {'resource': resource, 'subject': subject, 'permissions': 7}})
             command({'associate': {'pid': pid, 'name': b'data'.hex(), 'resource': resource}})
             command({'own': {'pid': pid, 'worker': principal, 'expected_generation': 1}})
-            return {'profile': 'growing_v3', 'realm': 72, 'principal': principal, 'pid': pid,
+            return {'profile': 'native_v1', 'realm': 72, 'principal': principal, 'pid': pid,
                     'generation': 2, 'failure_policy': 'stop', 'query_results': True}, key, resource
 
         service_config, service_key, resource = provision(65536)
@@ -71,7 +71,7 @@ def run(node, cli, library, raw_library, host):
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == '/v3/command':
+                    if self.path == '/v1/command':
                         fault['commands'] += 1
                         envelope = json.loads(body)['request']['command']
                         turn = envelope.get('turn', envelope.get('turn_with_versions', {}).get('turn', {}))
@@ -262,7 +262,7 @@ def run(node, cli, library, raw_library, host):
             rejects(13, port.call, {'growing_apply': {'scope': scope, 'action': {'query_completed': str(correlation)}}})
             command({'grant_resource': {'resource': requests, 'subject': 65537, 'permissions': 0}})
             rejects(4, port.call, {'growing_prepare': time.time_ns() // 1_000_000 + 30000})
-            check('growing-query-abi', {
+            check('query-abi', {
                 'rows': len(rows), 'segments': len(segments), 'exact_retry': fault['retried'],
                 'restarted_after_seal': restarted, 'service_initializations': initialized[service_pid],
                 'requester_initializations': initialized[requester_pid], 'owned_ipc_after_close': requester is None,

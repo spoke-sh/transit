@@ -27,33 +27,15 @@ pub const Plan = struct {
         } };
     }
 };
-pub const QueryRequest = struct { id: u32, plan: Plan = .{} };
-pub const Action = union(enum) {
-    get: p.Value,
+pub const BasicAction = union(enum) {
     put: struct { key: p.Value, value: p.Value },
-    delete: p.Value,
     cast: struct { pid: u64, value: p.Value },
-    call: struct { pid: u64, value: p.Value, deadline_ms: ?u64 = null, observer: ?u8 = null },
-    reply: p.Value,
-    cancel: []const u8,
-    effect: p.Value,
     table_create: struct { id: u32, key_name: []const u8, value_name: []const u8, value_type: m.Type },
     table_get: struct { id: u32, key: []const u8 },
     table_write: struct { id: u32, mode: enum { insert, update, upsert }, row: Row },
     table_delete: struct { id: u32, key: []const u8 },
-    query: QueryRequest,
-    query_reply: QueryRequest,
-    query_result: []const u8,
     query_policy: struct { peer: u64, table: u32, expected_revision: u64, allow: bool },
-    registry_create: u32,
-    // Keep the legacy ABI's principal range; growing registry helpers are Zig-only.
-    registry_grant: struct { scope: u32, subject: union(enum) { principal: u8, process: u64 }, lookup: bool, mutate: bool },
-    registry_handle: void,
-    registry_route: struct { registry: u64, payload: p.Value },
-    supervisor_register: s.Supervisor.Child,
-    supervisor_observe: void,
 };
-pub const Result = union(enum) { none, value: ?p.Value, correlation: []const u8, row: ?Row, arrow: []const u8, manifest: struct { result: u64, correlation: []const u8, bytes: u16, rows: u8 } };
 pub fn decimal(allocator: std.mem.Allocator, value: anytype) ![]const u8 {
     return std.fmt.allocPrint(allocator, "{d}", .{value});
 }
@@ -78,9 +60,6 @@ pub fn foreignCell(allocator: std.mem.Allocator, cell: m.Cell) !Cell {
 /// Client-side consumption of finite IPC without exposing borrowed Arrow/native
 /// pointers to a foreign runtime. All int64 cells remain decimal strings.
 pub const ArrowCell = struct { rows: u8, columns: u8, name: []const u8, value: Cell };
-pub fn arrowCell(allocator: std.mem.Allocator, bytes: []const u8, row: u32, column: u32) !ArrowCell {
-    return arrowCellBounded(allocator, bytes, row, column, s.Query.max_bytes);
-}
 pub fn arrowCellBounded(allocator: std.mem.Allocator, bytes: []const u8, row: u32, column: u32, limit: usize) !ArrowCell {
     if (bytes.len == 0 or bytes.len > limit) return error.InvalidArrowResult;
     var workspace: [s.fuze.execution.working_bytes]u8 = undefined;
@@ -155,43 +134,6 @@ pub fn basic(comptime R: type, allocator: std.mem.Allocator, turn: anytype, acti
         },
         .table_delete => |request| try (try s.Table.open(turn, request.id)).delete(turn, try std.fmt.parseInt(i64, request.key, 10)),
         else => return null,
-    }
-    try turn.validate();
-    return .none;
-}
-pub fn apply(allocator: std.mem.Allocator, turn: *s.Turn, action: Action) !Result {
-    if (try basic(Result, allocator, turn, action)) |result| return result;
-    switch (action) {
-        .query, .query_reply => |request| {
-            const table = try s.Table.open(turn, request.id);
-            var workspace: [s.fuze.execution.working_bytes]u8 = undefined;
-            const cancellation = s.fuze.execution.Cancellation.init(false);
-            if (action == .query_reply) {
-                const manifest = try s.Query.capture(turn, table, try request.plan.native(), &workspace, &cancellation);
-                return .{ .manifest = .{ .result = manifest.result, .correlation = try decimal(allocator, manifest.correlation), .bytes = manifest.bytes, .rows = manifest.rows } };
-            }
-            var snapshot = try table.snapshot(turn);
-            var output: [s.Query.max_bytes]u8 = undefined;
-            const result = try s.fuze.execution.run(try (try request.plan.native()).bind(snapshot.source()), snapshot.source(), &workspace, &output, &cancellation);
-            return .{ .arrow = try hex(allocator, result.bytes) };
-        },
-        .query_result => |correlation| {
-            const result = try s.Query.completed(turn, try std.fmt.parseInt(u64, correlation, 10));
-            return .{ .arrow = try hex(allocator, result.bytes()) };
-        },
-        .query_policy => |grant| try s.Query.setPolicy(turn, grant.peer, grant.table, grant.expected_revision, grant.allow),
-        .registry_create => |scope| try s.Registry.create(turn, scope),
-        .registry_grant => |grant| try s.Registry.grant(turn, grant.scope, switch (grant.subject) {
-            .principal => |id| .{ .principal = id },
-            .process => |id| .{ .process = id },
-        }, .{ .lookup = grant.lookup, .mutate = grant.mutate }),
-        .registry_handle => try s.Registry.handle(turn, try s.Frame.decode(turn.delivery.input.value)),
-        .registry_route => |route| {
-            _ = try s.Registry.route(turn, route.registry, try s.Frame.decode(turn.delivery.input.value), route.payload);
-        },
-        .supervisor_register => |child| try s.Supervisor.register(turn, child),
-        .supervisor_observe => try s.Supervisor.observe(turn, try s.Supervisor.Observation.decode(try s.Frame.decode(turn.delivery.input.value))),
-        else => unreachable,
     }
     try turn.validate();
     return .none;

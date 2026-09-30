@@ -41,7 +41,7 @@ test "catalogs retain wide identities and immutable namespace-scoped pages" {
 test "catalog rejects unknown versions, malformed keys, oversized records and partial staging" {
     var store: Store = .{};
     defer store.deinit();
-    try t.expectError(error.UnsupportedCatalogVersion, c.Catalog(Store).open(&store, .{ .version = 1 }));
+    try t.expectError(error.UnsupportedCatalogVersion, c.Catalog(Store).open(&store, .{ .version = 2 }));
     try t.expectError(error.InvalidCatalogSnapshot, c.Catalog(Store).open(&store, .{ .records = 1 }));
     var catalog = try c.Catalog(Store).open(&store, .{});
     try t.expectError(error.InvalidCatalogKey, catalog.put(.{}, @as(u64, 0)));

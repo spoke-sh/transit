@@ -44,7 +44,7 @@ def run(*, board=False, browser=False):
                 return json.loads(result.stdout)
 
             def query(kind):
-                return invoke([binaries["rey-cli"], "growing-query", system.seed,
+                return invoke([binaries["rey-cli"], "query", system.seed,
                     write("query.json", {"realm": 72, "principal": 0, "kind": kind}), system.url])
 
             def command(body):
@@ -52,7 +52,7 @@ def run(*, board=False, browser=False):
                 path = write(f"command-{sequence}.json", {"realm": 72, "principal": 0, "sequence": sequence, "command": body})
                 for attempt in range(3):
                     try:
-                        return invoke([binaries["rey-cli"], "growing-submit", system.seed, path, system.url])["position"]
+                        return invoke([binaries["rey-cli"], "submit", system.seed, path, system.url])["position"]
                     except RuntimeError:
                         if attempt == 2:
                             raise
@@ -116,7 +116,7 @@ def run(*, board=False, browser=False):
                         connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                         response = connection.getresponse()
                         data = response.read()
-                        if self.path == "/v3/command" and response.status == 200:
+                        if self.path == "/v1/command" and response.status == 200:
                             operation = json.loads(body)["request"]["command"]
                             turn = operation.get("turn", operation.get("turn_with_versions", {}).get("turn", {}))
                             mutations = [item for item in turn.get("mutations", []) if item]

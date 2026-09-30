@@ -9,7 +9,7 @@
          table_get/2,table_update/3,table_page/2,retain/1,open_version/2,version/1,
          source_state/1,source_table/1,state_page/1,release/2,result/2,manifest/1,segment/2,raise_error/1]).
 open(C, S) ->
-    {ok, Client} = transit_client:config(maps:get(<<"url">>, C), growing_v3),
+    {ok, Client} = transit_client:config(maps:get(<<"url">>, C), native_v1),
     Realm = maps:get(<<"realm">>, C), {ok, P} = transit_client:process(Realm, maps:get(<<"pid">>, C)),
     {ok, Credential} = transit_client:credential(Realm, maps:get(<<"principal">>, C), maps:get(<<"seed_file">>, C)),
     Service = #transit_service{client = Client, activation = #transit_activation{process = P, generation = maps:get(<<"generation">>, C), credential = Credential}, query_results = maps:get(<<"query_results">>, C)},
@@ -78,7 +78,7 @@ manifest(R) -> transit_query:manifest(R).
 segment(R,I) -> transit_query:segment(R,I).
 raise_error(Error) -> throw({transit_sdk,Error}).
 recover(C) ->
-    {ok, Config} = transit_client:config(maps:get(<<"url">>, C), growing_v3), {ok, Client} = transit_client:open(Config),
+    {ok, Config} = transit_client:config(maps:get(<<"url">>, C), native_v1), {ok, Client} = transit_client:open(Config),
     {ok, Bytes} = file:read_file(maps:get(<<"pending">>, C)), {ok, Pending} = transit_client:recover_mutation(Client, Bytes),
     {confirmed, _} = transit_client:dispatch_mutation(Client, Pending), {ok, _} = transit_client:close(Client), ok.
 codecs(C) ->

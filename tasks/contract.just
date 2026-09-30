@@ -12,18 +12,15 @@ generate:
     set -euo pipefail
     generated=$(mktemp -d)
     trap 'rm -rf "$generated"' EXIT
-    zig build contract > "$generated/transit-v2.schema.json"
-    zig build growth-contract > "$generated/transit-v3.schema.json"
+    zig build contract > "$generated/transit-v1.schema.json"
     zig build application-installation-contract > "$generated/application-installation-v1.schema.json"
-    mv "$generated/transit-v2.schema.json" contracts/transit-v2.schema.json
-    mv "$generated/transit-v3.schema.json" contracts/transit-v3.schema.json
+    mv "$generated/transit-v1.schema.json" contracts/transit-v1.schema.json
     mv "$generated/application-installation-v1.schema.json" contracts/application-installation-v1.schema.json
     zig build application-installation-fixture > contracts/application-installation-v1.fixture.json
 
 # Detect public schema/default/signing changes that were not reviewed together.
 check:
     zig build contract | python3 -B tests/contract.py
-    zig build growth-contract | python3 -B tests/contract.py --growth
     zig build application-installation-contract | python3 -B tests/contract.py --installation
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
     just contract::client-check

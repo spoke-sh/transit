@@ -40,12 +40,12 @@ pub const Caller = struct {
     }
     pub fn sendPayload(self: *@This(), io: std.Io, payload: p.Value, reason: ?[]const u8) !u64 {
         const frozen = try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = self.saved.pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } } }, self.key);
-        const receipt = self.wire.submitGrowing(frozen) catch |err| value: {
+        const receipt = self.wire.submit(frozen) catch |err| value: {
             if (err != error.InvalidAuthorityResponse and !s.client.Client.unavailable(err)) return err;
-            break :value try self.wire.submitGrowing(frozen);
+            break :value try self.wire.submit(frozen);
         };
         // Retrying accepted bytes cannot admit a second input.
-        try t.expectEqual(receipt.position, (try self.wire.submitGrowing(frozen)).position);
+        try t.expectEqual(receipt.position, (try self.wire.submit(frozen)).position);
         self.sequence += 1;
         const deadline = std.Io.Clock.boot.now(io).toMilliseconds() + 60000;
         while (true) {

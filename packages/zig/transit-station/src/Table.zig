@@ -3,7 +3,7 @@ const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
 const m = f.model;
-const Turn = @import("Turn.zig").Legacy;
+const Turn = @import("Turn.zig");
 const Table = @This();
 resource: u64,
 id: u32,
@@ -132,15 +132,6 @@ fn decodeCell(self: Table, value: p.Value) !m.Cell {
     try cell.validate(self.schema.value_type);
     return cell;
 }
-pub const Snapshot = struct {
-    rows: [m.max_rows]m.Row = undefined,
-    len: u8 = 0,
-    schema: m.Schema,
-    basis: m.Basis,
-    pub fn source(self: *const Snapshot) m.Source {
-        return .{ .basis = self.basis, .schema = self.schema, .rows = self.rows[0..self.len] };
-    }
-};
 /// Local continuation, not a bearer capability. It cannot be reused with a
 /// different view, resource, Table or schema to silently mix query versions.
 pub const Cursor = struct {
@@ -178,46 +169,6 @@ pub fn page(self: Table, turn: anytype, cursor: ?Cursor) !Page {
     if (batch.next != null and result.len != 0) result.next = .{ .source = source, .resource = self.resource, .revision = turn.view.revision, .table = self.id, .schema = fingerprint, .after = result.rows[result.len - 1].key };
     return result;
 }
-pub fn scan(self: Table, turn: *const Turn, rows: *[m.max_rows]m.Row) !u8 {
-    try self.check(turn);
-    var keys: [p.State.max_entries + p.State.max_mutations]p.Value = undefined;
-    var count: usize = 0;
-    for (turn.entries) |slot| if (slot) |entry| {
-        keys[count] = entry.key;
-        count += 1;
-    };
-    for (turn.decision.mutations) |slot| if (slot) |mutation| {
-        const exists = for (keys[0..count]) |key| {
-            if (key.eql(mutation.key)) break true;
-        } else false;
-        if (!exists) {
-            keys[count] = mutation.key;
-            count += 1;
-        }
-    };
-    var len: u8 = 0;
-    for (keys[0..count]) |key| {
-        if (key.len != 14 or !std.mem.eql(u8, key.data[0..2], "\x00r") or std.mem.readInt(u32, key.data[2..6], .little) != self.id) continue;
-        const value = (try turn.read(key)) orelse continue;
-        if (len == rows.len) return error.StateCapacityExceeded;
-        rows[len] = .{ .key = @bitCast(std.mem.readInt(u64, key.data[6..14], .big) ^ (@as(u64, 1) << 63)), .value = try self.decodeCell(value) };
-        len += 1;
-    }
-    std.mem.sort(m.Row, rows[0..len], {}, struct {
-        fn less(_: void, a: m.Row, b: m.Row) bool {
-            return a.key < b.key;
-        }
-    }.less);
-    return len;
-}
-/// Queries use the committed snapshot. Private application writes must instead
-/// be queried after acceptance under a new input/view and identity.
-pub fn snapshot(self: Table, turn: *const Turn) !Snapshot {
-    for (turn.decision.mutations) |mutation| if (mutation != null) return error.QueryAfterMutation;
-    var result: Snapshot = .{ .schema = self.schema, .basis = .{ .resource = self.resource, .revision = turn.view.revision, .schema = try self.schema.fingerprint() } };
-    result.len = try self.scan(turn, &result.rows);
-    return result;
-}
 pub const Change = struct { table: Table, operation: union(enum) { insert: m.Row, update: m.Row, upsert: m.Row, delete: i64 } };
 pub fn atomic(turn: anytype, changes: []const Change) !void {
     const before = turn.decision;
@@ -235,7 +186,8 @@ pub fn atomic(turn: anytype, changes: []const Change) !void {
 }
 
 test "two logical tables commit privately together; rollback cross-resource and oversize batches" {
-    var turn = try Turn.fixture(.{});
+    var turn_store: @import("TestStore.zig") = .{};
+    var turn = try turn_store.turn(.{});
     const schema: m.Schema = .{ .names = .{ try m.Name.init("id"), try m.Name.init("amount") }, .value_type = .int64 };
     const first = try create(&turn, 1, schema);
     const second = try create(&turn, 2, schema);
@@ -252,5 +204,5 @@ test "two logical tables commit privately together; rollback cross-resource and 
     try std.testing.expect(try first.get(&turn, 1) == null);
     try first.insert(&turn, .{ .key = 1, .value = .null });
     try std.testing.expect((try first.get(&turn, 1)).?.value == .null);
-    try std.testing.expectError(error.QueryAfterMutation, first.snapshot(&turn));
+    try std.testing.expectError(error.QueryAfterMutation, first.page(&turn, null));
 }

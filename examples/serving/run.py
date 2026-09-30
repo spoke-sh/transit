@@ -67,12 +67,12 @@ def run(profile, reactive=False, views=False):
 
         def send(command, principal=0):
             message = native_command(keys[principal], principal, sequences[principal] + 1, command)
-            receipt = request(url, '/v3/command', message)
+            receipt = request(url, '/v1/command', message)
             sequences[principal] += 1
             return receipt['position']
 
         def query(kind):
-            return request(url, '/v3/query', native_query(keys[0], 0, kind))['body']
+            return request(url, '/v1/query', native_query(keys[0], 0, kind))['body']
 
         def grant(principal, permissions, pid=None, public=None):
             send({'grant': dict(subject=principal, public_key=public or keys[principal].public, permissions=permissions, pid=pid)})
@@ -190,7 +190,7 @@ def run(profile, reactive=False, views=False):
             wal = '/data/wal' if profile == 'reference' else '/wal'
             (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config().replace(cold.url, endpoint))
             (work / 'ursula.toml').chmod(0o600)
-            write('operator/node.json', dict(profile='growing_v3', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000),
+            write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000),
                 ursula_url='http://ursula:8080', bucket='serving', journal='authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
             if profile == 'compose':
                 placement.call('create', 'ursula')

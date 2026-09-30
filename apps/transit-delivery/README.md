@@ -18,20 +18,19 @@ Provision a **dedicated principal** with delivery (128) and send (4) capabilitie
 optionally scoped to one destination PID. Do not share its mutation sequence with
 other kinds of operation. General inspection, execution and admin are unnecessary.
 
-Each step reads signed `/v2/delivery` status, then submits `deliver_next`. Core
-selects the lowest pending output ID in that principal's destination scope and
-atomically records delivery or a terminal denial/retirement/expiry. Route order
-and current destination send grants are checked at acceptance. No application
-payload is disclosed to the courier. Removing send rights permits recording
-terminal denials; removing delivery rights stops the service.
+Each step reads `kind: { delivery: {} }` through `/v1/query`, then submits
+`command: { deliver: OUTPUT_ID }` through `/v1/command`. The read selects the
+lowest pending output in the caller's destination scope without disclosing its
+payload. Core atomically records delivery or terminal denial/retirement/expiry.
+Route order and current destination send grants are checked at acceptance.
+Removing send rights permits recording denials; removing delivery rights stops
+the service.
 
-The signed mutation has no changing selection parameters. Its principal/sequence
-identifies one durable decision; uncertain transport results retry those exact
-bytes. After process loss, current sequence plus pending outboxes reconstruct the
-next operation. A delayed pre-crash request either matches that same identity or
-is already behind the receipt horizon. Identical replicas are safe but add no
-ordering/throughput guarantee; use one courier per configured scope initially.
-There is no local retry database to synchronize or recover.
+An uncertain exchange retains and retries the exact signed operation, including
+its selected output. After process loss, the next signed observation reconstructs
+work from current sequence and pending outputs. A delayed competing decision is
+fenced by principal sequence; resolved outputs cannot be delivered twice. Use a
+dedicated sequencer for each principal. The courier has no local retry database.
 
 `--check` validates current signed access and authoritative status without writing.
 It proves connectivity/credentials, not delivery throughput or a drained backlog.
@@ -42,17 +41,12 @@ Shutdown can interrupt a request; restart reconciles through the same protocol.
 No shutdown path cancels or discards pending outputs.
 
 `transit.delivery.step` reports progress, rejection and failures with realm and
-bounded telemetry context; idle scans are debug. The signed status returns pending
-count, authoritative position and principal sequence, without payloads. A scope
-whose oldest output needs unavailable trusted time can stall that courier; clock
-health and scope partitioning remain operational concerns.
+bounded telemetry context; idle scans are debug. The signed response identifies the next pending output, authority position and
+principal sequence. A scope whose oldest output needs unavailable trusted time
+can stall; clock health and scope partitioning remain operational concerns.
 
-Inspect pending count and sequence with `rey-cli delivery SEED QUERY URL`, where
-QUERY contains `{"realm": 42, "principal": 5}` for the configured identity. The
-CLI signs this read in its separate delivery domain; it consumes no sequence.
-
-`just test::callers` runs real Zig applications with this service, drops receipts,
-checks byte-identical retries and restarts it. Core tests prove scope restrictions,
-revocation and terminal denial. Local, Compose and reference launchers deploy
-this service; the same public Zig caller checks a queued output across courier
-and authority restarts in [M8 qualification](../../docs/roadmap/M8.md).
+Inspect it with `rey-cli query SEED QUERY URL`, where QUERY contains
+`{"realm":42,"principal":5,"kind":{"delivery":{}}}`. This read consumes no
+mutation sequence. The [service contract](../../contracts/SERVICE_V1.md) owns its
+bounds and authorization; the [proof ledger](../../tests/README.md) records
+courier, restart and exact-retry checks.

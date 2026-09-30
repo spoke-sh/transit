@@ -29,7 +29,7 @@ public final class JavaClientSdk {
         String location = Client.class.getProtectionDomain().getCodeSource().getLocation().toString();
         check(location.contains(root.toString()) && location.endsWith(".jar"));
         check(Client.class.getResource("/io/transit/nativestation/version") == null);
-        ClientConfig config = new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3, 3000, null);
+        ClientConfig config = new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1, 3000, null);
         Credential credential = new Credential(72, 65536, Path.of(cfg.get("seed").getAsString()));
         ProcessRef peer = new ProcessRef(72, cfg.get("pid").getAsLong());
         Path pendingFile = Path.of(cfg.get("pending").getAsString());

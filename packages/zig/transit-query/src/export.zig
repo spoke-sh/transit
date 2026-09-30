@@ -7,7 +7,7 @@ pub fn main(init: std.process.Init) !void {
     var out: std.json.Stringify = .{ .writer = &writer.interface, .options = .{ .whitespace = .indent_2 } };
     try out.beginObject();
     try q.protocol.Schema.field(&out, "$schema", "https://json-schema.org/draft/2020-12/schema");
-    try q.protocol.Schema.field(&out, "$id", "urn:transit:query-workspace:v2");
+    try q.protocol.Schema.field(&out, "$id", "urn:transit:query-workspace:v1");
     try out.objectField("$defs");
     try out.beginObject();
     inline for (.{ "Request", "Response", "Draft" }) |name| {

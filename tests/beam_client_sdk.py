@@ -59,7 +59,7 @@ def run(node, cli, library, artifacts):
                 original = manifest.read_text()
                 manifest.write_text(original.replace('0.2.0', '99.0.0'))
                 try:
-                    subprocess.run(['elixir', '-e', '{:ok, c} = Transit.Client.config("http://127.0.0.1:1", :growing_v3); '
+                    subprocess.run(['elixir', '-e', '{:ok, c} = Transit.Client.config("http://127.0.0.1:1", :native_v1); '
                                     '{:error, %Transit.Client.Error{kind: :incompatible_native}} = Transit.Client.open(c)'],
                                    env=environment, cwd=target, check=True, timeout=20)
                 finally: manifest.write_text(original)

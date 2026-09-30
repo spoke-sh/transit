@@ -32,7 +32,7 @@ decoder(#transit_unified_decoder{type=T,version=V}) -> #{<<"type">>=>type(T),<<"
 projection(#transit_unified_projection{column=C,path=P,relative=R,mode=M,text_bytes=B,text_steps=S}) ->
     #{<<"column">>=>column(C),<<"path">>=>path(P),<<"relative">>=>transit_sdk_value:boolean(R),<<"mode">>=>enum(M,[scalar,text,element_counter,element_replica]),
       <<"text_bytes">>=>transit_sdk_value:integer(B,0,65535),<<"text_steps">>=>transit_sdk_value:integer(S,0,65535)}.
-source(S) -> #{<<"version">>=>2,<<"resource">>=>resource(source_resource(S)),<<"source">>=>definition(S)}.
+source(S) -> #{<<"version">>=>1,<<"resource">>=>resource(source_resource(S)),<<"source">>=>definition(S)}.
 definition(#transit_unified_kv{prefix=P,key=K,value=V}) -> #{<<"kv">>=>#{<<"prefix">>=>transit_sdk_value:hex(transit_sdk_value:bytes(P,32)),<<"key">>=>decoder(K),<<"value">>=>decoder(V)}};
 definition(#transit_unified_table{id=Id,names=Names,value_type=T}) -> true=length(Names)=:=2,#{<<"table">>=>#{<<"id">>=>transit_sdk_value:integer(Id,1,4294967295),<<"names">>=>path(Names),<<"value_type">>=>type(T)}};
 definition(#transit_unified_document{reference=#transit_document_reference{resource=Resource,document=D,epoch=E,type_revision=T,revision=R},projections=P,expand=X}) ->
@@ -58,7 +58,7 @@ predicate(all) -> #{<<"all">>=>#{}};
 predicate({state,C,V}) -> #{<<"state">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"value">>=>enum(V,[missing,null,type_error,value,conflict])}};
 predicate({compare,C,Op,V}) -> #{<<"compare">>=>#{<<"column">>=>transit_sdk_value:integer(C,0,7),<<"op">>=>enum(Op,[eq,ne,lt,le,gt,ge]),<<"value">>=>scalar(V)}}.
 plan(#transit_unified_plan{projection=P,predicate=F,aggregate=A,limit=L}) -> true=P=/=[],
-    #{<<"version">>=>2,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum]),<<"limit">>=>optional(L,fun decimal/1)}.
+    #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum]),<<"limit">>=>optional(L,fun decimal/1)}.
 budgets(#transit_unified_budgets{pages=P,segments=S,result_bytes=B}) -> positive(P),positive(S),positive(B),#{<<"pages">>=>decimal(P),<<"segments">>=>decimal(S),<<"result_bytes">>=>decimal(B)}.
 parsed_budgets(#{<<"pages">>:=P,<<"segments">>:=S,<<"result_bytes">>:=B}) -> V=#transit_unified_budgets{pages=wide(P),segments=wide(S),result_bytes=wide(B)},budgets(V),V.
 optional(undefined,_) -> null;
@@ -100,7 +100,7 @@ open({local,Override},_) -> #state{bridge=transit_station_bridge:local(Override)
 open({query,Config,Credential,Connection},_) ->
     Bridge=transit_station_bridge:query(Config,Credential,connection(Connection,Credential)),
     try
-        #{<<"capabilities">>:=#{<<"version">>:=2,<<"kv">>:=true,<<"table">>:=true,<<"document">>:=true}}=transit_station_bridge:unified_query(Bridge,#{<<"capabilities">>=>#{}},false),
+        #{<<"capabilities">>:=#{<<"version">>:=1,<<"kv">>:=true,<<"table">>:=true,<<"document">>:=true}}=transit_station_bridge:unified_query(Bridge,#{<<"capabilities">>=>#{}},false),
         #state{bridge=Bridge,connection=Connection}
     catch C:R:S -> catch transit_station_bridge:close(Bridge),erlang:raise(C,R,S) end.
 close({transit_unified_client,Worker}) -> transit_sdk_worker:close(Worker);

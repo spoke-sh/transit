@@ -75,7 +75,7 @@ await board.route("**/api/v1/atlas", async (route) => {
     });
   await route.continue();
 });
-await board.route("**/api/v1/query-v2", async (route) => {
+await board.route("**/api/v1/query", async (route) => {
   const request = route.request().postDataJSON();
   if ("page" in request) displayedNamespace = request.page.namespace;
   if (denyCandidate && request.page && request.page.namespace !== protectedNamespace) {
@@ -186,7 +186,7 @@ try {
     // services restart. Cached rendering alone is not recovery evidence.
     await board.waitForResponse(
       async (response) => {
-        if (!response.url().endsWith("/api/v1/query-v2") || response.status() !== 200) return false;
+        if (!response.url().endsWith("/api/v1/query") || response.status() !== 200) return false;
         const request = response.request().postDataJSON();
         return request?.page?.namespace === namespace;
       },

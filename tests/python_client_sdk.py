@@ -18,7 +18,7 @@ def consumer(mode, config_file):
     assert Path(transit_client.__file__).is_relative_to(Path(sys.prefix))
     assert 'transit_station' not in sys.modules
     peer = ProcessRef(72, config['pid'])
-    options = ClientConfig(config['url'], 'growing_v3', timeout_ms=3000)
+    options = ClientConfig(config['url'], 'native_v1', timeout_ms=3000)
     pending_file = Path(config['pending'])
     credential = Credential(72, 65536, Path(config['seed']))
     for invalid in [True, -1, 0, 2**53]:
@@ -29,7 +29,7 @@ def consumer(mode, config_file):
         else:
             raise AssertionError('Unvalidated ID')
     try:
-        Client.open(ClientConfig(config['url'], 'growing_v3', native_directory=Path('/missing-transit')))
+        Client.open(ClientConfig(config['url'], 'native_v1', native_directory=Path('/missing-transit')))
     except IncompatibleNative:
         pass
     else:

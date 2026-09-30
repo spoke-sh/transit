@@ -2,7 +2,7 @@
 
 The additive `station_unified_query_codec(json, length, output)` export and
 `unified_query_codec` port action share `QueryCodec`. Generated schemas come from
-the same Zig types. The [v2 contract](../../../../contracts/UNIFIED_QUERY_V2.md)
+the same Zig types. The [v1 contract](../../../../contracts/UNIFIED_QUERY_V1.md)
 owns source identity, typed semantics and the foreign representation.
 
 | Action | Returned value |
@@ -49,7 +49,7 @@ the additive ABI. The port selects `query_client` instead of either server
 profile and accepts `unified_query` actions. Importing a language package does
 not open this owner or load a credential.
 
-`capabilities` advertises the local v2 implementation. `describe` separately
+`capabilities` advertises the local v1 implementation. `describe` separately
 checks the configured current source policy and declared schema. `next` prepares
 one upload/admission command for a caller-selected namespace and canonical
 bundle. Persist its opaque `prepared` string before `submit`. An admission

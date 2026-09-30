@@ -4,18 +4,16 @@ Store durable values in versioned resources. Read the keys or bounded pages a
 turn needs, then propose mutations together with input progress and outputs.
 Worker fields and caches are volatile; they are not the resource or its lifetime.
 
-## Choose a profile
+## State and higher-level resources
 
-| Profile | Implemented boundary |
-| --- | --- |
-| Legacy state v1 | Four resources with 32 entries each; fixed catalog/view limits; one writer PID and one mutated resource per turn |
-| Growing v3 | Immutable roots and bounded catalog/resource pages; retained size independent of resident cache, subject to explicit operation/admission/storage bounds |
-| Station Table | Typed schema and row access above a resource; mutations retain that resource's commit boundary |
-| Station Document | Accepted structured/text changes and immutable indexes above growing state |
+Native v1 uses immutable roots and bounded catalog/resource pages. Retained size
+is independent of resident cache, subject to explicit operation, admission and
+storage bounds. A turn mutates one resource owned by its writer PID. It does not
+supply arbitrary transactions across resources.
 
-Legacy ceilings are admission limits, not tuning hints. Growing support does not
-upgrade existing history automatically. Use explicit profile/capability selection.
-Neither profile supplies arbitrary transactions across resources.
+Station Tables add typed schemas and rows within that commit boundary. Station
+Documents add accepted structured/text changes and immutable indexes. Neither
+introduces an alternate state authority or silently converts old history.
 
 ## Identity, access and ownership
 
@@ -37,8 +35,7 @@ paging; do not merge pages from different cuts into an invented snapshot.
 Views and borrowed buffers have explicit lifetimes in the [caller API](callers.md).
 
 A turn validates its read/dependency basis and one mutated resource alongside
-input progress and outputs. The existing bounded KV mutation/value limits still
-apply to growing operations; larger data uses staged [immutable publication](../../contracts/STATION_PUBLICATION_V1.md).
+input progress and outputs. Per-turn KV mutation/value limits apply; larger data uses staged [immutable publication](../../contracts/STATION_PUBLICATION_V1.md).
 Staging publishes bytes incrementally, but only the final accepted head makes the
 new logical value visible. A staging acknowledgement is not final acceptance.
 
@@ -59,10 +56,10 @@ a reference do not create an implicit dependency. Neither associations nor old
 root references grant arbitrary retention pins.
 
 Capacity bounds active work and physical storage; it does not authorize expiry.
-The growing profile separates collection size from resident memory. Configure
+The native protocol separates collection size from resident memory. Configure
 disk capacity and admission quotas through [retention and capacity](retention.md).
 
 For exact fields, values and compatibility use [state v1](../../contracts/STATE_V1.md)
-and [growing v3](../../contracts/TRANSIT_V3.md). For runnable APIs use the
-[growing client](../../packages/zig/transit-client/docs/growing.md),
+and [native v1](../../contracts/TRANSIT_V1.md). For runnable APIs use the
+[native client](../../packages/zig/transit-client/docs/growing.md),
 [Tables](tables.md) and [Documents](documents.md).

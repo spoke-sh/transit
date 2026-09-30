@@ -117,13 +117,14 @@ pub const Identity = struct {
     query: struct {
         pub const json_schema_fields = .{ .version = .{ .@"const" = p.Growth.version } };
         version: u32 = p.Growth.version,
+        definition: p.Growth.Definition = p.Growth.current_definition,
         realm: u64,
         principal: u64,
         kind: union(enum) { identity },
     },
     signature: [64]u8,
     pub fn native(self: Identity) p.Growth.SignedQuery {
-        return .{ .query = .{ .version = self.query.version, .realm = self.query.realm, .principal = self.query.principal, .kind = .identity }, .signature = self.signature };
+        return .{ .query = .{ .version = self.query.version, .definition = self.query.definition, .realm = self.query.realm, .principal = self.query.principal, .kind = .identity }, .signature = self.signature };
     }
     pub fn sign(realm: u64, principal: u64, pair: p.Ed25519.KeyPair) !Identity {
         const signed = try p.Growth.signQuery(.{ .realm = realm, .principal = principal, .kind = .identity }, pair);

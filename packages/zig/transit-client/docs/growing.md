@@ -1,16 +1,11 @@
-# Explicit growing client (M10 development)
+# Native client operations
 
-`Client.submitGrowing(SignedRequest)` and `Client.queryGrowing(Query, KeyPair)`
-use the [v3 contract](../../../../contracts/TRANSIT_V3.md). They call only
-`/v3/command` and `/v3/query`; they never fall back to v2 or reinterpret a legacy
-identity, view or cursor. Select a node configured for the
-[development profile](../../../../apps/transit-node/docs/growing.md) and inspect
-its capabilities before using an extension. `GrowingSession` supplies explicit
-v3 activation/turn helpers, used by Station's explicit
-[growing behavior](../../transit-station/docs/growing.md). The existing `Session`,
-default Station interface and legacy foreign behavior bindings remain v2. The
-[raw C ABI](bindings.md) adds explicit growing command/query preparation,
-capability probing and opaque exact retry without enabling a Station runner.
+`Client.submit(SignedRequest)` and `Client.query(Query, KeyPair)` use the
+[native v1 contract](../../../../contracts/TRANSIT_V1.md) at `/v1/command` and
+`/v1/query`. `Session` supplies activation and turn helpers shared by
+[Station](../../transit-station/docs/growing.md) and the language bindings.
+The [C ABI](bindings.md) supports command/query preparation, capability discovery
+and opaque exact retry. Incompatible definitions reject without translation.
 
 ## Caller responsibilities
 
@@ -37,7 +32,7 @@ The library does not collect a whole resource or build a hidden resident queue.
 
 ## Activation helpers
 
-`GrowingSession` borrows a client and binds a full-width principal, PID and
+`Session` borrows a client and binds a full-width principal, PID and
 ownership generation. `receive` returns one owned input plus revision, sequence
 and finite-turn-permit metadata; it does not fetch resource data. A recorded
 terminal lifecycle returns `ProcessExpired` or `ProcessTerminated`; a mismatched
@@ -108,15 +103,12 @@ ordered dense pages and advancing cursors. A malformed success is
 `InvalidAuthorityResponse`; it is not proof that a preceding command was rejected.
 
 Request diagnostics distinguish `read`, `receipt`, rejection and uncertainty on
-the v3 routes. They omit keys, values, credentials and signed payloads. These
+the native routes. They omit keys, values, credentials and signed payloads. These
 validations do not authenticate an HTTP endpoint; use the same private/TLS trust
 boundary as the existing client.
 
-The [Zig proof caller](../../../../tests/growing_client.zig) uses this public
-package without a kernel or provider dependency. It demonstrates bounded handler
-reads and exact retry across loss, not a complete Station runner or an idiomatic
-SDK. The explicit Station paging/call/result and finite capacity profiles have
-separate proofs. M11 must preserve capability and compatibility distinctions;
-growing lifecycle/provider bindings, legacy migration and the Station foreign
-behavior ABI are not provided by this client. Fresh v3 realms and explicit rejection preserve the
-compatibility boundary.
+The [Zig proof caller](../../../../tests/growing_client.zig) uses the public
+package without a kernel or provider dependency. It exercises bounded reads and
+exact retry through HTTP recovery. Station, installed SDKs and provider-bound
+bootstrap have separate schedules and outcomes in the
+[proof ledger](../../../../tests/README.md).

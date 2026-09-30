@@ -7,7 +7,7 @@ const s = root.station;
 const m = root.Model;
 const c = root.Records;
 const Pub = s.Publication;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 const Self = @This();
 pub const format: u32 = 0x41505031;
 pub const limits: Pub.Limits = .{ .record_bytes = m.max_program_bytes, .staging_bytes = 2 * m.max_program_bytes, .staging_records = 2 };

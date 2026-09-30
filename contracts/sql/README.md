@@ -11,7 +11,7 @@ The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/sql.md)
 lowers this SELECT profile to the existing `Stream.Plan`/`PlanCodec`.
 The [proof ledger](../../tests/README.md) records its qualification and limits.
 
-The additive [v2 compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
+The additive [v1 compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
 reuses this grammar and owned AST for declared KV/Table/Document schemas. Its
 capability matrix separately defines wider limits/star projection, nested cell
 states, full-width count and unsupported null comparisons. The original Table

@@ -9,7 +9,7 @@ pinned independent clients. It deletes only its temporary installation on exit.
 The private JSON file is limited to 16 KiB. Required fields are `url` (trusted
 native authority), `inspector`, `inspector_seed_file`, `ticket_seed_file`, `port`
 and `callers`. Each caller supplies `credential_file`, `seed_file`, `connection`
-(the public Table v1 connection), `service`, `binding_revision` and two `columns`.
+(realm, principal, source, resource, table, name, requester and requests), `service`, `binding_revision` and two `columns`.
 The native principal is dedicated to that requester's admission sequence and is
 scoped to its PID. Associate its source resource explicitly and grant current
 source/requester inspect and read rights. Publish the matching binding and read/
@@ -52,8 +52,10 @@ edge overhead. This is a bound, not an RSS measurement or production scale claim
 There is no retained-result cache in the gateway.
 
 Supply `x-transit-request-sequence` explicitly for statement `GetFlightInfo`.
-Retain that sequence and original SQL/schema through an unknown outcome. A new
-sequence is a new query; do not use it as an automatic retry. Ticket expiry does
+Retain that first sequence and original SQL/schema through an unknown outcome.
+The upload uses consecutive native sequences; FlightInfo application metadata
+returns its `next_sequence` for a subsequent statement. Do not overlap uploads or
+choose a new sequence as an automatic retry. Ticket expiry does
 not cancel the accepted query or delete its captured result. Fetching again
 starts at the same result's first batch; partial streams never count as complete.
 Fixed telemetry records operation, error kind and duration, excluding SQL,

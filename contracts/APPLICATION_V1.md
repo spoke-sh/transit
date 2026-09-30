@@ -160,7 +160,7 @@ administrative privileges implicit in a definition.
 The reflected `HostRequest`/`HostResponse` values compose the same compiler,
 publication owner and native authentication. The host allowlists at most sixteen
 operators for this deployment; native authority independently verifies each
-signature and current grant. `Native` prepares ordinary v3 digests and rechecks
+signature and current grant. `Native` prepares ordinary v1 digests and rechecks
 scope and payload before forwarding. There is no host-held operator key or
 substitution of the inspection/query principal. A trusted browser origin imports
 a local PKCS#8 Ed25519 key; this profile does not imply human account federation.
@@ -191,7 +191,7 @@ are reserved (including their exact roots). The independent Board recovery route
 is `/recovery/definition`. Inspection renderers require a compatible projection;
 `atlas` includes the bounded catalog/identity projection used by its detail views.
 
-A query binding's `schema` is the full `SourceDefinition.fingerprint()` (`UQS2`)
+A query binding's `schema` is the full `SourceDefinition.fingerprint()` (`UQS1`)
 commitment, including resource, Table identity or declared decoder/projection
 versions. It is not just a column schema hash. Acquisition checks that commitment
 and the configured source name/kind. Result display separately checks the retained

@@ -25,13 +25,13 @@ class NativeBoundary:
             def do_POST(self):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 with boundary.lock:
-                    held = self.path == '/v3/query' and boundary.hold_count > 0
+                    held = self.path == '/v1/query' and boundary.hold_count > 0
                     if held:
                         boundary.hold_count -= 1
                         boundary.held += 1
                         if boundary.hold_count == 0: boundary.saturated.set()
                 if held and not boundary.release.wait(timeout=15): return
-                if boundary.pause and self.path == '/v3/query':
+                if boundary.pause and self.path == '/v1/query':
                     boundary.reached.set()
                     if not boundary.release.wait(timeout=15): return
                 connection = HTTPConnection(target.hostname, target.port, timeout=30)
@@ -39,7 +39,7 @@ class NativeBoundary:
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     result = response.read()
-                    if self.path == '/v3/command' and response.status == 200:
+                    if self.path == '/v1/command' and response.status == 200:
                         if boundary.original == body:
                             assert result == boundary.receipt, 'exact retry changed native receipt'
                             boundary.retries += 1

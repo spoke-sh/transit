@@ -17,8 +17,3 @@ transit_station = ["*-abi.json", "py.typed"]
 
 [tool.mypy]
 strict = true
-
-# The preserved M9 action adapter is explicitly untyped; public modules stay strict.
-[[tool.mypy.overrides]]
-module = "transit_station.raw"
-ignore_errors = true

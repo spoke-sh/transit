@@ -1,8 +1,8 @@
 # Unified source capture
 
-`UnifiedCapture` implements the source-owned v2 state machine in ordinary growing
+`UnifiedCapture` implements the source-owned v1 state machine in ordinary growing
 Station turns. Public requester/client/host wiring is still in progress. Its
-[contract](../../../../contracts/UNIFIED_QUERY_V2.md) owns versions and limits;
+[contract](../../../../contracts/UNIFIED_QUERY_V1.md) owns versions and limits;
 component tests alone do not qualify disk or process recovery.
 
 Configure a revisioned `UnifiedRecords.Policy` with the permitted peer PID,

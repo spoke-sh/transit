@@ -2,7 +2,7 @@ const std = @import("std");
 const root = @import("root.zig");
 const p = root.p;
 const Pub = root.Publication;
-const Turn = root.station.GrowingTurn;
+const Turn = root.station.Turn;
 const Self = @This();
 resource: u64,
 id: u64,
@@ -42,7 +42,7 @@ fn createRecord(turn: *Turn, id: u64, origin: root.Origin, limits: root.Limits, 
 }
 pub const FollowupReason = enum(u8) { retry = 1, redirect = 2, reconcile = 3, cancel = 4 };
 pub const AttemptBudget = struct {
-    pub const magic = "EXB2";
+    pub const magic = "EXB1";
     limit: u32,
     used: u32 = 1,
     unsettled: u32 = 0,
@@ -73,10 +73,9 @@ pub const Link = struct {
         try self.context.validate();
         if (self.context.len > maximum_context_bytes) return error.ExchangeContextTooLarge;
         const base = try root.codec.encode(self.lineage);
-        if (self.context.len == 0) return base;
         var bytes: [256]u8 = undefined;
         @memcpy(bytes[0..base.len], base.slice());
-        bytes[0..4].* = "EXL2".*;
+        bytes[0..4].* = "EXL1".*;
         bytes[base.len] = @intCast(self.context.len);
         const end = @as(usize, base.len) + 1 + self.context.len;
         @memcpy(bytes[base.len + 1 .. end], self.context.slice());
@@ -84,9 +83,8 @@ pub const Link = struct {
     }
     pub fn decode(value: p.Value) !Link {
         try value.validate();
-        if (value.len >= 4 and std.mem.eql(u8, value.data[0..4], Lineage.magic)) return .{ .lineage = try root.codec.decode(Lineage, value) };
         const header = root.codec.size(Lineage);
-        if (value.len <= header + 1 or !std.mem.eql(u8, value.data[0..4], "EXL2") or value.data[header] == 0 or value.len != header + 1 + @as(usize, value.data[header])) return error.InvalidExchangeRecord;
+        if (value.len < header + 1 or !std.mem.eql(u8, value.data[0..4], "EXL1") or value.len != header + 1 + @as(usize, value.data[header])) return error.InvalidExchangeRecord;
         var base = try p.Value.init(value.data[0..header]);
         base.data[0..4].* = Lineage.magic.*;
         return .{ .lineage = try root.codec.decode(Lineage, base), .context = try p.Value.init(value.slice()[header + 1 ..]) };

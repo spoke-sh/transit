@@ -10,8 +10,8 @@ and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime lib
 [Configuration and deployment](docs/configuration.md) covers identity provisioning,
 private access, origin/listener settings, and migration from experimental viewer
 keys/sessions. Board has no viewer authentication layer; its upstream Transit
-inspection identity remains read-only. The [growing query profile](docs/configuration.md#growing-atlas-and-optional-table-queries) uses a different, explicitly configured identity.
-The additive [v2 workspace](docs/configuration.md#unified-state-query-workspace)
+inspection identity remains read-only. The [growing query profile](docs/configuration.md#atlas-and-resource-inspection) uses a different, explicitly configured identity.
+The additive [v1 workspace](docs/configuration.md#unified-state-query-workspace)
 supports explicit KV/Table/Document declarations through the same query library
 as the shell and SDKs; the original Table workspace keeps its v1 contract.
 
@@ -28,7 +28,7 @@ It prints a loopback URL. Open it directly; Board has no access keys, sign-in,
 or browser sessions. Ctrl-C removes the disposable realm.
 
 For a packaged local neighborhood, `transit server --config PATH` starts Board
-by default with version-3 configuration; `--no-ui` disables it for one invocation.
+by default with version-1 configuration; `--no-ui` disables it for one invocation.
 The [local server guide](../transit-cli/docs/server.md#default-board-and-compatibility)
 owns its retained identity, grant and restart contract.
 
@@ -79,7 +79,7 @@ across concurrent viewers through an atomic throttle. Excess reads get
 `429 RateLimited`; clients back off. HTTP data capacity returns 503, while exhausted
 socket/task capacity closes the connection without claiming admission. Headers are
 8 KiB, inspection request bodies 4 KiB (routes accept empty bodies), query bodies
-16 KiB (48 KiB for the v2 query route), request targets 1024 bytes,
+16 KiB (48 KiB for the v1 query route), request targets 1024 bytes,
 and upstream responses 256 KiB.
 
 Legacy inspection data preserves the public inspection observation plus explicit
@@ -159,7 +159,7 @@ executable interpretation plugin remains in Board.
 
 ## Growing atlas and workspace
 
-The opt-in `growing_v3` profile exposes eight-process/eight-resource atlas pages
+The opt-in `native_v1` profile exposes eight-process/eight-resource atlas pages
 at one current authorized cut. The UI offers Processes/Resources emphasis,
 overhead detail, explicit resource entry, and coordinated Canvas/Browse views.
 Missing size, outbox and age measurements remain labeled unavailable. Catalog
@@ -196,7 +196,7 @@ exact result/source IDs and full-width integer strings survive both views.
 Switching views preserves the draft/result without submitting work. Unknown
 submission outcomes retain a frozen token for an explicit exact retry. Known
 revocation clears the protected workspace. No offline history or result cache is
-created. [Configuration](docs/configuration.md#growing-atlas-and-optional-table-queries)
+created. [Configuration](docs/configuration.md#atlas-and-resource-inspection)
 and [frontend behavior](../transit-board-web/README.md) describe the limits.
 
 The growing profile exposes selected accepted Document metadata at

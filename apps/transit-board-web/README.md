@@ -5,7 +5,7 @@ Vite+ 0.3.3 toolchain, packaged as `@rey/transit-board-web`. The static output i
 embedded by the [Board executable](../transit-board/README.md), which hosts the private inspection and optional Table query APIs on the
 same origin. There is no production JavaScript server.
 
-M18 adds a v2 workspace for explicitly configured KV/Table/Document sources.
+M18 adds a v1 workspace for explicitly configured KV/Table/Document sources.
 It reuses the shared Zig SQL/finite-upload/page boundary, with runtime-validated
 full-width scalar and nested cell states. Source capabilities, budgets, exact
 result provenance and earlier-draft results stay visible. The
@@ -54,11 +54,11 @@ One verified result segment is resident at a time, with exact int64 strings,
 nulls and binary labels. Five-second current-policy observations continue while
 the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
-source, draft and result. In v2 it also stops automatic reads, including after
+source, draft and result. In v1 it also stops automatic reads, including after
 follow-lease expiry; **Refresh query access** explicitly rechecks authorization.
 Both workspaces retain frozen pending requests across
 in-app route remounts for exact recovery; known denial does not invent their
-rejection. Temporary connection failures retain permitted v2 rows with their
+rejection. Temporary connection failures retain permitted v1 rows with their
 original source basis. A full page reload loses in-memory recovery bytes; no
 browser storage or client retention pin is created. The v1 workspace keeps its
 existing hide-on-failure behavior. See the [live-view guide](../transit-board/docs/reactive.md)
@@ -83,17 +83,17 @@ and clearing rules as the records view.
 
 ## Working in the frontend
 
-| Source                                         | Owns                                                                              |
-| ---------------------------------------------- | --------------------------------------------------------------------------------- |
-| [routes/](src/routes/)                         | Overview, resource and PID/journey routes; stable URLs and route validation       |
-| [state.tsx](src/state.tsx)                     | Shared process inspection state and polling lifecycle                             |
-| [resources.tsx](src/resources.tsx)             | Resource/association/entry reads and generic state presentation                   |
-| [components.tsx](src/components.tsx)           | Evidence, status and process views                                                |
-| [atlas.tsx](src/atlas.tsx)                     | Growing catalog, emphasis, selection and explicit resource entry                  |
-| [records.tsx](src/records.tsx)                 | Growing record identities and source-backed exchange metadata                     |
-| [http-metadata.tsx](src/http-metadata.tsx)     | Selected HTTP policy, timing, omission and completion evidence                    |
-| [query-workspace.tsx](src/query-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
-| [model.test.ts](src/model.test.ts)             | Model/client boundary tests                                                       |
+| Source                                           | Owns                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------- |
+| [routes/](src/routes/)                           | Overview, resource and PID/journey routes; stable URLs and route validation       |
+| [state.tsx](src/state.tsx)                       | Shared process inspection state and polling lifecycle                             |
+| [resources.tsx](src/resources.tsx)               | Resource/association/entry reads and generic state presentation                   |
+| [components.tsx](src/components.tsx)             | Evidence, status and process views                                                |
+| [atlas.tsx](src/atlas.tsx)                       | Growing catalog, emphasis, selection and explicit resource entry                  |
+| [records.tsx](src/records.tsx)                   | Growing record identities and source-backed exchange metadata                     |
+| [http-metadata.tsx](src/http-metadata.tsx)       | Selected HTTP policy, timing, omission and completion evidence                    |
+| [query-workspace.tsx](src/unified-workspace.tsx) | One draft/result, explicit submission, current-policy refresh and denial clearing |
+| [model.test.ts](src/model.test.ts)               | Model/client boundary tests                                                       |
 
 Import public types and transports from `@rey/transit-board-client`; do not copy
 wire types into a route. Generated route trees and client validators are not

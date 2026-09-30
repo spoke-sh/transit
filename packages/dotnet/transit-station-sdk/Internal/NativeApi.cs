@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 namespace Transit.Station.Sdk.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
+    internal const string Definition = "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679";
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_unified_query_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
@@ -68,6 +69,9 @@ internal sealed class NativeApi {
     internal delegate uint station_growing_pendingDelegate(IntPtr arg0, out IntPtr arg1);
     internal readonly station_growing_pendingDelegate station_growing_pending;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_abi_definition_matchesDelegate([In] byte[] arg0, nuint arg1);
+    internal readonly station_abi_definition_matchesDelegate station_abi_definition_matches;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_abi_versionDelegate();
     internal readonly station_abi_versionDelegate station_abi_version;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -77,29 +81,8 @@ internal sealed class NativeApi {
     internal delegate uint station_frame_encodeDelegate(uint arg0, ulong arg1, [In] byte[] arg2, nuint arg3, out IntPtr arg4);
     internal readonly station_frame_encodeDelegate station_frame_encode;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate uint station_server_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
-    internal readonly station_server_createDelegate station_server_create;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate void station_server_destroyDelegate(IntPtr arg0);
-    internal readonly station_server_destroyDelegate station_server_destroy;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate uint station_server_nextDelegate(IntPtr arg0, ulong arg1, out IntPtr arg2);
-    internal readonly station_server_nextDelegate station_server_next;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate uint station_server_applyDelegate(IntPtr arg0, [In] byte[] arg1, nuint arg2, out IntPtr arg3);
-    internal readonly station_server_applyDelegate station_server_apply;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate uint station_server_finishDelegate(IntPtr arg0, uint arg1);
-    internal readonly station_server_finishDelegate station_server_finish;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate uint station_server_pendingDelegate(IntPtr arg0, out IntPtr arg1);
-    internal readonly station_server_pendingDelegate station_server_pending;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate IntPtr station_buffer_dataDelegate(IntPtr arg0);
     internal readonly station_buffer_dataDelegate station_buffer_data;
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    internal delegate uint station_arrow_cellDelegate([In] byte[] arg0, nuint arg1, uint arg2, uint arg3, out IntPtr arg4);
-    internal readonly station_arrow_cellDelegate station_arrow_cell;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_growing_arrow_cellDelegate([In] byte[] arg0, nuint arg1, uint arg2, uint arg3, out IntPtr arg4);
     internal readonly station_growing_arrow_cellDelegate station_growing_arrow_cell;
@@ -131,17 +114,11 @@ internal sealed class NativeApi {
         station_growing_finish_result = Marshal.GetDelegateForFunctionPointer<station_growing_finish_resultDelegate>(NativeLibrary.GetExport(library, "station_growing_finish_result"));
         station_growing_discard = Marshal.GetDelegateForFunctionPointer<station_growing_discardDelegate>(NativeLibrary.GetExport(library, "station_growing_discard"));
         station_growing_pending = Marshal.GetDelegateForFunctionPointer<station_growing_pendingDelegate>(NativeLibrary.GetExport(library, "station_growing_pending"));
+        station_abi_definition_matches = Marshal.GetDelegateForFunctionPointer<station_abi_definition_matchesDelegate>(NativeLibrary.GetExport(library, "station_abi_definition_matches"));
         station_abi_version = Marshal.GetDelegateForFunctionPointer<station_abi_versionDelegate>(NativeLibrary.GetExport(library, "station_abi_version"));
         station_json_extract = Marshal.GetDelegateForFunctionPointer<station_json_extractDelegate>(NativeLibrary.GetExport(library, "station_json_extract"));
         station_frame_encode = Marshal.GetDelegateForFunctionPointer<station_frame_encodeDelegate>(NativeLibrary.GetExport(library, "station_frame_encode"));
-        station_server_create = Marshal.GetDelegateForFunctionPointer<station_server_createDelegate>(NativeLibrary.GetExport(library, "station_server_create"));
-        station_server_destroy = Marshal.GetDelegateForFunctionPointer<station_server_destroyDelegate>(NativeLibrary.GetExport(library, "station_server_destroy"));
-        station_server_next = Marshal.GetDelegateForFunctionPointer<station_server_nextDelegate>(NativeLibrary.GetExport(library, "station_server_next"));
-        station_server_apply = Marshal.GetDelegateForFunctionPointer<station_server_applyDelegate>(NativeLibrary.GetExport(library, "station_server_apply"));
-        station_server_finish = Marshal.GetDelegateForFunctionPointer<station_server_finishDelegate>(NativeLibrary.GetExport(library, "station_server_finish"));
-        station_server_pending = Marshal.GetDelegateForFunctionPointer<station_server_pendingDelegate>(NativeLibrary.GetExport(library, "station_server_pending"));
         station_buffer_data = Marshal.GetDelegateForFunctionPointer<station_buffer_dataDelegate>(NativeLibrary.GetExport(library, "station_buffer_data"));
-        station_arrow_cell = Marshal.GetDelegateForFunctionPointer<station_arrow_cellDelegate>(NativeLibrary.GetExport(library, "station_arrow_cell"));
         station_growing_arrow_cell = Marshal.GetDelegateForFunctionPointer<station_growing_arrow_cellDelegate>(NativeLibrary.GetExport(library, "station_growing_arrow_cell"));
         station_buffer_size = Marshal.GetDelegateForFunctionPointer<station_buffer_sizeDelegate>(NativeLibrary.GetExport(library, "station_buffer_size"));
         station_buffer_destroy = Marshal.GetDelegateForFunctionPointer<station_buffer_destroyDelegate>(NativeLibrary.GetExport(library, "station_buffer_destroy"));

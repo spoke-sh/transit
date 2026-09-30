@@ -24,13 +24,13 @@ const Config = struct {
     mode: enum { publish, receive, inspect, resynchronize },
 };
 const Driver = struct {
-    server: s.GrowingGenServer,
+    server: s.GenServer,
     reader: s.client.ResourceReader,
     config: Config,
     change: doc.Change,
     reference: doc.Request.Reference,
     io: std.Io,
-    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Driver = @ptrCast(@alignCast(raw.?));
         if (frame.kind == .reply) {
             _ = try doc.Caller.accept(turn, self.config.namespace);
@@ -62,7 +62,7 @@ const Driver = struct {
         const sequence = (try self.reader.query(.{ .capabilities = {} })).principal_sequence + 1;
         const signed = try p.Growth.sign(.{ .realm = self.config.realm, .principal = self.config.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.config.pid, .value = try (s.Frame{ .kind = .cast, .payload = try self.reference.encode() }).encode() } } }, self.reader.key);
         for (0..3) |_| {
-            _ = self.reader.wire.submitGrowing(signed) catch |err| {
+            _ = self.reader.wire.submit(signed) catch |err| {
                 if (err == error.AccessDenied or err == error.StaleActivation or err == error.Rejected or err == error.Conflict) return err;
                 continue;
             };
@@ -130,7 +130,7 @@ pub fn main(init: std.process.Init) !void {
         var encoded: [4096]u8 = undefined;
         const change = try doc.codec.decode(try std.fmt.hexToBytes(&encoded, config.change));
         if (change.document != config.document or change.replica != config.replica) return error.InvalidConfiguration;
-        var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+        var server = try s.GenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
         server.failure_policy = .stop;
         _ = try server.session.receive();
         const directory = config.activation_directory orelse return error.MissingActivationDirectory;

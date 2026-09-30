@@ -7,23 +7,23 @@ const p = root.protocol;
 const Self = @This();
 allocator: std.mem.Allocator,
 owner: root.Publication,
-pub fn interface(self: *Self) s.GrowingGenServer.Handler {
+pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }
-pub fn guard(self: *Self) s.GrowingGenServer.InputGuard {
+pub fn guard(self: *Self) s.GenServer.InputGuard {
     return .{ .context = self, .reject = rejectInput };
 }
 fn get(raw: ?*anyopaque) *Self {
     return @ptrCast(@alignCast(raw.?));
 }
-fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
+fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
     try get(raw).owner.initialize(turn);
 }
-fn disposition(self: Self, turn: *s.GrowingTurn, reason: []const u8) !void {
+fn disposition(self: Self, turn: *s.Turn, reason: []const u8) !void {
     const who = if (turn.delivery.input.origin == .external) turn.delivery.input.origin.external.principal else 0;
     try turn.write(root.Records.key(self.owner.configuration.application, 'e', who, turn.delivery.input.position), try p.Value.init(reason));
 }
-fn rejectInput(raw: ?*anyopaque, turn: *s.GrowingTurn) anyerror!bool {
+fn rejectInput(raw: ?*anyopaque, turn: *s.Turn) anyerror!bool {
     const self = get(raw);
     const frame = s.Frame.decode(turn.delivery.input.value) catch {
         try self.disposition(turn, "InvalidApplicationFrame");
@@ -39,7 +39,7 @@ fn rejectInput(raw: ?*anyopaque, turn: *s.GrowingTurn) anyerror!bool {
     };
     return false;
 }
-fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) anyerror!void {
+fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) anyerror!void {
     const self = get(raw);
     if (frame.kind != .cast or turn.delivery.input.origin != .external) return self.disposition(turn, "ApplicationExternalOriginRequired");
     const command = root.Request.Command.decode(frame.payload) catch return self.disposition(turn, "InvalidApplicationCommand");
@@ -50,7 +50,7 @@ fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) anyerror!void 
         try self.disposition(turn, @errorName(err));
     };
 }
-pub fn apply(self: Self, turn: *s.GrowingTurn, command: root.Request.Command) !void {
+pub fn apply(self: Self, turn: *s.Turn, command: root.Request.Command) !void {
     try command.validate();
     switch (command) {
         .initialize => try self.owner.initialize(turn),

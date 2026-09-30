@@ -2,8 +2,7 @@
 
 `PageStore` and `PackedPageStore` implement the
 [core page interface](../../transit-core/docs/pages.md).
-The growing v3 node composes the packed mapping; the legacy authority retains
-its separate storage profile. Page persistence alone does not establish authority
+The native v1 node composes the packed mapping. Page persistence alone does not establish authority
 validation or application computation.
 
 Each store borrows a journal/client and owns a bounded decoded-page cache.
@@ -25,15 +24,14 @@ authority journal must publish them; all candidate pages must be durable first.
 Pages are retained without TTL or GC, including unreachable candidates. No page
 deletion is authorized until retained-root and staging races are qualified.
 This mapping is deliberately measurable: one stream per page and small tree
-fanout can cause substantial metadata and write amplification. It is not yet a
-recommended production layout or a claim of provider scaling.
+fanout can cause substantial metadata and write amplification. Provider scaling requires separate measurement.
 
 ## Packed mapping
 
 `PackedPageStore` appends immutable page records to one separate JSON journal
 scoped by the authority's bucket and stream name. Bootstrap explicitly creates
 that journal; loads never create missing history. A reference carries a digest
-plus an opaque format-tagged record locator. Core page/catalog format 2 includes
+plus an opaque format-tagged record locator. Core page/catalog format 1 includes
 the locator without interpreting Ursula coordinates. The adapter reads exactly
 one record, verifies returned coordinates and checks the page digest.
 
@@ -52,8 +50,7 @@ JSON acknowledgement, status and exact single-record coordinate before returning
 any reference; concurrent writers may create gaps between coordinates. A lost,
 partial or malformed acknowledgement fails the whole staging call without an
 automatic retry. Accepted records remain unreachable until the authority commits
-an enclosing root. Existing single-page locators and format-2 readers remain
-compatible; this does not introduce a page-format migration.
+an enclosing root. Single-page and batched staging use the same format-1 locators.
 
 Tree mutation batches use this operation for sibling pages. The encoded staging
 buffer is bounded by eight times 24 KiB; upstream request framing owns a second
@@ -103,9 +100,8 @@ the single-key control using the same binary and cache. It also exercises lost,
 incomplete and failed per-frame replies after accepted provider appends; no
 locators or authority publication escape those failures.
 
-The default exercises packed format-2 pages with 64 KiB of values and two decoded
-cache slots; the artifact reports their actual size. The original format-1 cache
-used 17,032 bytes. Evidence under
+The default exercises packed format-1 pages with 64 KiB of values and two decoded
+cache slots; the artifact reports their actual size. Evidence under
 `.cache/verification/pages-<layout>-<hot|s3>-<keys>-<cache>-batch<1|8>.json` records revision,
 dirty status, binary hash, tool/platform, elapsed time, cache statistics and page/stream creation counts. It also records page HTTP request attempts and
 attempted page payload bytes, including unsuccessful staging attempts; these omit batch framing, root-journal/bootstrap HTTP work, headers and the
@@ -120,48 +116,11 @@ blocks or a measurement of live application bytes. Exceptions and timeouts retai
 `inconclusive` status. The proof has a per-phase deadline, configurable with
 `--timeout`, and kills/joins its owned child on failure.
 
-An initial **format-1 closed-stream** Debug run with 256 keys retained 256 KiB of values and produced 1,947
-page streams across insertion, deletion and orphan staging. Two cache slots
-took 13.38 s to write and 5.32 s to recover/verify all retained values; 16 slots
-took 8.22 s and 1.60 s respectively. Sampled child RSS was about 8.5–8.7 MiB.
-The WAL occupied about 4.27 MiB after restart in both cases. These are local
-primitive measurements (artifacts `pages-256-2.json` and `pages-256-16.json`),
-including verification reads, not startup latency or service benchmarks.
-They show cache sensitivity and storage amplification that require attention
-before claiming an efficient growing service.
-
-A subsequent fixed two-page-cache run measured the provider as well:
-
-| Retained keys (1 KiB values) | Created page streams | Page HTTP requests in write phase | Client peak RSS, write | Ursula peak RSS, write | Ursula peak RSS after restart/verification |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 64 | 376 | 2,955 | 8,684 KiB | 49,244 KiB | 48,648 KiB |
-| 256 | 1,947 | 15,489 | 8,792 KiB | 64,528 KiB | 59,412 KiB |
-| 1,024 | 10,059 | 83,979 | 8,972 KiB | 602,504 KiB | 1,138,952 KiB |
-
-These single local Debug runs include insertions, half-key deletion, unreachable
-staging and verification reads. They are not per-insert costs or throughput SLOs.
-At 1,024 keys the write phase took 74.11 seconds, and recovery plus full retained
-value verification took 31.46 seconds; WAL file lengths after restart totaled
-178,186,090 bytes for 1 MiB of original logical values. All persistence assertions
-passed. The provider growth and amplification **do not pass efficient storage
-qualification**. This mapping needs investigation or replacement before service
-scale claims. The measurements alone do not identify an upstream defect or
-separate stream metadata from snapshot/WAL and request allocation costs.
-
-The packed format-2 mapping passed the same 1,024-key persistence phases with
-one page stream, 31,932 write-phase page HTTP requests, 43.37 seconds for write/
-verification and 18.22 seconds for restart/full-value verification. That run still
-reached 1,141,696 KiB provider RSS during recovery, with 172,174,210 WAL file bytes.
-Packing reduced requests but did not solve recovery memory in this fixture.
-Both runs used `storage.cold.backend = "none"` and inline provider snapshots:
-they do not qualify the provider's cold-tier growth behavior. Cold storage and
-snapshot configuration need separate measurements before selecting a scale profile.
-
-The [Rey workload model](../../../../docs/history/workloads/REY.md) motivates measuring
-the whole storage boundary, including Ursula's memory and stream metadata. A
-fixed client cache is not evidence that provider memory stays fixed as retained
-pages grow. This primitive mapping must pass those growth/amplification gates
-before any recommendation for bulk capture or long-lived large Tables.
+Historical measurements and their execution limits live in the
+[proof ledger](../../../../tests/README.md).
+The [workload priorities](../../../../docs/reference/workloads.md) require
+measuring both Transit and provider memory. A fixed client cache does not bound
+provider memory, metadata, request amplification or recovery costs.
 
 ## Cold-tier qualification
 

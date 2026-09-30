@@ -81,7 +81,8 @@ class Fixture:
         self.config = {"version": 1, "installation": str(self.root / "installation"), "realm": 73,
             "ports": dict(zip(("cold", "cold_console", "store", "node", "gateway"), ports)),
             "executables": {"minio": str(minio_binary()), "ursula": shutil.which("ursula"),
-                "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve())}}
+                "node": str(Path(node).resolve()), "query_host": str(Path(host).resolve()),
+                "board": os.environ.get("TEST_TRANSIT_BOARD_BINARY", str(Path(cli).resolve().parent / "transit-board"))}}
         self.path = self.root / "transit.yaml"
         self.path.write_text(json.dumps(self.config))
         self.no_ui = True
@@ -122,7 +123,7 @@ class Fixture:
                 if not line:
                     raise AssertionError(Path(self.logs[-1].name).read_text())
                 report = json.loads(line)
-                assert report["ready"] and report["profile"] == "local_table_v1", report
+                assert report["ready"] and report["profile"] == "local_applications_v1", report
                 port = self.config["ports"]["gateway"]
                 assert report["gateway_url"] == self.url, report
                 assert report["allowed_hosts"] == [f"127.0.0.1:{port}", f"localhost:{port}"] + self.config.get("gateway_allowed_hosts", []), report
@@ -167,12 +168,12 @@ class Fixture:
     def console_config(self):
         # Explicit remote-connection fixture from the observed allocation receipts.
         done = self.record()['provision']
-        return dict(version=1, profile='unified_v2', execution='durable', transport='loopback', url=self.url,
+        return dict(version=1, profile='unified_v1', execution='durable', transport='loopback', url=self.url,
                     seed_file=str(self.installation/'caller.seed'),
                     recovery_file=str(self.installation/'console-recovery.json'),
                     connection=dict(realm=self.config['realm'], principal=10, requester=done[0],
                                     requests=done[1], source=done[4], resource=done[5]),
-                    workspace=dict(name='items', source=dict(version=2, resource=done[5],
+                    workspace=dict(name='items', source=dict(version=1, resource=done[5],
                         source=dict(table=dict(id=1, names=['id', 'value'], value_type='int64'))),
                         limits=dict(pages='1000', segments='128', result_bytes='1048576')))
 
@@ -230,6 +231,22 @@ def run(cli, node, host):
                 shell.process.kill(); shell.process.wait(timeout=10)
         print("Transit server independent console: verified empty Table COUNT result", flush=True)
         fixture.stop()
+        # Same public v1 label cannot reinterpret another contract definition.
+        record_path = fixture.installation / "installation.json"
+        saved = record_path.read_bytes()
+        try:
+            for incompatible in (None, "previous-v1-definition"):
+                record = json.loads(saved)
+                if incompatible is None:
+                    del record['definition']
+                else:
+                    record['definition'] = incompatible
+                encoded = json.dumps(record).encode()
+                record_path.write_bytes(encoded)
+                fixture.refusal("cannot read the retained installation record")
+                assert record_path.read_bytes() == encoded
+        finally:
+            record_path.write_bytes(saved)
         fixture.refusal("this installation is already initialized", initialize=True)
         fixture.start()
         fixture.ready()
@@ -285,6 +302,8 @@ def run(cli, node, host):
 if __name__ == "__main__":
     faults = sys.argv[-1] == "--faults"
     args = sys.argv[1:-1] if faults else sys.argv[1:]
+    if len(args) == 4:
+        os.environ["TEST_TRANSIT_BOARD_BINARY"] = str(Path(args.pop()).resolve())
     run(*args)
     if faults:
         from server_faults import run as fault_proof

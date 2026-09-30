@@ -112,7 +112,7 @@ test "full width keys and maximum values fit bounded nodes" {
 }
 
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Turns = struct {
     state: std.AutoHashMapUnmanaged(p.Value, p.Value) = .empty,
     revision: u64 = 1,

@@ -1,6 +1,6 @@
 # Unified state queries
 
-The public `unified` module exposes v2 KV/Table/accepted Document sources, plans,
+The public `unified` module exposes v1 KV/Table/accepted Document sources, plans,
 explicit finite budgets and owned nested Arrow results. Shared Zig implements
 validation, signatures, admission observation and result verification. Rust owns
 typed values, allocation and native-worker lifetimes. Existing Table v1 APIs

@@ -75,7 +75,7 @@ test "transient admission failure in either slot never retries the transport" {
         var caller = client.Client.init(std.testing.allocator, admission.io(), "http://127.0.0.1:1");
         defer caller.deinit();
         caller.timeout_ms = 1000;
-        try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v2/command", .{}));
+        try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v1/command", .{}));
         try std.testing.expect(client.Client.unavailable(error.ConnectionRefused));
         try std.testing.expect(admission.attempts >= 4);
         try std.testing.expectEqual(@as(usize, 1), admission.connections.load(.monotonic));
@@ -91,13 +91,13 @@ test "persistent admission failure has one deadline and leaves the client reusab
         defer caller.deinit();
         caller.timeout_ms = 20;
         const started = Io.Clock.awake.now(io);
-        try std.testing.expectError(error.AuthorityTimeout, caller.call(client.Receipt, "/v2/command", .{}));
+        try std.testing.expectError(error.AuthorityTimeout, caller.call(client.Receipt, "/v1/command", .{}));
         try std.testing.expect(started.durationTo(Io.Clock.awake.now(io)).toMilliseconds() < 1000);
         try std.testing.expectEqual(@as(usize, 0), admission.connections.load(.monotonic));
 
         admission.reject_count = 0;
         caller.timeout_ms = 1000;
-        try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v2/command", .{}));
+        try std.testing.expectError(error.ConnectionRefused, caller.call(client.Receipt, "/v1/command", .{}));
         try std.testing.expectEqual(@as(usize, 1), admission.connections.load(.monotonic));
     }
 }

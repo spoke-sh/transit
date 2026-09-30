@@ -58,7 +58,6 @@ requires explicit activation and recovery. See the shared guide for operation,
 port, workspace and cleanup bounds, error distinctions, failure policies,
 recovery ordering and current authorization requirements.
 
-M9's `Transit.Station` remains the separate low-level v2 API. The new public
-namespace is `Transit.Station.Sdk`; its generated contracts and native calls stay
-internal. Migration replaces application polling/JSON actions with typed
-callbacks and helpers, preserving the shared Zig protocol semantics.
+Application code uses typed SDK callbacks, records and codecs. The shared native
+port owns protocol and Station semantics through the current v1 definition.
+Generated action schemas and transport calls remain internal adapter boundaries.

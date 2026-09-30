@@ -174,7 +174,13 @@ impl Native {
         )?;
         let api = unsafe { abi::Api::load(artifact.load()?) }
             .map_err(|_| Error::new(ErrorKind::IncompatibleNative, "native-symbols"))?;
-        if unsafe { (api.transit_client_abi_version)() } != abi::ABI_VERSION
+        if unsafe {
+            (api.transit_client_abi_definition_matches)(
+                abi::ABI_DEFINITION.as_ptr(),
+                abi::ABI_DEFINITION.len(),
+            )
+        } != 1
+            || unsafe { (api.transit_client_abi_version)() } != abi::ABI_VERSION
             || unsafe { (api.transit_client_supports_kind)(6) } != 1
             || unsafe { (api.transit_client_supports_kind)(7) } != 1
         {
@@ -310,7 +316,7 @@ impl Native {
         let bytes = self.prepare(7, credential, &json!({"realm":credential.realm(), "principal":credential.principal(), "kind":{"capabilities":{}}}))?;
         let value = self.call(&bytes, false)?;
         let caps = &value["body"]["capabilities"];
-        if value["version"] != 3 || caps["version"] != 3 || caps["profile"] != "growing_v1" {
+        if value["version"] != 1 || caps["version"] != 1 || caps["profile"] != "growing_v1" {
             return Err(Error::new(
                 ErrorKind::UnsupportedCapability,
                 "authority-capabilities",

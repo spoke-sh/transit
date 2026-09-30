@@ -6,7 +6,7 @@ The migration plan ID also selects its target Table, so this application's plan
 IDs must fit a nonzero u32 and exceed 1. This is a Table identity encoding limit,
 not a resident limit on work items or historical migration receipts.
 
-Begin checks the complete source/target UQS2 contracts and pauses normal writes.
+Begin checks the complete source/target UQS1 contracts and pauses normal writes.
 The target descriptor and three ledger records commit together. Each copy step
 writes at most two rows, plus its progress and exact receipt. A second pass over
 the target verifies every value against the unchanged source and checks the

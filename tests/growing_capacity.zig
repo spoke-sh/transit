@@ -4,7 +4,7 @@ const core = @import("transit_core");
 const adapter = @import("transit_backend_ursula");
 const g = core.protocol.Growth;
 const t = std.testing;
-const Engine = core.growing.Engine(adapter.GrowingStore, adapter.PackedPageStore);
+const Engine = core.growing.Engine(adapter.Store, adapter.PackedPageStore);
 const ceiling = 96;
 const reserve = 96;
 const Expected = struct { pid: u64, resource: u64, finite: u64, effect: u64, attempt: u64, last: g.SignedRequest, receipt: u64 };
@@ -99,7 +99,7 @@ pub fn main(init: std.process.Init) !void {
     if (args.len != 3) return error.ExpectedUrlAndPhase;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = args[1], .max_response_bytes = 256 * 1024 });
     defer client.deinit();
-    var store: adapter.GrowingStore = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-capacity", .name = "authority" } } };
+    var store: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = "transit-capacity", .name = "authority" } } };
     var pages = try adapter.PackedPageStore.init(init.gpa, store.journal, 1);
     defer pages.deinit();
     const genesis: core.growing.Genesis = .{ .realm = 53, .root_key = (try pair()).public_key.toBytes(), .max_clock_error_ms = 1, .allow_history_trim = true, .admission_ceiling = ceiling, .control_reserve = reserve };
@@ -153,7 +153,7 @@ pub fn main(init: std.process.Init) !void {
     }
     var buffer: [2048]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
-    try std.json.Stringify.value(.{ .profile = "growing_v3", .phase = args[2], .admission_ceiling = ceiling, .control_reserve = reserve, .position = engine.head.position, .rows = 40, .resident_bytes = pages.residentBytes(), .created_pages = pages.created, .page_requests = pages.requests }, .{}, &stdout.interface);
+    try std.json.Stringify.value(.{ .profile = "native_v1", .phase = args[2], .admission_ceiling = ceiling, .control_reserve = reserve, .position = engine.head.position, .rows = 40, .resident_bytes = pages.residentBytes(), .created_pages = pages.created, .page_requests = pages.requests }, .{}, &stdout.interface);
     try stdout.interface.writeByte('\n');
     try stdout.interface.flush();
 }

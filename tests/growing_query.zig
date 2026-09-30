@@ -5,10 +5,10 @@ const station = @import("transit_station");
 const client = station.client;
 const p = station.protocol;
 const g = p.Growth;
-const q = station.GrowingQuery;
+const q = station.Query;
 const f = station.fuze;
-const Server = station.GrowingGenServer;
-const Turn = station.GrowingTurn;
+const Server = station.GenServer;
+const Turn = station.Turn;
 const t = std.testing;
 const Realm = 44;
 const Count = 41;
@@ -58,7 +58,7 @@ const Handler = struct {
         if (frame.kind != .cast) return error.UnexpectedFrame;
         if (std.mem.eql(u8, frame.payload.slice(), "publish")) return q.beginPublication(turn, self.result);
         if (std.mem.eql(u8, frame.payload.slice(), "init")) return;
-        if (std.mem.startsWith(u8, frame.payload.slice(), "GQC2")) {
+        if (std.mem.startsWith(u8, frame.payload.slice(), "GQC1")) {
             const cancel = f.execution.Cancellation.init(false);
             _ = try q.advance(turn, try q.Continuation.decode(frame.payload), &self.workspace, &cancel);
             return;
@@ -206,7 +206,7 @@ pub fn main(init: std.process.Init) !void {
         if (std.mem.eql(u8, args[2], "recover")) {
             const version = try write_server.session.version(.{ .pid = expected.service, .input = expected.result, .index = 0 });
             try t.expect(version.released_at != null);
-            try t.expectError(error.Rejected, wire.queryGrowing(.{ .realm = Realm, .principal = 65536, .kind = .{ .version_entries = .{ .id = version.id, .generation = expected.generation } } }, writer_key));
+            try t.expectError(error.Rejected, wire.query(.{ .realm = Realm, .principal = 65536, .kind = .{ .version_entries = .{ .id = version.id, .generation = expected.generation } } }, writer_key));
             try t.expectEqual(.ReadVersionReleased, wire.last_rejection.?);
             _ = try admin.submit(.{ .send = .{ .pid = expected.service, .value = try (station.Frame{ .kind = .cast }).encode() } });
             for (0..24) |_| {
@@ -280,7 +280,7 @@ pub fn main(init: std.process.Init) !void {
             } else {
                 try t.expectEqual(expected.requester, message.destination);
                 try drive(init.io, &receiver, &receive_handler);
-                if (frame.kind == .result_chunk and std.mem.startsWith(u8, frame.payload.slice(), "GQF2")) fragments += 1;
+                if (frame.kind == .result_chunk and std.mem.startsWith(u8, frame.payload.slice(), "GQF1")) fragments += 1;
                 if (stopping and fragments == 2) {
                     const transfer = try q.records.Transfer.decode((try value(&admin, expected.requests, q.records.key('r', expected.correlation, 0, 0))).?);
                     try t.expect(transfer.pending == 2 * q.records.fragment_bytes and transfer.segments == 0);

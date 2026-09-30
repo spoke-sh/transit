@@ -29,10 +29,11 @@ def run(node, cli, board):
         node_log = Path(s.logs[-1].name)
         wait_ready(s.store.http, s.authority, s.url + "/health")
         # A repeated receipt does not establish another admission/turn.
-        signed = s.signed({"spawn": {"initial_state": b"private-state-marker".hex()}}, 1)
-        receipt = s.post("/v2/command", signed)
-        assert s.post("/v2/command", signed) == receipt
+        signed = s.signed({"spawn": {}}, 1)
+        receipt = s.post("/v1/command", signed)
+        assert s.post("/v1/command", signed) == receipt
         s.sequence = 1
+        s.command({"send": {"pid": receipt["position"], "value": b"private-state-marker".hex()}})
         seed, public = s.key("board")
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
         port = free_port()
@@ -100,18 +101,18 @@ def run(node, cli, board):
             try:
                 wait_ready(s.store.http, stalled_node, s.url + "/health")
                 for _ in range(60):
-                    s.post("/v2/command", {}, status=400)
+                    s.post("/v1/command", {}, status=400)
                 time.sleep(.1)
                 unread = array.array("i", [0])
                 fcntl.ioctl(stalled_node.stderr.fileno(), termios.FIONREAD, unread)
                 assert unread[0] > 2048, unread
                 with socket.create_connection(("127.0.0.1", s.port), timeout=3) as stream:
-                    stream.sendall(b"POST /v2/command HTTP/1.1\r\nHost:")
+                    stream.sendall(b"POST /v1/command HTTP/1.1\r\nHost:")
                     time.sleep(1.0)
                     assert stream.recv(32) == b""
                 operation = {"send": {"pid": receipt["position"], "value": b"control".hex()}}
                 position = s.command(operation)
-                assert s.post("/v2/command", s.signed(operation, s.sequence)) == {"position": position}
+                assert s.post("/v1/command", s.signed(operation, s.sequence)) == {"position": position}
                 assert stalled_node.poll() is None
             finally:
                 stalled_node.kill()

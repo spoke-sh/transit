@@ -1,8 +1,8 @@
 # Immutable page index
 
-The growing v3 authority uses `transit_core.pages` and its typed catalog. The
-legacy v2/state-v1 profile retains its separate representation; selecting the
-growing profile does not reinterpret legacy data.
+The native v1 authority uses `transit_core.pages` and its typed catalog. These
+internal v1 formats belong to the current contract definition and reject
+incompatible storage. There is no legacy profile or automatic conversion.
 
 The ordered copy-on-write tree stages immutable pages and returns a candidate
 root. Only an authoritative journal decision may publish that root with
@@ -13,11 +13,11 @@ they do not change the caller's previously published root.
 ## Representation and access
 
 Each versioned page is either an ordered leaf or a branch with child minima and
-SHA-256 references. Page/catalog format 2 adds an opaque 16-byte storage locator
+SHA-256 references. Page/catalog format v1 includes an opaque 16-byte storage locator
 beside each digest. Core never interprets that address; the adapter verifies its
 mapping. The hash covers a domain-separated canonical encoding, including child
-locators. Format 1 pages/catalogs are rejected explicitly; these development
-formats are separate from the v2 service representation.
+locators. Unsupported page/catalog versions are rejected explicitly. Their layout is
+separate from the native service envelope.
 Every read checks the expected digest, page shape and child height. Unknown
 versions, malformed ordering, missing pages and corrupted bytes fail explicitly.
 There is no missing-page-as-empty fallback.
@@ -66,7 +66,7 @@ deletion or GC authorization**. Unlimited retention remains the baseline.
 
 The authority's growing profile owns process/resource validation, admission,
 quotas and atomic root publication. Batching pages grants no new mutation or
-retention rights. Existing explicit legacy histories retain their own profile.
+retention rights. Incompatible histories cannot be opened by the current authority.
 
 ## Typed catalog
 
@@ -74,8 +74,7 @@ retention rights. Existing explicit legacy histories retain their own profile.
 versioned snapshot metadata over the same tree. Record keys contain a namespace,
 two ordered 64-bit identities and an optional opaque suffix. Principals, PIDs,
 mailbox positions, receipts and resource keys are addressed by value rather than
-array offset. This is an internal representation; it does not widen the legacy
-public protocol or ABI by implication.
+array offset. Public wire identities and ABI ownership remain governed by their own contracts.
 
 Candidate catalogs are cheap root/count copies. Reads return owned records;
 scans return at most eight records and a full-key cursor, which cannot cross the
@@ -87,19 +86,19 @@ Those bounds apply to a record or operation, not total retained records.
 A successful `put` or `remove` changes only the private candidate root. The caller
 must validate permissions, dependencies and retention before using it and publish
 all changes in one journal decision. Structural deletion grants no reclamation
-permission. Catalog version/shape rejection is implemented; migration from legacy
-checkpoints is not. Tests cover namespace isolation, 96 principals with identities
+permission. Catalog version/shape rejection is implemented; automatic migration from superseded
+checkpoints is unavailable. Tests cover namespace isolation, 96 principals with identities
 above 255, retained snapshots, pagination, count conservation, malformed/oversize
-records and lost staging acknowledgement. Service integration remains in progress.
+records and lost staging acknowledgement. The node composes this catalog through the backend package.
 
 ## Evidence
 
-[Unit proofs](../src/pages_test.zig) check 256 keys beyond the legacy limit, lookup
+[Unit proofs](../src/pages_test.zig) check 256 retained keys, lookup
 and ordered pagination, updates/deletions, independently retained snapshots,
 every staging-failure boundary, missing/corrupt pages, strict versioned encoding
 and allocation failure cleanup. Their store is a deterministic in-memory fault
 dependency, not a proof of bounded provider cache, disk persistence or production
 scale. The [Ursula page proof](../../transit-backend-ursula/docs/pages.md) additionally
 checks cold bounded caches and disk restart/checkpoint/trim. Integration with the
-explicit growing authority is qualified separately; Station integration and
-broader scale remain required M10 evidence.
+native authority and Station has separate executable schedules and recorded
+results in the [proof ledger](../../../../tests/README.md).

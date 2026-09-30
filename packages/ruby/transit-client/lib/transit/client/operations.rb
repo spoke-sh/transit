@@ -52,7 +52,7 @@ module Transit
     end
     def recover(port, bytes, send_only:)
       meta = metadata(port, bytes)
-      unless meta['profile'] == 'growing_v3' && meta['kind'] == 'growing_command' && meta['command'] && (!send_only || meta['command'] == 'send')
+      unless meta['profile'] == 'native_v1' && meta['kind'] == 'growing_command' && meta['command'] && (!send_only || meta['command'] == 'send')
         raise UnsupportedCapability, 'Recovery material is not the requested growing operation'
       end
       identity = OperationIdentity.new(sha256: meta['identity'])
@@ -69,7 +69,7 @@ module Transit
       frozen = prepare(port, 7, credential, { 'realm' => credential.realm, 'principal' => credential.principal, 'kind' => { 'capabilities' => {} } })
       value = hash(port.request({ 'call' => text(frozen) }, phase: :authority_capabilities))
       caps = hash(hash(value['body'])['capabilities'])
-      unless value['version'] == 3 && caps['version'] == 3 && caps['profile'] == 'growing_v1'
+      unless value['version'] == 1 && caps['version'] == 1 && caps['profile'] == 'growing_v1'
         raise UnsupportedCapability, 'Authority lacks the growing profile'
       end
       Capabilities.new(realm: integer(value['realm']), observed_at: integer(value['position'], min: 0),

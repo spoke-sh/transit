@@ -24,7 +24,7 @@ class GrowingSystem(System):
             self.url = f"http://127.0.0.1:{self.port}"
             self.config = self.root / "node.json"
             self.config.write_text(json.dumps({
-                "profile": "growing_v3", "genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": 10000},
+                "profile": "native_v1", "genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": 10000},
                 "ursula_url": self.store.url, "bucket": "growing-abi", "journal": "authority",
                 "port": self.port, "resident_pages": self.resident_pages, "request_timeout_ms": 5000,
             }))
@@ -55,7 +55,7 @@ def vectors(native):
             assert native.lib.transit_operation_metadata(operation, c.byref(metadata)) == 0
             info = json.loads(native.take(metadata))
             assert info["identity"] == hashlib.sha256(exported).hexdigest()
-            assert info["kind"] == case["tag"] and info["profile"] == "growing_v3"
+            assert info["kind"] == case["tag"] and info["profile"] == "native_v1"
             assert (info["realm"], info["principal"]) == (document["realm"], document["principal"])
             if case["kind"] == 6:
                 assert info["command"] == "send" and info["sequence"] == str(document["sequence"])
@@ -108,7 +108,7 @@ def run(native, library, node, cli):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/command":
+                    if self.path == "/v1/command":
                         fault["bodies"].append(body)
                         if response.status == 200 and fault["drop"]:
                             fault["drop"] = False
@@ -117,7 +117,7 @@ def run(native, library, node, cli):
                         if response.status == 200 and fault["invalid_receipt"]:
                             fault["invalid_receipt"] = False
                             data = b'{"position":0}'
-                    elif self.path == "/v3/query" and response.status == 200 and fault["invalid_read"]:
+                    elif self.path == "/v1/query" and response.status == 200 and fault["invalid_read"]:
                         fault["invalid_read"] = False
                         value = json.loads(data)
                         value["realm"] += 1
@@ -143,13 +143,13 @@ def run(native, library, node, cli):
 
         def root(command):
             system.sequence += 1
-            operation = prepare(6, root_seed, {"version": 3, "realm": 72, "principal": 0,
+            operation = prepare(6, root_seed, {"version": 1, "realm": 72, "principal": 0,
                 "sequence": system.sequence, "command": command})
             return native.call(root_client, operation)
 
         try:
             root({"grant": {"subject": 65536, "public_key": public, "permissions": 255}})
-            spawn = prepare(6, worker_seed, {"version": 3, "realm": 72, "principal": 65536,
+            spawn = prepare(6, worker_seed, {"version": 1, "realm": 72, "principal": 65536,
                 "sequence": 1, "command": {"spawn": {}}})
             saved = system.root / "pending.json"
             saved.write_bytes(native.export(spawn))
@@ -173,17 +173,17 @@ def run(native, library, node, cli):
             assert pid == 2 and fault["bodies"][0] == fault["bodies"][1]
             assert len(fault["bodies"]) == 2
 
-            query = prepare(7, worker_seed, {"version": 3, "realm": 72, "principal": 65536,
+            query = prepare(7, worker_seed, {"version": 1, "realm": 72, "principal": 65536,
                 "kind": {"process": pid}})
             result = native.call(client, query)
-            assert result["version"] == 3 and result["principal_sequence"] == 1
+            assert result["version"] == 1 and result["principal_sequence"] == 1
             assert result["body"]["process"]["process"]["pid"] == pid
             fault["invalid_read"] = True
             invalid_read_status = native.exchange(client, query)[0]
             assert invalid_read_status == 8
             assert not fault["invalid_read"]
 
-            send = prepare(6, worker_seed, {"version": 3, "realm": 72, "principal": 65536,
+            send = prepare(6, worker_seed, {"version": 1, "realm": 72, "principal": 65536,
                 "sequence": 2, "command": {"send": {"pid": pid, "value": "00ff"}}})
             fault["invalid_receipt"] = True
             invalid_receipt_status = native.exchange(client, send)[0]
@@ -198,7 +198,7 @@ def run(native, library, node, cli):
             revoked_read_status = native.exchange(client, query)[0]
             revoked_retry_status = native.exchange(client, send)[0]
             assert revoked_read_status == revoked_retry_status == 4
-            assert set(fault["paths"]) == {"/v3/command", "/v3/query"}
+            assert set(fault["paths"]) == {"/v1/command", "/v1/query"}
             from sdk_scenarios import check
             check("growing-profile-abi", {
                 "protocol_version": result["version"],

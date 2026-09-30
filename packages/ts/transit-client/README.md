@@ -1,7 +1,7 @@
 # @transit/client
 
 Typed raw Transit over the standalone native client port. It has no Station
-module, package or executable dependency. The explicit `growing_v3` profile
+module, package or executable dependency. The explicit `native_v1` profile
 supports typed send preparation, authorized capability reads, native-classified
 opaque recovery and distinct admission/mutation receipts. Public Station support
 is in the separate `@transit/station` package.
@@ -19,7 +19,7 @@ Missing artifacts and incompatible handshakes fail at `Client.open`.
 ```typescript
 import { Client, Credential, ProcessRef } from "@transit/client";
 
-const client = await Client.open({ url: endpoint, profile: "growing_v3" });
+const client = await Client.open({ url: endpoint, profile: "native_v1" });
 try {
   const pending = await client.prepareSend(new ProcessRef(72, destination), bytes, {
     credential: new Credential(72, principal, keyFile),

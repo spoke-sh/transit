@@ -5,12 +5,12 @@ for the current public explanation shared by users, developers and agents.
 Consult this record for rationale and proposals; it does not extend a qualified profile.
 
 Use explicit application credit when a producer can outpace durable acceptance.
-The [query delivery contract](../../contracts/STATION_QUERY_V2.md#flow-control) is
+The [query delivery contract](../../contracts/STATION_QUERY_V1.md#flow-control) is
 the implemented example. Socket backpressure alone does not prove a receiver
 has durably stored application work.
 
 Status: one concrete instance is implemented —
-[growing result delivery](../../contracts/STATION_QUERY_V2.md#flow-control),
+[growing result delivery](../../contracts/STATION_QUERY_V1.md#flow-control),
 checked abstractly by [`Delivery.tla`](../../tests/verification/models/Delivery.tla)
 and qualified both in-memory and against real disk Ursula/node restart. Every
 other reference below is prose scope, not a proved contract: connector
@@ -93,7 +93,7 @@ units, not invent new ones.
 
 ## Where this applies today
 
-[Growing result delivery](../../contracts/STATION_QUERY_V2.md#flow-control) is
+[Growing result delivery](../../contracts/STATION_QUERY_V1.md#flow-control) is
 the only implemented instance: segment-quantized, receiver-driven, a fixed
 two-segment window, its grant frame (`GQG2`) authenticated, non-regressing and
 resume-triggering. Credit is scoped per result, not pooled across a

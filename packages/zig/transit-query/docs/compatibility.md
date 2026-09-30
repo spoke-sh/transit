@@ -6,33 +6,33 @@ separate compatibility requirements.
 [HTTP serving](../../../../docs/reference/serving.md),
 [reactive APIs and refresh](../../../../docs/reference/reactive.md) and
 [Flight](../../../../docs/reference/flight.md) have separate interface contracts.
-Flight exposes the selected int64 Table v1 path; it does not expose unified v2.
+Flight adapts the current query v1 implementation to its finite int64 Table
+endpoint. It validates the verified native result before producing primitive Arrow.
 
-| Surface | Public Table v1 | Unified v2 |
-| --- | --- | --- |
-| Source | Exact Table schema: int64 key plus one nullable value | Declared KV decoders, exact Table schema, or accepted Document reference/projections |
-| Plan/result identity | `FZP1`, original `GQM2` result | `UQS2` source, `FZP2` plan, `UQB2` bundle, `UQM2` manifest |
-| Submission | Original bounded Station request | Finite authenticated Publication upload; 16 KiB canonical bundle, 128-byte parts |
-| Values | Original two-column schema and null interpretation | Six scalar types and five explicit cell states in nested Arrow |
-| Reads | Original captured-segment delivery | Current authorized publication reads with ordered digest/row/byte verification |
-| Shell | `transit query CONFIG` | `transit query-v2 CONFIG`; explicit frozen bundle/token recovery |
-| Board | Separate `query` credential/configuration | Separate `query_v2`; one configured source and budgets, explicit submission |
-| Language callers | Existing SDK Table/Station APIs | All ten non-Zig SDKs over the same Zig native/port implementation |
-| Flight / Flight SQL / ADBC | Finite int64 Table endpoint; see the [client/type matrix](../../transit-flight/docs/compatibility.md) | No endpoint or implicit nested-cell conversion |
+| Surface | Current query v1 |
+| --- | --- |
+| Source | Declared KV decoders, exact Table schema, or accepted Document reference/projections |
+| Plan/result identity | `UQS1` source, `FZP1` plan, `UQB1` bundle, `UQM1` manifest |
+| Submission | Finite authenticated Publication upload; 16 KiB canonical bundle, 128-byte parts |
+| Values | Six scalar types and five explicit cell states in nested Arrow |
+| Reads | Current authorized publication reads with ordered digest/row/byte verification |
+| Shell | `transit query CONFIG`; explicit frozen bundle/token recovery |
+| Board | Separate `query` credentials; one configured source and budgets |
+| Language callers | Public SDKs over the shared Zig native/port implementation |
+| Flight / Flight SQL / ADBC | Int64 Table projection/count/sum; explicit checked conversion to primitive Arrow, as defined by the [client/type matrix](../../transit-flight/docs/compatibility.md) |
 
-V1 is not upgraded in place. Its compiler, retained result interpretation,
-request limits and SQL null behavior remain unchanged. V2's version and digest
-checks reject unknown versions and changed declarations rather than guessing a
-compatible decoder. Neither publication references nor continuation cursors
-confer authority. Host/provider placement does not change a protocol version.
+The [hard-cutover policy](../../../../docs/reference/versioning.md) applies.
+Unknown formats and changed declarations reject; retained data is never guessed
+into a compatible decoder. Neither publication references nor continuation
+cursors confer authority. Host/provider placement does not change a contract.
 
 | Source | Scalar values | Exceptional states and ordering | SQL declaration |
 | --- | --- | --- | --- |
 | KV | Binary, UTF-8, little-endian int64/uint64, finite float64, canonical boolean byte | Invalid declared decoding yields type error; bytewise key order | Explicit prefix and independently versioned key/value decoders |
-| Table | Existing exact key/value schema; v2 adapter validates it | Nullable value, signed primary-key order | Exact Table identity/schema |
+| Table | Existing exact key/value schema; adapter validates it | Nullable value, signed primary-key order | Exact Table identity/schema |
 | Document | Accepted scalar paths, bounded materialized text, optional list expansion and element IDs | Missing/null/type error/conflict stay distinct; accepted sequence order, including empty continuation pages | Exact document/epoch/type/change-format/revision and declared projections |
 
-All v2 Arrow columns use a non-null struct with state, actual kind, nullable
+All native Arrow columns use a non-null struct with state, actual kind, nullable
 value and a non-null alternative list. Integers keep all 64 bits, finite float64
 keeps negative zero, binary stays bytes and text stays UTF-8. Conflicts retain
 ordered assignment counter/replica IDs and each alternative's state. A plain
@@ -47,7 +47,7 @@ its supported subset: star or two named columns, one exact-type comparison or
 all five state tests are available through typed plans; SQL has no corresponding
 numeric literals or general state-test syntax yet. `IS NULL` selects only explicit
 null, and comparison to a NULL literal rejects. There are no casts, joins, sort,
-pushdown, rewrites, continuous queries or implicit application decoders.
+general pushdown, rewrites, continuous queries or implicit application decoders.
 
 The engine advances eight rows per page with at most eight columns. Scalars are
 bounded at 4096 bytes; Arrow segments at 64 KiB with 4 MiB caller-owned workspace.

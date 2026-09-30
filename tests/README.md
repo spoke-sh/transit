@@ -1,5 +1,53 @@
 # Validation and milestone evidence
 
+## Native v1 cutover checkpoint — 2026-09-30
+
+This checkpoint replaces the bounded native authority with the paged v1
+implementation and moves native clients, Station, controllers, Board, Flight,
+installation and language boundaries onto it. It is an implementation checkpoint;
+full cutover qualification remains in progress under
+[protocol consolidation](../docs/roadmap/M31.md). Earlier milestone records below
+are historical executions and do not qualify the replacement automatically.
+
+Executed against the cutover workspace with the pinned Linux x86_64 Nix/Zig
+toolchain:
+
+| Check | Observed result |
+| --- | --- |
+| `just check` | Passed pinned tooling checks, generated contracts, native units/fixtures, CLI diagnostics, documentation links, frontend lint/types/unit tests and the production documentation build |
+| Native unit/independent fixture suite | Passed, including current-definition rejection and owner-lifetime read/required-dependency gates |
+| `zig build test-storage` | Passed all four disk/restart phases of the nine storage, kernel, effects, lifetime, outbox, runtime, deletion, state and readiness executables |
+| `zig build test-service` | Passed actual signed HTTP counter/state recovery, bootstrap/fencing, background expiry/checkpointing, blocked storage deadlines, real effect uncertainty and payload deletion |
+| `zig build test-station` | Passed two-resource application recovery, registry routing, timed waits, supervision, paged child discovery and lifetime cleanup |
+| Native state HTTP proof | Passed resource grants, captured views, paging/cuts, exact retry, counter worker and disk recovery |
+| `zig build test-flight -Dflight-faults=true` in the Flight shell | Passed independent Arrow clients, bounded concurrent/control behavior, ticket/current-rights checks and worker/gateway/node/store recovery |
+| `just bindings::native` and `just bindings::node-sdk-test` in the bindings shell | Passed native/port ownership and installed Node client/Station/query/HTTP/gRPC scenarios |
+| `zig build test-public-query` | Passed actual shell/hosts, 41 exact int64/null rows, frozen retry, fencing/recovery, busy admission, schema rejection, cancellation and terminal resource refusal |
+| `just bindings::python-test` in the bindings shell | Passed clean installed client/Station packages, durable continuation, query pages, HTTP and gRPC scenarios |
+| `zig build test-transit-board` | Passed embedded assets, current inspection/resource grants, framework views, history gaps, outage handling and bounded-load control progress |
+| `zig build test-board-query` | Passed separate query identity, current typed result schema, exact retry, malformed admission, incomplete-result refusal, cancellation and current grants/cuts |
+| `zig build test-observability` | Passed correlated spans, exact receipt retries, revoked reads, secret exclusion and progress with a blocked diagnostic pipe |
+| `zig build test-inspection` | Passed bounded scoped discovery, signed query rejection, old-route refusal, changed cuts, revocation and disk recovery |
+| `zig build test-server -Dserver-faults=true` | Passed local lifecycle, exact bootstrap recovery, definition mismatch without record mutation, private gateway/Host checks, process/storage recovery, executable drift and authority rollback refusal |
+| `just examples::run counter` | Passed the actual counter binary over independently granted resource state |
+
+Limits at this checkpoint: the remaining installed-language matrix stopped at
+Rust formatting;
+formatting is corrected, but that matrix has not been rerun. Recent owner-lifetime
+changes need the relevant final integration reruns. Public query recovery exposed
+an unclassified terminal resource rejection; the reader now maps it to
+`ResourceUnavailable`, and the full public-query scenario passed after the fix.
+The broader unified shell recovery schedule exposed a stale current observation
+while restoring a saved bundle; preparation now restarts only conflicted reads,
+and this schedule needs rerunning. Local-server fixtures now include the required
+matched Board artifact even for headless execution, expect the current application
+profile and keep test configuration out of the server environment namespace;
+the full lifecycle and extended failure schedules passed. Browser/placement, remaining
+source/lifecycle/installation proofs, all-language interoperation, final
+documentation/legacy inventory and committed-HEAD `just ci-clean` are not yet
+claimed passed. No deployment or history conversion is authorized by this
+checkpoint.
+
 ## M19 qualification
 
 The initial HTTP serving profile is qualified on Linux x86_64 with the pinned
@@ -164,7 +212,7 @@ conflict cardinality/order/IDs, missing alternatives, NaN, oversized text, neste
 nullability violations and a renamed schema. Owned decoded values survive
 overwriting the Arrow workspace. The original Table v1 Arrow fixtures still pass.
 
-The `transit-query` adapter component tests also pass canonical `UQS2` source
+The `transit-query` adapter component tests also pass canonical `UQS1` source
 fixtures and explicit KV decoder checks. A 38-record prefix crosses multiple
 pages with a typed malformed-value error; a 19-row Table retains its old cut
 across a replacement. Document pages preserve missing/null/type-error/conflict,
@@ -1130,7 +1178,7 @@ profile's bounded 64-page cache. It captures and delivers 41 rows in six IPC
 segments, retries lost staging receipts, restarts workers/node/provider after a
 seal, checks complete source metadata and decodes owned IPC with PyArrow after
 native disposal. Port parity, disabled query access, stale scope and revocation
-are covered by the shared `growing-query-abi` scenario. Public language adapters have separate qualification below.
+are covered by the shared `query-abi` scenario. Public language adapters have separate qualification below.
 
 `just bindings::python-test` builds Python wheels, installs only `transit-client`
 and `transit-native-client` into an isolated consumer outside the source tree,
@@ -1365,7 +1413,7 @@ ten edges, not all 100 ordered pairs, and does not repeat each fault for each pa
 observations. M9's separate low-level matrix remains executable and passed again.
 
 All artifacts below are version 0.2.0 on Linux x86_64 with their pinned Nix native
-closure; the [runtime table](../bindings/README.md#qualification-tools) owns exact
+closure; the [runtime table](../bindings/README.md#build-and-verification) owns exact
 compiler/runtime versions.
 
 | Public target | Installed artifact | Optional host Arrow adapter |
@@ -1641,7 +1689,7 @@ firewall confinement supplied by that isolated proof.
 key rotation/revocation, slow-body deadlines, and paused/replacement workers
 against disk-backed Ursula. Authority and storage restart preserve state and
 revocations. This loopback proof does not establish deployment network isolation;
-see the [service profile](../contracts/SERVICE_V2.md).
+see the [service profile](../contracts/SERVICE_V1.md).
 
 `just launchers::reference::test` runs the fixed counter via the pinned Substrate gVisor
 runtime on an owned Kind cluster. A controller crash after Actor creation is
@@ -2011,8 +2059,8 @@ on x86_64 Linux on 2026-09-24 with the pinned toolchain, including the full CI,
 browser, physical-capacity, three-launcher and Substrate isolation suites. Focused
 controller/caller checks and foundation checks were rerun after the recovery fixes.
 Its contracts are
-[authenticated inputs](../contracts/TRANSIT_V2.md),
-[scoped delivery](../contracts/SERVICE_V2.md),
+[authenticated inputs](../contracts/TRANSIT_V1.md),
+[scoped delivery](../contracts/SERVICE_V1.md),
 [catalog collection](../contracts/CATALOG_V1.md) and
 [lifecycle controls](../contracts/LIFECYCLE_V1.md).
 
@@ -2160,12 +2208,12 @@ insufficient workspace/output and cancellation without publishing progress.
 This does not qualify durable large-result staging, delivery or recovery; those
 remain integration gates in the [incremental contract](../contracts/FUZE_STREAM_V1.md).
 
-`just test::growing-query` (also part of `test::growing-service`) separately
+`just test::query` (also part of `test::growing-service`) separately
 qualifies durable **capture**. Real Zig callers retain a 41-row Table, stage
 221-byte fragments, and recover through disk Ursula/node/caller replacement
 first during staging, then after the first seal. The first recovery uses one
 resident backend page; the remaining capture defaults to 64. Use
-`just test::growing-query --finish-pages 1` to retain one page throughout both
+`just test::query --finish-pages 1` to retain one page throughout both
 recoveries. The proxy loses an accepted staging reply and a seal reply; exact
 retry returns the original receipt without rerunning a handler. Each recovered
 segment is decoded by independent PyArrow, and Python checks the ordered digest
@@ -2193,7 +2241,7 @@ received Arrow segment — bounded allocation, schema/row/cell bounds, UTF-8 and
 nullability — before its fingerprint enters the chain; it is exercised
 separately in `inspect_test.zig`.
 
-`just test::growing-query` now adds `publish` and `deliver` phases to its
+`just test::query` now adds `publish` and `deliver` phases to its
 existing real disk Ursula/node proof, driving two separate `GenServer.Growing`
 instances (sender and receiver) that each explicitly configure
 `.query = .{ .workspace, .cancellation }` — the growing GenServer still
@@ -2212,7 +2260,7 @@ segments against a two-segment credit window means the sender genuinely blocks
 and resumes under real cross-process delay here, not just in the in-memory
 proof below; these are finite shared-host proof timings, not service SLOs.
 
-Receiver-issued credit (`GQG2`, [`contracts/STATION_QUERY_V2.md`](../contracts/STATION_QUERY_V2.md#flow-control))
+Receiver-issued credit (`GQG1`, [`contracts/STATION_QUERY_V1.md`](../contracts/STATION_QUERY_V1.md#flow-control))
 is implemented, not just designed: the sender will not start a segment more
 than `credit_window` (2) ordinals past the last credit it has observed, the
 destination grants credit only for segments it has itself durably sealed, and
@@ -2223,7 +2271,7 @@ inert, and the two-sided delivery proof asserts exactly one grant per sealed
 segment (six, for six segments). [`Delivery.tla`](verification/models/Delivery.tla)
 checks the same shape abstractly via `just test::model-delivery`; it is not
 yet wired to a Zig trace replay the way `test::model` is for `Authority.tla`.
-`just test::growing-query --finish-pages 1` retains one resident page through
+`just test::query --finish-pages 1` retains one resident page through
 the seal/recover phases instead of the 64-page default measured above; the
 first recovery (after staging, before any seal) always uses one page and no
 faults or assertions are removed either way. These are finite shared-host
@@ -2301,7 +2349,7 @@ continue to use v2; each explicitly configured growing capability has its own
 proof owner.
 
 An explicit control reserve now has injected-storage evidence too
-(`GROWTH-11`, [growing capacity](../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one)):
+(`GROWTH-11`, [growing capacity](../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity)):
 past a configured ceiling, sends/spawns/grants/new resources/views/associations
 and turns that would emit a new output or effect are refused before
 acknowledgement, while ownership reassignment, revocation, retry, termination,
@@ -2364,7 +2412,7 @@ recovers the unconsumed call without rerunning committed initialization. The
 proof uses a bounded 64-page cache for exchange, one resident backend page
 after restart, and explicit public-client delivery. It
 does not qualify background courier, registries, supervision, runtime bindings
-or foreign APIs. Separate growing-query and quota proofs below own those
+or foreign APIs. Separate query and quota proofs below own those
 implemented capabilities.
 After restart, the writer also reads all 41 Table rows in six typed pages before
 committing its completion count. Continuations cannot change view, resource,
@@ -2593,7 +2641,7 @@ is not a qualification of arbitrary multi-gigabyte records. Total retained
 record count does not size an array or whole-record buffer in the implementation.
 
 Local Linux x86_64 qualification passed: `just check`, standalone Station
-package tests, `just test::publication` and the existing `just test::growing-query`
+package tests, `just test::publication` and the existing `just test::query`
 regression. The [retained report](verification/results/m14-publication-2026-09-26.json)
 records source hashes, sizes, workload and phase timings: staging 34.566s,
 one-page sealing 4.781s, publication 18.878s, one-page cleanup/recovery 21.203s,
@@ -3189,7 +3237,7 @@ safe visible escapes, bracketed paste, queued-input invalidation, metadata expir
 resize, history clearing and interrupt restoration. A stalled stdout exits through
 a joined two-second write deadline without submitting cancellation. Native HTTPS
 schema reads pass with an explicit private CA; untrusted roots and a different
-hostname reject. Existing `query-v2` keeps its independent contract.
+hostname reject. Existing `query` keeps its independent contract.
 
 The first terminal attempt delayed every metadata read in the test; the fixture
 now delays one read. A later test stopped consuming PTY display bytes while

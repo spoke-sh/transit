@@ -36,8 +36,8 @@ The [examples](../../examples/README.md) also provide disposable one-shot demos.
 Per-checkout `.env` settings loaded by `.envrc` configure Board's listen address,
 port and browser origin, including remote LAN development. See the
 [configuration guide](../../launchers/README.md#local-development-configuration).
-Protocol v2 requires a fresh development realm; automatic migration of v1
-histories and signatures is not implemented.
+Incompatible protocol definitions require an explicit cutover. Automatic history
+or signature conversion is not implemented; preserve existing recovery material.
 
 ## Shared documentation
 

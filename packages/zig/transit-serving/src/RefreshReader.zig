@@ -14,7 +14,7 @@ fn signedQuery(self: Self, principal: u64, kind: @FieldType(p.Growth.Query, "kin
     const request: p.Growth.SignedQuery = .{ .query = .{ .realm = self.resources.realm, .principal = principal, .kind = kind }, .signature = signature };
     // The authority validates each signature against the caller's current key
     // and grant. A retained proof is neither an access token nor a cached grant.
-    const response = self.resources.wire.call(p.Growth.Response, "/v3/query", request) catch |err| {
+    const response = self.resources.wire.call(p.Growth.Response, "/v1/query", request) catch |err| {
         if (err == error.Rejected or err == error.Conflict) switch (self.resources.wire.last_rejection orelse return err) {
             .AccessDenied, .Forbidden => return error.ServingDenied,
             .StateResourceExpired, .UnknownStateResource, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,
@@ -37,7 +37,7 @@ pub fn observe(self: Self, source: root.ReactiveModel.Source) !root.TableWatch.O
     var reader = try self.resources.open(source.resource);
     return root.TableWatch.observe(&reader, source);
 }
-pub fn result(self: Self, turn: *root.station.GrowingTurn, namespace: u64, source: root.ReactiveModel.Source) !q.fuze.Unified.Basis {
+pub fn result(self: Self, turn: *root.station.Turn, namespace: u64, source: root.ReactiveModel.Source) !q.fuze.Unified.Basis {
     if (turn.view.resource != self.resource or turn.delivery.pid != self.ingress) return error.ServingDenied;
     const status = (try q.UnifiedUpload.status(turn, namespace)) orelse return error.InvalidRefreshTemplate;
     if (status.phase != .complete or status.manifest == null) return error.InvalidRefreshTemplate;

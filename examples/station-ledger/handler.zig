@@ -6,7 +6,7 @@ const p = station.protocol;
 pub const Application = struct {
     role: enum { ledger, requester, coordinator } = .ledger,
     destination: ?u64 = null,
-    observer: ?u8 = null,
+    observer: ?u64 = null,
     registry: ?u64 = null,
 
     pub fn behavior(self: *Application) station.GenServer.Handler {
@@ -17,7 +17,7 @@ pub const Application = struct {
         if (self.role == .coordinator) {
             try station.Registry.create(turn, 1);
             try station.Registry.grant(turn, 1, .{ .principal = 0 }, .{ .lookup = true, .mutate = true });
-            try station.Supervisor.register(turn, .{ .pid = self.destination orelse return error.MissingDestination, .observer = self.observer orelse return error.MissingObserver, .limit = 1, .backoff_ms = 0 });
+            try turn.cast(turn.delivery.pid, try p.Value.init("initialize-supervisor"));
             return;
         }
         const schema: station.fuze.model.Schema = .{ .names = .{ try station.fuze.model.Name.init("id"), try station.fuze.model.Name.init("amount") }, .value_type = .int64 };
@@ -29,16 +29,26 @@ pub const Application = struct {
         if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "init")) return;
         switch (self.role) {
             .coordinator => {
+                if (frame.kind == .cast and std.mem.eql(u8, frame.payload.slice(), "initialize-supervisor")) {
+                    if (try station.Frame.source(turn.delivery.input) != turn.delivery.pid) return error.AccessDenied;
+                    try station.Supervisor.register(turn, .{ .pid = self.destination orelse return error.MissingDestination, .observer = self.observer orelse return error.MissingObserver, .limit = 1, .backoff_ms = 0 });
+                    return;
+                }
                 if (frame.kind == .call) return station.Registry.handle(turn, frame);
                 if (frame.kind != .cast) return error.UnexpectedCoordinatorMessage;
                 if (std.mem.startsWith(u8, frame.payload.slice(), "SUP1")) return station.Supervisor.observe(turn, try station.Supervisor.Observation.decode(frame));
-                switch (turn.delivery.input.origin.source) {
+                switch (turn.delivery.input.origin) {
                     .external => |origin| if (origin.principal != 0) return error.AccessDenied,
                     else => return error.AccessDenied,
                 }
                 if (std.mem.startsWith(u8, frame.payload.slice(), "lookup-peer:")) {
                     const peer = try std.fmt.parseInt(u64, frame.payload.slice()[12..], 10);
                     try station.Registry.grant(turn, 1, .{ .process = peer }, .{ .lookup = true });
+                    return;
+                }
+                if (std.mem.startsWith(u8, frame.payload.slice(), "watch:")) {
+                    const pid = try std.fmt.parseInt(u64, frame.payload.slice()[6..], 10);
+                    try station.Supervisor.register(turn, .{ .pid = pid, .observer = self.observer orelse return error.MissingObserver, .limit = 1, .backoff_ms = 0 });
                     return;
                 }
                 const request = try station.Registry.Request.decode(frame.payload);
@@ -48,9 +58,7 @@ pub const Application = struct {
                 if (frame.kind != .call and frame.kind != .cast) return error.UnexpectedLedgerMessage;
                 const table = try station.Table.open(turn, 1);
                 if (std.mem.eql(u8, frame.payload.slice(), "query")) {
-                    var workspace: [station.fuze.execution.working_bytes]u8 = undefined;
-                    const cancel = station.fuze.execution.Cancellation.init(false);
-                    _ = station.Query.capture(turn, table, .{}, &workspace, &cancel) catch |err| {
+                    _ = station.Query.start(turn, table, .{}) catch |err| {
                         var buffer: [128]u8 = undefined;
                         try turn.reply(try p.Value.init(try std.fmt.bufPrint(&buffer, "station.query.error.{s}", .{@errorName(err)})));
                     };
@@ -59,7 +67,7 @@ pub const Application = struct {
                 // A synthetic owner command demonstrates ordered policy updates.
                 // Only the configured root principal may change this demo policy.
                 if (std.mem.eql(u8, frame.payload.slice(), "allow-query") or std.mem.eql(u8, frame.payload.slice(), "deny-query")) {
-                    switch (turn.delivery.input.origin.source) {
+                    switch (turn.delivery.input.origin) {
                         .external => |origin| if (origin.principal != 0) return error.AccessDenied,
                         else => return error.AccessDenied,
                     }
@@ -96,7 +104,7 @@ pub const Application = struct {
                 .timeout => try turn.put(try p.Value.init("answer"), try p.Value.init("timeout")),
                 .result_complete => {
                     const result = try station.Query.completed(turn, frame.correlation);
-                    try turn.put(try p.Value.init("last-query"), p.Value.integer(@intCast(result.manifest.result)));
+                    try turn.put(try p.Value.init("last-query"), p.Value.integer(@intCast(result.result)));
                 },
                 else => return error.UnexpectedRequesterMessage,
             },

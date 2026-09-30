@@ -55,28 +55,17 @@ The OpenAPI lists the process, mailbox, outbox, effect, payload-metadata, histor
 and journey routes. See [inspection v1](../../../contracts/INSPECTION_V1.md) for
 cut/continuation semantics. Query errors are JSON, including unknown API routes;
 they never fall through to HTML. The default inspection profile has no mutation
-route. The optional growing query profile is configured separately below.
+route. The optional query workspace is configured separately below.
 
-### Board v1 schema compatibility
+### Board v1 compatibility
 
-The current schema includes the required `documents` capability and growing-record
-lens fields, plus the selected Document metadata response. Update Board and its generated browser client
-together; older strict validators reject the additional fields. Existing Table
-query payloads retain their original contract. Document inspection adds no write
-or query capability to the inspection principal.
+Board and its generated client use the current v1 OpenAPI together. Before 1.0,
+incompatible changes are hard cutovers: replace the server, frontend and external
+client declarations together. The [versioning policy](../../../docs/reference/versioning.md)
+defines that boundary. Unknown configuration fields reject at startup.
 
-This deliberately removes the original viewer-authentication contract. Session
-creation/logout endpoints and the `Session` schema are removed, as are the
-`session_seconds` capability and the TypeScript `login`/`logout` helpers. Rebuild
-API and frontend together; external clients should regenerate from OpenAPI and
-stop sending Board credentials. The inspection GET routes remain under `/api/v1/`.
-
-Launcher `update board` regenerates configuration and deploys the new executable.
-For standalone configurations, remove `credential_file` and `session_seconds`;
-unknown fields fail configuration parsing. Keep `seed_file`: Transit still
-requires it. Old ignored access-key files and old browser cookies are unused;
-Board no longer reads, issues, or renews them. The reference launcher reapplies
-its Board Secret with only the Transit seed after the new pod is ready.
+The inspection identity has a signing seed. Viewer authentication, cookies and
+sessions are not part of the Board API; access is through the deployment boundary.
 
 ## Deployment boundary
 
@@ -102,16 +91,15 @@ apply. Its default is false. HTTPS remains required for normal remote
 deployments. The [launcher settings](../../../launchers/README.md#local-development-configuration)
 expose these fields through a Git-ignored `.env` loaded by `.envrc`.
 
-## Growing atlas and optional Table queries
+## Atlas and resource inspection
 
-Set `"profile": "growing_v3"` for the growing atlas. The inspection principal
-must be non-root, unscoped, and have **only inspect (16)**; separately provision
-resource metadata grants. Board checks the current signed identity and pins both
-eight-item catalog pages to that observation. Any intervening authority change
-expires the page. Legacy PID-scoped inspection remains on the default `legacy_v2`
-profile and its existing routes; growing atlas does not implement those routes.
+The only profile is `"profile": "native_v1"`, also the default. Its inspection
+principal is non-root and has **only inspect (16)**. A PID-scoped grant filters
+process inspection; the atlas requires an unscoped inspector. Resource metadata
+and contents require independently recorded grants. Both eight-item atlas pages
+share one signed observation. An intervening authority change expires the page.
 
-The growing profile also serves `GET /api/v1/resources/{resource}/records`.
+Board also serves `GET /api/v1/resources/{resource}/records`.
 Provision `inspect | read` (3) on the resource to expose record identities and
 recognized exchange metadata. Metadata-only inspect permission is insufficient.
 Each request rechecks the current read grant; no query identity is used. An
@@ -128,71 +116,55 @@ resource revision: request metadata up to 8 KiB and three terminal records up to
 than combining cuts; retirement returns 410, and incomplete/corrupt selected
 metadata is explicit. No request/response body or raw header member is read.
 
-Queries are disabled unless `query` is configured. For an already provisioned
-source/requester installation, add these fields to the ordinary Board config:
+## Unified state query workspace
+
+Queries are disabled unless `query` is configured. The object contains
+`seed_file`, `connection` (realm, principal, source, resource, requester, requests),
+and the `workspace` source/name/limits object from the
+[SQL shell guide](../../transit-cli/docs/unified-query.md). For example:
 
 ```json
 {
-  "profile": "growing_v3",
-  "request_timeout_ms": 5000,
-  "upstream_timeout_ms": 1500,
   "query": {
     "seed_file": "/run/board/query-seed",
     "connection": {
-      "realm": 71,
-      "principal": 1234,
-      "source": 1,
-      "resource": 3,
-      "table": 1,
+      "realm": 71, "principal": 1234, "source": 1, "resource": 3,
+      "requester": 8, "requests": 10
+    },
+    "workspace": {
       "name": "items",
-      "requester": 8,
-      "requests": 10
+      "source": {
+        "version": 1, "resource": 3,
+        "source": {"table": {"id": 1, "names": ["id", "value"], "value_type": "int64"}}
+      },
+      "limits": {"pages": "1000", "segments": "100", "result_bytes": "1048576"}
     }
   }
 }
 ```
 
-The numeric IDs are examples: use recorded IDs from your own provisioning.
-The query principal must differ from the inspection principal and use the same
-realm/upstream. Provision its inspect/send and resource inspect/read grants, the
-requester binding, source Table and Station peer policy as described in the
-[public contract](../../../contracts/PUBLIC_QUERY_V1.md) and
-[query host guide](../../transit-query-host/README.md). Run the source, requester
-and scoped courier outside Board. Board never runs their handlers or acquires
-ownership. Local/Compose/reference launchers do not provision this optional profile.
+Use recorded IDs from your installation. The query principal differs from the
+inspection principal and uses this realm/upstream. Provision its inspect/send
+and independent resource inspect/read grants, requester binding and source policy
+through the [query contract](../../../contracts/UNIFIED_QUERY_V1.md) and
+[query host](../../transit-query-host/README.md). Run source, requester and courier
+outside Board. Board does not acquire ownership or execute their handlers.
 
-Everyone admitted by this Board instance's private deployment boundary can use
-its shared query identity. Separate instances/principals provide separate scopes;
-there is no per-human attribution or delegation. Keep both seed files private.
-Removing `query` restores an inspection-only configuration; the original
-inspection grant is never widened. Existing captured work may continue after a
-browser disconnect or configuration removal.
+Everyone admitted by the private deployment boundary shares this query identity.
+Separate instances and principals provide separate scopes. Removing `query`
+restores inspection-only configuration; captured work can continue independently
+of the browser and Board configuration.
 
-`GET /api/v1/atlas` accepts optional `position`, `process_after` and
-`resource_after` cursors. `POST /api/v1/query` requires `Origin` exactly equal to
-`public_origin` and `Content-Type: application/json`, with at most 16384 body
-bytes. The OpenAPI specifies the finite operations. No arbitrary upstream URL,
-Transit command or opaque value decoder is accepted. Query routes share Board's
-request deadline and rate limit; an uncertain submission must retain its frozen
-token for an exact retry. A read conflict permits a read retry, never a new query.
+`POST /api/v1/query` exposes the shared `transit-query.Workspace` operations.
+Its body limit is 49152 bytes. `Origin` must equal `public_origin` and
+`Content-Type` must be `application/json`. Deadlines and rate limits apply.
+Retain an uncertain submission's frozen token for exact retry. A read conflict
+permits a read retry; it does not authorize a new query.
 
-## Unified state query workspace
-
-Use `query_v2` instead of `query` to expose a declared KV/Table/Document source.
-Both options together reject at startup. `query_v2` contains `seed_file`, the v2
-`connection` (realm, principal, source, resource, requester, requests), and the
-same `workspace` source/name/limits object as the
-[unified shell](../../transit-cli/docs/unified-query.md). The identity must differ
-from inspection, use this realm/upstream and hold its own current grants. The
-source resource must match the connection. Board does not provision workers.
-
-`POST /api/v1/query-v2` exposes only the shared `transit-query.Workspace` operations.
-It has a 49152-byte body bound to carry a finite encoded bundle, the same exact
-Origin/content-type checks, and the existing deadline/rate limit. The generated
-OpenAPI publishes separate v1/v2 request/response types. Atlas advertises the
-visible query resource and version; it never labels an arbitrary resource as a
-query source. Generated schemas bound every result row/column/conflict list to
-eight. The browser further validates full-width numbers and nested cell types.
+The generated OpenAPI describes one v1 request/response model. Atlas advertises
+the configured visible query resource. Schemas bound result rows, columns and
+conflict alternatives to eight; the client validates full-width numbers and
+nested cell types. Arbitrary upstream URLs and native commands are not accepted.
 
 Run explicitly compiles SQL and starts one finite upload. Browser polling may
 advance that authorized upload only after observing its previous input commit;

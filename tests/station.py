@@ -21,23 +21,20 @@ def frame(payload, kind=1, correlation=0):
 
 def run(node, cli, worker, courier):
     with System(node, cli, clock_error_ms=10000) as s:
-        def state(kind, **options):
-            path = s.root / "state.json"
-            path.write_text(json.dumps({"realm": 72, "principal": 0, "kind": kind, **options}))
-            return s.post("/v2/state", s.invoke("sign-state", s.seed, path))
         def value(resource, key):
-            entry = state("entries", resource=resource, key=key.hex())["entries"][0]
-            return bytes.fromhex(entry["value"]) if entry else None
+            revision = s.native_query({'resource': resource})['body']['resource']['revision']
+            entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]
+            return bytes.fromhex(entry['value']) if entry else None
         def create(principal, role, destination=None):
-            pid = s.command({"lifecycle": {"create": {"required": [b"data".hex(), None, None, None]}}})
-            resource = s.command({"state": {"create": {"writer": pid}}})
+            pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
+            resource = s.command({"create_resource": {"writer": pid}})
             seed, public = s.key(role)
             s.command({"grant": {"subject": principal, "public_key": public, "permissions": 88, "pid": pid}})
             for subject in (0, principal):
-                s.command({"state": {"grant": {"resource": resource, "subject": subject, "permissions": 7}}})
-            s.command({"state": {"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}}})
+                s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
+            s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
             s.command({"send": {"pid": pid, "value": frame(b"init")}})
-            s.command({"lifecycle": {"initialize": {"pid": pid, "expected_generation": 1}}})
+            s.command({"initialize": {"pid": pid, "expected_generation": 1}})
             s.command({"own": {"pid": pid, "worker": principal, "expected_generation": 2}})
             config = {"url": s.url, "realm": 72, "principal": principal, "pid": pid,
                       "generation": 3, "seed_file": str(seed), "role": role, "destination": destination}
@@ -72,12 +69,12 @@ def run(node, cli, worker, courier):
         delivery_daemon = s.start(courier, delivery_config)
         def await_input(pid):
             for _ in range(200):
-                if s.post("/v2/view", s.signed({"inspect": pid}))["input"] is not None:
+                if s.native_query({"process": pid})["body"]["process"]["input"] is not None:
                     return
                 time.sleep(.025)
             raise AssertionError(("no delivered input", pid))
 
-        control = {"mode": "drop", "bodies": [], "expired_cuts": 0}
+        control = {"mode": "drop", "bodies": [], "changed_basis": 0}
         committed, release = threading.Event(), threading.Event()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -86,14 +83,13 @@ def run(node, cli, worker, courier):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
                 envelope = json.loads(body)
                 command = envelope.get("request", {}).get("command", {})
-                is_turn = "turn" in command.get("state", {}) and envelope["request"]["principal"] == 1
+                is_turn = ("turn" in command or "turn_with_versions" in command) and envelope["request"]["principal"] == 1
                 query = envelope.get("query", {})
-                if self.path == "/v2/state" and query.get("after", 0) and not control["expired_cuts"]:
-                    # Real concurrent journal progress invalidates this inspection
-                    # cut. The framework must restart all pages without invoking
-                    # a handler on a partial snapshot or abandoning its view.
-                    s.command({"state": {"grant": {"resource": ledger_resource, "subject": 0, "permissions": 7}}})
-                    control["expired_cuts"] += 1
+                if query.get('kind', {}).get('entries', {}).get('view') and not control['changed_basis']:
+                    # Advance authority policy after capture without replacing
+                    # the view's resource root or revoking its current rights.
+                    s.command({'grant_resource': {'resource': ledger_resource, 'subject': 0, 'permissions': 7}})
+                    control['changed_basis'] += 1
                 if is_turn:
                     control["bodies"].append(body)
                 connection = HTTPConnection("127.0.0.1", s.port, timeout=5)
@@ -172,6 +168,16 @@ def run(node, cli, worker, courier):
             s.command({"send": {"pid": ledger, "value": frame(b"allow-query")}})
             once(current)
 
+            def pump_until(predicate, limit=160):
+                for _ in range(limit):
+                    if predicate(): return
+                    progressed = False
+                    for config in (current, requester_config):
+                        if s.native_query({'process': config['pid']})['body']['process']['input'] is not None:
+                            once(config)
+                            progressed = True
+                    if not progressed: time.sleep(.025)
+                raise AssertionError('Station query did not reach its recorded completion')
             query_input = s.command({"send": {"pid": requester, "value": frame(b"query")}})
             once(requester_config)
             await_input(ledger)
@@ -181,32 +187,28 @@ def run(node, cli, worker, courier):
             s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": 4}})
             current["generation"] = 5
             once(current)  # a new host publishes only previously captured bytes
-            await_input(requester)
+            pump_until(lambda: s.native_query({'process': requester})['body']['process']['input'] is not None)
             once(requester_config)  # consume one fragment, then replace its host
             s.command({"own": {"pid": requester, "worker": 2, "expected_generation": 3}})
             requester_config["generation"] = 4
-            for _ in range(4):
-                if value(requester_resource, b"last-query") is not None:
-                    break
-                await_input(requester)
-                once(requester_config)
-            assert value(requester_resource, b"last-query") is not None
-            incoming = lambda ordinal: b"\x00i" + query_input.to_bytes(8, "little") + bytes([ordinal])
-            manifest = value(requester_resource, incoming(3))
-            assert manifest[:4] == b"AIR1"
-            size = int.from_bytes(manifest[112:114], "little")
-            data = b"".join(value(requester_resource, incoming(i))[13:]
-                            for i in range((size + 223) // 224))
-            assert len(data) == size and hashlib.sha256(data).digest() == manifest[80:112]
+            pump_until(lambda: value(requester_resource, b'last-query') is not None)
+            def query_key(tag, identity, ordinal=0, fragment=0):
+                return b'\0Q' + tag.encode() + struct.pack('>QQH', identity, ordinal, fragment)
+            manifest = value(requester_resource, query_key('c', query_input))
+            assert len(manifest) == 208 and manifest[:4] == b'GQM1'
+            result_id = int.from_bytes(manifest[4:12], 'little')
+            segments, size, rows = struct.unpack_from('<QQQ', manifest, 120)
+            assert segments == 1 and rows == 1
+            data = b''.join(value(requester_resource, query_key('d', query_input, 0, index))
+                            for index in range((size + 220) // 221))
+            assert len(data) == size
+            segment = value(requester_resource, query_key('v', query_input))
+            assert hashlib.sha256(data).digest() == segment[-32:]
             with pa.ipc.open_stream(data) as reader:
                 table = reader.read_all()
-            assert table.to_pylist() == [{"id": 1, "amount": 10}]
-            assert table.schema == pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("amount", pa.int64())])
-            await_input(ledger)
-            once(current)  # durable acknowledgement; result retention is unlimited
-            result_id = int.from_bytes(manifest[4:12], "little")
-            stored = value(ledger_resource, b"\x00q" + result_id.to_bytes(8, "little") + b"\x00")
-            assert stored[123] == 3
+            assert table.to_pylist() == [{'id': 1, 'amount': 10}]
+            assert table.schema == pa.schema([pa.field('id', pa.int64(), nullable=False), pa.field('amount', pa.int64())])
+            pump_until(lambda: value(ledger_resource, query_key('j', result_id))[57] == 4)
 
             # Stop delivery long enough to order revocation ahead of continuation.
             # Captured bytes remain retained but may no longer be disclosed.
@@ -229,13 +231,16 @@ def run(node, cli, worker, courier):
             once(current, success=False)
             process = s.inspect("process", ledger)["processes"][0]
             assert process["failure"] is not None
-            assert any(item and item["position"] == bad_input for item in s.inspect("mailbox", ledger)["events"])
+            page = s.inspect("mailbox", ledger)
+            while not any(item and item["position"] == bad_input for item in page["events"]):
+                assert not page["complete"], "failed input disappeared from the mailbox"
+                page = s.inspect("mailbox", ledger, cut=page["cut"], after=page["next"])
             assert total() == 10
             # Lifecycle control stays available after a recorded handler block.
             s.command({"terminate": ledger})
             assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
-            assert control["expired_cuts"] == 1, "No paged inspection cut was invalidated"
-            print("Station: two-table turns, call/reply, exact retries, expired inspection cuts, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
+            assert control["changed_basis"] == 1, "No captured view crossed the policy change"
+            print("Station: two-table turns, call/reply, exact retries, captured views across policy changes, worker/store recovery, authorized captured Arrow replies, fencing and blocked-handler control passed.")
         finally:
             release.set()
             proxy.shutdown()

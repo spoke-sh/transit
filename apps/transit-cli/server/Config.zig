@@ -44,37 +44,33 @@ fn loadWithExecutables(init: std.process.Init, requested: ?[]const u8, diagnosti
     try Settings.environment(Self, init, &overlay, diagnostic);
     errdefer Settings.environmentOrigin(init, diagnostic);
     try Settings.shape(Self, allocator, overlay, "", diagnostic);
-    const version = if (overlay.object.get("version")) |v| (std.json.parseFromValueLeaky(u8, allocator, v, .{}) catch return diagnostic.invalidField("version", "must be 1, 2 or 3", null)) else 3;
-    if (version < 1 or version > 3) return diagnostic.invalidField("version", "must be 1, 2 or 3", null);
+    const version = if (overlay.object.get("version")) |v| (std.json.parseFromValueLeaky(u8, allocator, v, .{}) catch return diagnostic.invalidField("version", "must be 1", null)) else 1;
+    if (version != 1) return diagnostic.invalidField("version", "must be 1", null);
     var defaults = (try std.json.parseFromSlice(std.json.Value, allocator,
-        \\{"version":3,"realm":1,"ports":{"cold":19101,"cold_console":19102,"store":19103,"node":19104,"gateway":19105},"executables":{}}
+        \\{"version":1,"realm":1,"ports":{"cold":19101,"cold_console":19102,"store":19103,"node":19104,"gateway":19105},"executables":{}}
     , .{})).value;
     try defaults.object.put(allocator, "installation", .{ .string = try std.fs.path.join(allocator, &.{ cwd, ".transit" }) });
-    if (version >= 2) try defaults.object.put(allocator, "applications", (try std.json.parseFromSlice(std.json.Value, allocator, "{\"port\":19106}", .{})).value);
+    try defaults.object.put(allocator, "applications", (try std.json.parseFromSlice(std.json.Value, allocator, "{\"port\":19106}", .{})).value);
     try Settings.merge(allocator, &defaults, overlay);
     const exe_value = defaults.object.getPtr("executables").?;
     if (exe_value.* != .object) return diagnostic.invalidField("executables", "must be an object", null);
     inline for (.{ .{ "minio", "minio" }, .{ "ursula", "ursula" }, .{ "node", "transit-node" }, .{ "query_host", "transit-query-host" }, .{ "board", "transit-board" } }) |entry| {
-        if (!(comptime std.mem.eql(u8, entry[0], "board")) or version == 3) {
-            if (!exe_value.object.contains(entry[0])) {
-                diagnostic.field = "executables." ++ entry[0];
-                const found = if (!resolve_executables) entry[1] else defaultExecutable(init, entry[1]) catch |err| {
-                    return diagnostic.invalidFieldCause(err, "executables." ++ entry[0], "cannot find " ++ entry[1] ++ " beside transit or on PATH", null);
-                };
-                try exe_value.object.put(allocator, entry[0], .{ .string = found });
-            }
+        if (!exe_value.object.contains(entry[0])) {
+            diagnostic.field = "executables." ++ entry[0];
+            const found = if (!resolve_executables) entry[1] else defaultExecutable(init, entry[1]) catch |err| {
+                return diagnostic.invalidFieldCause(err, "executables." ++ entry[0], "cannot find " ++ entry[1] ++ " beside transit or on PATH", null);
+            };
+            try exe_value.object.put(allocator, entry[0], .{ .string = found });
         }
     }
     if (absolute) |name| diagnostic.atFile(name) else diagnostic.atFile("built-in server defaults");
     var self = std.json.parseFromValueLeaky(Self, allocator, defaults, .{}) catch |err| {
         return diagnostic.invalidFieldCause(err, "configuration", "contains an unknown field or invalid value", null);
     };
-    if (self.version < 1 or self.version > 3) return diagnostic.invalidField("version", "must be 1, 2 or 3", "Board requires version 3.");
+    if (self.version != 1) return diagnostic.invalidField("version", "must be 1", null);
     if (@import("builtin").os.tag != .linux) return diagnostic.invalidField("platform", "must be Linux x86_64", null);
-    if ((self.version == 1 and self.applications != null) or (self.version == 2 and self.applications == null)) return diagnostic.invalidField("applications", "does not match the configuration version", "Version 1 omits applications; version 2 requires applications; version 3 accepts it optionally.");
     if (self.realm == 0 or self.realm > @import("transit_query").protocol.max_counter) return diagnostic.invalidField("realm", "must be an integer from 1 through 9007199254740991", null);
-    if (self.version < 3 and (self.board != null or self.executables.board != null)) return diagnostic.invalidField("board and executables.board", "require configuration version 3", "Omit Board fields in older configurations and start with --no-ui. Retained installations require their recorded configuration.");
-    if (self.version == 3) {
+    {
         if (self.executables.board == null) return diagnostic.invalidFieldCause(error.BoardExecutableRequired, "executables.board", "is required", "Select the matching transit-board executable, including for --no-ui.");
         var board = self.board orelse Board{};
         if (board.port < 1024) return diagnostic.invalidField("board.port", "must be a port from 1024 through 65535", null);

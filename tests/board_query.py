@@ -1,7 +1,5 @@
 """Board's real growing inspection and separately credentialed query boundary."""
 import json
-import hashlib
-import struct
 import os
 import signal
 from pathlib import Path
@@ -27,7 +25,7 @@ def run(node, host, proof, board, browser=False):
         url = f"http://127.0.0.1:{port}"
         public = json.loads(subprocess.check_output([proof, "public"], timeout=10))
         node_config = fixture.root / "node.json"
-        node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 45, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "board-query", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 45, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "board-query", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         def admin(mode):
             result = subprocess.run([proof, url, mode, str(fixture.root if mode == "provision" else fixture.root / "cli.json")], capture_output=True, timeout=60)
             assert result.returncode == 0, result.stderr.decode()
@@ -41,7 +39,7 @@ def run(node, host, proof, board, browser=False):
             caller = json.loads((fixture.root / "cli.json").read_text())
             board_port = free_port()
             origin = f"http://127.0.0.1:{board_port}"
-            options = {"upstream": url, "realm": 45, "principal": 55, "profile": "growing_v3", "seed_file": str(fixture.root / "inspector.seed"), "public_origin": origin, "port": board_port, "request_timeout_ms": 5000, "upstream_timeout_ms": 1500, "query": {"seed_file": caller["seed_file"], "connection": caller["connection"]}}
+            options = {"upstream": url, "realm": 45, "principal": 55, "profile": "native_v1", "seed_file": str(fixture.root / "inspector.seed"), "public_origin": origin, "port": board_port, "request_timeout_ms": 5000, "upstream_timeout_ms": 1500, "query": {"seed_file": caller["seed_file"], "connection": caller["connection"], "workspace": caller["workspace"]}}
             config = fixture.root / "board.json"
             config.write_text(json.dumps(options))
             serving = start("board", [board, str(config)])
@@ -77,7 +75,7 @@ def run(node, host, proof, board, browser=False):
                     time.sleep(0.1)
                 raise AssertionError("atlas did not stabilize within read retry budget")
             caps = request("/api/v1/capabilities")
-            assert caps["profile"] == "growing_v3" and caps["query_enabled"] and caps["read_only"]
+            assert caps["profile"] == "native_v1" and caps["query_enabled"] and caps["read_only"]
             atlas = current_atlas()
             assert [row["id"] for row in atlas["resources"]["entries"] if row] == [caller["connection"]["resource"], caller["connection"]["requests"]]
             assert atlas["identity"]["permissions"] == 16
@@ -108,72 +106,76 @@ def run(node, host, proof, board, browser=False):
             for suffix in ("?after=0", "?pid=0", "?association_after=1", "?after=1&pid=1", "?pid=1&pid=1"):
                 request(path + suffix, status=400)
             request("/api/v1/resources/participation", status=400)
-            assert api({"status": {"correlation": 9007199254740991}})["status"]["phase"] == "unobserved"
-            api({"status": {"correlation": 0}}, status=400)
-            source = api({"describe": {}})["source"]
-            assert source["schema"]["value_type"] == "int64"
-            contract = api({"contract": {}})["contract"]
-            assert contract["source"] == source
-            names = [bytes(name["bytes"][:name["len"]]) for name in source["schema"]["names"]]
-            schema_wire = b'TBL1\x01' + b''.join(bytes([len(name)]) + name for name in names)
-            source_wire = b'UQS2' + struct.pack('<QBI', source["connection"]["resource"], 2, source["connection"]["table"]) + bytes([len(schema_wire)]) + schema_wire
-            assert bytes(contract["fingerprint"]) == hashlib.sha256(b'transit.query.source.v2\0' + source_wire).digest()
-            assert api({"describe": {}})["source"]["sequence"] == source["sequence"]
-            api({"prepare": {"sql": "DELETE FROM items"}}, status=400)
-            assert api({"describe": {}})["source"]["sequence"] == source["sequence"]
+            assert api({"status": "9007199254740991"})["status"] is None
+            api({"status": "not-an-id"}, status=400)
+            description = api({"describe": {}})["description"]
+            assert description["source"]["source"]["source"]["table"]["value_type"] == "int64"
+            before = admin("next-sequence").stdout
+            api({"compile": {"sql": "DELETE FROM items"}}, status=400)
+            assert admin("next-sequence").stdout == before, "invalid SQL admitted a command"
             api({"describe": {}}, headers={"Origin": "https://untrusted.example"}, status=403)
             api({"describe": {}}, headers={"Content-Type": "text/plain"}, status=400)
-            # Arbitrary Transit operations cannot cross the optional query route.
-            invalid = {"version": 1, "source": source, "plan": {}, "signed": {"request": {"version": 3, "realm": 45, "principal": 1234, "sequence": source["sequence"] + 1, "command": {"checkpoint": {}}}, "signature": [0] * 64}}
+            # Only typed finite query commands cross this optional route.
+            invalid = {"version": 1, "signed": {"request": {"version": 1, "realm": 45, "principal": 1234, "sequence": 99, "command": {"checkpoint": {}}}, "signature": [0] * 64}}
             api({"submit": {"token": json.dumps(invalid)}}, status=400)
-            prepared = api({"prepare": {"sql": "SELECT value FROM items WHERE value = 9007199254740994 LIMIT 1"}})["prepared"]
-            assert "9007199254740994" in prepared["frozen"]["token"]
-            malformed = json.loads(prepared["frozen"]["token"])
+            compiled = api({"compile": {"sql": "SELECT value FROM items WHERE value = 9007199254740994 LIMIT 1"}})["compiled"]
+            assert "9007199254740994" in json.dumps(compiled["plan"])
+            prepared = api({"next": {"namespace": "1", "bundle": compiled["bundle"]}})["prepared"]
+            malformed = json.loads(prepared["token"])
             malformed["signed"]["request"]["command"]["send"]["value"] = "00"
-            api({"submit": {"token": json.dumps(malformed)}}, status=400)
-            receipt = api({"submit": prepared["frozen"]})["receipt"]
-            # Same opaque bytes reconcile the same admission.
-            assert api({"submit": prepared["frozen"]})["receipt"] == receipt
-            correlation = receipt["position"]
+            api({"submit": {"token": json.dumps(malformed, separators=(",", ":"))}}, status=400)
+            def settle(prepared):
+                receipt = api({"submit": prepared})["receipt"]
+                assert api({"submit": prepared})["receipt"] == receipt
+                until = time.monotonic() + 60
+                while "pending" in (observed := api({"observe": receipt["position"]})["observation"]):
+                    assert time.monotonic() < until
+                    time.sleep(0.05)
+                assert "committed" in observed, observed
+                return receipt
+            def upload(namespace, bundle):
+                until = time.monotonic() + 120
+                while True:
+                    prepared = api({"next": {"namespace": namespace, "bundle": bundle}})["prepared"]
+                    if prepared is None: return
+                    settle(prepared)
+                    assert time.monotonic() < until
+            settle(prepared)
+            upload("1", compiled["bundle"])
             deadline = time.monotonic() + 120
             while True:
-                observation = api({"status": {"correlation": correlation}})["status"]
+                observation = api({"status": "1"})["status"]
                 if observation["phase"] == "complete": break
                 assert time.monotonic() < deadline, observation
                 assert all(process.poll() is None for process in processes)
                 time.sleep(0.2)
-            page = api({"page": {"correlation": correlation, "ordinal": 0}})["page"]
-            assert page["rows"][0][0] == {"int64": "9007199254740994"}
-            assert page["manifest"]["rows"] == 1 and page["next"] is None
-            # Validate the real wire body with the actual generated JS validators.
-            wire_fixture = Path(".cache/verification/m13-query-wire.json")
+            page = api({"page": {"namespace": "1"}})["page"]
+            assert page["cells"] == [[{"value": {"int64": "9007199254740994"}}]]
+            assert page["evidence"]["manifest"]["rows"] == "1" and page["evidence"]["next"] is None
+            assert page["evidence"]["manifest"]["basis"]["contract"] == compiled["contract"]
+            # Validate actual public responses using the generated JS boundary.
+            values = {"description": description, "compiled": compiled, "prepared": prepared, "page": page}
+            wire_fixture = Path(".cache/verification/native-v1-query-wire.json")
             wire_fixture.parent.mkdir(parents=True, exist_ok=True)
-            wire_fixture.write_text(json.dumps({"source": source, "prepared": prepared, "page": page}))
-            subprocess.run(["node", "tests/board_query_client.mjs"], input=json.dumps({"source": source, "prepared": prepared, "page": page}).encode(), check=True, timeout=15)
+            wire_fixture.write_text(json.dumps(values))
+            subprocess.run(["node", "tests/board_query_client.mjs"], input=json.dumps(values).encode(), check=True, timeout=15)
             admin("revoke")
-            api({"prepare": {"sql": "SELECT * FROM items"}}, status=403)
-            api({"page": {"correlation": correlation, "ordinal": 0}}, status=403)
+            api({"compile": {"sql": "SELECT * FROM items"}}, status=403)
+            api({"page": {"namespace": "1"}}, status=403)
             admin("restore")
-            # Hold the source before capture: partial/admitted work is unreadable,
-            # and cancellation retains its own exact signed transport identity.
+            # A paused source cannot expose an incomplete result. Cancellation is
+            # a separate frozen command with its own exact retry identity.
             workers["source"].send_signal(signal.SIGSTOP)
-            pending = api({"prepare": {"sql": "SELECT * FROM items"}})["prepared"]
-            active = api({"submit": pending["frozen"]})["receipt"]["position"]
-            deadline = time.monotonic() + 20
-            while api({"status": {"correlation": active}})["status"]["phase"] != "admitted":
-                assert time.monotonic() < deadline
-                time.sleep(0.1)
-            api({"page": {"correlation": active, "ordinal": 0}}, status=409)
-            cancellation = api({"prepare_cancel": {"correlation": active}})["cancellation"]
+            pending = api({"compile": {"sql": "SELECT * FROM items"}})["compiled"]
+            upload("2", pending["bundle"])
+            assert api({"status": "2"})["status"]["phase"] == "admitted"
+            api({"page": {"namespace": "2"}}, status=409)
+            cancellation = api({"prepare_control": {"namespace": "2", "operation": "cancel"}})["prepared"]
             malformed = json.loads(cancellation["token"])
-            malformed["request"]["command"]["send"]["value"] = "00"
-            api({"cancel": {"token": json.dumps(malformed)}}, status=400)
-            cancelled = api({"cancel": cancellation})["receipt"]
-            assert api({"cancel": cancellation})["receipt"] == cancelled
-            deadline = time.monotonic() + 20
-            while api({"status": {"correlation": active}})["status"]["phase"] != "cancelled":
-                assert time.monotonic() < deadline
-                time.sleep(0.1)
+            malformed["signed"]["request"]["command"]["send"]["value"] = "00"
+            api({"submit": {"token": json.dumps(malformed, separators=(",", ":"))}}, status=400)
+            settle(cancellation)
+            assert api({"status": "2"})["status"]["phase"] == "cancelled"
             workers["source"].send_signal(signal.SIGCONT)
             admin("expand-inspector")
             request("/api/v1/capabilities", status=403)
@@ -199,7 +201,7 @@ def run(node, host, proof, board, browser=False):
                 subprocess.run(["vp", "exec", "--filter", "@rey/transit-board-web", "playwright", "test", "query.spec.ts"], env=env, check=True, timeout=240)
             else:
                 admin("retire-source")
-            api({"page": {"correlation": correlation, "ordinal": 0}}, status=410)
+            api({"page": {"namespace": "1"}}, status=410)
             print("Board query: separate identity, SQL/frozen retry, exact typed page, malformed ingress, current grant/cut enforcement" + (", real Canvas/Browse and revocation" if browser else "") + " passed")
         except BaseException:
             for log in logs:

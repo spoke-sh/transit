@@ -49,7 +49,7 @@ test "whole-program validation rejects unknown unsupported and cross-kind defini
         .{ "SELECT id, value FROM items", "DELETE FROM items", error.UnsupportedStatement },
         .{ "path = '/explore'", "path = '/atlas'", error.DuplicateInterfacePath },
         .{ "path = '/explore'", "path = '//evil'", error.InvalidInterfacePath },
-        .{ "profile = 'unified_v2'", "profile = 'table_v1'", error.UnsupportedInterfaceWatch },
+        .{ "profile = 'unified_v1'", "profile = 'table_v1'", error.UnsupportedInterfaceOption },
         .{ "source_kind = 'table'", "source_kind = 'kv'", error.UnsupportedInterfaceWatch },
         .{ "source_kind = 'table'", "source_kind = 'document'", error.UnsupportedInterfaceWatch },
     };

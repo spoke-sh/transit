@@ -12,7 +12,7 @@ chain installs both public SDKs and their version-matched native artifacts.
 
 `transit-python-counter service.json service --commits 1` runs the counter;
 `transit-python-counter requester.json requester --commits 1` runs its requester.
-Configuration is explicit JSON with `url`, `profile: "growing_v3"`, `realm`,
+Configuration is explicit JSON with `url`, `profile: "native_v1"`, `realm`,
 `principal`, `pid`, `generation`, `seed_file` and `peer`. Provision each process,
 its grant/ownership and a `data` resource association first. The example selects
 `fence_on_restart`; obtain fresh ownership after a host exits. Use the configured

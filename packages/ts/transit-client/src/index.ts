@@ -148,7 +148,7 @@ export class Client {
         caps.version !== 1 ||
         !caps.operation_metadata ||
         !caps.opaque_retry ||
-        !caps.growing_v3 ||
+        !caps.native_v1 ||
         caps.max_line_bytes !== maximumLine ||
         caps.value_bytes !== limits.value_bytes ||
         caps.max_counter !== limits.max_counter

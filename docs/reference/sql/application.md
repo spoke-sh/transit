@@ -81,7 +81,7 @@ Declares one source of inspection data, a finite query, or an explicit command.
 | `kind` | Other required options |
 | --- | --- |
 | `'inspection'` | `projection`: `'atlas'`, `'resources'`, `'processes'`, `'records'`, `'capabilities'` or `'activity'`; `page_budget`: `1` |
-| `'query'` | `resource`: native identity; `source`: declared source name string; `source_kind`: `'table'`, `'kv'` or `'document'`; `schema`: 64 hex digits in a string; `profile`: `'table_v1'` or `'unified_v2'`; `query`: SQL string; `refresh`: `'snapshot'` or `'follow'`; `starts`: integer budget |
+| `'query'` | `resource`: native identity; `source`: declared source name string; `source_kind`: `'table'`, `'kv'` or `'document'`; `schema`: 64 hex digits in a string; `profile`: `'table_v1'` or `'unified_v1'`; `query`: SQL string; `refresh`: `'snapshot'` or `'follow'`; `starts`: integer budget |
 | `'command'` | `service`, `target`, `revision`: native identities/counters; `codec`: positive u16 |
 
 The query schema value is the complete `SourceDefinition.fingerprint()` commitment,
@@ -89,7 +89,7 @@ including resource and decoder/projection identity. It is not merely a column
 schema hash. The compiler checks embedded SQL syntax; source acquisition and the
 owning Fuze compiler additionally check authorized source/type compatibility.
 
-Snapshot queries require `starts = 1`. Follow requires a unified v2 Table source
+Snapshot queries require `starts = 1`. Follow requires a query v1 Table source
 and `starts` from 1 through 8. KV/Document Follow rejects, as does a non-Table
 source with `table_v1`. A binding supplies no permission or new runtime source.
 

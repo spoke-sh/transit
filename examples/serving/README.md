@@ -36,9 +36,9 @@ the exact result is the resulting i64. Socket retries never invoke the applicati
 directly. Query/read bookkeeping cannot alter its data progress marker.
 
 M21's optional `live_ingress` role adds `query_principal` and `source` alongside
-the nested `service` configuration. It composes sessions and the v2 requester
-in one resource. Application `queries: true` enables existing v2 capture and
-initializer-only `UQA2` policy publication. Cross-resource read grants must be
+the nested `service` configuration. It composes sessions and the v1 requester
+in one resource. Application `queries: true` enables existing v1 capture and
+initializer-only `UQA1` policy publication. Cross-resource read grants must be
 provisioned for both workers and the query caller. PID-scoped workers also need
 optional foreign-resource associations established
 before first activation; associations never replace those grants. The

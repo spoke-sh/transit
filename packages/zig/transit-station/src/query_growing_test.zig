@@ -2,10 +2,10 @@ const std = @import("std");
 const t = std.testing;
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Table = @import("Table.zig");
 const Frame = @import("Frame.zig");
-const q = @import("GrowingQuery.zig");
+const q = @import("Query.zig");
 const r = q.records;
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 // Independent in-memory reader/commit fixture. Public service tests qualify
@@ -288,7 +288,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
                 completion = message.frame;
             }
         }
-        if (message.frame.kind == .result_chunk and std.mem.startsWith(u8, message.frame.payload.slice(), "GQF2")) {
+        if (message.frame.kind == .result_chunk and std.mem.startsWith(u8, message.frame.payload.slice(), "GQF1")) {
             if (first_fragment == null) first_fragment = message.frame;
             var forged = try target.turn(message.frame, 99);
             try t.expectError(error.UnexpectedReplySource, q.dispatch(&forged, message.frame, context));
@@ -298,7 +298,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
                 duplicate = true;
             }
         }
-        if (message.frame.kind == .cast and std.mem.startsWith(u8, message.frame.payload.slice(), "GQG2")) {
+        if (message.frame.kind == .cast and std.mem.startsWith(u8, message.frame.payload.slice(), "GQG1")) {
             credit_frames += 1;
             var forged = try target.turn(message.frame, 99);
             try t.expectError(error.UnexpectedReplySource, q.dispatch(&forged, message.frame, context));

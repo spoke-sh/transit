@@ -1283,7 +1283,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args().collect();
     let mode = &args[1];
     let cfg: Value = serde_json::from_slice(&fs::read(&args[2])?)?;
-    assert_eq!(cfg["profile"], "growing_v3");
+    assert_eq!(cfg["profile"], "native_v1");
     if mode.starts_with("document-") {
         return Ok(document_consumer(cfg,mode)?);
     }

@@ -8,7 +8,7 @@ const Config = struct {
     endpoint: []const u8,
     seed_file: []const u8,
     realm: u64,
-    principal: u8,
+    principal: u64,
     pid: u64,
     effect: u64,
 };
@@ -55,10 +55,13 @@ pub fn main(init: std.process.Init) !void {
     const key = try wire.readKey(init.gpa, init.io, c.seed_file);
     var client = wire.Client.init(init.gpa, init.io, c.authority);
     defer client.deinit();
-    const view = try client.view(.{ .realm = c.realm, .principal = c.principal, .sequence = 0, .command = .{ .inspect = c.pid } }, key);
-    const effect = for (view.effects) |slot| {
-        if (slot) |effect| if (effect.id == c.effect) break effect;
-    } else return error.UnknownEffect;
+    var view = try client.query(.{ .realm = c.realm, .principal = c.principal, .kind = .{ .effects = .{ .pid = c.pid } } }, key);
+    const effect = found: while (true) {
+        for (view.body.effects.entries) |slot| if (slot) |item| if (item.id == c.effect) break :found item;
+        const after = view.body.effects.next orelse return error.UnknownEffect;
+        view = try client.query(.{ .realm = c.realm, .principal = c.principal, .kind = .{ .effects = .{ .pid = c.pid, .after = after, .position = view.position } } }, key);
+    };
+    if (effect.pid != c.pid or effect.id != c.effect) return error.InvalidEffect;
     if (effect.phase != .pending) return error.AttemptAlreadyAuthorized;
     const attempt = (try client.submit(try transit.sign(.{
         .realm = c.realm,

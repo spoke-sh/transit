@@ -302,9 +302,6 @@ pub fn build(b: *std.Build) void {
     }
     const exporter = b.addExecutable(.{ .name = "transit-contract", .root_module = b.createModule(.{ .root_source_file = b.path("packages/zig/transit-protocol/src/export.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_protocol", .module = protocol.module("transit_protocol") }} }) });
     b.step("contract", "Export public contract JSON Schema to stdout").dependOn(&b.addRunArtifact(exporter).step);
-    const growth_contract = b.addRunArtifact(exporter);
-    growth_contract.addArg("growth");
-    b.step("growth-contract", "Export growing-profile development contract").dependOn(&growth_contract.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = protocol.module("transit_protocol") })).step);
     const transit_board_api = b.dependency("transit_board_api", .{ .target = target, .optimize = optimize });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = transit_board_api.module("transit_board_api") })).step);
@@ -544,7 +541,7 @@ pub fn build(b: *std.Build) void {
     b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
-    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host }) |artifact| server_test.addArtifactArg(artifact);
+    for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board }) |artifact| server_test.addArtifactArg(artifact);
     if (b.option(bool, "server-faults", "Qualify interrupted bootstrap, gateway pressure and provider rollback") orelse false) server_test.addArg("--faults");
     server_test.has_side_effects = true;
     server_test.step.dependOn(&lifecycle_test.step);
@@ -673,7 +670,7 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
     }) });
     growing_service.addArtifactArg(growing_station);
-    const growing_query = b.addExecutable(.{ .name = "transit-growing-query-proof", .root_module = b.createModule(.{
+    const growing_query = b.addExecutable(.{ .name = "transit-query-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/growing_query.zig"),
         .target = target,
         .optimize = optimize,
@@ -738,7 +735,7 @@ pub fn build(b: *std.Build) void {
     query_capture.addPassthruArgs();
     query_capture.has_side_effects = true;
     query_capture.stdio = .inherit;
-    b.step("test-growing-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);
+    b.step("test-query", "Prove bounded query capture and recovery through disk Ursula").dependOn(&query_capture.step);
     const document_proof = b.addExecutable(.{ .name = "transit-document-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/document.zig"),
         .target = target,
@@ -829,27 +826,12 @@ pub fn build(b: *std.Build) void {
     binding_tests.addFileArg(b.path("tests/bindings.py"));
     binding_tests.addArtifactArg(node_artifact);
     binding_tests.addArtifactArg(cli_artifact);
-    binding_tests.addArtifactArg(delivery_artifact);
     binding_tests.addArtifactArg(station_bindings.artifact("transit_station"));
     binding_tests.addArtifactArg(client.artifact("transit_client"));
     binding_tests.addArtifactArg(station_host);
-    const binding_examples = b.step("bindings-examples", "Install the C and C++ Station callers");
-    inline for (.{ "c", "cpp" }) |language| {
-        const cpp = std.mem.eql(u8, language, "cpp");
-        const caller = b.addExecutable(.{ .name = "station-" ++ language ++ "-example", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true, .link_libcpp = cpp }) });
-        caller.root_module.addIncludePath(b.path("packages/zig/transit-station-bindings/include"));
-        caller.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
-        caller.root_module.addIncludePath(b.path("packages/cpp/transit-station/include"));
-        caller.root_module.addCSourceFile(.{ .file = b.path("examples/station-bindings/" ++ language ++ "/main." ++ language), .flags = if (cpp) &.{ "-std=c++17", "-Wall", "-Wextra", "-Werror" } else &.{ "-std=c11", "-D_POSIX_C_SOURCE=200809L", "-Wall", "-Wextra", "-Werror" } });
-        caller.root_module.linkLibrary(station_bindings.artifact("transit_station"));
-        caller.root_module.linkLibrary(client.artifact("transit_client"));
-        binding_examples.dependOn(&b.addInstallArtifact(caller, .{}).step);
-        binding_tests.addArtifactArg(caller);
-    }
-    if (b.option(bool, "bindings-foreign", "Qualify additional runtimes from the bindings development shell") orelse false) binding_tests.addArg("foreign");
     binding_tests.has_side_effects = true;
     binding_tests.stdio = .inherit;
-    b.step("test-bindings", "Qualify foreign Station callers against durable authority").dependOn(&binding_tests.step);
+    b.step("test-bindings", "Qualify current Station ABI and native port recovery").dependOn(&binding_tests.step);
     const readiness_caller = b.addExecutable(.{ .name = "transit-readiness-caller", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/readiness_client.zig"),
         .target = target,

@@ -5,14 +5,14 @@ The [protocol](../../../../contracts/FLIGHT_V1.md) specifies exact wire formats.
 
 | Dimension | Supported interface |
 | --- | --- |
-| Source/result | Public Table query v1; one explicitly configured Table per caller |
+| Source/result | Query v1 with a Table source; one explicitly configured Table per caller |
 | Application types | Two int64 columns, nullable value; full-width integers remain exact |
 | SQL | Existing Fuze read-only SELECT compiler, filters, limits, count and checked sum |
 | Wire | Apache Arrow 23.0.0 Flight/Flight SQL protobuf definitions, pinned in `proto/manifest.json` |
 | Clients | PyArrow 23.0.0; Apache ADBC release 24 Flight SQL driver 1.12.0, Python 3.13 and C vtable consumers on Linux x86_64 |
 | Discovery | `GetSchema`; `GetFlightInfo`/`DoGet` for catalogs, database schemas, Tables, Table types and selected SqlInfo |
 | Statement | `CommandStatementQuery`, one endpoint, ordered schema and finite batches through `DoGet` |
-| Admission | Explicit canonical decimal `x-transit-request-sequence`, dedicated native principal/requester; same sequence and plan reconstruct the same signed request |
+| Admission | Explicit canonical decimal `x-transit-request-sequence`, dedicated native principal/requester; same first sequence and plan reconstruct the same signed upload commands |
 | Read lifetime | Signed ticket expiry plus current caller/service/source/request authority on every bounded read and final disclosure |
 | Metadata types | Standard union/list/map schemas; application SQL types remain int64 |
 | Unsupported | Prepared parameters, transactions, writes/ingest, `ListFlights`, `DoPut`, `DoExchange`, distributed endpoints and arbitrary actions; explicit UNIMPLEMENTED |
@@ -30,7 +30,9 @@ The gateway runs in native, Compose and reference TLS deployments; see
 restart recovery, fault schedules and measured resource use.
 
 Each RPC authenticates its caller independently, including on pooled connections.
-Lost admission replies recover through the original request sequence. Tampered,
+Lost admission replies recover through the original first request sequence and
+canonical upload. Successful FlightInfo application metadata supplies the next
+sequence after the complete upload. Tampered,
 foreign and expired tickets reject. Reads enforce current permission, pin
 availability and request/source lifetime. Per-caller admission allows two
 concurrent data RPCs and refuses a third while reserving control capacity.

@@ -18,7 +18,7 @@ decoding and current-policy rules.
 Support for one boundary does not imply every Arrow type or protocol method.
 Native unified queries carry five-state nested cells; the Flight
 gateway serves finite Table v1 with int64 types. It cannot
-silently flatten arbitrary v2 Documents or KV projections into that profile.
+silently flatten arbitrary query Documents or KV projections into that profile.
 
 ## Ownership and complete results
 

@@ -7,7 +7,7 @@ const m = root.RefreshModel;
 const r = root.ReactiveModel;
 const c = root.Codec;
 const q = root.query;
-const Turn = root.station.GrowingTurn;
+const Turn = root.station.Turn;
 const Self = @This();
 principal: u64,
 source: u64,

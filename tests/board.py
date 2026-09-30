@@ -15,35 +15,36 @@ from storage import free_port, wait_ready
 
 
 def run(node, cli, board, browser=False):
-    with System(node, cli, clock_error_ms=10000) as s:
-        pids = [s.command({"spawn": {"code": 101, "initial_state": b"0".hex(), "allow_trim": True}}),
-                s.command({"spawn": {"initial_state": b"sink".hex(), "allow_trim": True}}),
-                s.command({"spawn": {"initial_state": b"<script>window.pwned=true</script>".hex(), "allow_trim": True}})]
+    with System(node, cli, clock_error_ms=10000, allow_history_trim=True) as s:
+        pids = [s.command({"spawn": {"code": 101}}),
+                s.command({"spawn": {}}), s.command({"spawn": {}})]
+        s.command({"send": {"pid": pids[2], "value": b"<script>window.pwned=true</script>".hex()}})
         s.command({"own": {"pid": pids[0], "expected_generation": 0, "worker": 0}})
         admission = s.command({"send": {"pid": pids[0], "value": b"7".hex()}})
         turn = s.command({"turn": {"pid": pids[0], "generation": 1, "input": admission,
-                                  "result": b"7".hex(), "effect": b"synthetic".hex(),
+                                  "expected_revision": 0, "effect": b"synthetic".hex(),
                                   "outputs": [{"pid": pids[1], "value": b"7".hex()}, None, None, None]}})
-        delivered = s.command({"deliver": {"pid": pids[1], "output": 1, "courier": 0}})
+        output = next(item for item in s.native_query({"outputs": {}})["body"]["outputs"]["entries"] if item)
+        delivered = s.command({"deliver": output["id"]})
         attempt = s.command({"dispatch": {"pid": pids[0], "effect": turn}})
         s.command({"observe": {"pid": pids[0], "effect": turn, "attempt": attempt, "result": None}})
         s.command({"close_effect": {"pid": pids[0], "effect": turn, "attempt": attempt}})
         blocked = s.command({"send": {"pid": pids[0], "value": b"bad".hex()}})
         s.command({"turn": {"pid": pids[0], "generation": 1, "input": blocked, "expected_revision": turn,
-                            "result": b"7".hex(), "failed": True}})
+                            "failed": True}})
         seed, public = s.key("board")
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
-        resource = s.command({"state": {"create": {"writer": pids[1], "history_ms": 0}}})
-        hidden = s.command({"state": {"create": {"writer": pids[2], "history_ms": 0}}})
+        resource = s.command({"create_resource": {"writer": pids[1], "history_ms": 0}})
+        hidden = s.command({"create_resource": {"writer": pids[2], "history_ms": 0}})
         for identifier in (resource, hidden):
-            s.command({"state": {"grant": {"resource": identifier, "subject": 0, "permissions": 7}}})
-            s.command({"state": {"associate": {"pid": pids[1], "name": str(identifier).encode().hex(), "resource": identifier}}})
-        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 1}}})
+            s.command({"grant_resource": {"resource": identifier, "subject": 0, "permissions": 7}})
+            s.command({"associate": {"pid": pids[1], "name": str(identifier).encode().hex(), "resource": identifier}})
+        s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 1}})
         port = free_port()
         origin = f"http://127.0.0.1:{port}"
         config = s.root / "board.json"
         options = {"upstream": s.url, "realm": 72, "principal": 1, "seed_file": str(seed),
-                   "public_origin": origin, "port": port}
+                   "public_origin": origin, "port": port, "profile": "native_v1"}
         config.write_text(json.dumps(options))
         isolated = s.root / "standalone"
         isolated.mkdir()
@@ -92,16 +93,18 @@ def run(node, cli, board, browser=False):
         for asset in assets:
             content, _ = request(asset.decode())
             assert seed.read_bytes().strip() not in content
-        for path in ("/assets/missing.js", "/unknown", "/api/missing"):
+        for path in ("/assets/missing.js", "/api/missing"):
             body, _ = request(path, status=400 if path == "/api/missing" else 404)
             assert b"<!doctype" not in body
+        # Declarative custom paths receive the static shell; current interface reads resolve them.
+        assert b"<!doctype" in request("/unknown")[0]
         request("/api/v1/capabilities")
         request("/api/v1/capabilities", headers={"Host": "evil.example"}, status=403)
         request("/api/v1/capabilities", headers={"Origin": "https://evil.example"}, status=403)
         request("/api/v1/capabilities", headers={"X-Forwarded-Host": "evil.example"}, status=403)
         api("processes?url=http://metadata", status=400)
         request("/api/v1/processes", method="POST", status=404)
-        request("/v2/command", method="POST", status=404)
+        request("/v1/command", method="POST", status=404)
         caps = api("capabilities")
         assert caps["read_only"] and caps["realm"] == 72 and caps["station"] is True
         snapshot = api("processes")
@@ -112,28 +115,28 @@ def run(node, cli, board, browser=False):
         assert [a["resource"] for a in api(f"processes/{pids[1]}/associations")["observation"]["associations"] if a] == [resource]
         api(f"resources/{hidden}", status=403)
         api(f"resources/{resource}/entries", status=403)
-        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 3}}})
+        s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 3}})
         assert not any(api(f"resources/{resource}/entries")["observation"]["entries"])
         writer_generation = s.inspect("process", pids[1])["processes"][0]["generation"]
         s.command({"own": {"pid": pids[1], "worker": 0, "expected_generation": writer_generation}})
         writer_generation += 1
         resource_revision = api(f"resources/{resource}")["observation"]["resources"][0]["revision"]
-        opened = s.command({"state": {"open": {"pid": pids[1], "generation": writer_generation, "input": delivered,
-            "expected_revision": 0, "resource": resource, "revision": resource_revision, "deadline_ms": int(time.time()*1000)+30000}}})
-        s.command({"state": {"turn": {"turn": {"pid": pids[1], "generation": writer_generation, "input": delivered,
-            "expected_revision": 0, "result": b"sink".hex()}, "views": [opened, None, None, None], "write_view": opened,
+        opened = s.command({"open_view": {"pid": pids[1], "generation": writer_generation, "input": delivered,
+            "expected_revision": 0, "resource": resource, "revision": resource_revision, "deadline_ms": int(time.time()*1000)+30000}})
+        s.command({"turn": {"pid": pids[1], "generation": writer_generation, "input": delivered,
+            "expected_revision": 0, "views": [opened, None, None, None], "write_view": opened,
             "mutations": [{"key": b"\x00station".hex(), "value": b"station.genserver.v1".hex()},
                           {"key": (b"\x00t"+(1).to_bytes(4,"little")).hex(), "value": b"TBL1\x01\x02id\x06amount".hex()},
-                          {"key": b"application".hex(), "value": b"station.genserver.v1".hex()}, None]}}})
+                          {"key": b"application".hex(), "value": b"station.genserver.v1".hex()}, None]}})
         framework = api(f"resources/{resource}/entries")
         lenses = [item for item in framework["framework"] if item]
         assert len(lenses) == 2 and {next(iter(item["declaration"])) for item in lenses} == {"behavior", "table"}
         assert all(item["source"]["pid"] == pids[1] and item["source"]["resource"] == resource for item in lenses)
-        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 1}}})
+        s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 1}})
         api(f"resources/{resource}/entries", status=403)  # lenses cannot bypass read revocation
-        s.command({"state": {"grant": {"resource": resource, "subject": 1, "permissions": 3}}})
+        s.command({"grant_resource": {"resource": resource, "subject": 1, "permissions": 3}})
         process = detail["observation"]["processes"][0]
-        assert process["failure"]["input"] == blocked and process["admitted"] - process["consumed"] == 1
+        assert process["failure"] == blocked and process["admitted"] - process["consumed"] == 1
         subprocess.run(["vp", "exec", "node", "tests/board_client.mjs"], input=json.dumps(detail), text=True, check=True, timeout=30)
         outbox = api(f"processes/{pids[0]}/outbox")
         assert outbox["edges"][1]["to"] == {"realm": 72, "pid": pids[1], "kind": "input", "id": delivered}
@@ -164,7 +167,7 @@ def run(node, cli, board, browser=False):
         api("processes", status=403)
         api("processes", headers=ignored, status=403)
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 17}})
-        assert api("capabilities", status=503)["err"] == "UnsafePrincipal"
+        assert api("capabilities", status=403)["err"] == "UnsafePrincipal"
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16}})
         # No stale response is served during an authority/storage outage.
         s.authority.kill()

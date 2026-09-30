@@ -8,7 +8,7 @@ defmodule ElixirStationAdapter do
   alias :beam_station_controller, as: Proof
 
   def open(c, s) do
-    {:ok, client} = Client.config(c["url"], :growing_v3)
+    {:ok, client} = Client.config(c["url"], :native_v1)
     {:ok, process} = Client.process(c["realm"], c["pid"])
     {:ok, credential} = Client.credential(c["realm"], c["principal"], c["seed_file"])
 
@@ -129,7 +129,7 @@ defmodule ElixirStationAdapter do
   def segment(r, i), do: ResultReader.segment(r, i)
 
   def recover(c) do
-    {:ok, config} = Client.config(c["url"], :growing_v3)
+    {:ok, config} = Client.config(c["url"], :native_v1)
     {:ok, client} = Client.open(config)
     {:ok, pending} = Client.recover_mutation(client, File.read!(c["pending"]))
     {:confirmed, _} = Client.dispatch_mutation(client, pending)

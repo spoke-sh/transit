@@ -31,7 +31,7 @@ def run(node, provision, worker, adapter):
         port = free_port(); url = f'http://127.0.0.1:{port}'
         public = json.loads(subprocess.check_output([provision, 'public'], timeout=10))
         config = fixture.root / 'node.json'
-        config.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=47, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='flight-outbound', journal='authority', port=port, resident_pages=8)))
+        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=47, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='flight-outbound', journal='authority', port=port, resident_pages=8)))
         state, seed, secret = fixture.root / 'saved.json', fixture.root / 'worker.seed', fixture.root / 'secret'
         seed.write_text('48'*32); secret.write_text('Bearer fixture-flight-secret')
         proto = Path(__file__).resolve().parents[1] / 'packages/zig/transit-flight/proto'

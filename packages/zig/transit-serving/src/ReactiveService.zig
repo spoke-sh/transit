@@ -4,7 +4,7 @@ const root = @import("root.zig");
 const m = root.Model;
 const r = root.ReactiveModel;
 const c = root.Codec;
-const Turn = root.station.GrowingTurn;
+const Turn = root.station.Turn;
 
 pub fn source(reader: anytype) !?r.Source {
     return if (try reader.read(m.key('W', 0, 0))) |v| try c.decode(r.Source, 'W', v) else null;

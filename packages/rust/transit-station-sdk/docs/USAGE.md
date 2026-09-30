@@ -9,7 +9,7 @@ from a private temporary directory at runtime. The executable continues to work
 after removing the extracted crates and build directory. An explicit
 `ClientConfig::with_native_directory` selects trusted replacement native files.
 Missing files, ABI differences and absent growing capabilities produce named
-errors; there is no fallback to legacy v2.
+errors; there is no fallback to incompatible definitions.
 
 ## Handler and runner
 

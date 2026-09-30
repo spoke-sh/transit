@@ -2,9 +2,8 @@
 //! credentialed controller applies the generation-fenced public operation.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Legacy;
+const Turn = @import("Turn.zig");
 const Frame = @import("Frame.zig");
-pub const max_children = 4;
 pub const Kind = enum(u8) { activation = 1, failed = 2, suspended = 3, terminated = 4, expired = 5, placement_unavailable = 6, initializing = 7 };
 pub const Phase = enum(u8) { watching = 1, retry_wait = 2, retry_requested = 3, exhausted = 4, retired = 5, suspended = 6, placement_unavailable = 7, initializing = 8 };
 pub const Observation = struct {
@@ -14,7 +13,12 @@ pub const Observation = struct {
     cut: u64,
     observed_ms: u64,
     kind: Kind,
+    fn validate(self: Observation) !void {
+        if (self.pid == 0) return error.InvalidLifecycleObservation;
+        inline for (.{ "pid", "generation", "failure", "cut", "observed_ms" }) |name| if (@field(self, name) > p.max_counter) return error.InvalidLifecycleObservation;
+    }
     pub fn encode(self: Observation) !Frame {
+        try self.validate();
         var bytes: [45]u8 = undefined;
         bytes[0..4].* = "SUP1".*;
         std.mem.writeInt(u64, bytes[4..12], self.pid, .little);
@@ -28,12 +32,14 @@ pub const Observation = struct {
     pub fn decode(frame: Frame) !Observation {
         if (frame.kind != .cast or frame.payload.len != 45 or !std.mem.eql(u8, frame.payload.data[0..4], "SUP1")) return error.InvalidLifecycleObservation;
         const bytes = frame.payload.data;
-        return .{ .pid = std.mem.readInt(u64, bytes[4..12], .little), .generation = std.mem.readInt(u64, bytes[12..20], .little), .failure = std.mem.readInt(u64, bytes[20..28], .little), .cut = std.mem.readInt(u64, bytes[28..36], .little), .observed_ms = std.mem.readInt(u64, bytes[36..44], .little), .kind = std.enums.fromInt(Kind, bytes[44]) orelse return error.InvalidLifecycleObservation };
+        const result: Observation = .{ .pid = std.mem.readInt(u64, bytes[4..12], .little), .generation = std.mem.readInt(u64, bytes[12..20], .little), .failure = std.mem.readInt(u64, bytes[20..28], .little), .cut = std.mem.readInt(u64, bytes[28..36], .little), .observed_ms = std.mem.readInt(u64, bytes[36..44], .little), .kind = std.enums.fromInt(Kind, bytes[44]) orelse return error.InvalidLifecycleObservation };
+        try result.validate();
+        return result;
     }
 };
 pub const Child = struct {
     pid: u64,
-    observer: u8,
+    observer: u64,
     limit: u8,
     backoff_ms: u32,
     attempts: u8 = 0,
@@ -45,64 +51,53 @@ pub const Child = struct {
     successor: ?u64 = null,
     phase: Phase = .watching,
     pub fn encode(self: Child) p.Value {
-        var bytes: [68]u8 = @splat(0);
+        var bytes: [75]u8 = @splat(0);
         bytes[0..4].* = "SUC1".*;
         std.mem.writeInt(u64, bytes[4..12], self.pid, .little);
-        bytes[12] = self.observer;
-        bytes[13] = self.limit;
-        bytes[14] = self.attempts;
-        bytes[15] = @backingInt(self.phase);
-        std.mem.writeInt(u32, bytes[16..20], self.backoff_ms, .little);
-        std.mem.writeInt(u64, bytes[20..28], self.generation, .little);
-        std.mem.writeInt(u64, bytes[28..36], self.failure, .little);
-        std.mem.writeInt(u64, bytes[36..44], self.cut, .little);
-        std.mem.writeInt(u64, bytes[44..52], self.observed_ms, .little);
-        std.mem.writeInt(u64, bytes[52..60], self.retry_at_ms, .little);
-        std.mem.writeInt(u64, bytes[60..68], self.successor orelse 0, .little);
+        std.mem.writeInt(u64, bytes[67..75], self.observer, .little);
+        bytes[12] = self.limit;
+        bytes[13] = self.attempts;
+        bytes[14] = @backingInt(self.phase);
+        std.mem.writeInt(u32, bytes[15..19], self.backoff_ms, .little);
+        std.mem.writeInt(u64, bytes[19..27], self.generation, .little);
+        std.mem.writeInt(u64, bytes[27..35], self.failure, .little);
+        std.mem.writeInt(u64, bytes[35..43], self.cut, .little);
+        std.mem.writeInt(u64, bytes[43..51], self.observed_ms, .little);
+        std.mem.writeInt(u64, bytes[51..59], self.retry_at_ms, .little);
+        std.mem.writeInt(u64, bytes[59..67], self.successor orelse 0, .little);
         return p.Value.init(&bytes) catch unreachable;
     }
     pub fn decode(value: p.Value) !Child {
         try value.validate();
-        if (value.len != 68 or !std.mem.eql(u8, value.data[0..4], "SUC1")) return error.InvalidChild;
+        if (value.len != 75 or !std.mem.eql(u8, value.data[0..4], "SUC1")) return error.InvalidChild;
         const b = value.data;
-        const successor = std.mem.readInt(u64, b[60..68], .little);
-        const child: Child = .{ .pid = std.mem.readInt(u64, b[4..12], .little), .observer = b[12], .limit = b[13], .attempts = b[14], .phase = std.enums.fromInt(Phase, b[15]) orelse return error.InvalidChild, .backoff_ms = std.mem.readInt(u32, b[16..20], .little), .generation = std.mem.readInt(u64, b[20..28], .little), .failure = std.mem.readInt(u64, b[28..36], .little), .cut = std.mem.readInt(u64, b[36..44], .little), .observed_ms = std.mem.readInt(u64, b[44..52], .little), .retry_at_ms = std.mem.readInt(u64, b[52..60], .little), .successor = if (successor == 0) null else successor };
-        if (child.pid == 0 or child.pid > p.max_counter or child.observer == 0 or child.observer >= p.max_principals or child.limit > 16 or child.attempts > child.limit or child.backoff_ms > 60000) return error.InvalidChild;
+        const successor = std.mem.readInt(u64, b[59..67], .little);
+        const child: Child = .{ .pid = std.mem.readInt(u64, b[4..12], .little), .observer = std.mem.readInt(u64, b[67..75], .little), .limit = b[12], .attempts = b[13], .phase = std.enums.fromInt(Phase, b[14]) orelse return error.InvalidChild, .backoff_ms = std.mem.readInt(u32, b[15..19], .little), .generation = std.mem.readInt(u64, b[19..27], .little), .failure = std.mem.readInt(u64, b[27..35], .little), .cut = std.mem.readInt(u64, b[35..43], .little), .observed_ms = std.mem.readInt(u64, b[43..51], .little), .retry_at_ms = std.mem.readInt(u64, b[51..59], .little), .successor = if (successor == 0) null else successor };
+        if (child.pid == 0 or child.pid > p.max_counter or child.observer == 0 or child.observer > p.max_counter or child.limit > 16 or child.attempts > child.limit or child.backoff_ms > 60000) return error.InvalidChild;
+        inline for (.{ "generation", "failure", "cut", "observed_ms", "retry_at_ms" }) |field| if (@field(child, field) > p.max_counter) return error.InvalidChild;
+        if (child.successor) |pid| if (pid > p.max_counter) return error.InvalidChild;
         return child;
     }
-    pub fn action(self: Child) ?p.Lifecycle.Command {
+    pub fn action(self: Child) ?p.Growth.Command {
         if (self.phase != .retry_requested) return null;
-        return .{ .retry = .{ .pid = self.pid, .expected_generation = self.generation, .failure = self.failure } };
+        return .{ .retry = .{ .pid = self.pid, .expected_generation = self.generation, .failure_input = self.failure } };
     }
 };
 pub fn key(pid: u64) p.Value {
-    return @import("Query.zig").key('c', pid, 0);
+    return @import("QueryPolicy.zig").key('c', pid, 0);
 }
-pub fn get(turn: *const Turn, pid: u64) !Child {
-    return Child.decode(turn.get(key(pid)) orelse return error.ChildNotFound);
+pub fn get(turn: anytype, pid: u64) !Child {
+    return Child.decode((try turn.read(key(pid))) orelse return error.ChildNotFound);
 }
-pub fn register(turn: *Turn, child: Child) !void {
+pub fn register(turn: anytype, child: Child) !void {
     _ = try Child.decode(child.encode());
     if (child.attempts != 0 or child.phase != .watching or child.successor != null) return error.InvalidChild;
-    if (turn.get(key(child.pid)) != null) return error.ChildExists;
-    var count: usize = 0;
-    for (turn.entries) |slot| if (slot) |entry| {
-        if (entry.key.len == 11 and entry.key.data[0] == 0 and entry.key.data[1] == 'c') count += 1;
-    };
-    for (turn.decision.mutations) |slot| if (slot) |mutation| {
-        if (mutation.key.len == 11 and mutation.key.data[0] == 0 and mutation.key.data[1] == 'c' and mutation.value != null) {
-            const existed = for (turn.entries) |old| {
-                if (old) |entry| if (entry.key.eql(mutation.key)) break true;
-            } else false;
-            if (!existed) count += 1;
-        }
-    };
-    if (count >= max_children) return error.ChildBudgetExceeded;
+    if ((try turn.read(key(child.pid))) != null) return error.ChildExists;
     try turn.write(key(child.pid), child.encode());
 }
 /// A trusted provisioner must supply a separately created PID. A stopped or
 /// expired child is never revived and its old mailbox is never transferred.
-pub fn replace(turn: *Turn, old_pid: u64, expected_cut: u64, child: Child) !void {
+pub fn replace(turn: anytype, old_pid: u64, expected_cut: u64, child: Child) !void {
     var old = try get(turn, old_pid);
     if (old.phase != .retired or old.cut != expected_cut or old.successor != null or old_pid == child.pid) return error.InvalidReplacement;
     const before = turn.decision;
@@ -111,9 +106,10 @@ pub fn replace(turn: *Turn, old_pid: u64, expected_cut: u64, child: Child) !void
     old.successor = child.pid;
     try turn.write(key(old_pid), old.encode());
 }
-pub fn observe(turn: *Turn, observation: Observation) !void {
+pub fn observe(turn: anytype, observation: Observation) !void {
+    try observation.validate();
     var child = try get(turn, observation.pid);
-    switch (turn.delivery.input.origin.source) {
+    switch (turn.delivery.input.origin) {
         .external => |origin| if (origin.principal != child.observer) return error.UnexpectedLifecycleObserver,
         else => return error.UnexpectedLifecycleObserver,
     }
@@ -162,9 +158,10 @@ pub fn observe(turn: *Turn, observation: Observation) !void {
 }
 
 test "retry intent is durable and bounded; expiry is terminal and replacement names a new PID" {
-    var turn = try Turn.fixture(.{});
+    var turn_store: @import("TestStore.zig") = .{};
+    var turn = try turn_store.turn(.{});
     try register(&turn, .{ .pid = 8, .observer = 3, .limit = 1, .backoff_ms = 10 });
-    turn.delivery.input.origin.source = .{ .external = .{ .principal = 3, .policy_revision = 1 } };
+    turn.delivery.input.origin = .{ .external = .{ .principal = 3, .policy_revision = 1 } };
     var event: Observation = .{ .pid = 8, .generation = 3, .failure = 20, .cut = 30, .observed_ms = 100, .kind = .failed };
     try observe(&turn, event);
     try std.testing.expect((try get(&turn, 8)).action() == null);
@@ -194,4 +191,22 @@ test "retry intent is durable and bounded; expiry is terminal and replacement na
     try replace(&turn, 9, 32, .{ .pid = 10, .observer = 3, .limit = 1, .backoff_ms = 0 });
     try std.testing.expectEqual(@as(?u64, 10), (try get(&turn, 9)).successor);
     try std.testing.expectError(error.InvalidReplacement, replace(&turn, 9, 32, .{ .pid = 11, .observer = 3, .limit = 1, .backoff_ms = 0 }));
+}
+
+test "supervisor observation carries independent full-width identity and time fields" {
+    const t = std.testing;
+    const value: Observation = .{ .pid = 65536, .generation = p.max_counter, .failure = 0x010203040506, .cut = 0x111213141516, .observed_ms = 0x212223242526, .kind = .failed };
+    const frame = try value.encode();
+    try t.expectEqualDeep(value, try Observation.decode(frame));
+    // Independent byte coordinates prevent adjacent fields from aliasing.
+    try t.expectEqual(value.generation, std.mem.readInt(u64, frame.payload.data[12..20], .little));
+    try t.expectEqual(value.failure, std.mem.readInt(u64, frame.payload.data[20..28], .little));
+    try t.expectEqual(value.cut, std.mem.readInt(u64, frame.payload.data[28..36], .little));
+    try t.expectEqual(value.observed_ms, std.mem.readInt(u64, frame.payload.data[36..44], .little));
+    var bad = frame;
+    bad.payload.len -= 1;
+    try t.expectError(error.InvalidLifecycleObservation, Observation.decode(bad));
+    bad = frame;
+    std.mem.writeInt(u64, bad.payload.data[12..20], p.max_counter + 1, .little);
+    try t.expectError(error.InvalidLifecycleObservation, Observation.decode(bad));
 }

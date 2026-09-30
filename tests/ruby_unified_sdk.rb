@@ -21,7 +21,7 @@ def codecs(config)
     check(bundle.data.frozen?)
   end
   begin
-    Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 2), value: Q::Decoder.new(type: :utf8)),
+    Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 1), value: Q::Decoder.new(type: :utf8)),
       Q::Plan.new(projection: [0]), Q::Budgets.new(pages: 1, segments: 1, result_bytes: 1))
     raise 'Unsupported decoder accepted'
   rescue Transit::Error
@@ -65,7 +65,7 @@ def serve(config)
   bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], predicate:
     Q::Compare.new(column: doc ? 0 : 1, comparison: :ne, value: Q::Scalar.new(type: :utf8, value: 'x'*512))), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
   check(bundle.data == File.binread(config.fetch('bundle')))
-  cfg = Transit::ClientConfig.new(url: config.fetch('url'), profile: :growing_v3, timeout_ms: 10000)
+  cfg = Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000)
   credential = Transit::Credential.new(realm: v.fetch('realm'), principal: v.fetch('principal'), seed_file: config.fetch('seed_file'))
   Q::Client.open(cfg, credential, connection) do |client|
     description = client.describe(source)

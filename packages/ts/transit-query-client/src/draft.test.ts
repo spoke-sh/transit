@@ -8,7 +8,7 @@ afterEach(() => vi.useRealTimers());
 const contract = Array(32).fill(1);
 const limits = { pages: "8", segments: "8", result_bytes: "65536" };
 const source = {
-  version: 2,
+  version: 1,
   resource: 4,
   source: { table: { id: 1, names: ["id", "value"], value_type: "int64" as const } },
 };
@@ -18,7 +18,7 @@ const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
   limits,
   contract,
   schema: Array(32).fill(2),
-  plan: { version: 2, projection: [1], limit: "1", aggregate: "rows", predicate: { all: {} } },
+  plan: { version: 1, projection: [1], limit: "1", aggregate: "rows", predicate: { all: {} } },
 };
 const page: ResultPage = {
   cells: [[{ value: { int64: "7" } }]],
@@ -83,10 +83,10 @@ function fixture() {
             policy_revision: "1",
             limits,
             capabilities: {
-              version: 2,
-              source: 2,
-              plan: 2,
-              result: 2,
+              version: 1,
+              source: 1,
+              plan: 1,
+              result: 1,
               bundle_bytes: 16384,
               part_bytes: 128,
               segment_bytes: 65536,
@@ -98,7 +98,7 @@ function fixture() {
             },
           },
           sql: {
-            version: 2,
+            version: 1,
             statement_bytes: 4096,
             named_columns: 2,
             star_columns: 8,

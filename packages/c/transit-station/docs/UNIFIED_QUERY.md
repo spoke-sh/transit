@@ -1,8 +1,8 @@
 # Unified state queries
 
-Include `transit/unified_query.h` for the explicit v2 KV/Table/accepted-Document
+Include `transit/unified_query.h` for the explicit v1 KV/Table/accepted-Document
 profile. This is separate from the original Table query API in `station.h`.
-[The shared contract](../../../../contracts/UNIFIED_QUERY_V2.md) defines source
+[The shared contract](../../../../contracts/UNIFIED_QUERY_V1.md) defines source
 identity, decoder versions, projection budgets, five cell states and availability.
 
 Build a `transit_station_unified_source`, typed plan and positive work budgets,

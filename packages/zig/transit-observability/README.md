@@ -25,7 +25,7 @@ external cancellation. The owning code sets `protocol_outcome` separately.
 | `transit.caller.turn`, `transit.caller.activation` | Caller-local computation/proposal progress and activation lifecycle |
 
 The latter coverage is implemented with each owning component, not implied just
-by these shared names. A receipt can be a retry of earlier acceptance. The v2
+by these shared names. A receipt can be a retry of earlier acceptance. The v1
 response does not distinguish fresh and historical receipts; no fresh-commit
 metric is inferred from it. Operation names (`send`, `turn`, `deliver`, `dispatch`,
 `observe`, `close_effect`, etc.) preserve which protocol boundary was called.

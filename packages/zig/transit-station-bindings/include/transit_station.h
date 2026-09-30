@@ -7,8 +7,8 @@
 extern "C" {
 #endif
 #define STATION_ABI_VERSION 1u
+#define STATION_ABI_DEFINITION "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
 #define STATION_MINIMUM_STACK_BYTES 8388608u
-typedef struct station_server station_server;
 typedef struct station_growing_server station_growing_server;
 typedef struct station_query_client station_query_client;
 typedef struct station_buffer station_buffer;
@@ -48,17 +48,11 @@ uint32_t station_growing_finish(station_growing_server * arg0, uint64_t arg1, ui
 uint32_t station_growing_finish_result(station_growing_server * arg0, uint64_t arg1, uint32_t arg2, station_buffer ** arg3);
 uint32_t station_growing_discard(station_growing_server * arg0, uint64_t arg1);
 uint32_t station_growing_pending(station_growing_server * arg0, station_buffer ** arg1);
+uint32_t station_abi_definition_matches(const uint8_t * arg0, size_t arg1);
 uint32_t station_abi_version(void);
 uint32_t station_json_extract(const uint8_t * arg0, size_t arg1, const uint8_t * arg2, size_t arg3, uint32_t arg4, station_buffer ** arg5);
 uint32_t station_frame_encode(uint32_t arg0, uint64_t arg1, const uint8_t * arg2, size_t arg3, station_buffer ** arg4);
-uint32_t station_server_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_server ** arg6);
-void station_server_destroy(station_server * arg0);
-uint32_t station_server_next(station_server * arg0, uint64_t arg1, station_buffer ** arg2);
-uint32_t station_server_apply(station_server * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);
-uint32_t station_server_finish(station_server * arg0, uint32_t arg1);
-uint32_t station_server_pending(station_server * arg0, station_buffer ** arg1);
 const uint8_t * station_buffer_data(const station_buffer * arg0);
-uint32_t station_arrow_cell(const uint8_t * arg0, size_t arg1, uint32_t arg2, uint32_t arg3, station_buffer ** arg4);
 uint32_t station_growing_arrow_cell(const uint8_t * arg0, size_t arg1, uint32_t arg2, uint32_t arg3, station_buffer ** arg4);
 size_t station_buffer_size(const station_buffer * arg0);
 void station_buffer_destroy(station_buffer * arg0);

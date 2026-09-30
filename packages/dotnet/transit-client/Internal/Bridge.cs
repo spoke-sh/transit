@@ -15,7 +15,7 @@ internal sealed class Bridge : IDisposable
         package = new NativePackage("client", config.NativeDirectory);
         try {
             Api = new NativeApi(package.Library);
-            if (Api.transit_client_abi_version() != NativeApi.Version || Api.transit_client_supports_kind(6) != 1 || Api.transit_client_supports_kind(7) != 1)
+            if (Api.transit_client_abi_definition_matches(Value.Utf8.GetBytes(NativeApi.Definition), (nuint)NativeApi.Definition.Length) != 1 || Api.transit_client_abi_version() != NativeApi.Version || Api.transit_client_supports_kind(6) != 1 || Api.transit_client_supports_kind(7) != 1)
                 throw Value.Incompatible("native-client-version");
             byte[] endpoint = Value.Utf8.GetBytes(config.NativeEndpoint);
             uint status = Api.transit_client_create(NativeApi.Version, endpoint, (nuint)endpoint.Length, config.TimeoutMillis, out client);
@@ -96,7 +96,7 @@ internal sealed class Bridge : IDisposable
             JsonObject value = Value.Object(Value.Parse(Buffer(status, buffer, "operation-metadata")));
             Schema.Require(Value.Object(Value.Object(Value.Contract["schemas"])["OperationMetadata"]), value);
             if (Value.Number(value["version"], 1) != 1) throw Value.Incompatible("operation-metadata-version");
-            if (Value.String(value["profile"]) != "growing_v3" || Value.String(value["kind"]) != "growing_command" || value["command"] is null ||
+            if (Value.String(value["profile"]) != "native_v1" || Value.String(value["kind"]) != "growing_command" || value["command"] is null ||
                 (sendOnly && Value.String(value["command"]) != "send")) throw new TransitException(ErrorKind.UnsupportedCapability, "recovery-kind");
             return value;
         } finally { Api.transit_operation_destroy(operation); }
@@ -134,7 +134,7 @@ internal sealed class Bridge : IDisposable
     {
         byte[] frozen = Prepare(7, credential, Value.Obj(("realm", credential.Realm), ("principal", credential.Principal), ("kind", Value.Obj(("capabilities", Value.Obj())))));
         JsonObject value = Call(frozen, false), caps = Value.Object(Value.Object(value["body"])["capabilities"]);
-        if (Value.Number(value["version"], 1) != 3 || Value.Number(caps["version"], 1) != 3 || Value.String(caps["profile"]) != "growing_v1")
+        if (Value.Number(value["version"], 1) != 1 || Value.Number(caps["version"], 1) != 1 || Value.String(caps["profile"]) != "growing_v1")
             throw new TransitException(ErrorKind.UnsupportedCapability, "authority-capabilities");
         return new Capabilities(Value.Number(value["realm"], 1), Value.Number(value["position"]), Value.Number(value["principal_sequence"]),
             checked((uint)Value.Number(caps["page_entries"], 1)), checked((uint)Value.Number(caps["mutation_budget"], 1)), checked((uint)Value.Number(caps["output_budget"], 1)),

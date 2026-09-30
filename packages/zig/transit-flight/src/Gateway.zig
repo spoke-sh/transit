@@ -14,11 +14,12 @@ const Self = @This();
 pub const max_callers = 8;
 pub const request_bytes = 8 * 1024 * 1024;
 pub const arrow_bytes = root.Metadata.working_bytes;
+pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, table: u32, name: []const u8, requester: u64, requests: u64 };
 pub const Caller = struct {
     /// Hash of a private high-entropy Bearer credential; raw tokens never persist
     /// in gateway state, telemetry or durable query payloads.
     credential: [32]u8,
-    connection: q.Model.Connection,
+    connection: Connection,
     key: p.Ed25519.KeyPair,
     service: u64,
     ingress_resource: u64,
@@ -90,7 +91,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
         const status: u8 = switch (err) {
             error.FlightUnauthenticated => 16,
             error.AccessDenied, error.QueryAccessDenied, error.ServingDenied, error.FlightTicketScope, error.SignatureVerificationFailed => 7,
-            error.FlightTicketExpired, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ServiceUnpublished => 9,
+            error.FlightTicketExpired, error.ResourceUnavailable, error.QuerySourceUnavailable, error.ServiceUnpublished, error.ProcessTerminated, error.ProcessExpired => 9,
             error.UnsupportedFlightCommand, error.UnsupportedFlightMetadata, error.UnsupportedQuery, error.UnsupportedFlightType => 12,
             error.FlightCallerCapacity, error.OutOfMemory, error.GrpcBudgetExceeded => 8,
             error.QueryBusy, error.FlightSequenceConflict => 10,
@@ -138,7 +139,7 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     wire.timeout_ms = self.config.native_timeout_ms;
     wire.observer = self.diagnostics;
     const caller = self.config.callers[index];
-    var client: q.Client = .{ .wire = &wire, .connection = caller.connection, .key = caller.key };
+    var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
     var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace };
     const method = try request.method();
@@ -171,11 +172,12 @@ const Call = struct {
     io: Io,
     allocator: std.mem.Allocator,
     caller: Caller,
-    client: *q.Client,
+    client: *q.UnifiedClient,
     adapter: s.Adapter,
     response: *server.Response,
     workspace: []u8,
-    output: [16384]u8 = undefined,
+    output: [f.Unified.Arrow.segment_bytes]u8 = undefined,
+    next_sequence: ?u64 = null,
     ticket_buffer: [root.Ticket.max_bytes]u8 = undefined,
     fn now(self: *Call) !u64 {
         const time = Io.Clock.real.now(self.io).toMilliseconds();
@@ -195,11 +197,16 @@ const Call = struct {
         }
         // Inspection alone is insufficient, including metadata and empty rows.
         inline for (.{ "resource", "requests" }) |field| {
-            const access = (try self.client.query(.{ .read_access = @field(caller.connection, field) })).body.read_access;
+            const access = (self.client.resources().query(.{ .read_access = @field(caller.connection, field) }) catch |err| {
+                if (err == error.Rejected) switch (self.client.wire.last_rejection orelse return err) {
+                    .StateResourceExpired, .UnknownStateResource, .RetiredProcess => return error.ResourceUnavailable,
+                    else => {},
+                };
+                return err;
+            }).body.read_access;
             if (access.phase != .active) return error.QuerySourceUnavailable;
         }
-        const source = try self.client.describe();
-        if (!std.mem.eql(u8, &(try source.schema.fingerprint()), &(try caller.schema.fingerprint()))) return error.QuerySourceUnavailable;
+        _ = try self.client.describe(self.definition());
         try self.response.check();
     }
     fn send(self: *Call, value: anytype) !void {
@@ -219,7 +226,7 @@ const Call = struct {
         var schema: []const u8 = undefined;
         var reference: root.Ticket.Reference = undefined;
         var rows: u64 = 0;
-        var total_bytes: u64 = 0;
+        var total_bytes: i64 = 0;
         if (statement) {
             var decoded = try pb.decode(w.CommandStatementQuery, self.allocator, command.value.value, .{ .max_arena_bytes = 65536 });
             defer decoded.deinit();
@@ -231,25 +238,20 @@ const Call = struct {
                 if (raw_sequence.len == 0 or raw_sequence.len > 16 or raw_sequence[0] == '0') return error.InvalidQueryIdentity;
                 for (raw_sequence) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidQueryIdentity;
                 const sequence = std.fmt.parseInt(u64, raw_sequence, 10) catch return error.InvalidQueryIdentity;
-                const signed = try self.client.prepareSequence(decoded.value.query, self.caller.schema, sequence);
-                const receipt = self.client.submitSequence(signed) catch |err| {
-                    if (err == error.Rejected or err == error.Conflict) switch (self.client.wire.last_rejection orelse return err) {
-                        .ConflictingRetry, .SequenceGap, .RetryHorizonExceeded => return error.FlightSequenceConflict,
-                        else => {},
-                    };
-                    return err; // No automatic mutation retry or replacement sequence.
-                };
-                const correlation = receipt.position;
+                const correlation = sequence; // Upload namespace is the caller's first native sequence.
+                self.next_sequence = try self.upload(decoded.value.query, sequence);
                 const manifest = try self.awaitResult(correlation);
                 // Qualify within the existing finite transport profile before
                 // issuing access; no hidden whole-result buffer or raised bound.
-                if (manifest.segments == 0 or manifest.segments > 63 or manifest.bytes > 240 * 1024) return error.GrpcBudgetExceeded;
-                const captured = try self.client.segment(correlation, 0, &self.output, self.workspace);
-                if (!std.meta.eql(captured.result, manifest)) return error.InvalidResultManifest;
-                schema = (try root.Ipc.parts(captured.bytes, self.workspace)).schema_message;
-                reference = .{ .statement = .{ .correlation = correlation, .manifest = digest((try manifest.encode()).slice()) } };
-                rows = manifest.rows;
-                total_bytes = manifest.bytes;
+                if (manifest.checkpoint.progress.segments == 0 or manifest.checkpoint.progress.segments > 63 or manifest.checkpoint.bytes > 240 * 1024) return error.GrpcBudgetExceeded;
+                var decoded_rows: f.Unified.Inspect.Batch = undefined;
+                const captured = try self.client.page(correlation, null, self.allocator, self.workspace, &self.output, &decoded_rows);
+                if (!std.meta.eql(captured.manifest, manifest)) return error.InvalidResultManifest;
+                schema = (try self.tableParts(captured, &decoded_rows)).schema_message;
+                reference = .{ .statement = .{ .correlation = correlation, .manifest = try manifestDigest(manifest) } };
+                rows = manifest.checkpoint.progress.rows;
+                // Wire bytes differ from the verified durable cell encoding.
+                total_bytes = -1;
             }
         } else {
             if (descriptor.cmd.len > root.Ticket.max_command_bytes) return error.InvalidFlightCommand;
@@ -257,7 +259,7 @@ const Call = struct {
             const ipc = try root.Ipc.parts(bytes, self.workspace);
             schema = ipc.schema_message;
             rows = ipc.rows;
-            total_bytes = bytes.len;
+            total_bytes = @intCast(bytes.len);
             reference = .{ .metadata = .{ .command = descriptor.cmd, .digest = digest(bytes) } };
         }
         try self.authorize(false);
@@ -273,25 +275,84 @@ const Call = struct {
             break :blk ticket_envelope[0..envelope_size];
         } else bytes;
         const endpoint: w.FlightEndpoint = .{ .ticket = .{ .ticket = ticket_bytes }, .expiration_time = .{ .seconds = @intCast(expires / 1000), .nanos = @intCast((expires % 1000) * 1000000) } };
-        try self.send(w.FlightInfo{ .schema = schema, .flight_descriptor = descriptor, .endpoint = &.{endpoint}, .total_records = @intCast(rows), .total_bytes = @intCast(total_bytes), .ordered = true });
+        const metadata = if (self.next_sequence) |next| try std.json.Stringify.valueAlloc(self.allocator, .{ .version = @as(u8, 1), .next_sequence = next }, .{}) else "";
+        try self.send(w.FlightInfo{ .app_metadata = metadata, .schema = schema, .flight_descriptor = descriptor, .endpoint = &.{endpoint}, .total_records = @intCast(rows), .total_bytes = @intCast(total_bytes), .ordered = true });
     }
-    fn awaitResult(self: *Call, correlation: u64) !q.station.GrowingQuery.Manifest {
+    fn definition(self: *Call) q.SourceDefinition {
+        return .{ .resource = self.caller.connection.resource, .source = .{ .table = .{ .id = self.caller.connection.table, .schema = self.caller.schema } } };
+    }
+    fn manifestDigest(manifest: q.UnifiedRecords.Manifest) ![32]u8 {
+        var bytes: [q.UnifiedRecords.Manifest.max_bytes]u8 = undefined;
+        return digest(try manifest.encode(&bytes));
+    }
+    /// Freeze a deterministic sequence of current upload commands. A repeated
+    /// HTTP request recreates the same bytes, including after host loss; it never
+    /// reads a new native sequence or substitutes a different operation.
+    fn upload(self: *Call, sql: []const u8, first: u64) !u64 {
+        if (first == 0 or first > p.max_counter) return error.InvalidQueryIdentity;
+        const limits: q.Bundle.Limits = .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 };
+        const description = try self.client.describe(self.definition());
+        if (!description.limits.permits(limits)) return error.QueryBudgetExceeded;
+        const bundle = try q.Bundle.fromSql(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits);
+        const reference = try bundle.reference(self.caller.connection.requests, first);
+        var encoded: [q.Bundle.max_bytes]u8 = undefined;
+        const bytes = try bundle.encode(&encoded);
+        const parts = (bytes.len + q.UnifiedRequest.part_bytes - 1) / q.UnifiedRequest.part_bytes;
+        if (first > p.max_counter - parts - 3) return error.InvalidQueryIdentity;
+        var sequence = first;
+        try self.uploadStep(sequence, .{ .begin = reference });
+        sequence += 1;
+        var offset: usize = 0;
+        while (offset < bytes.len) {
+            const ordinal: u32 = @intCast(offset / q.station.Publication.chunk_bytes);
+            const second = offset % q.station.Publication.chunk_bytes != 0;
+            const end = @min(bytes.len, offset + q.UnifiedRequest.part_bytes);
+            try self.uploadStep(sequence, .{ .part = .{ .namespace = first, .ordinal = ordinal, .second = second, .bytes = bytes[offset..end] } });
+            sequence += 1;
+            offset = end;
+        }
+        try self.uploadStep(sequence, .{ .seal = first });
+        try self.uploadStep(sequence + 1, .{ .submit = first });
+        return sequence + 2;
+    }
+    fn uploadStep(self: *Call, sequence: u64, command: q.UnifiedRequest.Command) !void {
+        try self.authorize(true);
+        const prepared: q.UnifiedClient.Prepared = .{ .signed = try p.Growth.sign(.{ .realm = self.caller.connection.realm, .principal = self.caller.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.caller.connection.requester, .value = try (q.station.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, self.caller.key) };
+        const receipt = self.client.submit(prepared) catch |err| {
+            if (err == error.Rejected or err == error.Conflict) switch (self.client.wire.last_rejection orelse return err) {
+                .ConflictingRetry, .SequenceGap, .RetryHorizonExceeded => return error.FlightSequenceConflict,
+                else => {},
+            };
+            return err;
+        };
         while (true) {
             try self.response.check();
-            const status = self.client.status(correlation) catch |err| {
-                if (q.wire.Client.unavailable(err) or err == error.QueryChanged) {
+            switch (try self.client.observe(receipt.position)) {
+                .committed => return,
+                .rejected => return error.QuerySourceUnavailable,
+                .pending => try self.io.sleep(.fromMilliseconds(100), .awake),
+            }
+        }
+    }
+    fn awaitResult(self: *Call, namespace: u64) !q.UnifiedRecords.Manifest {
+        while (true) {
+            try self.response.check();
+            const status = self.client.status(namespace) catch |err| {
+                if (q.wire.Client.unavailable(err) or self.client.readConflict(err)) {
                     try self.io.sleep(.fromMilliseconds(100), .awake);
                     continue;
                 }
                 return err;
             };
-            switch (status.phase) {
-                .complete => return status.manifest orelse error.InvalidResultManifest,
-                .busy => return error.QueryBusy,
+            if (status) |current| switch (current.phase) {
+                .complete => {
+                    const opened = try q.UnifiedResult.open(current.manifest orelse return error.InvalidResultManifest, .{ .resource = self.caller.connection.resource, .source = self.caller.connection.source, .requester = self.caller.connection.requester, .correlation = current.correlation, .request = current.reference }, self.client.resources(), self.allocator);
+                    return opened.manifest;
+                },
                 .denied => return error.QueryAccessDenied,
-                .cancelled, .expired, .failed, .rejected => return error.QuerySourceUnavailable,
+                .cancelled, .retired, .rejected => return error.QuerySourceUnavailable,
                 else => {},
-            }
+            };
             try self.io.sleep(.fromMilliseconds(100), .awake);
         }
     }
@@ -320,32 +381,33 @@ const Call = struct {
                 try self.disclose(ticket, w.FlightData{ .data_header = ipc.batch_header, .data_body = ipc.batch_body });
             },
             .statement => |value| {
-                var ordinal: u64 = 0;
-                var rows: u64 = 0;
-                var byte_count: u64 = 0;
-                var chain: [32]u8 = @splat(0);
+                var cursor: ?q.UnifiedResult.Cursor = null;
                 while (true) {
                     try self.response.check();
-                    const captured = try self.client.segment(value.correlation, ordinal, &self.output, self.workspace);
-                    const manifest = captured.result;
-                    if (!std.mem.eql(u8, &digest((try manifest.encode()).slice()), &value.manifest)) return error.InvalidFlightTicket;
-                    const ipc = try root.Ipc.parts(captured.bytes, self.workspace);
-                    if (ordinal == 0) try self.disclose(ticket, w.FlightData{ .data_header = ipc.schema_header });
-                    chain = try captured.segment.extend(chain);
-                    rows = try std.math.add(u64, rows, captured.segment.rows);
-                    byte_count = try std.math.add(u64, byte_count, captured.bytes.len);
+                    // Each page's decoded data and source metadata have bounded
+                    // lifetime; long results cannot grow the RPC arena.
+                    var page_arena = std.heap.ArenaAllocator.init(self.allocator);
+                    defer page_arena.deinit();
+                    var decoded_rows: f.Unified.Inspect.Batch = undefined;
+                    const captured = try self.client.page(value.correlation, cursor, page_arena.allocator(), self.workspace, &self.output, &decoded_rows);
+                    if (!std.mem.eql(u8, &try manifestDigest(captured.manifest), &value.manifest)) return error.InvalidFlightTicket;
+                    const ipc = try self.tableParts(captured, &decoded_rows);
+                    if (cursor == null) try self.disclose(ticket, w.FlightData{ .data_header = ipc.schema_header });
                     try self.disclose(ticket, w.FlightData{ .data_header = ipc.batch_header, .data_body = ipc.batch_body });
-                    ordinal += 1;
-                    if (ordinal == manifest.segments) {
-                        if (rows != manifest.rows or byte_count != manifest.bytes or !std.mem.eql(u8, &chain, &manifest.chain)) return error.InvalidResultCoverage;
-                        break;
-                    }
+                    cursor = captured.next;
+                    if (cursor == null) break;
                 }
             },
         }
         // Success only after complete ordered coverage and final current access.
         try self.authorize(false);
         if (try self.now() >= ticket.expires_ms) return error.FlightTicketExpired;
+    }
+    fn tableParts(self: *Call, captured: q.UnifiedResult.Page, rows: *const f.Unified.Inspect.Batch) !root.Ipc.Parts {
+        const layout = try root.TableResult.init(self.caller.schema, captured.plan);
+        try layout.checkSchema(captured.schema);
+        const bytes = try layout.encode(rows, &self.output, self.workspace);
+        return root.Ipc.parts(bytes, self.workspace);
     }
     fn disclose(self: *Call, ticket: root.Ticket, value: w.FlightData) !void {
         try self.authorize(false);

@@ -3,14 +3,10 @@ const abi = @import("Abi.zig");
 const p = @import("transit_station").protocol;
 const raw = @import("client_abi").host;
 pub const version = 1;
-pub const Config = struct { url: ?[]const u8 = null, local_codec: bool = false, seed_file: ?[]const u8 = null, server: ?abi.Config = null, growing_server: ?abi.growing.Config = null, query_client: ?abi.query_client.Config = null, timeout_ms: u32 = 5000 };
+pub const Config = struct { url: ?[]const u8 = null, local_codec: bool = false, seed_file: ?[]const u8 = null, growing_server: ?abi.growing.Config = null, query_client: ?abi.query_client.Config = null, timeout_ms: u32 = 5000 };
 pub const Request = union(enum) {
     hello: void,
     shutdown: void,
-    next: u64,
-    apply: abi.actions.Action,
-    finish: bool,
-    pending: void,
     growing_capabilities: void,
     growing_document_read: abi.document_bridge.ReadAction,
     document_codec: abi.document.Action,
@@ -28,7 +24,6 @@ pub const Request = union(enum) {
     growing_finish_result: struct { scope: u64, failed: bool },
     growing_discard: u64,
     growing_pending: void,
-    arrow_cell: struct { ipc: []const u8, row: u32, column: u32 },
     growing_arrow_cell: struct { ipc: []const u8, row: u32, column: u32 },
     frame: struct { kind: u32, correlation: []const u8, payload: p.Value },
     prepare: raw.Prepare,

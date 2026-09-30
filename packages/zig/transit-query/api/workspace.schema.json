@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:transit:query-workspace:v2",
+  "$id": "urn:transit:query-workspace:v1",
   "$defs": {
     "Request": {
       "oneOf": [
@@ -604,10 +604,10 @@
                         "document"
                       ],
                       "x-transit-defaults": {
-                        "version": 2,
-                        "source": 2,
-                        "plan": 2,
-                        "result": 2,
+                        "version": 1,
+                        "source": 1,
+                        "plan": 1,
+                        "result": 1,
                         "bundle_bytes": 16384,
                         "part_bytes": 128,
                         "segment_bytes": 65536,
@@ -999,7 +999,7 @@
                         "source"
                       ],
                       "x-transit-defaults": {
-                        "version": 2
+                        "version": 1
                       }
                     },
                     "resource_revision": {
@@ -1145,7 +1145,7 @@
                     "continuous"
                   ],
                   "x-transit-defaults": {
-                    "version": 2,
+                    "version": 1,
                     "statement_bytes": 4096,
                     "named_columns": 2,
                     "star_columns": 8,
@@ -1232,7 +1232,7 @@
               ],
               "x-transit-defaults": {
                 "sql": {
-                  "version": 2,
+                  "version": 1,
                   "statement_bytes": 4096,
                   "named_columns": 2,
                   "star_columns": 8,
@@ -1359,7 +1359,7 @@
                 "profile": {
                   "type": "string",
                   "enum": [
-                    "unified_v2"
+                    "unified_v1"
                   ]
                 },
                 "resource": {
@@ -1489,7 +1489,7 @@
               ],
               "x-transit-defaults": {
                 "version": 1,
-                "profile": "unified_v2"
+                "profile": "unified_v1"
               }
             }
           }
@@ -1898,7 +1898,7 @@
                     "source"
                   ],
                   "x-transit-defaults": {
-                    "version": 2
+                    "version": 1
                   }
                 },
                 "plan": {
@@ -2141,7 +2141,7 @@
                     "predicate"
                   ],
                   "x-transit-defaults": {
-                    "version": 2,
+                    "version": 1,
                     "limit": null,
                     "aggregate": "rows",
                     "predicate": {

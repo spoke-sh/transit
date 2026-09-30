@@ -31,7 +31,7 @@ pub const Query = struct {
     name: []const u8,
     source_kind: enum { table, kv, document },
     schema: [32]u8,
-    profile: enum { table_v1, unified_v2 },
+    profile: enum { unified_v1 },
     sql: []const u8,
     refresh: Refresh = .snapshot,
     starts: u8 = 1,
@@ -97,8 +97,7 @@ pub const Definition = struct {
                 try text(value.sql, 4096);
                 _ = try root.serving.query.fuze.Sql.parse(value.sql);
                 if (value.starts == 0 or value.starts > 8 or (value.refresh == .snapshot and value.starts != 1)) return error.InvalidQueryBudget;
-                if (value.refresh == .follow and (value.profile != .unified_v2 or value.source_kind != .table)) return error.UnsupportedInterfaceWatch;
-                if (value.profile == .table_v1 and value.source_kind != .table) return error.UnsupportedInterfaceSource;
+                if (value.refresh == .follow and (value.profile != .unified_v1 or value.source_kind != .table)) return error.UnsupportedInterfaceWatch;
             },
             .command => |value| {
                 try native(value.service);

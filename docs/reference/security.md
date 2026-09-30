@@ -82,6 +82,6 @@ Kubernetes/Substrate supplies the reference isolation boundary; storage and
 provider credentials stay in their adapters. Configure each ingress using its
 documented TLS, Host/Origin and authorization requirements.
 
-[Service v2](../../contracts/SERVICE_V2.md), [state v1](../../contracts/STATE_V1.md)
-and [growing v3](../../contracts/TRANSIT_V3.md) specify exact permissions and
+[Service v1](../../contracts/SERVICE_V1.md), [state v1](../../contracts/STATE_V1.md)
+and [native v1](../../contracts/TRANSIT_V1.md) specify exact permissions and
 signatures. [Deployment](deployment.md) explains bootstrap and recovery trust.

@@ -26,9 +26,9 @@ They share growing storage/read/publication primitives; a handler still has the
 one-mutated-resource turn boundary. A Table batch can be atomic within that
 resource without creating a cross-resource transaction.
 
-Choose legacy or growing behavior explicitly. Growing handlers use bounded pages
-and retained call/query records independently of resident worker memory. Neither
-an SDK wrapper nor a larger inline value removes legacy catalog limits.
+Handlers use native v1 bounded pages and retained call/query records independently
+of resident worker memory. Configure per-operation and active-work budgets;
+retained collections do not become resident queues.
 
 ## Names and registries
 

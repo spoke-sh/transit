@@ -6,7 +6,7 @@ links public packages; it does not import the CLI's internals or become a node
 handler. The example uses public path dependencies in this checkout;
 release-distributed dependency consumption is not supported.
 
-Start the version-3 server in the [local quickstart](quickstart.md), then use the
+Start the version-1 server in the [local quickstart](quickstart.md), then use the
 work-item application. It owns a typed Table, domain commands and a resumable
 migration. Keep the server running while building and installing the application.
 

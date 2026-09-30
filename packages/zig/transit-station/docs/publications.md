@@ -134,7 +134,7 @@ qualification. Format IDs label application bytes; they do not validate them.
 
 ## Public-envelope chunk assembly
 
-`PublicationParts.append` reuses the v2 query upload's two-part assembly for any
+`PublicationParts.append` reuses the v1 query upload's two-part assembly for any
 publication owner. Each ordinary envelope carries at most 128 bytes. The owner
 supplies the exact immutable reference and a scratch key unique to that record;
 it must check current caller policy and active upload state first. One first half

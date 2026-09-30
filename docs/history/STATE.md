@@ -24,7 +24,7 @@ The fixed catalog sizes are real constraints of that implementation, not the
 intended size of a resource. [M10](../roadmap/M10.md) replaces the coupling between
 total retained state and resident arrays before [SDKs M11](../roadmap/M11.md).
 The target collection model below is not yet implemented by state v1.
-M10's explicit [v3 development profile](../../contracts/TRANSIT_V3.md) publishes
+M10's explicit [v3 development profile](../../contracts/TRANSIT_V1.md) publishes
 immutable state roots through the authority and supplies bounded node/client
 access to growing resources and process associations. It remains separate from
 the default state-v1 profile. Explicit growing Station behaviors, retained
@@ -234,7 +234,7 @@ binds the version to durable progress, with current access and lifetime checks
 across later turns and worker replacement. Retaining a root cannot extend hard
 expiry or imply a complete query result. Explicit Station/Fuze capture and
 delivery use a separate verified completion manifest and bounded receiver credit;
-see the [query profile](../../contracts/STATION_QUERY_V2.md).
+see the [query profile](../../contracts/STATION_QUERY_V1.md).
 
 Recovery applies committed mutations and protocol transitions without executing
 application handlers. Historical re-execution, where supported by the caller,

@@ -1,7 +1,7 @@
 //! Immutable ordered pages. Staging returns a candidate root; only the authority
 //! journal may publish it. A store is injected and owns persistence/cache policy.
 const std = @import("std");
-pub const version = 2;
+pub const version = 1;
 pub const leaf_entries = 4;
 pub const branch_children = 5;
 pub const max_height = 32;
@@ -127,7 +127,7 @@ pub const Page = struct {
         var bytes: [max_encoded_bytes]u8 = undefined;
         const encoded = try self.encode(&bytes);
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.immutable.page.v2\x00");
+        hash.update("transit.immutable.page.v1\x00");
         hash.update(encoded);
         return .{ .digest = hash.finalResult() };
     }

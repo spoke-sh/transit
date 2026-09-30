@@ -5,6 +5,52 @@ import { GrpcMetadata } from "./grpc-metadata";
 import { DocumentMetadata } from "./document-metadata";
 import { HttpMetadata } from "./http-metadata";
 
+type QueryDeclaration = NonNullable<RecordsResponse["queries"][number]>["declaration"];
+function QueryEvidence({ detail }: { detail: QueryDeclaration }) {
+  if ("capture" in detail || "execution" in detail) {
+    const capture = "capture" in detail ? detail.capture : detail.execution;
+    return (
+      <>
+        <h3>Query capture {capture.result}</h3>
+        <p>Recorded phase: {capture.phase}</p>
+        <p>
+          Correlation {capture.correlation} · destination PID {capture.destination}
+        </p>
+      </>
+    );
+  }
+  if ("request" in detail) {
+    const request = detail.request;
+    return (
+      <>
+        <h3>Query request {request.namespace}</h3>
+        <p>
+          Recorded phase: {request.phase} · correlation {request.correlation}
+        </p>
+        {request.result_resource !== null && (
+          <p>
+            Result reference: resource {request.result_resource}, namespace{" "}
+            {request.result_namespace}
+          </p>
+        )}
+        {request.collected && <p>Request data collected</p>}
+      </>
+    );
+  }
+  const manifest = detail.manifest;
+  return (
+    <>
+      <h3>Query manifest {manifest.result}</h3>
+      <p>
+        Source resource {manifest.basis.resource} · revision {manifest.basis.revision}
+      </p>
+      <p>
+        {manifest.rows} recorded rows · {manifest.segments} segments
+      </p>
+    </>
+  );
+}
+
 type Declaration = NonNullable<RecordsResponse["exchanges"][number]>["declaration"];
 function ExchangeEvidence({ detail }: { detail: Declaration }) {
   if ("capture" in detail) {
@@ -230,28 +276,7 @@ export function Records({ resource }: { resource: number }) {
               )}
               {page.queries[index] && (
                 <section aria-label="Finite query metadata">
-                  {"capture" in page.queries[index].declaration ? (
-                    <>
-                      <h3>Query capture {page.queries[index].declaration.capture.result}</h3>
-                      <p>Recorded phase: {page.queries[index].declaration.capture.phase}</p>
-                      <p>
-                        Correlation {page.queries[index].declaration.capture.correlation} ·
-                        destination PID {page.queries[index].declaration.capture.destination}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <h3>Query manifest {page.queries[index].declaration.manifest.result}</h3>
-                      <p>
-                        Source resource {page.queries[index].declaration.manifest.basis.resource} ·
-                        revision {page.queries[index].declaration.manifest.basis.revision}
-                      </p>
-                      <p>
-                        {page.queries[index].declaration.manifest.rows} recorded rows ·{" "}
-                        {page.queries[index].declaration.manifest.segments} segments
-                      </p>
-                    </>
-                  )}
+                  <QueryEvidence detail={page.queries[index].declaration} />
                   <p>
                     Recorded evidence at this resource revision. Retained segment coverage and
                     current result access are checked separately when reading a result.

@@ -222,7 +222,7 @@ static class Proof
                 new("Authorization", [new Http.Literal("Bearer "), new Http.SecretRef("api", 7)])]), body, new(7, Number(cfg, "deadline")));
         byte original = request.Body.Copy()[0]; body[0] ^= 127; byte[] copy = request.Body.Copy(); copy[0] ^= 1;
         Check(request.Body.Copy()[0] == original && request.Body.Length == 513);
-        ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
+        ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.NativeV1),
             new Activation(new ProcessRef(72, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(72, Number(cfg, "principal"), Text(cfg, "seed_file"))));
         Http.Outcome? disposal = cfg["outcome"] is null ? null : (Http.Outcome)await Http.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
         Http.Outcome? wrongParent = cfg["outcome"] is null ? null : (Http.Outcome)await Http.DecodeReplyAsync(73, Convert.FromHexString(Text(cfg, "outcome")));
@@ -332,7 +332,7 @@ static class Proof
             [message,new Bytes([])],new(7,Number(cfg,"deadline")));
         byte[] original=request.Batch.Copy(); body[0]^=127; byte[] copy=request.Batch.Copy(); copy[0]^=1;
         Check(original.AsSpan().SequenceEqual(request.Batch.Copy()) && request.Batch.Length==message.Length+16);
-        ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
+        ServiceConfig config = new(new ClientConfig(new Uri(Text(cfg, "url")), Profile.NativeV1),
             new Activation(new ProcessRef(72, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(72, Number(cfg, "principal"), Text(cfg, "seed_file"))));
         Grpc.Outcome? disposal = cfg["outcome"] is null ? null : (Grpc.Outcome)await Grpc.DecodeReplyAsync(72, Convert.FromHexString(Text(cfg, "outcome")));
         Grpc.Outcome? wrongParent = cfg["outcome"] is null ? null : (Grpc.Outcome)await Grpc.DecodeReplyAsync(73, Convert.FromHexString(Text(cfg, "outcome")));
@@ -377,7 +377,7 @@ static class Proof
     }
     static async Task Execute<T>(string mode, JsonObject cfg, IHandler<T> handler, ICodec<T> codec) where T : notnull {
         ulong realm = Number(cfg, "realm");
-        var config = new ServiceConfig(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3),
+        var config = new ServiceConfig(new ClientConfig(new Uri(Text(cfg, "url")), Profile.NativeV1),
             new Activation(new ProcessRef(realm, Number(cfg, "pid")), Number(cfg, "generation"), new Credential(realm, Number(cfg, "principal"), Text(cfg, "seed_file"))), "data", cfg["query_results"]!.GetValue<bool>());
         var store = new Store(mode, Text(cfg, "pending")); FailurePolicy failure = mode.EndsWith("-block", StringComparison.Ordinal) ? FailurePolicy.BlockInput : FailurePolicy.Stop;
         Recovery recovery = new Recovery.PersistBeforeDispatch(store);
@@ -462,7 +462,7 @@ static class Proof
         }
         List<Document.Prepared> changes=[];
         foreach(var item in cfg["changes"]!.AsArray()) changes.Add(await Document.PrepareAsync(await Document.DecodeAsync(Convert.FromHexString(item!.GetValue<string>()))));
-        ServiceConfig config=new(new ClientConfig(new Uri(Text(cfg,"url")),Profile.GrowingV3),new Activation(new ProcessRef(72,Number(cfg,"pid")),Number(cfg,"generation"),new Credential(72,Number(cfg,"principal"),Text(cfg,"seed_file"))));
+        ServiceConfig config=new(new ClientConfig(new Uri(Text(cfg,"url")),Profile.NativeV1),new Activation(new ProcessRef(72,Number(cfg,"pid")),Number(cfg,"generation"),new Credential(72,Number(cfg,"principal"),Text(cfg,"seed_file"))));
         DocumentHandler handler=new(changes); Document.Reference? saved=null;
         await using var runner=await Runner<Bytes>.OpenAsync(config,handler,new GrpcBytes(),FailurePolicy.Stop,new Recovery.FreshOwnership()); var reader=runner.Documents;
         for(string? command;(command=Console.ReadLine()) is not null;) {
@@ -501,13 +501,13 @@ static class Proof
 
     public static async Task Main(string[] args) {
         string mode = args[0], path = args[1]; var cfg = Read(path);
-        Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "growing_v3");
+        Check(typeof(Runner<>).Assembly.Location.StartsWith(Path.GetDirectoryName(path)!, StringComparison.Ordinal)); Check(Text(cfg, "profile") == "native_v1");
         if (mode.StartsWith("document-", StringComparison.Ordinal)) { await DocumentProof(mode,cfg); return; }
         if (mode=="grpc-golden") { await GrpcGolden(cfg); return; }
         if (mode.StartsWith("grpc-", StringComparison.Ordinal)) { await GrpcProof(mode, cfg); return; }
         if (mode.StartsWith("http-", StringComparison.Ordinal)) { await HttpProof(mode, cfg); return; }
         if (mode == "codecs") { await CodecsProof(cfg); return; }
-        if (mode == "recover") { await using var client = await SdkClient.OpenAsync(new ClientConfig(new Uri(Text(cfg, "url")), Profile.GrowingV3));
+        if (mode == "recover") { await using var client = await SdkClient.OpenAsync(new ClientConfig(new Uri(Text(cfg, "url")), Profile.NativeV1));
             using var pending = await client.RecoverMutationAsync(File.ReadAllBytes(Text(cfg, "pending"))); var result = await client.DispatchMutationAsync(pending); Check(result is Confirmed);
             Report(new() { ["receipt"] = ((Confirmed)result).Receipt.Position }); return; }
         var peer = new ProcessRef(Number(cfg, "realm"), Number(cfg, "peer")); string output = Text(cfg, "output");

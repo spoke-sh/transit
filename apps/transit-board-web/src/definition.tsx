@@ -54,7 +54,7 @@ function download(name: string, text: string) {
 }
 export function DefinitionEditor() {
   const current = useInterface();
-  const canInspect = useScope().scope?.profile !== "growing_v3" || current !== null;
+  const canInspect = useScope().scope?.profile !== "native_v1" || current !== null;
   const [, render] = useReducer((value: number) => value + 1, 0);
   const [mode, setMode] = useState<"sql" | "form" | "canvas">("sql");
   const [scope, setScope] = useState<Scope | null>(null);

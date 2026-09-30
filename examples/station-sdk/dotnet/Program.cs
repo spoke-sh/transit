@@ -17,9 +17,9 @@ public static class CounterMain
         }
         if (size > 8192) throw new ArgumentException("Configuration exceeds its bound");
         JsonObject cfg = JsonNode.Parse(bytes.AsSpan(0, size))!.AsObject();
-        if (cfg["profile"]!.GetValue<string>() != "growing_v3") throw new ArgumentException("Select growing_v3");
+        if (cfg["profile"]!.GetValue<string>() != "native_v1") throw new ArgumentException("Select native_v1");
         ulong realm = cfg["realm"]!.GetValue<ulong>();
-        ClientConfig client = new(new Uri(cfg["url"]!.GetValue<string>()), Profile.GrowingV3);
+        ClientConfig client = new(new Uri(cfg["url"]!.GetValue<string>()), Profile.NativeV1);
         Activation activation = new(new ProcessRef(realm, cfg["pid"]!.GetValue<ulong>()), cfg["generation"]!.GetValue<ulong>(),
             new Credential(realm, cfg["principal"]!.GetValue<ulong>(), cfg["seed_file"]!.GetValue<string>()));
         ProcessRef peer = new(realm, cfg["peer"]!.GetValue<ulong>());

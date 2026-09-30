@@ -99,7 +99,7 @@ export class Bridge {
     )) as GrowingCapabilities;
     if (
       caps.version !== 1 ||
-      caps.profile !== "growing_v3" ||
+      caps.profile !== "native_v1" ||
       !caps.gated_dispatch ||
       !caps.retained_confirmation ||
       !caps.scoped_turns ||
@@ -251,7 +251,7 @@ export class Bridge {
     };
     if (
       info.kind !== "growing_command" ||
-      info.profile !== "growing_v3" ||
+      info.profile !== "native_v1" ||
       !info.command ||
       !commands[purpose].includes(info.command)
     ) {
@@ -309,7 +309,7 @@ export class QueryBridge {
       const value = await bridge.call({ capabilities: {} });
       if (
         !("capabilities" in value) ||
-        value.capabilities.version !== 2 ||
+        value.capabilities.version !== 1 ||
         !value.capabilities.kv ||
         !value.capabilities.table ||
         !value.capabilities.document

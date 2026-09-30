@@ -13,7 +13,7 @@ not qualified.
 
 ```csharp
 await using var client = await Client.OpenAsync(new ClientConfig(
-    new Uri("http://127.0.0.1:8080"), Profile.GrowingV3));
+    new Uri("http://127.0.0.1:8080"), Profile.NativeV1));
 var credential = new Credential(72, 65536, "/private/client.seed");
 using var pending = await client.PrepareSendAsync(
     new ProcessRef(72, 123), payload, credential, nextSequence);
@@ -27,7 +27,7 @@ switch (await client.DispatchAsync(pending)) {
 
 The application supplies payloads, current principal sequence, credentials and
 persistence. `CapabilitiesAsync` reads current authority capabilities. Select
-`GrowingV3` explicitly. Admission is distinct from committed processing and reply
+`NativeV1` explicitly. Admission is distinct from committed processing and reply
 completion. Protocol counters use `ulong` within the native 2^53−1 bound;
 application u64/int64 values use `ulong`/`long`. Byte arrays are copied on entry
 and export. Errors contain bounded kind/status/code/phase, never signed bytes or

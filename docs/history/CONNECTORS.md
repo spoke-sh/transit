@@ -13,7 +13,7 @@ Status: [HTTP M15](../roadmap/M15.md) and [gRPC M16](../roadmap/M16.md) are impl
 and qualified within their finite profiles. The broad group, streaming and provider
 requirements below remain design intent outside the qualified finite HTTP profile. Transit has
 opaque intents, dispatch authorization, observations, and bounded closure in its
-[effect contract](../../contracts/TRANSIT_V2.md#effect-intents-and-observations).
+[effect contract](../../contracts/TRANSIT_V1.md#integration-obligations).
 The [synthetic executor proof](../../tests/README.md#authority-effects-and-outbox-evidence)
 exercises real loopback I/O and its external limits; it is not a general HTTP
 connector implementation.
@@ -75,7 +75,7 @@ Keep buffered-but-uncommitted bytes explicitly incomplete after loss. Bodies,
 headers and manifests need independent per-operation and total live-work budgets;
 the tested record size is neither a whole-exchange maximum nor an unlimited call.
 
-The implemented [growing effect contract](../../contracts/TRANSIT_V3.md#integration-obligations)
+The implemented [growing effect contract](../../contracts/TRANSIT_V1.md#integration-obligations)
 authorizes one attempt per effect. `observe(null)` records uncertainty, not a new
 send permit; a terminal observation closes that attempt. Logical exchange retries
 and redirects therefore need linked new committed effects with explicit policy,

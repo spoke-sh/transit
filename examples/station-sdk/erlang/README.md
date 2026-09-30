@@ -17,7 +17,7 @@ ERL_LIBS=/tmp/transit-libs erl -noshell -s transit_erlang_counter main -extra co
 ERL_LIBS=/tmp/transit-libs erl -noshell -s transit_erlang_counter main -extra config.json requester --commits 1
 ```
 
-Each role needs its own config containing `url`, `profile: "growing_v3"`, `realm`,
+Each role needs its own config containing `url`, `profile: "native_v1"`, `realm`,
 `principal`, `pid`, `generation`, `seed_file` and `peer`. Provision current grants,
 ownership and the `data` association first; the deployment drives delivery.
 The executable explicitly chooses `fresh_ownership` and stops on uncertainty.

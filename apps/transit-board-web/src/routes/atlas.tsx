@@ -3,7 +3,7 @@ import { DeclaredView } from "../declared";
 import { useScope } from "../state";
 export const Route = createFileRoute("/atlas")({ component: AtlasPage });
 function AtlasPage() {
-  return useScope().scope?.profile === "growing_v3" ? (
+  return useScope().scope?.profile === "native_v1" ? (
     <DeclaredView />
   ) : (
     <main>

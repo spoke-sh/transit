@@ -7,8 +7,8 @@ run([Path, Role]) -> run(Path, Role, 1).
 run(Path, Role, Count) when Count > 0 ->
     {ok, File} = file:open(Path, [read, binary, raw]),
     Bytes = try {ok, Data} = file:read(File, 8193), true = byte_size(Data) =< 8192, Data after file:close(File) end,
-    Cfg = json:decode(Bytes), <<"growing_v3">> = maps:get(<<"profile">>, Cfg), Realm = maps:get(<<"realm">>, Cfg),
-    {ok, Client} = transit_client:config(maps:get(<<"url">>, Cfg), growing_v3),
+    Cfg = json:decode(Bytes), <<"native_v1">> = maps:get(<<"profile">>, Cfg), Realm = maps:get(<<"realm">>, Cfg),
+    {ok, Client} = transit_client:config(maps:get(<<"url">>, Cfg), native_v1),
     {ok, Process} = transit_client:process(Realm, maps:get(<<"pid">>, Cfg)),
     {ok, Peer} = transit_client:process(Realm, maps:get(<<"peer">>, Cfg)),
     {ok, Credential} = transit_client:credential(Realm, maps:get(<<"principal">>, Cfg), maps:get(<<"seed_file">>, Cfg)),

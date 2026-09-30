@@ -9,7 +9,7 @@ const upload = q.UnifiedUpload;
 const Store = @import("source_store_test.zig");
 const Source = struct {
     store: *Store,
-    pub fn open(self: @This(), resource: u64) !s.GrowingTurn {
+    pub fn open(self: @This(), resource: u64) !s.Turn {
         if (resource != self.store.resource or self.store.denied) return error.AccessDenied;
         return self.store.capture();
     }
@@ -42,7 +42,7 @@ fn stage(store: *Store, ref: s.PublicationReference, bytes: []const u8) !void {
         }
     }
 }
-fn writes(turn: s.GrowingTurn) usize {
+fn writes(turn: s.Turn) usize {
     var count: usize = 0;
     for (turn.decision.mutations) |slot| if (slot != null) {
         count += 1;
@@ -179,7 +179,7 @@ test "requester behavior authenticates ingress and records malformed command dis
     var requester: q.UnifiedBehavior.Requester = .{ .principal = 42, .source = 3 };
     const handler = requester.interface();
     var turn = try store.capture();
-    try turn.write(s.GrowingGenServer.descriptor_key, s.GrowingGenServer.descriptor);
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
     try handler.initialize.?(handler.context, &turn);
     turn.delivery.input.origin = .{ .external = .{ .principal = 42, .policy_revision = 1 } };
     var frame: s.Frame = .{ .kind = .cast, .payload = try request.Command.encode(.initialize) };

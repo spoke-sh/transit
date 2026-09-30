@@ -32,7 +32,7 @@ def run(node, worker, query_host, gateway, caller):
         url, origin = f'http://127.0.0.1:{port}', f'http://127.0.0.1:{web_port}'
         public = json.loads(subprocess.check_output([caller, 'public'], timeout=10))
         node_config = fixture.root/'node.json'
-        node_config.write_text(json.dumps(dict(profile='growing_v3',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url=fixture.url,bucket='work-items-browser',journal='authority',port=port,resident_pages=16)))
+        node_config.write_text(json.dumps(dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url=fixture.url,bucket='work-items-browser',journal='authority',port=port,resident_pages=16)))
         def request(path, body=None, status=200, origin_header=origin):
             headers = {'Content-Type': 'application/json'}
             if origin_header is not None: headers['Origin'] = origin_header
@@ -62,9 +62,9 @@ def run(node, worker, query_host, gateway, caller):
             serving=start('gateway',[gateway,str(config_path)])
             wait_ready(fixture.http,serving,origin+'/health')
             assert request('/api/v1/interface')['published']['head']['revision']=='1'
-            request('/api/v1/query-v2',{'describe':{}},status=403,origin_header=None)
+            request('/api/v1/query',{'describe':{}},status=403,origin_header=None)
             request('/api/v1/application',{'info':{}},status=403,origin_header='https://untrusted.example')
-            request('/api/v1/query-v2',{'suggest':{'search':''}})
+            request('/api/v1/query',{'suggest':{'search':''}})
             marker=fixture.root/'browser'
             browser=start('browser',['node','examples/work-items/web/browser/proof.mjs',origin,str(marker)])
             def await_phase(phase):
@@ -85,7 +85,7 @@ def run(node, worker, query_host, gateway, caller):
             marker.write_text('migrated')
             await_phase('deny')
             invoke('deny')
-            request('/api/v1/query-v2',{'describe':{}},status=403)
+            request('/api/v1/query',{'describe':{}},status=403)
             marker.write_text('denied')
             assert browser.wait(timeout=120)==0
             resident("gateway-restarted", serving)

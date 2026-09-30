@@ -48,6 +48,10 @@ class Library:
             version = getattr(self.lib, 'transit_client_abi_version' if family == 'client' else 'station_abi_version')()
             if version != self.contract['version']:
                 raise ValueError('ABI version')
+            definition = self.contract['definition'].encode('ascii')
+            compatible = getattr(self.lib, 'transit_client_abi_definition_matches' if family == 'client' else 'station_abi_definition_matches')
+            if compatible(definition, len(definition)) != 1:
+                raise ValueError('ABI definition')
             self.data = getattr(self.lib, prefix + '_buffer_data')
             self.size = getattr(self.lib, prefix + '_buffer_size')
             self.destroy = getattr(self.lib, prefix + '_buffer_destroy')

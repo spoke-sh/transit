@@ -226,7 +226,7 @@ def http_consumer(mode, cfg)
     body: body, endpoint_revision: 7, reconcile_before_ms: cfg.fetch('deadline'))
   body.replace('changed')
   check request.body.frozen? && request.metadata.frozen? && request.reference.frozen? && request.body.bytesize == 513
-  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
+  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1),
     activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
       credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
   disposal = cfg['outcome'] && S.decode_http_reply(72, [cfg['outcome']].pack('H*'))
@@ -386,7 +386,7 @@ def grpc_consumer(mode, cfg)
     messages: [body, ''.b], endpoint_revision: 7, reconcile_before_ms: cfg.fetch('deadline'))
   body.replace('changed')
   check request.batch.frozen? && request.metadata.frozen? && request.reference.frozen? && request.batch.bytesize > 513
-  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
+  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1),
     activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
       credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
   disposal = cfg['outcome'] && S.decode_grpc_reply(72, [cfg['outcome']].pack('H*'))
@@ -530,7 +530,7 @@ def document_consumer(mode, cfg)
     return
   end
   changes = cfg.fetch('changes').map { |bytes| S::PreparedDocumentChange.new(document: document, data: [bytes].pack('H*')) }
-  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3, timeout_ms: 15_000),
+  config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1, timeout_ms: 15_000),
     activation: S::Activation.new(process: ProcessRef.new(realm: 72, pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
       credential: Credential.new(realm: 72, principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
   handler = DocumentHandler.new(document, changes)
@@ -604,7 +604,7 @@ end
 mode, config_file = ARGV
 cfg = JSON.parse(File.binread(config_file))
 check Gem.loaded_specs.fetch('transit-station').full_gem_path.start_with?(File.dirname(config_file))
-check cfg.fetch('profile') == 'growing_v3'
+check cfg.fetch('profile') == 'native_v1'
 if mode.start_with?('document-')
   document_consumer(mode, cfg)
   exit
@@ -658,7 +658,7 @@ if mode == 'codecs'
   exit
 end
 if mode == 'recover'
-  Client.open(ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3)) do |client|
+  Client.open(ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1)) do |client|
     result = client.dispatch_mutation(client.recover_mutation(File.binread(cfg.fetch('pending'))))
     check result.is_a?(Confirmed)
     report(receipt: result.receipt.position)
@@ -688,7 +688,7 @@ elsif mode == 'codec-poison'
 elsif mode == 'poison'
   handler.define_singleton_method(:on_message) { |turn, _input| expect(ReadFailed) { turn.state.require(E::TOTAL) } }
 end
-config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3), query_results: cfg.fetch('query_results'),
+config = S::ServiceConfig.new(client: ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1), query_results: cfg.fetch('query_results'),
   activation: S::Activation.new(process: ProcessRef.new(realm: cfg.fetch('realm'), pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
     credential: Credential.new(realm: cfg.fetch('realm'), principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))
 store = Store.new(mode, cfg.fetch('pending'))

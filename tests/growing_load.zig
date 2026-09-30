@@ -13,10 +13,10 @@ const Admin = struct {
     key: p.Ed25519.KeyPair,
     sequence: u64 = 0,
     fn query(self: *@This(), kind: @FieldType(g.Query, "kind")) !g.Response {
-        return self.wire.queryGrowing(.{ .realm = realm, .principal = 0, .kind = kind }, self.key);
+        return self.wire.query(.{ .realm = realm, .principal = 0, .kind = kind }, self.key);
     }
     fn submit(self: *@This(), command: g.Command) !u64 {
-        const receipt = try self.wire.submitGrowing(try g.sign(.{ .realm = realm, .principal = 0, .sequence = self.sequence + 1, .command = command }, self.key));
+        const receipt = try self.wire.submit(try g.sign(.{ .realm = realm, .principal = 0, .sequence = self.sequence + 1, .command = command }, self.key));
         self.sequence += 1;
         return receipt.position;
     }

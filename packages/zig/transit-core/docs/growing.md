@@ -1,16 +1,9 @@
-# Growing authority integration
+# Native authority integration
 
-M25 adds root-only conditional principal creation and worker rotation. Rotation
-changes the key and PID generation in one decision while preserving current
-resource permissions and the request sequence; it cannot restore revoked access.
-See the [wire contract](../../../../contracts/TRANSIT_V3.md#conditional-local-worker-replacement).
-These primitives do not advertise a growing runtime binding or a provider.
-
-Status: the explicit M10 growth profile is implemented and qualified within the
-[recorded workload and recovery limits](../../../../tests/verification/README.md#scale-and-offered-load).
-`transit_core.growing.Engine(Journal, PageStore)` is
-available through an explicitly selected node profile and Zig client. The [v3 contract](../../../../contracts/TRANSIT_V3.md)
-owns its development wire types; the existing v2 engine remains the launcher default.
+`transit_core.Engine(Journal, PageStore)` implements the single native v1
+authority. The [wire contract](../../../../contracts/TRANSIT_V1.md) defines signed
+operations and paged reads. Node, Station, launchers and language clients share
+this definition; incompatible histories and peers are rejected.
 
 The implemented internal transitions include bootstrap, root-authorized principal
 grant/revocation, process creation, ownership, mailbox admission and termination;
@@ -72,18 +65,17 @@ budgets: 16 required resources per PID and 64 visited owner PIDs by default, eac
 configurable up to 4,096. These bound one validation graph, not total principals,
 processes, resources or retained records. Association admission validates the
 candidate graph before publication; exceeding the budget rejects the operation.
-This development profile also freezes an owner's required dependency topology
+Association validation freezes an owner's required dependency topology
 while another live PID requires its owned state. Otherwise a locally valid new
 edge could push an existing borrower's previously accepted graph over its budget.
 Borrowers must detach healthy dependencies or retire before that topology changes;
 the indexed check rejects with `DependencyInUse`. Optional associations do not
-add lifetime edges. This conservative restriction needs explicit capabilities
-and client guidance before the profile is advertised.
+add lifetime edges. Capabilities report this restriction and the configured graph budgets.
 An expired/retired required dependency cannot be removed or rebound to revive
 the PID. Its durable dependency evidence fences execution even before terminal
 process metadata is materialized. Process lists expose recorded metadata; an
 individual process read checks execution eligibility before disclosing its head
-input. Inspection must preserve that distinction when the service is added.
+input. Inspection preserves that distinction.
 Explicit resource retirement refuses active required
 users; known finite expiry can close the dependency. Physical page deletion is
 not implemented or authorized.
@@ -142,11 +134,12 @@ cancellation. A finite process's previously issued turn permit can settle before
 its settlement deadline, but cannot issue fresh outputs/effects after its work
 cutoff. Ownership changes fence the old activation without renewing that permit.
 
-The [explicit node profile](../../../../apps/transit-node/docs/growing.md) exposes
+The [node](../../../../apps/transit-node/docs/growing.md) exposes
 signed commands, bounded queries and a separate maintenance process.
 `growing.Maintenance` visits one record from a bounded catalog page per step,
-rotating four families with separate finite-pass cursors. It suggests known
-process/resource expiry, terminal-source dispositions and timed effect closure;
+rotating six families with separate finite-pass cursors. It suggests known
+process/resource expiry, terminal-source dispositions, timed effect closure
+and opted-in catalog/payload cleanup;
 it neither stages pages nor publishes authority. Cursor loss repeats inspection,
 not execution. Every signed suggestion is revalidated against current state/time.
 Clock failure does not prevent terminal-source cancellation or dependency expiry
@@ -155,13 +148,13 @@ their own settlement contract. The current scan revisits retained process/resour
 metadata, so full sweep cost grows with cardinality; deadline indexes and measured
 sweep-lag objectives remain scale work.
 
-Runtime/lifecycle extensions remain outside the qualified growing profile.
-The explicit Station behavior/query and finite capacity integrations have
-[separate proofs](../../../../tests/README.md#m10-verification-and-scale-foundations).
-Unimplemented commands fail explicitly with
-`UnsupportedGrowthCommand`. The profile must not be selected by a launcher before
-the complete advertised profile and its proofs are ready. Existing histories are
-never silently upgraded or parsed as v3.
+Managed creation, initialization, finite suspension/resumption, runtime binding
+intents/observations, workload upgrades and fresh worker activation use the same
+paged process records and conditional authority publication. The runtime
+controller reconciles recorded intent through a provider; provider state never
+grants execution ownership. Root-authorized principal creation rejects existing
+identities. Conditional worker rotation changes the key and generation while
+preserving the principal sequence and current resource permissions.
 
 The `scoped_retry` capability permits a current PID administrator to clear a
 reported handler failure using its observed generation and failed input ID.
@@ -169,44 +162,16 @@ Retry preserves the input, state revision and consumption cursor, advances the
 generation and leaves ownership empty. Current lifetimes/dependencies are checked
 before publication. Blocked process point reads disclose metadata without the
 head payload; this does not assert that it remains executable. Fresh ownership
-and an ordinary turn are required to consume the input. Initialization barriers,
-suspension/resumption, upgrades and runtime/provider bindings remain growth work.
+and an ordinary turn are required to consume the input. A runtime-bound retry additionally requires confirmed provider stop before a
+fresh restart intent can be accepted.
 
-## Initial evidence
+## Verification boundaries
 
-Core tests retain 20 principals with identities above 65,535 and 70 processes,
-crossing both legacy catalog limits. They check retained mailbox provenance,
-historical retry after a later sequence, recovery without page writes, competing
-candidate fencing, revocation before publication/disclosure, failure before
-append, lost accepted acknowledgements and permanent retirement. Additional
-checks reject an older materialization root attached to a newer publication and
-legacy genesis versions. Clock uncertainty, rollback and elapsed work deadlines
-fail closed; clock failure does not disable revocation or termination. The injected
-journal/page store is deterministic test infrastructure; these checks do not
-qualify service integration, complete M10 or demonstrate production throughput.
-`just test::growing` separately exercises the real provider boundary described
-in the adapter guide.
-
-The state-turn proof exceeds four resources, 32 rows and four retained views.
-It verifies that staged rows/progress are invisible before commit, rejected
-outputs cannot publish row mutations, old roots remain readable internally, and
-resource-right revocation prevents historical receipt disclosure. Required
-resource expiry blocks reactivation through indirect ownership and cannot be
-bypassed by detaching an association.
-
-Read checks traverse more than one catalog/entry page, compare a captured version
-with later committed data, reject stale cuts, expired/uncertain views, changed
-ownership, revoked grants, forged queries and missing pages. Filtered discovery
-crosses an empty page without disclosing hidden associations and observes removal
-without stale index entries. These are internal engine proofs, not HTTP/client
-or provider qualification.
-
-Delivery/settlement checks exercise independent routes, stale prepared delivery
-after grant change, denied admissions, lost accepted delivery/outcome replies,
-terminal source cancellation, post-termination outcome capture, finite budgets,
-late rejection and permanent process expiry. Indexed effect inspection preserves
-retired callers' evidence. These internal checks use injected storage, not the
-real effect connector or service deployment.
+Core unit checks use injected journals, pages and time. Disk, HTTP, runtime and
+Station schedules exercise their actual component boundaries; the
+[proof ledger](../../../../tests/README.md) records execution and limits. A passed
+in-memory transition check alone does not establish disk durability, service
+availability, provider behavior or a latency guarantee.
 
 ### Immutable control metadata cache
 

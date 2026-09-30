@@ -1,143 +1,58 @@
 # Transit and Station bindings
 
-The shared implementation remains Zig. The raw Transit ABI handles public
-protocol operations; Station adds detached handler turns, associated state,
-Table queries and durable framework messages. Host adapters own allocation,
-exceptions and runtime scheduling. They do not reimplement those protocols.
+The shared Zig implementation owns signatures, validation, sequencing, framework
+transitions and exact recovery. Raw Transit clients and Station SDKs are separate
+packages. Host APIs own language types, codecs, scheduling and packaging; generated
+wire declarations remain separate from those APIs.
 
-These are M9's qualified low-level bindings. [M11](../docs/roadmap/M11.md)
-provides qualified language-native public SDKs with typed operations, managed handler runners
-and installable artifacts. The current manual turn/action APIs remain available;
-the [caller design](../docs/reference/callers.md) defines the public
-layer above them.
+Use the [SDK directory](../docs/reference/sdks.md) for the current Python,
+TypeScript, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir packages. The
+[installed examples](../examples/station-sdk/README.md) provide service and requester
+programs. All use native v1. The pre-1.0 [versioning policy](../docs/reference/versioning.md)
+requires matching current definitions and hard cutovers.
 
-All target public SDKs are implemented separately from these low-level adapters.
-Their package guides and installation/recovery proofs are linked from
-[M11](../docs/roadmap/M11.md). The [public language ring](../tests/README.md#public-sdk-interoperability)
-qualifies every target in both roles with installed artifacts.
+## Shared boundary
 
-Independent public [C](../packages/c/transit-client/README.md) and
-[C++](../packages/cpp/transit-client/README.md) raw clients now have installed
-prefixes, typed retry objects and shared authority/worker ownership proofs through
-`just bindings::c-sdk-test`. Public [C Station](../packages/c/transit-station/README.md)
-and [C++ Station](../packages/cpp/transit-station-sdk/README.md) packages also pass
-the shared handler/recovery/Table/query schedule and both installed CLI roles.
+The [client ABI](../packages/zig/transit-client/docs/bindings.md) provides owned
+operations and saved exact requests. The [Station ABI](../packages/zig/transit-station-bindings/docs/bindings.md)
+adds scoped handler turns, bounded state/Table access, durable calls, publication,
+Document operations, query results and recorded HTTP/RPC capture. The
+[native port](../apps/transit-station-host/README.md) exposes those same operations
+to runtimes that use a child process.
 
-The independent [Java client](../packages/java/transit-client/README.md) now has
-typed records, opaque retry and bounded `CompletableFuture` operations.
-`just bindings::java-sdk-test` installs separate client/native JARs outside the
-checkout and qualifies cancellation, joined cleanup, retained receipts and exact
-seedless recovery. The [Java Station SDK](../packages/java/transit-station-sdk/README.md)
-also qualifies typed handlers, all mutation gates, scoped state, retained Tables,
-query IPC ownership and both installed counter roles through the shared schedule.
+Preparation and dispatch are separate. A mutation's original canonical bytes must
+survive an unknown outcome and host replacement. Foreign pointers, cancelled host
+tasks and application queues do not change durable authority. Destruction joins
+owned work and releases native buffers; read results retain their documented
+ownership. See [caller semantics](../docs/reference/callers.md).
 
-The independent [.NET client](../packages/dotnet/transit-client/README.md) now
-restores separate SDK/native NuGet artifacts and qualifies typed retry, cancelled
-awaits, joined 8 MiB native workers and retained receipts through
-`just bindings::dotnet-sdk-test`. Its [Station SDK](../packages/dotnet/transit-station-sdk/README.md)
-also qualifies typed scoped callbacks, all mutation hooks, retained Tables and
-original query IPC after disposal through installed examples.
+`just bindings::generate` regenerates declarations and embedded schemas from Zig
+exports. `just bindings::check` detects drift. No legacy generic handler package,
+compatibility alias or alternative protocol profile is installed.
 
-The independent [Erlang](../packages/beam/transit-client/README.md) and
-[Elixir](../packages/beam/transit-client-elixir/README.md) raw clients use separate
-OTP applications/native artifacts. Their public Station counterparts are
-[Erlang](../packages/beam/transit-station-sdk/README.md) and
-[Elixir](../packages/beam/transit-station-elixir/README.md).
-`just bindings::beam-sdk-test` runs clean
-consumers through typed recovery, caller-loss/join, supervision and version proofs.
-Their Station schedules also qualify all mutation gates, scoped handlers, exact
-recovery, retained Tables and owned query IPC.
+## Build and verification
 
-M11 adds **Ruby** through the shared native port, with value objects and
-block-scoped ownership. Ruby 3.4.9 / RubyGems 3.7.2 are pinned by the Nix lock;
-its raw/Station packages have separate public SDK proofs. The historical M9
-matrix retains its original scope. See the
-[M11 language conventions](../docs/roadmap/M11.md#language-conventions).
+Enter `nix develop .#bindings` for the locked language tools. These packages target
+Linux x86_64 and are built from this checkout. Native packages retain their local
+Nix runtime linkage. Public registries and other platform artifacts are not
+provided by these build tasks.
 
-`just bindings::generate` reflects the native exports and updates adapter
-resources. `just bindings::check` rejects drift. The
-[shared ABI guide](../packages/zig/transit-station-bindings/docs/bindings.md) owns the
-contract; the [native port](../apps/transit-station-host/README.md) supplies a
-versioned child-process route for Node, Java and BEAM.
-
-The [C/C++](../packages/cpp/transit-station/README.md),
-[Rust](../packages/rust/transit-station/README.md),
-[Python](../packages/python/transit-station/README.md),
-[Node](../packages/ts/transit-station/README.md),
-[Java](../packages/java/transit-station/README.md),
-[.NET](../packages/dotnet/transit-station/README.md) and
-[Elixir/Erlang](../packages/beam/transit-station/README.md) adapters exchange real
-Table queries across languages. Native/managed cancellation, host loss, malformed
-ports and ownership cleanup have executable checks. The reference deployment
-qualifies Zig workers; foreign worker isolation remains separate scope.
-[The examples](../examples/station-bindings/README.md) use real
-authority and Arrow data, not language-specific server routes. Public package
-registry releases and non-Linux platforms are not qualified yet.
-
-The [shared conformance scenarios](../tests/verification/README.md#shared-sdk-conformance)
-define the M10-to-M11 handoff. The current matrix checks durable continuation
-through each language pair against the same observations; shared native proofs
-own sequencing contention, decode-failure policy, uncertain responses and host
-cleanup. M11 must repeat these obligations through its public APIs.
-
-The first implemented public raw SDK is [Python transit-client](../packages/python/transit-client/README.md).
-`just bindings::python-test` builds wheels and installs the client plus its
-independent native dependency in a clean consumer outside the checkout. It checks
-typed preparation, native-classified recovery, lost receipts, host restart,
-revocation and bounded async cancellation/disposal. No Station wheel is installed in the raw-client proof. A separate installed
-consumer qualifies Python's typed Station runner, counter CLI roles, Table/query
-handlers, recovery callbacks, scoped state, full-width values and optional PyArrow.
-The [Python guide](../packages/python/transit-station/README.md) distinguishes the
-public API from its preserved M9 raw adapter.
-
-The [public Node client](../packages/ts/transit-client/README.md) is independent
-of Station too. `just bindings::node-sdk-test` builds its native dependency and
-SDK tarballs, installs a clean consumer and runs the same raw-client schedule as
-Python. A second consumer qualifies the [typed Station SDK](../packages/ts/transit-station-sdk/README.md),
-its installed counter/query examples, owned async turns and optional Arrow reader.
-The existing `@rey/transit-station` adapter remains compatible. The bindings CI
-lane installs both legacy and public Node workspace packages from the lockfile.
-
-The independent [Rust client](../packages/rust/transit-client/README.md) now has
-typed raw operations and embedded native artifacts. `just bindings::rust-sdk-test`
-in the bindings shell compiles an external locked consumer, removes its build
-and extracted source trees, and runs the shared authority/recovery schedule.
-Its blocking ownership proof is separate from Python/Node async cancellation;
-compile-fail checks enforce exclusive use and consumed-handle disposal. The
-[typed Rust Station SDK](../packages/rust/transit-station-sdk/README.md) also runs
-the shared handler/recovery/Table/query schedule, with borrowed turn helpers,
-stop/block panic policies and optional Arrow Rust ownership checks.
-
-The [Ruby raw client](../packages/ruby/transit-client/README.md) installs independent
-client/native gems and shares the raw authority schedule. `just bindings::ruby-sdk-test`
-qualifies caller-thread interruption with owned native work, responsive close,
-malformed port responses and exact seedless recovery. The
-[Station gem](../packages/ruby/transit-station/README.md) also runs the shared
-handler/recovery/Table/query schedule, including thread/fiber scope rejection,
-non-StandardError callbacks and owned original IPC. Ruby was not an M9 target.
-
-## Qualification tools
-
-`nix develop .#bindings` adds the locked foreign-language tools to the normal
-shell. Keeping them optional avoids expanding every developer/CI closure.
-C/C++ use the pinned Zig compiler; Python and Node already come from the default
-shell. The current Linux x86_64 baselines are:
-
-| Runtime | Locked baseline |
+| Task | Work |
 | --- | --- |
-| Zig / C / C++ | 0.17.0-dev.2267+48abf1a34 |
-| Python | CPython 3.13.15; PyArrow 23.0.0 for independent IPC checks |
-| Ruby (M11 public SDK) | 3.4.9; JSON 2.9.1, tmpdir 0.3.1, URI 1.0.4 |
-| Rust / Cargo | 1.95.0; optional Arrow array/IPC 59.1.0 with locked 59.x components |
-| Node.js | 24.21.0 from the existing frontend toolchain |
-| Java | OpenJDK 21.0.12.1+1; Gson 2.12.1, separately checksummed |
-| .NET SDK | 8.0.425 |
-| Erlang | OTP 28.5.0.6 |
-| Elixir | 1.18.5 built against OTP 28 |
+| `just bindings::build` | Shared client/Station libraries and native hosts |
+| `just bindings::native` | Native/port parity, scoped turns, exact recovery, query capture and checkpoint/tail materialization |
+| `just bindings::python-test` | Strict Python APIs and clean installed wheel consumers |
+| `just bindings::node-sdk-test` | TypeScript checks and installed Node consumers |
+| `just bindings::rust-sdk-test` | Locked crates, ownership and installed Rust consumers |
+| `just bindings::ruby-sdk-test` | Gems, block/thread ownership and port consumers |
+| `just bindings::c-sdk-test` | Installed C11/C++17 APIs and example executables |
+| `just bindings::java-sdk-test` | JARs, typed futures and joined port consumers |
+| `just bindings::dotnet-sdk-test` | NuGet artifacts and owned task consumers |
+| `just bindings::beam-sdk-test` | Installed Erlang/Elixir applications and port ownership |
+| `just bindings::sdk-interop` | Installed language service/requester pairs |
+| `just bindings::unified-all` | Current query callers over KV, Table and Document sources |
+| `just bindings::test` | Native and installed SDK schedules plus interoperability |
 
-The Nix lock and [binding tools](../nix/bindings-tools.nix) own these versions.
-Every M9 language runs both service and requester roles in the Linux matrix.
-All ten public interfaces, including Ruby, run both roles through M11's public
-SDK schedules and ten-edge interoperability ring.
-Only Zig is the intended M9 reference worker; these checks do not qualify foreign
-runtimes as Substrate workers.
+The [Nix tools](../nix/bindings-tools.nix) own language versions and dependencies.
+The [proof ledger](../tests/README.md) records executed combinations and limits;
+a task's presence does not establish that it passed for the current revision.

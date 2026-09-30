@@ -5,16 +5,17 @@ to the same typed plans. Source adapters acquire authorized data; query executio
 does not acquire kernel authority or raw storage credentials. Neither DataFusion
 nor Acero is a runtime dependency.
 
-## Source profiles
+## Source declarations
 
-| Profile | Source and value model |
-| --- | --- |
-| Table v1 | One declared Table with int64 key and nullable scalar value; public plan bounded to 207 encoded bytes |
-| Unified v2 | One explicit KV decoder, Table schema or accepted Document projection; one to eight declared columns and finite budgeted plan upload |
+A query selects one explicit KV decoder, Table schema or accepted Document
+projection, with one to eight declared columns and finite execution budgets.
+Durable callers upload the finite plan bundle through bounded commands.
+Flight exposes a Table subset with primitive int64 output; the adapter verifies
+captured query cells before conversion.
 
 KV bytes need an explicitly selected decoder. Document projections read accepted
 state, not tentative edits. A declaration fixes names, types and identity; SQL
-cannot discover or grant access to an undeclared source. The v2 cell model keeps
+cannot discover or grant access to an undeclared source. The query cell model keeps
 value, null, missing, type error and conflict distinct through Arrow and language
 bindings. Do not coerce missing/conflict into null or a successful empty result.
 
@@ -38,7 +39,7 @@ resource budgets. Query admission is separate from execution and complete result
 publication. Current source permission is checked independently from requester
 ownership or a gateway's own credential.
 
-Explicit durable queries use the unified v2 captured-query path. The requester
+Explicit durable queries use the query v1 captured-query path. The requester
 uploads and seals the plan bundle, then makes a durable source call. The source
 retains a read version, stages Arrow segments through bounded Publication turns,
 publishes a complete manifest and returns its reference through the original
@@ -73,9 +74,8 @@ does not erase accepted queries. Refresh is a new finite query under the
 
 Use the [SQL reference](sql.md), [query compatibility matrix](../../packages/zig/transit-query/docs/compatibility.md)
 and [Fuze package](../../packages/zig/transit-fuze/README.md) for exact types,
-operators and errors. The [public v1 contract](../../contracts/PUBLIC_QUERY_V1.md),
-[growing delivery contract](../../contracts/STATION_QUERY_V2.md) and
-[unified v2 contract](../../contracts/UNIFIED_QUERY_V2.md) own wire details.
+operators and errors. The [delivery contract](../../contracts/STATION_QUERY_V1.md) and
+[query v1 contract](../../contracts/UNIFIED_QUERY_V1.md) own wire details.
 Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
 
 ## Interactive sessions
@@ -125,7 +125,7 @@ With native `snapshot_read`, acquisition combines source/requester metadata,
 the fresh cut and initial data. Final current validation can release the snapshot
 in the same request. Captured reads and current metadata have explicit separate
 bases; a write during data acquisition does not require recapturing the source.
-Older authorities retain the separate snapshot-operation path.
+The client requires this capability and rejects incompatible authorities.
 
 Console output keeps bounded Arrow batches, a 64-entry point cache and at most
 64 prefetched range entries with a 32 KiB decoded-entry budget.

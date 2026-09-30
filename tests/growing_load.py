@@ -68,7 +68,7 @@ def main():
             port = free_port()
             url = f'http://127.0.0.1:{port}'
             config = fixture.root / 'node.json'
-            config.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
+            config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
                 ursula_url=fixture.url, bucket='growing-load', journal='authority', port=port,
                 resident_pages=args.cache, request_timeout_ms=15000)))
             manifest = fixture.root / 'expected.json'
@@ -106,7 +106,7 @@ def main():
                 started = time.monotonic()
                 connection = HTTPConnection('127.0.0.1', port, timeout=20)
                 try:
-                    connection.request('POST', '/v3/command', json.dumps(body), {'Content-Type': 'application/json'})
+                    connection.request('POST', '/v1/command', json.dumps(body), {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = json.loads(response.read())
                     finished = time.monotonic()

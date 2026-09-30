@@ -222,7 +222,7 @@ phase took 6.94s, 9.78s and 15.50s. Artifacts are
 `station-query-capture-service.log` and `station-query-cache64-qualified.log`
 under `.cache/verification/`. Ordinary qualification now selects 64 for that
 final phase; the first recovery/seal still uses one page. Full one-page replay is
-available with `just test::growing-query --finish-pages 1`. Node defaults, fault
+available with `just test::query --finish-pages 1`. Node defaults, fault
 coverage and assertions are unchanged. These samples exclude Nix transfer and
 cannot establish hosted CI percentiles or a production cache recommendation.
 

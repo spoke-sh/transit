@@ -92,7 +92,7 @@ public final class UnifiedQuery {
                 yield obj("document",obj("reference",obj("resource",r.resource().resource(),"document",r.document().toString(),"epoch",r.epoch().toString(),"type_revision",r.typeRevision(),"revision",r.revision().toString()),"change_format",1,"expand",v.expand().map(UnifiedQuery::path).orElse(null),"projections",projections));
             }
         };
-        return obj("version",2,"resource",source.resource().resource(),"source",value);
+        return obj("version",1,"resource",source.resource().resource(),"source",value);
     }
     public sealed interface Predicate permits All, IsState, Compare {}
     public record All() implements Predicate {}
@@ -104,7 +104,7 @@ public final class UnifiedQuery {
         JsonObject wire() {
             JsonArray columns=new JsonArray(); projection.forEach(columns::add);
             JsonObject p=switch(predicate) { case All ignored -> obj("all",obj()); case IsState v -> obj("state",obj("column",v.column(),"value",name(v.state()))); case Compare v -> obj("compare",obj("column",v.column(),"op",name(v.comparison()),"value",UnifiedQuery.wire(v.value()))); };
-            return obj("version",2,"projection",columns,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
+            return obj("version",1,"projection",columns,"predicate",p,"aggregate",name(aggregate),"limit",limit.map(BigInteger::toString).orElse(null));
         }
     }
     public record Budgets(BigInteger pages,BigInteger segments,BigInteger resultBytes) {
@@ -179,7 +179,7 @@ public final class UnifiedQuery {
             connection.wire(identity); this.connection=connection;
             worker=new Worker<>(() -> {
                 Bridge b=Bridge.query(config,identity,connection);
-                try { JsonObject caps=object(b.unifiedQuery(obj("capabilities",obj()),false).get("capabilities")); if(number(caps.get("version"),1)!=2)throw incompatible("query-version"); for(String kind:List.of("kv","table","document"))if(!bool(caps.get(kind)))throw incompatible("query-source"); return b; }
+                try { JsonObject caps=object(b.unifiedQuery(obj("capabilities",obj()),false).get("capabilities")); if(number(caps.get("version"),1)!=1)throw incompatible("query-version"); for(String kind:List.of("kv","table","document"))if(!bool(caps.get(kind)))throw incompatible("query-source"); return b; }
                 catch(RuntimeException | Error error) { b.close(); throw error; }
             });
         }

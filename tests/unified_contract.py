@@ -1,4 +1,4 @@
-"""Independent FZP2/schema encodings for the shared v2 query fixtures."""
+"""Independent FZP1/schema encodings for the shared v1 query fixtures."""
 import hashlib
 import json
 from pathlib import Path
@@ -25,16 +25,16 @@ def generate():
     cases = []
     for name, tag, literal in variants:
         # rows, two ordered columns, explicit full-width limit, comparison ne.
-        wire = b'FZP2\0\2\1\0\1' + struct.pack('<Q', 2**64-1) + bytes((2, 1, 1, tag)) + literal
-        cases.append(dict(name=name, type=tag, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.fuze.plan.v2\0'+wire).hexdigest()))
+        wire = b'FZP1\0\2\1\0\1' + struct.pack('<Q', 2**64-1) + bytes((2, 1, 1, tag)) + literal
+        cases.append(dict(name=name, type=tag, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.fuze.plan.v1\0'+wire).hexdigest()))
     columns = [('key', 2), ('value', 5)]
-    schema = b'transit.fuze.schema.v2\0' + bytes((len(columns),))
+    schema = b'transit.fuze.schema.v1\0' + bytes((len(columns),))
     for name, tag in columns: schema += bytes((len(name), tag)) + name.encode()
     return json.dumps(dict(plans=cases, schema=hashlib.sha256(schema).hexdigest()), ensure_ascii=False, indent=2)+'\n'
 
 
 def sources():
-    def source(tag, payload): return b'UQS2' + struct.pack('<QB', 7, tag) + payload
+    def source(tag, payload): return b'UQS1' + struct.pack('<QB', 7, tag) + payload
     def projection(name, mode):
         field = name.encode()
         return bytes((len(field),)) + field + bytes((5, 0, mode)) + struct.pack('<HH', 4096, 4096) + bytes((1, len(field))) + field
@@ -45,7 +45,7 @@ def sources():
         ('table', source(2, struct.pack('<IB', 9, len(table)) + table)),
         ('document', source(3, reference + struct.pack('<IBB', 1, 0, 2) + projection('title', 0) + projection('body', 1))),
     ]
-    return json.dumps([dict(kind=kind, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.query.source.v2\0'+wire).hexdigest()) for kind, wire in variants], indent=2)+'\n'
+    return json.dumps([dict(kind=kind, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.query.source.v1\0'+wire).hexdigest()) for kind, wire in variants], indent=2)+'\n'
 
 
 def bundles():
@@ -57,13 +57,13 @@ def bundles():
         source = bytes.fromhex(definition['wire_hex'])
         selected = 'unsigned-max' if definition['kind'] == 'kv' else 'larger-plan'
         plan = bytes.fromhex(next(p['wire_hex'] for p in plans if p['name'] == selected))
-        bundle = b'UQB2' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
-        initial = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x32425155, len(bundle))).digest()
+        bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+        initial = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
         digest = initial
         for index, offset in enumerate(range(0, len(bundle), 256)):
             part = bundle[offset:offset+256]
             digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
-        ref = b'SPF1' + struct.pack('<QQQII', 8, 2**64-1, 1, 0x32425155, len(bundle)) + digest
+        ref = b'SPF1' + struct.pack('<QQQII', 8, 2**64-1, 1, 0x31425155, len(bundle)) + digest
         result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex()))
     return json.dumps(result, indent=2)+'\n'
 
@@ -71,12 +71,12 @@ def bundles():
 def uploads():
     reference = bytes.fromhex(json.loads(bundles())[0]['reference_hex'])
     namespace = struct.pack('<Q', 2**64-1)
-    commands = [("initialize", b'UQI2'), ("begin", b'UQB2'+reference),
-        ("part", b'UQP2'+namespace+struct.pack('<IB', 15, 1)+bytes(range(128)))]
+    commands = [("initialize", b'UQI1'), ("begin", b'UQB1'+reference),
+        ("part", b'UQP1'+namespace+struct.pack('<IB', 15, 1)+bytes(range(128)))]
     commands += [(label, tag+namespace) for label, tag in [
-        ('seal', b'UQS2'), ('submit', b'UQX2'), ('cancel', b'UQK2'),
-        ('collect', b'UQG2'), ('retire', b'UQR2')]]
-    status = b'UQU2' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0'
+        ('seal', b'UQS1'), ('submit', b'UQX1'), ('cancel', b'UQK1'),
+        ('collect', b'UQG1'), ('retire', b'UQR1')]]
+    status = b'UQU1' + reference + b'\1' + struct.pack('<Q', 0) + b'\0\0'
     return json.dumps(dict(commands=[dict(kind=kind, wire_hex=wire.hex()) for kind, wire in commands], status_hex=status.hex()), indent=2)+'\n'
 
 
@@ -90,4 +90,4 @@ if __name__ == '__main__':
         UPLOADS.write_text(uploads())
     elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads():
         raise SystemExit('Unified query fixtures differ; review and regenerate explicitly')
-    print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP2 plans passed.')
+    print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP1 plans passed.')

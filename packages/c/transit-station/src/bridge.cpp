@@ -7,10 +7,10 @@ Local::Local(const char *directory) : raw(directory), library(directory, "libtra
 #define LOAD(name) name = reinterpret_cast<decltype(name)>(library.symbol(#name));
     TRANSIT_STATION_FUNCTIONS(LOAD)
 #undef LOAD
-    if (station_abi_version() != STATION_ABI_VERSION) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "station-version");
+    if (station_abi_definition_matches(reinterpret_cast<const uint8_t *>(STATION_ABI_DEFINITION), sizeof(STATION_ABI_DEFINITION) - 1) != 1 || station_abi_version() != STATION_ABI_VERSION) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "station-version");
     station_buffer *buffer = nullptr; const auto status = station_growing_capabilities(&buffer);
     const auto value = result(status, buffer, "native-capabilities");
-    if (raw.field(value, "version") != "1" || raw.field(value, "profile", true) != "growing_v3") fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "station-profile");
+    if (raw.field(value, "version") != "1" || raw.field(value, "profile", true) != "native_v1") fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "station-profile");
     for (const auto *flag : {"gated_dispatch", "retained_confirmation", "scoped_turns", "paged_state", "tables", "retained_sources"})
         if (!raw.boolean(value, flag)) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "station-capabilities");
     caps = {raw.number(value, "message_bytes"), raw.number(value, "value_bytes"), raw.number(value, "key_bytes"),
@@ -58,11 +58,11 @@ Bridge::Bridge(const transit_station_config &config, transit_station_failure_pol
     const auto realm = decimal(config.process.realm), principal = decimal(config.credential.principal);
     const auto prepared = local.raw.prepare(7, config.credential, "{\"realm\":" + realm + ",\"principal\":" + principal + ",\"kind\":{\"capabilities\":{}}}");
     const auto authority = local.raw.call(client.get(), prepared, false);
-    if (local.raw.field(authority, "version") != "3" || local.raw.field(authority, "body/capabilities/version") != "3" || local.raw.field(authority, "body/capabilities/profile", true) != "growing_v1")
+    if (local.raw.field(authority, "version") != "1" || local.raw.field(authority, "body/capabilities/version") != "1" || local.raw.field(authority, "body/capabilities/profile", true) != "growing_v1")
         fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "authority-profile");
     for (const auto *flag : {"association_lookup", "scoped_retry", "retained_read_versions"})
         if (!local.raw.boolean(authority, std::string("body/capabilities/") + flag)) fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "authority-capabilities");
-    const auto settings = "{\"profile\":\"growing_v3\",\"realm\":" + realm + ",\"principal\":" + principal + ",\"pid\":" + decimal(config.process.pid) +
+    const auto settings = "{\"profile\":\"native_v1\",\"realm\":" + realm + ",\"principal\":" + principal + ",\"pid\":" + decimal(config.process.pid) +
         ",\"generation\":" + decimal(config.generation) + ",\"association\":" + quote(association) + ",\"timeout_ms\":" + decimal(config.client.timeout_ms) +
         ",\"failure_policy\":" + quote(failure == TRANSIT_FAILURE_STOP ? "stop" : "block_input") + ",\"query_results\":" + (config.query_results ? "true" : "false") + "}";
     Seed seed(config.credential.seed_file); station_growing_server *handle = nullptr;

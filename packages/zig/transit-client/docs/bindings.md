@@ -1,25 +1,17 @@
 # C ABI v1
 
-The shared library is the first M9 binding foundation. Build it with
-`zig build client-abi` from the repository root. This installs
-`zig-out/lib/libtransit_client.so` on Linux. The generated
-[C header](../include/transit_client.h) and [machine-readable ABI](../abi-v1.json)
-come from exported Zig signatures through `just contract::client-generate`.
-`just contract::client-check` rejects drift and runs in `just check`.
+Build `zig build client-abi` to install `zig-out/lib/libtransit_client.so` on
+Linux. The generated [C header](../include/transit_client.h) and
+[machine-readable ABI](../abi-v1.json) come from shared Zig signatures through
+`just contract::client-generate`; `just contract::client-check` detects drift.
+The implementation owns canonical bytes, signatures, parsing, HTTP and exact retry.
 
-This is currently a low-level synchronous client interface, not the completed
-Station SDK or the qualification of every planned language. It reuses the same
-Zig signing, parsing and HTTP implementation as native callers. There are no
-language-specific authority routes.
-
-M11 adds `growing_command` (6) and `growing_query` (7) without changing existing
-ABI v1 calls, operation tags or frozen v2 bytes. The optional additive
-`transit_client_supports_kind(kind)` export returns 1 for a supported operation
-kind and 0 otherwise, without allocation or I/O. It describes the local library,
-not the configured authority. A caller requiring growing support must reject a
-library without that export or those kinds; it must not fall back to v2. Existing
-clients remain compatible with the extended library. New generated bindings
-require the matching native library exports.
+Before creating handles, call `transit_client_abi_definition_matches` with the
+complete generated `TRANSIT_CLIENT_ABI_DEFINITION` identifier and its length.
+A zero result or missing export rejects the library. ABI version 1 alone does
+not establish compatibility between builds. The supported operation kinds are
+`growing_command` (6) and `growing_query` (7); `transit_client_supports_kind`
+reports local support without I/O. No other operation kinds are supported.
 
 The additive `transit_json_extract` helper lets C/C++ SDK implementation layers
 read native metadata without depending on Station or another JSON parser. It
@@ -47,21 +39,17 @@ cover invalid selectors/formats and allocation-failure cleanup.
    `transit_operation_destroy` and `transit_client_destroy` release their objects.
    Destroy accepts null; other pointers must designate valid objects/buffers.
 
-Prepare accepts unsigned `Request` for command/view, or the corresponding public
-State, Inspection or Delivery query. JSON payload encoding remains the public
-protocol's lowercase hex. The header's `TRANSIT_KIND_*` values select the route.
-Use explicit lengths: buffers are not NUL-terminated. Native buffers may be freed
-on another thread after the operation completes; handles must never be freed or
-used concurrently with their destruction. There are no callbacks into the host.
+Prepare accepts the current native `Growth.Request` or `Growth.Query` from the
+[native v1 contract](../../../../contracts/TRANSIT_V1.md). The shared library
+fills canonical defaults and signs the contract definition, realm and operation.
+It uses `/v1/command` or `/v1/query` and validates response identity, revision and
+page coverage. Values use lowercase hex; IDs retain the public 53-bit range.
+The [Station ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns)
+adds private turns, handler dispatch gates and framework state above this boundary.
 
-The growing kinds accept the public `Growth.Request` and `Growth.Query` from
-the [v3 contract](../../../../contracts/TRANSIT_V3.md). Zig validates and signs
-them under the v3 domains and sends only `/v3/command` or `/v3/query`. IDs retain
-the full public range. Query results use the shared growing response validation,
-including realm, identity, revision and page coverage. Growing mutations preserve
-`uncertain` after a lost or malformed accepted response or response-allocation
-failure. The separate [growing Station ABI](../../transit-station-bindings/docs/bindings.md#explicit-growing-turns)
-adds gated/scoped turns; raw v3 operations alone do not advertise a handler runner.
+Use explicit lengths: buffers are not NUL terminated. Native buffers may be freed
+on another thread after completion; handles must not be used concurrently with
+destruction. No callback enters the host through this ABI.
 
 One operation may execute per client at a time; another call returns `busy`.
 Sharing a principal across clients still requires application-level sequencing.
@@ -81,10 +69,10 @@ return immediately with no automatic retry.
 ## Recovery and errors
 
 `transit_operation_export` produces a versioned, canonical envelope containing
-the operation kind, signed request/query and signature. It contains no private
+the contract definition, operation kind, signed request/query and signature. It contains no private
 seed, but can contain application data and must be protected. A host can persist
 those exact bytes and reconstruct the operation with `transit_operation_import`
-after losing every native handle. Import rejects a different version, malformed
+after losing every native handle. Import rejects a missing or different definition, unsupported version, malformed
 shape or noncanonical representation. It grants no permission and does not
 authenticate an imported signature locally; the authority checks both signature
 and current grants during execution.
@@ -129,28 +117,12 @@ counter ceiling. The ABI does not silently expand that public limit. Returning
 JSON bytes alone is not a promise that a host's default JSON parser is suitable
 for every future protocol version.
 
-## Evidence
+## Verification
 
-`just test::client-abi` compiles a C program against the generated header and
-loads the same library from Python against disk-backed Ursula and the real
-authority. It compares signatures with the Zig CLI, drops a successful receipt,
-retries from a fresh host without the signing seed, checks identical transmitted
-bytes, and exercises public view/state reads and malformed-input rejection.
-It also races independent handles sharing one principal: different bodies at
-one sequence produce one admission and one `ConflictingRetry` rejection;
-identical bodies return the same receipt. The application still owns shared
-principal sequencing. These checks use the
-[shared SDK scenarios](../../../../tests/verification/sdk.json), including
-distinct admission, processing, reply delivery and reply consumption boundaries.
-The same task exercises the growing kinds against a one-page-cache node and
-disk Ursula: principal 65,536, opaque retry from a fresh process after node/store
-restart, byte-identical retransmission, rejected malformed reads/receipts and
-current revocation before historical retry. The shared
-[operation fixtures](../../../../tests/verification/sdk-operations-v1.json)
-include IDs at the public maximum and reject legacy versions and overflow.
-Allocation enumeration covers both legacy and growing mutations.
-The same task also runs the standalone client port against disk-backed Ursula,
-checking native metadata identities, canonical import, profile classification,
-absence of Station requests and fresh-process retry after removing the seed file.
-M9's separate Station handler/Table matrix remains available; these raw proofs
-do not qualify the proposed M11 public SDKs.
+`just test::client-abi` exercises the generated C header, independent Python and
+standalone port against the node and disk-backed Ursula. Its schedules cover
+canonical signatures, saved-request recovery without a seed, lost receipts,
+current revocation and competing handles sharing one principal. The
+[proof ledger](../../../../tests/README.md) distinguishes executed outcomes from
+planned coverage. The [shared SDK scenarios](../../../../tests/verification/sdk.json)
+cover the separate admission, turn, reply delivery and consumption boundaries.

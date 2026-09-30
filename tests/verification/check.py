@@ -57,16 +57,21 @@ def validate(suite, invariants, limits, sdk):
             assert (source, symbol) in seen, f"unclassified bound: {source}:{symbol}"
     for item in limits["identities"]:
         assert item["anchor"] in (ROOT / item["source"]).read_text(), item
-    ceilings = {(item['source'], item['symbol']) for item in limits['limits'] if item['classification'] == 'total-cardinality'}
+    removed = {(item['source'], item['symbol']) for item in limits['removed_bounds']}
+    assert len(removed) == len(limits['removed_bounds'])
+    for source, symbol in removed:
+        path = ROOT / source
+        assert not path.exists() or not re.search(r"pub const " + re.escape(symbol) + r"\b", path.read_text()), (source, symbol)
     replacements = set()
-    for item in limits['growing_replacements']:
-        key = item['legacy_source'], item['symbol']
-        assert key in ceilings and key not in replacements, key
-        replacements.add(key)
-        assert item['status'] in {'paged', 'segmented', 'unsupported'} and item['meaning'], key
+    for item in limits['collections']:
+        if item['replaces'] is not None:
+            key = item['replaces']['source'], item['replaces']['symbol']
+            assert key in removed and key not in replacements, key
+            replacements.add(key)
+        assert item['status'] in {'paged', 'segmented'} and item['meaning'], item
         assert item['anchor'] in (ROOT / item['source']).read_text(), item
-    assert replacements == ceilings, f'unreviewed growing replacement: {ceilings - replacements}'
-    schema = json.loads((ROOT / 'contracts/transit-v3.schema.json').read_text())
+    assert replacements == removed, f'unreviewed removed bound: {removed - replacements}'
+    schema = json.loads((ROOT / 'contracts/transit-v1.schema.json').read_text())
     for name in ('Request', 'Query'):
         principal = schema['$defs'][name]['properties']['principal']
         assert principal['maximum'] == (1 << 53) - 1, principal
@@ -102,13 +107,13 @@ def main():
     else:
         raise AssertionError("limit drift passed")
     broken = copy.deepcopy(limits)
-    broken['growing_replacements'].pop()
+    broken['collections'].pop()
     try:
         validate(suite, invariants, broken, sdk)
     except AssertionError:
         pass
     else:
-        raise AssertionError('missing growing replacement passed')
+        raise AssertionError('missing current collection owner passed')
     broken = copy.deepcopy(sdk)
     broken["scenarios"][0]["proofs"][0]["anchor"] = "missing SDK scenario implementation"
     try:

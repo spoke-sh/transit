@@ -11,7 +11,7 @@ export const Route = createFileRoute("/resources")({
         : undefined,
   }),
   component: () =>
-    useScope().scope?.profile === "growing_v3" ? <DeclaredView /> : <ResourcePage />,
+    useScope().scope?.profile === "native_v1" ? <DeclaredView /> : <ResourcePage />,
 });
 function ResourcePage() {
   const { resource } = Route.useSearch();

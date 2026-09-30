@@ -144,7 +144,7 @@ pub fn main(init: std.process.Init) !void {
         selected.generation = process.generation + 1;
         try proof.write(init, saved_path, saved);
         if (replacement) {
-            try std.testing.expectError(error.AccessDenied, wire.queryGrowing(.{ .realm = 51, .principal = principal, .kind = .{ .identity = {} } }, old_key));
+            try std.testing.expectError(error.AccessDenied, wire.query(.{ .realm = 51, .principal = principal, .kind = .{ .identity = {} } }, old_key));
             try workerFiles(init, args[1], directory, saved);
         }
         return print(init, .{ .generation = selected.generation });

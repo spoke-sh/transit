@@ -1,7 +1,7 @@
 """Actual remote sends, paused authorization, bounded closure and no replay I/O."""
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-from wire_values import encode_command, decode_view
+from wire_values import encode_command
 import os
 from pathlib import Path
 import queue
@@ -63,7 +63,7 @@ def run(node, executor, cli):
         url = f"http://127.0.0.1:{port}"
         config = store.root / "node.json"
         config.write_text(json.dumps({"genesis": {"realm": 52, "root_key": public,
-            "retry_policy": "last_per_principal"}, "ursula_url": store.url,
+            "allow_history_trim": True}, "ursula_url": store.url,
             "bucket": "transit-effect-io", "journal": "authority", "port": port,
             "maintenance": {"principal": 2, "seed_file": str(maintenance_key),
                 "interval_ms": 50, "checkpoint_every_records": 4}}))
@@ -73,26 +73,26 @@ def run(node, executor, cli):
             nonlocal sequence
             if not read:
                 sequence += 1
-            revision = request({"inspect": command["turn"]["pid"]}, read=True)["process"]["revision"] if "turn" in command else 0
+            revision = request({"process": command["turn"]["pid"]}, read=True)["process"]["revision"] if "turn" in command else 0
             command = encode_command(command, revision)
             path = store.root / "request.json"
-            path.write_text(json.dumps({"realm": 52, "principal": 0,
-                "sequence": 0 if read else sequence, "command": command}))
-            signed = invoke("sign", root, path)
+            envelope = {"realm": 52, "principal": 0, "kind": command} if read else {"realm": 52, "principal": 0, "sequence": sequence, "command": command}
+            path.write_text(json.dumps(envelope))
+            signed = invoke("sign-query" if read else "sign", root, path)
             for _ in range(30):
                 try:
                     response = store.http.open(urllib.request.Request(
-                        url + ("/v2/view" if read else "/v2/command"), json.dumps(signed).encode(),
+                        url + ("/v1/query" if read else "/v1/command"), json.dumps(signed).encode(),
                         {"Content-Type": "application/json"}), timeout=5)
                 except urllib.error.HTTPError as error:
                     response = error
                 with response:
-                    value = decode_view(json.load(response))
+                    value = json.load(response)
                     if response.status == 409:
                         time.sleep(0.05)
                         continue
                     assert response.status == 200, (response.status, value)
-                    return value
+                    return value["body"][next(iter(command))] if read else value
             raise TimeoutError("Synthetic proof authority conflict")
 
         def command(value):
@@ -118,7 +118,7 @@ def run(node, executor, cli):
             child.wait(timeout=10)
 
         def effect_view(pid):
-            return next(effect for effect in request({"inspect": pid}, read=True)["effects"] if effect)
+            return next(effect for effect in request({"effects": {"pid": pid}}, read=True)["entries"] if effect)
 
         def retained():
             try:
@@ -132,14 +132,14 @@ def run(node, executor, cli):
             authority, _ = start(node, config, "--bootstrap")
             wait_ready(store.http, authority, url + "/health")
             command({"grant": {"subject": 1, "public_key": executor_public, "permissions": 48}})
-            command({"grant": {"subject": 2, "public_key": maintenance_public, "permissions": 33}})
+            command({"grant": {"subject": 2, "public_key": maintenance_public, "permissions": 161}})
             cases = []
             for scenario in ("success", "pause_before_send", "late_response", "crash_after_send"):
-                pid = command({"spawn": {"allow_trim": True}})
+                pid = command({"spawn": {}})
                 command({"own": {"pid": pid, "worker": 0, "expected_generation": 0}})
                 input_id = command({"send": {"pid": pid, "value": 7}})
                 effect = command({"turn": {"pid": pid, "generation": 1,
-                    "input": input_id, "result": 7, "effect": 7}})
+                    "input": input_id, "effect": 7}})
                 options = store.root / (scenario + ".json")
                 options.write_text(json.dumps({"authority": url, "endpoint": f"http://127.0.0.1:{remote.server_port}/attempt",
                     "realm": 52, "pid": pid, "principal": 1, "seed_file": str(executor_key), "effect": effect}))
@@ -173,9 +173,9 @@ def run(node, executor, cli):
                 assert (child.wait(timeout=10) == 0) == (scenario == "success")
                 if scenario in ("pause_before_send", "late_response"):
                     expect_error(log, "Rejected")
-                view = request({"inspect": pid}, read=True)
+                view = request({"process": pid}, read=True)
                 assert view["process"]["admitted"] == (2 if scenario == "success" else 1)
-                assert view["process"]["state"] == 7
+                assert int(bytes.fromhex(effect_view(pid)["payload"])) == 7
                 assert effect_view(pid)["phase"] == ("observed" if scenario == "success" else "closed_unknown")
                 assert len(sent) == before_sends + 1
                 # A fresh executor cannot turn a historical dispatch into a send.

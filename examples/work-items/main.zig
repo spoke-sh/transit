@@ -56,7 +56,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     wire.timeout_ms = config.request_timeout_ms;
     wire.observer = diagnostics;
     if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, 120000);
-    var host = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+    var host = try s.GenServer.init(.{ .client = &wire, .realm = config.application.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
     _ = try host.session.receive();
     const marker = try std.fmt.allocPrint(init.arena.allocator(), "{s}/{d}-{d}-{d}.activation", .{ config.activation_directory, config.application.realm, config.pid, config.generation });
     const file = std.Io.Dir.cwd().createFile(init.io, marker, .{ .exclusive = true }) catch |err| {

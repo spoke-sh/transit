@@ -34,68 +34,30 @@ fn runMain(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const key = try wire.readKey(init.gpa, init.io, args[2]);
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, args[3], init.gpa, .limited(wire.max_body));
     defer init.gpa.free(bytes);
-    if (std.mem.eql(u8, command, "growing-query")) {
-        if (args.len != 5) return error.ExpectedAuthorityUrl;
+    if (std.mem.eql(u8, command, "query") or std.mem.eql(u8, command, "sign-query")) {
         const query = try std.json.parseFromSlice(transit.Growth.Query, init.gpa, bytes, .{});
         defer query.deinit();
-        var client = wire.Client.init(init.gpa, init.io, args[4]);
-        defer client.deinit();
-        client.observer = diagnostics;
-        return print(init.io, try client.queryGrowing(query.value, key));
-    }
-    if (std.mem.eql(u8, command, "growing-submit") or std.mem.eql(u8, command, "growing-sign")) {
-        const request = try std.json.parseFromSlice(transit.Growth.Request, init.gpa, bytes, .{});
-        defer request.deinit();
-        const signed = try transit.Growth.sign(request.value, key);
-        if (std.mem.eql(u8, command, "growing-sign")) {
+        if (std.mem.eql(u8, command, "sign-query")) {
             if (args.len != 4) return error.ExpectedKeyAndRequestFile;
-            return print(init.io, signed);
+            return print(init.io, try transit.Growth.signQuery(query.value, key));
         }
         if (args.len != 5) return error.ExpectedAuthorityUrl;
         var client = wire.Client.init(init.gpa, init.io, args[4]);
         defer client.deinit();
         client.observer = diagnostics;
-        return print(init.io, try client.submitGrowing(signed));
+        return print(init.io, try client.query(query.value, key));
     }
-    if (std.mem.eql(u8, command, "delivery") or std.mem.eql(u8, command, "sign-delivery")) {
-        var query = try std.json.parseFromSlice(transit.Delivery.Query, init.gpa, bytes, .{});
-        defer query.deinit();
-        if (std.mem.eql(u8, command, "sign-delivery") and args.len == 4) return print(init.io, try transit.Delivery.sign(query.value, key));
-        if (args.len != 5) return error.ExpectedAuthorityUrl;
-        var client = wire.Client.init(init.gpa, init.io, args[4]);
-        defer client.deinit();
-        client.observer = diagnostics;
-        return print(init.io, try client.delivery(query.value, key));
-    }
-    if (std.mem.eql(u8, command, "state") or std.mem.eql(u8, command, "sign-state")) {
-        var query = try std.json.parseFromSlice(transit.State.Query, init.gpa, bytes, .{});
-        defer query.deinit();
-        if (std.mem.eql(u8, command, "sign-state") and args.len == 4) return print(init.io, try transit.State.sign(query.value, key));
-        if (args.len != 5) return error.ExpectedAuthorityUrl;
-        var client = wire.Client.init(init.gpa, init.io, args[4]);
-        defer client.deinit();
-        client.observer = diagnostics;
-        return print(init.io, try client.state(query.value, key));
-    }
-    if (std.mem.eql(u8, command, "inspect") or std.mem.eql(u8, command, "sign-inspection")) {
-        var query = try std.json.parseFromSlice(transit.Inspection.Query, init.gpa, bytes, .{});
-        defer query.deinit();
-        if (std.mem.eql(u8, command, "sign-inspection") and args.len == 4) return print(init.io, try transit.Inspection.sign(query.value, key));
-        if (args.len != 5) return error.ExpectedAuthorityUrl;
-        var client = wire.Client.init(init.gpa, init.io, args[4]);
-        defer client.deinit();
-        client.observer = diagnostics;
-        return print(init.io, try client.inspect(query.value, key));
-    }
-    var request = try std.json.parseFromSlice(transit.Request, init.gpa, bytes, .{});
+    if (!std.mem.eql(u8, command, "submit") and !std.mem.eql(u8, command, "sign")) return error.UnknownCommand;
+    const request = try std.json.parseFromSlice(transit.Growth.Request, init.gpa, bytes, .{});
     defer request.deinit();
-    const signed = try transit.sign(request.value, key);
-    if (std.mem.eql(u8, command, "sign") and args.len == 4) return print(init.io, signed);
+    const signed = try transit.Growth.sign(request.value, key);
+    if (std.mem.eql(u8, command, "sign")) {
+        if (args.len != 4) return error.ExpectedKeyAndRequestFile;
+        return print(init.io, signed);
+    }
     if (args.len != 5) return error.ExpectedAuthorityUrl;
     var client = wire.Client.init(init.gpa, init.io, args[4]);
     defer client.deinit();
     client.observer = diagnostics;
-    if (std.mem.eql(u8, command, "submit")) return print(init.io, try client.submit(signed));
-    if (std.mem.eql(u8, command, "view")) return print(init.io, try client.view(request.value, key));
-    return error.UnknownCommand;
+    return print(init.io, try client.submit(signed));
 }

@@ -81,12 +81,12 @@ def check(binary, path, root, kind, invoke, fault):
             command = payload(message)
             if command:
                 commands.append(command[:4])
-            if command.startswith(b'UQP2'):
+            if command.startswith(b'UQP1'):
                 signed.append(message)
                 if not upload.reached.is_set():
                     upload.pause()
                     return b'{"position":0}'
-            if command.startswith(b'UQK2'):
+            if command.startswith(b'UQK1'):
                 cancel.pause()
             return data
 
@@ -103,7 +103,7 @@ def check(binary, path, root, kind, invoke, fault):
         cancel.release.set()
         idle(f'Query {query} cancelled.')
         assert len(signed) == 2 and signed[0] == signed[1], 'frozen upload identity changed'
-        assert commands == [b'UQB2', b'UQP2', b'UQP2', b'UQK2'], commands
+        assert commands == [b'UQB1', b'UQP1', b'UQP1', b'UQK1'], commands
         assert record()['namespace'] is None and record()['pending'] is None
         status = invoke('status', str(query), direct=True)
         assert status['phase'] == 'cancelled' and status['collected']
@@ -122,7 +122,7 @@ def check(binary, path, root, kind, invoke, fault):
                     item and bytes.fromhex(item['key']).startswith(b'\x00Us')
                     for item in turn.get('mutations', [])):
                 source.pause()
-            if payload(message).startswith(b'UQK2'):
+            if payload(message).startswith(b'UQK1'):
                 source.release.set()
             return data
 
@@ -199,9 +199,9 @@ def check(binary, path, root, kind, invoke, fault):
 
         def lost_cancellation(route, message, data):
             command = payload(message)
-            if command.startswith(b'UQP2'):
+            if command.startswith(b'UQP1'):
                 upload.pause()
-            if command.startswith(b'UQK2'):
+            if command.startswith(b'UQK1'):
                 cancellations.append(message)
                 if len(cancellations) == 1:
                     return b'{"position":0}'

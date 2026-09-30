@@ -16,7 +16,7 @@ or contact authority. The qualified build target is pinned Zig on Linux x86_64,
 with the build's Nix runtime closure. The raw client remains independent of Station.
 
 Provide `transit_station_config`, handler callbacks, a codec and explicit runner
-options to `transit_station_runner_open`. Configuration selects growing_v3 and
+options to `transit_station_runner_open`. Configuration selects native_v1 and
 an existing process activation. The association names a resource; it does not
 grant access. Credentials and generation remain separate from process identity.
 The examples use association `data`; raw configuration has no implicit name.

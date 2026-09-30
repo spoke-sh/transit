@@ -7,6 +7,7 @@
 extern "C" {
 #endif
 #define TRANSIT_CLIENT_ABI_VERSION 1u
+#define TRANSIT_CLIENT_ABI_DEFINITION "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
 #define TRANSIT_CLIENT_MINIMUM_STACK_BYTES 8388608u
 #define TRANSIT_CLIENT_MAX_COUNTER 9007199254740991ULL
 #define TRANSIT_CLIENT_VALUE_BYTES 256ULL
@@ -27,13 +28,9 @@ typedef struct transit_buffer transit_buffer;
 #define TRANSIT_STATUS_INVALID_RESPONSE 8u
 #define TRANSIT_STATUS_BUSY 9u
 #define TRANSIT_STATUS_INCOMPATIBLE_VERSION 10u
-#define TRANSIT_KIND_COMMAND 1u
-#define TRANSIT_KIND_VIEW 2u
-#define TRANSIT_KIND_STATE 3u
-#define TRANSIT_KIND_INSPECTION 4u
-#define TRANSIT_KIND_DELIVERY 5u
 #define TRANSIT_KIND_GROWING_COMMAND 6u
 #define TRANSIT_KIND_GROWING_QUERY 7u
+uint32_t transit_client_abi_definition_matches(const uint8_t * arg0, size_t arg1);
 uint32_t transit_client_abi_version(void);
 uint32_t transit_client_supports_kind(uint32_t arg0);
 uint32_t transit_json_extract(const uint8_t * arg0, size_t arg1, const uint8_t * arg2, size_t arg3, uint32_t arg4, transit_buffer ** arg5);

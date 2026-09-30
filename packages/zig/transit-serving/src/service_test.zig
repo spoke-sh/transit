@@ -6,7 +6,7 @@ const s = root.station;
 const m = root.Model;
 const c = root.Codec;
 const Service = root.Service;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 test "independent OpenSSL/Python fixtures pin command layouts and scoped signatures" {
     const Fixture = struct {
         version: u8,
@@ -387,7 +387,8 @@ test "finite Table composition keeps service policy and one-query admission in f
     registered.active_limit = 1;
     var publish = try store.command(&base, 33, .{ .publish = .{ .expected = 0, .binding = registered } });
     try store.commit(&publish);
-    const start: root.query.Request.Start = .{ .schema = @splat(4), .plan = .{} };
+    const bundle: root.query.Bundle = .{ .source = .{ .resource = 88, .source = .{ .kv = .{ .prefix = try p.Value.init("data/"), .key = .{ .type = .binary }, .value = .{ .type = .binary } } } }, .plan = .{ .projection = &.{ 0, 1 }, .limit = 10 }, .limits = .{ .pages = 10, .segments = 10, .result_bytes = 65536 } };
+    const start: root.query.UnifiedRequest.Command = .{ .begin = try bundle.reference(7, 100) };
     const frame: s.Frame = .{ .kind = .cast, .payload = try start.encode() };
     var no_policy = try store.turn(65536, frame);
     try t.expect(try guard.reject(guard.context, &no_policy));
@@ -398,16 +399,19 @@ test "finite Table composition keeps service policy and one-query admission in f
     try t.expect(!try guard.reject(guard.context, &first));
     try handler.handle(handler.context, &first, frame);
     try store.commit(&first);
-    try t.expectEqual(@as(u64, 88), first.decision.outputs[0].?.pid);
-    var second = try store.turn(65536, frame);
-    try handler.handle(handler.context, &second, frame);
+    for (first.decision.outputs) |output| try t.expect(output == null); // Upload is not source admission.
+    var other = start;
+    other.begin.namespace = 101;
+    const other_frame: s.Frame = .{ .kind = .cast, .payload = try other.encode() };
+    var second = try store.turn(65536, other_frame);
+    try handler.handle(handler.context, &second, other_frame);
     try store.commit(&second);
-    try t.expectEqualStrings("busy", store.entries.get(root.query.Request.statusKey(second.delivery.input.position)).?.slice());
+    try t.expectEqualStrings("QueryBusy", store.entries.get(root.query.UnifiedRecords.key('e', second.delivery.input.position, 0)).?.slice());
     registered.revision = 2;
     registered.published = false;
     var withdraw = try store.command(&base, 33, .{ .publish = .{ .expected = 1, .binding = registered } });
     try store.commit(&withdraw);
     var unpublished = try store.turn(65536, frame);
     try t.expect(try guard.reject(guard.context, &unpublished));
-    try t.expectEqual(first.delivery.input.position, try root.query.Request.readIdentity(store.entries.get(root.query.Request.activeKey()).?));
+    try t.expectEqual(@as(?u64, 100), try root.query.UnifiedUpload.active(&unpublished));
 }

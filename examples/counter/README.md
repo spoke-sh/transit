@@ -22,7 +22,7 @@ grant its caller principal PID-scoped `execute` and `inspect` (permission bits
 For a fresh manual setup, root's commands are `spawn`, `grant`, then `own` with
 `expected_generation: 0`. Take the PID from the spawn receipt and use generation
 `1` after ownership is accepted. Keys and request sequences follow the
-[service profile](../../contracts/SERVICE_V2.md).
+[service profile](../../contracts/SERVICE_V1.md).
 
 Create `counter.json` with your actual authority, principal, PID, generation and
 private seed-file path:

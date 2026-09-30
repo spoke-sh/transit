@@ -2,14 +2,15 @@
 
 The Flight gateway serves finite, read-only Table queries using Fuze and the
 existing durable query requester. Each gateway serves a single configured
-Table with two int64 columns (nullable value). It is independent of the broader
-KV/Table/Document query v2 interface.
+Table with two int64 columns (nullable value). It uses the current
+KV/Table/Document query v1 interface and adapts verified Table cells to ordinary
+Arrow columns. Missing, conflicted and mistyped cells reject.
 
 | Surface | Supported profile |
 | --- | --- |
 | Statement execution | `CommandStatementQuery`, one endpoint, ordered finite batches through `DoGet` |
 | Metadata | `GetSchema`, catalogs, database schemas, Tables, Table types, selected SqlInfo |
-| Application SQL | [Table SQL v1](../../packages/zig/transit-fuze/docs/sql.md), including count, checked sum and typed empty results |
+| Application SQL | [query SQL](sql/select.md), including count, checked sum and typed empty results |
 | Independent clients | PyArrow 23.0.0; ADBC release 24 Flight SQL driver 1.12.0, Python 3.13 and C vtable on Linux x86_64 |
 | Excluded | Prepared parameters, transactions, writes/ingest, `ListFlights`, `DoPut`, `DoExchange`, distributed endpoints and arbitrary actions |
 
@@ -55,8 +56,13 @@ Compose and reference installations and executes the actual Python/C consumers.
 
 Every RPC authenticates its caller. Statement admission requires a canonical
 decimal `x-transit-request-sequence`; the same sequence and original SQL/schema
-reconstruct the same signed request. A new sequence means a new query. Preserve
-the old one after uncertainty, including across gateway replacement.
+reconstruct the same signed upload commands. The header is the first sequence of
+that upload, which uses multiple consecutive native operations. Preserve it after
+uncertainty, including across gateway replacement. Successful FlightInfo application
+metadata returns `{"version":1,"next_sequence":N}`. Use that sequence for the next
+statement; incrementing the prior first sequence by one overlaps its upload.
+Clients without access to FlightInfo application metadata can read their dedicated
+principal’s next native sequence after the prior statement completes.
 
 Tickets are signed, scoped and expiring. They never replace current service,
 source and requester rights. Every bounded read and final disclosure rechecks

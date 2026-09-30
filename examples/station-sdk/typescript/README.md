@@ -11,7 +11,7 @@ dependencies. For local unpublished artifacts, use ordinary package-manager
 overrides as described in the client package guide.
 
 Run `transit-node-counter CONFIG service --commits 1` or replace `service` with
-`requester`. CONFIG supplies `url`, `profile: "growing_v3"`, `realm`, `pid`,
+`requester`. CONFIG supplies `url`, `profile: "native_v1"`, `realm`, `pid`,
 `principal`, `generation`, `seed_file` and the other role's `peer` PID. Provision
 the activation, grants and `data` association first. The CLI explicitly requires
 fresh ownership after host loss. Applications that need exact retry across a

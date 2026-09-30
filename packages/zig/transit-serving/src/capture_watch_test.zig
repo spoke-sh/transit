@@ -10,14 +10,14 @@ const Store = q.testing.Store;
 const progress_key = p.Value.init("data-progress") catch unreachable;
 const Source = struct {
     store: *Store,
-    pub fn open(self: @This(), resource: u64) !s.GrowingTurn {
+    pub fn open(self: @This(), resource: u64) !s.Turn {
         if (resource != self.store.resource or self.store.denied) return error.AccessDenied;
         return self.store.capture();
     }
 };
 const WatchReader = struct {
     store: *Store,
-    turn: s.GrowingTurn,
+    turn: s.Turn,
     view: p.Growth.View,
     fn open(store: *Store) !@This() {
         const turn = try store.capture();

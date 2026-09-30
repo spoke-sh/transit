@@ -20,9 +20,9 @@ def run(env, tls):
     schema = hashlib.sha256(b'\1\1\2id\5count').digest()
     cast(ingress, reactive(0, struct.pack('<QQQQIB', 0, 1, application, resource, 1, 13) + b'data-progress' + schema + b'\1'))
     table = b'TBL1\1\2id\5count'
-    source = b'UQS2' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
-    declaration = hashlib.sha256(b'transit.query.source.v2\0' + source).digest()
-    cast(application, b'UQA2' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + struct.pack('<QQQ', 64, 64, 1048576))
+    source = b'UQS1' + struct.pack('<QBI', resource, 2, 1) + bytes([len(table)]) + table
+    declaration = hashlib.sha256(b'transit.query.source.v1\0' + source).digest()
+    cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + struct.pack('<QQQ', 64, 64, 1048576))
     cast(ingress, policy(33))
     drained(application); drained(ingress)
     env['grant'](33, 20, ingress)
@@ -76,8 +76,8 @@ def run(env, tls):
     gateway = dict(service=1, ingress=ingress, resource=requests, port=env['gateway_ports'][0], host=env['public_host'], public_origin='https://' + env['public_host'],
         callers=[dict(principal=65536, public_key=keys[65536].public)], reactive=True, options=dict(requests=4, request_timeout_ms=30000), per_caller_requests=4,
         viewer=dict(principal=65536, seed_file=str(keys[65536].seed), refresh=True))
-    board_config = dict(upstream=env['worker_url'], realm=49, principal=79, seed_file=str(keys[79].seed), profile='growing_v3', public_origin=gateway['public_origin'], port=gateway['port'], request_timeout_ms=5000, upstream_timeout_ms=3500,
-        query_v2=dict(seed_file=str(keys[65536].seed), connection=dict(realm=49, principal=65536, source=application, resource=resource, requester=ingress, requests=requests),
+    board_config = dict(upstream=env['worker_url'], realm=49, principal=79, seed_file=str(keys[79].seed), profile='native_v1', public_origin=gateway['public_origin'], port=gateway['port'], request_timeout_ms=5000, upstream_timeout_ms=3500,
+        query=dict(seed_file=str(keys[65536].seed), connection=dict(realm=49, principal=65536, source=application, resource=resource, requester=ingress, requests=requests),
             workspace=dict(name='counter', source=dict(resource=resource, source={'table': dict(id=1, names=['id', 'count'], value_type='int64')}), limits=dict(pages='64', segments='64', result_bytes='1048576'))),
         reactive=dict(principal=79, seed_file=str(keys[79].seed), gateway=gateway))
     board = env['start']('board-live', env['board'], board_config)

@@ -72,7 +72,7 @@ def reusable_connections(fixture):
             # monopolize accept. Health uses the separate admission reserve.
             slow = socket.create_connection(('127.0.0.1', port), timeout=3)
             try:
-                slow.sendall(f'POST /v3/query HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 100\r\n\r\nx'.encode())
+                slow.sendall(f'POST /v1/query HTTP/1.1\r\nHost: localhost:{port}\r\nContent-Length: 100\r\n\r\nx'.encode())
                 connection.request('GET', '/health')
                 reply = connection.getresponse()
                 assert reply.status == 200 and json.loads(reply.read())['ready']
@@ -81,11 +81,11 @@ def reusable_connections(fixture):
         finally:
             connection.close()
     # Priority hints cannot turn an ordinary operation into a release or grant.
-    query = {'query': {'version': 3, 'realm': fixture.config['realm'], 'principal': 0,
+    query = {'query': {'version': 1, 'realm': fixture.config['realm'], 'principal': 0,
                       'kind': {'capabilities': {}}}, 'signature': [0] * 64}
     for direct in (False, True):
-        assert response(fixture, '/v3/query', json.dumps(query).encode(), direct=direct)[0] == 403
-        assert response(fixture, '/v3/query', json.dumps(query).encode(),
+        assert response(fixture, '/v1/query', json.dumps(query).encode(), direct=direct)[0] == 403
+        assert response(fixture, '/v1/query', json.dumps(query).encode(),
                         {'X-Transit-Control': 'snapshot'}, direct)[0] == 400
     print('Transit transport: socket reuse, partial-body isolation and checked control hints passed', flush=True)
 
@@ -140,32 +140,32 @@ def gateway(fixture):
     denied = subprocess.run([fixture.cli, "console", "--config", str(fixture.root / "wrong.json"), "--format", "json"],
         input=".schema\n", capture_output=True, text=True, timeout=10)
     assert denied.returncode == 1 and not denied.stdout and "permission denied" in denied.stderr, denied
-    assert response(fixture, "/v3/query", b"{}")[0] == 400
-    assert response(fixture, "/v3/query", b"{}") == response(fixture, "/v3/query", b"{}", direct=True)
+    assert response(fixture, "/v1/query", b"{}")[0] == 400
+    assert response(fixture, "/v1/query", b"{}") == response(fixture, "/v1/query", b"{}", direct=True)
     for header in ("origin", "authorization", "forwarded", "x-forwarded-for", "x-real-ip"):
         assert response(fixture, "/health", headers={header: "private-must-not-appear"})[0] == 403
     assert response(fixture, "/missing")[0] == 404
-    assert response(fixture, "/v3/query", b"x" * (262144 + 1))[0] == 413
+    assert response(fixture, "/v1/query", b"x" * (262144 + 1))[0] == 413
 
     held = []
     try:
         for _ in range(4):
             peer = socket.create_connection(("127.0.0.1", fixture.config["ports"]["gateway"]), timeout=2)
             held.append(peer)
-            peer.sendall((f"POST /v3/query HTTP/1.1\r\nHost: 127.0.0.1:{fixture.config['ports']['gateway']}\r\nContent-Length: 100\r\n\r\n{{").encode())
+            peer.sendall((f"POST /v1/query HTTP/1.1\r\nHost: 127.0.0.1:{fixture.config['ports']['gateway']}\r\nContent-Length: 100\r\n\r\n{{").encode())
         time.sleep(.1)
         start = time.monotonic()
         assert response(fixture, "/health")[0] == 200
         elapsed = time.monotonic() - start
         assert elapsed < 2, elapsed
-        assert response(fixture, "/v3/query", b"{}")[0] == 503
+        assert response(fixture, "/v1/query", b"{}")[0] == 503
         # The reserve admits cleanup-shaped requests even with data slots full;
         # parsing and signed authority checks remain mandatory after admission.
-        assert response(fixture, "/v3/query", b"{}", headers={"X-Transit-Control": "snapshot"})[0] == 400
-        release = {'query': {'version': 3, 'realm': fixture.config['realm'], 'principal': 0,
+        assert response(fixture, "/v1/query", b"{}", headers={"X-Transit-Control": "snapshot"})[0] == 400
+        release = {'query': {'version': 1, 'realm': fixture.config['realm'], 'principal': 0,
                             'kind': {'close_snapshot': {'epoch': [7] * 16, 'serial': 1}}},
                    'signature': [0] * 64}
-        assert response(fixture, "/v3/query", json.dumps(release).encode(),
+        assert response(fixture, "/v1/query", json.dumps(release).encode(),
                         headers={"X-Transit-Control": "snapshot"})[0] == 403
         # Whole-request deadlines close all slow bodies without retaining tasks.
         for peer in held:
@@ -215,7 +215,7 @@ def partial_bootstrap(cli, node, host):
         for expected, actual in zip(before["provision"], after["provision"]):
             if expected is not None:
                 assert expected == actual
-        status, body = response(fixture, "/v3/command", json.dumps(frozen["signed"], separators=(",", ":")).encode())
+        status, body = response(fixture, "/v1/command", json.dumps(frozen["signed"], separators=(",", ":")).encode())
         assert status == 200 and json.loads(body)["position"] == after["provision"][frozen["index"]], (status, body)
         fixture.console(".schema\n.quit\n")
         gateway(fixture)

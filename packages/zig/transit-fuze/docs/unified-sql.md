@@ -14,7 +14,7 @@ source policy and its permitted budgets. Neither operation admits a query or
 retains a source version. Subsequent finite upload and source admission establish
 the committed source cut recorded in the result.
 
-The [v2 SQL contract](../../../../contracts/UNIFIED_QUERY_V2.md#sql-capability-profile)
+The [v1 SQL contract](../../../../contracts/UNIFIED_QUERY_V1.md#sql-capability-profile)
 defines the exact profile:
 
 | SQL | V2 behavior |

@@ -1,4 +1,4 @@
-//! Signed v2 caller operations. A Prepared command is frozen across uncertainty;
+//! Signed v1 caller operations. A Prepared command is frozen across uncertainty;
 //! only an observed, committed upload step permits preparing its successor.
 const std = @import("std");
 const q = @import("root.zig");
@@ -14,10 +14,10 @@ batch_reads: ?q.wire.ResourceReader.Batches = null,
 snapshot_support: ?q.wire.SnapshotReader.Support = null,
 pub const Connection = struct { realm: u64, principal: u64, source: u64, resource: u64, requester: u64, requests: u64 };
 pub const Capabilities = struct {
-    version: u8 = 2,
-    source: u8 = 2,
-    plan: u8 = 2,
-    result: u8 = 2,
+    version: u8 = 1,
+    source: u8 = 1,
+    plan: u8 = 1,
+    result: u8 = 1,
     bundle_bytes: u32 = q.Bundle.max_bytes,
     part_bytes: u16 = q.UnifiedRequest.part_bytes,
     segment_bytes: u32 = q.fuze.Unified.Arrow.segment_bytes,
@@ -35,7 +35,7 @@ pub const Description = struct {
     limits: q.Bundle.Limits,
     active: ?u64,
 };
-pub const Prepared = struct { version: u8 = 2, signed: g.SignedRequest };
+pub const Prepared = struct { version: u8 = 1, signed: g.SignedRequest };
 pub const Observation = union(enum) { pending, committed, rejected: p.Value };
 /// Only a stale observation may restart at a fresh current cut. This never
 /// retries a signed mutation, denial or an unavailable resource.
@@ -151,17 +151,17 @@ pub fn prepare(self: *Self, command: q.UnifiedRequest.Command) !Prepared {
 }
 pub fn validate(self: *Self, prepared: Prepared) !void {
     const request = prepared.signed.request;
-    if (prepared.version != 2 or request.realm != self.connection.realm or request.principal != self.connection.principal or request.command != .send or request.command.send.pid != self.connection.requester) return error.InvalidQueryRequest;
-    const frame = try s.Frame.decode(request.command.send.value);
+    if (prepared.version != 1 or request.realm != self.connection.realm or request.principal != self.connection.principal or request.command != .send or request.command.send.pid != self.connection.requester) return error.InvalidQueryRequest;
+    const frame = s.Frame.decode(request.command.send.value) catch return error.InvalidQueryRequest;
     if (frame.kind != .cast) return error.InvalidQueryRequest;
-    const command = try q.UnifiedRequest.Command.decode(&frame.payload);
+    const command = q.UnifiedRequest.Command.decode(&frame.payload) catch return error.InvalidQueryRequest;
     if (command == .begin and command.begin.resource != self.connection.requests) return error.QueryIdentityMismatch;
 }
 pub fn submit(self: *Self, prepared: Prepared) !p.Receipt {
     try self.validate(prepared);
     // No fresh preparation or policy-dependent replacement of an uncertain
     // command. Node grants, requester identity and source policy remain live.
-    return self.wire.submitGrowing(prepared.signed);
+    return self.wire.submit(prepared.signed);
 }
 /// Receipt position is the requester input, not its ordinal. The public head
 /// can prove that input is still pending or that all earlier input has committed.
@@ -202,6 +202,11 @@ pub fn prepareNext(self: *Self, namespace: u64, bundle: q.Bundle) !?Prepared {
     return self.prepareNextWithDraft(namespace, bundle, null);
 }
 pub fn prepareNextWithDraft(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
+    // Preparation has no mutation side effects. Restart a conflicted current
+    // observation before freezing the next command; never replace a dispatched one.
+    return self.read(prepareNextOnce, .{ namespace, bundle, generation });
+}
+fn prepareNextOnce(self: *Self, namespace: u64, bundle: q.Bundle, generation: ?u64) !?Prepared {
     try bundle.validate();
     const description = try self.describe(bundle.source);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;

@@ -23,10 +23,10 @@ internal sealed class Bridge : IWorkerState<object?>
         package = new NativePackage("station", nativeDirectory);
         try {
             Api = new NativeApi(package.Library);
-            if (Api.station_abi_version() != NativeApi.Version) throw Value.Incompatible("station-version");
+            if (Api.station_abi_definition_matches(Value.Utf8.GetBytes(NativeApi.Definition), (nuint)NativeApi.Definition.Length) != 1 || Api.station_abi_version() != NativeApi.Version) throw Value.Incompatible("station-version");
             uint status = Api.station_growing_capabilities(out var buffer);
             Caps = Result(status, buffer, "native-capabilities", schema: "GrowingCapabilities");
-            if (Value.Number(Caps["version"], 1) != 1 || Value.String(Caps["profile"]) != "growing_v3") throw Value.Incompatible("station-profile");
+            if (Value.Number(Caps["version"], 1) != 1 || Value.String(Caps["profile"]) != "native_v1") throw Value.Incompatible("station-profile");
             foreach (string name in new[] { "gated_dispatch", "retained_confirmation", "scoped_turns", "paged_state", "tables", "retained_sources" }) {
                 if (!Value.Boolean(Caps[name])) throw new TransitException(ErrorKind.UnsupportedCapability, "native-capabilities");
             }
@@ -47,7 +47,7 @@ internal sealed class Bridge : IWorkerState<object?>
             if (!authority.AssociationLookup || !authority.ScopedRetry || !authority.RetainedVersions) throw new TransitException(ErrorKind.UnsupportedCapability, "authority-capabilities");
             var activation = config.Activation;
             byte[] endpoint = Value.Utf8.GetBytes(config.Client.NativeEndpoint);
-            byte[] document = Value.Json(Value.Obj(("profile", "growing_v3"), ("realm", activation.Process.Realm), ("principal", activation.Credential.Principal),
+            byte[] document = Value.Json(Value.Obj(("profile", "native_v1"), ("realm", activation.Process.Realm), ("principal", activation.Credential.Principal),
                 ("pid", activation.Process.Pid), ("generation", activation.Generation), ("association", config.Association), ("timeout_ms", config.Client.TimeoutMillis),
                 ("failure_policy", failure == FailurePolicy.Stop ? "stop" : "block_input"), ("query_results", config.QueryResults)));
             byte[] seed = RawBridge.Seed(activation.Credential.SeedFile);
@@ -73,7 +73,7 @@ internal sealed class Bridge : IWorkerState<object?>
                 if (bridge.queryClient == IntPtr.Zero) throw Value.Incompatible("query-create");
             } finally { CryptographicOperations.ZeroMemory(seed); }
             var caps = Value.Object(bridge.UnifiedQuery(Value.Obj(("capabilities", Value.Obj())))["capabilities"]);
-            if (Value.Number(caps["version"], 1) != 2) throw Value.Incompatible("query-version");
+            if (Value.Number(caps["version"], 1) != 1) throw Value.Incompatible("query-version");
             foreach (string kind in new[] { "kv", "table", "document" }) if (!Value.Boolean(caps[kind])) throw Value.Incompatible("query-source");
             return bridge;
         } catch (Exception) { bridge.Dispose(); throw; }

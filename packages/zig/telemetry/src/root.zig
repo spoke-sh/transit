@@ -257,7 +257,7 @@ pub const Runtime = struct {
         var writer: std.Io.Writer = .fixed(&buffer);
         const instance = std.fmt.bytesToHex(self.instance, .lower);
         if (self.config.format == .text) try writer.print("[{s}] {s} {s} ", .{ self.service, @tagName(level), name });
-        try std.json.Stringify.value(.{ .schema_version = if (comptime std.mem.eql(u8, name, "telemetry.metrics")) @as(u8, 2) else @as(u8, 1), .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .level = level, .name = name, .measurement = value }, .{}, &writer);
+        try std.json.Stringify.value(.{ .schema_version = @as(u8, 1), .service_name = self.service, .service_instance_id = instance[0..], .time_unix_ms = std.Io.Clock.real.now(self.io).toMilliseconds(), .level = level, .name = name, .measurement = value }, .{}, &writer);
         try writer.writeByte('\n');
         try self.sink.writeStreamingAll(self.io, writer.buffered());
     }
@@ -416,7 +416,7 @@ test "periodic metrics honor log level while measurement continues" {
             var parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, output[json_start..json_end], .{});
             defer parsed.deinit();
             const report = parsed.value.object;
-            try std.testing.expectEqual(2, report.get("schema_version").?.integer);
+            try std.testing.expectEqual(1, report.get("schema_version").?.integer);
             try std.testing.expectEqualStrings("debug", report.get("level").?.string);
             const snapshot_value = report.get("measurement").?.object.get("snapshot").?.object;
             try std.testing.expectEqual(8, snapshot_value.get("outcomes").?.object.count());

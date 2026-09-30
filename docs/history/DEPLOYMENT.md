@@ -169,7 +169,7 @@ answers where that process is hosted. Substrate resolves the current physical
 worker. Message admission continues to address the PID when placement changes.
 
 Binding responsibilities below are provider-neutral; the implemented encoding
-is defined in the [v2 runtime contract](../../contracts/TRANSIT_V2.md#runtime-bindings-and-activation):
+is defined in the [v2 runtime contract](../../contracts/TRANSIT_V1.md#runtime-binding-and-readiness):
 
 | Field | Purpose |
 | --- | --- |

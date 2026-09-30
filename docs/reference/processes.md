@@ -69,6 +69,5 @@ recorded, only that already authorized settlement may continue. Retirement
 permanently ends activation; physical cleanup may happen later. The
 [retention reference](retention.md) explains checkpoints, dependencies and time.
 
-Exact envelopes and transitions are in [protocol v2](../../contracts/TRANSIT_V2.md)
-and [growing v3](../../contracts/TRANSIT_V3.md). Use [native protocol](native.md)
+Exact envelopes and transitions are in [native protocol v1](../../contracts/TRANSIT_V1.md). Use [native protocol](native.md)
 to select the right profile, and [Station](station.md) for behavior APIs above it.

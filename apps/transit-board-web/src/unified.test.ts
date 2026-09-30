@@ -75,7 +75,7 @@ describe("unified query boundary", () => {
       validateUnifiedQuery({ draft: { ...draft, budgets: { ...draft.budgets, pages: "0" } } }),
     ).toBe(false);
   });
-  it("admits escaped owned pages beyond the inspection response budget and bounds v2 separately", async () => {
+  it("admits escaped query pages while keeping inspection and query response bounds", async () => {
     const value = page({ value: { utf8: "\u0000".repeat(2048) } });
     if (!("page" in value)) throw new Error("fixture");
     value.page.evidence.columns = [
@@ -99,12 +99,12 @@ describe("unified query boundary", () => {
     expect(validateUnifiedQuery(value)).toBe(true);
     try {
       vi.stubGlobal("fetch", async () => new Response(encoded));
-      expect(await request("/api/v1/query-v2", validateUnifiedQuery)).toEqual(value);
-      await expect(request("/api/v1/query", validateUnifiedQuery)).rejects.toMatchObject({
+      expect(await request("/api/v1/query", validateUnifiedQuery)).toEqual(value);
+      await expect(request("/api/v1/processes", validateUnifiedQuery)).rejects.toMatchObject({
         code: "ResponseTooLarge",
       });
       vi.stubGlobal("fetch", async () => new Response(" ".repeat(1048577)));
-      await expect(request("/api/v1/query-v2", validateUnifiedQuery)).rejects.toMatchObject({
+      await expect(request("/api/v1/query", validateUnifiedQuery)).rejects.toMatchObject({
         code: "ResponseTooLarge",
       });
     } finally {

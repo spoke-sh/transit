@@ -31,5 +31,5 @@ message batches, scoped durable calls and owned transcript replay.
 The [Document guide](docs/DOCUMENTS.md) describes immutable structured/text change
 values, scoped writer jobs and current-policy reads through the joined worker.
 
-The [unified query guide](docs/UNIFIED_QUERY.md) covers typed v2 sources, finite
+The [unified query guide](docs/UNIFIED_QUERY.md) covers typed v1 sources, finite
 plans, persisted admission commands and immutable nested Arrow pages.

@@ -12,7 +12,7 @@ const Source = struct {
     other: ?*Store = null,
     opens: ?*usize = null,
     deny_at: ?usize = null,
-    pub fn open(self: @This(), resource: u64) !s.GrowingTurn {
+    pub fn open(self: @This(), resource: u64) !s.Turn {
         if (self.opens) |opens| {
             opens.* += 1;
             if (self.deny_at == opens.*) return error.AccessDenied;
@@ -22,7 +22,7 @@ const Source = struct {
         return store.capture();
     }
 };
-fn frame(store: *Store, peer: u64, message: s.Frame) !s.GrowingTurn {
+fn frame(store: *Store, peer: u64, message: s.Frame) !s.Turn {
     var turn = try store.capture();
     turn.delivery.input.origin = .{ .process = .{ .pid = peer, .turn = 1, .output = 0 } };
     turn.delivery.input.value = try message.encode();
@@ -52,7 +52,7 @@ fn start(store: *Store, requests: *Store, bundle: q.Bundle) !r.Job {
     try store.commit(turn);
     return stored;
 }
-fn advance(store: *Store, requests: *Store, id: u64, workspace: []u8) !struct { step: capture.Advance, turn: s.GrowingTurn } {
+fn advance(store: *Store, requests: *Store, id: u64, workspace: []u8) !struct { step: capture.Advance, turn: s.Turn } {
     var reader = try store.capture();
     const job = try capture.job(&reader, id);
     const continuation: r.Continuation = .{ .job = id, .input = job.continuation };
@@ -182,7 +182,7 @@ test "finite capture resumes discarded proposals publishes complete coverage and
     try store.commit(turn);
     try finishCleanup(&store, &requests, job, workspace);
 }
-fn countMutations(turn: s.GrowingTurn) usize {
+fn countMutations(turn: s.Turn) usize {
     var count: usize = 0;
     for (turn.decision.mutations) |slot| if (slot != null) {
         count += 1;
@@ -409,7 +409,7 @@ test "source behavior closes denied accepted work with the original reply and re
     var behavior: q.UnifiedBehavior.Source = .{ .peer = 9, .initializer = 42, .resources = undefined, .workspace = workspace, .adapter = adapter, .cancellation = &cancellation };
     const handler = behavior.interface();
     var turn = try store.capture();
-    try turn.write(s.GrowingGenServer.descriptor_key, s.GrowingGenServer.descriptor);
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
     try handler.initialize.?(handler.context, &turn);
     try capture.setPolicy(&turn, .{ .peer = 9, .requests = 8, .revision = 1, .allow = true, .limits = limits, .declaration = try q.Bundle.declaration(definition) });
     try store.commit(turn);
@@ -434,7 +434,7 @@ test "source behavior closes denied accepted work with the original reply and re
         if (result.kind == .reply) {
             try t.expectEqual(@as(u64, 9), output.pid);
             try t.expectEqual(@as(u64, 77), result.correlation);
-            try t.expectEqualStrings("query.v2.denied", result.payload.slice());
+            try t.expectEqualStrings("query.v1.denied", result.payload.slice());
             replied = true;
         }
     };

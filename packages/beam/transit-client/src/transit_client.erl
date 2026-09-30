@@ -9,8 +9,8 @@
 -opaque client() :: transit_sdk_worker:handle().
 -opaque pending() :: {transit_pending, send | mutation, map(), binary()}.
 -type error() :: #transit_error{}.
--spec config(binary(), growing_v3) -> {ok, #transit_config{}} | {error, error()}.
--spec config(binary(), growing_v3, map()) -> {ok, #transit_config{}} | {error, error()}.
+-spec config(binary(), native_v1) -> {ok, #transit_config{}} | {error, error()}.
+-spec config(binary(), native_v1, map()) -> {ok, #transit_config{}} | {error, error()}.
 -spec process(transit_counter(), transit_counter()) -> {ok, #transit_process{}} | {error, error()}.
 -spec resource(transit_counter(), transit_counter()) -> {ok, #transit_resource{}} | {error, error()}.
 -spec credential(transit_counter(), 0..9007199254740991, binary()) -> {ok, #transit_credential{}} | {error, error()}.
@@ -30,13 +30,13 @@
 -spec evidence(client()) -> {ok, #transit_shutdown{}} | {error, error()}.
 config(Url, Profile) -> config(Url, Profile, #{}).
 config(Url, Profile, Options) -> validate(fun() ->
-    true = is_map(Options), true = Profile =:= growing_v3,
+    true = is_map(Options), true = Profile =:= native_v1,
     Text = transit_sdk_value:text(Url, 2048), Parsed = uri_string:parse(Text),
     true = lists:member(maps:get(scheme, Parsed), [<<"http">>, <<"https">>]),
     true = byte_size(maps:get(host, Parsed)) > 0,
     true = lists:all(fun(Key) -> not maps:is_key(Key, Parsed) end, [userinfo, query, fragment]),
     Timeout = transit_sdk_value:integer(maps:get(timeout_ms, Options, 5000), 1, 60000),
-    #transit_config{url = Text, profile = growing_v3, timeout_ms = Timeout, native_host = maps:get(native_host, Options, undefined)}
+    #transit_config{url = Text, profile = native_v1, timeout_ms = Timeout, native_host = maps:get(native_host, Options, undefined)}
 end).
 process(Realm, Pid) -> validate(fun() -> #transit_process{realm = transit_sdk_value:counter(Realm), pid = transit_sdk_value:counter(Pid)} end).
 resource(Realm, Id) -> validate(fun() -> #transit_resource{realm = transit_sdk_value:counter(Realm), resource = transit_sdk_value:counter(Id)} end).

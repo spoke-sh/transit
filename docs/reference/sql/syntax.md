@@ -40,18 +40,18 @@ aliases are unsupported; `AS alias` exists only in the restricted
 | --- | --- | --- |
 | Signed decimal integer | `-42`, `+7`, `0` | int64, from -9223372036854775808 through 9223372036854775807 |
 | Boolean | `TRUE`, `FALSE` | Boolean value |
-| Null | `NULL` | Explicit null; profile-specific comparison rules apply |
+| Null | `NULL` | Explicit null; use `IS NULL` |
 | String | `'it''s ready'` | UTF-8 text; doubled single quotes encode a quote |
 | Binary | `'\x00ff'::bytea` | Hexadecimal bytes; `::bytea` is the only cast form |
 
 Backslashes are literal, including the `\x` prefix decoded by the binary literal
 handler. E strings, dollar quoting, adjacent-string concatenation, floating-point
 literals, implicit casts and general expressions are unsupported. Uint64 and
-float64 columns can be projected by unified v2; comparison literals of those
+float64 columns can be projected by query v1; comparison literals of those
 types require typed plans.
 
 `LIMIT` accepts unsigned decimal digits without a sign. Its allowed value is
-profile-specific: 0–32 for Table v1, full u64 for unified v2. No limit means no
+0–18446744073709551615. No limit means no
 implicit truncation; finite execution budgets still apply.
 
 ## Administrative options and types
@@ -77,11 +77,9 @@ not imply SQL provisioning support or encode every type in a unified query schem
 The production parser accepts at most 4096 UTF-8 bytes, 16-byte identifiers,
 16 levels of block comments and 220 bytes per decoded literal cell. It rejects
 NUL, malformed UTF-8, unterminated tokens and out-of-range integers. The AST holds
-at most two explicit projected columns and one predicate. A v1 public query
-also requires a plan of at most 207 encoded bytes; v2 has finite upload and
-execution budgets.
+at most two explicit projected columns and one predicate. Durable queries have finite plan upload and execution budgets.
 
 These are per-operation bounds, independent of source cardinality. A syntactically
 valid query may still fail name/type checking, authorization or execution. See
 [SELECT failures](select.md#failures-and-unsupported-forms) and the
-[compiler reference](../../../packages/zig/transit-fuze/docs/sql.md#bounds-and-errors).
+[compiler reference](../../../packages/zig/transit-fuze/docs/unified-sql.md).

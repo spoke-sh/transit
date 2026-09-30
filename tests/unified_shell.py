@@ -8,7 +8,7 @@ import time
 
 class Shell:
     def __init__(self, binary, root):
-        self.process = subprocess.Popen([binary, 'query-v2', str(root/'shell.json')],
+        self.process = subprocess.Popen([binary, 'query', str(root/'shell.json')],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.buffer = b''
         self.read(json_line=False)
@@ -41,7 +41,7 @@ def check(binary, root, kind, invoke, expected, fault):
     try:
         description = shell.call('.sources')['description']
         assert description['source']['capabilities'][kind]
-        assert description['sql']['version'] == 2 and not description['sql']['continuous']
+        assert description['sql']['version'] == 1 and not description['sql']['continuous']
         assert kind in description['source']['source']['source']
         assert shell.call('.resume 1')['status']['phase'] == 'complete'
         first = shell.call('.next')
@@ -65,7 +65,8 @@ def check(binary, root, kind, invoke, expected, fault):
         shell.close()
         shell = Shell(binary, root)
         assert shell.call('.resume 2')['status']['phase'] == 'uploading'
-        assert shell.call('.restore-bundle '+bundle) == {'restored_bundle': True}
+        restored = shell.call('.restore-bundle '+bundle)
+        assert restored == {'restored_bundle': True}, restored
         assert shell.call('.restore '+pending) == {'restored': True}
         assert 'receipt' in shell.call('.retry')
         progress = shell.read()

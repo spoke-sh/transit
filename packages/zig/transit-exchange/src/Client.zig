@@ -34,7 +34,7 @@ pub const Reader = struct {
     }
 };
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    return self.wire.queryGrowing(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key);
+    return self.wire.query(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key);
 }
 pub fn reader(self: *Self, resource: u64) !Reader {
     const meta = (try self.query(.{ .resource = resource })).body.resource;

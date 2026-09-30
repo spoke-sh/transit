@@ -4,46 +4,26 @@
 
 ## Configuration and bootstrap
 
-`transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` accepts:
+`transit-node CONFIG.json [--bootstrap|--initialize|--maintain]` uses the
+[configuration fields and maintenance policy](growing.md). Only `--bootstrap`
+or `--initialize` creates storage; the latter exits after initialization.
+Ordinary startup requires an existing history/checkpoint with the current
+contract definition and matching genesis. An outage or incompatible history
+cannot initialize an empty realm. The node needs no root signing seed.
 
-| Field | Meaning |
-| --- | --- |
-| `genesis` | Exact expected [v2 genesis](../../../contracts/TRANSIT_V2.md), including root public key |
-| `ursula_url`, `bucket`, `journal` | Private authoritative storage endpoint/location |
-| `listen`, `port` | IPv4 address (default `127.0.0.1`) and port (default 8080) |
-| `request_timeout_ms` | Whole-request deadline, default 2000, maximum 60000 |
-| `maintenance` | Optional settings for the separate `--maintain` process below |
-| `accept_trace_parent` | Accept internal diagnostic trace parents, default false; never authentication |
+`--maintain` uses a dedicated realm-wide principal with admin, effect and
+delivery grants. Its bounded scans suggest ordinary signed transitions; current
+authorization and lifecycle rules still decide acceptance. It materializes known
+expiry, closes due attempts, collects eligible records and reconciles checkpoint
+or payload deletion intents. It never dispatches an external effect. Opt-in
+retention, dependency checks and recovery evidence remain required.
 
-Only explicit `--bootstrap` or `--initialize` creates storage; the latter exits
-after validating initialization. Ordinary startup requires validated
-existing history/checkpoint; an outage is not an empty installation. The node
-needs no root signing seed. Bootstrap configuration is an operator trust input.
-
-`--maintain` runs a separate trusted process without an HTTP listener. Its config
-requires `principal` and `seed_file`, with realm-wide `admin` and `effect` grants.
-It scans the bounded process/effect/payload and state-resource catalogs,
-including expired read views, suspended-process deadlines and opted-in catalog
-collection, and commits at most one due
-transition per iteration, and reconciles recorded checkpoint/deletion intents.
-Payload deletion requires verified publication, owner retirement and explicit
-opt-in; its tombstone stays in control history. Default interval is
-1000 ms and whole-operation timeout is 5000 ms; both are configurable up to
-60000 ms. After a successful transition the next scan waits only 1 ms; idle and
-failed scans use the configured interval. Incoming HTTP load cannot occupy this process's execution loop.
-Lost acknowledgements are reconciled from history before the next operation.
-
-History remains unlimited by default. Optional `checkpoint_every_records` (at
-least 2) asks maintenance to checkpoint quiescent opted-in processes after that
-many records since the retained floor. Realm retry policy must permit removal,
-every PID must have `allow_trim`, and every resource must permit history
-removal under its minimum age; pending input still blocks trimming.
-Publication is read back before retention advances. Clock failure blocks timed
-expiry/closure but permits authorized checkpoint/deletion recovery. Maintenance
-credentials and raw storage access stay outside worker sandboxes. The separate
-[capacity proof](../../../tests/README.md#physical-capacity-profile) exercises a
-physically reserved finite realm; enabling the node alone does not provision that
-reserve or promise full-store recovery for an arbitrary storage deployment.
+History is unlimited by default. A checkpoint requires the genesis
+`allow_history_trim` opt-in. Maintenance verifies the committed floor and rereads
+the published snapshot before trimming earlier authority records. Pending mailbox
+values, receipts and resource roots remain independent of the trimmed journal
+prefix. Resource history reclamation and physical payload deletion have their
+own eligibility gates. See [retention](../../../docs/reference/retention.md).
 
 ## Time and deadlines
 

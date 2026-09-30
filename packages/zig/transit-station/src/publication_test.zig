@@ -1,7 +1,7 @@
 const std = @import("std");
 const t = std.testing;
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Pub = @import("Publication.zig");
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 const Store = struct {

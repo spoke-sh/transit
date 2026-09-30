@@ -1,19 +1,17 @@
-//! Bounded protocol HTTP client. No storage or provider credentials.
+//! Native v1 protocol HTTP client. No storage or provider credentials.
 const std = @import("std");
 pub const ResourceReader = @import("ResourceReader.zig");
 pub const SnapshotReader = @import("SnapshotReader.zig");
 pub const observability = @import("transit_observability");
 const telemetry = observability.telemetry;
 pub const Session = @import("Session.zig");
-pub const GrowingSession = @import("GrowingSession.zig");
 pub const bootstrap = @import("bootstrap.zig");
 pub const Application = @import("Application.zig");
 pub const Value = protocol.Value;
 pub const protocol = @import("transit_protocol");
 const transit = protocol;
 pub const max_body = protocol.max_body;
-pub const Input = protocol.Input;
-pub const View = protocol.View;
+pub const Input = protocol.Growth.Input;
 pub const Receipt = protocol.Receipt;
 
 pub const Client = struct {
@@ -61,11 +59,11 @@ pub const Client = struct {
         const command = if (@hasField(@TypeOf(signed), "request")) @tagName(signed.request.command) else if (@TypeOf(signed) == protocol.Growth.SignedQuery) @tagName(signed.query.kind) else "inspect";
         var observation = observability.begin(self.observer, .client_request, command, self.parent_context);
         observation.event.route = route: {
-            inline for (.{ "/v2/view", "/v2/inspect", "/v2/state", "/v2/delivery", "/v2/command", "/v3/command", "/v3/query" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
+            inline for (.{ "/v1/command", "/v1/query" }) |known| if (std.mem.eql(u8, path, known)) break :route known;
             break :route "unmatched";
         };
         observation.event.method = "POST";
-        const mutation = std.mem.eql(u8, path, "/v2/command") or std.mem.eql(u8, path, "/v3/command");
+        const mutation = std.mem.eql(u8, path, "/v1/command");
         if (mutation) observation.event.protocol_outcome = .uncertain;
         defer observation.finish();
         self.call_context = observation.span.context;
@@ -83,7 +81,7 @@ pub const Client = struct {
         if (@hasField(@TypeOf(signed), "request")) {
             observation.event.realm = signed.request.realm;
             observation.event.sequence = signed.request.sequence;
-            observation.event.pid = if (@TypeOf(signed.request.command) == protocol.Growth.Command) protocol.Growth.commandPid(signed.request.command) else observability.pid(signed.request.command);
+            observation.event.pid = protocol.Growth.commandPid(signed.request.command);
         } else if (@hasField(@TypeOf(signed), "query")) {
             observation.event.realm = signed.query.realm;
             if (@hasField(@TypeOf(signed.query), "pid")) observation.event.pid = signed.query.pid;
@@ -214,31 +212,13 @@ pub const Client = struct {
         };
     }
 
-    pub fn view(self: *Client, request: transit.Request, key: transit.Ed25519.KeyPair) !View {
-        if (request.command != .inspect or request.sequence != 0) return error.InvalidRead;
-        return self.call(View, "/v2/view", try transit.sign(request, key));
-    }
-    pub fn inspect(self: *Client, query: protocol.Inspection.Query, key: protocol.Ed25519.KeyPair) !protocol.Inspection.Page {
-        return self.call(protocol.Inspection.Page, "/v2/inspect", try protocol.Inspection.sign(query, key));
-    }
-    pub fn state(self: *Client, query: protocol.State.Query, key: protocol.Ed25519.KeyPair) !protocol.State.Page {
-        return self.call(protocol.State.Page, "/v2/state", try protocol.State.sign(query, key));
-    }
-    pub fn delivery(self: *Client, query: protocol.Delivery.Query, key: protocol.Ed25519.KeyPair) !protocol.Delivery.Status {
-        return self.call(protocol.Delivery.Status, "/v2/delivery", try protocol.Delivery.sign(query, key));
-    }
-
-    pub fn submit(self: *Client, signed: transit.SignedRequest) !Receipt {
-        return self.call(Receipt, "/v2/command", signed);
-    }
-
-    /// Explicit v3 development profile; never falls back to a legacy route.
-    pub fn submitGrowing(self: *Client, signed: protocol.Growth.SignedRequest) !Receipt {
+    /// Validate and submit the exact frozen native command.
+    pub fn submit(self: *Client, signed: protocol.Growth.SignedRequest) !Receipt {
         try protocol.Growth.validate(signed.request);
-        return self.call(Receipt, "/v3/command", signed);
+        return self.call(Receipt, "/v1/command", signed);
     }
-    pub fn queryGrowing(self: *Client, query: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.Response {
-        return self.call(protocol.Growth.Response, "/v3/query", try protocol.Growth.signQuery(query, key));
+    pub fn query(self: *Client, selector: protocol.Growth.Query, key: protocol.Ed25519.KeyPair) !protocol.Growth.Response {
+        return self.call(protocol.Growth.Response, "/v1/query", try protocol.Growth.signQuery(selector, key));
     }
 };
 
@@ -299,7 +279,7 @@ test "a full metadata view fits the bounded HTTP response" {
     // All optional metadata is present, all slots filled, every enum uses its
     // longest tag and integers use their widest decimal form (even wider than
     // legal protocol counters). Leave slack for shorter optional scalars/nulls.
-    const value = largestFields(View);
+    const value = largestFields(protocol.Growth.Response);
     const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, value, .{});
     defer std.testing.allocator.free(bytes);
     try std.testing.expect(bytes.len + 1024 <= max_body);
@@ -308,9 +288,5 @@ test "a full metadata view fits the bounded HTTP response" {
 test {
     _ = @import("ConcurrencyTests.zig");
     _ = Session;
-    _ = GrowingSession;
     _ = Application;
-    const bytes = try std.json.Stringify.valueAlloc(std.testing.allocator, largestFields(protocol.Inspection.Page), .{});
-    defer std.testing.allocator.free(bytes);
-    try std.testing.expect(bytes.len + 1024 <= max_body);
 }

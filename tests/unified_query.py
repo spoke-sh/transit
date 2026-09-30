@@ -30,7 +30,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
             url = f"http://127.0.0.1:{port}"
             node_config = root / "node.json"
             resident_pages = 64 if kind == "document" else 8
-            node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
+            node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 46, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "unified-query", "journal": "authority", "port": port, "resident_pages": resident_pages, "request_timeout_ms": 10000}))
             processes, logs = [], []
             native, port_client = None, None
             callers = []
@@ -43,10 +43,10 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 def do_POST(self):
                     body = self.rfile.read(int(self.headers["Content-Length"]))
                     message = json.loads(body)
-                    if self.path == '/v3/query' and message['query']['principal'] == 1234 and fault['console_delay'].is_set() and not fault['console_waiting'].is_set():
+                    if self.path == '/v1/query' and message['query']['principal'] == 1234 and fault['console_delay'].is_set() and not fault['console_waiting'].is_set():
                         fault['console_waiting'].set()
                         time.sleep(2)
-                    if self.path == '/v3/query' and message['query']['principal'] == 65537 and fault['read_timeout'].is_set() and not fault['timed_out'].is_set():
+                    if self.path == '/v1/query' and message['query']['principal'] == 65537 and fault['read_timeout'].is_set() and not fault['timed_out'].is_set():
                         fault['timed_out'].set()
                         time.sleep(6)
                     connection = HTTPConnection("127.0.0.1", port, timeout=15)
@@ -54,13 +54,13 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                         response = connection.getresponse()
                         data = response.read()
-                        if self.path == "/v3/command" and response.status == 200:
+                        if self.path == "/v1/command" and response.status == 200:
                             request = message["request"]
                             command = request["command"]
                             if request["principal"] == 1234 and "send" in command:
                                 fault['console_sends'] += 1
                                 payload = bytes.fromhex(command["send"]["value"])[13:]
-                                if payload.startswith(b"UQP2"):
+                                if payload.startswith(b"UQP1"):
                                     if fault["lost"] is None:
                                         fault["lost"] = body, data
                                         data = b'{"position":0}'
@@ -240,7 +240,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         assert any(r.get('event', {}).get('name') == 'query.worker.step' and
                                    r['event'].get('protocol_outcome') == 'receipt' for r in records), role
                     serialized = json.dumps(records, ensure_ascii=False)
-                    assert '東京' not in serialized and 'UQP2' not in serialized
+                    assert '東京' not in serialized and 'UQP1' not in serialized
                     for seed in ('08', '09', '0a', '0b'): assert seed*32 not in serialized
                 after = None
                 position = None

@@ -18,13 +18,13 @@ in Rust, and Document/effect workflows in Zig, with complete source and run comm
 | Zig | [transit-client](../../packages/zig/transit-client/README.md) | [transit-station](../../packages/zig/transit-station/README.md) |
 | Python | [transit-client](../../packages/python/transit-client/README.md) | [transit-station](../../packages/python/transit-station/README.md) |
 | TypeScript / Node.js | [transit-client](../../packages/ts/transit-client/README.md) | [transit-station](../../packages/ts/transit-station-sdk/README.md) |
-| Rust | [transit-client](../../packages/rust/transit-client/README.md) | [transit-station](../../packages/rust/transit-station/README.md) |
+| Rust | [transit-client](../../packages/rust/transit-client/README.md) | [transit-station](../../packages/rust/transit-station-sdk/README.md) |
 | Ruby | [transit-client](../../packages/ruby/transit-client/README.md) | [transit-station](../../packages/ruby/transit-station/README.md) |
 | C | [transit-client](../../packages/c/transit-client/README.md) | [transit-station](../../packages/c/transit-station/README.md) |
-| C++ | [transit-client](../../packages/cpp/transit-client/README.md) | [transit-station](../../packages/cpp/transit-station/README.md) |
-| Java | [transit-client](../../packages/java/transit-client/README.md) | [transit-station](../../packages/java/transit-station/README.md) |
-| .NET | [transit-client](../../packages/dotnet/transit-client/README.md) | [transit-station](../../packages/dotnet/transit-station/README.md) |
-| Erlang | [transit-client](../../packages/beam/transit-client/README.md) | [transit-station](../../packages/beam/transit-station/README.md) |
+| C++ | [transit-client](../../packages/cpp/transit-client/README.md) | [transit-station](../../packages/cpp/transit-station-sdk/README.md) |
+| Java | [transit-client](../../packages/java/transit-client/README.md) | [transit-station](../../packages/java/transit-station-sdk/README.md) |
+| .NET | [transit-client](../../packages/dotnet/transit-client/README.md) | [transit-station](../../packages/dotnet/transit-station-sdk/README.md) |
+| Erlang | [transit-client](../../packages/beam/transit-client/README.md) | [transit-station](../../packages/beam/transit-station-sdk/README.md) |
 | Elixir | [transit-client](../../packages/beam/transit-client-elixir/README.md) | [transit-station](../../packages/beam/transit-station-elixir/README.md) |
 
 The ten non-Zig language targets use the shared native boundary. Browser clients

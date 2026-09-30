@@ -1,266 +1,154 @@
-//! Transit store contract over Ursula JSON record coordinates.
+//! Bounded journal transport for the explicit development v1 authority profile.
+//! Pages are persisted separately; this journal alone publishes their roots.
 const std = @import("std");
-const observations = @import("transit_observability");
-const core = @import("transit_core");
+const growing = @import("transit_core").growing;
 const adapter = @import("root.zig");
-const Store = @This();
+const observations = @import("transit_observability");
+const Self = @This();
+pub const Checkpoint = struct { version: u32 = 1, entry: growing.Entry };
 
 journal: adapter.Journal,
-cache: [adapter.read_window]core.Entry = undefined,
-cache_start: u64 = 0,
-cache_len: usize = 0,
+cached: ?struct { at: u64, entry: growing.Entry } = null,
 
-pub fn tail(self: *Store) !u64 {
+pub fn tail(self: *Self) !u64 {
     return self.journal.tail();
 }
 
-pub fn append(self: *Store, expected: u64, entry: core.Entry) !bool {
-    const allocator = self.journal.client.http.allocator;
-    const bytes = try std.json.Stringify.valueAlloc(allocator, entry, .{});
-    defer allocator.free(bytes);
-    if (bytes.len > core.max_entry_bytes) return error.RecordTooLarge;
-    return self.journal.append(expected, bytes);
+pub fn append(self: *Self, expected: u64, entry: growing.Entry) !bool {
+    try validate(entry, expected);
+    var bytes: [adapter.max_record_bytes]u8 = undefined;
+    var writer: std.Io.Writer = .fixed(&bytes);
+    std.json.Stringify.value(entry, .{}, &writer) catch return error.RecordTooLarge;
+    return self.journal.append(expected, writer.buffered());
 }
 
-pub fn read(self: *Store, at: u64) !?core.Entry {
-    if (at >= self.cache_start and at - self.cache_start < self.cache_len) return self.cache[@intCast(at - self.cache_start)];
-    var response = try self.journal.read(at);
-    defer response.deinit();
-    const next = (try response.head.metadata()).record_next.?;
-    self.cache_start = at;
-    self.cache_len = 0;
-    errdefer self.cache_len = 0;
-    var lines = std.mem.splitScalar(u8, response.body, '\n');
-    while (lines.next()) |line| {
-        if (line.len == 0) {
-            if (lines.peek() != null) return error.InvalidFraming;
-            break;
-        }
-        if (line.len > adapter.max_record_bytes or self.cache_len == adapter.read_window) return error.RecordTooLarge;
-        var parsed = try std.json.parseFromSlice(core.Entry, self.journal.client.http.allocator, line, .{});
-        defer parsed.deinit();
-        const position = at + self.cache_len;
-        if (parsed.value == .genesis) {
-            if (position != 0) return error.InvalidHistory;
-        } else if (parsed.value.operation.position != position) return error.InvalidPosition;
-        self.cache[self.cache_len] = parsed.value;
-        self.cache_len += 1;
-    }
-    if (self.cache_len != next - at) {
-        self.cache_len = 0;
-        return error.InvalidFraming;
-    }
-    return if (self.cache_len == 0) null else self.cache[0];
-}
-
-/// Caller owns the returned arena and must deinit it after copying needed state.
-pub fn loadCheckpoint(self: *Store, genesis: core.Genesis) !?std.json.Parsed(*core.Checkpoint) {
-    var observation = observations.begin(self.journal.observer, .storage_operation, "loadCheckpoint", self.journal.parent_context);
+pub fn read(self: *Self, at: u64) !?growing.Entry {
+    if (self.cached) |cached| if (cached.at == at) return cached.entry;
+    var observation = observations.begin(self.journal.observer, .storage_operation, "growing.read", self.journal.parent_context);
     defer observation.finish();
-    const parent = self.journal.parent_context;
-    self.journal.parent_context = observation.span.context;
-    defer self.journal.parent_context = parent;
-    return self.loadCheckpointImpl(genesis) catch |err| {
+    return self.fetch(at) catch |err| {
         observation.fail(err);
         return err;
     };
 }
 
-fn loadCheckpointImpl(self: *Store, genesis: core.Genesis) !?std.json.Parsed(*core.Checkpoint) {
+fn fetch(self: *Self, at: u64) !?growing.Entry {
+    // Recovery needs one published head, not a catalog-sized replay buffer.
+    var response = try self.journal.client.send(.{ .read = .{
+        .stream = self.journal.stream,
+        .options = .{ .position = .{ .record = at }, .max_records = 1 },
+    } });
+    defer response.deinit();
+    if (response.head.status == .gone) return error.HistoryReclaimed;
+    try response.head.requireSuccess();
+    const metadata = try response.head.metadata();
+    const next = metadata.record_next orelse return error.MissingRecordCoordinate;
+    if (metadata.record_start != at or next < at or next - at > 1) return error.InvalidReadRange;
+    if (next == at) {
+        if (response.body.len != 0) return error.InvalidFraming;
+        return null;
+    }
+    if (response.body.len > adapter.max_record_bytes) return error.RecordTooLarge;
+    // Every field is owned, so no parsed arena is retained by the cache.
+    const parsed = try std.json.parseFromSlice(growing.Entry, self.journal.client.http.allocator, response.body, .{});
+    defer parsed.deinit();
+    try validate(parsed.value, at);
+    self.cached = .{ .at = at, .entry = parsed.value };
+    return parsed.value;
+}
+
+fn validate(entry: growing.Entry, at: u64) !void {
+    const value_head = switch (entry) {
+        .genesis => |value| blk: {
+            if (at != 0 or value.genesis.version != 1) return error.UnsupportedHistory;
+            break :blk value.head;
+        },
+        .operation => |value| blk: {
+            if (at == 0 or value.position != at) return error.InvalidPosition;
+            if (value.request.version != 1) return error.UnsupportedHistory;
+            break :blk value.next;
+        },
+    };
+    if (value_head.version != 1) return error.UnsupportedHistory;
+    if (value_head.position != try std.math.add(u64, at, 1)) return error.InvalidPosition;
+    if (value_head.history_floor >= value_head.position) return error.InvalidHistory;
+    try value_head.catalog.validate();
+}
+
+fn head(entry: growing.Entry) growing.Head {
+    return switch (entry) {
+        .genesis => |value| value.head,
+        .operation => |value| value.next,
+    };
+}
+
+pub fn loadCheckpoint(self: *Self) !?Checkpoint {
     var latest = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
     defer latest.deinit();
     if (latest.head.status == .not_found) return null;
     if (latest.head.status != .temporary_redirect) return error.InvalidSnapshotResponse;
-    // Follow only the opaque snapshot offset on the configured stream, never an
-    // arbitrary Location URL that could leak privileged storage credentials.
+    // The configured stream and opaque offset are authoritative, never a
+    // provider-controlled Location URL to which credentials could be forwarded.
     const offset = (try latest.head.metadata()).snapshot_offset orelse return error.MissingSnapshotOffset;
     var response = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
     defer response.deinit();
     try response.head.requireSuccess();
-    var parsed = try std.json.parseFromSlice(core.Checkpoint.Heap, self.journal.client.http.allocator, response.body, .{});
-    errdefer parsed.deinit();
-    try parsed.value.value.validate(self.journal.client.http.allocator, genesis);
-    return .{ .value = parsed.value.value, .arena = parsed.arena };
+    if (response.body.len > adapter.max_record_bytes) return error.RecordTooLarge;
+    const parsed = try std.json.parseFromSlice(Checkpoint, self.journal.client.http.allocator, response.body, .{});
+    defer parsed.deinit();
+    if (parsed.value.version != 1) return error.UnsupportedHistory;
+    const snapshot = head(parsed.value.entry);
+    if (snapshot.position == 0 or snapshot.history_floor == 0) return error.InvalidCheckpoint;
+    try validate(parsed.value.entry, snapshot.position - 1);
+    return parsed.value;
 }
 
-/// Reconcile an already committed checkpoint intent. Publication is verified
-/// before logical retention moves; every step can be retried after a crash.
-pub fn publishCheckpoint(self: *Store, checkpoint: *const core.Checkpoint) !void {
-    var observation = observations.begin(self.journal.observer, .storage_operation, "publishCheckpoint", self.journal.parent_context);
+/// Privileged maintenance of an already committed core intent. No page GC.
+/// Publication is verified before prefix trim; repeated calls do not write.
+pub fn maintain(self: *Self, authorized: growing.Head) !void {
+    var observation = observations.begin(self.journal.observer, .storage_operation, "growing.maintain", self.journal.parent_context);
     defer observation.finish();
-    const parent = self.journal.parent_context;
-    self.journal.parent_context = observation.span.context;
-    defer self.journal.parent_context = parent;
-    return self.publishCheckpointImpl(checkpoint) catch |err| {
+    return self.maintainImpl(authorized) catch |err| {
         observation.fail(err);
         return err;
     };
 }
-
-fn publishCheckpointImpl(self: *Store, checkpoint: *const core.Checkpoint) !void {
-    const allocator = self.journal.client.http.allocator;
-    try checkpoint.validate(allocator, checkpoint.genesis);
-    if (try self.loadCheckpoint(checkpoint.genesis)) |existing| {
-        defer existing.deinit();
-        if (existing.value.state.position >= checkpoint.state.position and existing.value.state.history_floor >= checkpoint.state.history_floor) return;
+fn maintainImpl(self: *Self, authorized: growing.Head) !void {
+    if (authorized.history_floor == 0 or authorized.history_floor >= authorized.position) return error.NoCheckpointIntent;
+    // Derive permission from the current durable head. A stale worker cannot
+    // manufacture a retention floor or use an uncommitted candidate root.
+    const tail_position = try self.tail();
+    if (tail_position == 0) return error.InvalidHistory;
+    const current = (try self.read(tail_position - 1)) orelse return error.IncompleteHistory;
+    const current_head = head(current);
+    if (!std.mem.eql(u8, &current_head.genesis, &authorized.genesis) or
+        current_head.history_floor < authorized.history_floor or
+        current_head.position < authorized.position) return error.NoCheckpointIntent;
+    const existing = try self.loadCheckpoint();
+    if (existing) |value| {
+        const saved = head(value.entry);
+        if (saved.position > tail_position or !std.mem.eql(u8, &saved.genesis, &current_head.genesis)) return error.InvalidCheckpoint;
     }
-    const bytes = try std.json.Stringify.valueAlloc(allocator, checkpoint, .{});
-    defer allocator.free(bytes);
-    if (bytes.len > core.max_checkpoint_bytes) return error.CheckpointTooLarge;
-    var published = try self.journal.client.send(.{ .publish_snapshot = .{
-        .stream = self.journal.stream,
-        .at = .{ .record = checkpoint.state.position },
-        .body = bytes,
-        .content_type = "application/json",
-    } });
-    defer published.deinit();
-    try published.head.requireSuccess();
-    const verified = (try self.loadCheckpoint(checkpoint.genesis)) orelse return error.MissingCheckpoint;
-    defer verified.deinit();
-    if (verified.value.state.position < checkpoint.state.position or verified.value.state.history_floor < checkpoint.state.history_floor) return error.StaleCheckpoint;
-}
-
-pub fn maintain(self: *Store, checkpoint: *const core.Checkpoint) !void {
-    var observation = observations.begin(self.journal.observer, .storage_operation, "maintain", self.journal.parent_context);
-    defer observation.finish();
-    const parent = self.journal.parent_context;
-    self.journal.parent_context = observation.span.context;
-    defer self.journal.parent_context = parent;
-    return self.maintainImpl(checkpoint) catch |err| {
-        observation.fail(err);
-        return err;
-    };
-}
-
-fn maintainImpl(self: *Store, checkpoint: *const core.Checkpoint) !void {
-    try checkpoint.validate(self.journal.client.http.allocator, checkpoint.genesis);
-    const existing = try self.loadCheckpoint(checkpoint.genesis);
-    defer if (existing) |value| value.deinit();
-    // A checkpoint covering the committed floor plus its retained tail is a
-    // complete recovery basis. Restart must not republish the same maintenance
-    // intent at ever-newer tails and consume reserved disk indefinitely.
-    if (existing == null or existing.?.value.state.history_floor < checkpoint.state.history_floor)
-        try self.publishCheckpoint(checkpoint);
-    var head = try self.journal.client.send(.{ .head = .{ .stream = self.journal.stream } });
-    defer head.deinit();
-    try head.head.requireSuccess();
-    if (((try head.head.metadata()).record_first orelse return error.MissingRecordCoordinate) >= checkpoint.state.history_floor) {
-        self.cache_len = 0;
+    if (existing == null or head(existing.?.entry).history_floor < authorized.history_floor) {
+        var bytes: [adapter.max_record_bytes]u8 = undefined;
+        var writer: std.Io.Writer = .fixed(&bytes);
+        std.json.Stringify.value(Checkpoint{ .entry = current }, .{}, &writer) catch return error.RecordTooLarge;
+        var published = try self.journal.client.send(.{ .publish_snapshot = .{ .stream = self.journal.stream, .at = .{ .record = tail_position }, .body = writer.buffered(), .content_type = "application/json" } });
+        defer published.deinit();
+        try published.head.requireSuccess();
+        const saved = head((try self.loadCheckpoint() orelse return error.MissingCheckpoint).entry);
+        if (saved.position < tail_position or saved.position > try self.tail() or saved.history_floor < authorized.history_floor or
+            !std.mem.eql(u8, &saved.genesis, &current_head.genesis)) return error.StaleCheckpoint;
+    }
+    var metadata = try self.journal.client.send(.{ .head = .{ .stream = self.journal.stream } });
+    defer metadata.deinit();
+    try metadata.head.requireSuccess();
+    if (((try metadata.head.metadata()).record_first orelse return error.MissingRecordCoordinate) >= authorized.history_floor) {
+        self.cached = null;
         return;
     }
-    var trimmed = try self.journal.client.send(.{ .advance_retention = .{ .stream = self.journal.stream, .at = .{ .record = checkpoint.state.history_floor } } });
+    var trimmed = try self.journal.client.send(.{ .advance_retention = .{ .stream = self.journal.stream, .at = .{ .record = authorized.history_floor } } });
     defer trimmed.deinit();
     try trimmed.head.requireSuccess();
-    self.cache_len = 0;
-}
-
-fn payloadStream(self: *Store, id: u64, buffer: *[45]u8) adapter.ursula.Stream {
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("rey.payload.v1\x00");
-    hash.update(self.journal.stream.bucket);
-    hash.update("\x00");
-    hash.update(self.journal.stream.name);
-    hash.update("\x00");
-    const bytes = std.mem.toBytes(std.mem.nativeToBig(u64, id));
-    hash.update(&bytes);
-    const sum = hash.finalResult();
-    buffer[0..2].* = "p-".*;
-    _ = std.base64.url_safe_no_pad.Encoder.encode(buffer[2..], &sum);
-    return .{ .bucket = self.journal.stream.bucket, .name = buffer };
-}
-
-/// Only the trusted publisher which freshly committed the declaration may
-/// call this once. Lost receipts/restart use verifyPayload, never repeat PUT.
-/// The immutable body and closed flag are installed in a single storage call.
-pub fn createPayloadOnce(self: *Store, value: core.Payload, body: []const u8) !void {
-    var observation = observations.begin(self.journal.observer, .storage_operation, "createPayloadOnce", self.journal.parent_context);
-    defer observation.finish();
-    const parent = self.journal.parent_context;
-    self.journal.parent_context = observation.span.context;
-    defer self.journal.parent_context = parent;
-    return self.createPayloadOnceImpl(value, body) catch |err| {
-        observation.fail(err);
-        return err;
-    };
-}
-
-fn createPayloadOnceImpl(self: *Store, value: core.Payload, body: []const u8) !void {
-    if (value.phase != .creating) return error.PayloadPhase;
-    try validatePayload(value, body);
-    var name: [45]u8 = undefined;
-    var response = try self.journal.client.send(.{ .create_stream = .{
-        .stream = self.payloadStream(value.id, &name),
-        .options = .{ .body = body, .closed = true },
-    } });
-    defer response.deinit();
-    try response.head.requireSuccess();
-    try self.verifyPayload(value);
-}
-
-fn validatePayload(value: core.Payload, body: []const u8) !void {
-    if (value.bytes == 0 or value.bytes > core.max_payload_bytes or body.len != value.bytes) return error.InvalidPayload;
-    var hash: [32]u8 = undefined;
-    std.crypto.hash.sha2.Sha256.hash(body, &hash, .{});
-    if (!std.mem.eql(u8, &value.sha256, &hash)) return error.PayloadIntegrity;
-}
-
-/// Read-only recovery of an uncertain single creation attempt. A missing stream
-/// stays uncertain; it is never recreated, published as empty, or called deleted.
-pub fn verifyPayload(self: *Store, value: core.Payload) !void {
-    var observation = observations.begin(self.journal.observer, .storage_operation, "verifyPayload", self.journal.parent_context);
-    defer observation.finish();
-    const parent = self.journal.parent_context;
-    self.journal.parent_context = observation.span.context;
-    defer self.journal.parent_context = parent;
-    return self.verifyPayloadImpl(value) catch |err| {
-        observation.fail(err);
-        return err;
-    };
-}
-
-fn verifyPayloadImpl(self: *Store, value: core.Payload) !void {
-    if (value.phase != .creating and value.phase != .ready) return error.PayloadUnavailable;
-    var name: [45]u8 = undefined;
-    const stream = self.payloadStream(value.id, &name);
-    var head = try self.journal.client.send(.{ .head = .{ .stream = stream } });
-    defer head.deinit();
-    try head.head.requireSuccess();
-    if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
-    var body = try self.journal.client.send(.{ .read = .{ .stream = stream, .options = .{ .max_bytes = core.max_payload_bytes + 1 } } });
-    defer body.deinit();
-    try body.head.requireSuccess();
-    if (!((try body.head.metadata()).up_to_date orelse false)) return error.PayloadIntegrity;
-    try validatePayload(value, body.body);
-}
-
-/// The caller must obtain this retirement intent from current authenticated
-/// history. Its tombstone remains in the separate authority journal/checkpoint.
-/// Missing is success only for this already-authorized deletion, not for reads.
-pub fn reclaimPayload(self: *Store, value: core.Payload) !void {
-    var observation = observations.begin(self.journal.observer, .storage_operation, "reclaimPayload", self.journal.parent_context);
-    defer observation.finish();
-    const parent = self.journal.parent_context;
-    self.journal.parent_context = observation.span.context;
-    defer self.journal.parent_context = parent;
-    return self.reclaimPayloadImpl(value) catch |err| {
-        observation.fail(err);
-        return err;
-    };
-}
-
-fn reclaimPayloadImpl(self: *Store, value: core.Payload) !void {
-    if (value.phase != .retiring or !value.allow_delete or value.retired_at == null) return error.PayloadPhase;
-    var name: [45]u8 = undefined;
-    const stream = self.payloadStream(value.id, &name);
-    var head = try self.journal.client.send(.{ .head = .{ .stream = stream } });
-    defer head.deinit();
-    if (head.head.status == .not_found) return;
-    try head.head.requireSuccess();
-    if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
-    var response = try self.journal.client.send(.{ .delete_stream = stream });
-    defer response.deinit();
-    if (response.head.status != .not_found) try response.head.requireSuccess();
-    var verify = try self.journal.client.send(.{ .head = .{ .stream = stream } });
-    defer verify.deinit();
-    if (verify.head.status != .not_found) return error.DeletionUnconfirmed;
+    self.cached = null;
 }

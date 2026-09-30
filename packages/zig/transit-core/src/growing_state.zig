@@ -54,7 +54,21 @@ pub fn allowed(engine: anytype, id: u64, principal: u64, rights: u8) anyerror!vo
 }
 pub fn usable(engine: anytype, value: g.Resource, sample: ?core.Time.Sample) anyerror!void {
     try basicUsable(engine, value, sample);
-    if (value.owner) |pid| try dependencies(engine, pid, sample);
+    if (value.owner) |pid| {
+        try ownerUsable(engine, try engine.process(pid), sample);
+        try dependencies(engine, pid, sample);
+    }
+}
+fn ownerUsable(engine: anytype, owner: g.Process, sample: ?core.Time.Sample) !void {
+    if (owner.lifecycle != .running) return error.StateResourceExpired;
+    var deadline = owner.settle_before_ms;
+    if (owner.control) |control| if (control.phase == .suspended) {
+        deadline = @min(deadline orelse core.max_counter, control.resume_before_ms.?);
+    };
+    if (deadline) |bound| engine.before(sample, bound) catch |err| {
+        if (err == error.DeadlineExpired) return error.StateResourceExpired;
+        return err;
+    };
 }
 fn basicUsable(engine: anytype, value: g.Resource, sample: ?core.Time.Sample) anyerror!void {
     if (value.phase != .active) return error.StateResourceExpired;
@@ -87,6 +101,7 @@ fn dependenciesAt(engine: anytype, current: anytype, pid: u64, sample: ?core.Tim
                 const data = (try current.get(g.Resource, address(.resource, record.value.resource))) orelse return error.UnknownStateResource;
                 try basicUsable(engine, data, sample);
                 if (data.owner) |owner| {
+                    try ownerUsable(engine, (try current.get(g.Process, address(.process, owner))) orelse return error.UnknownProcess, sample);
                     if (std.mem.indexOfScalar(u64, pending[0..count], owner) == null) {
                         if (count >= engine.genesis.dependency_vertices) return error.DependencyBudgetExceeded;
                         pending[count] = owner;
@@ -152,13 +167,15 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
     switch (request.command) {
         .create_resource => |command| {
             const writer = try engine.process(command.writer);
-            try engine.executable(writer, sample, false);
+            try engine.provisionable(writer, sample);
             var deadline = command.deadline_ms;
             if (command.owned) {
                 if (writer.settle_before_ms) |bound| deadline = if (deadline) |explicit| @min(explicit, bound) else bound;
             }
             if (deadline) |bound| try engine.before(sample, bound);
-            try candidate.put(address(.resource, position), g.Resource{ .id = position, .writer = writer.pid, .owner = if (command.owned) writer.pid else null, .revision = position, .deadline_ms = deadline });
+            try candidate.put(address(.resource, position), g.Resource{ .id = position, .writer = writer.pid, .owner = if (command.owned) writer.pid else null, .revision = position, .deadline_ms = deadline, .history_ms = command.history_ms, .changed_ms = if ((command.history_ms orelse 0) > 0) (sample orelse return error.ClockUnavailable).upper() else 0 });
+            try candidate.put(try c.key(.resources_by_writer, writer.pid, position, ""), position);
+            if (command.owned) try candidate.put(try c.key(.resources_by_owner, writer.pid, position, ""), position);
         },
         .grant_resource => |command| {
             if (request.principal != 0 or command.permissions & ~p.State.all_permissions != 0) return error.Forbidden;
@@ -208,6 +225,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                 }
                 const association: g.Association = .{ .pid = command.pid, .name = command.name, .resource = id, .revision = position, .required = command.required };
                 try candidate.put(key, association);
+                try candidate.put(try c.key(.associations_by_resource, id, command.pid, command.name.slice()), association);
                 try candidate.put(try c.key(.association_order, command.pid, position, ""), association);
                 if (command.required) try candidate.put(required_key, association) else try candidate.remove(required_key);
                 if (command.required) try candidate.put(try c.key(.required_resource_users, id, command.pid, command.name.slice()), command.pid);
@@ -220,6 +238,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                 try candidate.remove(required_key);
             }
             if (previous) |old| {
+                if (command.resource != old.resource) try candidate.remove(try c.key(.associations_by_resource, old.resource, command.pid, command.name.slice()));
                 try candidate.remove(try c.key(.association_order, command.pid, old.revision, ""));
                 if (old.required and !(command.resource == old.resource and command.required)) try candidate.remove(try c.key(.required_resource_users, old.resource, command.pid, command.name.slice()));
                 const old_owner = (try resource(engine, old.resource)).owner;
@@ -251,6 +270,8 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             if (data.deadline_ms) |bound| if (command.deadline_ms > bound) return error.InvalidLifetime;
             if (process.settle_before_ms) |bound| if (command.deadline_ms > bound) return error.InvalidLifetime;
             try candidate.put(address(.view, position), growth.StoredView{ .meta = .{ .id = position, .pid = command.pid, .principal = request.principal, .generation = command.generation, .input = command.input, .process_revision = command.expected_revision, .resource = command.resource, .revision = command.revision, .deadline_ms = command.deadline_ms }, .snapshot = engine.head.catalog });
+            try candidate.put(try c.key(.views_by_pid, command.pid, position, ""), position);
+            try candidate.put(try c.key(.views_by_resource, command.resource, position, ""), position);
         },
         .close_view => |command| {
             var stored = try view(engine, command.view);
@@ -258,6 +279,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             if (stored.meta.closed_at != null) return error.StateViewExpired;
             stored.meta.closed_at = position;
             try candidate.put(address(.view, command.view), stored);
+            try closeIndexes(candidate, stored.meta);
         },
         .retire_resource, .expire_resource => |id| {
             var data = try resource(engine, id);
@@ -280,6 +302,7 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
             data.retired_at = position;
             try candidate.put(address(.resource, id), data);
         },
+        .reclaim_resource => |id| try @import("growing_collection.zig").reclaim(engine, candidate, id, sample),
         .begin_turn => |command| {
             var process = try engine.process(command.pid);
             try engine.executable(process, sample, false);
@@ -305,12 +328,17 @@ pub fn apply(engine: anytype, candidate: anytype, next: *growth.Head, request: g
                 const key = try versionKey(name);
                 if (try candidate.get(growth.StoredReadVersion, key) != null) return error.InvalidReadVersion;
                 try candidate.put(key, growth.StoredReadVersion{ .meta = .{ .id = name, .resource = source.meta.resource, .revision = source.meta.revision, .created_at = position }, .snapshot = source.snapshot });
+                try candidate.put(try c.key(.versions_by_resource, source.meta.resource, name.pid, key.slice()[9..]), position);
+                try candidate.put(try c.key(.versions_by_pid, name.pid, name.input, &.{name.index}), name);
             };
             for (command.release) |slot| if (slot) |id| {
                 var stored = try readVersion(engine, id);
                 if (stored.meta.released_at != null) return error.ReadVersionReleased;
                 stored.meta.released_at = position;
-                try candidate.put(try versionKey(id), stored);
+                const retained_key = try versionKey(id);
+                try candidate.put(retained_key, stored);
+                try candidate.remove(try c.key(.versions_by_resource, stored.meta.resource, id.pid, retained_key.slice()[9..]));
+                try candidate.remove(try c.key(.versions_by_pid, id.pid, id.input, &.{id.index}));
             };
         },
         else => return error.UnsupportedGrowthCommand,
@@ -355,6 +383,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         }
         stored.meta.closed_at = position;
         try candidate.put(address(.view, id), stored);
+        try closeIndexes(candidate, stored.meta);
     };
     if (command.write_view != null and write == null) return error.InvalidStateView;
     if (command.failed) {
@@ -362,8 +391,7 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
         for (command.outputs) |slot| if (slot != null) return error.InvalidFailure;
         for (command.mutations) |slot| if (slot != null) return error.InvalidFailure;
         process.failure = command.input;
-        process.owner = null;
-        process.generation += 1;
+        try @import("growing_lifecycle.zig").fence(&process);
     } else {
         var mutations: [g.turn_mutations]@import("pages.zig").Mutation = undefined;
         var mutation_count: usize = 0;
@@ -387,6 +415,8 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             // replacing a key at the encoding ceiling must remain possible.
             if (data.entries > p.max_counter) return error.Overflow;
             data.revision = position;
+            data.last_turn = position;
+            if ((data.history_ms orelse 0) > 0) data.changed_ms = (sample orelse return error.ClockUnavailable).upper();
             try candidate.put(address(.resource, data.id), data.*);
         }
         const subject = try engine.principal(principal);
@@ -397,7 +427,10 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
             if (next.outputs >= p.max_counter) return error.Overflow;
             next.outputs += 1;
             try candidate.put(address(.output, next.outputs), g.Outbox{ .id = next.outputs, .source = process.pid, .turn = position, .index = @intCast(i), .destination = output.pid, .value = output.value });
+            try candidate.put(try c.key(.outputs_by_source, process.pid, next.outputs, ""), next.outputs);
+            try candidate.put(try c.key(.outputs_by_destination, output.pid, next.outputs, ""), next.outputs);
             try candidate.put(address(.pending_output, next.outputs), output.pid);
+            try candidate.put(try c.key(.pending_destination, output.pid, next.outputs, ""), next.outputs);
             try candidate.put(@import("growing_work.zig").routeKey(process.pid, output.pid, next.outputs), next.outputs);
         };
         if (command.effect) |payload| {
@@ -412,4 +445,9 @@ fn turn(engine: anytype, candidate: anytype, next: *growth.Head, principal: u64,
     }
     process.turn_permit = null;
     try candidate.put(address(.process, process.pid), process);
+}
+
+fn closeIndexes(candidate: anytype, view_value: g.View) !void {
+    try candidate.remove(try c.key(.views_by_pid, view_value.pid, view_value.id, ""));
+    try candidate.remove(try c.key(.views_by_resource, view_value.resource, view_value.id, ""));
 }

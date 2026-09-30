@@ -18,7 +18,7 @@ const Reader = struct {
     requests: *Store,
     denied: bool = false,
     unavailable: bool = false,
-    pub fn open(self: @This(), resource: u64) !s.GrowingTurn {
+    pub fn open(self: @This(), resource: u64) !s.Turn {
         if (self.unavailable) return error.AuthorityUnavailable;
         const store = if (resource == self.source.resource) self.source else if (resource == self.requests.resource) self.requests else return error.AccessDenied;
         if (store.denied) return error.AccessDenied;
@@ -29,7 +29,7 @@ const Reader = struct {
         if (self.denied or caller != principal or source.resource != self.source.resource or source.target != self.source.pid or !std.meta.eql(credentials, proof)) return error.ServingDenied;
     }
     const Watch = struct {
-        turn: s.GrowingTurn,
+        turn: s.Turn,
         store: *Store,
         view: p.Growth.View,
         pub fn read(self: *@This(), key: p.Value) !?p.Value {
@@ -45,7 +45,7 @@ const Reader = struct {
         var watch: Watch = .{ .turn = turn, .store = self.source, .view = turn.view };
         return root.TableWatch.observe(&watch, source);
     }
-    pub fn result(self: @This(), turn: *s.GrowingTurn, namespace: u64, source: r.Source) !q.fuze.Unified.Basis {
+    pub fn result(self: @This(), turn: *s.Turn, namespace: u64, source: r.Source) !q.fuze.Unified.Basis {
         const status = (try q.UnifiedUpload.status(turn, namespace)) orelse return error.InvalidRefreshTemplate;
         if (status.phase != .complete) return error.InvalidRefreshTemplate;
         var arena = std.heap.ArenaAllocator.init(t.allocator);
@@ -316,7 +316,7 @@ test "composed live owner initializes within four writes and fences internal con
     const handler = live.interface();
     const guard = live.guard();
     var turn = try store.capture();
-    try turn.write(s.GrowingGenServer.descriptor_key, s.GrowingGenServer.descriptor);
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
     try handler.initialize.?(handler.context, &turn);
     turn.delivery.input.origin = .{ .external = .{ .principal = 11, .policy_revision = 1 } };
     turn.delivery.input.value = try (s.Frame{ .kind = .cast, .payload = try root.Model.Command.encode(.initialize) }).encode();

@@ -13,13 +13,14 @@ when proposing outputs or effects.
 The basic sequence is:
 
 1. `session.receive()` polls a scoped view and returns an owned `Delivery`, or null when no input is
-   pending. It includes the input, committed state, state revision and next
+   pending. It includes the input, process revision and next
    principal sequence. A blocked or stale activation returns an error.
 2. If `delivery.needs_permit`, call `prepareBegin(delivery)`, submit that pending
    request, and receive again. Finite processes require this recorded permission
    before starting the turn. Transit enforces the settlement deadline at commit.
-3. Compute application state from the delivery. Use `prepareCommit(delivery,
-   decision)` with proposed state and any fixed-PID outputs or effect intent.
+3. Capture associated resource views, read bounded state and compute the result.
+   Use `prepareCommit(delivery, decision)` with mutations, views, fixed-PID
+   outputs and any effect intent.
 4. Keep the resulting `Pending` until its outcome is resolved. `pending.submit`
    sends that exact signed request and returns a durable receipt.
 
@@ -48,7 +49,7 @@ A timeout or dropped connection can follow a successful append. Retry the same
 `Pending`; do not invent a new sequence, rerun an external effect, or interpret
 transport failure as rejection. Preserve the signed request if recovery across
 a caller crash requires resolving that operation. An authorized duplicate returns
-its original receipt within the configured retry horizon. A conflict requires
+its original receipt while its retained evidence and current grants permit disclosure. A conflict requires
 reconciliation against current history; stale ownership requires stopping the
 activation. A fresh receive alone is not permission to abandon an uncertain
 operation. `Client.last_rejection` exposes a recognized wire error separately
@@ -66,8 +67,8 @@ borrows its configured URL and I/O runtime; those must outlive it. Call
 `Client.deinit()` before releasing them. Signing keys are caller-owned secrets.
 The fixed representation keeps ownership and response bounds explicit, at the
 cost of copying and small payloads. Large body references require a later
-retention/dependency contract. HTTP bodies/responses are bounded by 256 KiB;
-accepted journal entries by 8 KiB, and checkpoints by 1 MiB.
+retention/dependency contract. Native requests are bounded by 8 KiB; HTTP responses by 256 KiB. The backend
+bounds journal entries and root checkpoints separately without copying catalogs.
 
 ## Classifying a stopped turn
 
@@ -87,38 +88,37 @@ an explicit recovery design above this library.
 
 ## Durable KV resources
 
-`Client.state(query, key)` implements [state v1](../../../../contracts/STATE_V1.md).
-Read `capabilities` before selecting a profile. Resource inspection and value
+`Client.query(query, key)` implements [state v1](../../../../contracts/STATE_V1.md).
+Read `capabilities` to check operation support. Resource inspection and value
 reads require separate resource grants; a process association grants neither.
 Metadata and entries are bounded pages. Follow `next` with the same query/cut;
 restart explicitly on `QueryExpired` or `HistoryReclaimed`.
 
 For a state-backed turn, receive the ordered input, obtain any finite-process
-permit, and resolve the configured association via `Session.associations()`.
-Fetch the resource metadata, then `prepareStateView(delivery, resource, deadline)`.
+permit, and resolve the configured association via `Session.association(name)`.
+Fetch the resource metadata, then `prepareView(delivery, resource, deadline)`.
 Submit/reconcile that exact pending request before receiving again: opening a
-view consumes a principal sequence. `readStateView(id, key)` reads the captured
+view consumes a principal sequence. `readView(id, key, null)` reads the captured
 revision, even if another authorized turn later changes the resource. Larger
-enumerations use `Client.state` with the view ID and cut. Deadlines must fit the
+enumerations use `Client.query` with the view ID and continuation key. Deadlines must fit the
 advertised view bound and resource/process lifetimes; authority time decides
 acceptance.
 
-`prepareStateCommit(delivery, decision)` binds the returned view identities,
+`prepareCommit(delivery, decision)` binds the returned view identities,
 up to four distinct KV mutations in one resource, input progress, outputs and
 an effect intent to one signed commit. A null mutation value deletes a key.
-The helper preserves legacy inline state without interpreting it. Retain this
+Retain this
 `Pending` unchanged after an uncertain response, including its read basis.
 Expiry is an explicit rejection; never silently reopen a newer view for an
-uncertain commit. `prepareCloseStateView` releases an abandoned, known-uncommitted
-view; maintenance and ownership changes also release expired/stale views.
+uncertain commit. `prepareCloseView` releases an abandoned, known-uncommitted
+view; ownership changes fence old views, and authorized collection can close their
+working indexes when its dependencies permit.
 
 All data and view metadata own their bytes. There is no hidden cache, automatic
-transaction retry, background worker or second state authority. The first
-profile materializes bounded KV data in the authority and supports only one
-writer PID per resource. `just test::state` qualifies the public HTTP boundary.
+transaction retry, background worker or second state authority. The authority loads immutable pages on demand, independently of retained KV
+cardinality. Each resource has one writer PID. `just test::state` qualifies the public HTTP boundary.
 
-`Delivery.input.origin` carries versioned authority evidence: external principal,
+`Delivery.input.origin` carries authenticated authority evidence: external principal,
 source process/turn/output, or effect/attempt/executor. Validate the expected
 origin before treating an application correlation value as a reply. Possessing a
-matching value alone cannot authenticate its sender. The client rejects unknown
-origin versions; no inspection grant on the source is needed.
+matching value alone cannot authenticate its sender. The current native definition fixes the origin shape; no inspection grant on the source is needed.

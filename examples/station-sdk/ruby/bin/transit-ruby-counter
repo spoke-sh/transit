@@ -8,10 +8,10 @@ raise ArgumentError, 'CONFIG service|requester [--commits COUNT]' unless [2, 4].
 remaining = count.nil? ? 1 : Integer(count, 10)
 raise ArgumentError, 'Commit count must be positive' unless remaining.positive?
 cfg = JSON.parse(File.binread(config_file))
-raise ArgumentError, 'Select growing_v3' unless cfg.fetch('profile') == 'growing_v3'
+raise ArgumentError, 'Select native_v1' unless cfg.fetch('profile') == 'native_v1'
 peer = Transit::ProcessRef.new(realm: cfg.fetch('realm'), pid: cfg.fetch('peer'))
 config = Transit::Station::ServiceConfig.new(
-  client: Transit::ClientConfig.new(url: cfg.fetch('url'), profile: :growing_v3),
+  client: Transit::ClientConfig.new(url: cfg.fetch('url'), profile: :native_v1),
   activation: Transit::Station::Activation.new(
     process: Transit::ProcessRef.new(realm: cfg.fetch('realm'), pid: cfg.fetch('pid')), generation: cfg.fetch('generation'),
     credential: Transit::Credential.new(realm: cfg.fetch('realm'), principal: cfg.fetch('principal'), seed_file: cfg.fetch('seed_file'))))

@@ -36,7 +36,7 @@ codecs(A,Cfg)->
 report(V)->io:put_chars([json:encode(V),"\n"]).
 config(Cfg)->
     C=maps:get(<<"connection">>,Cfg),Realm=maps:get(<<"realm">>,C),
-    Client=#transit_config{url=maps:get(<<"url">>,Cfg),profile=growing_v3,timeout_ms=10000},
+    Client=#transit_config{url=maps:get(<<"url">>,Cfg),profile=native_v1,timeout_ms=10000},
     Identity=#transit_credential{realm=Realm,principal=maps:get(<<"principal">>,C),seed_file=maps:get(<<"seed_file">>,Cfg)},
     Connection=#transit_unified_connection{source=#transit_process{realm=Realm,pid=maps:get(<<"source">>,C)},resource=#transit_resource{realm=Realm,resource=maps:get(<<"resource">>,C)},requester=#transit_process{realm=Realm,pid=maps:get(<<"requester">>,C)},requests=#transit_resource{realm=Realm,resource=maps:get(<<"requests">>,C)}},
     {Client,Identity,Connection}.

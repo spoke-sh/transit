@@ -19,7 +19,7 @@ class DocumentBoard:
         port = free_port()
         self.origin = f"http://127.0.0.1:{port}"
         config = write("board-document.json", dict(upstream=system.url, realm=72, principal=55,
-            profile="growing_v3", seed_file=str(self.seed), public_origin=self.origin, port=port,
+            profile="native_v1", seed_file=str(self.seed), public_origin=self.origin, port=port,
             request_timeout_ms=5000, upstream_timeout_ms=1500))
         self.process = system.start(binaries["transit-board"], config)
         wait_ready(system.store.http, self.process, self.origin + "/health")

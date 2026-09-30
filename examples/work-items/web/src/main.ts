@@ -17,7 +17,7 @@ import { proposal } from "./proposal.generated";
 import "./style.css";
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const query = httpTransport("/api/v1/query-v2");
+const query = httpTransport("/api/v1/query");
 const session = new DraftSession(query); // Accepted work outlives every screen.
 let current: Compiled | null = null;
 let identity = "";
@@ -50,7 +50,7 @@ function compatible(page: ResultPage) {
   return (
     declared &&
     declared.source_kind === "table" &&
-    declared.profile === "unified_v2" &&
+    declared.profile === "unified_v1" &&
     declared.resource === basis.resource &&
     JSON.stringify(declared.schema) === JSON.stringify(basis.contract)
   );

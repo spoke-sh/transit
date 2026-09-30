@@ -13,22 +13,22 @@ Syntax recognition, query compilation and administrative publication are separat
 capabilities. Administrative SQL extensions are **grammar-only**; their examples
 describe syntax and do not execute in the query console.
 
-Choose the profile before writing a query:
+The console, CLI and Board use the same query v1 source and plan contract.
+Flight SQL uses its configured Table subset and adapts results to primitive
+Arrow int64 columns.
 
-| Capability | Table v1 | Unified v2 |
-| --- | --- | --- |
-| Interfaces | `transit query`, Board v1 workspace, Flight SQL | `transit console`, `transit query-v2`, Board v2 workspace |
-| Sources | One explicitly configured Table | One explicitly declared KV, Table or accepted Document projection |
-| `SELECT *` | Two schema columns | All one to eight declared columns |
-| Explicit projection | One or two column names | One or two column names; wider explicit lists require typed plans |
-| Predicate | One comparison or `IS NULL` | One comparison or `IS NULL` |
-| Ordering | Defined source / primary-key order | Defined source order |
-| `LIMIT n` | 0–32 | Full u64 count |
-| No limit | No implicit truncation | No implicit truncation; execution budgets still apply |
-| `COUNT(*)` | int64 result | uint64 result, counting every cell state |
-| `SUM(column)` | Checked int64, skips null | Checked int64, skips missing/null; error/conflict fails |
-| `column = NULL` | Selects no rows | Rejected; use `IS NULL` |
-| Results | Primitive Arrow | Nested typed cells: value, null, missing, type error, conflict |
+| Capability | Query v1 |
+| --- | --- |
+| Sources | One declared KV, Table or accepted Document projection |
+| `SELECT *` | All one to eight declared columns |
+| Explicit projection | One or two column names; wider lists require typed plans |
+| Predicate | One comparison or `IS NULL` |
+| Ordering | Defined source order |
+| `LIMIT n` | Full u64 count; no implicit truncation when omitted |
+| `COUNT(*)` | uint64, counting every cell state; Flight checks conversion to int64 |
+| `SUM(column)` | Checked int64; skips missing/null; error/conflict fails |
+| Comparison with `NULL` | Rejected; use `IS NULL` |
+| Results | Nested typed cells: value, null, missing, type error, conflict |
 
 ## Statement forms
 
@@ -88,10 +88,10 @@ Literals include signed decimal int64, `TRUE`, `FALSE`, `NULL`, UTF-8 strings
 with doubled single quotes and binary hex such as `'\x00ff'::bytea`. Backslashes
 are literal. There are no implicit casts, E strings or dollar quotes.
 
-Both profiles accept `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=` under their type
-rules. V1 ordered comparisons require int64; v2 uses exactly typed comparisons,
+Queries accept `=`, `<>`, `!=`, `<`, `<=`, `>` and `>=` under their type
+rules. Operands are exactly typed,
 including byte ordering for text/binary. Uint64 and float64 columns can be
-projected in v2, but comparison literals for them require typed plans.
+projected, but comparison literals for them require typed plans.
 `IS NULL` selects explicit null, not a missing Document field.
 
 ## Bounds and unsupported operations
@@ -99,8 +99,8 @@ projected in v2, but comparison literals for them require typed plans.
 Input is at most 4096 UTF-8 bytes; names are at most 16 ASCII identifier bytes;
 nested block comments are bounded to 16 levels. One optional semicolon, whitespace,
 line comments and nested block comments are accepted. Additional statements and
-trailing tokens fail. The v1 public request additionally limits encoded plans
-to 207 bytes; v2 uses an explicitly budgeted finite upload.
+trailing tokens fail. Durable requests use an explicitly budgeted finite plan
+upload.
 
 Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
 `COUNT(column)`, general casts, writes and continuous queries are unsupported.
@@ -113,8 +113,7 @@ selected parser/AST agreement. Fuze's ordered, checked int64 sum differs from
 PostgreSQL's widened numeric result. No optimizer rewrite is enabled by the
 separate rewrite proofs.
 
-See [Table SQL v1](../../packages/zig/transit-fuze/docs/sql.md) and
-[unified SQL v2](../../packages/zig/transit-fuze/docs/unified-sql.md) for compiler
+See [query SQL v1](../../packages/zig/transit-fuze/docs/unified-sql.md) for compiler
 APIs, exact error families and source-binding rules. The
 [console guide](../../apps/transit-cli/docs/console.md) explains explicit submission,
 namespace selection, completion and recovery after a lost response.

@@ -29,10 +29,10 @@ pub const Action = union(enum) {
 };
 pub const Progress = struct { phase: enum { progress, accepted, duplicate, checkpoint_complete }, revision: ?[]const u8 = null };
 pub const Result = union(enum) { none, progress: Progress, collected: bool };
-fn service(turn: *s.GrowingTurn, name: []const u8) !d.Service {
+fn service(turn: *s.Turn, name: []const u8) !d.Service {
     return (try (Identity{ .resource = turn.view.resource, .document = name }).native()).service();
 }
-pub fn apply(alloc: Allocator, turn: *s.GrowingTurn, action: Action) !Result {
+pub fn apply(alloc: Allocator, turn: *s.Turn, action: Action) !Result {
     // Also preserve private proposals when called outside the foreign ABI.
     const before = turn.decision;
     errdefer turn.decision = before;

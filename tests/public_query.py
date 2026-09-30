@@ -3,13 +3,13 @@ from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
-import select
 import subprocess
 import sys
 import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from unified_shell import Shell
 
 
 def run(node, host, cli, proof):
@@ -19,15 +19,13 @@ def run(node, host, cli, proof):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        config.write_text(json.dumps({"profile": "growing_v3", "genesis": {
+        config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 45, "root_key": public, "max_clock_error_ms": 10000},
             "ursula_url": fixture.url, "bucket": "public-query", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         processes, logs = [], []
         fault = {"lost": None, "retry": False, "stage": threading.Event(), "pause": threading.Event()}
         fault["pause"].set()
-        fault["received"] = threading.Event()
-        fault["receive_pause"] = threading.Event()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
@@ -39,11 +37,11 @@ def run(node, host, cli, proof):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/command" and response.status == 200:
+                    if self.path == "/v1/command" and response.status == 200:
                         request = message["request"]
                         if request["principal"] == 1234 and "send" in request["command"]:
                             value = bytes.fromhex(request["command"]["send"]["value"])
-                            if b"PQR1" in value:
+                            if value[13:].startswith(b"UQB1"):
                                 if fault["lost"] is None:
                                     fault["lost"] = (body, data)
                                     data = b'{"position":0}'
@@ -52,12 +50,9 @@ def run(node, host, cli, proof):
                                     fault["retry"] = True
                         command = request["command"]
                         turn = command.get("turn", command.get("turn_with_versions", {}).get("turn", {}))
-                        if request["principal"] == 65536 and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Qs") for item in turn.get("mutations", [])):
+                        if request["principal"] == 65536 and not fault["stage"].is_set() and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Us") for item in turn.get("mutations", [])):
                             fault["stage"].set()
-                            fault["pause"].wait(timeout=20)
-                        if request["principal"] == 65537 and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Qv") for item in turn.get("mutations", [])):
-                            fault["received"].set()
-                            fault["receive_pause"].wait(timeout=30)
+                            fault["pause"].wait(timeout=60)
                     self.send_response(response.status)
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
@@ -66,6 +61,7 @@ def run(node, host, cli, proof):
                 finally: connection.close()
 
         proxy = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
+        proxy.daemon_threads = True
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
         thread.start()
         proxy_url = f"http://127.0.0.1:{proxy.server_port}"
@@ -91,129 +87,122 @@ def run(node, host, cli, proof):
             source = start("source", [host, str(fixture.root / "source.json")])
             courier = start("courier", [host, str(fixture.root / "courier.json")])
             inspector = subprocess.run([cli, "query", str(fixture.root / "inspector.json")], input=".schema\n.quit\n", text=True, capture_output=True, timeout=15)
-            assert "QueryAccessDenied" in inspector.stdout, inspector.stdout
-            shell = subprocess.Popen([cli, "query", str(fixture.root / "cli.json")], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
-            processes.append(shell)
-            def receive(timeout=20):
-                ready, _, _ = select.select([shell.stdout], [], [], timeout)
-                assert ready, "query shell did not respond"
-                line = shell.stdout.readline().strip()
-                assert line, f"query shell exited: {shell.poll()}"
-                return json.loads(line) if line.startswith("{") else line
-            def send(text):
-                shell.stdin.write(text + "\n")
-                shell.stdin.flush()
-                return receive()
-            assert "Transit query" in receive()
-            assert send(".format json") == {"format": "json"}
-            before = send(".schema")
-            assert before["schema"]["value_type"] == "int64"
-            assert str(send("DELETE FROM items")).startswith("error:")
-            assert send(".schema")["sequence"] == before["sequence"], "unsupported SQL submitted work"
+            assert "QueryConfigurationChanged" in inspector.stdout, (inspector.stdout, inspector.stderr)
+            (fixture.root / "shell.json").write_text((fixture.root / "cli.json").read_text())
+            shell = Shell(cli, fixture.root)
+            processes.append(shell.process)
+            send = shell.call
+            def advance(progress):
+                until = time.monotonic() + 120
+                while "waiting_for_input" in progress:
+                    assert time.monotonic() < until, progress
+                    progress = send(".advance")
+                return progress
+            def submit(sql):
+                receipt = send(sql)
+                assert "receipt" in receipt, receipt
+                return advance(shell.read())
+            before = json.loads(provision("next-sequence").stdout)
+            description = send(".schema")["description"]
+            assert description["source"]["source"]["source"]["table"]["value_type"] == "int64"
+            assert send(".new 1")["status"] is None
+            assert send("DELETE FROM items")["err"] == "UnsupportedStatement"
+            assert json.loads(provision("next-sequence").stdout) == before, "unsupported SQL submitted work"
             fault["pause"].clear()
-            assert send("SELECT id, value FROM items") == "error: InvalidAuthorityResponse"
-            submitted = send(".retry")["submitted"]
+            assert send("SELECT id, value FROM items") == {"err": "InvalidAuthorityResponse", "uncertain": True}
+            assert "receipt" in send(".retry")
+            assert advance(shell.read())["status"]["phase"] in ("admitted", "complete")
             assert fault["retry"], "retry did not retain exact signed admission"
-            assert fault["stage"].wait(timeout=30), "source never staged result"
-            busy = json.loads(provision("submit-busy").stdout)["submitted"]
-            until = time.monotonic() + 20
-            while True:
-                status = send(f".resume {busy}")
-                if isinstance(status, dict) and status["phase"] == "busy": break
-                assert time.monotonic() < until, status
-                time.sleep(0.05)
-            assert send(f".resume {submitted}")["phase"] == "capturing"
+            assert fault["stage"].wait(timeout=120), "source never staged result"
+            partial = send(".status")["status"]
+            assert partial["phase"] == "admitted" and partial["manifest"] is None
+            assert send(".next")["err"] == "IncompleteResult"
+            # A second shell shares the durable requester quota, not a local lock.
+            competitor = Shell(cli, fixture.root)
+            processes.append(competitor.process)
+            assert competitor.call(".new 2")["status"] is None
+            assert "receipt" in competitor.call("SELECT value FROM items")
+            busy = competitor.read()
+            assert bytes.fromhex(busy["rejected"]) == b"QueryBusy", busy
+            competitor.close()
             source.kill(); source.wait(timeout=10)
             fault["pause"].set()
             same = subprocess.run([host, str(fixture.root / "source.json")], capture_output=True, timeout=15)
             assert same.returncode and b"FreshOwnershipRequired" in same.stderr
-            provision("fence")
+            generation = json.loads(provision("fence").stdout)["generation"]
             path = fixture.root / "source.json"
-            options = json.loads(path.read_text()); options["generation"] = 4; path.write_text(json.dumps(options))
+            options = json.loads(path.read_text()); options["generation"] = generation; path.write_text(json.dumps(options))
+            # Keep the source stopped while checking current rights over its durable prefix.
+            provision("revoke")
+            assert send(".next")["err"] == "IncompleteResult"
+            assert send(".resume 1")["err"] == "AccessDenied"
+            assert send(".next")["err"] == "NamespaceRequired"
+            provision("restore")
+            assert send(".resume 1")["status"]["phase"] == "admitted"
             source = start("source-recovered", [host, str(path)])
-            assert fault["received"].wait(timeout=60), "receiver never sealed a partial segment"
-            until = time.monotonic() + 20
+            deadline = time.monotonic() + 120
             while True:
-                partial = send(".status")
-                if isinstance(partial, dict) and partial["received_segments"] >= 1: break
-                assert time.monotonic() < until, partial
-                time.sleep(0.1)
-            assert partial["phase"] == "delivering" and partial["manifest"] is None
-            assert send(".next") == "error: IncompleteResult"
-            provision("revoke")
-            assert send(".status") == "error: AccessDenied"
-            assert send(".next") == "error: NoQuery"
-            provision("restore")
-            assert send(f".resume {submitted}")["phase"] == "delivering"
-            fault["receive_pause"].set()
-            deadline = time.monotonic() + 90
-            phases = set()
-            while True:
-                status = send(".status")
-                if isinstance(status, dict):
-                    phases.add(status["phase"])
-                    if status["phase"] == "complete": break
+                status = send(".status")["status"]
+                if status["phase"] == "complete": break
                 assert all(process.poll() is None for process in (source, requester, courier)), "query daemon exited"
-                assert time.monotonic() < deadline, (phases, status)
+                assert time.monotonic() < deadline, status
                 time.sleep(0.05)
-            assert status["correlation"] == submitted
-            assert status["manifest"]["rows"] == 41
-            rows = []
-            for index in range(status["manifest"]["segments"]):
+            rows, segments, manifest = [], 0, None
+            while True:
                 page = send(".next")
-                assert isinstance(page, dict), page
-                assert page["ordinal"] == index and page["manifest"] == status["manifest"]
-                rows.extend(row for row in page["rows"] if row is not None)
-            expected = [[{"int64": str(i)}, {"null": {}} if i % 5 == 0 else {"int64": str(9007199254740993 + i)}] for i in range(41)]
+                assert page["ordinal"] == str(segments), page
+                manifest = page["manifest"]
+                rows.extend(page["cells"]); segments += 1
+                if page["complete_coverage"]: break
+            expected = [[{"value": {"int64": str(i)}}, {"null": {}} if i % 5 == 0 else {"value": {"int64": str(9007199254740993 + i)}}] for i in range(41)]
             assert rows == expected, (rows[:3], expected[:3])
-            # A fresh adapter reconstructs the original canonical send after
-            # worker recovery, even after a newer sequence was already admitted.
-            assert json.loads(provision(f'retry-sequence:{before["sequence"] + 1}').stdout)['submitted'] == submitted
-            captured = json.loads(provision(f'capture:{submitted}').stdout)
-            assert captured == {name: status['manifest'][name] for name in ('rows', 'bytes', 'segments')}
-            provision('revoke-read')
-            refused = subprocess.run([proof, url, f'capture:{submitted}', str(fixture.root / 'cli.json')], capture_output=True, timeout=15)
-            assert refused.returncode and b'AccessDenied' in refused.stderr, refused.stderr
-            provision('restore')
-            provision("revoke")
-            denied = send(f".resume {submitted}")
-            assert denied == "error: AccessDenied", denied
-            assert send(".status") == "error: NoQuery"
+            assert int(manifest["rows"]) == 41 and int(manifest["segments"]) == segments
+            # A fresh HTTP exchange reconciles the original admission after later sequences.
+            wire = HTTPConnection("127.0.0.1", port, timeout=15)
+            wire.request("POST", "/v1/command", fault["lost"][0], {"Content-Type": "application/json"})
+            response = wire.getresponse()
+            assert response.status == 200 and response.read() == fault["lost"][1]
+            wire.close()
+            captured = json.loads(provision("capture:1").stdout)
+            assert captured == {name: int(manifest[name]) for name in ("rows", "bytes", "segments")}
+            provision("revoke-read")
+            refused = subprocess.run([proof, url, "capture:1", str(fixture.root / "cli.json")], capture_output=True, timeout=15)
+            assert refused.returncode and b"AccessDenied" in refused.stderr, refused.stderr
             provision("restore")
-            assert send(f".resume {submitted}")["phase"] == "complete"
-            assert send(".next")["ordinal"] == 0
-            # Schema changes are explicit rejections, not a rebound positional plan.
-            wrong = json.loads(provision("bad-schema").stdout)["submitted"]
-            until = time.monotonic() + 20
-            while True:
-                status = send(f".resume {wrong}")
-                if isinstance(status, dict) and status["phase"] == "rejected": break
-                assert time.monotonic() < until, status
-                time.sleep(0.05)
-            # Pause a second capture, revoke during its incomplete delivery, and
-            # explicitly cancel after restoring read rights. No partial page may pass.
+            provision("revoke")
+            assert send(".resume 1")["err"] == "AccessDenied"
+            assert send(".status")["err"] == "NamespaceRequired"
+            provision("restore")
+            assert send(".resume 1")["status"]["phase"] == "complete"
+            assert send(".next")["ordinal"] == "0"
+            # A configured schema change fails before native admission.
+            wrong = json.loads((fixture.root / "cli.json").read_text())
+            wrong["workspace"]["source"]["source"]["table"]["value_type"] = "utf8"
+            wrong_path = fixture.root / "wrong-schema.json"
+            wrong_path.write_text(json.dumps(wrong))
+            sequence = provision("next-sequence").stdout
+            rejected = subprocess.run([cli, "query", str(wrong_path)], input=".schema\n.quit\n", text=True, capture_output=True, timeout=15)
+            assert "QueryDenied" in rejected.stdout, rejected.stdout
+            assert provision("next-sequence").stdout == sequence
+            # Pause another captured prefix and cancel explicitly after restoring access.
             fault["stage"].clear(); fault["pause"].clear()
-            second = send("SELECT value FROM items")["submitted"]
-            assert fault["stage"].wait(timeout=30)
-            incomplete = send(".next")
-            assert incomplete == "error: IncompleteResult", incomplete
+            assert send(".new 3")["status"] is None
+            assert submit("SELECT value FROM items")["status"]["phase"] == "admitted"
+            assert fault["stage"].wait(timeout=120)
+            assert send(".next")["err"] == "IncompleteResult"
             provision("revoke")
-            assert send(".status") == "error: AccessDenied"
-            assert send(".next") == "error: NoQuery"
+            assert send(".next")["err"] == "IncompleteResult"
+            assert send(".resume 3")["err"] == "AccessDenied"
+            assert send(".next")["err"] == "NamespaceRequired"
             provision("restore")
-            assert send(f".resume {second}")["phase"] == "capturing"
-            assert "cancellation_submitted" in send(".cancel")
-            until = time.monotonic() + 20
-            while True:
-                status = send(".status")
-                if isinstance(status, dict) and status["phase"] == "cancelled": break
-                assert time.monotonic() < until, status
-                time.sleep(0.05)
+            assert send(".resume 3")["status"]["phase"] == "admitted"
+            assert submit(".cancel")["status"]["phase"] == "cancelled"
             fault["pause"].set()
             provision("retire-source")
-            assert send(".status") == "error: QuerySourceUnavailable"
-            assert send(".next") == "error: NoQuery"
-            shell.stdin.write(".quit\n"); shell.stdin.flush(); shell.wait(timeout=10)
+            retired = send(".resume 1")
+            assert retired["err"] in ("QuerySourceUnavailable", "ResourceUnavailable"), retired
+            assert send(".next")["err"] == "NamespaceRequired"
+            shell.close()
             print("public query: real shell/hosts, 41 exact int64/null rows, exact retry, fenced crash recovery, busy admission, schema rejection, incomplete-result refusal, cancellation and read-time revocation passed")
         except BaseException:
             for log in logs:
@@ -221,7 +210,6 @@ def run(node, host, cli, proof):
             raise
         finally:
             fault["pause"].set()
-            fault["receive_pause"].set()
             for process in reversed(processes):
                 if process.poll() is None: process.kill()
                 process.wait(timeout=10)

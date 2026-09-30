@@ -4,8 +4,8 @@ const station = @import("transit_station");
 const client = station.client;
 const p = client.protocol;
 const g = p.Growth;
-const Server = station.GrowingGenServer;
-const Turn = station.GrowingTurn;
+const Server = station.GenServer;
+const Turn = station.Turn;
 const t = std.testing;
 const Realm = 43;
 const Count = 40;
@@ -290,14 +290,14 @@ pub fn main(init: std.process.Init) !void {
             const id: g.ReadVersionId = .{ .pid = expected.writer, .input = expected.retained_input, .index = 0 };
             const version = try server.session.version(id);
             try t.expect(version.released_at != null);
-            try t.expectError(error.Rejected, wire.queryGrowing(.{ .realm = Realm, .principal = 65537, .kind = .{ .version_entries = .{ .id = id, .generation = 4 } } }, writer_key));
+            try t.expectError(error.Rejected, wire.query(.{ .realm = Realm, .principal = 65537, .kind = .{ .version_entries = .{ .id = id, .generation = 4 } } }, writer_key));
             try t.expectEqual(.ReadVersionReleased, wire.last_rejection.?);
             try output.interface.writeAll("Growing Station resume: passed\n");
             return output.interface.flush();
         }
         _ = try admin.submit(.{ .own = .{ .pid = expected.requester, .expected_generation = 2, .worker = 65536 } });
         _ = try admin.submit(.{ .own = .{ .pid = expected.writer, .expected_generation = 2, .worker = 65537 } });
-        try t.expectError(error.Rejected, wire.submitGrowing(expected.stale.?));
+        try t.expectError(error.Rejected, wire.submit(expected.stale.?));
         try t.expectEqual(.StaleGeneration, wire.last_rejection.?);
         var request_server = try makeServer(&wire, 65536, expected.requester, 3, requester_key);
         var write_server = try makeServer(&wire, 65537, expected.writer, 3, writer_key);

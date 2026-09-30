@@ -6,7 +6,7 @@ export const Definition = validate23;
 const schema32 = {"type":"object","additionalProperties":false,"properties":{"version":{"type":"integer","const":1},"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"realm":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"string","pattern":"^(0|[1-9][0-9]*)$","maxLength":20},"components":{"type":"integer","minimum":0,"maximum":65535},"entry":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"theme":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"themes":{"type":"array","maxItems":2,"items":{"$ref":"#/$defs/Theme"}},"screens":{"type":"array","maxItems":16,"items":{"$ref":"#/$defs/Screen"}},"bindings":{"type":"array","maxItems":16,"items":{"$ref":"#/$defs/Binding"}},"actions":{"type":"array","maxItems":16,"items":{"$ref":"#/$defs/Action"}}},"required":["name","realm","revision","entry","theme","themes","screens","bindings","actions"]};
 const schema33 = {"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"density":{"type":"string","enum":["comfortable","compact"]}},"required":["name","density"]};
 const schema34 = {"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"path":{"type":"string","minLength":1,"maxLength":128,"pattern":"^/[A-Za-z_0-9/-]*$"},"label":{"type":"string","minLength":1,"maxLength":128},"area":{"type":"string","enum":["workspace","operations"]},"renderer":{"type":"string","enum":["atlas","worksheet","records","activity","definition","operations","work_items"]},"binding":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"}},"required":["name","path","label","area","renderer","binding"]};
-const schema35 = {"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"source":{"oneOf":[{"type":"object","additionalProperties":false,"required":["inspection"],"properties":{"inspection":{"type":"object","additionalProperties":false,"properties":{"projection":{"type":"string","enum":["atlas","resources","processes","records","capabilities","activity"]},"page_budget":{"type":"integer","minimum":0,"maximum":255}},"required":["projection"]}}},{"type":"object","additionalProperties":false,"required":["query"],"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"source_kind":{"type":"string","enum":["table","kv","document"]},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"profile":{"type":"string","enum":["table_v1","unified_v2"]},"sql":{"type":"string","minLength":1,"maxLength":4096},"refresh":{"type":"string","enum":["snapshot","follow"]},"starts":{"type":"integer","minimum":0,"maximum":255}},"required":["resource","name","source_kind","schema","profile","sql"]}}},{"type":"object","additionalProperties":false,"required":["command"],"properties":{"command":{"type":"object","additionalProperties":false,"properties":{"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"codec":{"type":"integer","minimum":0,"maximum":65535}},"required":["service","target","revision","codec"]}}}]}},"required":["name","source"]};
+const schema35 = {"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"source":{"oneOf":[{"type":"object","additionalProperties":false,"required":["inspection"],"properties":{"inspection":{"type":"object","additionalProperties":false,"properties":{"projection":{"type":"string","enum":["atlas","resources","processes","records","capabilities","activity"]},"page_budget":{"type":"integer","minimum":0,"maximum":255}},"required":["projection"]}}},{"type":"object","additionalProperties":false,"required":["query"],"properties":{"query":{"type":"object","additionalProperties":false,"properties":{"resource":{"type":"integer","minimum":0,"maximum":9007199254740991},"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"source_kind":{"type":"string","enum":["table","kv","document"]},"schema":{"type":"array","minItems":32,"maxItems":32,"items":{"type":"integer","minimum":0,"maximum":255}},"profile":{"type":"string","enum":["unified_v1"]},"sql":{"type":"string","minLength":1,"maxLength":4096},"refresh":{"type":"string","enum":["snapshot","follow"]},"starts":{"type":"integer","minimum":0,"maximum":255}},"required":["resource","name","source_kind","schema","profile","sql"]}}},{"type":"object","additionalProperties":false,"required":["command"],"properties":{"command":{"type":"object","additionalProperties":false,"properties":{"service":{"type":"integer","minimum":0,"maximum":9007199254740991},"target":{"type":"integer","minimum":0,"maximum":9007199254740991},"revision":{"type":"integer","minimum":0,"maximum":9007199254740991},"codec":{"type":"integer","minimum":0,"maximum":65535}},"required":["service","target","revision","codec"]}}}]}},"required":["name","source"]};
 const schema36 = {"type":"object","additionalProperties":false,"properties":{"name":{"type":"string","minLength":1,"maxLength":64,"pattern":"^[A-Za-z_][A-Za-z_0-9]*$"},"label":{"type":"string","minLength":1,"maxLength":128},"target":{"oneOf":[{"type":"object","additionalProperties":false,"required":["navigate"],"properties":{"navigate":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["command"],"properties":{"command":{"type":"string","maxLength":256}}},{"type":"object","additionalProperties":false,"required":["follow"],"properties":{"follow":{"type":"string","maxLength":256}}}]}},"required":["name","label","target"]};
 const func1 = Object.prototype.hasOwnProperty;
 const func2 = ucs2length;
@@ -1112,7 +1112,7 @@ vErrors.push(err30);
 }
 errors++;
 }
-if(!((data32 === "table_v1") || (data32 === "unified_v2"))){
+if(!(data32 === "unified_v1")){
 const err31 = {instancePath:instancePath+"/bindings/" + i2+"/source/query/profile",schemaPath:"#/$defs/Binding/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err31];
@@ -2901,7 +2901,7 @@ vErrors.push(err30);
 }
 errors++;
 }
-if(!((data11 === "table_v1") || (data11 === "unified_v2"))){
+if(!(data11 === "unified_v1")){
 const err31 = {instancePath:instancePath+"/source/query/profile",schemaPath:"#/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err31];
@@ -16770,7 +16770,7 @@ vErrors.push(err112);
 }
 errors++;
 }
-if(!((data36 === "table_v1") || (data36 === "unified_v2"))){
+if(!(data36 === "unified_v1")){
 const err113 = {instancePath:instancePath+"/format/bindings/" + i2+"/source/query/profile",schemaPath:"#/$defs/Binding/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err113];
@@ -31320,7 +31320,7 @@ vErrors.push(err131);
 }
 errors++;
 }
-if(!((data43 === "table_v1") || (data43 === "unified_v2"))){
+if(!(data43 === "unified_v1")){
 const err132 = {instancePath:instancePath+"/compiled/definition/bindings/" + i2+"/source/query/profile",schemaPath:"#/$defs/Binding/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err132];
@@ -34227,7 +34227,7 @@ vErrors.push(err313);
 }
 errors++;
 }
-if(!((data100 === "table_v1") || (data100 === "unified_v2"))){
+if(!(data100 === "unified_v1")){
 const err314 = {instancePath:instancePath+"/builtin/definition/bindings/" + i8+"/source/query/profile",schemaPath:"#/$defs/Binding/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err314];
@@ -37683,7 +37683,7 @@ vErrors.push(err530);
 }
 errors++;
 }
-if(!((data169 === "table_v1") || (data169 === "unified_v2"))){
+if(!(data169 === "unified_v1")){
 const err531 = {instancePath:instancePath+"/published/compiled/definition/bindings/" + i15+"/source/query/profile",schemaPath:"#/$defs/Binding/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err531];
@@ -49477,7 +49477,7 @@ vErrors.push(err30);
 }
 errors++;
 }
-if(!((data33 === "table_v1") || (data33 === "unified_v2"))){
+if(!(data33 === "unified_v1")){
 const err31 = {instancePath:instancePath+"/definition/bindings/" + i2+"/source/query/profile",schemaPath:"#/$defs/Binding/properties/source/oneOf/1/properties/query/properties/profile/enum",keyword:"enum",params:{allowedValues: schema35.properties.source.oneOf[1].properties.query.properties.profile.enum},message:"must be equal to one of the allowed values"};
 if(vErrors === null){
 vErrors = [err31];

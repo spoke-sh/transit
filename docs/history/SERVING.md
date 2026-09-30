@@ -18,7 +18,7 @@ APIs and Board. [M20](../roadmap/M20.md) adds [reactive APIs](REACTIVE_API.md),
 [M21](../roadmap/M21.md) consumes them in live views, and
 [Flight/Flight SQL M22](../roadmap/M22.md) qualifies an Arrow protocol adapter.
 The existing node and Board HTTP listeners remain qualified only under their
-[current contracts](../../contracts/SERVICE_V2.md) and component limits.
+[current contracts](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/SERVICE_V2.md) and component limits.
 The [M19 milestone](../roadmap/M19.md) records the selected scope, design decisions,
 entry gates and qualification criteria.
 

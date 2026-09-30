@@ -117,13 +117,15 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await page.getByRole("button", { name: "Browse", exact: true }).click();
   await expect(draft).toHaveValue(sql);
   await expect(page.getByRole("cell", { name: "9007199254740994", exact: true })).toBeVisible();
+  const completed = submissions;
+  expect(completed).toBeGreaterThan(2); // finite upload has several committed steps
   await draft.fill("SELECT id FROM items LIMIT 2");
   await page.getByRole("button", { name: "Canvas", exact: true }).click();
   await expect(draft).toHaveValue("SELECT id FROM items LIMIT 2");
   await expect(
-    page.getByText("Draft changed. The result still belongs to the last submitted SQL."),
+    page.getByText("Draft changed. The displayed result belongs to the earlier submitted SQL."),
   ).toBeVisible();
-  expect(submissions).toBe(2);
+  expect(submissions).toBe(completed);
   const recovery = page.getByLabel("Retained query recovery", { exact: true });
   const reference = await recovery.innerText();
   const correlation = /Retained query (\d+)\./.exec(reference)?.[1];
@@ -133,10 +135,10 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   expect((await download).suggestedFilename()).toBe("transit-query-reference.json");
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Run query", exact: true })).toBeEnabled();
-  await page.getByLabel("Existing query correlation", { exact: true }).fill(correlation!);
+  await page.getByLabel("Existing query namespace", { exact: true }).fill(correlation!);
   await page.getByRole("button", { name: "Resume without rerunning", exact: true }).click();
   await expect(page.getByLabel("Verified query result")).toBeVisible();
-  expect(submissions).toBe(2);
+  expect(submissions).toBe(completed);
   await page.screenshot({ path: process.env.BOARD_QUERY_SCREENSHOT, fullPage: true });
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,
@@ -144,11 +146,11 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
     process.env.BOARD_QUERY_CONFIG!,
   ]);
   await expect(
-    page.getByText("Query access denied. Protected workspace data has been cleared."),
+    page.getByText("Query access denied. Protected workspace data cleared."),
   ).toBeVisible({ timeout: 15000 });
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
   await expect(draft).toHaveCount(0);
-  expect(submissions).toBe(2);
+  expect(submissions).toBe(completed);
   expect(await context.cookies()).toEqual([]);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
@@ -159,7 +161,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   await page.getByRole("button", { name: "Refresh query access" }).click();
   await expect(draft).toHaveValue("SELECT * FROM items");
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
-  expect(submissions).toBe(2);
+  expect(submissions).toBe(completed);
   expect(errors).toEqual([]);
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
     process.env.BOARD_QUERY_AUTHORITY!,
@@ -167,9 +169,7 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
     process.env.BOARD_QUERY_CONFIG!,
   ]);
   await expect(
-    page.getByText(
-      "The source or result is unavailable or expired. Workspace data has been cleared.",
-    ),
+    page.getByText("Source or result unavailable. Protected workspace data cleared."),
   ).toBeVisible({ timeout: 15000 });
   await expect(draft).toHaveCount(0);
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);

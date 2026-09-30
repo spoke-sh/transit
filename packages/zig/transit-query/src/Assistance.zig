@@ -18,7 +18,7 @@ pub const Completion = struct {
 pub const Response = struct {
     version: u8 = 1,
     generation: u32,
-    profile: enum { unified_v2 } = .unified_v2,
+    profile: enum { unified_v1 } = .unified_v1,
     resource: u64,
     contract: [32]u8,
     resource_revision: u64,
@@ -43,7 +43,7 @@ const Builder = struct {
             if (!std.mem.eql(u8, raw[0..self.prefix.len], self.prefix)) return;
         } else if (!std.ascii.eqlIgnoreCase(raw[0..self.prefix.len], self.prefix)) return;
         const identifier = kind == .source or kind == .column;
-        // The v2 schema permits 32-byte names; the shared SQL AST's named
+        // The v1 schema permits 32-byte names; the shared SQL AST's named
         // identifiers remain 16 bytes. Star can still expose wider columns.
         if (identifier and raw.len > 16) return;
         if (self.quoted and !identifier) return;

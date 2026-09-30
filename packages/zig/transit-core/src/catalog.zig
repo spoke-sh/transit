@@ -2,7 +2,7 @@
 //! candidate; only an authority journal decision may publish its Snapshot.
 const std = @import("std");
 const pages = @import("pages.zig");
-pub const version = 2;
+pub const version = 1;
 pub const record_bytes = 2048;
 pub const parser_bytes = 64 * 1024;
 pub const Namespace = enum(u8) {
@@ -28,6 +28,19 @@ pub const Namespace = enum(u8) {
     pending_route,
     effects_by_pid,
     read_version,
+    runtime_resource,
+    payloads_by_pid,
+    pending_destination,
+    outputs_by_source,
+    outputs_by_destination,
+    resources_by_writer,
+    resources_by_owner,
+    views_by_pid,
+    views_by_resource,
+    versions_by_resource,
+    versions_by_pid,
+    associations_by_resource,
+    retired_process,
 };
 pub const Snapshot = struct {
     version: u32 = version,

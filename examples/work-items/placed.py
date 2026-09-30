@@ -114,7 +114,7 @@ def run(profile):
             config='[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile=='reference' else '/wal')+'"\n'+cold.config().replace(cold.url,endpoint)
             (work/'ursula.toml').write_text(config);(work/'ursula.toml').chmod(0o600)
             public=json.loads(subprocess.check_output([proof,'public']))
-            write('operator/node.json',dict(profile='growing_v3',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url='http://ursula:8080',bucket='work-items',journal='authority',listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000))
+            write('operator/node.json',dict(profile='native_v1',genesis=dict(realm=51,root_key=public,max_clock_error_ms=10000),ursula_url='http://ursula:8080',bucket='work-items',journal='authority',listen='0.0.0.0',port=8080,resident_pages=16,request_timeout_ms=10000))
             if profile=='compose':
                 owned.call('create','ursula');network=owned.project+'_storage'
                 subprocess.run(['docker','network','connect','--alias','work-items-cold',network,cold.name],check=True,capture_output=True)

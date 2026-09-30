@@ -21,7 +21,7 @@ Artifacts target OTP 28/Linux x86_64 and require the pinned Nix runtime closure.
 
 ## Operations and uncertainty
 
-Construct explicit `config(Url, growing_v3)`, `process(Realm, DurablePid)` and
+Construct explicit `config(Url, native_v1)`, `process(Realm, DurablePid)` and
 `credential(Realm, Principal, SeedFile)` values. These return `{ok, Record}` or
 `{error, #transit_error{}}`; constructors enforce the protocol counter bounds.
 The principal can be zero. URLs, profile and timeout are explicit. The optional

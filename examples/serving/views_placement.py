@@ -80,7 +80,7 @@ def run(owner):
             config['listen'] = '0.0.0.0'
             config['port'] = 8080
             config['seed_file'] = mount('gateway-0') + '/seed.key'
-            config['query_v2']['seed_file'] = mount('gateway-0') + '/credential'
+            config['query']['seed_file'] = mount('gateway-0') + '/credential'
             config['reactive']['seed_file'] = config['seed_file']
             config['reactive']['gateway'] = gateway(0)
             return start_host(0, config, True)
@@ -111,7 +111,7 @@ def run(owner):
             board='transit-board', worker_url=owner['url'], deadline_ms=owner['deadline'], gateway_ports=gateway_ports,
             public_host=f'127.0.0.1:{public_ports[0]}', start=start, stop_gateway=stop_gateway,
             hosts_alive=lambda: all(host.poll() is None for host in hosts.values()), recover=recover,
-            query=lambda principal, kind: owner['request'](owner['url'], '/v3/query', native_query(keys[principal], principal, kind)))
+            query=lambda principal, kind: owner['request'](owner['url'], '/v1/query', native_query(keys[principal], principal, kind)))
         browser_proof(environment, TLS)
     finally:
         for port in gateway_ports: TLS.pop(port, None)

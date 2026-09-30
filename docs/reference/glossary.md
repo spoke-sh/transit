@@ -83,8 +83,8 @@ ordering, ownership, and behavior requirements.
 
 ## State resources and associations
 
-[State](state.md) distinguishes legacy bounded KV/associations from growing v3.
-Tables and Documents build on those explicit resource profiles. General workload
+[State](state.md) defines native v1 resources and associations.
+Tables and Documents build on that resource boundary. General workload
 ownership must not be inferred from a reference; inline bytes or payload IDs
 alone do not create an association or lifetime dependency.
 
@@ -99,7 +99,7 @@ alone do not create an association or lifetime dependency.
 | Resource revision | An immutable committed state version used for reads and mutation preconditions, independent of PID progress and activation generation |
 | Read basis | The exact resource identities/revisions observed by a turn and the evidence supporting its recovery/replay contract |
 | KV | The initial versioned resource interface for opaque key/value lookup, put, delete, and bounded enumeration |
-| Table | A Station typed keyspace within a state resource, with declared schema/keys and Arrow query results; legacy and growing profiles retain one resource's transaction boundary |
+| Table | A Station typed keyspace within a state resource, with declared schema/keys and Arrow query results; mutations retain one resource's transaction boundary |
 | Document | A [Station state abstraction](documents.md) for nested structured values and collaborative text, with versioned change/merge rules; Fuze queries its accepted materialized revisions, not speculative edits |
 | Table transaction | A bounded mutation batch committed in one resource/turn; does not extend across separate resources or writer PIDs |
 | Arrow record batch | A finite set of typed column arrays with one schema, used for tabular interchange and query computation; it is not a durable commit |
@@ -176,7 +176,7 @@ cluster scopes, conflict handling, and stable message destinations.
 | Causation | The relationship identifying which input, turn, or effect caused a record. |
 | Correlation | An identity joining related work, such as a request and its reply. It does not itself establish order or authority. |
 | Durable stream | Persistent ordered records with resumable reading under a documented durability/retention contract. |
-| Immutable payload | A logical storage object with a fixed byte body, content hash and unreused identity. The legacy profile has standalone publication/deletion records; growing Publication and Exchange specify their own dependency and lifetime boundaries. |
+| Immutable payload | A logical storage object with a fixed byte body, content hash and unreused identity. Native publication/deletion records preserve its identity; Station Publication and Exchange define their own dependency and lifetime boundaries. |
 | Cursor | Ursula's opaque cache/collapse token, independent of the offset or record position that selects a read location. It is not a Transit message identity or execution position. |
 | Authoritative history | Validated durable records, including checkpoints replacing reclaimed prefixes, that determine accepted work, progress, ownership, lifetime, and effect eligibility. |
 | Outbox | Committed pending outputs awaiting delivery. Retried delivery preserves identity and the destination deduplicates admission. |

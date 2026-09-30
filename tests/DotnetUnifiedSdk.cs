@@ -50,7 +50,7 @@ static class Program
         Q.Connection connection=new(new(realm,Number(c,"source")),resource,new(realm,Number(c,"requester")),new(realm,Number(c,"requests")));
         string kind=Text(config,"kind"); var source=await Source(resource,kind,false); Check((await Bundle(source,kind,false)).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
         Q.Page? saved=null;
-        await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.GrowingV3,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection)) {
+        await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection)) {
             var description=await client.DescribeAsync(source); Check(description.BundleBytes==16384 && description.BatchRows==8);
             // A cancelled wait cannot manufacture query state or dispose ownership.
             using var cancelled=new CancellationTokenSource(); cancelled.Cancel(); bool stopped=false;

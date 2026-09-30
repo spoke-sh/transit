@@ -19,7 +19,7 @@ def run(node, worker_binary, caller):
         port = free_port()
         url = f'http://127.0.0.1:{port}'
         config = fixture.root/'node.json'
-        config.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=51,
+        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=51,
             root_key=public, max_clock_error_ms=10000, allow_history_trim=True),
             ursula_url=fixture.url, bucket='work-items', journal='authority', port=port,
             resident_pages=16, request_timeout_ms=10000)))
@@ -36,11 +36,11 @@ def run(node, worker_binary, caller):
                     upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = upstream.getresponse()
                     data = response.read()
-                    if self.path == '/v3/query' and response.status == 200:
+                    if self.path == '/v1/query' and response.status == 200:
                         query = envelope['query']['kind']
                         if 'entries' in query and query['entries'].get('key') is None:
                             observed['pages'] += 1
-                    if self.path == '/v3/command' and response.status == 200:
+                    if self.path == '/v1/command' and response.status == 200:
                         command = envelope['request']['command']
                         selected = None
                         if 'send' in command:
@@ -114,7 +114,7 @@ def run(node, worker_binary, caller):
             # replacement, even though its receipt remains retained.
             stale = HTTPConnection('127.0.0.1', port, timeout=15)
             try:
-                stale.request('POST', '/v3/command', faults['worker-copy'][0], {'Content-Type': 'application/json'})
+                stale.request('POST', '/v1/command', faults['worker-copy'][0], {'Content-Type': 'application/json'})
                 reply = stale.getresponse()
                 assert reply.status in (401, 403, 409), (reply.status, reply.read())
                 reply.read()

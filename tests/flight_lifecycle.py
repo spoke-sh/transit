@@ -132,7 +132,7 @@ def qualify(env):
         channel = grpc.secure_channel(f'127.0.0.1:{env["edge"].port}', grpc.ssl_channel_credentials(env['certificate']))
         admin('retire-source')
         rejected(grpc.StatusCode.FAILED_PRECONDITION, 'DoGet', wire.Ticket(ticket=same.endpoints[0].ticket.ticket), stream=True)
-        env['observation'].check(env['caller']['connection']['resource'], 'capture', unavailable=True)
+        env['observation'].check(env['caller']['connection']['resource'], 'execution', unavailable=True)
         print('Flight: same retained result after gateway/worker/node/store restart, exact retry and permanent source retirement passed.', flush=True)
     finally:
         boundary.pause = False; boundary.release.set()

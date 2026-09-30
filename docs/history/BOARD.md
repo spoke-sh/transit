@@ -154,7 +154,7 @@ ages and totals are labeled unknown. Entry counts include framework keys.
 This first profile supports an unscoped realm inspector with filtered resource
 grants; legacy PID-scoped pages remain in their original profile.
 
-The optional [public query capability](../../contracts/PUBLIC_QUERY_V1.md) targets
+The optional [public query capability](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) targets
 one configured Table and dedicated requester per query principal. The same Zig
 client powers Board and the `transit` shell. External Station workers execute
 M12's SELECT subset and deliver captured results through segment/credit flow.

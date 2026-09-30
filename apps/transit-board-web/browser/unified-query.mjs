@@ -30,7 +30,7 @@ await page.route("**/api/v1/atlas*", async (route) => {
 });
 const observations = [];
 page.on("response", async (response) => {
-  if (!response.url().endsWith("/api/v1/query-v2")) return;
+  if (!response.url().endsWith("/api/v1/query")) return;
   const operation = Object.keys(response.request().postDataJSON())[0];
   const result = await response.json().catch(() => ({}));
   observations.push([
@@ -40,7 +40,7 @@ page.on("response", async (response) => {
   ]);
   if (observations.length > 30) observations.shift();
 });
-await page.route("**/api/v1/query-v2", async (route) => {
+await page.route("**/api/v1/query", async (route) => {
   const operation = route.request().postDataJSON();
   if ("next_draft" in operation) {
     liveStep = true;

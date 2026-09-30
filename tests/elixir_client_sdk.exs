@@ -5,7 +5,7 @@ alias Transit.Client.{Error, Shutdown}
 cfg = path |> File.read!() |> :json.decode()
 true = String.starts_with?(to_string(:code.which(:transit_client)), Path.dirname(path))
 :non_existing = :code.which(:transit_station)
-{:ok, config} = Client.config(cfg["url"], :growing_v3, %{timeout_ms: 3000})
+{:ok, config} = Client.config(cfg["url"], :native_v1, %{timeout_ms: 3000})
 {:ok, credential} = Client.credential(72, 65536, cfg["seed"])
 {:ok, peer} = Client.process(72, cfg["pid"])
 {:error, _} = Client.process(72, true)

@@ -1,6 +1,6 @@
 # Unified state queries
 
-`Transit::Station::Unified` provides typed v2 KV/Table/accepted Document sources,
+`Transit::Station::Unified` provides typed v1 KV/Table/accepted Document sources,
 plans, finite budgets and owned nested Arrow results. It composes shared Zig
 through one joined native worker; Ruby contains no query execution or protocol
 implementation. Import starts no process or credential access.

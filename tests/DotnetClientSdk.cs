@@ -22,7 +22,7 @@ internal static class Program
         string mode = args[0];
         JsonObject cfg = JsonNode.Parse(await File.ReadAllTextAsync(args[1]))!.AsObject();
         string root = Path.GetDirectoryName(args[1])!;
-        var config = new ClientConfig(new Uri(cfg["url"]!.GetValue<string>()), Profile.GrowingV3, 3000);
+        var config = new ClientConfig(new Uri(cfg["url"]!.GetValue<string>()), Profile.NativeV1, 3000);
         var credential = new Credential(72, 65536, cfg["seed"]!.GetValue<string>());
         var peer = new ProcessRef(72, cfg["pid"]!.GetValue<ulong>());
         string pendingFile = cfg["pending"]!.GetValue<string>();

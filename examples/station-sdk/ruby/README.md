@@ -10,7 +10,7 @@ growing-profile configuration and requires provisioned ownership, grants and a
 Build/install through `just bindings::ruby-build` in `nix develop .#bindings`,
 then `gem install --local --user-install .cache/bindings/ruby/*.gem`.
 `require 'transit/sdk_examples'` exposes `Transit::Examples` without starting work.
-CONFIG contains `url`, `profile: "growing_v3"`, `realm`, `pid`, `principal`,
+CONFIG contains `url`, `profile: "native_v1"`, `realm`, `pid`, `principal`,
 `generation`, `seed_file` and `peer`. The counter CLI observes a configured number
 of confirmed turns and closes through the runner block. It selects fresh-owner
 recovery; applications needing exact crash retry supply persistence hooks.

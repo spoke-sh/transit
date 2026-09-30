@@ -24,7 +24,7 @@ const Caller = struct {
     action: Action = .create,
     correlation: u64 = 0,
     outcome: ?http.Service.Outcome = null,
-    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Caller = @ptrCast(@alignCast(raw.?));
         const publication: Pub = .{ .resource = turn.view.resource, .namespace = self.namespace };
         switch (self.action) {
@@ -63,7 +63,7 @@ const Caller = struct {
         }
     }
 };
-fn drive(init: std.process.Init, server: *s.GrowingGenServer, caller: *Caller) !void {
+fn drive(init: std.process.Init, server: *s.GenServer, caller: *Caller) !void {
     for (0..32) |_| switch (try server.step(.{ .context = caller, .handle = Caller.handle }, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000)) {
         .committed => return,
         .blocked => return server.handler_error orelse error.CallerBlocked,
@@ -72,12 +72,12 @@ fn drive(init: std.process.Init, server: *s.GrowingGenServer, caller: *Caller) !
     };
     return error.StepBudgetExceeded;
 }
-fn apply(init: std.process.Init, admin: *Admin, server: *s.GrowingGenServer, caller: *Caller, action: Action) !void {
+fn apply(init: std.process.Init, admin: *Admin, server: *s.GenServer, caller: *Caller, action: Action) !void {
     caller.action = action;
     try admin.send(server.session.pid, 0);
     try drive(init, server, caller);
 }
-fn stage(init: std.process.Init, admin: *Admin, server: *s.GrowingGenServer, caller: *Caller, id: u64, bytes: []const u8, spec: Pub.Spec) !void {
+fn stage(init: std.process.Init, admin: *Admin, server: *s.GenServer, caller: *Caller, id: u64, bytes: []const u8, spec: Pub.Spec) !void {
     try apply(init, admin, server, caller, .{ .begin = .{ .id = id, .spec = spec } });
     for (0..spec.chunks()) |i| try apply(init, admin, server, caller, .{ .append = .{ .id = id, .index = @intCast(i), .bytes = bytes[i * 256 ..][0..try spec.size(@intCast(i))] } });
     try apply(init, admin, server, caller, .{ .publish = id });
@@ -117,7 +117,7 @@ pub fn publish(init: std.process.Init, admin: *Admin, worker: u64, capture: u64,
     _ = try admin.submit(.{ .associate = .{ .pid = process.pid, .name = try p.Value.init("capture"), .resource = capture, .required = false } });
     _ = try admin.submit(.{ .own = .{ .pid = worker, .expected_generation = 2, .worker = 65536 } });
     _ = try admin.submit(.{ .own = .{ .pid = process.pid, .expected_generation = 2, .worker = 65537 } });
-    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = process.pid, .generation = 3, .key = key }, "state");
+    var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = process.pid, .generation = 3, .key = key }, "state");
     var caller: Caller = .{};
     var buffer: [8192]u8 = undefined;
     const prepared = try http.RequestRecord.prepare(process.resource, std.math.maxInt(u64), config.request, "body", config.endpoint_revision, config.reconcile_before_ms, config.max_attempts, &buffer);
@@ -134,7 +134,7 @@ pub fn publish(init: std.process.Init, admin: *Admin, worker: u64, capture: u64,
     return .{ .pid = process.pid, .resource = process.resource, .correlation = caller.correlation, .deadline = prepared.reference.reconcile_before_ms, .reference = prepared.reference, .output_after = outgoing.id };
 }
 pub fn followup(init: std.process.Init, admin: *Admin, saved: *Saved, worker: u64, capture: u64, config_path: ?[]const u8) !void {
-    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
     var caller: Caller = .{};
     var reference = saved.reference;
     var target: http.Service.FollowupTarget = .{ .parent = 1, .reason = .retry };
@@ -170,7 +170,7 @@ pub fn receiveRejection(init: std.process.Init, admin: *Admin, saved: Saved, wor
     try t.expectEqual(saved.correlation, frame.correlation);
     const rejected = try http.exchange.codec.decode(http.Service.Rejection, frame.payload);
     _ = try admin.submit(.{ .deliver = outgoing.id });
-    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
     var caller: Caller = .{ .action = .receive_rejection };
     try drive(init, &server, &caller);
     return rejected;
@@ -188,7 +188,7 @@ pub fn receive(init: std.process.Init, admin: *Admin, saved: Saved, worker: u64)
         try t.expectEqual(.retired, resolved.phase);
         try t.expectEqual(@as(u64, 0), (try admin.query(.{ .process = replacement })).body.process.process.admitted);
     } else {
-        var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+        var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
         var caller: Caller = .{ .action = .receive };
         try drive(init, &server, &caller);
         try t.expectEqualDeep(outcome, caller.outcome.?);
@@ -196,7 +196,7 @@ pub fn receive(init: std.process.Init, admin: *Admin, saved: Saved, worker: u64)
     return outcome;
 }
 pub fn release(init: std.process.Init, admin: *Admin, saved: *Saved, worker: u64, capture: u64) !void {
-    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
     var caller: Caller = .{};
     const before = try lastOutput(admin);
     try apply(init, admin, &server, &caller, .{ .release = .{ .pid = worker, .request = .{ .resource = capture, .exchange = 1 } } });
@@ -215,7 +215,7 @@ pub fn receiveRelease(init: std.process.Init, admin: *Admin, saved: Saved, worke
     try t.expectEqual(call.correlation, frame.correlation);
     const released = try http.Service.Released.decode(frame.payload);
     _ = try admin.submit(.{ .deliver = outgoing.id });
-    var server = try s.GrowingGenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
+    var server = try s.GenServer.init(.{ .client = admin.wire, .realm = 47, .principal = 65537, .pid = saved.pid, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(73)) }, "state");
     var caller: Caller = .{ .action = .{ .receive_release = .{ .pid = worker, .correlation = call.correlation } } };
     try drive(init, &server, &caller);
     return released;

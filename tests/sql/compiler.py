@@ -61,7 +61,7 @@ def reference(case, ast):
     else:
         projection = [names.index(c[1]) for c in selection['columns']] if selection['columns'] else [0, 1]
         expected = {names[c]: [row[c] for row in rows] for c in projection}
-    encoded = (b'FZP1' + bytes([['rows', 'count', 'sum'].index(aggregate),
+    encoded = (b'FTL1' + bytes([['rows', 'count', 'sum'].index(aggregate),
                                projection[0], projection[1] if len(projection) == 2 else 255,
                                limit is not None]) + struct.pack('<Q', limit or 0) + encoded_pred)
     return encoded.hex(), expected

@@ -11,7 +11,7 @@ Public Station runners are a separate package.
 from pathlib import Path
 from transit_client import Client, ClientConfig, Credential, ProcessRef
 
-config = ClientConfig(url="http://127.0.0.1:18101", profile="growing_v3")
+config = ClientConfig(url="http://127.0.0.1:18101", profile="native_v1")
 credential = Credential(realm=72, principal=65536, seed_file=Path("/private/sender.key"))
 with Client.open(config) as client:
     capabilities = client.capabilities(credential)  # Explicit authorized read.
@@ -65,6 +65,6 @@ Build artifacts with `just bindings::python-build`; run `just bindings::python-t
 for strict type checks and a clean consumer outside the checkout, including lost
 receipts, fresh-host seedless recovery, revoked retry, host response allocation
 failure, overlap and responsive async cancellation/disposal.
-The public `prepare_send` API selects growing v3 explicitly; it does not silently
-route legacy requests. M9 generic operations remain in the legacy raw binding.
+The public `prepare_send` API uses the current native v1 definition. Generic
+operations use the same shared raw binding; incompatible requests reject.
 Registry publication and other platforms are outside the current qualification.

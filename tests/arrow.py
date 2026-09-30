@@ -158,7 +158,7 @@ def run(binary):
             progress = manifest["progress"]
             logical = json.dumps(manifest["plan"], ensure_ascii=False, separators=(",", ":")).encode()
             assert bytes(progress["plan"]) == hashlib.sha256(b"transit.fuze.stream.plan.v1\x00" + logical).digest()
-            encoded = (b"FZS1" + struct.pack("<QQ", progress["basis"]["resource"], progress["basis"]["revision"])
+            encoded = (b"FTP1" + struct.pack("<QQ", progress["basis"]["resource"], progress["basis"]["revision"])
                        + bytes(progress["basis"]["schema"]) + bytes(progress["plan"])
                        + struct.pack("<QQQQQ", *(progress[key] for key in ("pages", "scanned", "selected", "segments", "rows")))
                        + struct.pack("<BqBqB", progress["last_key"] is not None, progress["last_key"] or 0,

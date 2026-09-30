@@ -67,8 +67,8 @@ class Board(Applications):
         root = ExistingKey(self.root, self.installation / 'root.seed')
         os.kill(self.process.pid, signal.SIGSTOP)
         try:
-            current = post(self.config['ports']['node'], '/v3/query', native(root, 73, 0, {'capabilities': {}}))
-            return post(self.config['ports']['node'], '/v3/command', native(root, 73, 0, command_value, current['principal_sequence'] + 1))
+            current = post(self.config['ports']['node'], '/v1/query', native(root, 73, 0, {'capabilities': {}}))
+            return post(self.config['ports']['node'], '/v1/command', native(root, 73, 0, command_value, current['principal_sequence'] + 1))
         finally:
             os.kill(self.process.pid, signal.SIGCONT)
 
@@ -87,7 +87,7 @@ def lifecycle(cli, node, host, board, worker, operator):
         assert initial['board_receipts'] == [None] * 3
         seed = (fixture.installation / 'board.seed').read_bytes()
         declaration = json.loads(subprocess.check_output([str(Path(operator).resolve()), 'manifest', str(Path(worker).resolve())], text=True))
-        declaration.update(version=2, inspection=[{'resource': declaration['resources'][0]['name'], 'permissions': 3}])
+        declaration.update(version=1, inspection=[{'resource': declaration['resources'][0]['name'], 'permissions': 3}])
         manifest = fixture.root / 'application.json'
         manifest.write_text(json.dumps(declaration))
         fixture.app('install', '--file', manifest, '--operation', 'install')
@@ -200,7 +200,7 @@ def interrupted(cli, node, host, board, worker=None, operator=None):
             fixture.start()
             fixture.ready()
             declaration = json.loads(subprocess.check_output([str(Path(operator).resolve()), 'manifest', str(Path(worker).resolve())], text=True))
-            declaration.update(version=2, inspection=[{'resource': declaration['resources'][0]['name'], 'permissions': 3}])
+            declaration.update(version=1, inspection=[{'resource': declaration['resources'][0]['name'], 'permissions': 3}])
             manifest = fixture.root / 'application.json'
             manifest.write_text(json.dumps(declaration))
             fixture.app('install', '--file', manifest, '--operation', 'inspect-app')

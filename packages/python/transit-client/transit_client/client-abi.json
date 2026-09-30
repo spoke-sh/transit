@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679",
   "minimum_stack_bytes": 8388608,
   "limits": {
     "max_counter": 9007199254740991,
@@ -22,15 +23,18 @@
     "incompatible_version": 10
   },
   "kinds": {
-    "command": 1,
-    "view": 2,
-    "state": 3,
-    "inspection": 4,
-    "delivery": 5,
     "growing_command": 6,
     "growing_query": 7
   },
   "functions": [
+    {
+      "name": "transit_client_abi_definition_matches",
+      "result": "uint32_t",
+      "parameters": [
+        "const uint8_t *",
+        "size_t"
+      ]
+    },
     {
       "name": "transit_client_abi_version",
       "result": "uint32_t",
@@ -177,11 +181,6 @@
         "kind": {
           "type": "string",
           "enum": [
-            "command",
-            "view",
-            "state",
-            "inspection",
-            "delivery",
             "growing_command",
             "growing_query"
           ]
@@ -189,8 +188,7 @@
         "profile": {
           "type": "string",
           "enum": [
-            "legacy_v2",
-            "growing_v3"
+            "native_v1"
           ]
         },
         "realm": {
@@ -404,9 +402,10 @@
       "additionalProperties": false,
       "x-transit-field-order": [
         "version",
+        "definition",
         "operation_metadata",
         "opaque_retry",
-        "growing_v3",
+        "native_v1",
         "minimum_stack_bytes",
         "max_line_bytes",
         "value_bytes",
@@ -420,13 +419,19 @@
           "x-transit-bits": 32,
           "x-transit-signed": false
         },
+        "definition": {
+          "type": "string",
+          "enum": [
+            "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+          ]
+        },
         "operation_metadata": {
           "type": "boolean"
         },
         "opaque_retry": {
           "type": "boolean"
         },
-        "growing_v3": {
+        "native_v1": {
           "type": "boolean"
         },
         "minimum_stack_bytes": {
@@ -460,9 +465,10 @@
       },
       "required": [
         "version",
+        "definition",
         "operation_metadata",
         "opaque_retry",
-        "growing_v3",
+        "native_v1",
         "minimum_stack_bytes",
         "max_line_bytes",
         "value_bytes",
@@ -470,9 +476,10 @@
       ],
       "x-transit-defaults": {
         "version": 1,
+        "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679",
         "operation_metadata": true,
         "opaque_retry": true,
-        "growing_v3": true,
+        "native_v1": true,
         "minimum_stack_bytes": 8388608,
         "max_line_bytes": 540672,
         "value_bytes": 256,

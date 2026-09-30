@@ -1,4 +1,4 @@
-//! Versioned foreign values around the shared v2 source/plan/Arrow model.
+//! Versioned foreign values around the shared v1 source/plan/Arrow model.
 //! Integers wider than the protocol counter and float bits never pass as JSON
 //! numbers. All returned byte strings belong to the supplied result allocator.
 const std = @import("std");
@@ -99,7 +99,7 @@ fn foreignPath(alloc: Allocator, names: []const q.document.Model.Name) ![]const 
     return result;
 }
 pub const Source = struct {
-    version: u8 = 2,
+    version: u8 = 1,
     resource: u64,
     source: union(enum) {
         kv: struct { prefix: []const u8, key: q.SourceDefinition.Decoder, value: q.SourceDefinition.Decoder },
@@ -135,7 +135,7 @@ pub const Source = struct {
     }
 };
 pub const Plan = struct {
-    version: u8 = 2,
+    version: u8 = 1,
     projection: []const u32,
     limit: ?[]const u8 = null,
     aggregate: m.Plan.Aggregate = .rows,

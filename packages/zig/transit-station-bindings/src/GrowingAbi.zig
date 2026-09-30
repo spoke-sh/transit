@@ -8,19 +8,20 @@ pub const actions = @import("GrowingActions.zig");
 const allocator = std.heap.page_allocator;
 pub const Server = opaque {};
 pub const Config = struct {
-    profile: enum { growing_v3 },
+    profile: enum { native_v1 },
     realm: u64,
     principal: u64,
     pid: u64,
     generation: u64,
     association: []const u8 = "data",
     timeout_ms: u32 = 5000,
-    failure_policy: @FieldType(s.GrowingGenServer, "failure_policy"),
+    failure_policy: @FieldType(s.GenServer, "failure_policy"),
     query_results: bool = false,
 };
 pub const Capabilities = struct {
     version: u32 = 1,
-    profile: []const u8 = "growing_v3",
+    definition: p.Growth.Definition = p.Growth.current_definition,
+    profile: []const u8 = "native_v1",
     gated_dispatch: bool = true,
     retained_confirmation: bool = true,
     scoped_turns: bool = true,
@@ -34,7 +35,7 @@ pub const Capabilities = struct {
     document_change_bytes: u32 = 4096,
     document_page_items: u32 = 8,
     unified_query_codecs: bool = true,
-    unified_query_version: u8 = 2,
+    unified_query_version: u8 = 1,
     grpc_requests: bool = true,
     grpc_descriptors: bool = true,
     grpc_release: bool = true,
@@ -51,7 +52,7 @@ pub const Capabilities = struct {
     publication_chunk_bytes: u32 = s.Publication.chunk_bytes,
     query_results: bool = true,
     ipc_cells: bool = true,
-    query_segment_bytes: u32 = s.GrowingQuery.records.segment_bytes,
+    query_segment_bytes: u32 = s.Query.records.segment_bytes,
     query_workspace_bytes: u32 = s.fuze.execution.working_bytes,
     value_bytes: u32 = p.Value.max_bytes,
     message_bytes: u32 = s.Frame.max_payload,
@@ -72,17 +73,17 @@ pub const Event = struct {
     input: ?struct { position: u64, origin: p.Growth.Origin, kind: s.Frame.Kind, correlation: []const u8, payload: p.Value } = null,
     resource: ?u64 = null,
     resource_revision: ?u64 = null,
-    pending_kind: ?s.GrowingGenServer.PendingKind = null,
+    pending_kind: ?s.GenServer.PendingKind = null,
     pending_input: ?u64 = null,
-    confirmation: ?s.GrowingGenServer.Confirmation = null,
+    confirmation: ?s.GenServer.Confirmation = null,
 };
 const Impl = struct {
     threaded: std.Io.Threaded,
     client: s.client.Client,
     url: []u8,
-    behavior: s.GrowingGenServer,
+    behavior: s.GenServer,
     busy: std.atomic.Value(bool) = .init(false),
-    cached: ?s.GrowingGenServer.Poll = null,
+    cached: ?s.GenServer.Poll = null,
     cached_dispatch: bool = false,
     scope: ?u64 = null,
     scope_counter: u64 = 0,
@@ -129,7 +130,7 @@ pub fn create(abi_version: u32, url: [*]const u8, url_len: usize, seed: *const [
     server.client.timeout_ms = c.timeout_ms;
     var key = p.Ed25519.KeyPair.generateDeterministic(seed.*) catch unreachable;
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-    server.behavior = s.GrowingGenServer.init(.{ .client = &server.client, .realm = c.realm, .principal = c.principal, .pid = c.pid, .generation = c.generation, .key = key }, c.association) catch |err| {
+    server.behavior = s.GenServer.init(.{ .client = &server.client, .realm = c.realm, .principal = c.principal, .pid = c.pid, .generation = c.generation, .key = key }, c.association) catch |err| {
         server.client.deinit();
         server.threaded.deinit();
         allocator.free(endpoint);
@@ -252,7 +253,7 @@ pub fn apply(pointer: *Server, scope: u64, json: [*]const u8, len: usize, out: *
     const turn = if (server.behavior.ready) |*value| value else return .not_ready;
     const parsed = std.json.parseFromSlice(actions.Action, allocator, json[0..len], .{}) catch |err| return base.failure(err, out);
     defer parsed.deinit();
-    if (parsed.value.requiresQuery() and server.behavior.query == null) return base.failure(error.UnsupportedGrowingQuery, out);
+    if (parsed.value.requiresQuery() and server.behavior.query == null) return base.failure(error.UnsupportedQuery, out);
     server.client.last_rejection = null;
     const before = turn.decision;
     var arena = std.heap.ArenaAllocator.init(allocator);
@@ -309,7 +310,7 @@ pub fn pending(pointer: *Server, out: *?*base.Buffer) callconv(.c) base.Status {
     if (!lock(server)) return .busy;
     defer server.busy.store(false, .release);
     const frozen = server.behavior.pending orelse return .not_ready;
-    base.output(.{ .version = @as(u32, 1), .operation = .{ .growing_command = frozen.signed } }, out) catch |err| return base.status(err);
+    base.output(@import("client_abi").Frozen{ .definition = p.Growth.current_definition, .operation = .{ .growing_command = frozen.signed } }, out) catch |err| return base.status(err);
     return .ok;
 }
 
@@ -450,7 +451,7 @@ test "RPC body response allocation cannot advance a cursor past undisclosed byte
 test "growing dispatch response allocation preserves uncertainty and the owned confirmation" {
     const t = std.testing;
     var wire: s.client.Client = undefined;
-    var host = try s.GrowingGenServer.init(.{ .client = &wire, .realm = 72, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "data");
+    var host = try s.GenServer.init(.{ .client = &wire, .realm = 72, .principal = 65536, .pid = 2, .generation = 3, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "data");
     // This is the exact state after dispatch has accepted a commit, before the
     // foreign response is allocated. Transport/disk loss has a separate proof.
     host.confirmation = .{ .kind = .commit, .input = 7, .receipt = .{ .position = 37 } };

@@ -68,7 +68,7 @@ pub fn key(namespace: u64) p.Value {
 }
 /// One Publication step; true means the exact request was already published
 /// before this turn. The caller may now commit a call and its durable identity.
-pub fn stage(turn: *s.GrowingTurn, reference: Reference, change: m.Change) !bool {
+pub fn stage(turn: *s.Turn, reference: Reference, change: m.Change) !bool {
     var buffer: [m.max_change_bytes]u8 = undefined;
     const bytes = try c.encode(change, &buffer);
     try reference.matches(change, bytes);

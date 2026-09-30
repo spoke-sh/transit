@@ -1,10 +1,10 @@
-# Retained read versions — growing-profile extension
+# Retained read versions v1
 
-Retained read versions preserve a source revision across turns through the v3
+Retained read versions preserve a source revision across turns through the native v1
 core/node and Zig client. Station/Fuze resumable result capture has a separate
-[delivery contract](STATION_QUERY_V2.md).
-This does not change default v2 callers, launchers or foreign bindings.
-[Transit v3](TRANSIT_V3.md) owns the enclosing profile.
+[delivery contract](STATION_QUERY_V1.md).
+[Transit v1](TRANSIT_V1.md) owns the enclosing definition shared by callers,
+launchers and foreign bindings.
 
 ## Purpose and boundary
 
@@ -23,10 +23,7 @@ explicit release cannot be bypassed by retaining an old root.
 
 ## Publication and identity
 
-The additive `turn_with_versions` command preserves the canonical
-encoding of existing `turn` requests. Existing v3 signatures, journal records and
-retained receipt digests remain valid.
-The new command wraps an ordinary turn with up to four retained-view IDs, four
+The `turn_with_versions` command wraps an ordinary turn with up to four retained-view IDs, four
 retained read dependencies and four explicit version releases. It has the same execution authorization and
 one publication decision as an ordinary turn.
 
@@ -129,4 +126,4 @@ resident page. Immutable page storage is preserved; this is not page-GC proof.
 
 Configure admission and control reserves using the [capacity guide](../docs/reference/retention.md).
 Station/Fuze result capture, delivery and recovery follow the separate
-[query contract](STATION_QUERY_V2.md).
+[query contract](STATION_QUERY_V1.md).

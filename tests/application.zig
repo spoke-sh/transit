@@ -6,7 +6,7 @@ const client = s.client;
 const p = s.protocol;
 const g = p.Growth;
 const t = std.testing;
-const Server = s.GrowingGenServer;
+const Server = s.GenServer;
 const Owner = app.Publication;
 const Realm = 49;
 const Worker = 65536;
@@ -37,12 +37,12 @@ const Handler = struct {
     behavior: app.Behavior,
     handled: usize = 0,
     lost: usize = 0,
-    fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
+    fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
         const self: *Handler = @ptrCast(@alignCast(raw.?));
         const target = self.behavior.interface();
         try target.initialize.?(target.context, turn);
     }
-    fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+    fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
         const self: *Handler = @ptrCast(@alignCast(raw.?));
         self.handled += 1;
         const target = self.behavior.interface();
@@ -151,7 +151,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = Worker } });
         saved.generation += 1;
         if (saved.stale) |request| {
-            try t.expectError(error.Rejected, wire.submitGrowing(request));
+            try t.expectError(error.Rejected, wire.submit(request));
             try t.expectEqual(.StaleGeneration, wire.last_rejection.?);
             saved.stale = null;
         }

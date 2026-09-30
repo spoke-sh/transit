@@ -19,7 +19,7 @@ dotnet exec --depsfile Consumer.deps.json --runtimeconfig Consumer.runtimeconfig
 dotnet exec --depsfile Consumer.deps.json --runtimeconfig Consumer.runtimeconfig.json Transit.Sdk.Examples.dll config.json requester --commits 1
 ```
 
-Each role needs its own object with `url`, `profile: "growing_v3"`, `realm`,
+Each role needs its own object with `url`, `profile: "native_v1"`, `realm`,
 `principal`, `pid`, `generation`, `seed_file` and `peer`. Provision the process,
 current grants, ownership and `data` association first; run delivery through the
 deployment. The CLI explicitly selects `Recovery.FreshOwnership`, stops on

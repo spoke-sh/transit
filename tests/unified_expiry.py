@@ -21,7 +21,7 @@ def run(node, host, proof, library, kinds):
             port = free_port()
             url = f'http://127.0.0.1:{port}'
             config = root/'node.json'
-            config.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
+            config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
                 ursula_url=fixture.url, bucket='unified-expiry', journal='authority', port=port,
                 resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000)))
 

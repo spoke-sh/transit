@@ -15,7 +15,7 @@ const Caller = struct {
         return g.sign(.{ .realm = 42, .principal = self.principal, .sequence = self.sequence + 1, .command = command }, self.key);
     }
     fn submit(self: *@This(), command: g.Command) !u64 {
-        const receipt = try self.client.submitGrowing(try self.sign(command));
+        const receipt = try self.client.submit(try self.sign(command));
         self.sequence += 1;
         return receipt.position;
     }
@@ -24,7 +24,7 @@ const Caller = struct {
         // maintenance. Reconcile the same bytes; never choose a fresh sequence.
         const signed = try self.sign(command);
         for (0..4) |_| {
-            const receipt = self.client.submitGrowing(signed) catch |err| {
+            const receipt = self.client.submit(signed) catch |err| {
                 if (err != error.Conflict) return err;
                 continue;
             };
@@ -34,7 +34,7 @@ const Caller = struct {
         return error.Conflict;
     }
     fn query(self: *@This(), kind: @FieldType(g.Query, "kind")) !g.Response {
-        return self.client.queryGrowing(.{ .realm = 42, .principal = self.principal, .kind = kind }, self.key);
+        return self.client.query(.{ .realm = 42, .principal = self.principal, .kind = kind }, self.key);
     }
 };
 fn key(index: usize) p.Value {
@@ -75,7 +75,7 @@ fn retryBlocked(root: *Caller) !void {
     const input = try root.submit(.{ .send = .{ .pid = pid, .value = try p.Value.init("retry me") } });
     _ = try root.submit(.{ .turn = .{ .pid = pid, .generation = 1, .input = input, .expected_revision = 0, .failed = true } });
     const queued = try root.submit(.{ .send = .{ .pid = pid, .value = try p.Value.init("queued") } });
-    var session: wire.GrowingSession = .{ .client = root.client, .realm = 42, .principal = 0, .pid = pid, .generation = 1, .key = root.key };
+    var session: wire.Session = .{ .client = root.client, .realm = 42, .principal = 0, .pid = pid, .generation = 1, .key = root.key };
     // A failed activation is recognizable even though failure fenced its owner.
     try t.expectError(error.BlockedProcess, session.receive());
     var admin: Caller = .{ .client = root.client, .principal = 65537, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(9)) };
@@ -96,7 +96,7 @@ fn retryBlocked(root: *Caller) !void {
     try t.expectEqual(queued, next.input.position);
     _ = try (try session.prepareCommit(next, .{})).submit(root.client);
     root.sequence = next.sequence;
-    try t.expectEqual(@as(?wire.GrowingSession.Delivery, null), try session.receive());
+    try t.expectEqual(@as(?wire.Session.Delivery, null), try session.receive());
 }
 
 fn maintenanceReady(root: *Caller, expected: MaintenanceExpected) !bool {
@@ -200,7 +200,7 @@ pub fn main(init: std.process.Init) !void {
         for ([_]u64{ 0, 65536 }) |principal| _ = try root.submit(.{ .grant_resource = .{ .resource = resource, .subject = principal, .permissions = p.State.all_permissions } });
         _ = try root.submit(.{ .associate = .{ .pid = pid, .name = try p.Value.init("data"), .resource = resource } });
         _ = try root.submit(.{ .own = .{ .pid = pid, .expected_generation = 1, .worker = 65536 } });
-        var session: wire.GrowingSession = .{ .client = &client, .realm = 42, .principal = 65536, .pid = pid, .generation = 2, .key = worker.key };
+        var session: wire.Session = .{ .client = &client, .realm = 42, .principal = 65536, .pid = pid, .generation = 2, .key = worker.key };
         const association = (try session.association(try p.Value.init("data"))).?;
         try t.expectEqual(resource, association.resource);
         try t.expect(association.required);
@@ -245,11 +245,11 @@ pub fn main(init: std.process.Init) !void {
             try t.expectError(error.InvalidAuthorityResponse, worker.query(.{ .entries = .{ .resource = expected.resource, .revision = expected.receipt } }));
         } else if (std.mem.eql(u8, args[2], "recover")) {
             const before = (try root.query(.{ .capabilities = {} })).position;
-            try t.expectEqual(expected.receipt, (try client.submitGrowing(expected.pending)).position);
+            try t.expectEqual(expected.receipt, (try client.submit(expected.pending)).position);
             try t.expectEqual(before, (try root.query(.{ .capabilities = {} })).position);
             try verify(&worker, expected);
             root.sequence = (try root.query(.{ .capabilities = {} })).principal_sequence;
-            var session: wire.GrowingSession = .{ .client = &client, .realm = 42, .principal = 65536, .pid = expected.pid, .generation = 2, .key = worker.key };
+            var session: wire.Session = .{ .client = &client, .realm = 42, .principal = 65536, .pid = expected.pid, .generation = 2, .key = worker.key };
             try verifyVersion(&session, expected.version);
             _ = try root.submit(.{ .own = .{ .pid = expected.pid, .expected_generation = 2, .worker = 65536 } });
             try t.expectError(error.Rejected, session.readVersion(expected.version, key(0), null));
@@ -261,7 +261,7 @@ pub fn main(init: std.process.Init) !void {
             try t.expectEqual(@as(?u64, released.position), (try session.version(expected.version.id)).released_at);
             try t.expectError(error.Rejected, session.readVersion(expected.version, key(0), null));
             _ = try root.submit(.{ .revoke = 65536 });
-            try t.expectError(error.AccessDenied, client.submitGrowing(expected.pending));
+            try t.expectError(error.AccessDenied, client.submit(expected.pending));
             try t.expectError(error.AccessDenied, worker.query(.{ .entries = .{ .resource = expected.resource, .revision = expected.receipt } }));
             try retryBlocked(&root);
         } else return error.UnknownPhase;
@@ -270,7 +270,7 @@ pub fn main(init: std.process.Init) !void {
     try output.interface.flush();
 }
 
-fn verifyVersion(session: *wire.GrowingSession, basis: g.ReadVersion) !void {
+fn verifyVersion(session: *wire.Session, basis: g.ReadVersion) !void {
     try t.expect(std.meta.eql(basis, try session.version(basis.id)));
     var after: ?p.Value = null;
     var count: usize = 0;

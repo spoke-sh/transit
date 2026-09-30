@@ -70,6 +70,7 @@ pub fn apply(engine: anytype, candidate: anytype, request: g.Request, now: ?core
             out.resolved_at = position;
             try candidate.put(address(.output, id), out);
             try candidate.remove(address(.pending_output, id));
+            try candidate.remove(try c.key(.pending_destination, out.destination, id, ""));
             try candidate.remove(routeKey(out.source, out.destination, id));
         },
         .dispatch => |command| {

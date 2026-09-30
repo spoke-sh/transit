@@ -35,7 +35,7 @@ pub const Job = struct {
     pub fn encode(self: Job) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
-        try writer.writeAll("GQJ2");
+        try writer.writeAll("GQJ1");
         inline for (.{ "result", "destination", "correlation" }) |field| try writer.writeInt(u64, @field(self, field), .little);
         try writer.writeInt(u32, self.table, .little);
         try writer.writeInt(u64, self.source.pid, .little);
@@ -52,7 +52,7 @@ pub const Job = struct {
     }
     pub fn decode(value: p.Value) !Job {
         try value.validate();
-        if (value.len != 108 or !std.mem.eql(u8, value.data[0..4], "GQJ2")) return error.InvalidQueryJob;
+        if (value.len != 108 or !std.mem.eql(u8, value.data[0..4], "GQJ1")) return error.InvalidQueryJob;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
         var self: Job = .{ .result = undefined, .destination = undefined, .correlation = undefined, .table = undefined, .source = undefined, .policy_revision = undefined };
         inline for (.{ "result", "destination", "correlation" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
@@ -79,7 +79,7 @@ pub const Segment = struct {
     pub fn encode(self: Segment) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
-        try writer.writeAll("GQS2");
+        try writer.writeAll("GQS1");
         try writer.writeInt(u64, self.result, .little);
         try writer.writeInt(u64, self.ordinal, .little);
         try writer.writeInt(u16, self.bytes, .little);
@@ -90,7 +90,7 @@ pub const Segment = struct {
     }
     pub fn decode(value: p.Value) !Segment {
         try value.validate();
-        if (value.len != 55 or !std.mem.eql(u8, value.data[0..4], "GQS2")) return error.InvalidResultSegment;
+        if (value.len != 55 or !std.mem.eql(u8, value.data[0..4], "GQS1")) return error.InvalidResultSegment;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
         const self: Segment = .{ .result = try reader.takeInt(u64, .little), .ordinal = try reader.takeInt(u64, .little), .bytes = try reader.takeInt(u16, .little), .rows = try reader.takeByte(), .digest = (try reader.takeArray(32)).* };
         if (self.result == 0 or self.result > p.max_counter or self.bytes < 8 or self.bytes > segment_bytes or self.rows > f.model.max_rows or !value.eql(try self.encode())) return error.InvalidResultSegment;
@@ -98,7 +98,7 @@ pub const Segment = struct {
     }
     pub fn extend(self: Segment, previous: [32]u8) ![32]u8 {
         var hash = std.crypto.hash.sha2.Sha256.init(.{});
-        hash.update("transit.station.query.segments.v2\x00");
+        hash.update("transit.station.query.segments.v1\x00");
         hash.update(&previous);
         hash.update((try self.encode()).slice());
         return hash.finalResult();
@@ -111,7 +111,7 @@ pub const Stage = struct {
     pub fn encode(self: Stage) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
-        try writer.writeAll("GQT2");
+        try writer.writeAll("GQT1");
         try writer.writeAll(&try self.candidate.encode());
         try writer.writeAll((try self.segment.encode()).slice());
         try writer.writeInt(u16, self.written, .little);
@@ -120,7 +120,7 @@ pub const Stage = struct {
     }
     pub fn decode(value: p.Value) !Stage {
         try value.validate();
-        if (value.len != 204 or !std.mem.eql(u8, value.data[0..4], "GQT2")) return error.InvalidQueryStage;
+        if (value.len != 204 or !std.mem.eql(u8, value.data[0..4], "GQT1")) return error.InvalidQueryStage;
         const self: Stage = .{ .candidate = try f.Stream.Progress.decode(value.data[4..147]), .segment = try Segment.decode(try p.Value.init(value.data[147..202])), .written = std.mem.readInt(u16, value.data[202..204], .little) };
         if (self.written > self.segment.bytes or (self.written != self.segment.bytes and self.written % fragment_bytes != 0) or !value.eql(try self.encode())) return error.InvalidQueryStage;
         return self;
@@ -132,7 +132,7 @@ pub const Continuation = struct {
     written: u16 = 0,
     pub fn encode(self: Continuation) !p.Value {
         var bytes: [22]u8 = undefined;
-        bytes[0..4].* = "GQC2".*;
+        bytes[0..4].* = "GQC1".*;
         std.mem.writeInt(u64, bytes[4..12], self.result, .little);
         std.mem.writeInt(u64, bytes[12..20], self.page, .little);
         std.mem.writeInt(u16, bytes[20..22], self.written, .little);
@@ -140,7 +140,7 @@ pub const Continuation = struct {
     }
     pub fn decode(value: p.Value) !Continuation {
         try value.validate();
-        if (value.len != 22 or !std.mem.eql(u8, value.data[0..4], "GQC2")) return error.InvalidQueryContinuation;
+        if (value.len != 22 or !std.mem.eql(u8, value.data[0..4], "GQC1")) return error.InvalidQueryContinuation;
         const self: Continuation = .{ .result = std.mem.readInt(u64, value.data[4..12], .little), .page = std.mem.readInt(u64, value.data[12..20], .little), .written = std.mem.readInt(u16, value.data[20..22], .little) };
         if (self.result == 0 or self.result > p.max_counter or self.written > segment_bytes) return error.InvalidQueryContinuation;
         return self;
@@ -159,7 +159,7 @@ pub const Transfer = struct {
     pub fn encode(self: Transfer) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
-        try writer.writeAll("GQX2");
+        try writer.writeAll("GQX1");
         inline for (.{ "result", "source", "segments", "bytes", "rows" }) |field| try writer.writeInt(u64, @field(self, field), .little);
         try writer.writeAll(&self.chain);
         try writer.writeInt(u16, self.pending, .little);
@@ -169,7 +169,7 @@ pub const Transfer = struct {
     }
     pub fn decode(value: p.Value) !Transfer {
         try value.validate();
-        if (value.len != 110 or !std.mem.eql(u8, value.data[0..4], "GQX2")) return error.InvalidResultTransfer;
+        if (value.len != 110 or !std.mem.eql(u8, value.data[0..4], "GQX1")) return error.InvalidResultTransfer;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
         var self: Transfer = .{ .result = undefined, .source = undefined };
         inline for (.{ "result", "source", "segments", "bytes", "rows" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
@@ -211,7 +211,7 @@ pub const Manifest = struct {
     pub fn encode(self: Manifest) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
-        try writer.writeAll("GQM2");
+        try writer.writeAll("GQM1");
         inline for (.{ "result", "destination", "correlation" }) |field| try writer.writeInt(u64, @field(self, field), .little);
         try writer.writeInt(u32, self.table, .little);
         try writer.writeInt(u64, self.policy_revision, .little);
@@ -227,7 +227,7 @@ pub const Manifest = struct {
     }
     pub fn decode(value: p.Value) !Manifest {
         try value.validate();
-        if (value.len != 208 or !std.mem.eql(u8, value.data[0..4], "GQM2")) return error.InvalidResultManifest;
+        if (value.len != 208 or !std.mem.eql(u8, value.data[0..4], "GQM1")) return error.InvalidResultManifest;
         var reader: std.Io.Reader = .fixed(value.slice()[4..]);
         var self: Manifest = undefined;
         inline for (.{ "result", "destination", "correlation" }) |field| @field(self, field) = try reader.takeInt(u64, .little);
@@ -256,7 +256,7 @@ pub const Fragment = struct {
     pub fn encode(self: Fragment) !p.Value {
         var value: p.Value = .{};
         var writer: std.Io.Writer = .fixed(&value.data);
-        try writer.writeAll("GQF2");
+        try writer.writeAll("GQF1");
         try writer.writeInt(u64, self.result, .little);
         try writer.writeInt(u64, self.segment, .little);
         try writer.writeInt(u16, self.offset, .little);
@@ -268,7 +268,7 @@ pub const Fragment = struct {
     /// The returned byte slice borrows the supplied value.
     pub fn decode(value: *const p.Value) !Fragment {
         try value.validate();
-        if (value.len <= 22 or value.len > Frame.max_payload or !std.mem.eql(u8, value.data[0..4], "GQF2")) return error.InvalidResultFragment;
+        if (value.len <= 22 or value.len > Frame.max_payload or !std.mem.eql(u8, value.data[0..4], "GQF1")) return error.InvalidResultFragment;
         const self: Fragment = .{ .result = std.mem.readInt(u64, value.data[4..12], .little), .segment = std.mem.readInt(u64, value.data[12..20], .little), .offset = std.mem.readInt(u16, value.data[20..22], .little), .bytes = value.slice()[22..] };
         if (self.result == 0 or self.result > p.max_counter or self.offset % fragment_bytes != 0 or @as(usize, self.offset) + self.bytes.len > segment_bytes) return error.InvalidResultFragment;
         return self;
@@ -280,14 +280,14 @@ pub const Publication = struct {
     offset: u16 = 0,
     pub fn encode(self: Publication) !p.Value {
         var value = try (Continuation{ .result = self.result, .page = self.segment, .written = self.offset }).encode();
-        value.data[0..4].* = "GQP2".*;
+        value.data[0..4].* = "GQP1".*;
         return value;
     }
     pub fn decode(value: p.Value) !Publication {
         try value.validate();
-        if (value.len != 22 or !std.mem.eql(u8, value.data[0..4], "GQP2")) return error.InvalidQueryContinuation;
+        if (value.len != 22 or !std.mem.eql(u8, value.data[0..4], "GQP1")) return error.InvalidQueryContinuation;
         var normalized = value;
-        normalized.data[0..4].* = "GQC2".*;
+        normalized.data[0..4].* = "GQC1".*;
         const decoded = try Continuation.decode(normalized);
         return .{ .result = decoded.result, .segment = decoded.page, .offset = decoded.written };
     }
@@ -301,14 +301,14 @@ pub const Credit = struct {
     granted: u64,
     pub fn encode(self: Credit) !p.Value {
         var bytes: [20]u8 = undefined;
-        bytes[0..4].* = "GQG2".*;
+        bytes[0..4].* = "GQG1".*;
         std.mem.writeInt(u64, bytes[4..12], self.result, .little);
         std.mem.writeInt(u64, bytes[12..20], self.granted, .little);
         return p.Value.init(&bytes);
     }
     pub fn decode(value: p.Value) !Credit {
         try value.validate();
-        if (value.len != 20 or !std.mem.eql(u8, value.data[0..4], "GQG2")) return error.InvalidResultCredit;
+        if (value.len != 20 or !std.mem.eql(u8, value.data[0..4], "GQG1")) return error.InvalidResultCredit;
         const self: Credit = .{ .result = std.mem.readInt(u64, value.data[4..12], .little), .granted = std.mem.readInt(u64, value.data[12..20], .little) };
         if (self.result == 0 or self.result > p.max_counter) return error.InvalidResultCredit;
         return self;

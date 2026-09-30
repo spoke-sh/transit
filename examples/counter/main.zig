@@ -2,12 +2,11 @@
 //! never imports Ursula, dispatches effects, or acquires its own ownership.
 const std = @import("std");
 const protocol = wire.protocol;
-const handler = @import("handler.zig");
 const state = @import("state.zig");
 const wire = @import("transit_client");
 const observations = wire.observability;
 const telemetry = observations.telemetry;
-const Config = struct { url: []const u8, realm: u64, principal: u8, pid: u64, generation: u64 = 0, seed_file: ?[]const u8 = null, publish_to: ?u64 = null, state_association: ?[]const u8 = null };
+const Config = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64 = 0, seed_file: ?[]const u8 = null, publish_to: ?u64 = null, state_association: []const u8 = "counter" };
 
 fn run(client: *wire.Client, config: Config, key: protocol.Ed25519.KeyPair, io: std.Io, once: bool) !void {
     var session: wire.Session = .{ .client = client, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key };
@@ -30,22 +29,10 @@ fn run(client: *wire.Client, config: Config, key: protocol.Ed25519.KeyPair, io: 
             computation.event.outcome = .failed;
             const pending = prepared: {
                 defer computation.finish();
-                const value = if (input.needs_permit) try session.prepareBegin(input) else if (config.state_association) |name| resource: {
-                    const proposal = try state.prepare(&session, input, name, config.publish_to, io);
-                    failed = proposal.signed.request.command.state.turn.turn.failed;
+                const value = if (input.needs_permit) try session.prepareBegin(input) else resource: {
+                    const proposal = try state.prepare(&session, input, config.state_association, config.publish_to, io);
+                    failed = proposal.signed.request.command.turn.failed;
                     break :resource proposal;
-                } else commit: {
-                    const result = handler.apply(input.state, input.input.value) catch null;
-                    failed = result == null;
-                    var outputs: [protocol.max_turn_outputs]?protocol.Output = @splat(null);
-                    if (result) |value| if (config.publish_to) |pid| {
-                        outputs[0] = .{ .pid = pid, .value = value };
-                    };
-                    break :commit try session.prepareCommit(input, .{
-                        .state = result orelse input.state,
-                        .failed = failed,
-                        .outputs = outputs,
-                    });
                 };
                 computation.event.outcome = if (failed) .failed else .ok;
                 computation.event.error_type = if (failed) "HandlerFailed" else null;

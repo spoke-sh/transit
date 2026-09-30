@@ -30,7 +30,7 @@ Raw::Raw(const char *directory) : library(directory, "libtransit_client.so") {
 #define LOAD(name) name = reinterpret_cast<decltype(name)>(library.symbol(#name));
     TRANSIT_RAW_FUNCTIONS(LOAD)
 #undef LOAD
-    if (transit_client_abi_version() != TRANSIT_CLIENT_ABI_VERSION)
+    if (transit_client_abi_definition_matches(reinterpret_cast<const uint8_t *>(TRANSIT_CLIENT_ABI_DEFINITION), sizeof(TRANSIT_CLIENT_ABI_DEFINITION) - 1) != 1 || transit_client_abi_version() != TRANSIT_CLIENT_ABI_VERSION)
         fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "native-version");
     if (transit_client_supports_kind(6) != 1 || transit_client_supports_kind(7) != 1)
         fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "native-capabilities");
@@ -99,7 +99,7 @@ Bytes Raw::metadata(const Bytes &bytes) const {
     auto json = take(buffer); check(result, json, "operation-metadata"); return json;
 }
 transit_sdk_mutation_info Raw::info(const Bytes &json) const {
-    if (field(json, "version") != "1" || field(json, "profile", true) != "growing_v3" || field(json, "kind", true) != "growing_command")
+    if (field(json, "version") != "1" || field(json, "profile", true) != "native_v1" || field(json, "kind", true) != "growing_command")
         fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "mutation-metadata");
     transit_sdk_mutation_info out{};
     const auto identity = field(json, "identity", true), command = field(json, "command", true);
@@ -235,7 +235,7 @@ transit_sdk_error transit_sdk_client_capabilities(transit_sdk_client *client, co
             auto prepared = raw.prepare(7, *identity, "{\"realm\":" + std::to_string(identity->realm) + ",\"principal\":" + std::to_string(identity->principal) + ",\"kind\":{\"capabilities\":{}}}");
             auto json = raw.call(client->state->client, prepared, false);
             const std::string base = "body/capabilities/";
-            if (raw.field(json, "version") != "3" || raw.field(json, base + "version") != "3" || raw.field(json, base + "profile", true) != "growing_v1")
+            if (raw.field(json, "version") != "1" || raw.field(json, base + "version") != "1" || raw.field(json, base + "profile", true) != "growing_v1")
                 fail(TRANSIT_SDK_UNSUPPORTED_CAPABILITY, "authority-capabilities");
             *out = {raw.number(json, "realm"), raw.number(json, "position", true), raw.number(json, "principal_sequence", true),
                 raw.number(json, base + "page_entries"), raw.number(json, base + "mutation_budget"), raw.number(json, base + "output_budget"),

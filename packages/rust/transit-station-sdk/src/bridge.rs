@@ -144,7 +144,14 @@ impl Local {
         )?;
         let api = unsafe { abi::Api::load(artifact.load()?) }
             .map_err(|_| Error::new(ErrorKind::IncompatibleNative, "station-symbols"))?;
-        if unsafe { (api.station_abi_version)() } != abi::ABI_VERSION {
+        if unsafe {
+            (api.station_abi_definition_matches)(
+                abi::ABI_DEFINITION.as_ptr(),
+                abi::ABI_DEFINITION.len(),
+            )
+        } != 1
+            || unsafe { (api.station_abi_version)() } != abi::ABI_VERSION
+        {
             return Err(Error::new(ErrorKind::IncompatibleNative, "station-version"));
         }
         let caps;
@@ -155,7 +162,7 @@ impl Local {
             };
             let status = unsafe { (api.station_growing_capabilities)(&mut buffer.pointer) };
             let value = buffer.result(status, "native-capabilities", false)?;
-            if value["version"] != 1 || value["profile"] != "growing_v3" {
+            if value["version"] != 1 || value["profile"] != "native_v1" {
                 return Err(Error::new(
                     ErrorKind::UnsupportedCapability,
                     "native-profile",
@@ -232,7 +239,7 @@ impl Bridge {
             ));
         }
         let key = credential_seed(&config.activation.credential)?;
-        let value = json!({"profile":"growing_v3", "realm":config.activation.process.realm(), "principal":config.activation.credential.principal(),
+        let value = json!({"profile":"native_v1", "realm":config.activation.process.realm(), "principal":config.activation.credential.principal(),
             "pid":config.activation.process.pid(), "generation":config.activation.generation.get(), "association":config.association, "timeout_ms":timeout,
             "failure_policy":if failure == FailurePolicy::Stop { "stop" } else { "block_input" }, "query_results":config.query_results});
         let bytes = serde_json::to_vec(&value)
@@ -670,7 +677,7 @@ impl QueryNative {
         let mut out = Self { local, pointer };
         let caps = out.call(json!({"capabilities":{}}))?;
         let caps = field(&caps, "capabilities")?;
-        if caps["version"] != 2
+        if caps["version"] != 1
             || ["kv", "table", "document"]
                 .iter()
                 .any(|name| caps[name] != true)

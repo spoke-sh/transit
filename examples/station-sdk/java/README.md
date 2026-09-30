@@ -18,7 +18,7 @@ java -cp 'lib/*' io.transit.examples.CounterMain config.json service --commits 1
 java -cp 'lib/*' io.transit.examples.CounterMain config.json requester --commits 1
 ```
 
-Each role needs its own configuration object with `url`, `profile: "growing_v3"`,
+Each role needs its own configuration object with `url`, `profile: "native_v1"`,
 `realm`, `principal`, `pid`, `generation`, `seed_file` and `peer`. Its provisioned
 process must already own the recorded `data` association with current grants.
 Provisioning and outbox delivery belong to the deployment. Keep private seed

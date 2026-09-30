@@ -8,7 +8,7 @@
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
         "test::storage",
@@ -20,7 +20,8 @@
         "Acknowledgement lost after append"
       ],
       "limits": "The test store assumes Ursula conditional append; disk integration checks the provider boundary.",
-      "model": "tests/verification/models/Authority.tla"
+      "model": "tests/verification/models/Authority.tla",
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "AUTH-02",
@@ -29,7 +30,7 @@
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
         "test::service",
@@ -42,16 +43,17 @@
         "Retry committed work after read revocation"
       ],
       "limits": "Authorization does not prove application computation or undo external effects.",
-      "model": "tests/verification/models/Authority.tla"
+      "model": "tests/verification/models/Authority.tla",
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "STATE-01",
       "claim": "Mutations, consumed input and outputs have one visibility decision",
       "owner": "docs/reference/state.md",
       "implementation": [
-        "packages/zig/transit-core/src/resources.zig"
+        "packages/zig/transit-core/src/growing_state.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
         "test::state",
@@ -64,8 +66,9 @@
         "Restart before/after conditional append",
         "Generated captured-view turns publish one KV value and input progress together"
       ],
-      "limits": "Bounded state-v1 projection; growing publication has separate GROWTH invariants and real disk proofs.",
-      "model": null
+      "limits": "One mutated resource per turn; bounded views/mutations over paged state. Resource grants and retained evidence remain independently validated.",
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "RETRY-01",
@@ -74,7 +77,7 @@
       "implementation": [
         "packages/zig/transit-client/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::callers",
         "test::client-abi",
@@ -88,7 +91,8 @@
         "Independent same-principal native handles race conflicting and identical frozen requests"
       ],
       "limits": "Response allocation after acceptance is enumerated through the real ABI response/status path with a deterministic transport; real HTTP/host loss and same-principal multi-handle races use disk-backed service proofs. Public SDK adapters remain M11 work; shared obligations are in tests/verification/sdk.json.",
-      "model": "tests/verification/models/Authority.tla"
+      "model": "tests/verification/models/Authority.tla",
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "LIFE-01",
@@ -97,7 +101,7 @@
       "implementation": [
         "packages/zig/transit-core/src/Time.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
         "test::service",
@@ -109,7 +113,8 @@
         "Paused dispatch and late reconciliation"
       ],
       "limits": "Validation occurs at compared journal tail; physical external dispatch may occur later.",
-      "model": "tests/verification/models/Authority.tla"
+      "model": "tests/verification/models/Authority.tla",
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "REPLAY-01",
@@ -118,7 +123,7 @@
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::storage",
         "test::service",
@@ -130,7 +135,8 @@
         "Checkpoint plus trimmed tail"
       ],
       "limits": "Process kill is not host power loss; legacy checkpoint includes the whole bounded catalog.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "CAP-01",
@@ -139,7 +145,7 @@
       "implementation": [
         "packages/zig/transit-core/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::unit",
         "test::capacity",
@@ -151,7 +157,8 @@
         "Real ENOSPC followed by revocation and restart"
       ],
       "limits": "Legacy derived reserve and separately configured growing reserve have finite real ENOSPC proofs. Their owned ext4 fixtures preallocate physical headroom; nodes do not provision it automatically. GROWTH-11 covers growing service/Station quota semantics. No arbitrary workload worst-case sizing claim.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "HOST-01",
@@ -160,7 +167,7 @@
       "implementation": [
         "packages/zig/transit-station-bindings/src/Abi.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "bindings::test",
         "test::client-abi"
@@ -170,7 +177,8 @@
         "Child/port failure and malformed framing"
       ],
       "limits": "Finite target-language schedules, not exhaustive interleaving or non-Linux qualification.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "ARROW-01",
@@ -179,7 +187,7 @@
       "implementation": [
         "packages/zig/transit-fuze/src/execute.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::arrow",
         "test::station",
@@ -190,7 +198,8 @@
         "Missing fragments and consumer restart"
       ],
       "limits": "Bounded synchronous results only; paged multi-batch execution remains unqualified.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "ARROW-02",
@@ -211,21 +220,22 @@
         "Independent PyArrow segments and Python progress/fingerprint encoding"
       ],
       "limits": "Pure synchronous bounded steps only; durable Station capture, policy, staging and consumer restart remain integration gates. Digests do not prove honest caller computation.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "ARROW-03",
       "claim": "Incremental result staging cannot advance sealed source progress or expose a partial job as captured",
-      "owner": "contracts/STATION_QUERY_V2.md",
+      "owner": "contracts/STATION_QUERY_V1.md",
       "implementation": [
-        "packages/zig/transit-station/src/GrowingQuery.zig",
+        "packages/zig/transit-station/src/Query.zig",
         "packages/zig/transit-station/src/QueryRecords.zig"
       ],
-      "profile": "transit-v3/station-growing/query-v2 capture development",
+      "profile": "transit-v1/station-growing/query capture development",
       "tasks": [
         "test::unit",
         "test::growing-service",
-        "test::growing-query"
+        "test::query"
       ],
       "scenarios": [
         "70-row private capture with fresh turns, lost private proposals, duplicate/future continuations and corruption",
@@ -234,7 +244,8 @@
         "Policy change and poisoned source read cannot publish; explicit fresh closure retains evidence"
       ],
       "limits": "Capture slice only. Result delivery, consumer completeness and acknowledgement remain integration work; no full-store, GC or production throughput claim. Job and source share a resource.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "RUNTIME-01",
@@ -243,7 +254,7 @@
       "implementation": [
         "packages/zig/transit-runtime-substrate/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::runtime-upgrade",
         "launchers::local::test",
@@ -256,16 +267,17 @@
         "Fresh activation after pod replacement"
       ],
       "limits": "Only Zig workers qualified in the reference substrate; native tests do not establish sandbox isolation.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "READ-01",
       "claim": "Inspection preserves current authorization, revision boundaries and explicit gaps",
       "owner": "docs/guides/inspect-board.md",
       "implementation": [
-        "packages/zig/transit-core/src/resource_read.zig"
+        "packages/zig/transit-core/src/growing_read.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::inspection",
         "test::state",
@@ -279,7 +291,8 @@
         "Generated view expiry, uncertain time, rollback and current resource grants"
       ],
       "limits": "Board is private-boundary inspection; the legacy view is a full bounded resource copy.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "O11Y-01",
@@ -288,7 +301,7 @@
       "implementation": [
         "packages/zig/transit-observability/src/root.zig"
       ],
-      "profile": "transit-v2/state-v1/station-v1",
+      "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
         "test::telemetry",
         "test::observability"
@@ -298,7 +311,8 @@
         "Lost HTTP acknowledgement retains receipt semantics"
       ],
       "limits": "Bounded diagnostics may be dropped; they are not durable authority.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "CODEC-01",
@@ -308,7 +322,7 @@
         "packages/zig/transit-protocol/src/Value.zig",
         "packages/zig/transit-station/src/Frame.zig"
       ],
-      "profile": "transit-v2/station-frame-v1",
+      "profile": "transit-v1/station-frame-v1",
       "tasks": [
         "test::codecs",
         "contract::check"
@@ -319,7 +333,8 @@
         "Allocation enumeration through parse and canonical output"
       ],
       "limits": "Finite corpus and bounded Zig fuzz budget; no claim that a roundtrip replaces independent canonical vectors or Arrow readers.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "PAGES-01",
@@ -342,7 +357,8 @@
         "Missing/corrupt pages and lost staging acknowledgement"
       ],
       "limits": "Packed append-only page journal and original closed-stream mapping under qualification. No page GC, authority integration or power-loss proof. Cache bytes exclude provider/HTTP/parser/stack memory.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-01",
@@ -351,7 +367,7 @@
       "implementation": [
         "packages/zig/transit-core/src/growing.zig"
       ],
-      "profile": "transit-v3 development control slice; not running service",
+      "profile": "transit-v1 development control slice; not running service",
       "tasks": [
         "test::unit",
         "contract::check"
@@ -364,7 +380,8 @@
         "Recovery without staging pages"
       ],
       "limits": "Injected journal/page store only; service/client integration, lifecycle/provider extensions and quota/control reserve remain unqualified.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-02",
@@ -373,7 +390,7 @@
       "implementation": [
         "packages/zig/transit-core/src/growing_state.zig"
       ],
-      "profile": "transit-v3 development state slice; not running service",
+      "profile": "transit-v1 development state slice; not running service",
       "tasks": [
         "test::unit",
         "contract::check"
@@ -385,7 +402,8 @@
         "Expiry through lifetime-owner dependency graph cannot be rebound away"
       ],
       "limits": "In-memory injected page/journal proof. Transport, background terminal projection, quota reserves and real service/Station remain unqualified.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-03",
@@ -394,7 +412,7 @@
       "implementation": [
         "packages/zig/transit-core/src/growing_read.zig"
       ],
-      "profile": "transit-v3 development read slice; not running service",
+      "profile": "transit-v1 development read slice; not running service",
       "tasks": [
         "test::unit",
         "contract::check"
@@ -408,7 +426,8 @@
         "Missing pages and stale catalog cuts reject explicitly"
       ],
       "limits": "Internal signed engine queries with injected storage/time. No HTTP/SDK/provider proof, generalized historical querying or concurrent service load qualification.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-04",
@@ -417,7 +436,7 @@
       "implementation": [
         "packages/zig/transit-core/src/growing_work.zig"
       ],
-      "profile": "transit-v3 development work slice; not running service",
+      "profile": "transit-v1 development work slice; not running service",
       "tasks": [
         "test::unit",
         "contract::check"
@@ -429,18 +448,19 @@
         "Finite turn settlement, late-result rejection and permanent expiry"
       ],
       "limits": "Injected storage/time; no HTTP connector, automatic maintenance, real provider or service integration evidence.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-05",
       "claim": "Published growing authority roots recover through disk restart and opted-in root-history compaction without materializing all retained state",
       "owner": "docs/reference/state.md",
       "implementation": [
-        "packages/zig/transit-backend-ursula/src/GrowingStore.zig",
+        "packages/zig/transit-backend-ursula/src/Store.zig",
         "packages/zig/transit-backend-ursula/src/PackedPageStore.zig",
         "tests/growing.zig"
       ],
-      "profile": "transit-v3 development authority and disk Ursula; not running service",
+      "profile": "transit-v1 development authority and disk Ursula; not running service",
       "tasks": [
         "test::growing",
         "test::unit",
@@ -454,21 +474,22 @@
         "Uncommitted trim intent and missing pages reject; retained outboxes/mailboxes remain"
       ],
       "limits": "Trusted test clock and injected acknowledgement loss at the real journal boundary. No service/SDK/Station integration, provider cluster, quota/control reserve or throughput qualification. Root history retains its latest complete head; pages are not reclaimed.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-06",
       "claim": "An explicit growing service profile supports signed bounded caller reads and atomic turns without exposing raw storage or executing application handlers",
       "owner": "docs/reference/callers.md",
       "implementation": [
-        "apps/transit-node/Growing.zig",
+        "apps/transit-node/Native.zig",
         "packages/zig/transit-client/src/root.zig",
         "packages/zig/transit-protocol/src/Growth.zig",
         "tests/growing_client.zig",
         "tests/growing_service.py",
-        "packages/zig/transit-client/src/GrowingSession.zig"
+        "packages/zig/transit-client/src/Session.zig"
       ],
-      "profile": "transit-v3 development service; legacy launcher defaults preserved",
+      "profile": "transit-v1 development service; legacy launcher defaults preserved",
       "tasks": [
         "test::growing-service",
         "test::unit",
@@ -484,7 +505,8 @@
         "Session resolves named associations without materializing the catalog"
       ],
       "limits": "No Station/foreign binding support, runtime binding, migration, load qualification or quota/control reserve claim. Host synchronized clock is a deployment premise.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-07",
@@ -494,10 +516,10 @@
         "packages/zig/transit-core/src/growing_maintenance.zig",
         "packages/zig/transit-core/src/growing.zig",
         "apps/transit-node/GrowingMaintenance.zig",
-        "packages/zig/transit-backend-ursula/src/GrowingStore.zig",
+        "packages/zig/transit-backend-ursula/src/Store.zig",
         "tests/growing_maintenance.py"
       ],
-      "profile": "transit-v3 development maintenance; one record per rotating scan step",
+      "profile": "transit-v1 development maintenance; one record per rotating scan step",
       "tasks": [
         "test::unit",
         "test::growing-service"
@@ -513,12 +535,13 @@
         "Accepted immutable-page reply loss leaves authority unchanged across a staging-worker restart"
       ],
       "limits": "Full process/resource sweep cost still grows with retained metadata. No page GC, due-time index, sweep-lag SLO, full-store control reserve or multi-maintainer performance claim. Physical work authorized before revocation may finish later.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-08",
       "claim": "Growing Station private turns read bounded captured keys and retain call semantics without a whole-resource snapshot",
-      "owner": "contracts/STATION_GROWING.md",
+      "owner": "contracts/STATION_V1.md",
       "implementation": [
         "packages/zig/transit-station/src/Turn.zig",
         "packages/zig/transit-station/src/Table.zig",
@@ -555,20 +578,21 @@
         "Durable scan progress and self-continuations survive caller/node/provider loss between pages"
       ],
       "limits": "No growing query/result capture, registries, supervision, runtime bindings, foreign ABIs or scale SLO. Real service proof uses explicit public-client outbox delivery and a one-page cache after restart; it does not qualify a growing background courier.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-09",
       "claim": "Scoped growing failure retry preserves accepted input and cannot bypass current control authority or lifetime fencing",
-      "owner": "contracts/TRANSIT_V3.md",
+      "owner": "contracts/TRANSIT_V1.md",
       "implementation": [
         "packages/zig/transit-core/src/growing.zig",
         "packages/zig/transit-core/src/growing_read.zig",
-        "packages/zig/transit-client/src/GrowingSession.zig",
+        "packages/zig/transit-client/src/Session.zig",
         "packages/zig/transit-core/src/growing_test.zig",
         "tests/growing_client.zig"
       ],
-      "profile": "transit-v3 scoped retry development capability",
+      "profile": "transit-v1 scoped retry development capability",
       "tasks": [
         "test::unit",
         "test::growing-service",
@@ -585,7 +609,8 @@
         "New mailbox input can queue behind a failed head without bypassing its ordered retry"
       ],
       "limits": "No growing initialization barrier, suspension/resumption, same-PID code upgrade, runtime binding or automatic supervision policy. Injected lost-reply/revocation schedules complement the public service path.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-10",
@@ -596,11 +621,11 @@
         "packages/zig/transit-core/src/growing_state.zig",
         "packages/zig/transit-core/src/growing_read.zig",
         "packages/zig/transit-core/src/growing_test.zig",
-        "packages/zig/transit-client/src/GrowingSession.zig",
+        "packages/zig/transit-client/src/Session.zig",
         "tests/growing_client.zig",
         "tests/growing.zig"
       ],
-      "profile": "transit-v3 retained read version development capability",
+      "profile": "transit-v1 retained read version development capability",
       "tasks": [
         "test::unit",
         "test::growing-service",
@@ -620,7 +645,8 @@
         "Live versions survive physical authority-prefix trim and provider restart"
       ],
       "limits": "No resumable Station/Fuze result capture, quota accounting or page garbage collection. Catalog roots may retain unrelated physical pages. Disk provider proof checks authority-prefix trim while preserving immutable page storage.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-11",
@@ -630,7 +656,7 @@
         "packages/zig/transit-core/src/growing.zig",
         "packages/zig/transit-core/src/growing_read.zig"
       ],
-      "profile": "transit-v3 development control slice; not running service",
+      "profile": "transit-v1 development control slice; not running service",
       "tasks": [
         "test::unit",
         "test::growing-capacity",
@@ -643,12 +669,13 @@
         "Station pending view and accepted backlog survive public quota refusal, restart and reserve exhaustion"
       ],
       "limits": "Finite single-authority capacity profile: 96 admission and 96 control positions on owned 2 GiB ext4 with a preallocated 1 GiB physical reserve. Separate one-CPU Station service proof uses 24 plus 4 positions. Bounds are deployment policy; no automatic physical provisioning or arbitrary-scale reserve guarantee.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "DELIVERY-01",
       "claim": "Growing result segments are accepted strictly in order, receiver-issued credit never exceeds durably stored segments, the sender never exceeds its observed credit window, and acknowledgement never precedes full receipt",
-      "owner": "contracts/STATION_QUERY_V2.md",
+      "owner": "contracts/STATION_QUERY_V1.md",
       "implementation": [
         "packages/zig/transit-station/src/QueryDelivery.zig",
         "packages/zig/transit-station/src/QueryRecords.zig"
@@ -664,7 +691,8 @@
         "Acknowledgement only reachable once every segment is durably received"
       ],
       "limits": "Type/safety-only TLC check of the abstract credit protocol; no guard mutants or Zig trace replay yet, unlike Authority.tla. Fragmentation below one segment, digest/schema verification and durable KV encoding are exercised by test::unit, not this model.",
-      "model": "tests/verification/models/Delivery.tla"
+      "model": "tests/verification/models/Delivery.tla",
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "GROWTH-12",
@@ -687,7 +715,8 @@
         "Uniform and hot-key drain, exact receipts, row digest and revocation through node/provider restart"
       ],
       "limits": "Finite loopback samples with 48 offered operations, bounded producer workers and disk/S3 storage. No production SLO, horizontal capacity, power-loss or object-store-crash guarantee.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "SQL-01",
@@ -711,7 +740,8 @@
         "Compiled aggregates retain ordered overflow, cancellation and source fencing"
       ],
       "limits": "Declared syntax subset only; no PostgreSQL execution-equivalence claim, SQL endpoint, catalog access, writes or optimizer rewrite.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "SQL-02",
@@ -732,15 +762,16 @@
         "Required theorem and axiom inventory rejects incomplete proof"
       ],
       "limits": "No optimizer enabled; authority, allocation, cancellation and partial projections are outside the model. Limit pushdown and checked-sum reassociation are not claimed.",
-      "model": "contracts/sql/FuzeRewrite.lean"
+      "model": "contracts/sql/FuzeRewrite.lean",
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "QUERY-01",
       "claim": "Public Table queries preserve exact submission, bounded behavior admission, source/schema identity and current result-read authority",
-      "owner": "contracts/PUBLIC_QUERY_V1.md",
+      "owner": "contracts/UNIFIED_QUERY_V1.md",
       "implementation": [
-        "packages/zig/transit-query/src/Client.zig",
-        "packages/zig/transit-query/src/Behavior.zig",
+        "packages/zig/transit-query/src/UnifiedClient.zig",
+        "packages/zig/transit-query/src/UnifiedBehavior.zig",
         "apps/transit-query-host/main.zig",
         "apps/transit-cli/main.zig"
       ],
@@ -758,7 +789,8 @@
         "Revocation after an actually received segment denies disclosure until explicit reauthorization"
       ],
       "limits": "One configured Table/requester per principal; no SQL writes, KV/Document adapters, offline result copies or power-loss proof. Transport inbox quota remains a separate deployment constraint.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "QUERY-02",
@@ -767,7 +799,7 @@
       "implementation": [
         "apps/transit-board/Growing.zig",
         "apps/transit-board-web/src/atlas.tsx",
-        "apps/transit-board-web/src/query-workspace.tsx",
+        "apps/transit-board-web/src/unified-workspace.tsx",
         "packages/ts/transit-board-client/src/index.ts"
       ],
       "profile": "M13 growing Board and optional public query v1",
@@ -785,7 +817,8 @@
         "Frozen cancellation and source retirement remain distinct from successful completion"
       ],
       "limits": "One configured Table/principal; eight-item catalog pages, no global metrics, default legacy inspection unchanged. No per-human delegation, KV/Document query, power-loss or production capacity claim.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "PUBLICATION-01",
@@ -794,7 +827,7 @@
       "implementation": [
         "packages/zig/transit-station/src/Publication.zig"
       ],
-      "profile": "transit-v3/station-publication-v1",
+      "profile": "transit-v1/station-publication-v1",
       "tasks": [
         "test::unit",
         "test::publication"
@@ -808,7 +841,8 @@
         "Interrupted cleanup resumes without reusing identities; historical source survives current deletion"
       ],
       "limits": "Single authority, disk Ursula, 64 KiB record and 41 additional 32-byte records. No host power-loss, production throughput, automatic jobs, physical erasure, CRDT, SDK or widened query claim.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "EXCHANGE-01",
@@ -852,7 +886,8 @@
         "Installed Python, Node, Rust, Ruby, C, C++, Java, .NET, Erlang and Elixir HTTP callers: bounded upload with fresh ownership after host loss, binary TLS and Unicode/duplicate headers, correlated reply, owned replay without credentials and joined local stop/disposal"
       ],
       "limits": "Finite HTTP/1.1 worker over disk Ursula: one public root call per provisioned connector PID, 64 KiB request profile, 1,027-byte worker response; independent transport response 16,387 bytes. Explicit controller retry/redirect/status/cancel and all ten public HTTP SDKs are qualified. Public followups and language-native release conveniences, Board, launchers and hosted costs remain M15 work. Numeric IPv4 endpoint, identity encoding; TLS close-delimited bodies rejected.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "RPC-01",
@@ -879,7 +914,8 @@
         "Live callbacks pass pure capture/replay validation with frozen policy, ordered binary metadata and bounded message parts; no durable sink claimed"
       ],
       "limits": "No durable RPC authority, connector recovery, SDK or deployment claim. Identity compression only; no reconnect, retry or remote resume.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "RPC-02",
@@ -902,7 +938,8 @@
         "Explicit identical-policy idempotent retry consumes original lineage budget; exhaustion refuses another send; bounded descendant cleanup"
       ],
       "limits": "Nine sends/eight remote applications against independent grpcio. Public caller SDKs, placement and remaining final-publication races are not qualified by this controller proof. No transparent retry or stream resume.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "SERVE-01",
@@ -938,7 +975,8 @@
         "Retained operation growth beyond resident pages with explicit native admission/control budgets"
       ],
       "limits": "Qualified finite native/Compose/Substrate profiles; no reactive APIs or automatic growing runtime controller. RSS observations have declared process/workload scopes. Native receipts remain retained without finite reclamation.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "REACTIVE-01",
@@ -970,7 +1008,8 @@
         "Physical worker/gateway/node/disk recovery of the same displayed result"
       ],
       "limits": "Four service sessions, two per principal, one subscription/session, 30-second maximum lease, eight finite refresh intents per explicit follow generation. Finite native/Compose/reference schedules and measurements are recorded in tests/README.md; no continuous SQL, KV/Document watch, latency target or general multi-origin native-sequence coordination.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "FLIGHT-01",
@@ -996,7 +1035,8 @@
         "Inbound unary/server-streaming RPCs join cancellation and deadlines and bound blocked credit/write work"
       ],
       "limits": "No gateway authorization, ADBC, TLS placement, retained-result recovery or outbound Flight claim from these codec/transport checks.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "FLIGHT-02",
@@ -1028,7 +1068,8 @@
         "Recorded outbound TLS capture is replayed after physical loss with the peer stopped and credential removed"
       ],
       "limits": "One configured int64 Table per caller, one active finite query per requester, two data RPCs per caller, 16 KiB messages, 256 KiB framed response, 64 response messages. Metadata union/list/map coverage does not expand application types. Only executed placements in tests/README.md are qualified; no continuous Flight, writes, prepared parameters or hosted cost claim.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "APPLICATION-01",
@@ -1067,7 +1108,8 @@
         "Actual embedded SQL/Form/Canvas editing and conditional publication, then worker/node/disk restart and current reader revocation"
       ],
       "limits": "64 KiB per body, two staged bodies, 128-byte transport parts, 512 KiB escaped host envelope and at most sixteen explicitly admitted host operators; four mutations for atomic visibility. Native proof uses a 1002-byte interface and 20 turns. Actual Board browser qualification covers one native installation. Generated application evolution and physical placement have their separate APPLICATION-02 proof boundary below. No new hosted CI budget.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "APPLICATION-02",
@@ -1094,7 +1136,8 @@
         "Fresh worker keys/generations after all owners, gateway, node and disk-store replacement in Compose and reference placements"
       ],
       "limits": "One int64 status-to-state evolution with paused writes, four mutations per normal step and no cross-resource atomicity or automatic inverse. Reference TLS edge retains an 8 KiB request cap and uses native operator publication; it does not qualify larger browser operator uploads. No generic schema evolution, cluster authority migration or hosted budget claim.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "CLI-01",
@@ -1121,7 +1164,8 @@
         "Explicit private-CA TLS succeeds; wrong root/hostname fails; stalled stdout ends through a joined deadline"
       ],
       "limits": "One configured source, one finite bundle/pending request/cursor, 4096-byte SQL draft, eight suggestions and bounded in-memory history. Completion latency/RSS are single-run fixture measurements. No writes, administrative SQL, continuous terminal execution or implicit persistent history.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "CLI-02",
@@ -1150,7 +1194,8 @@
         "Real ext4 ENOSPC after accepted query; bounded control/shutdown and exact query recovery after space is released; full log prefixes keep draining"
       ],
       "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M29 owns neighborhood upgrade transitions.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "CLI-03",
@@ -1179,7 +1224,8 @@
         "Accepted input survives real owned-volume ENOSPC and resumes with its original receipt, PID and resource"
       ],
       "limits": "Per-declaration 8 roles/16 resources/8 callers, configurable active-app/role quotas, 64 KiB public values and 256 KiB per-app checkpoints, eight-receipt pages; retained disk history is unlimited. Trusted same-UID Linux placement, not a sandbox or distributed authority protocol. Only Zig hosts are qualified; native configuration/provider upgrades remain M29.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "CLI-04",
@@ -1208,7 +1254,8 @@
         "Nix manifest consumer starts the embedded frontend with unavailable PATH and no runtime frontend tools"
       ],
       "limits": "Loopback only; realm-wide process metadata and explicit per-resource grants, no per-viewer authentication, browser query/operator credentials or in-place upgrades of older pinned neighborhoods. Nine fixed native roles plus explicit application quotas; one bounded atlas startup probe, three restarts and retained receipts. No hosted CI budget expansion.",
-      "model": null
+      "model": null,
+      "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     }
   ]
 }

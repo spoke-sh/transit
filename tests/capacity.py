@@ -236,7 +236,7 @@ os.sync()
             proof("recover")
             after_reconcile = stats()
             assert requests and set(requests) <= {"GET", "HEAD"}, "Completed maintenance issued a mutation"
-            evidence = {"version": 1, "status": "passed", "image": image, "profile": "growing_v3" if growing else "v2",
+            evidence = {"version": 1, "status": "passed", "image": image, "profile": "native_v1" if growing else "v2",
                 "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
                 "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=repo)),
                 "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),

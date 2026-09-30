@@ -21,13 +21,13 @@ test "declared KV decoders retain full values and distinguish malformed bytes" {
     try t.expect((try d(.{ .type = .float64 }, allocator, &.{ 0, 0, 0, 0, 0, 0, 240, 127 })) == .type_error);
     try t.expectError(error.UnsupportedDecoder, d(.{ .version = 2, .type = .binary }, allocator, ""));
 }
-test "UQS2 binds decoder versions exact Document references and projection budgets" {
+test "UQS1 binds decoder versions exact Document references and projection budgets" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
     var output: [Definition.max_bytes]u8 = undefined;
     const kv: Definition = .{ .resource = 7, .source = .{ .kv = .{ .prefix = try q.protocol.Value.init("data/"), .key = .{ .type = .binary }, .value = .{ .type = .uint64 } } } };
-    const expected = "UQS2\x07\x00\x00\x00\x00\x00\x00\x00\x01\x05data/\x01\x06\x01\x02";
+    const expected = "UQS1\x07\x00\x00\x00\x00\x00\x00\x00\x01\x05data/\x01\x06\x01\x02";
     try t.expectEqualSlices(u8, expected, try kv.encode(&output));
     try t.expectEqualSlices(u8, &try kv.fingerprint(), &try (try Definition.decode(allocator, expected)).fingerprint());
     const table: Definition = .{ .resource = 7, .source = .{ .table = .{ .id = 9, .schema = .{ .names = .{ try q.fuze.model.Name.init("id"), try q.fuze.model.Name.init("label") }, .value_type = .utf8 } } } };
@@ -254,7 +254,7 @@ test "accepted Document paths text conflicts and list pages retain live lifecycl
     try t.expectError(error.DocumentRetired, source.page(definition, cut, .{}, &snapshot, &current, arena.allocator(), &batch));
 }
 
-test "independent UQS2 fixtures preserve all three source declarations" {
+test "independent UQS1 fixtures preserve all three source declarations" {
     const Case = struct { kind: []const u8, wire_hex: []const u8, digest: []const u8 };
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();

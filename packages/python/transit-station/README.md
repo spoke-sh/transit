@@ -2,7 +2,7 @@
 
 Typed handlers, scoped KV/Table access, durable calls and synchronous/asynchronous
 runners over the shared Zig Station implementation. The public API selects
-`growing_v3` explicitly. Python owns application codecs and scheduling; Zig owns
+`native_v1` explicitly. Python owns application codecs and scheduling; Zig owns
 protocol validation, signatures, framework transitions and exact retry.
 
 Build installable wheels with `nix develop --command just bindings::python-build`.
@@ -46,11 +46,11 @@ the full connector milestone remains in progress. The
 [Python API design](../../../docs/history/sdk/PYTHON.md) provides fuller typed examples;
 the [shared ABI guide](../../zig/transit-station-bindings/docs/bindings.md) owns native bounds.
 
-M9's generic `Client` and `GenServer` remain under `transit_station.raw`, with
-compatible root aliases. They retain the legacy profile and explicit JSON actions;
-they are not the public growing runner. New raw callers import `transit_client`
-without Station. Migrating requires explicit profile/activation selection and
-application codecs; no state or wire-profile conversion occurs automatically.
+Raw callers import the independent `transit_client` package. Station exports
+its typed runner APIs; the generic `transit_station.raw` adapter and root
+`Client`/`GenServer` aliases are removed. Stored requests and process state from
+superseded protocol definitions require an explicit cutover; loading them does
+not convert their meaning.
 
 The [finite RPC guide](docs/grpc.md) covers local descriptor binding, original
 message batches, durable calls, explicit retry/disposal and owned replay.
@@ -60,6 +60,6 @@ scoped writer jobs and current-policy synchronous/asynchronous reads. These M17
 APIs compose shared Zig semantics; remote writer routing and the other language
 adapters remain separately qualified work.
 
-The [unified query guide](docs/unified-query.md) covers explicit v2 KV/Table/
+The [unified query guide](docs/unified-query.md) covers explicit v1 KV/Table/
 Document sources, sync/async query callers, persisted admission commands and
 owned nested Arrow pages. Qualification is tracked per source and SDK.

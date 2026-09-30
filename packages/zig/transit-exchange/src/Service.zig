@@ -2,7 +2,7 @@
 //! policy decisions retain protocol meaning; this helper cannot dispatch I/O.
 const std = @import("std");
 const x = @import("root.zig");
-const Turn = x.station.GrowingTurn;
+const Turn = x.station.Turn;
 const Frame = x.station.Frame;
 pub fn For(comptime Adapter: type) type {
     return struct {

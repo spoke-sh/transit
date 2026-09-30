@@ -148,7 +148,7 @@ pub struct ClientConfig {
     pub(crate) native_directory: Option<PathBuf>,
 }
 impl ClientConfig {
-    /// Explicitly selects the growing_v3 profile; there is no legacy fallback.
+    /// Explicitly selects the native_v1 profile; there is no legacy fallback.
     pub fn growing(url: impl Into<String>) -> Result<Self> {
         let url = url.into();
         if url.len() > abi::MAX_BODY

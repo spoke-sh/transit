@@ -10,7 +10,7 @@ import { QueryError, type Transport } from "./transport";
 const suggestion = (generation: number): Assisted["response"] => ({
   version: 1,
   generation,
-  profile: "unified_v2",
+  profile: "unified_v1",
   resource: 1,
   contract: Array(32).fill(7),
   resource_revision: 2,

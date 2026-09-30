@@ -34,7 +34,7 @@ arbitrary incompatible executable replacement and automatic history migration
 remain outside the profile.
 
 Version-3 server configuration includes Board inspection. Applications declare
-resource access explicitly through the version-2 installation declaration's
+resource access explicitly through the version-1 installation declaration's
 `inspection` list. These grants belong to Board's separate identity; restarting
 or replacing a worker does not restore revoked access. See
 [application inspection](../../apps/transit-cli/docs/applications.md#board-inspection).

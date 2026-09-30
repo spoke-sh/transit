@@ -1,17 +1,16 @@
 # Transit inspection v1
 
-Implemented as the additive `POST /v2/inspect` surface. Existing v2 commands,
-canonical signatures and histories are unchanged. Public types and the generated
-[JSON Schema](transit-v2.schema.json) are owned by
-[transit-protocol](../packages/zig/transit-protocol/README.md).
+Inspection is a selector in the [native signed query](TRANSIT_V1.md), served at
+`POST /v1/query`. Public types and the generated [schema](transit-v1.schema.json)
+are owned by [transit-protocol](../packages/zig/transit-protocol/README.md).
 
 ## Authentication and disclosure
 
-The body is `SignedInspectionQuery { query, signature }`. Sign
-`Ed25519(SHA256("rey.transit.inspection.v1\\0" || canonical-query-json))` with the
-current principal key. The domain ends in one NUL byte; canonical JSON follows
-the same declared-field-order/default/null rules as commands. Reads consume no
-mutation sequence, and cannot be submitted as commands.
+Use `SignedQuery { query, signature }` with
+`query.kind: { inspection: { resource, pid, cut, after } }`. It uses the native
+`transit.query.v1` signing domain, including its terminating NUL byte, and the
+canonical field/default rules. Reads consume no mutation sequence and cannot be
+submitted as commands.
 
 Each query requires current realm/PID-scoped `inspect`. Discovery filters by that
 scope. All resource requests authenticate before disclosing existence or cut
@@ -20,7 +19,7 @@ no authority. The final unchanged-tail check authorizes one bounded response.
 A concurrent commit (including revocation) returns `409 Conflict`; a later
 revocation prevents the next authorization, without recalling released bytes.
 
-`inspect` includes opaque state/message/effect bytes and payload **metadata**.
+`inspect` includes opaque message/effect bytes and payload **metadata**.
 There is no separate metadata-only grant or payload-body route. Outbox entries
 require both source and destination access. Incoming delivery history omits the
 output ID when its source cannot be inspected. Administrative grant records,
@@ -32,9 +31,9 @@ already disclosed by known-PID views; they are not per-PID event counts.
 
 `resource` is one of `processes`, `process`, `mailbox`, `outbox`, `effects`,
 `payloads`, `history`. All except `processes` require `pid`; discovery forbids it.
-Arrays have 16 nullable slots. Omitted resources have empty arrays, not implied
-zero totals. Catalogs have the native v2 fixed bounds; history scans at most 128 positions
-and returns at most 16 matching records per request. `scanned` is scan work, not
+Arrays have eight nullable slots. Omitted resources have empty arrays, not implied
+zero totals. Catalogs are paged; history scans at most 128 positions
+and returns at most eight matching records per request. `scanned` is scan work, not
 an authorized-resource count. Responses own their bytes and fit the client/server
 256 KiB bound. Authority catch-up retains its existing request deadline; the scan
 budget applies to projection after catch-up, not recovery replay.
@@ -56,7 +55,8 @@ Every page reports `{ realm, resource, pid, cut, next, complete, history }`.
 `cut` contains the exclusive authority tail, current reader policy revision, and
 retained floor. `after:0, cut:null` starts a query. Pass the identical resource,
 PID and cut with the returned `next` as `after` to continue. These fields are all
-signed. `after` is the next array slot or journal position, not a page number.
+signed. `after` is an exclusive identity, mailbox ordinal or journal position, not an
+array slot or page number.
 Clients must retain the query identity alongside the continuation.
 
 This profile expires cuts on **any** authority change: `409 QueryExpired`
@@ -76,13 +76,15 @@ source events, so consumers must mark unresolved historical links.
 
 ## Clients and proofs
 
-`transit_client.Client.inspect(query, key)` returns an owned `Inspection.Page`.
-`rey-cli sign-inspection SEED QUERY.json` emits the envelope;
-`rey-cli inspect SEED QUERY.json URL` performs the public client call.
+`transit_client.Client.query` with `kind.inspection` returns an owned native
+response containing `Inspection.Page`. `rey-cli sign-query SEED QUERY.json` emits
+the envelope; `rey-cli query SEED QUERY.json URL` performs the public client call.
 
 `just test::inspection` exercises real signed HTTP calls and disk recovery.
 A shared [canonical fixture](../packages/zig/transit-protocol/src/fixtures/inspection-v1.json)
-checks field ordering, the separate domain hash and signatures in Zig and Python.
+pins field ordering, the native query domain hash and signature. The
+[request vector check](../tests/fixtures.py) independently compares Python
+canonical bytes and hashes with Zig signing.
 Core tests deterministically inject final-tail races and trim, check scan budgets,
 scoped discovery and two-endpoint links, and distinguish mailbox dispositions.
 Board adds its own ingress and generated API above this contract.

@@ -1,7 +1,7 @@
 # Versioning and hard cutovers
 
-Before Transit 1.0, the versioning policy requires one supported definition per
-Transit-owned protocol, named **v1**. Breaking changes replace that definition in a hard cutover. There
+Before Transit 1.0, every Transit-owned protocol has one supported definition,
+named **v1**. Breaking changes replace that definition in a hard cutover. There
 is no concurrent support for older definitions, deprecation window, fallback
 decoder or compatibility route. This keeps implementation, verification and
 documentation focused on the same current behavior.
@@ -62,11 +62,27 @@ navigation document only the supported definition. Git history and dated interna
 reviews preserve earlier designs and proof results. Historical passing results
 do not qualify the replacement; record newly executed evidence with the cutover.
 
-## Implementation boundary
+## Current native definition
 
-The current implementation still exposes bounded native v2 and growing native v3,
-plus Table query v1 and unified query v2. These are the inputs to the hard cutover,
-not an exception allowing continued parallel support. Existing versioned guides
-and contracts describe those implemented interfaces until their coordinated
-replacement lands. This policy alone does not rename a wire format or establish
-compatibility with v1 clients.
+The native service, authority, shared client and Station use the paged v1
+implementation. Native command and query routes are `/v1/command` and `/v1/query`.
+The [native reference](native.md) and [service contract](../../contracts/SERVICE_V1.md)
+identify their owning specifications. Retained artifacts from incompatible
+builds require the recovery procedure above.
+
+The native contract carries an opaque `definition` identifier in canonical
+signed requests and queries, query responses, persisted authority heads and
+saved-operation envelopes. Local installation records also require it. The
+current identifier is exported as `x-transit.definition` in the
+[generated schema](../../contracts/transit-v1.schema.json), from the shared
+protocol type. Unsupported identifiers reject; stored heads and saved requests
+without one reject before use. Signed bytes from an older definition cannot
+authenticate as the current definition.
+
+Generated ABI contracts carry the same identifier. Native SDK loaders compare
+it through the ABI definition-check export; port adapters validate the required
+definition in their capability response. A missing export or incompatible
+capability response fails loading. Replace the identifier whenever an
+incompatible wire, ABI or stored framework definition changes, including changes
+that retain the same fields but alter their meaning. It is a compatibility token,
+not an automatically computed source hash or a substitute for verification.

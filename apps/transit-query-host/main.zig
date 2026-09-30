@@ -19,8 +19,6 @@ const Config = struct {
     idle_max_interval_ms: u32 = 0,
     request_timeout_ms: u32 = 5000,
     role: union(enum) {
-        source: q.Behavior.Source,
-        requester: q.Behavior.Requester,
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
         table_source: q.TableSource.Configuration,
@@ -64,7 +62,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     if (config.role == .courier) return courier(init, &wire, config, key);
     if (config.pid == 0 or config.generation == 0) return error.MissingActivation;
     if (bootstrap) try q.wire.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .pid = config.pid, .principal = config.principal, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, config.bootstrap_timeout_ms);
-    var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association);
+    var server = try s.GenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, config.association);
     // Check current ownership before recording that this activation has run.
     _ = try server.session.receive();
     const directory = config.activation_directory orelse return error.MissingActivationDirectory;
@@ -75,12 +73,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         return err;
     };
     file.close(init.io);
-    const unified = config.role == .unified_source or config.role == .unified_requester or config.role == .table_source;
-    const workspace = try init.gpa.alloc(u8, if (unified) q.fuze.Unified.Arrow.working_bytes else q.fuze.execution.working_bytes);
+    const workspace = try init.gpa.alloc(u8, q.fuze.Unified.Arrow.working_bytes);
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
-    if (!unified) server.query = .{ .workspace = workspace, .cancellation = &cancellation };
-    server.failure_policy = if (unified) .stop else .block_input;
+    server.failure_policy = .stop;
     const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source or config.role == .table_source) q.UnifiedBehavior.adapter_bytes else 0);
     defer init.gpa.free(adapter);
     var unified_source: q.UnifiedBehavior.Source = .{
@@ -102,8 +98,6 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var table: q.TableSource = .{ .configuration = if (config.role == .table_source) config.role.table_source else undefined, .source = &unified_source };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
-        .source => |*source| source.interface(),
-        .requester => |*requester| requester.interface(),
         .finite_service => blk: {
             server.input_guard = finite.guard();
             break :blk finite.interface();
@@ -125,7 +119,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             // An ambiguous mutation retains exact bytes in server.pending. Never
             // discard/recompute it under this activation. A restarted OS worker
             // requires fresh fenced ownership, even if it exited while idle.
-            if (unified and server.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
+            if (server.pending == null and (err == error.Conflict or err == error.Rejected) and (wire.last_rejection == .StaleStateResource or wire.last_rejection == .QueryExpired or wire.last_rejection == .StateViewExpired)) {
                 if (wire.last_rejection == .StateViewExpired) server.view_id = null;
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
@@ -161,7 +155,7 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
     var idle_ms = config.interval_ms;
     while (true) {
         if (pending) |signed| {
-            _ = wire.submitGrowing(signed) catch |err| {
+            _ = wire.submit(signed) catch |err| {
                 if (err == error.AccessDenied or err == error.Rejected or err == error.Conflict) return err;
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
                 continue;
@@ -171,12 +165,12 @@ fn courier(init: std.process.Init, wire: *q.wire.Client, config: Config, key: p.
             idle_ms = config.interval_ms;
             continue;
         }
-        const basis = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
+        const basis = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .capabilities = {} } }, key) catch |err| {
             if (!q.wire.Client.unavailable(err)) return err;
             try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
             continue;
         };
-        const page = wire.queryGrowing(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
+        const page = wire.query(.{ .realm = config.realm, .principal = config.principal, .kind = .{ .outputs = .{ .after = after, .position = basis.position } } }, key) catch |err| {
             if (err == error.Conflict and wire.last_rejection == .QueryExpired) continue;
             if (q.wire.Client.unavailable(err)) {
                 try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);

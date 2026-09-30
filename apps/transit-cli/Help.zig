@@ -66,35 +66,21 @@ pub const console =
     \\Configuration: apps/transit-cli/docs/console.md
     \\
 ;
-pub fn query(v2: bool) []const u8 {
-    return if (v2)
-        \\Open the single-line KV/Table/Document query shell.
-        \\
-        \\Usage: transit query-v2 CONFIG
-        \\
-        \\Arguments:
-        \\  CONFIG  Query configuration file (required)
-        \\
-        \\Options:
-        \\  --help  Show this help
-        \\
-        \\SQL runs on Enter. .help lists session commands.
-        \\Configuration: apps/transit-cli/docs/unified-query.md
-        \\
-    else
-        \\Open the single-line Table query shell.
-        \\
-        \\Usage: transit query CONFIG
-        \\
-        \\Arguments:
-        \\  CONFIG  Query configuration file (required)
-        \\
-        \\Options:
-        \\  --help  Show this help
-        \\
-        \\SQL runs on Enter. .help lists session commands.
-        \\Configuration: apps/transit-cli/README.md
-        \\
+pub fn query() []const u8 {
+    return
+    \\Open the single-line KV/Table/Document query shell.
+    \\
+    \\Usage: transit query CONFIG
+    \\
+    \\Arguments:
+    \\  CONFIG  Query configuration file (required)
+    \\
+    \\Options:
+    \\  --help  Show this help
+    \\
+    \\SQL runs on Enter. .help lists session commands.
+    \\Configuration: apps/transit-cli/docs/unified-query.md
+    \\
     ;
 }
 pub const app =

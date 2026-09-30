@@ -29,25 +29,25 @@ class StationInstallation(Installation):
     def provision(self):
         records = {}
         for role, principal in self.principals.items():
-            pid = self.command("spawn-" + role, {"lifecycle": {"create": {"required": [b"data".hex(), None, None, None]}}})
-            resource = self.command("resource-" + role, {"state": {"create": {"writer": pid}}})
-            self.command("operator-state-" + role, {"state": {"grant": {"resource": resource, "subject": 0, "permissions": 7}}})
-            self.command("associate-" + role, {"state": {"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}}})
-            self.command("initialize-" + role, {"lifecycle": {"initialize": {"pid": pid, "expected_generation": 1}}})
+            pid = self.command("spawn-" + role, {'create': {"required": [b"data".hex(), None, None, None]}})
+            resource = self.command("resource-" + role, {'create_resource': {"writer": pid}})
+            self.command("operator-state-" + role, {'grant_resource': {"resource": resource, "subject": 0, "permissions": 7}})
+            self.command("associate-" + role, {'associate': {"pid": pid, "name": b"data".hex(), "resource": resource}})
+            self.command("initialize-" + role, {'initialize': {"pid": pid, "expected_generation": 1}})
             records[role] = {"pid": pid, "resource": resource, "principal": principal}
         write(self.path / "station.json", records)
         write(self.path / "pid.json", records["ledger"]["pid"])
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 33), (5, "delivery", 132),
+        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 128),
                                               (10, "station-observer", 20), (11, "station-lifecycle", 17)):
             grant = {"subject": principal, "public_key": self.key(label + "/seed.key"), "permissions": permissions}
             if label == "station-lifecycle": grant["pid"] = records["ledger"]["pid"]
             self.command("grant-" + label, {"grant": grant})
         for role, record in records.items():
-            self.command("board-state-" + role, {"state": {"grant": {"resource": record["resource"], "subject": 2, "permissions": 3}}})
+            self.command("board-state-" + role, {'grant_resource': {"resource": record["resource"], "subject": 2, "permissions": 3}})
             self.command("seed-" + role, {"send": {"pid": record["pid"], "value": frame(b"init")}})
         for role, principal in (("coordinator", 10), ("requester", 10), ("coordinator", 11)):
-            self.command(f"observe-state-{role}-{principal}", {"state": {"grant": {
-                "resource": records[role]["resource"], "subject": principal, "permissions": 3}}})
+            self.command(f"observe-state-{role}-{principal}", {'grant_resource': {
+                "resource": records[role]["resource"], "subject": principal, "permissions": 3}})
         for value in (b"allow-query", b"7", b"5"):
             self.command("seed-ledger-" + value.decode(), {"send": {"pid": records["ledger"]["pid"], "value": frame(value)}})
         self.command("registry-peer", {"send": {"pid": records["coordinator"]["pid"],
@@ -73,10 +73,7 @@ class StationInstallation(Installation):
                 "destination": records["requester" if role == "ledger" else "ledger"]["pid"]}
 
     def process(self, role):
-        path = self.path / "operator" / ("read-" + role + ".json")
-        write(path, {"realm": self.load()["realm"], "principal": 0, "sequence": 0,
-                     "command": {"inspect": self.records()[role]["pid"]}})
-        return json.loads(run([self.cli, "view", self.path / "operator/root.key", path, self.url], capture=True))["process"]
+        return self.native_query({"process": self.records()[role]["pid"]})["body"]["process"]["process"]
 
     def activate(self, name=None):
         for role in self.workloads if name is None else (name,):
@@ -90,7 +87,7 @@ class StationInstallation(Installation):
                 write(self.path / role / "seed.key", secrets.token_hex(32))
                 self.command("worker-grant-" + identity, {"grant": {"subject": record["principal"],
                     "public_key": self.key(role + "/seed.key"), "permissions": 88, "pid": record["pid"]}})
-                self.command("worker-state-" + identity, {"state": {"grant": {"resource": record["resource"], "subject": record["principal"], "permissions": 7}}})
+                self.command("worker-state-" + identity, {'grant_resource': {"resource": record["resource"], "subject": record["principal"], "permissions": 7}})
                 self.command("worker-own-" + identity, {"own": {"pid": record["pid"], "worker": record["principal"], "expected_generation": process["generation"]}})
                 write(self.path / role / "config.json", {"url": "http://node:8080" if self.profile == "compose" else self.url,
                     "realm": self.load()["realm"], "principal": record["principal"], "pid": record["pid"], "generation": process["generation"] + 1,

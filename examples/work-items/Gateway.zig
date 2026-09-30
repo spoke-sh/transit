@@ -87,7 +87,7 @@ fn json(allocator: std.mem.Allocator, request: *std.http.Server.Request, status:
     return respond(request, status, writer.buffered(), "application/json");
 }
 fn published(self: *Self, allocator: std.mem.Allocator, wire: *client.Client) !app.Host.Owned {
-    const identity = try wire.queryGrowing(.{ .realm = self.config.data.realm, .principal = self.config.inspection.principal, .kind = .{ .identity = {} } }, self.inspection_key);
+    const identity = try wire.query(.{ .realm = self.config.data.realm, .principal = self.config.inspection.principal, .kind = .{ .identity = {} } }, self.inspection_key);
     if (identity.body.identity.permissions != app.protocol.permission(.inspect)) return error.UnsafePrincipal;
     return app.Host.published(allocator, .{ .wire = wire, .realm = self.config.data.realm, .principal = self.config.inspection.principal, .key = self.inspection_key }, self.config.application.scope);
 }
@@ -109,7 +109,7 @@ fn workspace(self: *Self, allocator: std.mem.Allocator, wire: *client.Client, cu
         const head = try (try owner.ledger()).head(&reader);
         definition = try owner.source(try owner.selected(&reader));
         const contract = try definition.fingerprint();
-        if (selected.resource != definition.resource or selected.source_kind != .table or selected.profile != .unified_v2 or !std.mem.eql(u8, selected.name, "items") or !std.mem.eql(u8, &selected.schema, &contract) or !std.mem.eql(u8, &head.contract, &contract)) return error.QueryIdentityMismatch;
+        if (selected.resource != definition.resource or selected.source_kind != .table or selected.profile != .unified_v1 or !std.mem.eql(u8, selected.name, "items") or !std.mem.eql(u8, &selected.schema, &contract) or !std.mem.eql(u8, &head.contract, &contract)) return error.QueryIdentityMismatch;
     }
     return .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, definition), .limits = self.config.query.limits };
 }
@@ -147,7 +147,7 @@ fn publicRequest(self: *Self, alloc: std.mem.Allocator, wire: *client.Client, io
         defer value.deinit();
         return json(alloc, request, .ok, value.value);
     }
-    if (request.head.method != .POST or (!std.mem.eql(u8, target, "/api/v1/application") and !std.mem.eql(u8, target, "/api/v1/query-v2"))) return error.NotFound;
+    if (request.head.method != .POST or (!std.mem.eql(u8, target, "/api/v1/application") and !std.mem.eql(u8, target, "/api/v1/query"))) return error.NotFound;
     if (!std.mem.eql(u8, (try http.header(request, "origin")) orelse return error.InvalidOrigin, self.config.public_origin)) return error.InvalidOrigin;
     if (!std.mem.eql(u8, (try http.header(request, "content-type")) orelse "", "application/json")) return error.InvalidRequest;
     const application = std.mem.eql(u8, target, "/api/v1/application");

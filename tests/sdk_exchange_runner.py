@@ -76,7 +76,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                     conn.request('POST', self.path, data, {'Content-Type': 'application/json'})
                     result = conn.getresponse()
                     reply = result.read()
-                    if fault and self.path == '/v3/command' and result.status == 200:
+                    if fault and self.path == '/v1/command' and result.status == 200:
                         request = json.loads(data)['request']
                         operation = request['command']
                         if request['principal'] == 65536:
@@ -84,7 +84,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                             turn = operation.get('turn', operation.get('turn_with_versions', {}).get('turn', {}))
                             if any(value and bytes.fromhex(value['value'])[13:].startswith(b'GRR1') for value in turn.get('outputs', [])):
                                 boundary.hit('published')
-                    if delayed['enabled'] and self.path == '/v3/query':
+                    if delayed['enabled'] and self.path == '/v1/query':
                         delayed['enabled'] = False
                         accepted.touch()
                         time.sleep(0.7)
@@ -167,7 +167,7 @@ def run(node, cli, raw_library, worker, install, label, *, public_release=False,
                 cfg['generation'] += 1
                 own(cfg)
             deadline = time.time_ns() // 1_000_000 + 600000
-            caller.update(url=url, realm=72, profile='growing_v3', peer=service['pid'], body=body.hex(), deadline=deadline)
+            caller.update(url=url, realm=72, profile='native_v1', peer=service['pid'], body=body.hex(), deadline=deadline)
             if rpc:
                 caller.update(descriptor=peer.descriptor.hex(), method='/test.Peer/Bidi')
             child = start('http-caller', caller)

@@ -9,7 +9,7 @@ const m = q.fuze.Unified;
 pub const schema_options: q.protocol.Schema.Options = .{ .output = true, .safe_integers = true, .sequence_max_length = 8, .text_max_length = 131072 };
 pub const Config = struct { name: []const u8, source: v.Source, limits: v.Limits };
 pub const SqlCapabilities = struct {
-    version: u8 = 2,
+    version: u8 = 1,
     statement_bytes: u32 = q.fuze.Sql.max_statement_bytes,
     named_columns: u8 = 2,
     star_columns: u8 = m.max_columns,

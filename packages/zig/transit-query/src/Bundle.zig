@@ -5,7 +5,7 @@ const q = @import("root.zig");
 const m = q.fuze.Unified;
 const Self = @This();
 pub const max_bytes = 16384;
-pub const format: u32 = 0x32425155; // UQB2
+pub const format: u32 = 0x31425155; // UQB1
 source: q.SourceDefinition,
 plan: m.Plan,
 limits: Limits,
@@ -42,7 +42,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
     const plan = try m.Codec.encode(self.plan, &plan_bytes);
     if (32 + source.len + plan.len > max_bytes) return error.QueryBundleTooLarge;
     var writer: std.Io.Writer = .fixed(output);
-    try writer.writeAll("UQB2");
+    try writer.writeAll("UQB1");
     try writer.writeInt(u16, @intCast(source.len), .little);
     try writer.writeInt(u16, @intCast(plan.len), .little);
     inline for (.{ "pages", "segments", "result_bytes" }) |name| try writer.writeInt(u64, @field(self.limits, name), .little);
@@ -53,7 +53,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {
     if (bytes.len > max_bytes) return error.QueryBundleTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
-    if (!std.mem.eql(u8, try reader.take(4), "UQB2")) return error.InvalidQueryBundle;
+    if (!std.mem.eql(u8, try reader.take(4), "UQB1")) return error.InvalidQueryBundle;
     const source_length = try reader.takeInt(u16, .little);
     const plan_length = try reader.takeInt(u16, .little);
     const limits: Limits = .{ .pages = try reader.takeInt(u64, .little), .segments = try reader.takeInt(u64, .little), .result_bytes = try reader.takeInt(u64, .little) };

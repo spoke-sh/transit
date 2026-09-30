@@ -1,8 +1,8 @@
 # Fuze incremental execution v1
 
 `transit_fuze.Stream` executes bounded batches with owned progress that callers
-can persist and resume. [Station delivery](STATION_QUERY_V2.md) and the
-[public query profile](PUBLIC_QUERY_V1.md) separately define durable query integration. The finite
+can persist and resume. [Station delivery](STATION_QUERY_V1.md) and the
+[public query profile](UNIFIED_QUERY_V1.md) separately define durable query integration. The finite
 [Fuze v1 profile](FUZE_V1.md) remains supported.
 
 ## Execution boundary
@@ -10,7 +10,7 @@ can persist and resume. [Station delivery](STATION_QUERY_V2.md) and the
 The Zig-native engine accepts one bounded, ordered source batch at a time. It
 has no authority, client, durable storage, task scheduler or source credentials.
 Station supplies authorized pages from one retained Table version. KV/Document
-source adapters belong to the separate [unified query profile](UNIFIED_QUERY_V2.md).
+source adapters belong to the separate [unified query profile](UNIFIED_QUERY_V1.md).
 
 A separate incremental plan retains the existing typed predicates, projections
 and aggregate meanings. Its optional 64-bit row limit applies to the entire
@@ -109,7 +109,7 @@ zero, so durable encode/decode cannot silently change a plan fingerprint.
 
 ## Station integration gates
 
-The [Station query v2 design](STATION_QUERY_V2.md) specifies the durable job,
+The [Station query v1 design](STATION_QUERY_V1.md) specifies the durable job,
 staging and delivery boundaries; its status is separate from this pure engine.
 
 Station must bind the plan to one retained source and store a durable job identity,

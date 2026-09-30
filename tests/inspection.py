@@ -11,12 +11,13 @@ from storage import Fixture, free_port, wait_ready
 
 
 class System:
-    def __init__(self, node, cli, clock_error_ms=None):
+    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False):
         self.node, self.cli = node, cli
         self.store = Fixture()
         self.children, self.logs = [], []
         self.sequence = 0
         self.clock_error_ms = clock_error_ms
+        self.allow_history_trim = allow_history_trim
 
     def __enter__(self):
         self.store.__enter__()
@@ -25,7 +26,7 @@ class System:
         self.port = free_port()
         self.url = f"http://127.0.0.1:{self.port}"
         self.config = self.root / "node.json"
-        self.config.write_text(json.dumps({"genesis": {"realm": 72, "root_key": public, "retry_policy": "last_per_principal", "max_clock_error_ms": self.clock_error_ms},
+        self.config.write_text(json.dumps({"genesis": {"realm": 72, "root_key": public, "max_clock_error_ms": self.clock_error_ms, "allow_history_trim": self.allow_history_trim},
                                          "ursula_url": self.store.url, "bucket": "inspection", "journal": "authority",
                                          "port": self.port, "request_timeout_ms": 800}))
         self.authority = self.start(self.node, self.config, "--bootstrap")
@@ -78,25 +79,33 @@ class System:
 
     def command(self, command):
         self.sequence += 1
-        return self.post("/v2/command", self.signed(command, self.sequence))["position"]
+        return self.post("/v1/command", self.signed(command, self.sequence))["position"]
+
+    def native_query(self, kind, principal=0, seed=None, status=200):
+        path = self.root / "native-query.json"
+        path.write_text(json.dumps({"realm": 72, "principal": principal, "kind": kind}))
+        return self.post("/v1/query", self.invoke("sign-query", seed or self.seed, path), status)
 
     def query(self, resource, pid=None, principal=0, seed=None, **options):
         path = self.root / "query.json"
-        path.write_text(json.dumps({"realm": 72, "principal": principal, "resource": resource, "pid": pid, **options}))
-        return self.invoke("sign-inspection", seed or self.seed, path)
+        path.write_text(json.dumps({"realm": 72, "principal": principal, "kind": {"inspection": {"resource": resource, "pid": pid, **options}}}))
+        return self.invoke("sign-query", seed or self.seed, path)
 
     def inspect(self, resource, pid=None, status=200, **options):
-        return self.post("/v2/inspect", self.query(resource, pid, **options), status)
+        result = self.post("/v1/query", self.query(resource, pid, **options), status)
+        return result["body"]["inspection"] if status == 200 else result
 
 
 def run(node, cli):
     with System(node, cli) as s:
-        pids = [s.command({"spawn": {"initial_state": str(n).encode().hex()}}) for n in range(20)]
+        pids = [s.command({"spawn": {}}) for n in range(20)]
         seed, public = s.key("reader")
         s.command({"grant": {"subject": 1, "public_key": public, "permissions": 16, "pid": pids[0]}})
         first = s.inspect("processes")
-        assert len([p for p in first["processes"] if p]) == 16 and not first["complete"]
-        last = s.inspect("processes", cut=first["cut"], after=first["next"])
+        assert len([p for p in first["processes"] if p]) == 8 and not first["complete"]
+        middle = s.inspect("processes", cut=first["cut"], after=first["next"])
+        assert [p["pid"] for p in middle["processes"] if p] == pids[8:16]
+        last = s.inspect("processes", cut=first["cut"], after=middle["next"])
         assert [p["pid"] for p in last["processes"] if p] == pids[16:]
         assert last["complete"]
         scoped = s.inspect("processes", principal=1, seed=seed)
@@ -104,26 +113,27 @@ def run(node, cli):
         s.inspect("process", pids[1], principal=1, seed=seed, status=403)
         query = s.query("process", pids[0])
         canonical = json.dumps(query["query"], separators=(",", ":"))
-        assert canonical.startswith('{"version":1,"realm":72,"principal":0,"resource":"process"')
-        fixture = json.loads((Path(__file__).resolve().parents[1] / "packages/zig/transit-protocol/src/fixtures/inspection-v1.json").read_text())
-        assert hashlib.sha256(b"rey.transit.inspection.v1\0" + fixture["canonical"].encode()).hexdigest() == fixture["sha256"]
-        vector_key = s.root / "vector.key"
-        vector_key.write_text(fixture["seed_hex"])
-        vector_key.chmod(0o600)
-        vector_request = s.root / "vector-query.json"
-        vector_request.write_text(fixture["canonical"])
-        vector = s.invoke("sign-inspection", vector_key, vector_request)
-        assert vector["signature"] == fixture["signature"]
-        assert json.dumps(vector["query"], separators=(",", ":")) == fixture["canonical"]
-        query["query"]["pid"] = pids[1]
-        s.post("/v2/inspect", query, 403)
-        s.post("/v2/command", s.query("process", pids[0]), 400)
+        assert json.loads(canonical)["definition"] == json.loads((Path(__file__).resolve().parents[1] / "contracts/transit-v1.schema.json").read_text())["x-transit"]["definition"]
+        query["query"]["kind"]["inspection"]["pid"] = pids[1]
+        s.post("/v1/query", query, 403)
+        s.post("/v1/command", s.query("process", pids[0]), 400)
+        before = s.native_query({"capabilities": {}})["position"]
+        for version in (2, 3):
+            incompatible = s.signed({"spawn": {}}, s.sequence + 1)
+            incompatible["request"]["version"] = version
+            s.post("/v1/command", incompatible, 400)
+            old_query = s.query("process", pids[0])
+            old_query["query"]["version"] = version
+            s.post("/v1/query", old_query, 400)
+        for route in ("/v2/command", "/v2/view", "/v2/inspect", "/v3/command", "/v3/query"):
+            s.post(route, {}, 404)
+        assert s.native_query({"capabilities": {}})["position"] == before
         for _ in range(18):
             s.command({"send": {"pid": pids[0], "value": b"input".hex()}})
         s.inspect("processes", cut=first["cut"], after=first["next"], status=409)
         page = s.inspect("mailbox", pids[0])
         assert all(e["mailbox_status"] == "pending" for e in page["events"] if e)
-        assert len([e for e in page["events"] if e]) == 16
+        assert len([e for e in page["events"] if e]) == 8
         s.command({"revoke": 1})
         s.inspect("processes", principal=1, seed=seed, cut=scoped["cut"], status=403)
         s.authority.kill()

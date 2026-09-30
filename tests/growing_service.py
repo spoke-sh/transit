@@ -23,7 +23,7 @@ def main(node, caller, station_caller, query_caller, quota_caller):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        config.write_text(json.dumps({"profile": "growing_v3", "genesis": {
+        config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 42, "root_key": public, "max_clock_error_ms": 10000},
             "ursula_url": fixture.url, "bucket": "growing-service", "journal": "authority",
             "port": port, "resident_pages": 1, "request_timeout_ms": 10000}))
@@ -42,7 +42,7 @@ def main(node, caller, station_caller, query_caller, quota_caller):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/command" and any(
+                    if self.path == "/v1/command" and any(
                             name in envelope["request"]["command"] for name in ("turn", "turn_with_versions")):
                         fault["turns"] += 1
                         if fault["turns"] == 16:
@@ -52,7 +52,7 @@ def main(node, caller, station_caller, query_caller, quota_caller):
                         elif body == fault["pending"] and response.status == 200:
                             assert data == fault["receipt"], "Historical retry changed receipt"
                             fault["retried"] = True
-                    if fault["invalid_read"] and self.path == "/v3/query":
+                    if fault["invalid_read"] and self.path == "/v1/query":
                         assert response.status == 200
                         changed = json.loads(data)
                         changed["realm"] += 1

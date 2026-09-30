@@ -49,7 +49,7 @@ fn expired(resources: client.ResourceReader, config: Configuration, now: u64) !?
 }
 fn step(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, config: Configuration, state: *State, io: std.Io) !void {
     if (state.pending) |signed| {
-        state.position = (try wire.submitGrowing(signed)).position;
+        state.position = (try wire.submit(signed)).position;
         state.pending = null;
     }
     const resources: client.ResourceReader = .{ .wire = wire, .realm = realm, .principal = principal, .key = key };
@@ -82,6 +82,6 @@ fn step(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair
         state.next_sample = awake + config.interval_ms;
         state.maintenance = true;
     }
-    state.position = (try wire.submitGrowing(state.pending.?)).position;
+    state.position = (try wire.submit(state.pending.?)).position;
     state.pending = null;
 }

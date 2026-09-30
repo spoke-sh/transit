@@ -3,9 +3,9 @@
 -include("transit_client.hrl").
 -export([open/2, execute/2, evidence/1, close/1, recover/3, prepare/4, capabilities/2]).
 -record(state, {port, evidence = #transit_shutdown{}}).
-open(#transit_config{url = Url, profile = growing_v3, timeout_ms = Timeout, native_host = Override}, _) ->
+open(#transit_config{url = Url, profile = native_v1, timeout_ms = Timeout, native_host = Override}, _) ->
     %% Revalidate host values even if a caller constructed records directly.
-    {ok, _} = transit_client:config(Url, growing_v3, #{timeout_ms => Timeout, native_host => Override}),
+    {ok, _} = transit_client:config(Url, native_v1, #{timeout_ms => Timeout, native_host => Override}),
     Contract = transit_sdk_value:contract(transit_client),
     Port = transit_sdk_port:open(transit_native_client, Override, #{<<"url">> => Url, <<"timeout_ms">> => Timeout}, Contract),
     try
@@ -13,7 +13,7 @@ open(#transit_config{url = Url, profile = growing_v3, timeout_ms = Timeout, nati
         true = map_size(Hello) =:= 2,
         Caps = transit_sdk_port:request(Port, #{<<"capabilities">> => #{}}, capabilities, false, <<"ClientCapabilities">>),
         true = maps:get(<<"version">>, Caps) =:= 1,
-        true = lists:all(fun(Key) -> maps:get(Key, Caps) =:= true end, [<<"operation_metadata">>, <<"opaque_retry">>, <<"growing_v3">>]),
+        true = lists:all(fun(Key) -> maps:get(Key, Caps) =:= true end, [<<"operation_metadata">>, <<"opaque_retry">>, <<"native_v1">>]),
         #state{port = Port}
     catch _:_ -> catch transit_sdk_port:close(Port), transit_sdk_value:fail(incompatible_native, native_version) end;
 open(_, _) -> transit_sdk_value:fail(invalid_argument, client_config).
@@ -57,7 +57,7 @@ prepare(Port, Kind, #transit_credential{realm = Realm, principal = Principal, se
 recover(Port, Kind, Bytes) when Kind =:= send; Kind =:= mutation ->
     Frozen = transit_sdk_value:text(Bytes, transit_sdk_port:limit(Port, <<"max_body">>)),
     Meta = transit_sdk_port:request(Port, #{<<"metadata">> => Frozen}, metadata, false, <<"OperationMetadata">>),
-    case maps:get(<<"version">>, Meta) =:= 1 andalso maps:get(<<"profile">>, Meta) =:= <<"growing_v3">>
+    case maps:get(<<"version">>, Meta) =:= 1 andalso maps:get(<<"profile">>, Meta) =:= <<"native_v1">>
         andalso maps:get(<<"kind">>, Meta) =:= <<"growing_command">> andalso is_binary(maps:get(<<"command">>, Meta))
         andalso (Kind =/= send orelse maps:get(<<"command">>, Meta) =:= <<"send">>) of
         true -> ok;
@@ -74,8 +74,8 @@ recover(Port, Kind, Bytes) when Kind =:= send; Kind =:= mutation ->
 capabilities(Port, #transit_credential{realm = Realm, principal = Principal} = Credential) ->
     Frozen = prepare(Port, 7, Credential, #{<<"realm">> => Realm, <<"principal">> => Principal, <<"kind">> => #{<<"capabilities">> => #{}}}),
     Value = transit_sdk_port:request(Port, #{<<"call">> => Frozen}, authority_capabilities, false, undefined),
-    #{<<"version">> := 3, <<"body">> := #{<<"capabilities">> := Caps}} = Value,
-    #{<<"version">> := 3, <<"profile">> := <<"growing_v1">>} = Caps,
+    #{<<"version">> := 1, <<"body">> := #{<<"capabilities">> := Caps}} = Value,
+    #{<<"version">> := 1, <<"profile">> := <<"growing_v1">>} = Caps,
     #{realm => transit_sdk_value:counter(maps:get(<<"realm">>, Value)), observed_at => transit_sdk_value:counter(maps:get(<<"position">>, Value), 0),
         principal_sequence => transit_sdk_value:counter(maps:get(<<"principal_sequence">>, Value), 0),
         page_size => transit_sdk_value:counter(maps:get(<<"page_entries">>, Caps)), mutations_per_turn => transit_sdk_value:counter(maps:get(<<"mutation_budget">>, Caps)),

@@ -1,4 +1,4 @@
-//! Finite v2 IPC decoding. All Arrow allocations use fixed workspace. Returned
+//! Finite v1 IPC decoding. All Arrow allocations use fixed workspace. Returned
 //! scalar bytes are copied into caller-owned result storage, never that workspace.
 const std = @import("std");
 const f = @import("root.zig");

@@ -1,15 +1,13 @@
-# Growing authority persistence
+# Native authority persistence
 
-Status: M10 development integration. `GrowingStore` implements the journal side
-of [growing core](../../transit-core/docs/growing.md); `PackedPageStore` supplies
-its immutable data. The node and Zig client have an
-[explicit development profile](../../../../apps/transit-node/docs/growing.md);
-launcher defaults and Station remain v2. A realm must explicitly select v3; automatic conversion or
-mixed-profile writers are forbidden.
+`Store` implements the journal side of [native core](../../transit-core/docs/growing.md);
+`PackedPageStore` supplies immutable data. The [node](../../../../apps/transit-node/docs/growing.md),
+Station and launchers use this single v1 definition. Automatic conversion and
+mixed-definition writers are unsupported.
 
 ## Publication and ownership
 
-Both stores borrow an Ursula client and configured authority journal. The growing
+Both stores borrow an Ursula client and configured authority journal. The journal
 store owns one cached journal entry. It reads one verified record coordinate,
 bounds encoded entries at 64 KiB and copies owned typed fields before releasing
 the parse arena. The caller's upstream response ceiling also bounds transport
@@ -55,7 +53,7 @@ just test::growing --rows 256 --cache 16 --cold-s3
 just test::scale
 ```
 
-The ordinary proof runs 20 principals above the legacy identity range, 70 PIDs,
+The ordinary proof runs 20 principals with full-width identities, 70 PIDs,
 six resources and 64 retained 256-byte values with one decoded page slot. It
 compares a captured half-written version with the completed resource, checks
 process progress and pending outputs, and replays an exact retained receipt.
@@ -66,8 +64,8 @@ Retained roots survive without copying resources into memory or retaining a
 worker activation. Page garbage collection remains outside this proof.
 Competing publication after revocation, failure before append and lost response
 after real append are explicit schedules. SIGKILL separates write, recover,
-checkpoint and trim/recover phases. Missing required page storage and legacy
-profile parsing fail; temporary clock samples are deterministic test inputs.
+checkpoint and trim/recover phases. Missing required page storage and incompatible
+history parsing fail; temporary clock samples are deterministic test inputs.
 
 Artifacts `.cache/verification/growing-<hot|s3>-<rows>-<cache>.json` record revision,
 dirty state, binary hash, cache/data/catalog sizes, page requests, elapsed time,
@@ -78,30 +76,11 @@ not provider memory qualification. Timeouts/errors stay inconclusive.
 
 The page cache is bounded, but fanout, path-copy and protocol-operation request
 amplification remain substantial. This is not millisecond execution evidence.
-The node now composes a separate bounded maintenance process and qualifies its
-snapshot-reply loss, trim timeout, current revocation and restart through
-`just test::growing-service`. Its separate Station scenarios qualify bounded
-handler/result paging. Runtime bindings and migration tooling remain outside the
-qualified growing profile.
-The [finite capacity proof](../../../../tests/README.md#growing-physical-capacity)
-now covers one-page-cache state through real ENOSPC, reserved control writes,
-root trim and read-only restart. Old deployed v2 history stays on its explicit legacy path; rejection
-of incompatible formats is not a completed migration facility.
-
-Initial local Debug evidence (single runs, not a latency distribution):
-
-| Retained rows | Provider tier | Transit page cache | Write and verification | Restart and verification | Client peak RSS on recovery | Ursula peak RSS on recovery |
-| ---: | --- | ---: | ---: | ---: | ---: | ---: |
-| 64 | Disk WAL, hot only | 8,532 bytes | 23.14 s | 2.36 s | 12,168 KiB | 61,052 KiB |
-| 256 | Disk WAL and S3 | 8,532 bytes | 68.99 s | 7.49 s | 12,172 KiB | 73,928 KiB |
-
-The 256-row run retained 984 catalog records before checkpoint, including work,
-principals and retry/view evidence. It made 57,288 page requests during setup,
-writing and verification; this is not a per-turn benchmark. MinIO peaked at
-215,496 KiB during that recovery phase and stored about 11.3 MB of files. Both
-runs passed checkpoint and post-trim restart. The unchanged client budget and
-retained correctness establish this small growth path; request amplification,
-provider growth at larger sizes and end-to-end execution latency remain open.
+The node composes a separate bounded maintenance process. Service schedules
+exercise snapshot-reply loss, trim timeout, current revocation and restart;
+Station and runtime controllers have their own integration checks. The
+[proof ledger](../../../../tests/README.md) owns executed outcomes and their scope.
+Incompatible deployed history fails closed; rejection does not convert old data.
 
 The measurement driver also records per-operation and complete-turn nanoseconds,
 nearest-rank p50/p95/p99, page hits/misses, attempted page payload bytes, orphan
@@ -111,7 +90,7 @@ storage I/O, not a device-level persistence or write-amplification proof.
 A complete-turn sample includes admission, view acquisition, private preparation,
 publication and intervening correctness reads; it is not just append latency.
 Opening an engine is timed separately from full retained-data verification.
-The control catalog now retains 69 associations, crossing the legacy 64 slots.
+The control catalog now retains 69 associations, across multiple catalog pages.
 All phases use the same configurable cache; the one-page default still retains
 more application bytes than its decoded cache. Larger-cache comparison samples
 need not exceed their cache. The fixture uses the checkout filesystem instead of

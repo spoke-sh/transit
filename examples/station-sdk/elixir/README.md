@@ -17,7 +17,7 @@ ERL_LIBS=/tmp/transit-libs elixir -e 'Transit.SdkExamples.CounterMain.main()' --
 ERL_LIBS=/tmp/transit-libs elixir -e 'Transit.SdkExamples.CounterMain.main()' -- config.json requester --commits 1
 ```
 
-Each role has its own config with `url`, `profile: "growing_v3"`, `realm`,
+Each role has its own config with `url`, `profile: "native_v1"`, `realm`,
 `principal`, `pid`, `generation`, `seed_file` and `peer`. Provision grants,
 ownership and a `data` association first; delivery belongs to the deployment.
 The CLI explicitly selects `:fresh_ownership`, stops on uncertainty and requires

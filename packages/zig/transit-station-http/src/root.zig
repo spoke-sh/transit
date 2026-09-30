@@ -40,7 +40,7 @@ pub const Completion = struct {
 
 /// Request and body text use the common segment publication/coverage lifecycle.
 /// Each call is private until its enclosing fenced turn commits.
-pub fn beginSegment(capture: exchange.Exchange, turn: *exchange.station.GrowingTurn, ordinal: u32, kind: Kind, bytes: []const u8) !exchange.Publication.Outcome {
+pub fn beginSegment(capture: exchange.Exchange, turn: *exchange.station.Turn, ordinal: u32, kind: Kind, bytes: []const u8) !exchange.Publication.Outcome {
     if ((try capture.inspect(turn)).protocol != protocol_format) return error.WrongExchangeProtocol;
     return capture.beginSegment(turn, ordinal, @backingInt(kind), try exchange.Publication.Digest.of(protocol_format, bytes));
 }

@@ -35,7 +35,7 @@ refresh authority and execute all current permission/lifetime checks. This cache
 holds at most about 35 KiB of record bytes and is independent of the configured
 page-cache slots. Every batch acknowledgement is checked
 before the existing final authority commit; failed staging can leave retained
-orphans but cannot publish a partial turn. Format-2 page locators remain compatible.
+orphans but cannot publish a partial turn. The current v1 page encoding includes opaque storage locators.
 Application mutation quotas and durable payload publication bounds are unchanged.
 The [workload model](workloads.md#architectural-priorities) distinguishes hot
 keyed state, append-heavy history and analytical read structures; none bypass

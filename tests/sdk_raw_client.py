@@ -47,14 +47,14 @@ def run(node, cli, raw_library, install, label):
                     connection.request('POST', target, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == '/v3/command':
+                    if self.path == '/v1/command':
                         fault['bodies'].append(body)
-                    if self.path == '/v3/command' and fault['drop'] and response.status == 200:
+                    if self.path == '/v1/command' and fault['drop'] and response.status == 200:
                         fault['drop'] = False
                         self.close_connection = True
                         return
                     if fault['delay']:
-                        if self.path == '/v3/command' and response.status == 200:
+                        if self.path == '/v1/command' and response.status == 200:
                             accepted.touch()
                         time.sleep(0.6)
                     self.send_response(response.status)

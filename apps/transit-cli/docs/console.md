@@ -70,7 +70,7 @@ its serialized caller and recovery-file locks.
 
 ```yaml
 version: 1
-profile: "unified_v2"
+profile: "unified_v1"
 url: "http://127.0.0.1:8301"
 transport: "loopback"
 seed_file: "caller.key"
@@ -84,7 +84,7 @@ connection:
 workspace:
   name: "items"
   source:
-    version: 2
+    version: 1
     resource: 7
     source:
       table:
@@ -155,9 +155,9 @@ error and returns to the prompt when recovery permits.
 | `.quit`, EOF | Exit; active interactive execution is canceled |
 
 There is no `.new`, `.retry`, `.advance` or `.next` in the console. Normal SQL
-performs that bookkeeping. The compatibility `query` and `query-v2` shells keep
+performs that bookkeeping. The compatibility `query` and `query` shells keep
 their separate explicit protocols, with dot commands; they are not advertised in
-root help. See the [v2 shell guide](unified-query.md) for that interface.
+root help. See the [v1 shell guide](unified-query.md) for that interface.
 
 `.show` always prints one setting per line with right-aligned names and aligned
 colons, including in JSON result mode. Automatic connection selection appears
@@ -269,7 +269,7 @@ execution stops and releases its snapshot; durable accepted work survives these
 disconnects. Killed interactive clients leave only bounded lease bookkeeping:
 60 seconds between reads, with a five-minute hard lifetime. The authority admits
 at most 64 active snapshots, eight per principal. Tokens do not survive authority
-restart. The `query` and `query-v2` shells retain their explicit cancellation and
+restart. The `query` and `query` shells retain their explicit cancellation and
 recovery protocols. Cancellation cannot undo completed work or a disclosed prefix.
 
 ## Exact recovery and bounds

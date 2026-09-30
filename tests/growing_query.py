@@ -23,9 +23,9 @@ def run(node, caller, *, finish_pages=64):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        config.write_text(json.dumps({"profile": "growing_v3", "genesis": {
+        config.write_text(json.dumps({"profile": "native_v1", "genesis": {
             "realm": 44, "root_key": public, "max_clock_error_ms": 10000},
-            "ursula_url": fixture.url, "bucket": "growing-query", "journal": "authority",
+            "ursula_url": fixture.url, "bucket": "query", "journal": "authority",
             "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         manifest = fixture.root / "query.json"
         fault = {"stage": None, "seal": None, "publish": None, "receive": None,
@@ -43,7 +43,7 @@ def run(node, caller, *, finish_pages=64):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/query" and response.status == 200:
+                    if self.path == "/v1/query" and response.status == 200:
                         kind = envelope["query"]["kind"]
                         if "version_entries" in kind:
                             entries = kind["version_entries"]
@@ -52,7 +52,7 @@ def run(node, caller, *, finish_pages=64):
                                 page = json.loads(data)["body"]["version_entries"]["page"]
                                 assert sum(item is not None for item in page["entries"]) <= 8
                                 fault["queries"] += 1
-                    if self.path == "/v3/command" and response.status == 200:
+                    if self.path == "/v1/command" and response.status == 200:
                         command = envelope["request"]["command"]
                         turn = command.get("turn", command.get("turn_with_versions", {}).get("turn", {}))
                         keys = [bytes.fromhex(item["key"]) for item in turn.get("mutations", []) if item]
@@ -128,9 +128,9 @@ def run(node, caller, *, finish_pages=64):
                 data = Path(f"{manifest}.{ordinal}.arrow").read_bytes()
                 assert segment["result"] == job["result"] and segment["ordinal"] == ordinal
                 assert segment["bytes"] == len(data) and bytes(segment["digest"]) == hashlib.sha256(data).digest()
-                encoded = (b"GQS2" + struct.pack("<QQHB", job["result"], ordinal, len(data), segment["rows"])
+                encoded = (b"GQS1" + struct.pack("<QQHB", job["result"], ordinal, len(data), segment["rows"])
                            + bytes(segment["digest"]))
-                chain = hashlib.sha256(b"transit.station.query.segments.v2\x00" + chain + encoded).digest()
+                chain = hashlib.sha256(b"transit.station.query.segments.v1\x00" + chain + encoded).digest()
                 with pa.ipc.open_stream(data) as reader:
                     batches = list(reader)
                     assert reader.schema == pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("value", pa.string())])

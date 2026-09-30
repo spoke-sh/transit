@@ -149,5 +149,5 @@ caller authority/lifecycle. A first half is one durable mutation; completion
 atomically writes the chunk, advances its descriptor and deletes scratch (three
 mutations). Repeating any previously committed part checks exact retained bytes.
 Wrong specs, changed parts, unavailable chunks and gaps reject. This helper adds
-no wire format or implicit publication; query v2 retains its existing command
+no wire format or implicit publication; query v1 retains its existing command
 encoding and lifecycle, and native frame/value bounds remain unchanged.

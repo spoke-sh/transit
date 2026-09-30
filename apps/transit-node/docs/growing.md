@@ -1,25 +1,22 @@
-# Growing profile (M10 development)
+# Native authority configuration
 
-[transit-node](../README.md) accepts an explicit `"profile": "growing_v3"`
-configuration. Omitting `profile`, or choosing `"v2"`, keeps the existing protocol.
-This development profile has [bounded M10 qualification](../../../tests/README.md#m10-verification-and-scale-foundations),
-including repeated disk/S3 growth and recovery. Launchers, Board, default Station,
-provider controllers and legacy foreign behavior bindings still use v2; they do not silently
-negotiate or convert to v3.
+[transit-node](../README.md) serves one paged native v1 definition. `profile`
+defaults to `native_v1`; other values reject. Launchers, Board, Station and
+runtime controllers use the same native command/query boundary.
 
 ## Configuration
 
-Use a fresh bucket/journal location for v3. The expected `genesis` is the
+The expected `genesis` is the
 [growing genesis](../../../packages/zig/transit-core/docs/growing.md), including
-`version: 3`, `realm`, `root_key`, optional `max_clock_error_ms`, required-resource
+`version: 1`, `realm`, `root_key`, optional `max_clock_error_ms`, required-resource
 and dependency-graph operation budgets, and `allow_history_trim` (false by default).
 It is a trusted bootstrap input, not a root signing credential. Startup validates
 the durable genesis fingerprint. An old history is an error, not an empty realm.
 
-| Field | Development behavior |
+| Field | Meaning |
 | --- | --- |
-| `profile` | Required literal `growing_v3` for this mode |
-| `genesis` | Exact expected v3 genesis |
+| `profile` | Literal `native_v1`, also the default |
+| `genesis` | Exact expected v1 genesis |
 | `ursula_url`, `bucket`, `journal` | Private provider location |
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
 | `resident_pages` | Decoded page cache slots, default 16, configurable 0–1024; not retained cardinality |
@@ -56,15 +53,15 @@ and provider housekeeping; the configured record band alone cannot ensure it.
 
 `--initialize` and `--bootstrap` explicitly create the authority and packed page
 journals. Ordinary startup requires existing history. Both use the same
-[clock and diagnostic boundary](operations.md#time-and-deadlines) as v2. Finite
+[clock and diagnostic boundary](operations.md#time-and-deadlines) used by the service. Finite
 views require a configured trusted clock bound even for unlimited-lifetime state.
 The cache budget omits transport buffers, parsing and provider memory; consult
 the [storage measurements](../../../packages/zig/transit-backend-ursula/docs/growing.md).
 
 ## Public surface and limits
 
-The listener provides `GET /health`, `POST /v3/command` and `POST /v3/query`.
-The [contract](../../../contracts/TRANSIT_V3.md) owns signed types and semantics.
+The listener provides `GET /health`, `POST /v1/command` and `POST /v1/query`.
+The [contract](../../../contracts/TRANSIT_V1.md) owns signed types and semantics.
 Public queries require current inspection rights plus resource/PID scope where
 applicable. Values remain opaque application bytes. Computation runs in the
 caller; the node validates identity, ordering, state dependencies and publication.
@@ -91,16 +88,14 @@ Capabilities advertise the implemented operation budgets, named association
 lookup, scoped failed-input retry, retained read versions and support for root
 history reclamation. Retained versions use bounded point/page reads under current
 ownership and resource grants; they do not enable an authority-side query engine.
-Runtime bindings and complete Station support remain false. The
+Runtime bindings and Station support are advertised. The
 selected history policy is independently `unlimited` or `checkpointed`; supporting
 maintenance does not opt an application into trimming. Clock-based operations
 fence known-expired work immediately; materialized terminal metadata can lag.
 
-Beyond the finite capacity profile above, no migration, production throughput or
-clustered-provider guarantee is implied. Large results use the explicit Station
-query profile, not an unbounded node response. The node
-remains sequential within a realm; additional replicas still share its one
-conditional publication journal.
+The service does not convert histories across incompatible definitions. Large
+results use Station query publications and bounded segments. Replicas still
+share one conditional publication journal per realm.
 
 ## Background maintenance
 
@@ -157,5 +152,5 @@ without its reply, times out an accepted trim, revokes/regrants the maintenance
 principal and restarts node/provider/worker. It verifies terminal dispositions,
 retained outputs, unresolved authorized attempts and independent-state survival.
 The [client guide](../../../packages/zig/transit-client/docs/growing.md) explains
-the explicit development API. Existing v2 service proofs remain required after
-changes to the shared listener or client transport.
+the native API. Changes to the shared listener or client transport require
+the corresponding service and recovery proofs.

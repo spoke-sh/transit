@@ -8,14 +8,14 @@ const telemetry = wire.observability.telemetry;
 const Config = struct {
     url: []const u8,
     realm: u64,
-    principal: u8,
+    principal: u64,
     pid: u64,
     generation: u64 = 0,
     seed_file: ?[]const u8 = null,
     association: []const u8 = "data",
     role: @FieldType(handler.Application, "role") = .ledger,
     destination: ?u64 = null,
-    observer: ?u8 = null,
+    observer: ?u64 = null,
     registry: ?u64 = null,
 };
 
@@ -63,6 +63,9 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     }, config.association);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&behavior.session.key));
     var application: handler.Application = .{ .role = config.role, .destination = config.destination, .observer = config.observer, .registry = config.registry };
+    var workspace: [station.fuze.execution.working_bytes]u8 = undefined;
+    const cancellation = station.fuze.execution.Cancellation.init(false);
+    behavior.query = .{ .workspace = &workspace, .cancellation = &cancellation };
     while (true) {
         const proposed_deadline: u64 = @intCast(std.Io.Clock.real.now(init.io).toMilliseconds() + 30_000);
         const result = behavior.step(application.behavior(), proposed_deadline) catch |err| switch (err) {

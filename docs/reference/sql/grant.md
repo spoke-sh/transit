@@ -33,7 +33,7 @@ PID ownership and resource permissions are separate; a grant does not establish
 writer ownership. A name, association or connection cannot supply a grant.
 
 Use the public [native protocol](../native.md) and
-[security contract](../../../contracts/SERVICE_V2.md) for implemented operations.
+[security contract](../../../contracts/SERVICE_V1.md) for implemented operations.
 Query-source policy has its own owner and must be configured explicitly.
 [Security](../security.md) explains scope, current checks and delegation limits.
 

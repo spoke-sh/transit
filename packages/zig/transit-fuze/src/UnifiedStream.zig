@@ -1,4 +1,4 @@
-//! Bounded, restartable evaluation over one exact v2 source. Adapter cursors
+//! Bounded, restartable evaluation over one exact v1 source. Adapter cursors
 //! persist beside this checkpoint; source permissions never live in progress.
 const std = @import("std");
 const f = @import("root.zig");
@@ -42,7 +42,7 @@ pub const Progress = struct {
     pub fn encode(self: Progress) ![progress_bytes]u8 {
         var output: [progress_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&output);
-        try writer.writeAll("FZS2");
+        try writer.writeAll("FZS1");
         try writer.writeByte(@backingInt(self.basis.kind));
         try writer.writeInt(u64, self.basis.resource, .little);
         try writer.writeInt(u64, self.basis.revision, .little);
@@ -59,7 +59,7 @@ pub const Progress = struct {
     pub fn decode(bytes: []const u8) !Progress {
         if (bytes.len != progress_bytes) return error.InvalidQueryProgress;
         var reader: std.Io.Reader = .fixed(bytes);
-        if (!std.mem.eql(u8, try reader.take(4), "FZS2")) return error.InvalidQueryProgress;
+        if (!std.mem.eql(u8, try reader.take(4), "FZS1")) return error.InvalidQueryProgress;
         var result: Progress = .{
             .basis = .{
                 .kind = std.enums.fromInt(m.SourceKind, try reader.takeByte()) orelse return error.InvalidQueryProgress,

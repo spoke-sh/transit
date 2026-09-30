@@ -23,7 +23,7 @@ golden(F,Cfg)->
     {error,_}=transit_document:prepare(Change#transit_document_change{operations=[{assign,Root,<<"x">>,[],{string,<<16#ed,16#a0,16#80>>}}]}),ok.
 prepare(Cfg)->[begin {ok,C}=transit_document:decode(binary:decode_hex(B)),{ok,P}=transit_document:prepare(C),P end||B<-maps:get(<<"changes">>,Cfg)].
 open(Cfg,S,Changes)->
-    {ok,Client}=transit_client:config(maps:get(<<"url">>,Cfg),growing_v3,#{timeout_ms=>15000}),
+    {ok,Client}=transit_client:config(maps:get(<<"url">>,Cfg),native_v1,#{timeout_ms=>15000}),
     Service=#transit_service{client=Client,activation=#transit_activation{process=#transit_process{realm=72,pid=maps:get(<<"pid">>,Cfg)},generation=maps:get(<<"generation">>,Cfg),credential=#transit_credential{realm=72,principal=maps:get(<<"principal">>,Cfg),seed_file=maps:get(<<"seed_file">>,Cfg)}}},
     transit_station_sdk:open(Service,?MODULE,{S,Changes},?MODULE,stop,fresh_ownership).
 initialize(Turn,Context)->{ok,ok}=transit_document:create(Turn,?MAX,1),{ok,Context}.

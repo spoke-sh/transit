@@ -44,7 +44,7 @@ std::string source_wire(const transit_station_unified_source &v) {
             projections+="{\"column\":"+column_wire(p.column)+",\"path\":"+path_wire(p.path,p.path_count)+",\"relative\":"+(p.relative?"true":"false")+",\"mode\":"+quote(modes[p.mode])+",\"text_bytes\":"+decimal(p.text_bytes)+",\"text_steps\":"+decimal(p.text_steps)+"}";}
         source="{\"document\":{\"reference\":{\"resource\":"+decimal(r.resource.resource)+",\"document\":"+quote(decimal(r.document))+",\"epoch\":"+quote(decimal(r.epoch))+",\"type_revision\":"+decimal(r.type_revision)+",\"revision\":"+quote(decimal(r.revision))+"},\"change_format\":1,\"expand\":"+(d.has_expansion?path_wire(d.expand,d.expand_count):"null")+",\"projections\":"+projections+"]}}";
     }
-    return "{\"version\":2,\"resource\":"+decimal(v.resource.resource)+",\"source\":"+source+"}";
+    return "{\"version\":1,\"resource\":"+decimal(v.resource.resource)+",\"source\":"+source+"}";
 }
 std::string scalar_wire(const transit_station_unified_scalar &v) {
     switch(v.type){
@@ -68,7 +68,7 @@ std::string plan_wire(const transit_station_unified_plan &v) {
     if(v.predicate==TRANSIT_UNIFIED_IS_STATE){require(v.state>=TRANSIT_UNIFIED_MISSING && v.state<=TRANSIT_UNIFIED_CONFLICT,"query-state");predicate="{\"state\":{\"column\":"+decimal(v.column)+",\"value\":"+quote(states[v.state])+"}}";}
     else if(v.predicate==TRANSIT_UNIFIED_COMPARE){require(v.comparison>=TRANSIT_COMPARE_EQ && v.comparison<=TRANSIT_COMPARE_GE,"query-comparison");predicate="{\"compare\":{\"column\":"+decimal(v.column)+",\"op\":"+quote(comparisons[v.comparison])+",\"value\":"+scalar_wire(v.value)+"}}";}
     else require(v.predicate==TRANSIT_UNIFIED_ALL,"query-predicate");
-    return "{\"version\":2,\"projection\":"+projection+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
+    return "{\"version\":1,\"projection\":"+projection+"],\"predicate\":"+predicate+",\"aggregate\":"+quote(aggregates[v.aggregate])+",\"limit\":"+(v.has_limit?quote(decimal(v.limit)):"null")+"}";
 }
 std::string limits_wire(transit_station_unified_budgets v) {require(v.pages && v.segments && v.result_bytes,"query-budgets");return "{\"pages\":"+quote(decimal(v.pages))+",\"segments\":"+quote(decimal(v.segments))+",\"result_bytes\":"+quote(decimal(v.result_bytes))+"}";}
 Bytes codec(Local &local,const std::string &action) {
@@ -94,7 +94,7 @@ struct NativeQuery {
         Seed seed(identity.seed_file);station_query_client *pointer=nullptr;
         const auto status=local.station_unified_query_create(STATION_ABI_VERSION,reinterpret_cast<const uint8_t*>(url.data()),url.size(),seed.data(),reinterpret_cast<const uint8_t*>(json.data()),json.size(),&pointer);
         handle.reset(pointer);local.raw.check(status,{},"open-query");require(pointer,"query-handle");
-        const auto caps=call("{\"capabilities\":{}}");require(local.raw.number(caps,"capabilities/version")==2,"query-version");
+        const auto caps=call("{\"capabilities\":{}}");require(local.raw.number(caps,"capabilities/version")==1,"query-version");
         for(const char *kind:{"kv","table","document"})require(local.raw.boolean(caps,std::string("capabilities/")+kind),"query-sources");
     }
     Bytes call(const std::string &action,bool mutation=false) {

@@ -1,8 +1,8 @@
-//! One ordered semantics for all v2 source adapters. No rewrites are enabled.
+//! One ordered semantics for all v1 source adapters. No rewrites are enabled.
 const std = @import("std");
 const m = @import("Unified.zig");
 const Self = @This();
-version: u8 = 2,
+version: u8 = 1,
 predicate: Predicate = .all,
 projection: []const u8,
 limit: ?u64 = null,
@@ -16,7 +16,7 @@ pub const Predicate = union(enum) {
 };
 pub fn validate(self: Self, schema: m.Schema) !void {
     try schema.validate();
-    if (self.version != 2) return error.UnsupportedPlan;
+    if (self.version != 1) return error.UnsupportedPlan;
     if (self.projection.len == 0 or self.projection.len > m.max_columns) return error.InvalidProjection;
     for (self.projection, 0..) |column, index| {
         _ = try schema.column(column);
@@ -42,7 +42,7 @@ pub fn bind(self: Self, basis: m.Basis, schema: m.Schema) !Bound {
     var bytes: [m.Codec.max_plan_bytes]u8 = undefined;
     const encoded = try m.Codec.encode(self, &bytes);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.fuze.plan.v2\x00");
+    hash.update("transit.fuze.plan.v1\x00");
     hash.update(encoded);
     return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = hash.finalResult() };
 }

@@ -92,7 +92,7 @@ def run(host, library):
         fixture = fixtures[index]
         assert prepared['bytes'] == fixture['wire_hex']
         reference = bytes.fromhex(fixture['reference_hex'])
-        assert prepared['spec'] == dict(format=0x32425155, length=len(bytes.fromhex(fixture['wire_hex'])), digest=list(reference[-32:]))
+        assert prepared['spec'] == dict(format=0x31425155, length=len(bytes.fromhex(fixture['wire_hex'])), digest=list(reference[-32:]))
         decoded = check({'decode': fixture['wire_hex']})['bundle']
         assert check({'prepare': decoded})['prepared'] == prepared
         declared = check({'source': source})['source']

@@ -1,6 +1,6 @@
 # Unified state queries
 
-Import `unified` from `@transit/station` for v2 KV, Table and accepted Document
+Import `unified` from `@transit/station` for v1 KV, Table and accepted Document
 queries. The existing Table v1 APIs remain available. Public source, plan and
 result types are separate from the generated wire schemas; every port request
 and response is runtime-validated. Shared Zig owns protocol and query semantics.
@@ -27,7 +27,7 @@ const bundle = await q.Bundle.prepare(
 ```
 
 `q.Client.open(config, credential, connection)` opens one owned native port.
-Select `growing_v3`; supply the endpoint, explicit credential and a `q.Connection`
+Select `native_v1`; supply the endpoint, explicit credential and a `q.Connection`
 binding source/requester processes and resources in one realm. The caller needs
 no activation or writer ownership. `nativeHost` overrides installed discovery.
 Import starts no process or credential access. Call `close()` in `finally`;

@@ -16,6 +16,7 @@ pub const read_permissions = p.State.permission(.inspect) | p.State.permission(.
 pub const limits: q.Bundle.Limits = .{ .pages = 1000, .segments = 128, .result_bytes = 1048576 };
 pub const Record = struct {
     version: u8 = 1,
+    definition: g.Definition,
     identity: Config.Identity,
     installation: [16]u8,
     root_public: [32]u8,
@@ -49,7 +50,7 @@ pub fn save(self: *Self) !void {
     };
 }
 pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    const response = try self.wire.queryGrowing(.{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root);
+    const response = try self.wire.query(.{ .realm = self.config.realm, .principal = 0, .kind = kind }, self.root);
     if (response.position < self.record.position) return error.AuthorityRollback;
     if (response.position > self.record.position or !self.record.genesis_observed) {
         self.record.position = response.position;
@@ -60,7 +61,7 @@ pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
 }
 pub fn flush(self: *Self) !void {
     const pending = self.record.pending orelse return;
-    const receipt = try self.wire.submitGrowing(pending.signed);
+    const receipt = try self.wire.submit(pending.signed);
     switch (pending.effect) {
         .provision => self.record.provision[pending.index] = receipt.position,
         .initialize => self.record.initialized[pending.index] = true,
@@ -75,7 +76,7 @@ pub fn flush(self: *Self) !void {
 pub fn submit(self: *Self, principal: u64, command: g.Command, effect: @FieldType(Pending, "effect"), index: u8) !void {
     if (self.record.pending != null) return error.UnresolvedProvisioning;
     const key = if (principal == 0) self.root else self.caller_key;
-    const basis = try self.wire.queryGrowing(.{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key);
+    const basis = try self.wire.query(.{ .realm = self.config.realm, .principal = principal, .kind = .{ .capabilities = {} } }, key);
     if (basis.position < self.record.position) return error.AuthorityRollback;
     self.record.position = basis.position;
     self.record.pending = .{ .signed = try g.sign(.{ .realm = self.config.realm, .principal = principal, .sequence = try std.math.add(u64, basis.principal_sequence, 1), .command = command }, key), .effect = effect, .index = index };
@@ -185,7 +186,7 @@ pub fn create(init: std.process.Init, config: Config, identity: Config.Identity)
         const bytes = std.fmt.bytesToHex(seed, .lower);
         try Files.write(init.io, try std.fmt.allocPrint(allocator, "{s}/{s}.seed", .{ temporary, name }), &bytes);
     }
-    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .identity = identity, .installation = random, .root_public = root_public });
+    try Files.json(init.io, init.gpa, try std.fs.path.join(allocator, &.{ temporary, "installation.json" }), Record{ .definition = g.current_definition, .identity = identity, .installation = random, .root_public = root_public });
     if (std.c.fsync(directory.handle) != 0) return error.InstallationSyncFailed;
     try std.Io.Dir.cwd().renamePreserve(temporary, std.Io.Dir.cwd(), config.installation, init.io);
     const parent = try std.Io.Dir.cwd().openDir(init.io, std.fs.path.dirname(config.installation).?, .{ .iterate = true });

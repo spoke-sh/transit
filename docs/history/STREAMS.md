@@ -95,7 +95,7 @@ Only a validated turn decision publishes proposed mutations. A KV projection may
 compact superseded values under its policy, but cannot discard unfinished
 mailbox inputs or supply an independent source of execution authority.
 
-The [v2 contract](../../contracts/TRANSIT_V2.md) and backend guides fix current
+The [v2 contract](../../contracts/TRANSIT_V1.md) and backend guides fix current
 encoding, framing, commit visibility, bounds, naming and sequence assignment.
 Any new mapping must specify those choices again before implementation.
 An HTTP transport chunk is not a kernel record boundary. Only validated complete

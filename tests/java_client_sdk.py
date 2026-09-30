@@ -28,7 +28,7 @@ def run(node, cli, library, artifacts):
 public final class ArtifactCheck {
     private ArtifactCheck() {}
     public static void main(String[] args) {
-        try (Client client = Client.open(new ClientConfig(java.net.URI.create("http://127.0.0.1:1"), ClientConfig.Profile.GROWING_V3))) {
+        try (Client client = Client.open(new ClientConfig(java.net.URI.create("http://127.0.0.1:1"), ClientConfig.Profile.NATIVE_V1))) {
             throw new AssertionError("Unexpected compatible artifact: " + client);
         } catch (TransitException error) {
             if (error.kind() != TransitException.Kind.INCOMPATIBLE_NATIVE) throw error;

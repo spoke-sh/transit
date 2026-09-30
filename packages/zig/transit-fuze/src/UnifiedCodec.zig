@@ -1,12 +1,12 @@
-//! Canonical, finite FZP2 bytes. Decode borrows its input until the owner dies.
+//! Canonical, finite FZP1 bytes. Decode borrows its input until the owner dies.
 const std = @import("std");
 const m = @import("Unified.zig");
 pub const max_plan_bytes = 8192;
 pub fn encode(plan: m.Plan, output: []u8) ![]const u8 {
-    if (plan.version != 2) return error.UnsupportedPlan;
+    if (plan.version != 1) return error.UnsupportedPlan;
     if (plan.projection.len == 0 or plan.projection.len > m.max_columns) return error.InvalidProjection;
     var writer: std.Io.Writer = .fixed(output);
-    try writer.writeAll("FZP2");
+    try writer.writeAll("FZP1");
     try writer.writeByte(@backingInt(plan.aggregate));
     try writer.writeByte(@intCast(plan.projection.len));
     for (plan.projection, 0..) |column, index| {
@@ -44,7 +44,7 @@ pub fn encode(plan: m.Plan, output: []u8) ![]const u8 {
 pub fn decode(bytes: []const u8) !m.Plan {
     if (bytes.len > max_plan_bytes) return error.PlanTooLarge;
     var reader: std.Io.Reader = .fixed(bytes);
-    if (!std.mem.eql(u8, try reader.take(4), "FZP2")) return error.InvalidPlanEncoding;
+    if (!std.mem.eql(u8, try reader.take(4), "FZP1")) return error.InvalidPlanEncoding;
     const aggregate = std.enums.fromInt(m.Plan.Aggregate, try reader.takeByte()) orelse return error.InvalidPlanEncoding;
     const projection = try reader.take(try reader.takeByte());
     const present = try reader.takeByte();

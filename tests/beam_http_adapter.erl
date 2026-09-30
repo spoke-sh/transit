@@ -17,7 +17,7 @@ request() -> #transit_http_request{method = post, target = [{literal, <<"/items/
 prepare(Cfg) -> transit_http:prepare(#transit_resource{realm = 72, resource = maps:get(<<"resource">>, Cfg)}, 18446744073709551615,
     request(), binary:decode_hex(maps:get(<<"body">>, Cfg)), #{endpoint_revision => 7, reconcile_before_ms => maps:get(<<"deadline">>, Cfg)}).
 open(Cfg, S, Request) ->
-    {ok, Client} = transit_client:config(maps:get(<<"url">>, Cfg), growing_v3),
+    {ok, Client} = transit_client:config(maps:get(<<"url">>, Cfg), native_v1),
     Service = #transit_service{client = Client, activation = #transit_activation{process = #transit_process{realm = 72, pid = maps:get(<<"pid">>, Cfg)},
         generation = maps:get(<<"generation">>, Cfg), credential = #transit_credential{realm = 72, principal = maps:get(<<"principal">>, Cfg), seed_file = maps:get(<<"seed_file">>, Cfg)}}},
     Disposal = case maps:find(<<"outcome">>, Cfg) of

@@ -64,7 +64,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const assistance = value.assistance;
     return (
       assistance.version === 1 &&
-      assistance.profile === "unified_v2" &&
+      assistance.profile === "unified_v1" &&
       assistance.resource > 0 &&
       unsigned(assistance.policy_revision, false) &&
       assistance.items.length <= 8 &&
@@ -148,7 +148,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     const source = "description" in value ? value.description.source.source : value.compiled.source;
     const limits = "description" in value ? value.description.budgets : value.compiled.limits;
     if (
-      source.version !== 2 ||
+      source.version !== 1 ||
       source.resource === 0 ||
       ![limits.pages, limits.segments, limits.result_bytes].every((s) => unsigned(s, false))
     )
@@ -177,8 +177,8 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
       const d = value.description;
       return (
         columns(d.columns) &&
-        d.source.capabilities.version === 2 &&
-        d.sql.version === 2 &&
+        d.source.capabilities.version === 1 &&
+        d.sql.version === 1 &&
         unsigned(d.source.policy_revision, false) &&
         (d.source.active === null || unsigned(d.source.active, false))
       );
@@ -187,7 +187,7 @@ export function validateUnifiedQuery(input: unknown): input is UnifiedQueryRespo
     return (
       hex(compiled.bundle, 16384) &&
       compiled.bundle.length > 0 &&
-      compiled.plan.version === 2 &&
+      compiled.plan.version === 1 &&
       (compiled.plan.limit === null || unsigned(compiled.plan.limit)) &&
       compiled.plan.projection.length > 0 &&
       compiled.plan.projection.length <= 8

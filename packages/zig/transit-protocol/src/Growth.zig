@@ -1,11 +1,15 @@
-//! M10 growing-profile wire types. Kept separate from the supported v2 profile;
-//! declaring a contract does not advertise service support or migrate history.
+//! Native v1 wire types with bounded operations and paged durable collections.
 const std = @import("std");
 const p = @import("root.zig");
-pub const version = 3;
+pub const version = 1;
+/// Contract-set fingerprint, independent of the public version label. Replace
+/// this identifier on an incompatible pre-1.0 cutover, including changed stored
+/// Station/query semantics. Never reuse it to reinterpret accepted history.
+pub const Definition = enum { @"4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679" };
+pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
-pub const request_domain = "transit.request.v3\x00";
-pub const query_domain = "transit.query.v3\x00";
+pub const request_domain = "transit.request.v1\x00";
+pub const query_domain = "transit.query.v1\x00";
 pub const page_size = 8;
 pub const turn_views = 4;
 pub const turn_mutations = 4;
@@ -16,6 +20,7 @@ pub const version_changes = 4;
 pub const snapshot_capacity = 64;
 pub const snapshots_per_principal = 8;
 pub const snapshot_lifetime_ms = 300_000;
+pub const Inspection = @import("NativeInspection.zig");
 pub const SnapshotRead = @import("SnapshotRead.zig");
 pub const SnapshotId = struct { epoch: [16]u8, serial: u64 };
 pub const Snapshot = struct {
@@ -42,7 +47,8 @@ pub const TurnWithVersions = struct {
 };
 
 pub const Grant = struct { subject: Id, public_key: [32]u8, permissions: u16, pid: ?Id = null };
-pub const Create = struct { code: u32 = 1, work_before_ms: ?u64 = null, settle_before_ms: ?u64 = null };
+pub const Create = struct { allow_collection: bool = false, code: u32 = 1, work_before_ms: ?u64 = null, settle_before_ms: ?u64 = null };
+pub const ManagedCreate = struct { process: Create = .{}, required: [p.Lifecycle.max_required]?p.Value = @splat(null) };
 pub const Output = struct { pid: Id, value: p.Value };
 pub const Mutation = struct { key: p.Value, value: ?p.Value };
 pub const Turn = struct {
@@ -69,13 +75,14 @@ pub const Command = union(enum) {
     turn: Turn,
     terminate: Id,
     expire: Id,
-    create_resource: struct { writer: Id, owned: bool = true, deadline_ms: ?u64 = null },
+    create_resource: struct { writer: Id, owned: bool = true, deadline_ms: ?u64 = null, history_ms: ?u64 = null },
     grant_resource: struct { resource: Id, subject: Id, permissions: u8 },
     associate: struct { pid: Id, name: p.Value, expected_revision: u64 = 0, resource: ?Id, required: bool = true },
     open_view: struct { pid: Id, generation: u64, input: Id, expected_revision: u64, resource: Id, revision: u64, deadline_ms: u64 },
     close_view: struct { pid: Id, view: Id },
     retire_resource: Id,
     expire_resource: Id,
+    reclaim_resource: Id,
     deliver: Id,
     dispatch: struct { pid: Id, effect: Id, reconcile_before_ms: ?u64 = null, max_observations: u16 = p.max_effect_observations },
     observe: struct { pid: Id, effect: Id, attempt: Id, result: ?p.Value },
@@ -89,8 +96,23 @@ pub const Command = union(enum) {
     rotate_worker: struct { pid: Id, worker: Id, expected_generation: u64, expected_public_key: [32]u8, expected_permissions: u16, public_key: [32]u8 },
     /// Never replace an existing principal when provisioning an application.
     create_principal: Grant,
+    runtime_intent: p.Runtime.Intent,
+    runtime_observe: p.Runtime.Observation,
+    runtime_upgrade: p.Runtime.Upgrade,
+    activate: struct { pid: Id, revision: u64, expected_generation: u64, worker: Id, public_key: [32]u8, worker_incarnation: [16]u8 },
+    create: ManagedCreate,
+    initialize: p.Lifecycle.Fence,
+    @"suspend": struct { pid: Id, expected_generation: u64, resume_before_ms: u64 },
+    @"resume": p.Lifecycle.Fence,
+    expire_suspension: Id,
+    declare_payload: struct { pid: Id, sha256: [32]u8, bytes: u32, allow_delete: bool = false },
+    payload_ready: p.PayloadRef,
+    retire_payload: p.PayloadRef,
+    payload_deleted: p.PayloadRef,
+    collect: Collection,
 };
-pub const Request = struct { version: u32 = version, realm: Id, principal: Id, sequence: u64, command: Command };
+pub const Collection = struct { pid: Id, id: Id, kind: enum { output, effect, payload, resource, process } };
+pub const Request = struct { version: u32 = version, definition: Definition = current_definition, realm: Id, principal: Id, sequence: u64, command: Command };
 pub const SignedRequest = struct { request: Request, signature: [64]u8 };
 pub const Origin = union(enum) {
     external: struct { principal: Id, policy_revision: u64 },
@@ -99,6 +121,7 @@ pub const Origin = union(enum) {
 };
 pub const Input = struct { position: Id, ordinal: u64, value: p.Value, origin: Origin };
 pub const Process = struct {
+    allow_collection: bool = false,
     pid: Id,
     code: u32,
     owner: ?Id = null,
@@ -112,6 +135,8 @@ pub const Process = struct {
     work_before_ms: ?u64 = null,
     settle_before_ms: ?u64 = null,
     turn_permit: ?struct { id: Id, input: Id } = null,
+    binding: ?p.Runtime.Binding = null,
+    control: ?p.Lifecycle.Control = null,
 };
 pub const Resource = struct {
     id: Id,
@@ -119,10 +144,17 @@ pub const Resource = struct {
     owner: ?Id,
     revision: u64,
     entries: u64 = 0,
+    history_ms: ?u64 = null,
+    changed_ms: u64 = 0,
+    last_turn: ?Id = null,
     deadline_ms: ?u64,
-    phase: enum { active, retired } = .active,
+    phase: enum { active, retired, reclaimed } = .active,
     retired_at: ?Id = null,
 };
+pub fn processReady(process: Process) bool {
+    return process.lifecycle == .running and process.failure == null and
+        (if (process.control) |control| control.phase == .ready else true);
+}
 pub const Association = struct { pid: Id, name: p.Value, resource: Id, revision: u64, required: bool };
 pub const View = struct {
     id: Id,
@@ -162,12 +194,26 @@ pub const Outbox = struct {
     courier: ?Id = null,
     policy_revision: ?u64 = null,
 };
+pub const Payload = struct {
+    id: Id,
+    pid: Id,
+    publisher: Id,
+    sha256: [32]u8,
+    bytes: u32,
+    allow_delete: bool = false,
+    phase: enum { creating, ready, retiring, deleted } = .creating,
+    retired_at: ?Id = null,
+    deleted_at: ?Id = null,
+};
 pub const Query = struct {
     version: u32 = version,
+    definition: Definition = current_definition,
     realm: Id,
     principal: Id,
     kind: union(enum) {
         capabilities: void,
+        inspection: Inspection.Query,
+        delivery: void,
         process: Id,
         resource: Id,
         view: Id,
@@ -228,11 +274,14 @@ pub const Capabilities = struct {
 };
 pub const Response = struct {
     version: u32 = version,
+    definition: Definition,
     realm: Id,
     position: Id,
     principal_sequence: u64,
     body: union(enum) {
         capabilities: Capabilities,
+        inspection: Inspection.Page,
+        delivery: struct { next: ?Id },
         process: struct { process: Process, input: ?Input },
         resource: Resource,
         view: View,
@@ -279,6 +328,10 @@ pub fn validate(request: Request) !void {
     try counters(request);
     if (request.sequence == 0) return error.InvalidSequence;
     switch (request.command) {
+        .create => |c| for (c.required, 0..) |slot, index| if (slot) |name| {
+            try validateKey(name);
+            for (c.required[0..index]) |previous| if (previous) |other| if (name.eql(other)) return error.InvalidStateKey;
+        },
         .associate => |c| try validateKey(c.name),
         .turn => |c| try validateTurn(c),
         .turn_with_versions => |c| {
@@ -323,6 +376,7 @@ pub fn validateQuery(query: Query) !void {
     if (query.version != version or query.realm == 0) return error.WrongProtocolRealm;
     try counters(query);
     switch (query.kind) {
+        .inspection => |q| try Inspection.validate(q),
         .snapshot_read => |q| try SnapshotRead.validate(q),
         .open_snapshot => |q| if (q.resource == 0) return error.InvalidRead,
         .snapshot_entries => |q| {
@@ -375,6 +429,8 @@ pub fn validateResponse(response: Response, query: Query) !void {
     if (response.version != version or response.realm != query.realm or response.position == 0 or
         !std.mem.eql(u8, @tagName(response.body), @tagName(query.kind))) return error.InvalidRead;
     switch (query.kind) {
+        .delivery => if (response.body.delivery.next == 0) return error.InvalidRead,
+        .inspection => try Inspection.validatePage(response.body.inspection, query, response.position),
         .snapshot_read => |q| try SnapshotRead.validateResult(response.body.snapshot_read, q),
         .open_snapshot => |q| {
             const snapshot = response.body.open_snapshot;
@@ -406,9 +462,9 @@ pub fn validateResponse(response: Response, query: Query) !void {
             if (value.process.pid != pid or value.process.consumed > value.process.admitted or
                 value.process.cancelled > value.process.admitted - value.process.consumed) return error.InvalidRead;
             if (value.input) |input| {
-                if (value.process.lifecycle != .running or value.process.failure != null or input.ordinal != value.process.consumed + 1 or
+                if (!processReady(value.process) or input.ordinal != value.process.consumed + 1 or
                     input.ordinal > value.process.admitted or input.position >= response.position) return error.InvalidRead;
-            } else if (value.process.lifecycle == .running and value.process.failure == null and value.process.consumed < value.process.admitted) return error.InvalidRead;
+            } else if (processReady(value.process) and value.process.consumed < value.process.admitted) return error.InvalidRead;
         },
         .resource => |id| if (response.body.resource.id != id) return error.InvalidRead,
         .read_access => |id| if (response.body.read_access.id != id or response.body.read_access.phase != .active) return error.InvalidRead,
@@ -511,11 +567,19 @@ test "leased snapshot signing matches independent canonical JSON fixtures" {
     }
 }
 
+test "native responses require the current contract definition even with a v1 label" {
+    const t = std.testing;
+    const missing = "{\"version\":1,\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
+    try t.expectError(error.MissingField, std.json.parseFromSlice(Response, t.allocator, missing, .{}));
+    const foreign = "{\"version\":1,\"definition\":\"previous-v1-definition\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
+    try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, foreign, .{}));
+}
+
 test "leased snapshot responses reject wrong tokens, cuts and malformed coverage" {
     const t = std.testing;
     const id: SnapshotId = .{ .epoch = @splat(7), .serial = 1 };
     const query: Query = .{ .realm = 42, .principal = 2, .kind = .{ .snapshot_entries = .{ .id = id } } };
-    const valid: Response = .{ .realm = 42, .position = 20, .principal_sequence = 0, .body = .{ .snapshot_entries = .{ .snapshot = .{ .id = id, .resource = .{ .id = 3, .writer = 2, .owner = null, .revision = 7, .deadline_ms = null }, .deadline_ms = 100, .hard_deadline_ms = 200 }, .page = .{} } } };
+    const valid: Response = .{ .realm = 42, .position = 20, .definition = current_definition, .principal_sequence = 0, .body = .{ .snapshot_entries = .{ .snapshot = .{ .id = id, .resource = .{ .id = 3, .writer = 2, .owner = null, .revision = 7, .deadline_ms = null }, .deadline_ms = 100, .hard_deadline_ms = 200 }, .page = .{} } } };
     try validateResponse(valid, query);
     var bad = valid;
     bad.body.snapshot_entries.snapshot.id.epoch[0] = 8;
@@ -563,7 +627,7 @@ fn validateEntries(page: Batch(Entry, p.Value), point: ?p.Value, after: ?p.Value
 pub fn commandPid(command: Command) ?Id {
     return switch (command) {
         .turn_with_versions => |c| c.turn.pid,
-        .terminate, .expire => |id| id,
+        .terminate, .expire, .expire_suspension => |id| id,
         inline else => |value| switch (@typeInfo(@TypeOf(value))) {
             .@"struct" => if (@hasField(@TypeOf(value), "pid")) value.pid else null,
             else => null,
@@ -605,14 +669,12 @@ test "growing identities are explicit and cannot reuse legacy signature domains"
     invalid = request;
     invalid.principal = p.max_counter + 1;
     try std.testing.expectError(error.InvalidCounter, sign(invalid, key));
-    const legacy = p.digest(.{ .realm = 1, .principal = 1, .sequence = 1, .command = .{ .send = .{ .pid = 2, .value = .{} } } });
-    try std.testing.expect(!std.mem.eql(u8, &legacy, &try digest(request)));
     try std.testing.expectError(error.InvalidRead, signQuery(.{ .realm = 1, .principal = 1, .kind = .{ .entries = .{ .view = 3, .key = try p.Value.init("k"), .after = try p.Value.init("k") } } }, key));
 }
 
 test "growing blocked process reads disclose metadata without claiming executable input" {
     const query: Query = .{ .realm = 1, .principal = 0, .kind = .{ .process = 1 } };
-    var response: Response = .{ .realm = 1, .position = 4, .principal_sequence = 0, .body = .{ .process = .{ .process = .{ .pid = 1, .code = 1, .failure = 2, .admitted = 1 }, .input = null } } };
+    var response: Response = .{ .realm = 1, .position = 4, .definition = current_definition, .principal_sequence = 0, .body = .{ .process = .{ .process = .{ .pid = 1, .code = 1, .failure = 2, .admitted = 1 }, .input = null } } };
     try validateResponse(response, query);
     response.body.process.input = .{ .position = 2, .ordinal = 1, .value = .{}, .origin = .{ .external = .{ .principal = 0, .policy_revision = 0 } } };
     try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
@@ -626,7 +688,7 @@ test "growing named association response binds the requested PID and exact name"
     const t = std.testing;
     const name = try p.Value.init("data");
     const query: Query = .{ .realm = 1, .principal = 65536, .kind = .{ .association = .{ .pid = 2, .name = name } } };
-    var response: Response = .{ .realm = 1, .position = 5, .principal_sequence = 0, .body = .{ .association = .{ .pid = 2, .name = name, .resource = 3, .revision = 4, .required = true } } };
+    var response: Response = .{ .realm = 1, .position = 5, .definition = current_definition, .principal_sequence = 0, .body = .{ .association = .{ .pid = 2, .name = name, .resource = 3, .revision = 4, .required = true } } };
     try validateResponse(response, query);
     response.body.association.?.pid = 1;
     try t.expectError(error.InvalidRead, validateResponse(response, query));
@@ -643,7 +705,7 @@ test "growing named association response binds the requested PID and exact name"
 test "growing responses reject mixed bases, incomplete pages and nonadvancing cursors" {
     const t = std.testing;
     const query: Query = .{ .realm = 1, .principal = 0, .kind = .{ .entries = .{ .resource = 2, .revision = 3 } } };
-    var response: Response = .{ .realm = 1, .position = 4, .principal_sequence = 0, .body = .{ .entries = .{
+    var response: Response = .{ .realm = 1, .position = 4, .definition = current_definition, .principal_sequence = 0, .body = .{ .entries = .{
         .view = null,
         .resource = .{ .id = 2, .writer = 1, .owner = null, .revision = 3, .entries = 1, .deadline_ms = null },
         .page = .{ .entries = .{ .{ .key = try p.Value.init("a"), .value = .{}, .revision = 3 }, null, null, null, null, null, null, null } },
@@ -661,7 +723,7 @@ test "growing responses reject mixed bases, incomplete pages and nonadvancing cu
     response = good;
     response.body.entries.page.next = try p.Value.init("b");
     try t.expectError(error.InvalidRead, validateResponse(response, query));
-    response = .{ .realm = 1, .position = 20, .principal_sequence = 0, .body = .{ .resources = .{ .next = 10 } } };
+    response = .{ .realm = 1, .position = 20, .definition = current_definition, .principal_sequence = 0, .body = .{ .resources = .{ .next = 10 } } };
     const filtered: Query = .{ .realm = 1, .principal = 0, .kind = .{ .resources = .{} } };
     try validateResponse(response, filtered); // Empty filtered pages can advance.
     try t.expectError(error.InvalidRead, validateResponse(response, .{ .realm = 1, .principal = 0, .kind = .{ .resources = .{ .after = 10, .position = 20 } } }));
@@ -669,13 +731,13 @@ test "growing responses reject mixed bases, incomplete pages and nonadvancing cu
     try validateResponse(response, .{ .realm = 1, .principal = 0, .kind = .{ .outputs = .{} } }); // Output IDs have their own sequence.
 }
 
-test "retained version additions preserve existing signed v3 request and query bytes" {
-    // Independently computed SHA-256 over the pre-extension canonical JSON.
-    // Altering Turn or the old entries-query defaults breaks retained receipts.
+test "v1 turn and entries signatures match independent canonical bytes" {
+    // Independently computed SHA-256 over the current canonical JSON.
+    // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("6ea65a3e52dc29964052686f94c28480efa2df119713e535042ba7ed3a83e9be", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("29c203b6487dd4767146489216dead051303e403b0f30af5c974b7a2342df754", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("dad0320b2decbb7c95c8a51ae01ef11c18619dd2da874c9ae4b0181315270744", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("6b5cd9fa29866db7c64c2a28e416792be27b9d1d8db89d8cf1639eb4e3ac06bb", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {
@@ -700,7 +762,7 @@ test "retained version proposals and responses reject foreign duplicate and forg
     try t.expectError(error.InvalidReadVersion, validate(request));
     const id: ReadVersionId = .{ .pid = 2, .input = 4, .index = 0 };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .version_entries = .{ .id = id, .generation = 3 } } };
-    var response: Response = .{ .realm = 42, .position = 7, .principal_sequence = 1, .body = .{ .version_entries = .{
+    var response: Response = .{ .realm = 42, .position = 7, .definition = current_definition, .principal_sequence = 1, .body = .{ .version_entries = .{
         .version = .{ .id = id, .resource = 3, .revision = 3, .created_at = 6 },
         .generation = 3,
         .resource = .{ .id = 3, .writer = 2, .owner = null, .revision = 3, .deadline_ms = null },
@@ -725,7 +787,7 @@ test "retained version proposals and responses reject foreign duplicate and forg
 
 test "growing identity response is scoped and cannot claim an unobserved policy" {
     const query: Query = .{ .realm = 1, .principal = 65536, .kind = .{ .identity = {} } };
-    var response: Response = .{ .realm = 1, .position = 9, .principal_sequence = 0, .body = .{ .identity = .{ .principal = 65536, .permissions = p.permission(.inspect), .pid = null, .policy_revision = 8 } } };
+    var response: Response = .{ .realm = 1, .position = 9, .definition = current_definition, .principal_sequence = 0, .body = .{ .identity = .{ .principal = 65536, .permissions = p.permission(.inspect), .pid = null, .policy_revision = 8 } } };
     try validateResponse(response, query);
     response.body.identity.principal = 2;
     try std.testing.expectError(error.InvalidRead, validateResponse(response, query));
@@ -742,7 +804,7 @@ test "bounded multi-key read validation preserves slot identity and absence" {
     keys[2] = try p.Value.init("first");
     const query: Query = .{ .realm = 1, .principal = 2, .kind = .{ .read_entries = .{ .resource = 3, .keys = keys } } };
     try validateQuery(query);
-    var response: Response = .{ .realm = 1, .position = 10, .principal_sequence = 0, .body = .{ .read_entries = .{ .resource = .{ .id = 3, .writer = 4, .owner = null, .revision = 7, .entries = 2, .deadline_ms = null }, .entries = @splat(null) } } };
+    var response: Response = .{ .realm = 1, .position = 10, .definition = current_definition, .principal_sequence = 0, .body = .{ .read_entries = .{ .resource = .{ .id = 3, .writer = 4, .owner = null, .revision = 7, .entries = 2, .deadline_ms = null }, .entries = @splat(null) } } };
     response.body.read_entries.entries[0] = .{ .key = keys[0].?, .value = p.Value.integer(2), .revision = 7 };
     response.body.read_entries.entries[2] = .{ .key = keys[2].?, .value = p.Value.integer(1), .revision = 6 };
     try validateResponse(response, query);

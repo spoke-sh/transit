@@ -1,4 +1,4 @@
-//! Console presentation around the existing native v2 query session.
+//! Console presentation around the existing native v1 query session.
 const std = @import("std");
 const q = @import("transit_query");
 const u = @import("Unified.zig");
@@ -10,7 +10,7 @@ const Signals = @import("Signals.zig");
 const sql_input = q.fuze.SqlInput;
 pub const Config = struct {
     version: u8,
-    profile: enum { unified_v2 },
+    profile: enum { unified_v1 },
     url: []const u8,
     transport: enum { loopback, tls_system, tls_ca },
     ca_file: ?[]const u8 = null,
@@ -38,7 +38,7 @@ fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), d
     const c = Installation.connectionFrom(record, topology.realm);
     return .{
         .version = 1,
-        .profile = .unified_v2,
+        .profile = .unified_v1,
         .url = try @import("server/Provider.zig").url(allocator, topology.ports.gateway),
         .transport = .loopback,
         .seed_file = "caller.seed",

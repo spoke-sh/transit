@@ -2,7 +2,7 @@
 //! The composing owner supplies a scoped scratch key and checks current authority.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Pub = @import("Publication.zig");
 const Ref = @import("PublicationReference.zig");
 pub const part_bytes = Pub.chunk_bytes / 2;

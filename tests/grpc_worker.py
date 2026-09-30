@@ -33,7 +33,7 @@ def run(node, provision, worker, board=None, browser=None):
         port = free_port(); url = f"http://127.0.0.1:{port}"
         public = json.loads(subprocess.check_output([provision, "public"], timeout=10))
         node_config = fixture.root / "node.json"
-        node_config.write_text(json.dumps({"profile": "growing_v3", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "grpc-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
+        node_config.write_text(json.dumps({"profile": "native_v1", "genesis": {"realm": 47, "root_key": public, "max_clock_error_ms": 10000}, "ursula_url": fixture.url, "bucket": "grpc-worker", "journal": "authority", "port": port, "resident_pages": 64, "request_timeout_ms": 10000}))
         key, cert = fixture.root / "peer.key", fixture.root / "peer.pem"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"], check=True, capture_output=True, timeout=20)
         sends, applied, failures, dropped, recovered = [], set(), [], {}, set()
@@ -74,13 +74,13 @@ def run(node, provision, worker, board=None, browser=None):
             def log_message(self, *_): pass
             def do_POST(self):
                 body = self.rfile.read(int(self.headers["Content-Length"]))
-                command = json.loads(body)["request"]["command"] if self.path == "/v3/command" else {}
+                command = json.loads(body)["request"]["command"] if self.path == "/v1/command" else {}
                 boundary.before(command)
                 connection = HTTPConnection("127.0.0.1", port, timeout=15)
                 try:
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse(); data = response.read()
-                    if self.path == "/v3/command" and response.status == 200:
+                    if self.path == "/v1/command" and response.status == 200:
                         request = json.loads(body)["request"]; command = request["command"]
                         turn = command.get("turn", command.get("turn_with_versions", {}).get("turn", {}))
                         values = [bytes.fromhex(m["value"]) for m in turn.get("mutations", []) if m and m["value"]]

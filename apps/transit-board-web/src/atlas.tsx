@@ -2,7 +2,6 @@ import { useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { useScope } from "./state";
 import { useAtlasObservation, type AtlasCursor } from "./atlas-observation";
-import { QueryWorkspace } from "./query-workspace";
 import { UnifiedWorkspace } from "./unified-workspace";
 import { LiveTable } from "./live-table";
 import { Records } from "./records";
@@ -26,7 +25,6 @@ export function Atlas({
   // Keep the selected protocol stable across transient atlas reads. Switching
   // components would discard an uncertain signed query held by that workspace.
   // The workspace independently rechecks its query authorization.
-  const [workspaceVersion, setWorkspaceVersion] = useState(1);
   const [participantResource, setParticipantResource] = useState<number | null>(null);
   const [recordResource, setRecordResource] = useState<number | null>(null);
   const [flat, setFlat] = useState(false);
@@ -81,7 +79,7 @@ export function Atlas({
       <strong>Resource {resource.id}</strong>
       <span>
         {resource.id === data?.query_resource
-          ? data?.query_version === 2
+          ? data?.query_version === 1
             ? "Query source"
             : "Table service"
           : "KV backing resource"}
@@ -122,16 +120,8 @@ export function Atlas({
           </button>
         </div>
       </div>
-      {workspace !== null && workspaceVersion === 2 && (
+      {workspace !== null && (
         <UnifiedWorkspace
-          resource={workspace}
-          mode={mode}
-          visible={entered}
-          onBack={() => setEntered(false)}
-        />
-      )}
-      {workspace !== null && workspaceVersion !== 2 && (
-        <QueryWorkspace
           resource={workspace}
           mode={mode}
           visible={entered}
@@ -330,7 +320,6 @@ export function Atlas({
                         className="primary"
                         onClick={() => {
                           setWorkspace(selectedResource.id);
-                          setWorkspaceVersion(data.query_version ?? 1);
                           setEntered(true);
                         }}
                       >

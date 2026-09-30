@@ -39,7 +39,7 @@ The application supplies an existing `Activation`: durable `ProcessRef`, current
 generation and explicit credential. `ServiceConfig` selects the associated
 resource name (default `data`) and query-result opt-in. Capabilities are checked
 against the shared library and authority. The SDK does not provision resources,
-acquire ownership or implicitly fall back from `Profile.GrowingV3`.
+acquire ownership or implicitly fall back from `Profile.NativeV1`.
 
 `turn.State` provides typed `Find`, `Require`, `Put`, `Delete` and bounded `Page`.
 `Key<T>` carries the application codec. A nullable `Found<T>` distinguishes

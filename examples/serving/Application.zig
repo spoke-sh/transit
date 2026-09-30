@@ -9,10 +9,10 @@ pub const Configuration = struct { ingress: u64, initializer: u64, queries: bool
 configuration: Configuration,
 query: ?q.UnifiedBehavior.Source = null,
 pub const progress_key = p.Value.init("data-progress") catch unreachable;
-pub fn interface(self: *Self) s.GrowingGenServer.Handler {
+pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }
-fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
+fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
     const self: *Self = @ptrCast(@alignCast(raw.?));
     _ = try s.Table.create(turn, 1, .{ .names = .{ try .init("id"), try .init("count") }, .value_type = .int64 });
     try turn.put(progress_key, p.Value.integer(0));
@@ -21,11 +21,11 @@ fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
         try handler.initialize.?(handler.context, turn);
     }
 }
-fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
     const self: *Self = @ptrCast(@alignCast(raw.?));
     if (frame.kind == .cast and turn.delivery.input.origin == .external and turn.delivery.input.origin.external.principal == self.configuration.initializer) {
         if (frame.payload.len == 0) return;
-        if (self.query != null and std.mem.startsWith(u8, frame.payload.slice(), "UQA2")) {
+        if (self.query != null and std.mem.startsWith(u8, frame.payload.slice(), "UQA1")) {
             const policy = try q.UnifiedRecords.Policy.decode(frame.payload);
             if (policy.peer != self.configuration.ingress) return error.UnexpectedQueryPeer;
             return q.UnifiedCapture.setPolicy(turn, policy);

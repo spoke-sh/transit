@@ -74,11 +74,11 @@ to stdout and diagnostics to stderr; JSON mode has no banner or prompt. Broken
 stdout ends the local session and releases an interactive snapshot; durable
 accepted work remains recoverable.
 
-`query`, `query-v2`, `rey-cli`, `kubectl-transit` and the existing launcher commands
+`query`, `rey-cli`, `kubectl-transit` and the existing launcher commands
 retain their separate configuration and protocols. The query shells use dot
 commands and are omitted from the primary command list. No alias silently changes a
 single-line shell into a multiline console, adopts a launcher installation or
-converts a v2 authority into the growing profile. These separate commands remain supported.
+changes a connection's authority or installs an application. These separate commands remain supported.
 
 ## Local server and recovery
 
@@ -180,7 +180,7 @@ and optional inspection credentials have distinct owners and native grants.
 
 ## Terminal and public operations
 
-The selected console executes the existing finite v2 KV/Table/Document query
+The selected console executes the existing finite v1 KV/Table/Document query
 profile. Source discovery describes only the configured, currently authorized
 source. Complete statements compile through Fuze before any native submission.
 Administrative/reference SQL, writes, continuous queries and unsupported forms

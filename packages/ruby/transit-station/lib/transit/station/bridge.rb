@@ -8,7 +8,7 @@ module Transit
         raise ArgumentError, 'Select stop or block_input' unless %i[stop block_input].include?(failure)
         activation, client = config.activation, config.client
         bridge = new({ 'url' => client.url, 'seed_file' => activation.credential.seed_file, 'timeout_ms' => client.timeout_ms,
-          'growing_server' => { 'profile' => 'growing_v3', 'realm' => activation.process.realm, 'principal' => activation.credential.principal,
+          'growing_server' => { 'profile' => 'native_v1', 'realm' => activation.process.realm, 'principal' => activation.credential.principal,
             'pid' => activation.process.pid, 'generation' => activation.generation, 'association' => config.association,
             'timeout_ms' => client.timeout_ms, 'failure_policy' => failure.to_s, 'query_results' => config.query_results } }, client.native_host)
         begin
@@ -37,7 +37,7 @@ module Transit
             raise IncompatibleNative, 'Native Station protocol version mismatch'
           end
           @caps = port.request({ 'growing_capabilities' => {} }, phase: :native_capabilities, response: 'GrowingCapabilities').freeze
-          unless caps['version'] == 1 && caps['profile'] == 'growing_v3' &&
+          unless caps['version'] == 1 && caps['profile'] == 'native_v1' &&
                  %w[gated_dispatch retained_confirmation scoped_turns paged_state tables retained_sources].all? { |name| caps[name] }
             raise UnsupportedCapability, 'Native Station lacks required capabilities'
           end
@@ -97,7 +97,7 @@ module Transit
         bytes = Internal.bytes(Internal.text(port.request({ 'growing_pending' => {} }, phase: :pending)))
         info = Internal.metadata(port, bytes)
         commands = { permit: %w[begin_turn], open: %w[open_view], commit: %w[turn turn_with_versions] }
-        unless info['kind'] == 'growing_command' && info['profile'] == 'growing_v3' && commands.fetch(purpose, []).include?(info['command'])
+        unless info['kind'] == 'growing_command' && info['profile'] == 'native_v1' && commands.fetch(purpose, []).include?(info['command'])
           raise IncompatibleNative, 'Pending mutation differs from its native purpose'
         end
         FrozenMutation.new(OperationIdentity.new(sha256: info['identity']), purpose, event.fetch('pending_input'), bytes)

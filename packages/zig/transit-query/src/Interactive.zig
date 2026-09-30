@@ -14,7 +14,6 @@ cursor: q.UnifiedSource.Cursor = .{},
 bytes: u64 = 0,
 cache: [64]?Cached = @splat(null),
 cache_slot: usize = 0,
-batched: bool = false,
 current: ?q.wire.ResourceReader.Batch = null,
 range: ?g.SnapshotRead.Range = null,
 range_entries: [g.SnapshotRead.range_entries]?g.Entry = @splat(null),
@@ -26,29 +25,19 @@ pub fn open(client: *q.UnifiedClient, bundle: q.Bundle, nonce: [16]u8) !Self {
     try bundle.validate();
     if (client.snapshot_support == null) client.snapshot_support = try q.wire.SnapshotReader.support(client.resources());
     const support = client.snapshot_support.?;
-    if (support.batched) {
-        const request = try opening(client, bundle, nonce);
-        var acquired = try support.acquire(request);
-        errdefer acquired.reader.close() catch {};
-        if (acquired.reader.snapshot.resource.writer != client.connection.source) return error.QuerySourceUnavailable;
-        const description = try client.interactiveDescription(bundle.source, acquired.result);
-        if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
-        var columns: [m.max_columns]m.Column = undefined;
-        const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, acquired.reader.view.revision), try bundle.source.schema(&columns));
-        var result: Self = .{ .bundle = bundle, .source = acquired.reader, .progress = .start(bound), .columns = columns, .column_count = bound.schema.columns.len, .batched = true, .range = request.range };
-        result.current = q.UnifiedClient.interactiveBatch(request.current[0].?, acquired.result.current[0].?);
-        for (request.points, acquired.result.points) |key, value| if (key) |requested| result.remember(requested, value);
-        if (request.range != null) result.acceptRange(acquired.result);
-        return result;
-    }
-    const description = try client.describe(bundle.source);
+    const request = try opening(client, bundle, nonce);
+    var acquired = try support.acquire(request);
+    errdefer acquired.reader.close() catch {};
+    if (acquired.reader.snapshot.resource.writer != client.connection.source) return error.QuerySourceUnavailable;
+    const description = try client.interactiveDescription(bundle.source, acquired.result);
     if (!description.limits.permits(bundle.limits)) return error.QueryBudgetExceeded;
-    var source = try support.open(bundle.source.resource, nonce);
-    errdefer source.close() catch {};
-    if (source.snapshot.resource.writer != client.connection.source) return error.QuerySourceUnavailable;
     var columns: [m.max_columns]m.Column = undefined;
-    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, source.view.revision), try bundle.source.schema(&columns));
-    return .{ .bundle = bundle, .source = source, .progress = .start(bound), .columns = columns, .column_count = bound.schema.columns.len };
+    const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, acquired.reader.view.revision), try bundle.source.schema(&columns));
+    var result: Self = .{ .bundle = bundle, .source = acquired.reader, .progress = .start(bound), .columns = columns, .column_count = bound.schema.columns.len, .range = request.range };
+    result.current = q.UnifiedClient.interactiveBatch(request.current[0].?, acquired.result.current[0].?);
+    for (request.points, acquired.result.points) |key, value| if (key) |requested| result.remember(requested, value);
+    if (request.range != null) result.acceptRange(acquired.result);
+    return result;
 }
 pub fn close(self: *Self) !void {
     try self.source.close();
@@ -73,34 +62,25 @@ pub fn next(self: *Self, client: *q.UnifiedClient, allocator: std.mem.Allocator,
     if (self.progress.pages >= self.bundle.limits.pages) return error.QueryBudgetExceeded;
     if (cancellation.load(.acquire)) return error.Cancelled;
     self.source.cancellation = cancellation;
-    // Only Document reads live lifecycle records through this adapter. Keep the
-    // unused reader fail-closed so a future adapter cannot silently use it.
-    var current: q.wire.ResourceReader.Reader = if (!self.batched and self.bundle.source.source == .document)
-        try client.resources().open(self.bundle.source.resource)
-    else
-        .{ .client = client.resources(), .view = .{ .resource = self.bundle.source.resource, .revision = 0 }, .failed = error.InvalidResourceRead };
     var batch: q.UnifiedSource.Batch = undefined;
     var data: CachedReader = .{ .session = self, .view = self.source.view };
     if (self.bundle.plan.limit == 0) {
         batch = .{ .basis = self.progress.basis, .ordinal = self.cursor.ordinal, .next = .{ .done = true } };
-    } else if (self.batched) {
+    } else {
         try q.UnifiedSource.pagePlanned(self.bundle.source, self.bundle.plan, self.progress.basis, self.cursor, &data, &self.current.?, allocator, &batch);
-    } else try q.UnifiedSource.pagePlanned(self.bundle.source, self.bundle.plan, self.progress.basis, self.cursor, &data, &current, allocator, &batch);
+    }
     const bound: m.Plan.Bound = .{ .plan = self.bundle.plan, .basis = self.progress.basis, .schema = .{ .columns = self.columns[0..self.column_count] }, .fingerprint = self.progress.plan };
     const candidate = try m.Stream.step(bound, self.progress, batch.engine(), workspace, output, cancellation);
     const bytes = try std.math.add(u64, self.bytes, if (candidate.segment) |segment| segment.bytes.len else 0);
     if (candidate.progress.segments > self.bundle.limits.segments or bytes > self.bundle.limits.result_bytes) return error.QueryBudgetExceeded;
     // Final live validation also covers entirely cached computation and empty
     // output. The terminal validation releases the pin in the same native call.
-    const current_policy = if (self.batched) policy: {
+    const current_policy = policy: {
         const metadata = try client.interactiveMetadata(self.bundle.source);
         const validated = try self.source.batch(.{ .snapshot = .{ .existing = self.source.snapshot.id }, .current = metadata, .finish = candidate.progress.finished != null });
         const description = try client.interactiveDescription(self.bundle.source, validated);
         self.current = q.UnifiedClient.interactiveBatch(metadata[0].?, validated.current[0].?);
         break :policy description;
-    } else policy: {
-        _ = try self.source.entry(try q.protocol.Value.init("\x00"));
-        break :policy try client.describe(self.bundle.source);
     };
     if (!current_policy.limits.permits(self.bundle.limits)) return error.QueryBudgetExceeded;
     if (cancellation.load(.acquire)) return error.Cancelled;
@@ -164,21 +144,15 @@ const CachedReader = struct {
         for (self.session.cache) |slot| if (slot) |cached| {
             if (cached.key.eql(key)) return cached.entry;
         };
-        if (self.session.batched) {
-            try self.prefetch(&.{key});
-            for (self.session.cache) |slot| if (slot) |cached| {
-                if (cached.key.eql(key)) return cached.entry;
-            };
-            return error.InvalidResourceRead;
-        }
-        const result = try self.session.source.entry(key);
-        self.session.remember(key, result);
-        return result;
+        try self.prefetch(&.{key});
+        for (self.session.cache) |slot| if (slot) |cached| {
+            if (cached.key.eql(key)) return cached.entry;
+        };
+        return error.InvalidResourceRead;
     }
     /// Publication adapters can acquire known immutable chunks together. The
     /// normal decoder still verifies every descriptor, chunk and commitment.
     pub fn prefetch(self: *@This(), keys: []const q.protocol.Value) !void {
-        if (!self.session.batched) return;
         if (keys.len > g.page_size) return error.InvalidResourceRead;
         var missing: g.SnapshotRead.Keys = @splat(null);
         var count: usize = 0;
@@ -196,7 +170,6 @@ const CachedReader = struct {
     }
     pub fn page(self: *@This(), after: ?q.protocol.Value) !q.protocol.Growth.Batch(q.protocol.Growth.Entry, q.protocol.Value) {
         const session = self.session;
-        if (!session.batched) return session.source.page(after);
         if (!session.range_available) {
             var range = session.range orelse g.SnapshotRead.Range{};
             range.after = after;

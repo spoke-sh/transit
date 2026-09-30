@@ -31,7 +31,7 @@ The generated structural schema still requires the owning semantic validator
 for graph references and source capabilities. The independent grammar proof and
 allocation-failure suite cover this boundary; runtime qualification is separate.
 
-`Publication` composes conditional interface activation on a `GrowingTurn`.
+`Publication` composes conditional interface activation on a `Turn`.
 Initialize its immutable configuration with the separately provisioned bootstrap
 administrator, then explicitly grant an operator publication policy. `step`
 validates a complete canonical body against the frozen proposal on every staging

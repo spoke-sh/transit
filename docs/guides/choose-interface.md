@@ -20,18 +20,17 @@ Choose the owner that matches the job; a transport never grants authority.
 
 The [versioning policy](../reference/versioning.md) requires one current v1
 definition per Transit-owned protocol before 1.0 and hard cutovers between
-incompatible definitions. The profiles below describe the existing implementation
-pending consolidation; they are not long-term compatibility commitments.
+incompatible definitions. The interfaces below use the current v1 definitions.
 
 A CLI version, native protocol version, query profile and application revision
 are different identifiers. Use the profile in your actual configuration and the
 server's authorized capability read. No interface silently converts old durable
 history into a new profile.
 
-- Query v1 serves a single declared two-column Table; query v2 adds explicit
-  KV/Table/Document sources and five-state nested Arrow cells.
-- Flight SQL serves Table v1 queries. Native query v2 sources and nested cell
-  types use the native query interface.
+- Query v1 declares KV, Table or accepted Document sources and preserves five
+  cell states in nested Arrow output.
+- Flight SQL uses the same query path for its configured int64 Table subset,
+  converting verified results to primitive Arrow columns.
 - OpenAPI describes Board and the serving HTTP adapter. It does not replace the
   native signing specification or turn every kernel operation into a REST route.
 - AsyncAPI describes the reactive WebSocket binding. Fetch-SSE is documented by

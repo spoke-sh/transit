@@ -365,7 +365,7 @@ pub fn Reader(comptime Source: type) type {
 /// A successful build returns references to already-published immutable nodes.
 /// No Document head, reservation, authorization or retry identity is invented here.
 pub const Staging = struct {
-    turn: *@import("Turn.zig").Growing,
+    turn: *@import("Turn.zig"),
     publication: Pub,
     next_id: u64,
     end_id: u64,

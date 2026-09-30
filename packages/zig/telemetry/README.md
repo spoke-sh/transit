@@ -72,7 +72,7 @@ A concurrent snapshot can straddle an update; it is not an atomic cut of the
 application or an exact durable total. The writer reports used scopes every
 30 seconds as `telemetry.metrics` at **debug** level, with `measurement.scope`
 and `measurement.snapshot`. Both text and JSON honor `LOG_LEVEL`; routine
-snapshots are absent at the default `info`. Metrics reports use `schema_version: 2`
+snapshots are absent at the default `info`. Metrics reports use `schema_version: 1`
 to distinguish these named objects from the old positional arrays, and include
 `level: "debug"`. Operation and loss records remain schema v1.
 Remote scraping/export is not implemented. Completion metrics continue even

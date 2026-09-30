@@ -4,7 +4,7 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.Objects;
 public record ClientConfig(URI endpoint, Profile profile, int timeoutMillis, Path nativeHost) {
-    public enum Profile { GROWING_V3 }
+    public enum Profile { NATIVE_V1 }
     public ClientConfig {
         Objects.requireNonNull(endpoint); Objects.requireNonNull(profile);
         Values.text(endpoint.toString(), 4096);

@@ -34,7 +34,7 @@ const codec: Codec<number> = {
 const key = new Key(new Uint8Array([97]), codec);
 const config = {
   url: "http://127.0.0.1:1",
-  profile: "growing_v3" as const,
+  profile: "native_v1" as const,
   activation: new Activation(new ProcessRef(1, 1), 1, 1, "/unused"),
 };
 const empty = (): GrowingEvent => ({

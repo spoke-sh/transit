@@ -54,7 +54,7 @@ for command in ('server', 'serve'):
     invoke([command, '--unknown=private-must-not-appear'], contains=('unexpected input at argument 2',))
     invoke([command, '--help'], 0, ('Server configuration file (overrides discovery)', '--initialize', '--no-ui', 'Alias: serve'))
     invoke([command, '--config', 'private-must-not-appear', '--help'], 0)
-for args in ([], ['--help'], ['--version'], ['app'], ['app', '--help'], ['console', '--help'], ['query', '--help'], ['query-v2', '--help']):
+for args in ([], ['--help'], ['--version'], ['app'], ['app', '--help'], ['console', '--help'], ['query', '--help']):
     invoke(args, 0)
 root_help = invoke(['--help'], 0, ('Usage: transit COMMAND [OPTIONS]', 'Commands:', 'Options:')).stdout
 assert b'--initialize' not in root_help and b'--config' not in root_help
@@ -64,7 +64,7 @@ invoke(['console', '--no-rc'], contains=('cannot read the local installation', '
 invoke(['console', '--config', 'missing', '--format', 'csv'], stderr='error: --format must be table or json\n')
 invoke(['console', '--format'], stderr='error: --format must be table or json\n')
 invoke(['console', '--config', 'missing', '--no-ui'], contains=('--no-ui is not supported',))
-for command in ('query', 'query-v2'):
+for command in ('query',):
     invoke([command], contains=('a configuration file is required', f'Usage: transit {command} CONFIG'))
     invoke([command, 'one', 'two'], contains=('argument 3',))
     invoke([command, '--config'], contains=('argument 2',))
@@ -113,7 +113,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
 
     config = {'version': 1, 'installation': str(installation), 'realm': 73,
               'ports': dict(zip(('cold', 'cold_console', 'store', 'node', 'gateway'), range(29001, 29006))),
-              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host'), sys.executable)}
+              'executables': dict.fromkeys(('minio', 'ursula', 'node', 'query_host', 'board'), sys.executable)}
     missing = copy.deepcopy(config)
     del missing['ports']['gateway']
     server(dict(missing, realm=0), ('realm',))  # Missing gateway now inherits its default.
@@ -132,9 +132,9 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     empty.touch(mode=0o700)
     invalid['executables']['query_host'] = str(empty)
     server(invalid, ('executables.query_host', 'InvalidExecutable'))
-    server(dict(config, version=3, executables=dict(config['executables'], board='absent-board')), ('executables.board',))
-    path.write_text(json.dumps(config))
-    invoke(['server', '--config', path], contains=('version must be 3 to start Board', '--no-ui'))
+    server(dict(config, executables=dict(config['executables'], board='absent-board')), ('executables.board',))
+    server(dict(config, version=2), ('version must be 1',))
+    server(dict(config, version=3), ('version must be 1',))
     with socket.socket() as listener:
         listener.bind(('127.0.0.1', 0))
         listener.listen()
@@ -144,7 +144,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         server(invalid, ('cannot bind', 'ports.cold', 'address already in use', f'127.0.0.1:{port}'), 1)
     assert not installation.exists(), 'invalid invocation/configuration started provisioning'
 
-    console = {'version': 1, 'profile': 'unified_v2', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',
+    console = {'version': 1, 'profile': 'unified_v1', 'url': 'http://127.0.0.1:19105', 'transport': 'loopback',
                'seed_file': 'missing.seed', 'connection': dict(zip(('realm', 'principal', 'source', 'resource', 'requester', 'requests'), range(1, 7))),
                'workspace': {'name': 'items', 'source': {'resource': 4, 'source': {'table': {'id': 1, 'names': ['key', 'value'], 'value_type': 'int64'}}},
                              'limits': {'pages': '1', 'segments': '1', 'result_bytes': '65536'}}}
@@ -204,7 +204,7 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     project_server.write_text('ports: !tag invalid\n')
     invoke(['server'], env=environment, cwd=project, contains=('unsupported YAML',))
     invoke(['server', '--config', home_server], env=environment, cwd=project, contains=('version', 'home/transit.yaml'))
-    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host'))
+    yaml_config = 'version: 1\nrealm: 0\nexecutables:\n'+''.join(f'  {key}: {sys.executable}\n' for key in ('minio', 'ursula', 'node', 'query_host', 'board'))
     project_server.write_text(yaml_config)
     invoke(['server', '--no-ui'], env=environment, cwd=project, contains=('realm must be',))
     for setting in ({'TRANSIT_BOGUS': 'private-must-not-appear'}, {'TRANSIT_PORTS__GATEWAY': '"private-must-not-appear"'}):
@@ -301,7 +301,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     (local/'caller.seed').write_text('11'*32)
     (project/'.transitrc').unlink(); (home/'.transitrc').unlink(); home_server.unlink()
     identity = dict.fromkeys(('config', 'cli', 'minio', 'ursula', 'node', 'query_host'), [0]*32)
-    record = dict(identity=identity, installation=[0]*16, root_public=[0]*32,
+    definition = json.loads((Path(__file__).resolve().parents[1] / 'contracts/transit-v1.schema.json').read_text())['x-transit']['definition']
+    record = dict(definition=definition, identity=identity, installation=[0]*16, root_public=[0]*32,
                   complete=True, genesis_observed=True, provision=list(range(1, 15)))
     (local/'installation.json').write_text(json.dumps(record))
     shown = invoke(['console'], 0, env=environment, cwd=project, data=b'.show\n')

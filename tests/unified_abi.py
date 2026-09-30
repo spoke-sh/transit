@@ -34,7 +34,7 @@ class Native:
         seed = c.create_string_buffer(bytes([10])*32, 32)
         status = api.station_unified_query_create(1, endpoint, len(endpoint), seed, config, len(config), c.byref(self.pointer))
         assert status == 0
-        assert self.call({'capabilities': {}})['capabilities']['version'] == 2
+        assert self.call({'capabilities': {}})['capabilities']['version'] == 1
 
     def call(self, action):
         request = json.dumps(action).encode()
@@ -59,7 +59,7 @@ class Port:
         config.write_text(json.dumps(dict(url=url, seed_file=str(root / 'caller.seed'),
             query_client=dict(connection=connection, timeout_ms=10000))))
         self.child = subprocess.Popen([host, str(config)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
-        assert self.call({'capabilities': {}})['capabilities']['version'] == 2
+        assert self.call({'capabilities': {}})['capabilities']['version'] == 1
 
     def call(self, action):
         self.child.stdin.write(json.dumps({'unified_query': action})+'\n')

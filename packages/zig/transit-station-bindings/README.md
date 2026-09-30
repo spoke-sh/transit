@@ -6,24 +6,12 @@ the [client ABI](../transit-client/docs/bindings.md) and
 operations, native handle/buffer lifetime, generated C declarations and the schemas
 used by every language adapter and the [native port](../../../apps/transit-station-host/README.md).
 
-This package sits above the framework so connector and later Document/query
-adapters can compose shared Zig implementations without reversing Station's
-dependency direction. The existing `station_abi` module, `libtransit_station`
-artifact, function signatures and wire schemas are preserved by this extraction.
-Additive M15 exports prepare HTTP request commitments, decode outcomes and expose
-one bounded replay reader. Scoped publication actions and validated HTTP calls
-reuse the same native turn and dispatch gate. These are native composition APIs;
-all [ten public SDKs](../../../docs/reference/callers.md) provide typed
-request/call/replay conveniences with local qualification. Explicit durable
-release is also available through shared codecs and scoped `http_release` calls;
-all ten SDKs expose it. Scoped `http_followup` calls validate published request
-commitments and submit HTU1 through the same durable call machinery. All ten SDKs
-expose typed followup helpers and qualify correlated policy refusal; broader
-connector lifecycle and deployment work remain in M15.
-
-M16 adds shared RPC descriptor/request/outcome codecs, scoped publication and
-call/retry/disposal actions, and one owned current-policy transcript reader.
-The generated native and port surfaces precede public SDK qualification.
+This package composes shared Zig implementations without reversing Station's
+dependency direction. It exports `station_abi`, `libtransit_station`, generated
+C declarations and native-port schemas. HTTP and RPC request commitments,
+publication actions, durable calls, captured replay and explicit release use
+the same scoped turn and dispatch gates as ordinary Station operations.
+All [public language SDKs](../../../docs/reference/callers.md) use this boundary.
 
 See the [binding guide](docs/bindings.md) for ownership, scoped turns, explicit
 dispatch, exact pending retry and query buffers. Native foreign pointers never
@@ -35,7 +23,7 @@ ownership/recovery proofs. `just bindings::generate` regenerates declarations
 from the public Zig exports; generated resources remain separate from idiomatic
 host APIs.
 
-M17 adds `station_document_codec` and the matching local port action. Shared Zig
+The bridge exports `station_document_codec` and the matching local port action. Shared Zig
 prepares/validates canonical Document changes and exact accepted-state references;
 SDKs receive owned buffers. Full-width counters/integers use decimal strings,
 binary uses hex, and finite float64 uses eight little-endian bytes as hex to
@@ -44,15 +32,14 @@ not one byte, UTF-16 code unit or grapheme cluster. Independent SDC1/SDR1 fixtur
 run through native and port surfaces. Scoped owner actions now compose bounded jobs/checkpoints and permanent lifecycle
 operations. `station_growing_document_read` exposes descriptions, path/sequence
 pages, accepted changes and resynchronization through current permissions, without
-writer ownership. Public language APIs and remote caller routing remain in progress;
-the additive capabilities describe only the implemented native surfaces.
+writer ownership. Public SDKs expose these shared operations; local capabilities identify the
+loaded native implementation, independently of current authority grants.
 
-M18 adds `station_unified_query_codec` and `unified_query_codec` for typed v2
+The bridge exports `station_unified_query_codec` and `unified_query_codec` for typed v1
 KV/Table/Document bundles and owned nested Arrow values. See the
 [unified query guide](docs/unified-query.md) for representation, bounds and
 ownership. Independent bundle and PyArrow fixtures pass through both native
 transports; this alone does not qualify a language SDK or signed query lifecycle.
-The additive query caller handle and `query_client` port profile now share signed
-preparation, admission observation and current-policy verified pages. The local
-KV recovery schedule passes through both transports; further source and installed
-SDK qualification remains in progress.
+The query caller handle and `query_client` port profile now share signed
+preparation, admission observation and current-policy verified pages. The [proof ledger](../../../tests/README.md) records executed source and
+installed-language recovery schedules.

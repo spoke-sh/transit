@@ -42,13 +42,13 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=3, realm=REALM, principal=principal, kind=kind)
-    return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v3\0' + compact(query)).digest()))
+    query = dict(version=1, definition='4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679', realm=REALM, principal=principal, kind=kind)
+    return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
-    request = dict(version=3, realm=REALM, principal=principal, sequence=sequence, command=command)
-    return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v3\0' + compact(request)).digest()))
+    request = dict(version=1, definition='4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679', realm=REALM, principal=principal, sequence=sequence, command=command)
+    return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
 def frame(payload, kind=1, correlation=0):
@@ -105,7 +105,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
         port = free_port()
         url = f'http://127.0.0.1:{port}'
         configuration = store.root / 'node.json'
-        configuration.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), ursula_url=store.url, bucket='serving', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
+        configuration.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=REALM, root_key=keys[0].public, max_clock_error_ms=10000, admission_ceiling=50000, control_reserve=2000), ursula_url=store.url, bucket='serving', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
         children, logs = [], []
 
         def start(name, executable, config):
@@ -118,11 +118,11 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             return process
 
         def query(principal, kind):
-            return post(port, '/v3/query', native_query(keys[principal], principal, kind))
+            return post(port, '/v1/query', native_query(keys[principal], principal, kind))
 
         def send(command, principal=0):
             message = native_command(keys[principal], principal, sequences[principal] + 1, command)
-            receipt = post(port, '/v3/command', message)
+            receipt = post(port, '/v1/command', message)
             sequences[principal] += 1
             return receipt['position']
 
@@ -168,7 +168,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             def do_POST(self):
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 message = json.loads(body)
-                if self.path == '/v3/query' and message['query']['principal'] == 79 and 'resource' in message['query']['kind'] and fault['stall_reads']:
+                if self.path == '/v1/query' and message['query']['principal'] == 79 and 'resource' in message['query']['kind'] and fault['stall_reads']:
                     with fault_lock:
                         fault['blocked'] += 1
                     release_reads.wait(timeout=4)
@@ -178,7 +178,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                     response = connection.getresponse()
                     result = response.read()
                     message = json.loads(body)
-                    if self.path == '/v3/command' and response.status == 200:
+                    if self.path == '/v1/command' and response.status == 200:
                         request = message['request']
                         turn = request['command'].get('turn', request['command'].get('turn_with_versions', {}).get('turn', {}))
                         admission = request['principal'] == 77 and any(mutation and bytes.fromhex(mutation['key']).startswith(b'\x00sv1o') for mutation in turn.get('mutations', []))
@@ -197,7 +197,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                             if body == fault[stage][0]:
                                 assert result == fault[stage][1]
                                 fault['commit_retries'].add(stage)
-                    if self.path == '/v3/command' and message['request']['principal'] == 65536 and response.status == 200:
+                    if self.path == '/v1/command' and message['request']['principal'] == 65536 and response.status == 200:
                         if fault['armed']:
                             fault['armed'] = False
                             fault['lost'] = body, result

@@ -17,7 +17,7 @@ const Config = struct {
     callers: []const struct {
         credential_file: []const u8,
         seed_file: []const u8,
-        connection: q.Model.Connection,
+        connection: flight.Gateway.Connection,
         service: u64,
         binding_revision: u64,
         columns: [2][]const u8,

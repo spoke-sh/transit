@@ -17,7 +17,7 @@ def inspect_capture(fixture, admin, authority, saved, board, provision, state, b
     origin = f'http://127.0.0.1:{port}'
     config = fixture.root / 'board.json'
     config.write_text(json.dumps(dict(upstream=authority, realm=47, principal=55,
-        profile='growing_v3', seed_file=str(seed), public_origin=origin, port=port,
+        profile='native_v1', seed_file=str(seed), public_origin=origin, port=port,
         request_timeout_ms=5000, upstream_timeout_ms=1500)))
     log = (fixture.root / 'board.log').open('w+')
     serving = subprocess.Popen([board, str(config)], stdout=log, stderr=subprocess.STDOUT)

@@ -1,4 +1,4 @@
-//! M12 syntax lowered to the v2 plan. Source resolution never performs I/O;
+//! M12 syntax lowered to the v1 plan. Source resolution never performs I/O;
 //! returned projection/literal slices belong to the supplied allocator.
 const std = @import("std");
 const f = @import("root.zig");

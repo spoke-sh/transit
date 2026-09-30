@@ -57,7 +57,7 @@ pub fn envelope(scope: Scope, signed: Signed) !g.SignedRequest {
     return .{ .request = value, .signature = signed.signature };
 }
 pub fn submit(wire: *client.Client, scope: Scope, signed: Signed) !client.Receipt {
-    return wire.submitGrowing(try envelope(scope, signed));
+    return wire.submit(try envelope(scope, signed));
 }
 fn keys(scope: Scope, principal: u64, selected: @FieldType(Selection, "state")) ![g.page_size]?p.Value {
     if (selected.input > p.max_counter or (selected.record.value != 0 and selected.operation.value == 0)) return error.InvalidApplicationSelection;
@@ -101,7 +101,7 @@ pub fn read(wire: *client.Client, scope: Scope, signed: SignedRead) !Observation
     const native = try queryEnvelope(scope, signed);
     // The shared client validates response shape/basis; the authority checks the
     // operator's signature and current grants. No host reader identity is substituted.
-    const response = try wire.call(g.Response, "/v3/query", native);
+    const response = try wire.call(g.Response, "/v1/query", native);
     switch (signed.prepared.selection) {
         .identity => {
             const value = response.body.identity;

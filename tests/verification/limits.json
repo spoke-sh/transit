@@ -1,48 +1,13 @@
 {
   "version": 1,
-  "profile": "legacy v2/state v1 and explicit growing v3; bounds are classified per owner",
+  "profile": "Current native, Station and query v1; operation, encoding and resident bounds are independent of retained catalog size.",
   "limits": [
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_principals",
-      "expression": "16",
-      "classification": "total-cardinality",
-      "meaning": "Principal records and grant/receipt arrays; replace with paged identities and wider wire principal IDs."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_processes",
-      "expression": "64",
-      "classification": "total-cardinality",
-      "meaning": "Retained process catalog; opt-in collection does not provide unlimited-retention growth."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_effects",
-      "expression": "128",
-      "classification": "total-cardinality",
-      "meaning": "Pending and retained completed effects share slots."
-    },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
       "symbol": "max_effect_observations",
       "expression": "16",
       "classification": "operation",
       "meaning": "Finite external reconciliation attempts per effect; explicit protocol bound."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_outputs",
-      "expression": "256",
-      "classification": "total-cardinality",
-      "meaning": "Undelivered and retained delivered outputs share slots."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_payloads",
-      "expression": "16",
-      "classification": "total-cardinality",
-      "meaning": "Retained payload metadata; bytes live outside the journal."
     },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
@@ -54,7 +19,7 @@
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
       "symbol": "max_turn_outputs",
-      "expression": "4",
+      "expression": "Growth.turn_outputs",
       "classification": "operation",
       "meaning": "One atomic turn output batch."
     },
@@ -70,14 +35,14 @@
       "symbol": "max_admission_ceiling",
       "expression": "65536",
       "classification": "quota-ceiling",
-      "meaning": "Maximum configurable journal admission ceiling in the legacy reserve proof."
+      "meaning": "Maximum configurable native journal admission ceiling."
     },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
       "symbol": "max_control_reserve",
       "expression": "65536",
       "classification": "quota-ceiling",
-      "meaning": "Maximum configurable growing-profile control reserve (growing.Genesis.control_reserve); an explicit reviewed band, not a formula derived from fixed catalog sizes like the legacy reserve."
+      "meaning": "Maximum explicitly configured journal control reserve; no retained-cardinality formula is assumed."
     },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
@@ -88,115 +53,24 @@
     },
     {
       "source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_checkpoint_bytes",
-      "expression": "1024 * 1024",
-      "classification": "total-cardinality",
-      "meaning": "Whole-catalog checkpoint bound; replace with roots and durable segments."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
       "symbol": "max_body",
       "expression": "256 * 1024",
       "classification": "operation",
       "meaning": "HTTP input parsing budget."
     },
     {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_resources",
-      "expression": "4",
-      "classification": "total-cardinality",
-      "meaning": "Four catalog slots; collection is not a growing-state implementation."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_entries",
-      "expression": "32",
-      "classification": "total-cardinality",
-      "meaning": "32 keys shared by application rows, schemas, waits and retained results."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_associations",
-      "expression": "64",
-      "classification": "total-cardinality",
-      "meaning": "64 retained named process/resource relationships."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_views",
-      "expression": "4",
-      "classification": "total-cardinality",
-      "meaning": "Four durable active views with full entry copies; introduce explicit active-view quota and page roots."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_mutations",
-      "expression": "4",
-      "classification": "operation",
-      "meaning": "Atomic proposal mutation budget."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_key_bytes",
-      "expression": "32",
-      "classification": "encoding",
-      "meaning": "Maximum one key encoding."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "page_size",
-      "expression": "8",
-      "classification": "working-set",
-      "meaning": "Entries returned in one page, independent of total collection size in the target profile."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_view_ms",
-      "expression": "60_000",
-      "classification": "operation",
-      "meaning": "Maximum finite snapshot lifetime, not history retention."
-    },
-    {
-      "source": "packages/zig/transit-station/src/Query.zig",
-      "symbol": "chunk_bytes",
-      "expression": "224",
-      "classification": "operation",
-      "meaning": "One encoded result fragment."
-    },
-    {
-      "source": "packages/zig/transit-station/src/Query.zig",
-      "symbol": "max_chunks",
-      "expression": "3",
-      "classification": "total-cardinality",
-      "meaning": "Whole captured result limited to three fragments; use durable batch references."
-    },
-    {
-      "source": "packages/zig/transit-station/src/Query.zig",
-      "symbol": "max_bytes",
-      "expression": "chunk_bytes * max_chunks",
-      "classification": "total-cardinality",
-      "meaning": "Total result ceiling derived from chunk count; not a streaming memory budget."
-    },
-    {
-      "source": "packages/zig/transit-station/src/Supervisor.zig",
-      "symbol": "max_children",
-      "expression": "4",
-      "classification": "total-cardinality",
-      "meaning": "Four children per supervisor materialization; needs paged child catalog."
-    },
-    {
       "source": "packages/zig/transit-station-bindings/src/Abi.zig",
       "symbol": "minimum_stack_bytes",
       "expression": "8 * 1024 * 1024",
       "classification": "working-set",
-      "meaning": "Eight MiB host stack required by the legacy Debug materialization path."
+      "meaning": "Native worker stack budget exported by the shared ABI; independent of durable catalog size."
     },
     {
       "source": "packages/zig/transit-fuze/src/model.zig",
       "symbol": "max_rows",
       "expression": "32",
-      "classification": "total-cardinality",
-      "meaning": "Legacy finite query total ceiling; Stream uses the same bound per batch independently of total source/result size."
+      "classification": "working-set",
+      "meaning": "Rows in one Table compute batch. Paged capture and segment delivery keep retained source/result size independent of this batch."
     },
     {
       "source": "packages/zig/transit-fuze/src/execute.zig",
@@ -367,13 +241,6 @@
       "meaning": "Owned literal scratch supports full hex representation of one bounded cell."
     },
     {
-      "source": "packages/zig/transit-query/src/Request.zig",
-      "symbol": "plan_bytes",
-      "expression": "q.station.Frame.max_payload - 36",
-      "classification": "encoding",
-      "meaning": "207-byte public plan within the existing 243-byte frame after the version tag and exact schema fingerprint; explicit rejection preserves the fence and native plan bounds."
-    },
-    {
       "source": "packages/zig/transit-station/src/Publication.zig",
       "symbol": "chunk_bytes",
       "expression": "256",
@@ -446,16 +313,6 @@
   ],
   "identities": [
     {
-      "source": "packages/zig/transit-protocol/src/State.zig",
-      "anchor": "after: u16 = 0",
-      "meaning": "Physical slot cursor cannot address a growing ordered key space; versioned opaque resume token required."
-    },
-    {
-      "source": "packages/zig/transit-protocol/src/root.zig",
-      "anchor": "principal: u8",
-      "meaning": "All grants, bindings, origins, resource views, ABI/host schemas must widen together, with old histories rejected or explicitly upgraded."
-    },
-    {
       "source": "packages/zig/transit-fuze/src/model.zig",
       "anchor": "names: [2]Name",
       "meaning": "Two-column schema qualification; schema width is a per-operation budget, not a total row limit."
@@ -463,7 +320,7 @@
     {
       "source": "packages/zig/transit-protocol/src/Growth.zig",
       "anchor": "pub const Id = u64;",
-      "meaning": "Growing-profile value identities; validated at 2^53-1 for exact JSON integers. Does not widen legacy ABI by implication."
+      "meaning": "Native value identities use u64 with an exact JSON address space through 2^53-1, shared by all current callers."
     },
     {
       "source": "packages/zig/transit-core/src/growing.zig",
@@ -476,118 +333,281 @@
       "meaning": "Configured connected owner graph validation budget; larger unrelated realm catalogs do not consume this work budget."
     }
   ],
-  "growing_replacements": [
+  "removed_bounds": [
     {
-      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_principals",
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_principals"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_processes"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_effects"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_outputs"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_payloads"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/root.zig",
+      "symbol": "max_checkpoint_bytes"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_resources"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_entries"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_associations"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_views"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_mutations"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_key_bytes"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "page_size"
+    },
+    {
+      "source": "packages/zig/transit-protocol/src/State.zig",
+      "symbol": "max_view_ms"
+    },
+    {
+      "source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "chunk_bytes"
+    },
+    {
+      "source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "max_chunks"
+    },
+    {
+      "source": "packages/zig/transit-station/src/Query.zig",
+      "symbol": "max_bytes"
+    },
+    {
+      "source": "packages/zig/transit-station/src/Supervisor.zig",
+      "symbol": "max_children"
+    },
+    {
+      "source": "packages/zig/transit-query/src/Request.zig",
+      "symbol": "plan_bytes"
+    }
+  ],
+  "collections": [
+    {
       "status": "paged",
       "meaning": "Principal grants, sequence and receipts are addressed by full-width catalog keys; no resident principal slots.",
       "source": "packages/zig/transit-core/src/growing.zig",
-      "anchor": "pub const Principal = struct"
+      "anchor": "pub const Principal = struct",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/root.zig",
+        "symbol": "max_principals"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_processes",
       "status": "paged",
       "meaning": "PID metadata and mailbox entries use paged process/mailbox namespaces. Retired PID records remain retained.",
       "source": "packages/zig/transit-core/src/catalog.zig",
-      "anchor": "    mailbox,"
+      "anchor": "    mailbox,",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/root.zig",
+        "symbol": "max_processes"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_effects",
       "status": "paged",
       "meaning": "Effect records and pending/by-PID indexes use paged identities; each attempt still has a bounded observation budget.",
       "source": "packages/zig/transit-core/src/catalog.zig",
-      "anchor": "    effects_by_pid,"
+      "anchor": "    effects_by_pid,",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/root.zig",
+        "symbol": "max_effects"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_outputs",
       "status": "paged",
       "meaning": "Outputs, pending routes and delivery receipts retain independent keys. Output batches remain bounded per turn.",
       "source": "packages/zig/transit-core/src/catalog.zig",
-      "anchor": "    pending_route,"
+      "anchor": "    pending_route,",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/root.zig",
+        "symbol": "max_outputs"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_payloads",
-      "status": "unsupported",
-      "meaning": "Legacy external payload operations are absent from v3 Command. Growing Station results use explicit segments in KV state, not this legacy catalog.",
-      "source": "packages/zig/transit-protocol/src/Growth.zig",
-      "anchor": "pub const Command = union(enum)"
+      "status": "paged",
+      "meaning": "Immutable payload metadata and by-PID indexes use durable pages; each body retains its 64 KiB operation bound.",
+      "source": "packages/zig/transit-core/src/growing_payload.zig",
+      "anchor": "pub fn apply",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/root.zig",
+        "symbol": "max_payloads"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/root.zig",
-      "symbol": "max_checkpoint_bytes",
       "status": "paged",
       "meaning": "Growing heads contain a constant-size catalog root; page storage remains durable after root-history trim.",
       "source": "packages/zig/transit-core/src/growing.zig",
-      "anchor": "pub const Head = struct"
+      "anchor": "pub const Head = struct",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/root.zig",
+        "symbol": "max_checkpoint_bytes"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_resources",
       "status": "paged",
       "meaning": "Resources and scoped grants use paged identities, independent of dependency graph budgets.",
       "source": "packages/zig/transit-core/src/catalog.zig",
-      "anchor": "    resource,"
+      "anchor": "    resource,",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_resources"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_entries",
       "status": "paged",
       "meaning": "KV entries, Table rows, waits and result records share paged state, accessed by bounded keys/pages.",
       "source": "packages/zig/transit-core/src/catalog.zig",
-      "anchor": "    entry,"
+      "anchor": "    entry,",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_entries"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_associations",
       "status": "paged",
       "meaning": "Named associations and their discovery/dependency indexes use catalog keys. Required graph validation remains an explicit operation budget.",
       "source": "packages/zig/transit-core/src/catalog.zig",
-      "anchor": "    association_order,"
+      "anchor": "    association_order,",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_associations"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-protocol/src/State.zig",
-      "symbol": "max_views",
       "status": "paged",
       "meaning": "Captured and retained views store root references, never complete copies of resource entries.",
       "source": "packages/zig/transit-core/src/growing.zig",
-      "anchor": "pub const StoredReadVersion = struct"
+      "anchor": "pub const StoredReadVersion = struct",
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_views"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-station/src/Query.zig",
-      "symbol": "max_chunks",
       "status": "segmented",
       "meaning": "Result ordinals and fragments use durable keys and a verified completion manifest; receiver credit bounds active delivery.",
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
-      "anchor": "pub const Manifest = struct"
+      "anchor": "pub const Manifest = struct",
+      "replaces": {
+        "source": "packages/zig/transit-station/src/Query.zig",
+        "symbol": "max_chunks"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-station/src/Query.zig",
-      "symbol": "max_bytes",
       "status": "segmented",
       "meaning": "An 8192-byte segment is an operation budget, not a total-result bound; result ordinals and total bytes are retained.",
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
-      "anchor": "pub const segment_bytes = 8192;"
+      "anchor": "pub const segment_bytes = 8192;",
+      "replaces": {
+        "source": "packages/zig/transit-station/src/Query.zig",
+        "symbol": "max_bytes"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-station/src/Supervisor.zig",
-      "symbol": "max_children",
-      "status": "unsupported",
-      "meaning": "Growing supervision and registry services are not advertised. Their legacy arrays must not become an M11 growing SDK API by aliasing v1 types.",
-      "source": "packages/zig/transit-protocol/src/Growth.zig",
-      "anchor": "station: bool = false"
+      "status": "paged",
+      "meaning": "Supervisor children use independent durable keys. Registration is one bounded mutation; per-child retry limits remain explicit.",
+      "source": "packages/zig/transit-station/src/Supervisor.zig",
+      "anchor": "pub fn register",
+      "replaces": {
+        "source": "packages/zig/transit-station/src/Supervisor.zig",
+        "symbol": "max_children"
+      }
     },
     {
-      "legacy_source": "packages/zig/transit-fuze/src/model.zig",
-      "symbol": "max_rows",
       "status": "segmented",
-      "meaning": "Fuze Stream processes bounded batches over retained sources with owned progress; legacy whole-result execute remains a separate API.",
+      "meaning": "Table streaming evaluates bounded batches with retained progress and independently addressed result segments.",
       "source": "packages/zig/transit-fuze/src/Stream.zig",
-      "anchor": "pub const progress_bytes = 143;"
+      "anchor": "pub const progress_bytes = 143;",
+      "replaces": null
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_mutations"
+      },
+      "status": "segmented",
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "pub const turn_mutations = 4;",
+      "meaning": "Native state values and operation limits come from the single current Growth definition."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_key_bytes"
+      },
+      "status": "segmented",
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "pub const turn_mutations = 4;",
+      "meaning": "Native state values and operation limits come from the single current Growth definition."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "page_size"
+      },
+      "status": "segmented",
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "pub const turn_mutations = 4;",
+      "meaning": "Native state values and operation limits come from the single current Growth definition."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-protocol/src/State.zig",
+        "symbol": "max_view_ms"
+      },
+      "status": "segmented",
+      "source": "packages/zig/transit-protocol/src/Growth.zig",
+      "anchor": "pub const turn_mutations = 4;",
+      "meaning": "Native state values and operation limits come from the single current Growth definition."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-station/src/Query.zig",
+        "symbol": "chunk_bytes"
+      },
+      "status": "segmented",
+      "source": "packages/zig/transit-station/src/QueryRecords.zig",
+      "anchor": "pub const fragment_bytes = Frame.max_payload - 22;",
+      "meaning": "Current paged Table capture uses bounded fragments and complete-result manifests."
+    },
+    {
+      "replaces": {
+        "source": "packages/zig/transit-query/src/Request.zig",
+        "symbol": "plan_bytes"
+      },
+      "status": "segmented",
+      "source": "packages/zig/transit-query/src/Bundle.zig",
+      "anchor": "pub const max_bytes = 16384;",
+      "meaning": "Durable plans use a finite uploaded bundle rather than a whole-plan mailbox frame."
     }
   ]
 }

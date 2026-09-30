@@ -90,7 +90,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
             grpc_fixtures.write_text('\n'.join(data[key] for key in ('outcome_ok_hex','outcome_unknown_hex','rejection_hex','released_hex')) + '\n')
             def command(mode, config):
                 cfg = json.loads(config.read_bytes())
-                assert cfg['profile'] == 'growing_v3'
+                assert cfg['profile'] == 'native_v1'
                 if mode.startswith('document-'):
                     data = json.loads(Path(cfg['document_fixtures']).read_bytes())
                     document_fixtures = target / 'document-codecs.txt'

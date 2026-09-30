@@ -3,9 +3,9 @@
 const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Frame = @import("Frame.zig");
-const q = @import("GrowingQuery.zig");
+const q = @import("Query.zig");
 const r = q.records;
 pub const Manifest = r.Manifest;
 pub const Context = struct { workspace: []u8, cancellation: *const f.execution.Cancellation };
@@ -104,12 +104,12 @@ fn receiving(turn: *Turn, frame: Frame, context: Context) !bool {
     const peer = try Frame.source(turn.delivery.input);
     if (peer != wait.target) return error.UnexpectedReplySource;
     if (wait.phase != .waiting) {
-        try turn.write(try p.Value.init("\x00disposition"), try p.Value.init("station.closed-result.v2"));
+        try turn.write(try p.Value.init("\x00disposition"), try p.Value.init("station.closed-result.v1"));
         return true;
     }
     if (context.cancellation.load(.acquire)) return error.Cancelled;
     if (frame.kind == .result_chunk) {
-        if (std.mem.startsWith(u8, frame.payload.slice(), "GQF2")) {
+        if (std.mem.startsWith(u8, frame.payload.slice(), "GQF1")) {
             const fragment = try r.Fragment.decode(&frame.payload);
             var transfer = try receiveTransfer(turn, frame.correlation, fragment.result, peer);
             const key = r.key('d', frame.correlation, fragment.segment, fragment.offset / r.fragment_bytes);
@@ -176,16 +176,16 @@ pub fn dispatch(turn: *Turn, frame: Frame, context: Context) !bool {
     if (!turn.delivery.input.value.eql(try frame.encode())) return error.InvalidFrame;
     const handled = switch (frame.kind) {
         .cast => blk: {
-            if (std.mem.startsWith(u8, frame.payload.slice(), "GQC2")) {
+            if (std.mem.startsWith(u8, frame.payload.slice(), "GQC1")) {
                 const request = try q.Continuation.decode(frame.payload);
                 if (try q.advance(turn, request, context.workspace, context.cancellation) == .captured) try begin(turn, request.result);
                 break :blk true;
             }
-            if (std.mem.startsWith(u8, frame.payload.slice(), "GQP2")) {
+            if (std.mem.startsWith(u8, frame.payload.slice(), "GQP1")) {
                 try publishing(turn, try r.Publication.decode(frame.payload), context);
                 break :blk true;
             }
-            if (std.mem.startsWith(u8, frame.payload.slice(), "GQG2")) {
+            if (std.mem.startsWith(u8, frame.payload.slice(), "GQG1")) {
                 try receiveCredit(turn, try r.Credit.decode(frame.payload), context);
                 break :blk true;
             }
@@ -204,7 +204,7 @@ pub fn dispatch(turn: *Turn, frame: Frame, context: Context) !bool {
                 const job = try q.job(turn, identity);
                 if (job.destination != peer or job.correlation != frame.correlation) return error.InvalidQueryJob;
                 try q.close(turn, identity, .cancelled);
-            } else try turn.write(try p.Value.init("\x00disposition"), try p.Value.init("station.cancellation.v2"));
+            } else try turn.write(try p.Value.init("\x00disposition"), try p.Value.init("station.cancellation.v1"));
             break :blk true;
         },
         else => false,

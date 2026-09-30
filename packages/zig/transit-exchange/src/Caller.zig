@@ -8,13 +8,13 @@ pub const Options = struct { call_key: p.Value, outcome_key: p.Value, tick: []co
 pub fn For(comptime Adapter: type, comptime options: Options) type {
     return struct {
         const Driver = @This();
-        server: s.GrowingGenServer,
+        server: s.GenServer,
         reader: x.Client,
         peer: u64,
         io: std.Io,
         prepared: Adapter.RequestRecord.Prepared,
         content: []const u8,
-        fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+        fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
             const self: *Driver = @ptrCast(@alignCast(raw.?));
             if (frame.kind == .reply) {
                 const saved = (try turn.read(options.call_key)) orelse return error.MissingCall;
@@ -57,7 +57,7 @@ pub fn For(comptime Adapter: type, comptime options: Options) type {
             const sequence = (try self.reader.query(.{ .capabilities = {} })).principal_sequence + 1;
             const signed = try p.Growth.sign(.{ .realm = self.reader.realm, .principal = self.reader.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.server.session.pid, .value = try (s.Frame{ .kind = .cast, .payload = try p.Value.init("example.Adapter.tick.v1") }).encode() } } }, self.reader.key);
             for (0..3) |_| {
-                _ = self.reader.wire.submitGrowing(signed) catch |err| {
+                _ = self.reader.wire.submit(signed) catch |err| {
                     if (err == error.AccessDenied or err == error.Conflict or err == error.Rejected) return err;
                     continue;
                 };

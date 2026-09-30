@@ -52,7 +52,7 @@ to monitor the actual authority position and remaining admission headroom.
 The growing kernel exposes optional `admission_ceiling` and `control_reserve` in
 genesis. They are deployment quotas, independent of retention. Their exact
 behavior and the executed 96-position/96-reserve, 2 GiB filesystem proof are in
-the [authority guide](../../../packages/zig/transit-core/docs/authority.md#growing-profile-an-explicit-control-reserve-not-a-derived-one).
+the [authority guide](../../../packages/zig/transit-core/docs/authority.md#finite-admission-and-control-capacity).
 The kernel does not preallocate storage on the operator's behalf.
 
 Reserve enough **ordinary admission** for all admitted work before dispatching.

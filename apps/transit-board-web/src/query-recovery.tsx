@@ -1,10 +1,6 @@
 /** A read reference is not a grant or a signed admission. Export before changing
  * the selected terminal query so its durable identity survives browser loss. */
-export function saveQueryReference(
-  profile: "table_v1" | "unified_v2",
-  resource: number,
-  id: string,
-) {
+export function saveQueryReference(profile: "unified_v1", resource: number, id: string) {
   const source = JSON.stringify({ version: 1, origin: location.origin, profile, resource, id });
   const url = URL.createObjectURL(new Blob([source], { type: "application/json" }));
   const link = document.createElement("a");

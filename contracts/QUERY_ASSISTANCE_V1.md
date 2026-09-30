@@ -1,7 +1,7 @@
 # Query assistance v1
 
 Cursor assistance provides context-aware SQL and console suggestions. [CLI v1](TRANSIT_CLI_V1.md) owns terminal
-interaction; [workspace v2](../packages/zig/transit-query/docs/unified-client.md) owns
+interaction; [workspace v1](../packages/zig/transit-query/docs/unified-client.md) owns
 current-authority queries. This contract adds no SQL execution or grants.
 
 The workspace `assist` request contains `sql` (at most 4096 UTF-8 bytes), `cursor`
@@ -12,8 +12,8 @@ native description access is required even for keyword or dot-command suggestion
 There is no global catalog lookup. Console mode includes the versioned dot-command
 command vocabulary; it does not execute those commands remotely.
 
-The `assistance` response has version 1, the input generation, `unified_v2`
-capability profile, source resource/full `UQS2` contract, a nullable replacement
+The `assistance` response has version 1, the input generation, `unified_v1`
+capability profile, source resource/full `UQS1` contract, a nullable replacement
 range `[start,end)` in UTF-8 bytes, and at most eight ordered items. Items contain
 insertion text, kind and a presentation detail. The range includes the token's
 suffix when the cursor is inside it. Quoted identifiers remain case sensitive;
@@ -23,11 +23,11 @@ are independent of retained data cardinality.
 
 Fuze's production parser supplies keyword, punctuation and name-context
 expectations. The query owner supplies authorized names/types and filters against
-its executable v2 capabilities. Checked SUM offers int64 columns only; typed
+its executable v1 capabilities. Checked SUM offers int64 columns only; typed
 literal suggestions exclude unsupported uint64/float64 comparisons. General DDL,
 joins, windows and continuous queries cannot appear as executable candidates.
 The existing SQL AST limits named identifiers to sixteen bytes, even where the
-v2 schema can describe thirty-two-byte names. Those wider names do not become
+v1 schema can describe thirty-two-byte names. Those wider names do not become
 named SQL candidates; star projection retains its existing compiler semantics.
 Candidates are grammar continuations, not promises that an unfinished statement
 will compile. Submission always reparses, resolves, validates and authorizes the

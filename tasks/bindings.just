@@ -5,9 +5,9 @@ set working-directory := ".."
 _default:
     @just --list bindings
 
-# Install shared libraries, the native port and the C/C++ example executables.
+# Install the shared libraries and native ports.
 build:
-    zig build client-abi station-abi transit-client-host transit-station-host bindings-examples
+    zig build client-abi station-abi transit-client-host transit-station-host
 
 # Regenerate declarations and shared schemas from the reviewed Zig ABI exports.
 generate:
@@ -18,21 +18,20 @@ check:
     just contract::client-check contract::station-check
     python3 -B bindings/generate.py
 
-# Qualify the native boundary and C/C++/Python callers in the normal dev shell.
+# Qualify native and port ownership, codecs and durable capture.
 native:
     zig build test-bindings
 
 # Qualify every implemented language; enter nix develop .#bindings first.
-test:
-    cargo fmt --manifest-path packages/rust/transit-station/Cargo.toml --check
-    ERL_FLAGS='+S 2:2 +SDcpu 1 +SDio 1' mix format --check-formatted packages/beam/transit-station/lib/transit_station.ex examples/station-bindings/elixir/main.exs
-    zig build test-bindings -Dbindings-foreign=true
+test: native python-test node-sdk-test rust-sdk-test ruby-sdk-test c-sdk-test java-sdk-test dotnet-sdk-test beam-sdk-test sdk-interop
 
-# Validate the Node adapter and its bounded asynchronous port transport.
+# Validate the current Node adapters and their asynchronous port transport.
 node-check:
-    cd packages/ts/transit-station && vp check
-    vp exec --filter @rey/transit-station tsc --noEmit
-    vp exec --filter @rey/transit-station node --test src/host.test.ts
+    cd packages/ts/transit-client && vp check
+    vp exec --filter @transit/client tsc --noEmit
+    cd packages/ts/transit-station-sdk && vp check
+    vp exec --filter @transit/station tsc --noEmit
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -267,6 +266,6 @@ unified-beam source="table": beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=erlang -Dunified-source={{source}}
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=elixir -Dunified-source={{source}}
 
-# All ten installed SDKs against each of the three v2 source services.
+# All ten installed SDKs against each of the three current source services.
 unified-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir

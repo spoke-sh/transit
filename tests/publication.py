@@ -32,7 +32,7 @@ def run(node, caller):
         port = free_port()
         url = f"http://127.0.0.1:{port}"
         config = fixture.root / "node.json"
-        configuration = {"profile": "growing_v3", "genesis": {
+        configuration = {"profile": "native_v1", "genesis": {
             "realm": 46, "root_key": public, "max_clock_error_ms": 10000,
             "allow_history_trim": True},
             "ursula_url": fixture.url, "bucket": "publication", "journal": "authority",
@@ -54,14 +54,14 @@ def run(node, caller):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
-                    if self.path == "/v3/query" and response.status == 200:
+                    if self.path == "/v1/query" and response.status == 200:
                         query = envelope["query"]
                         for name in ("entries", "version_entries"):
                             if name in query["kind"] and query["principal"] != 0:
                                 entries = query["kind"][name]
                                 assert entries.get("key") is not None, "Publication scanned the whole resource"
                                 observations["reads"] += 1
-                    if self.path == "/v3/command" and response.status == 200:
+                    if self.path == "/v1/command" and response.status == 200:
                         command = envelope["request"]["command"]
                         turn = command.get("turn", command.get("turn_with_versions", {}).get("turn", {}))
                         mutations = [item for item in turn.get("mutations", []) if item]

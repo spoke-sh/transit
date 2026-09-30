@@ -25,7 +25,7 @@ module Transit
             raise IncompatibleNative, 'Native client protocol version mismatch'
           end
           caps = port.request({ 'capabilities' => {} }, phase: :native_capabilities, response: 'ClientCapabilities')
-          unless caps['version'] == 1 && %w[operation_metadata opaque_retry growing_v3].all? { |name| caps[name] } &&
+          unless caps['version'] == 1 && %w[operation_metadata opaque_retry native_v1].all? { |name| caps[name] } &&
                  caps['max_line_bytes'] == Internal::LIMITS['host_line_bytes'] && caps['value_bytes'] == Internal::LIMITS['value_bytes'] &&
                  caps['max_counter'] == Internal::LIMITS['max_counter']
             raise UnsupportedCapability, 'Native client lacks the required operation/profile capabilities'

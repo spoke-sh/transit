@@ -36,6 +36,6 @@ Use [growing client operations](../../../packages/zig/transit-client/docs/growin
 or [application installation](../applications.md#installation-and-bootstrap) to
 provision and access supported state. Unified SQL needs an explicitly declared
 KV decoder and schema; arbitrary stored bytes are not implicitly SQL values.
-See [query source profiles](../queries.md#source-profiles).
+See [query source profiles](../queries.md#source-declarations).
 
 Source: [`createKv`, `dataType`](../../../contracts/sql/TransitExtensions.g4).

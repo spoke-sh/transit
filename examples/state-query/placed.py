@@ -115,7 +115,7 @@ def run(profile, kind):
             config = '[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "'+('/data/wal' if profile == 'reference' else '/wal')+'"\n'+cold.config().replace(cold.url, endpoint)
             (work/'ursula.toml').write_text(config); (work/'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public']))
-            write('operator/node.json', dict(profile='growing_v3', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
+            write('operator/node.json', dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000),
                 ursula_url='http://ursula:8080', bucket='query-example', journal='authority', port=8080, listen='0.0.0.0',
                 resident_pages=64 if kind == 'document' else 8, request_timeout_ms=10000))
             if profile == 'compose':

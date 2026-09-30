@@ -36,22 +36,19 @@ produces the manifest's package hash; package builds must also work cold.
 includes a null, Unicode and integers above JavaScript's exact-number range.
 It is 456 bytes; the empty result preserves its schema in 392 bytes.
 
-Station's legacy qualified result profile reserves framing space: three **224-byte**
-data keys and one manifest, at most **672 IPC bytes**. Its boundary proof sweeps
-real variable-width results, captures the maximum, rejects larger results without
-mutations, then completes the four-message reply across separate consumer turns.
-The [Table guide](../../transit-station/docs/tables.md) owns framework/row/result
-capacity and the real-service publication/recovery proof. Kernel IDs remain subject
-to the protocol's advertised counter limit; Arrow integer values have their own
-full signed 64-bit range.
+Station captures bounded IPC segments across durable turns and verifies complete
+ordered coverage before publishing a result. The
+[query guide](../../transit-station/docs/queries.md) owns fragment, segment and
+workspace bounds. Kernel IDs retain the native counter limit; Arrow integers
+retain their full signed 64-bit range.
 
-The separate M10 [incremental engine](streaming.md) uses the same pinned libraries.
+The [incremental engine](streaming.md) uses the same pinned libraries.
 Its independent Arrow proof spans 70 rows and 16,008 text-result bytes in seven
 segments. Whole-query limits and aggregate carry cross pages; allocation/output
 capacity remains per-step. This removes the pure engine's whole-source ceiling,
 but does not by itself qualify Station's larger durable result protocol.
 
-M22 metadata/schema work exposed a valid zero-body IPC batch rejected by the
+Metadata/schema checks cover a valid zero-body IPC batch rejected by the
 pinned reader. The guarded build-cache patch now supplies an owned empty body
 for RecordBatch/DictionaryBatch messages while retaining normal array validation.
 An empty primitive result, row-count mismatch and truncated stream are regression

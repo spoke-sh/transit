@@ -1,13 +1,5 @@
 # transit-client
 
-M25's `Application` API defines language-neutral local application
-declarations, signed management requests and fresh-worker bootstrap values.
-The [installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md)
-owns the implemented workflow and qualification limits. Semantic validation rejects
-conflicting names, dependency order and grant scopes before provisioning.
-M27 adds version-2 declarations with explicit Board resource inspection scopes;
-version-1 declaration signatures remain byte-compatible.
-
 `Session.receive` distinguishes permanent `ProcessExpired`/`ProcessTerminated`
 from `StaleActivation`. Only the latter may be resolved by obtaining a valid new
 activation for the same PID. A failed read or uncertain deadline is never proof
@@ -26,20 +18,18 @@ Its package dependencies are [transit-protocol](../transit-protocol/README.md),
 re-exported as `protocol`, and optional runtime instrumentation through
 [transit-observability](../transit-observability/README.md), re-exported as
 `observability`. It does not import the kernel, Ursula, or a provider.
-[Client](src/root.zig) owns bounded HTTP exchange; [Session](src/Session.zig)
-adds activation-aware receive/prepare/submit operations. The default is the
-experimental v2 API; explicit `submitGrowing` and `queryGrowing` methods expose
-the [M10 v3 development boundary](docs/growing.md). The raw C ABI also exposes
-explicit growing command/query kinds; existing Session and legacy Station foreign
-behavior APIs retain v2;
-`GrowingSession` is an explicit activation helper for the new profile. For the architectural boundary, read [the caller model](../../../docs/reference/callers.md).
+[Client](src/root.zig) owns bounded native v1 HTTP exchange;
+[Session](src/Session.zig) adds activation-aware receive/prepare/submit operations.
+The [native caller guide](docs/growing.md) describes bounded views and retained
+versions. Read [caller semantics](../../../docs/reference/callers.md) for the
+language-neutral ownership boundary.
 
 ## Caller guide
 
 [Calling and recovery](docs/turns.md) explains Session, receive/prepare/submit,
 resource-backed turns, current grants, owned bytes, and exact-request retries.
 Start with the [counter](../../../examples/counter/README.md) for a complete
-program. The library supplies protocol operations; Station will own the behavior
+program. The library supplies protocol operations; Station owns the behavior
 loop, durable waiting, and supervision.
 
 ## Public surface
@@ -47,10 +37,10 @@ loop, durable waiting, and supervision.
 | Interface | Caller responsibility |
 | --- | --- |
 | `Client.submit` | Sign a mutation and retain its exact request until the outcome is resolved |
-| `Client.view` / `Session.receive` | Read a process and its next input under current inspection/activation rights |
-| `Client.delivery` | Read scoped courier status without payload or general inspection access |
-| `Client.inspect` | Follow bounded process/history pages with explicit cut/expiry handling |
-| `Client.state` | Discover state capabilities and read metadata, associations, entries or captured views |
+| `Client.query(.process)` / `Session.receive` | Read a process and its next input under current inspection/activation rights |
+| `Client.query(.delivery)` | Read scoped courier status without payload or general inspection access |
+| `Client.query(.inspection)` | Follow bounded process/history pages with explicit cut/expiry handling |
+| `Client.query` | Discover state capabilities and read metadata, associations, entries or captured views |
 | `Session.prepare*` / `Pending.submit` | Freeze activation-aware proposals; no hidden retry, persistence or background loop |
 | `bootstrap.awaitActivation` | Publish a fresh public key and pin the first controller-granted generation for a provider-bound worker |
 
@@ -63,13 +53,12 @@ share its mutation sequence. A client retains at most one free HTTP connection
 and discards it before a new exchange after 200 ms idle. This is below the growing
 node's one-second idle-header deadline; peers may still close sooner. A failed
 exchange remains a transport failure without automatic replay, including for
-signed mutations. Legacy authorities that close every response remain supported.
+signed mutations. A peer may close a connection after a response.
 Snapshot release and combined finish reads carry a checked control-admission
 hint; signed authorization and request semantics remain mandatory.
 
 Delivered input includes position, opaque value and
-versioned authenticated origin. `Session.receive` rejects unsupported origin
-versions. Match the expected source PID/turn or effect attempt before interpreting
+authenticated origin within the current native definition. Match the expected source PID/turn or effect attempt before interpreting
 application correlation; claimed senders inside opaque bytes carry no authority.
 
 The request deadline includes acquisition of concurrency for both the timer and
@@ -89,7 +78,8 @@ path; imports and ordinary client construction never start it.
 
 The separate [growing ownership bootstrap](docs/growing-bootstrap.md) supports
 finite operator placement with a fixed expected generation and ephemeral key.
-It does not advertise growing provider bindings or change the v2 activation path.
+It fixes an operator-selected generation. Provider-bound workers use
+`awaitActivation` and the runtime controller instead.
 
 ## Instrumentation
 
@@ -109,15 +99,19 @@ Instrumentation finishes after cancellation joins, before call state is reused.
 ## Wire compatibility
 
 The [public contract package](../transit-protocol/README.md) owns the generated
-schema, canonical signing rules, and shared vectors for future language bindings.
-v2 rejects v1 histories and requests; start a fresh development realm.
-The [C ABI](docs/bindings.md) exposes the shared client, generated signatures and
-exact-request export/import for explicit v2/v3 operations. M9's Station adapters
-have separate behavior/Table conformance evidence. M11's public SDK and growing
-Station foreign surfaces remain in progress.
+schema, canonical signing rules and shared vectors. All native operations use the
+current v1 definition identifier. Signatures, responses, saved requests and SDK
+library handshakes fence incompatible builds. No previous protocol profile or
+fallback decoder is supported; see [versioning](../../../docs/reference/versioning.md).
+The [C ABI](docs/bindings.md) exposes shared signing and exact request export/import.
 The standalone [native client port](../../../apps/transit-client-host/README.md)
-also exposes canonical recovery and native operation metadata without Station.
-General payload references remain separately scoped future work.
+provides those operations without Station.
+
+`Application` defines neutral local application declarations, signed management
+requests and bootstrap values, including explicit Board inspection scopes.
+Semantic validation checks names, dependency order and grant scopes before
+provisioning. The [installation contract](../../../contracts/APPLICATION_INSTALLATION_V1.md)
+owns that workflow and its compatibility boundary.
 
 ## Build and verification
 
@@ -136,13 +130,14 @@ restart recovery. `just test::service` also covers client request deadlines.
 
 ## Inspection
 
-`Client.inspect(query, key)` reads authorized process discovery, current facts,
+`Client.query` with `kind.inspection` reads authorized process discovery, current facts,
 mailbox, outbox, effects, payload metadata, and filtered retained history. Pages
 own their bytes. Keep the resource/PID/cut when following `next`; on `QueryExpired`
 or `HistoryReclaimed`, discard assembled pages and refresh with explicit gap
 handling. See [inspection v1](../../../contracts/INSPECTION_V1.md).
 
-`protocol.Lifecycle.Command` and `protocol.Collection` expose M8 control requests
+`protocol.Growth.Command` and `protocol.Growth.Collection` expose lifecycle and
+collection requests
 through the same signed `Client.submit`/`Session.Pending` mechanism. Administration
 and provisioning use separate scoped credentials; execution sessions do not gain
 those rights. Follow the [lifecycle contract](../../../contracts/LIFECYCLE_V1.md)
@@ -176,9 +171,8 @@ to read configuration, policy and session together while clock/control commits
 continue, then acquires a fresh batch for its final check.
 
 `SnapshotReader.Support` caches negotiated protocol support, never permission.
-The current client falls back when an older authority omits `snapshot_read`.
-Older client revisions with strict capability decoders need rebuilding alongside
-an upgraded authority; this is not bidirectional rolling-version compatibility.
+Both `leased_snapshots` and `snapshot_read` must be advertised. Missing support
+returns `InteractiveQueriesUnavailable`; the client has no older-protocol fallback.
 With `snapshot_read`, `acquire` combines a fresh cut with bounded captured data
 and current metadata. `batch` preserves that cut while acquiring fresh current
 metadata, reading bounded ranges/points or validating and releasing the token.

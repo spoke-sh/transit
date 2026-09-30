@@ -1,83 +1,75 @@
 # Working catalog retention v1
 
-Implemented extension to [Transit v2](TRANSIT_V2.md). It changes working-set
-capacity, not mailbox ordering or default history retention.
+The [native v1 authority](TRANSIT_V1.md) supports explicit collection of terminal
+working records. Collection is separate from resource reclamation, journal
+trimming and cache eviction. Unlimited retention is the default.
 
 ## Opt-in and authority
 
-`catalog_retention: {pid}` records irreversible opt-in for that PID's catalog
-evidence. It requires current PID-scoped admin authority, a realm configured
-with `last_per_principal` receipts, and `allow_trim=true` on the process. It must
-precede activation, association changes and accepted inputs (generation/admitted
-both zero, no owner). Repeated enabling is rejected. Existing accepted work never
-acquires this policy implicitly. `ProcessView.collection` exposes the contract.
-
-`collect: {pid, kind, id}` requires current admin authority for that PID and its
-recorded opt-in. Kinds and eligibility:
+`spawn.allow_collection` or `create.process.allow_collection` records a PID's
+collection policy at creation. Existing accepted work never acquires it
+implicitly. `collect: {pid, kind, id}` requires current administrative authority
+for that PID and its recorded opt-in.
 
 | Kind | Required evidence |
 | --- | --- |
-| `output` | Source PID matches; terminal phase. A delivered input either has been consumed/cancelled or retains a self-contained authenticated origin. |
-| `effect` | Owning PID matches; observed, cancelled or closed-unknown. Authorized/unknown attempts remain pinned. |
-| `resource` | Writer PID matches; separately retired and payload-reclaimed under its history policy; no live association or active view. Retired associations are removed atomically. |
-| `payload` | Owning PID matches; physical deletion was already confirmed and recorded. |
-| `process` | PID matches; permanently retired; all referencing outputs/effects/payloads and owned/written resources collected; provider binding absent or confirmed stopped. |
+| `output` | Matching source PID and terminal phase; any delivered mailbox input retains its own value and authenticated origin |
+| `effect` | Matching PID and observed, cancelled or closed-unknown phase; authorized/unknown attempts remain pinned |
+| `resource` | Matching writer PID, separately reclaimed resource, no retained versions or live association/view dependencies |
+| `payload` | Matching PID and recorded physical deletion outcome |
+| `process` | Permanently retired PID, no referenced outputs/effects/payloads or written/owned resources; provider binding absent or confirmed stopped without a pending upgrade |
 
-An unconsumed legacy admission without stored origin pins its outbox. Collection
-never advances input progress or cancels work. Resource receipts still require
-current resource grants: removal denies protected old receipts rather than
-reconstructing permission from an obsolete snapshot. Exact last-request receipts
-remain available where current authorization permits; older sequences fail the
-selected receipt horizon. A collected identity is not a license to repeat a side
-effect or recreate a process.
+Each command performs bounded work. Resource collection can require separate
+steps to close view indexes, detach retired associations and remove grant pages.
+Process collection can require separate steps to release retained-version indexes,
+detach associations and remove mailbox pages. A successful step can therefore
+leave the object in the working catalog. Callers inspect progress and continue;
+they cannot infer final removal from one receipt.
 
-## Identity and history
+Collection never advances a live process's input progress or cancels its work.
+Closing old view indexes retains metadata needed for current authorization of
+historical turn receipts. Resource collection removes its grants, so protected
+receipt disclosure fails instead of reconstructing obsolete permissions.
 
-PID, resource, effect and payload identities are journal positions. The durable
-allocation frontier (`State.position`) advances monotonically. The live catalog
-plus this frontier is compact exclusion evidence: an absent past identity cannot
-be allocated again. Outputs use a separate monotonically increasing
-`output_count`; that counter is a high-water mark, not an array index. Exhausting
-the safe-integer identity space fails closed.
+## Identity, history and recovery
 
-Checkpoints preserve these frontiers, live entries and principal sequences.
-An unknown/collected identity is rejected (`UnknownProcess`, `UnknownOutput`,
-`UnknownEffect`, or `UnknownStateResource`); these errors do not promise whether
-an absent ID was never allocated or was collected. Detailed retirement reasons
-remain in retained history until an independently authorized trim. After trim,
-compact exclusion evidence preserves permanent non-revival, not per-identity
-historical explanations. Restore of an old backup is still not live authority.
+Process, resource, effect and payload IDs derive from journal positions. Outputs
+use their own monotonically increasing frontier. These values are durable
+identities, never reusable resident slots. Exhausting the numeric address space
+fails closed.
 
-The limits remain 64 working process slots, 128 effects, 256 outputs, four state
-resources and sixteen standalone payloads. Applications opting in can reuse
-**slots**, never identities. Principals remain sixteen durable identities; read
-views remain four concurrent leases. Arbitrary many simultaneous processes,
-working entries or pending outputs are not supported.
+Process collection leaves a permanent `RetiredProcess` tombstone. Old process
+operations reject retirement even after detailed working records are removed.
+Other collected records reject as unknown; no new allocation reuses their IDs.
+Published roots preserve these facts across checkpoints and prefix trim. An old
+backup cannot restore execution authority.
 
-## Background progress and limits
+Catalogs are paged and can grow independently of the resident page cache. There
+are no fixed total counts for processes, resources, outputs or retained receipts.
+Explicit storage/admission quotas remain separate. Collection does not reclaim
+immutable historical catalog pages or promise bounded disk usage.
 
-Maintenance commits at most one selected collection per bounded step and drains
-successful control steps promptly, with idle/error backoff. Its automatic scan
-collects outputs after destination progress/retirement; an explicit collection
-may additionally prove the retained origin of an unread input. This keeps legacy
-mailboxes safe without a new legacy-history index. A backlog can still exhaust
-working slots; capacity rejection does not authorize dropping messages.
+## Background progress and inspection
 
-Whole-realm checkpoint/trim still requires quiescent mailboxes and all applicable
-history policies. Continuous allocation with unlimited journal history can grow
-physical storage even when working catalogs stay bounded. No throughput,
-bounded-recovery-time, automatic disk expansion or reclamation-latency guarantee
-is added.
+Maintenance rotates bounded scans among processes, resources, effects, outputs,
+payloads and collection. Each scan pass captures a frontier so continuous admission cannot
+indefinitely postpone an earlier item. Suggestions grant no authority: signed
+operations repeat current permission, lifecycle and dependency checks. Blocked
+items remain durable and are revisited after bounded progress elsewhere.
 
-`just test::unit` exceeds old lifetime bounds, checks pending-work/uncertain-effect
-pins and default unlimited retention. `just test::storage` repeats the sustained
-profile over disk Ursula, SIGKILL, checkpoint publication, trim and restart,
-then rejects old identities while allocating a new PID beyond the frontier.
+The realm's `allow_history_trim` opt-in separately permits root checkpoint
+publication and journal prefix trimming. Pending mailbox values and outputs are
+retained in the published root and do not require quiescent queues for that trim.
+Physical payload deletion has its own recorded intent and outcome. Provider
+acknowledgements do not establish erasure from backups or external copies.
 
-Inspection pages expose `last_collection`, the most recent collection operation,
-not a universal history or ID floor. Current catalogs list retained entries only.
-Authorized `history` queries can still read retained events for an absent past PID;
-without its current catalog entry, mailbox disposition is unknown (`null`), never
-invented as pending or consumed. Live-process/mailbox queries still reject absent
-PIDs. Board identifies collected catalogs and displays exact lifecycle action
-names, keeping historical evidence separate from current authority.
+Inspection reports `last_collection`, the latest accepted collection position;
+it is not a universal retention floor. Current catalog listings show retained
+working records. Historical inspection remains subject to the journal boundary
+and current permissions. Missing historical detail cannot be presented as a
+new pending input or fresh execution right.
+
+The owning implementation is
+[growing_collection.zig](../packages/zig/transit-core/src/growing_collection.zig).
+Executable schedules and their recorded outcomes belong in the
+[proof ledger](../tests/README.md); planned checks do not qualify durability.

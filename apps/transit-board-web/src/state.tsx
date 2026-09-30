@@ -69,7 +69,7 @@ export function Access({ children }: { children: ReactNode }) {
   }, [check, retry]);
   return (
     <Context.Provider value={{ scope, denied }}>
-      {scope?.profile !== "growing_v3" && (
+      {scope?.profile !== "native_v1" && (
         <header>
           <a href="/" className="brand">
             <span aria-hidden="true">▥</span> Transit <small>BOARD</small>
@@ -94,7 +94,7 @@ export function Access({ children }: { children: ReactNode }) {
             a separately enabled endpoint and signing identity.
           </p>
         </main>
-      ) : scope.profile === "growing_v3" ? (
+      ) : scope.profile === "native_v1" ? (
         <InterfaceShell scope={scope}>{children}</InterfaceShell>
       ) : (
         <>

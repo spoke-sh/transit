@@ -8,7 +8,7 @@ pub const encoded_bytes = 241;
 pub fn encode(plan: Plan, output: []u8) ![]const u8 {
     if (plan.version != 1) return error.UnsupportedPlan;
     var writer: std.Io.Writer = .fixed(output);
-    try writer.writeAll("FZP1");
+    try writer.writeAll("FTL1");
     try writer.writeByte(switch (plan.aggregate) {
         .rows => 0,
         .count => 1,
@@ -61,7 +61,7 @@ pub fn encode(plan: Plan, output: []u8) ![]const u8 {
 pub fn decode(bytes: []const u8) !Plan {
     if (bytes.len > encoded_bytes) return error.InvalidPlanEncoding;
     var reader: std.Io.Reader = .fixed(bytes);
-    if (!std.mem.eql(u8, try reader.take(4), "FZP1")) return error.InvalidPlanEncoding;
+    if (!std.mem.eql(u8, try reader.take(4), "FTL1")) return error.InvalidPlanEncoding;
     var plan: Plan = .{};
     plan.aggregate = switch (try reader.takeByte()) {
         0 => .rows,

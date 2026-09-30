@@ -18,8 +18,8 @@ defmodule Transit.SdkExamples.CounterMain do
 
     true = is_binary(bytes) and byte_size(bytes) <= 8192
     cfg = :json.decode(bytes)
-    "growing_v3" = cfg["profile"]
-    {:ok, client} = Client.config(cfg["url"], :growing_v3)
+    "native_v1" = cfg["profile"]
+    {:ok, client} = Client.config(cfg["url"], :native_v1)
     {:ok, process} = Client.process(cfg["realm"], cfg["pid"])
     {:ok, peer} = Client.process(cfg["realm"], cfg["peer"])
     {:ok, credential} = Client.credential(cfg["realm"], cfg["principal"], cfg["seed_file"])

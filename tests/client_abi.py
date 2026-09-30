@@ -35,6 +35,11 @@ class Native:
             fn.argtypes = [ctype(value) for value in function["parameters"]]
             fn.restype = ctype(function["result"])
 
+        definition = contract["definition"].encode()
+        assert self.lib.transit_client_abi_definition_matches(definition, len(definition)) == 1
+        for incompatible in (b"", b"previous-v1-definition", definition[:-1]):
+            assert self.lib.transit_client_abi_definition_matches(incompatible, len(incompatible)) == 0
+
     def take(self, buffer):
         if not buffer.value:
             return None
@@ -89,7 +94,7 @@ def contention(native, node, cli):
                 operations = []
                 try:
                     for value in values:
-                        operations.append(native.prepare(1, seed, {"realm": 72, "principal": 0,
+                        operations.append(native.prepare(6, seed, {"realm": 72, "principal": 0,
                             "sequence": system.sequence + 1,
                             "command": {"send": {"pid": pid, "value": value.hex()}}}))
                     barrier = threading.Barrier(2)
@@ -113,13 +118,13 @@ def contention(native, node, cli):
             assert sorted(status for status, _ in results) == [0, 3], results
             winner = next(i for i, (status, _) in enumerate(results) if status == 0)
             assert results[1-winner][1]["err"] == "ConflictingRetry"
-            view = system.post("/v2/view", system.signed({"inspect": pid}))
+            view = system.native_query({"process": pid})["body"]["process"]
             assert view["process"]["admitted"] == 1 and view["process"]["consumed"] == 0
             assert view["input"]["value"] == [b"first", b"second"][winner].hex()
-            assert system.post("/v2/view", system.signed({"inspect": receiver}))["input"] is None
+            assert system.native_query({"process": receiver})["body"]["process"]["input"] is None
             duplicate = race([b"duplicate", b"duplicate"])
             assert duplicate[0][0] == 0 and duplicate[0] == duplicate[1]
-            after = system.post("/v2/view", system.signed({"inspect": pid}))
+            after = system.native_query({"process": pid})["body"]["process"]
             from sdk_scenarios import check
             check("same-principal-handles", {
                 "conflicting_winners": sum(status == 0 for status, _ in results),
@@ -131,26 +136,26 @@ def contention(native, node, cli):
             # Admission, source commitment, destination admission and destination
             # consumption are four separately observable durable boundaries.
             system.command({"own": {"pid": pid, "worker": 0, "expected_generation": 0}})
-            current = system.post("/v2/view", system.signed({"inspect": pid}))
+            current = system.native_query({"process": pid})["body"]["process"]
             system.command({"turn": {"pid": pid, "generation": current["process"]["generation"],
-                "input": view["input"]["position"], "result": b"processed".hex(),
+                "input": view["input"]["position"], "expected_revision": current["process"]["revision"],
                 "outputs": [{"pid": receiver, "value": b"reply".hex()}, None, None, None]}})
-            committed = system.post("/v2/view", system.signed({"inspect": pid}))
-            before_delivery = system.post("/v2/view", system.signed({"inspect": receiver}))
+            committed = system.native_query({"process": pid})["body"]["process"]
+            before_delivery = system.native_query({"process": receiver})["body"]["process"]
             output = system.inspect("outbox", pid)["outbox"][0]
-            system.command({"deliver": {"pid": receiver, "output": output["id"], "courier": 0}})
-            delivered = system.post("/v2/view", system.signed({"inspect": receiver}))
+            system.command({"deliver": output["id"]})
+            delivered = system.native_query({"process": receiver})["body"]["process"]
             system.command({"own": {"pid": receiver, "worker": 0, "expected_generation": 0}})
             system.command({"turn": {"pid": receiver, "generation": 1,
-                "input": delivered["input"]["position"], "result": delivered["input"]["value"]}})
-            completed = system.post("/v2/view", system.signed({"inspect": receiver}))
+                "input": delivered["input"]["position"], "expected_revision": delivered["process"]["revision"]}})
+            completed = system.native_query({"process": receiver})["body"]["process"]
             check("admission-commit-reply", {
                 "consumed_after_admission": view["process"]["consumed"],
                 "consumed_after_commit": committed["process"]["consumed"],
                 "reply_admitted_before_delivery": before_delivery["process"]["admitted"],
                 "reply_consumed_after_delivery": delivered["process"]["consumed"],
                 "reply_consumed_after_handler": completed["process"]["consumed"],
-                "reply_value_preserved": completed["process"]["state"] == b"reply".hex(),
+                "reply_value_preserved": delivered["input"]["value"] == b"reply".hex(),
             })
         finally:
             for client in clients:
@@ -205,9 +210,9 @@ def run(library, node, cli, c_proof):
         operation = None
         try:
             request = {"realm": 72, "principal": 0, "sequence": 1, "command": {"spawn": {}}}
-            operation = native.prepare(1, seed, request)
+            operation = native.prepare(6, seed, request)
             exported = native.export(operation)
-            assert json.loads(exported)["operation"]["command"] == system.signed(request["command"], 1)
+            assert json.loads(exported)["operation"]["growing_command"] == system.signed(request["command"], 1)
             saved = system.root / "pending.json"
             saved.write_bytes(exported)
             saved.chmod(0o600)
@@ -228,19 +233,19 @@ def run(library, node, cli, c_proof):
             assert native.export(operation) == exported
             assert native.call(client, operation) == result
             native.lib.transit_operation_destroy(operation)
-            operation = native.prepare(2, seed, {"realm": 72, "principal": 0, "sequence": 0, "command": {"inspect": 1}})
-            assert native.call(client, operation)["process"]["pid"] == 1
+            operation = native.prepare(7, seed, {"realm": 72, "principal": 0, "kind": {"process": 1}})
+            assert native.call(client, operation)["body"]["process"]["process"]["pid"] == 1
             native.lib.transit_operation_destroy(operation)
-            operation = native.prepare(3, seed, {"realm": 72, "principal": 0, "kind": "capabilities"})
-            assert native.call(client, operation)["capabilities"]["value_bytes"] == 256
+            operation = native.prepare(7, seed, {"realm": 72, "principal": 0, "kind": {"capabilities": {}}})
+            assert native.call(client, operation)["body"]["capabilities"]["page_entries"] == 8
             worker_seed, public = system.key("reader")
             system.command({"grant": {"subject": 1, "public_key": public, "permissions": 16, "pid": 1}})
             native.lib.transit_operation_destroy(operation)
             operation = None
-            operation = native.prepare(2, bytes.fromhex(worker_seed.read_text().strip()), {
-                "realm": 72, "principal": 1, "sequence": 0, "command": {"inspect": 1},
+            operation = native.prepare(7, bytes.fromhex(worker_seed.read_text().strip()), {
+                "realm": 72, "principal": 1, "kind": {"process": 1},
             })
-            assert native.call(client, operation)["process"]["pid"] == 1
+            assert native.call(client, operation)["body"]["process"]["process"]["pid"] == 1
             system.command({"grant": {"subject": 1, "public_key": public, "permissions": 0, "pid": 1}})
             denied = native.call(client, operation, status=4)
             assert denied["err"] in ("Forbidden", "AccessDenied")
@@ -255,7 +260,7 @@ def run(library, node, cli, c_proof):
             # before an operation is created or a network request is made.
             for raw in [b'{"realm":18446744073709551616}', b'{"realm":72,"realm":73}', b'{"command":{"unknown":{}}}']:
                 invalid = c.c_void_p()
-                assert native.lib.transit_operation_prepare(1, seed, raw, len(raw), c.byref(invalid)) == 1
+                assert native.lib.transit_operation_prepare(6, seed, raw, len(raw), c.byref(invalid)) == 1
                 assert not invalid.value
             print("C ABI: generated header, canonical signatures, host-loss retry, revocation and malformed-input rejection passed.")
         finally:

@@ -2,7 +2,7 @@
 
 A mailbox is an ordered durable sequence for a Transit PID. Logical backlog can
 outlive its worker and exceed resident memory. Admission, operation sizes, physical
-capacity and the selected legacy/growing profile still impose explicit limits.
+capacity and per-operation budgets still impose explicit limits.
 Backpressure cannot silently drop an accepted input.
 
 ## Commit and transport are separate
@@ -48,11 +48,11 @@ receiver-issued, authenticated segment credit with a fixed two-segment window;
 the sender advances from credit it actually observed. Completion requires the
 whole verified result, not a successful socket write.
 
-See the [query flow-control contract](../../contracts/STATION_QUERY_V2.md#flow-control)
+See the [query flow-control contract](../../contracts/STATION_QUERY_V1.md#flow-control)
 for exact frame and recovery rules. This credit API belongs to query delivery.
 Connector byte/message/concurrency budgets remain
 independent of transport flow control and of retained-history size.
 
 The [delivery executable](../../apps/transit-delivery/README.md) documents courier
-configuration; [native HTTP](../../contracts/SERVICE_V2.md) and
-[protocol v2](../../contracts/TRANSIT_V2.md) define admission and origins.
+configuration; [native HTTP](../../contracts/SERVICE_V1.md) and
+[native protocol v1](../../contracts/TRANSIT_V1.md) define admission and origins.

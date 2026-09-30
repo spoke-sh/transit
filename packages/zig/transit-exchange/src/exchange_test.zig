@@ -3,7 +3,7 @@ const t = std.testing;
 const root = @import("root.zig");
 const p = root.p;
 const Exchange = root.Exchange;
-const Turn = root.station.GrowingTurn;
+const Turn = root.station.Turn;
 const Pub = root.Publication;
 const Map = std.AutoHashMapUnmanaged(p.Value, p.Value);
 const Store = struct {
@@ -402,7 +402,7 @@ test "linked followups share a finite original budget and never renew lineage or
     try t.expectEqual(@as(u32, 3), (try root.codec.decode(Exchange.AttemptBudget, (try turn.read(Exchange.key(1, 'b', 0))).?)).used);
 }
 
-test "independent lineage fixtures preserve legacy encoding and bounded binary context" {
+test "independent lineage fixtures require explicit bounded binary context" {
     const Fixture = struct { version: u32, lineage: p.Value, context: p.Value, bound: p.Value };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("lineage-fixtures.json"), .{});
     defer parsed.deinit();
@@ -413,6 +413,7 @@ test "independent lineage fixtures preserve legacy encoding and bounded binary c
     try t.expectEqual(@as(u64, std.math.maxInt(u64) - 1), legacy.lineage.parent);
     try t.expectEqual(@as(u16, 0), legacy.context.len);
     try t.expect(f.lineage.eql(try legacy.encode()));
+    try t.expectError(error.InvalidExchangeRecord, Exchange.Link.decode(try p.Value.init(f.lineage.slice()[0 .. f.lineage.len - 1])));
     const linked = try Exchange.Link.decode(f.bound);
     try t.expectEqualDeep(legacy.lineage, linked.lineage);
     try t.expect(f.context.eql(linked.context));
@@ -555,12 +556,12 @@ test "unsettled children protect ancestors and explicit abandonment releases onl
     try t.expectEqual(@as(u32, 0), budget.unsettled);
 }
 
-test "independent EXB2 budget fixture bounds holds and rejects old untracked budgets" {
+test "independent EXB1 budget fixture bounds holds and rejects old untracked budgets" {
     const Fixture = struct { version: u32, budget: p.Value, legacy: p.Value };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("budget-fixtures.json"), .{});
     defer parsed.deinit();
     const f = parsed.value;
-    try t.expectEqual(@as(u32, 2), f.version);
+    try t.expectEqual(@as(u32, 1), f.version);
     const budget = try root.codec.decode(Exchange.AttemptBudget, f.budget);
     try t.expectEqual(@as(u32, std.math.maxInt(u32)), budget.limit);
     try t.expectEqual(@as(u32, 3), budget.used);

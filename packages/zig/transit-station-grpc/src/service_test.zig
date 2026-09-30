@@ -3,7 +3,7 @@ const t = std.testing;
 const rpc = @import("root.zig");
 const x = rpc.exchange;
 const p = x.p;
-const Turn = x.station.GrowingTurn;
+const Turn = x.station.Turn;
 const Frame = x.station.Frame;
 const Service = rpc.Service;
 const limits: x.Limits = .{ .segment_bytes = 8192, .capture_bytes = 262144, .segments = 256 };

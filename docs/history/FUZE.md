@@ -34,7 +34,7 @@ qualified pure Zig engine with bounded batches and whole-query progress. Station
 durable fragment/result publication and growing recovery are qualified separately
 in M10; pure engine evidence alone does not establish service recovery.
 
-The [unified v2 contract](../../contracts/UNIFIED_QUERY_V2.md) now fixes M18's
+The [unified v2 contract](../../contracts/UNIFIED_QUERY_V1.md) now fixes M18's
 source/decoder/projection boundary, five-state typed cells and Publication-based
 request/result direction. KV/Table/Document adapters, nested Arrow and native
 source/lifecycle qualification are implemented. The

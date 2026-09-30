@@ -69,7 +69,7 @@ public final class StationArtifactCheck {
         grpc_fixtures = target / 'grpc-fixtures.json'
         shutil.copy2(root / 'packages/zig/transit-station-grpc/src/fixtures/service.json', grpc_fixtures)
         golden = target / 'grpc-golden.json'
-        golden.write_text(json.dumps({'profile': 'growing_v3', 'grpc_fixtures': str(grpc_fixtures)}))
+        golden.write_text(json.dumps({'profile': 'native_v1', 'grpc_fixtures': str(grpc_fixtures)}))
         subprocess.run(['java', '-cp', classpath, 'JavaStationSdk', 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
         return Consumer(environment, lambda mode, config: ['java', '-cp', classpath, 'JavaStationSdk', mode, str(config)],
             lambda config, role: ['java', '-cp', str(lib / '*'), 'io.transit.examples.CounterMain', str(config), role, '--commits', '1'],

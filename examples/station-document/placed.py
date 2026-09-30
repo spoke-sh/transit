@@ -65,13 +65,13 @@ def run(profile):
         url = ""
 
         def query(kind):
-            return invoke([cli, "growing-query", keys["operator"], write("operator/query.json", dict(realm=realm, principal=0, kind=kind)), url])
+            return invoke([cli, "query", keys["operator"], write("operator/query.json", dict(realm=realm, principal=0, kind=kind)), url])
 
         def command(body):
             sequence = query({"capabilities": {}})["principal_sequence"]+1
             request = write(f"operator/command-{sequence}.json", dict(realm=realm, principal=0, sequence=sequence, command=body))
             for attempt in range(3):
-                try: return invoke([cli, "growing-submit", keys["operator"], request, url])["position"]
+                try: return invoke([cli, "submit", keys["operator"], request, url])["position"]
                 except RuntimeError:
                     if attempt == 2: raise
 
@@ -102,7 +102,7 @@ path = "{'/data/wal' if profile == 'reference' else '/wal'}"
 ''' + cold.config().replace(cold.url, endpoint)
             (work / "ursula.toml").write_text(config)
             (work / "ursula.toml").chmod(0o600)
-            write("operator/node.json", dict(profile="growing_v3", genesis=dict(realm=realm, root_key=public["operator"], max_clock_error_ms=10000),
+            write("operator/node.json", dict(profile="native_v1", genesis=dict(realm=realm, root_key=public["operator"], max_clock_error_ms=10000),
                 ursula_url="http://ursula:8080", bucket="document-example", journal="authority", port=8080, listen="0.0.0.0", resident_pages=64, request_timeout_ms=10000))
             if profile == "compose" and cold_network is None:
                 placement.call("create", "ursula")

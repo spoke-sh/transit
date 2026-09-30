@@ -1,4 +1,4 @@
-//! Source-owned finite v2 capture. Accepted request references and retained cuts
+//! Source-owned finite v1 capture. Accepted request references and retained cuts
 //! are durable; workspaces and decoded bundles are disposable handler memory.
 const std = @import("std");
 const q = @import("root.zig");
@@ -6,7 +6,7 @@ const s = q.station;
 const p = q.protocol;
 const m = q.fuze.Unified;
 const r = q.UnifiedRecords;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 const Pub = s.Publication;
 const Ref = s.PublicationReference;
 pub fn policy(source: anytype, peer: u64) !?r.Policy {
@@ -70,7 +70,7 @@ pub fn start(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Al
     if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(publication.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
     _ = try Pub.create(turn, publication.namespace, .{ .record_bytes = m.Arrow.segment_bytes, .staging_bytes = m.Arrow.segment_bytes, .staging_records = 1 });
     try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .progress = m.Stream.Progress.start(bound) }).encode());
-    try turn.write(r.key('i', peer, frame.correlation), q.Request.identity(stored.id));
+    try turn.write(r.key('i', peer, frame.correlation), q.UnifiedRecords.identityValue(stored.id));
     try schedule(turn, &stored);
     try turn.validate();
     return stored;
@@ -210,9 +210,9 @@ pub fn close(turn: *Turn, id: u64, phase: enum { cancelled, denied, failed, reti
         .retired => .retired,
     };
     if (phase != .retired) try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init(switch (phase) {
-        .cancelled => "query.v2.cancelled",
-        .denied => "query.v2.denied",
-        .failed => "query.v2.failed",
+        .cancelled => "query.v1.cancelled",
+        .denied => "query.v1.denied",
+        .failed => "query.v1.failed",
         .retired => unreachable,
     }) });
     try schedule(turn, &stored);

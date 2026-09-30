@@ -5,7 +5,6 @@ const q = @import("transit_query");
 const api = @import("transit_board_api");
 const p = client.protocol;
 const g = p.Growth;
-pub const QueryConfig = struct { seed_file: []const u8, connection: q.Model.Connection };
 pub const UnifiedQueryConfig = struct { seed_file: []const u8, connection: q.UnifiedClient.Connection, workspace: q.Workspace.Config };
 pub fn unifiedQuery(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig, request: api.UnifiedQueryRequest, allocator: std.mem.Allocator) !api.UnifiedQueryResponse {
     var key = try client.readKey(allocator, io, config.seed_file);
@@ -49,10 +48,8 @@ pub fn metadata(comptime Projection: type, wire: *client.Client, realm: u64, pri
     return Projection.project(allocator, .{ .realm = realm, .pid = page.body.entries.resource.writer, .resource = cursor.resource, .key = descriptor_key, .entry_revision = entry.revision, .resource_revision = source.view.revision, .position = page.position }, cursor.exchange, summary);
 }
 pub fn identity(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair) !g.Response {
-    const response = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .identity = {} } }, key);
-    // First growing Board profile supports a realm inspector plus filtered
-    // resource grants. Legacy PID-scoped inspection remains on the v2 routes.
-    if (response.body.identity.permissions != p.permission(.inspect) or response.body.identity.pid != null) return error.UnsafePrincipal;
+    const response = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .identity = {} } }, key);
+    if (response.body.identity.permissions != p.permission(.inspect)) return error.UnsafePrincipal;
     return response;
 }
 pub fn atlas(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: Cursor, query_resource: ?u64) !api.AtlasResponse {
@@ -68,8 +65,8 @@ pub fn atlas(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.Ke
 fn atlasOnce(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: Cursor, query_resource: ?u64) !api.AtlasResponse {
     const reader = try identity(wire, realm, principal, key);
     if (cursor.position) |position| if (position != reader.position) return error.QueryChanged;
-    const processes = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .processes = .{ .after = cursor.process_after, .position = reader.position } } }, key);
-    const resources = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resources = .{ .after = cursor.resource_after, .position = reader.position } } }, key);
+    const processes = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .processes = .{ .after = cursor.process_after, .position = reader.position } } }, key);
+    const resources = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .resources = .{ .after = cursor.resource_after, .position = reader.position } } }, key);
     if (processes.position != reader.position or resources.position != reader.position) return error.QueryChanged;
     // Configuration never discloses a resource hidden by the inspection grant.
     const visible = for (resources.body.resources.entries) |slot| {
@@ -81,14 +78,14 @@ pub const ParticipationCursor = struct { resource: u64, after: ?u64 = null, pid:
 pub fn participation(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: ParticipationCursor) !api.ParticipationResponse {
     const reader = try identity(wire, realm, principal, key);
     if (cursor.position) |expected| if (reader.position != expected) return error.QueryChanged;
-    _ = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key);
+    _ = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key);
     var pids: [g.page_size]?u64 = @splat(null);
     var position: ?u64 = null;
     var next: ?u64 = null;
     if (cursor.pid) |pid| {
         pids[0] = pid;
     } else {
-        const processes = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .processes = .{ .after = cursor.after, .position = cursor.position } } }, key);
+        const processes = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .processes = .{ .after = cursor.after, .position = cursor.position } } }, key);
         position = processes.position;
         next = processes.body.processes.next;
         for (processes.body.processes.entries, 0..) |slot, index| if (slot) |process| {
@@ -97,7 +94,7 @@ pub fn participation(wire: *client.Client, realm: u64, principal: u64, key: p.Ed
     }
     var result: api.ParticipationResponse = .{ .realm = realm, .resource = undefined, .resource_position = 0, .process_position = position, .policy_revision = reader.body.identity.policy_revision, .next = next };
     for (pids, 0..) |slot, index| if (slot) |pid| {
-        const page = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .associations = .{ .pid = pid, .after = cursor.association_after, .position = if (cursor.association_after != null) cursor.position else null } } }, key);
+        const page = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .associations = .{ .pid = pid, .after = cursor.association_after, .position = if (cursor.association_after != null) cursor.position else null } } }, key);
         var matches: u8 = 0;
         for (page.body.associations.entries) |entry| if (entry) |association| {
             // The native reader filters grants before returning any names. Only
@@ -106,7 +103,7 @@ pub fn participation(wire: *client.Client, realm: u64, principal: u64, key: p.Ed
         };
         result.members[index] = .{ .pid = pid, .association_position = page.position, .matches = matches, .next = page.body.associations.next };
     };
-    const resource = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key);
+    const resource = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key);
     const current = try identity(wire, realm, principal, key);
     if (current.body.identity.policy_revision != reader.body.identity.policy_revision) return error.QueryChanged;
     result.resource = resource.body.resource;
@@ -115,41 +112,53 @@ pub fn participation(wire: *client.Client, realm: u64, principal: u64, key: p.Ed
 }
 pub fn records(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, cursor: RecordsCursor, allocator: std.mem.Allocator) !api.RecordsResponse {
     _ = try identity(wire, realm, principal, key);
-    const revision = cursor.revision orelse (try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key)).body.resource.revision;
-    const response = try wire.queryGrowing(.{ .realm = realm, .principal = principal, .kind = .{ .entries = .{ .resource = cursor.resource, .revision = revision, .after = cursor.after } } }, key);
+    const revision = cursor.revision orelse (try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .resource = cursor.resource } }, key)).body.resource.revision;
+    const response = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .entries = .{ .resource = cursor.resource, .revision = revision, .after = cursor.after } } }, key);
     const entries = response.body.entries;
     if (entries.resource.id != cursor.resource) return error.QueryChanged;
     if (entries.resource.phase != .active) return error.QuerySourceUnavailable;
     return api.projectRecords(allocator, realm, response.position, entries.resource, entries.page);
 }
-pub fn query(wire: *client.Client, io: std.Io, config: QueryConfig, request: api.QueryRequest, allocator: std.mem.Allocator) !api.QueryResponse {
-    var key = try client.readKey(allocator, io, config.seed_file);
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-    var caller: q.Client = .{ .wire = wire, .connection = config.connection, .key = key };
-    defer std.crypto.secureZero(u8, std.mem.asBytes(&caller.key));
-    return switch (request) {
-        .describe => .{ .source = try caller.describe() },
-        .contract => blk: {
-            const source = try caller.describe();
-            break :blk .{ .contract = .{ .source = source, .fingerprint = try source.contract(), .schema = try source.schema.fingerprint() } };
-        },
-        .prepare => |value| blk: {
-            const prepared = try caller.prepare(value.sql);
-            const bound = try prepared.plan.bind(.{ .resource = prepared.source.connection.resource, .revision = prepared.source.resource_revision, .schema = try prepared.source.schema.fingerprint() }, prepared.source.schema);
-            break :blk .{ .prepared = .{ .source = prepared.source, .explanation = bound.explain(), .frozen = .{ .token = try std.json.Stringify.valueAlloc(allocator, prepared, .{}) } } };
-        },
-        .submit => |value| blk: {
-            const prepared = std.json.parseFromSlice(q.Model.Prepared, allocator, value.token, .{}) catch return error.InvalidQueryRequest;
-            defer prepared.deinit();
-            break :blk .{ .receipt = try caller.submit(prepared.value) };
-        },
-        .status => |value| .{ .status = try caller.status(value.correlation) },
-        .page => |value| .{ .page = try caller.page(value.correlation, value.ordinal, allocator) },
-        .prepare_cancel => |value| .{ .cancellation = .{ .token = try std.json.Stringify.valueAlloc(allocator, try caller.prepareCancel(value.correlation), .{}) } },
-        .cancel => |value| blk: {
-            const prepared = std.json.parseFromSlice(g.SignedRequest, allocator, value.token, .{}) catch return error.InvalidQueryRequest;
-            defer prepared.deinit();
-            break :blk .{ .receipt = try caller.submitCancel(prepared.value) };
+/// The Board read projection binds every page to a current authorization cut.
+pub fn inspect(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, selector: g.Inspection.Query) !api.Response {
+    const response = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .inspection = selector } }, key);
+    if (response.body.inspection.reader.permissions != p.permission(.inspect)) return error.UnsafePrincipal;
+    return api.project(response.body.inspection);
+}
+pub fn state(wire: *client.Client, realm: u64, principal: u64, key: p.Ed25519.KeyPair, selector: api.StateQuery) !api.StateResponse {
+    const basis = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .inspection = .{ .resource = .processes } } }, key);
+    const reader = basis.body.inspection.reader;
+    if (reader.permissions != p.permission(.inspect)) return error.UnsafePrincipal;
+    if (selector.cut) |cut| if (!std.meta.eql(cut, basis.body.inspection.cut)) return error.QueryChanged;
+    const kind: @FieldType(g.Query, "kind") = switch (selector.kind) {
+        .resources => if (selector.resource) |id| .{ .resource = id } else .{ .resources = .{ .after = if (selector.after == 0) null else selector.after, .position = basis.position } },
+        .associations => .{ .associations = .{ .pid = selector.pid.?, .after = if (selector.after == 0) null else selector.after, .position = basis.position } },
+        .entries => blk: {
+            const meta = try wire.query(.{ .realm = realm, .principal = principal, .kind = .{ .resource = selector.resource.? } }, key);
+            if (meta.position != basis.position) return error.QueryChanged;
+            if (selector.revision) |revision| if (revision != meta.body.resource.revision) return error.QueryChanged;
+            break :blk .{ .entries = .{ .resource = selector.resource.?, .revision = meta.body.resource.revision, .after = selector.after_key } };
         },
     };
+    const response = try wire.query(.{ .realm = realm, .principal = principal, .kind = kind }, key);
+    if (response.position != basis.position) return error.QueryChanged;
+    var page: api.StatePage = .{ .realm = realm, .principal_sequence = response.principal_sequence, .reader = reader, .kind = selector.kind, .cut = basis.body.inspection.cut };
+    switch (response.body) {
+        .resource => |resource| page.resources[0] = resource,
+        .resources => |resources| {
+            page.resources = resources.entries;
+            page.next = resources.next;
+        },
+        .associations => |associations| {
+            page.associations = associations.entries;
+            page.next = associations.next;
+        },
+        .entries => |entries| {
+            page.resources[0] = entries.resource;
+            page.entries = entries.page.entries;
+            page.next_key = entries.page.next;
+        },
+        else => return error.InvalidAuthorityResponse,
+    }
+    return api.projectState(page);
 }

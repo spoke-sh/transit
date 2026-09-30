@@ -5,7 +5,7 @@ and discovers no credentials. The gem depends on independent `transit-client`
 and version-matched `transit-native-station`. Install built gems through RubyGems;
 no repository source or manual native loader path is required. `native_host` is
 an explicit trusted Station executable override. ABI/capability mismatches reject
-without falling back to legacy v2.
+without falling back to incompatible definitions.
 
 ## Handler and runner
 

@@ -6,11 +6,12 @@ const g = core.protocol.Growth;
 const work = @import("growing_work.zig");
 const c = @import("catalog.zig");
 const Self = @This();
-const Family = enum { processes, resources, effects, outputs };
+const Family = enum { processes, resources, effects, outputs, payloads, collection };
 const Cursor = struct { after: ?core.pages.Key = null, through: ?u64 = null };
 
 family: Family = .processes,
-cursors: [4]Cursor = @splat(.{}),
+collection: @import("growing_collection.zig").Scan = .{},
+cursors: [6]Cursor = @splat(.{}),
 
 fn sampled(engine: anytype, clock: anyerror!?core.Time.Sample) !?core.Time.Sample {
     const value = try clock;
@@ -42,6 +43,7 @@ fn processDue(engine: anytype, process: g.Process, clock: anyerror!?core.Time.Sa
 pub fn next(self: *Self, engine: anytype, clock: anyerror!?core.Time.Sample) !?g.Command {
     const family = self.family;
     self.family = @fromBackingInt(@intCast((@as(usize, @backingInt(family)) + 1) % self.cursors.len));
+    if (family == .collection) return self.collection.next(engine);
     const cursor = &self.cursors[@backingInt(family)];
     if (cursor.through == null) cursor.through = if (family == .outputs) engine.head.outputs else engine.head.position - 1;
     var current = try engine.state();
@@ -50,13 +52,18 @@ pub fn next(self: *Self, engine: anytype, clock: anyerror!?core.Time.Sample) !?g
         .resources => .resource,
         .effects => .pending_effect,
         .outputs => .pending_output,
+        .payloads => .payload,
+        .collection => unreachable,
     };
     switch (family) {
+        .collection => unreachable,
         inline else => |kind| {
             const T = switch (kind) {
                 .processes => g.Process,
                 .resources => g.Resource,
+                .payloads => g.Payload,
                 .effects, .outputs => u64,
+                .collection => unreachable,
             };
             const batch = try current.scan(T, .{ .namespace = namespace }, cursor.after);
             const record = batch.records[0] orelse {
@@ -72,9 +79,28 @@ pub fn next(self: *Self, engine: anytype, clock: anyerror!?core.Time.Sample) !?g
             // not starve the rest; it is revisited on the next finite pass.
             cursor.after = record.key;
             switch (kind) {
-                .processes => if (try processDue(engine, record.value, clock)) return .{ .expire = id },
+                .collection => unreachable,
+                .processes => {
+                    if (try processDue(engine, record.value, clock)) return .{ .expire = id };
+                    if (record.value.lifecycle == .running) if (record.value.control) |control| if (control.phase == .suspended) {
+                        const now = (try sampled(engine, clock)) orelse return error.ClockUnavailable;
+                        now.after(control.resume_before_ms.?) catch |err| {
+                            if (err == error.DeadlineNotReached or err == error.DeadlineUncertain) return null;
+                            return err;
+                        };
+                        return .{ .expire_suspension = id };
+                    };
+                },
                 .resources => {
                     const resource = record.value;
+                    if (resource.phase == .retired) {
+                        const age = resource.history_ms orelse return null;
+                        if (age > 0) {
+                            const now = (try sampled(engine, clock)) orelse return error.ClockUnavailable;
+                            if (now.lower() < resource.changed_ms +| age) return null;
+                        }
+                        return .{ .reclaim_resource = id };
+                    }
                     if (resource.phase != .active) return null;
                     if (resource.owner) |pid| if ((try engine.process(pid)).lifecycle != .running) {
                         const users = try current.scan(u64, .{ .namespace = .required_resource_users, .major = id }, null);
@@ -88,6 +114,15 @@ pub fn next(self: *Self, engine: anytype, clock: anyerror!?core.Time.Sample) !?g
                         };
                         return .{ .expire_resource = id };
                     }
+                },
+                .payloads => {
+                    const payload = record.value;
+                    const ref: core.protocol.PayloadRef = .{ .pid = payload.pid, .payload = payload.id };
+                    if (payload.phase == .ready and payload.allow_delete and (try engine.process(payload.pid)).lifecycle != .running) return .{ .retire_payload = ref };
+                    // The host must validate/prepare this proposal, confirm
+                    // physical deletion, then publish its outcome. A suggestion
+                    // is neither deletion evidence nor storage authorization.
+                    if (payload.phase == .retiring) return .{ .payload_deleted = ref };
                 },
                 .effects => {
                     const value = try work.effect(engine, id);

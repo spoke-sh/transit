@@ -51,7 +51,7 @@ pub const Response = union(enum) {
 };
 fn query(self: Self, kind: @FieldType(p.Growth.Query, "kind")) !p.Growth.Response {
     const signed = try p.Growth.signQuery(.{ .realm = self.connection.realm, .principal = self.connection.principal, .kind = kind }, self.key);
-    const response = self.wire.call(p.Growth.Response, "/v3/query", signed) catch |err| {
+    const response = self.wire.call(p.Growth.Response, "/v1/query", signed) catch |err| {
         if (err == error.Rejected or err == error.Conflict) switch (self.wire.last_rejection orelse return err) {
             .AccessDenied, .Forbidden => return error.ServingDenied,
             .StateResourceExpired, .UnknownStateResource, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,

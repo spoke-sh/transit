@@ -1,4 +1,4 @@
-"""Typed v2 query callers; shared Zig owns admission, execution and verification."""
+"""Typed v1 query callers; shared Zig owns admission, execution and verification."""
 from __future__ import annotations
 import ctypes as c
 from dataclasses import dataclass, field
@@ -136,7 +136,7 @@ class KVSource:
     key: Decoder
     value: Decoder
     def _wire(self) -> object:
-        return {'version': 2, 'resource': self.resource.resource, 'source': {'kv': {
+        return {'version': 1, 'resource': self.resource.resource, 'source': {'kv': {
             'prefix': owned_bytes(self.prefix, 32).hex(), 'key': self.key._wire(), 'value': self.value._wire()}}}
 
 
@@ -147,7 +147,7 @@ class TableSource:
     names: tuple[str, str]
     value_type: Type
     def _wire(self) -> object:
-        return {'version': 2, 'resource': self.resource.resource, 'source': {'table': {
+        return {'version': 1, 'resource': self.resource.resource, 'source': {'table': {
             'id': integer(self.table, 'table', maximum=(1 << 32)-1), 'names': self.names, 'value_type': self.value_type.value}}}
 
 
@@ -181,7 +181,7 @@ class DocumentSource:
     def resource(self) -> ResourceRef: return self.reference.resource
     def _wire(self) -> object:
         ref = self.reference
-        return {'version': 2, 'resource': self.resource.resource, 'source': {'document': {
+        return {'version': 1, 'resource': self.resource.resource, 'source': {'document': {
             'reference': {'resource': self.resource.resource, 'document': str(ref.document), 'epoch': str(ref.epoch),
                 'type_revision': ref.type_revision, 'revision': str(ref.revision)}, 'change_format': 1,
             'expand': self.expand, 'projections': [value._wire() for value in self.projections]}}}
@@ -217,7 +217,7 @@ class Plan:
     def _wire(self) -> object:
         if not isinstance(self.projection, tuple) or not 1 <= len(self.projection) <= 8:
             raise TypeError('Expected one to eight immutable projection indices')
-        return {'version': 2, 'projection': [integer(v, 'column', minimum=0, maximum=7) for v in self.projection],
+        return {'version': 1, 'projection': [integer(v, 'column', minimum=0, maximum=7) for v in self.projection],
             'predicate': {'all': {}} if self.predicate is None else self.predicate._wire(),
             'limit': None if self.limit is None else str(_wide(self.limit, 'limit')), 'aggregate': self.aggregate.value}
 
@@ -414,7 +414,7 @@ class Client:
         try:
             self._worker.call(create)
             caps = self._call({'capabilities': {}})['capabilities']
-            if caps['version'] != 2 or not all(caps[name] for name in ('kv', 'table', 'document')):
+            if caps['version'] != 1 or not all(caps[name] for name in ('kv', 'table', 'document')):
                 raise UnsupportedCapability('Native query client lacks v2 source capabilities')
         except BaseException:
             self.close()

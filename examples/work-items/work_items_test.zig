@@ -31,11 +31,11 @@ const Store = struct {
         if (keys.items.len > p.Growth.page_size) result.next = keys.items[p.Growth.page_size - 1];
         return result;
     }
-    fn turn(self: *@This(), principal: u64) !s.GrowingTurn {
+    fn turn(self: *@This(), principal: u64) !s.Turn {
         self.position += 1;
-        return s.GrowingTurn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("work"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = self.position, .deadline_ms = 100000 }, .{ .context = self, .read = read, .page = page });
+        return s.Turn.init(.{ .realm = 49, .principal = 77, .pid = 2, .generation = 3, .sequence = 5, .revision = 0, .input = .{ .position = self.position, .ordinal = 1, .value = try p.Value.init("work"), .origin = .{ .external = .{ .principal = principal, .policy_revision = 1 } } }, .permit = null, .needs_permit = false }, .{ .id = self.position, .pid = 2, .principal = 77, .generation = 3, .input = self.position, .process_revision = 0, .resource = 7, .revision = self.position, .deadline_ms = 100000 }, .{ .context = self, .read = read, .page = page });
     }
-    fn commit(self: *@This(), turn_value: *s.GrowingTurn) !void {
+    fn commit(self: *@This(), turn_value: *s.Turn) !void {
         try turn_value.validate();
         for (turn_value.decision.mutations) |slot| if (slot) |mutation| {
             if (mutation.value) |value| try self.entries.put(mutation.key, value) else _ = self.entries.remove(mutation.key);
@@ -48,7 +48,7 @@ const Store = struct {
         return mutations(turn_value);
     }
 };
-fn mutations(turn: s.GrowingTurn) usize {
+fn mutations(turn: s.Turn) usize {
     var count: usize = 0;
     for (turn.decision.mutations) |slot| if (slot != null) {
         count += 1;

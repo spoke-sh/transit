@@ -43,7 +43,7 @@ def run(executable, node, cli):
         with Port(executable, config) as port:
             assert port.request({"hello": {}}) == {"host_version": 1, "transit_version": 1}
             caps = port.request({"capabilities": {}})
-            assert caps["operation_metadata"] and caps["growing_v3"] and caps["opaque_retry"]
+            assert caps["operation_metadata"] and caps["native_v1"] and caps["opaque_retry"]
             assert caps["minimum_stack_bytes"] >= 8 * 1024 * 1024
             port.request(b"{", 1)
             port.request({"growing_prepare": 0}, 1)  # No Station surface.
@@ -60,7 +60,7 @@ def run(executable, node, cli):
                                  "command": {"send": {"pid": pid, "value": "00ff"}}})
             metadata = port.request({"metadata": frozen})
             assert metadata == {"version": 1, "identity": hashlib.sha256(frozen.encode()).hexdigest(),
-                                "kind": "growing_command", "profile": "growing_v3", "realm": 72,
+                                "kind": "growing_command", "profile": "native_v1", "realm": 72,
                                 "principal": 0, "sequence": "2", "command": "send", "destination": pid}
             receipt = port.request({"call": frozen})
             query = prepare(7, {"realm": 72, "principal": 0, "kind": {"process": pid}})
@@ -68,9 +68,7 @@ def run(executable, node, cli):
             assert info["command"] is info["sequence"] is info["destination"] is None
             port.request({"metadata": " " + frozen}, 1)
             port.request({"metadata": frozen.replace('"version":1', '"version":2', 1)}, 10)
-            legacy = prepare(1, {"realm": 72, "principal": 0, "sequence": 1,
-                                 "command": {"send": {"pid": 1, "value": ""}}})
-            assert port.request({"metadata": legacy})["profile"] == "legacy_v2"
+            port.request({"prepare": {"kind": 1, "seed_file": str(system.seed), "document": "{}"}}, 1)
             wide = prepare(6, {"realm": 72, "principal": 65536, "sequence": 1,
                                "command": {"send": {"pid": 2**53 - 1, "value": ""}}})
             wide_info = port.request({"metadata": wide})

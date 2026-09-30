@@ -65,7 +65,7 @@ pub fn main(init: std.process.Init) !void {
     var wire = s.client.Client.init(init.gpa, init.io, config.url);
     defer wire.deinit();
     if (bootstrap) try s.client.bootstrap.awaitGrowingOwnership(&wire, .{ .realm = config.realm, .pid = config.pid, .principal = config.principal, .generation = config.generation, .public_key = key.public_key.toBytes() }, key, config.bootstrap_timeout_ms);
-    var server = try s.GrowingGenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
+    var server = try s.GenServer.init(.{ .client = &wire, .realm = config.realm, .principal = config.principal, .pid = config.pid, .generation = config.generation, .key = key }, "state");
     server.failure_policy = .stop;
     const resource = (try server.session.association(try p.Value.init("state"))) orelse return error.MissingStateAssociation;
     var metadata: [8192]u8 = undefined;

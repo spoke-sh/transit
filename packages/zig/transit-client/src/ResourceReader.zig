@@ -59,7 +59,13 @@ pub const Reader = struct {
     }
 };
 pub fn query(self: Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-    return self.wire.queryGrowing(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key);
+    return self.wire.query(.{ .realm = self.realm, .principal = self.principal, .kind = kind }, self.key) catch |err| {
+        if (err == error.Rejected) switch (self.wire.last_rejection orelse return err) {
+            .StateResourceExpired, .UnknownStateResource, .RetiredProcess => return error.ResourceUnavailable,
+            else => {},
+        };
+        return err;
+    };
 }
 pub fn open(self: Self, resource: u64) !Reader {
     const response = try self.query(.{ .resource = resource });

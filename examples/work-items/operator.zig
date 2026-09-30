@@ -110,7 +110,7 @@ pub fn main(init: std.process.Init) !void {
         break :value next;
     };
     if (saved.version != 1 or saved.realm != config.realm or saved.principal != config.principal or saved.pid != pid or saved.resource != resource or !std.mem.eql(u8, saved.intent, intent)) return error.RecoveryIdentityMismatch;
-    const receipt = try wire.submitGrowing(saved.signed);
+    const receipt = try wire.submit(saved.signed);
     if (saved.receipt) |position| if (receipt.position != position) return error.RecoveryReceiptMismatch;
     saved.receipt = receipt.position;
     try write(init, path, saved);

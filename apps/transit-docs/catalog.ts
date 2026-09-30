@@ -32,7 +32,7 @@ export const sections: Section[] = [
       ),
       page(
         "apps/transit-cli/docs/unified-query.md",
-        "guides/query-v2",
+        "guides/query",
         "Query recovery and source configuration",
       ),
     ],
@@ -116,8 +116,8 @@ export const sections: Section[] = [
     label: "Native protocol",
     pages: [
       reference("native", "Native signed protocol"),
-      page("contracts/SERVICE_V2.md", "reference/native-wire", "Native HTTP wire contract"),
-      page("contracts/TRANSIT_V3.md", "reference/growing-wire", "Growing protocol v3"),
+      page("contracts/SERVICE_V1.md", "reference/native-wire", "Native HTTP wire contract"),
+      page("contracts/TRANSIT_V1.md", "reference/growing-wire", "Growing protocol v3"),
     ],
   },
   {

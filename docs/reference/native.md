@@ -9,11 +9,15 @@ The [versioning policy](versioning.md) requires a single v1 definition for each
 Transit-owned protocol before 1.0, with hard cutovers and removal of legacy
 implementations.
 
+Native signatures bind a contract `definition` identifier as well as v1. Stored
+authority heads, saved operations and SDK/native-library checks use the same
+identifier to reject incompatible builds. The [compatibility policy](versioning.md#current-native-definition)
+explains its ownership and replacement rule.
+
 | Contract | Owns |
 | --- | --- |
-| [Native HTTP service v2](../../contracts/SERVICE_V2.md) | Request/response envelopes, signature domains, HTTP framing and trust |
-| [Transit protocol v2](../../contracts/TRANSIT_V2.md) | Legacy bounded commands, reads and ownership |
-| [Growing protocol v3](../../contracts/TRANSIT_V3.md) | Explicit growing profile, paged catalogs/resources and signed operation rules |
+| [Native HTTP service v1](../../contracts/SERVICE_V1.md) | Request/response envelopes, signature domains, HTTP framing and trust |
+| [Transit protocol v1](../../contracts/TRANSIT_V1.md) | Paged catalogs and resources, commands, reads, ownership and recovery |
 | [State v1](../../contracts/STATE_V1.md) | Resource identity, associations, read views and commit constraints |
 | [Installation/bootstrap v1](../../contracts/APPLICATION_INSTALLATION_V1.md) | Neutral declaration, local management operations, worker bootstrap and caller exports |
 | [Client ABI](../../packages/zig/transit-client/docs/bindings.md) | Shared native handles, saved requests and cross-language ownership |

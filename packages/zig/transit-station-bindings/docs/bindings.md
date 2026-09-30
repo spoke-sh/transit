@@ -4,38 +4,15 @@
 libraries and optional port executable. The generated [header](../include/transit_station.h)
 and [ABI/schema resource](../abi-v1.json) come from exported Zig signatures and
 types. `just bindings::generate` updates host resources; `just bindings::check`
-rejects drift. ABI version 1 is experimental and qualified on Linux x86_64.
+rejects drift. The native artifacts target Linux x86_64. Before use, check the complete generated
+`STATION_ABI_DEFINITION` with `station_abi_definition_matches`. A missing export
+or zero result rejects the library; the v1 number alone is insufficient.
 
 The host owns its handler and supplies actions; the same Zig GenServer, Table,
 registry, supervisor, signing and query code supplies framework semantics. There
 are no host-language branches in the authority. [Language adapters](../../../../bindings/README.md)
 own scheduling and handles, not durable state. The [port host](../../../../apps/transit-station-host/README.md)
 exposes this implementation to runtimes without an in-process native adapter.
-
-## A private turn
-
-The following `station_server_*` interface retains the M9 legacy profile.
-The additive [growing interface](#explicit-growing-turns) is selected separately.
-
-1. Create a server with an explicit endpoint, 32-byte seed, realm, principal,
-   PID, activation generation and required association. Creation does no I/O.
-2. `station_server_next` drives bounded protocol work. `progress` means more
-   polling is needed, `idle` means no input, `ready` presents one detached turn,
-   and `committed`/`blocked` describe a confirmed durable transition.
-3. At `ready`, run initialization when indicated, then the handler. Apply typed
-   actions to its private proposal: KV, Table, messaging, query, name or child
-   operations. A rejected action rolls back that action, preserving earlier
-   private work. Query-after-mutation is rejected rather than using a new view.
-4. `station_server_finish(server, 0)` validates and freezes the proposal.
-   Passing `1` discards the proposal and freezes a failed turn, preserving the
-   mailbox head. Neither form submits a request. Poll until the result is known.
-
-The host may poll a ready turn repeatedly; this does not renew its read view.
-An expired view cannot be committed. Destroying a host or handle does not
-acknowledge, cancel, commit or record a handler failure implicitly. The host
-chooses its exception policy and drives a failed proposal if it needs that
-durable outcome. The Zig `GenServer.step` callback API uses the same poll/finish
-machine. Handler code has no authority-side execution path.
 
 ## Ownership, scheduling and recovery
 
@@ -67,7 +44,7 @@ scheduling is retried. HTTP attempts and frozen proposals retain the ordinary
 explicit retry policy. The ABI proof runs on one CPU on Linux and exercises
 back-to-back raw-client retries alongside Station polling.
 
-`station_server_pending` exports the canonical frozen envelope understood by
+`station_growing_pending` exports the canonical frozen envelope understood by
 the [raw client ABI](../../transit-client/docs/bindings.md). Persist those exact
 bytes before sending when durable local retry material is needed. They contain
 no private key, but may contain application data. They are not a receipt or a
@@ -84,7 +61,7 @@ The host's proposed read deadline is bounded and checked by the authority.
 The generated action/result schemas own JSON shapes. Payloads and IPC bytes use
 lowercase hex. Arrow int64 values/keys and Station u64 correlations use decimal
 strings across JSON boundaries; protocol identity counters retain their existing
-53-bit ceiling. Each result exposes original finite IPC bytes. `station_arrow_cell`
+53-bit ceiling. Each result exposes original finite IPC bytes. `station_growing_arrow_cell`
 is an optional bounded accessor using the same Arrow implementation; consumers
 can instead give IPC to their own Arrow library. It does not replace the bytes
 with a JSON-only result API. All ordinary Table and result budgets still apply.
@@ -105,14 +82,14 @@ bounded admission, await cancellation, asynchronous close and GC cleanup.
 
 ## Explicit growing turns
 
-M11 adds the `station_growing_*` family without changing the legacy entry points.
+The `station_growing_*` family is the current native v1 turn boundary.
 `station_growing_capabilities` reports local library support; it does not grant
-access or advertise authority capability. Create a separate opaque growing handle
-with `profile: "growing_v3"`, realm/principal/PID/generation, association, finite
+access or advertise authority capability. Create an opaque handle
+with `profile: "native_v1"`, realm/principal/PID/generation, association, finite
 transport timeout and explicit `failure_policy: "stop" | "block_input"`.
-Principals preserve the public 53-bit range. Missing/legacy profiles reject;
-there is no fallback or resource migration. Handles require the same native
-stack, bounded I/O pool, serialized access and joined destruction as legacy ones.
+Principals preserve the public 53-bit range. Unsupported profiles reject;
+there is no fallback or resource migration. Handles require the declared stack, bounded I/O pool, serialized access and
+joined destruction.
 
 1. `station_growing_prepare` advances reads/private framework work only. A
    `pending` event identifies a permit, view-open or turn mutation and its
@@ -143,8 +120,8 @@ stack, bounded I/O pool, serialized access and joined destruction as legacy ones
    `finish` remains compatible.
 
 `GrowingAction`/`GrowingResult` are generated from the Zig boundary types. They
-share basic KV/Table/message implementations with the legacy adapter, add bounded
-KV/Table pages and retained source operations, and accept full-width timer
+delegate to shared native KV/Table/message implementations, including bounded
+pages and retained source operations, and accept full-width timer
 observers. Each page has at most eight entries and an opaque native cursor.
 Table row keys/int64 values and correlations cross JSON as decimal strings.
 Cursor parsing is canonical, and resuming checks the original source, resource,
@@ -160,10 +137,12 @@ Query support requires `query_results: true` in the growing configuration. An
 enabled handle owns a bounded 1 MiB Fuze workspace until joined destruction;
 disabled handles allocate none. Generated capabilities expose this budget,
 8192-byte segments and state/message/operation bounds. Query actions on a disabled
-handle reject even if the library advertises support. Registries, supervision
-and runtime bindings are not part of this growing foreign slice.
+handle reject even if the library advertises support. Registry actions create,
+grant, handle and route scoped names; supervisor actions register and observe
+children through the same private turn. Runtime provider reconciliation remains
+a separately authorized controller, outside application handler actions.
 
-`query_policy` and `query_start` delegate to native `GrowingQuery`. Starting a
+`query_policy` and `query_start` delegate to native `Query`. Starting a
 query requires an authenticated call and uses the whole four-mutation proposal;
 it cannot share initialization or an earlier private mutation. The native state
 machine handles capture/publication continuations, receiver credit, fragments
@@ -180,13 +159,13 @@ IPC bytes remain valid after scope/handle disposal; readers remain scoped and
 must reauthorize each access. A local read does not extend retention or confirm
 the containing turn's commitment. Consumers decode each IPC stream separately;
 concatenation is not the result format. The native port uses the same exports;
-public runners and persistence callbacks remain separate M11 work.
+public SDK runners own scheduling and persistence callbacks.
 
 `station_growing_arrow_cell` (port `growing_arrow_cell`) provides the optional
 native decoder for already-owned segment bytes, preserving full-width cells.
 It checks the whole IPC stream within the growing segment bound and has no
 resource access; retrieving a segment still requires the scoped, authorized
-result reader. The older `station_arrow_cell` retains its finite result bound.
+result reader.
 Growing `cancel` actions now return whether a waiting call was closed; `false`
 means it was already closed, and neither outcome retracts work accepted by a peer.
 
@@ -205,7 +184,7 @@ queries, stale scope and revoked result access.
 
 ## HTTP and immutable publications
 
-M15 adds `station_http_codec`, also available as port `http_codec` in local-codec
+`station_http_codec` is also available as port `http_codec` in local-codec
 mode. `prepare` accepts typed request pieces, a finite hex body, resource identity,
 namespace, endpoint revision and reconciliation/attempt bounds. Namespace, secret
 versions and endpoint revisions use canonical unsigned decimal strings, preserving
@@ -274,7 +253,7 @@ limits. Existing kernel wire arrays and protocol limits are unchanged.
 
 ## Finite RPC calls
 
-M16 adds `station_grpc_codec` (port `grpc_codec`). Its `descriptor` action accepts
+`station_grpc_codec` is available as port `grpc_codec`. Its `descriptor` action accepts
 local descriptor-set bytes and a method path and returns the shared Zig method
 shape, descriptor digest and input/output type names. `prepare` accepts that
 method identity, ordered literal-byte/secret-reference metadata and a finite array
@@ -305,11 +284,11 @@ requires an explicit correlated service call, as for HTTP.
 The generated schemas and pure native/port fixtures cover binary/Unicode messages,
 empty messages, duplicate/binary metadata, full-width identities and malformed
 records. Allocation-failure units exercise both protocol readers. Public language
-conveniences and installed RPC caller qualification are tracked separately in M16.
+conveniences and installed RPC caller proof results belong to their SDK owners.
 
 ## Document owner operations and current-policy reads
 
-M17 adds `station_document_codec`, scoped `document` actions, and
+The ABI provides `station_document_codec`, scoped `document` actions, and
 `station_growing_document_read` (with corresponding port requests). All return
 owned buffers; language adapters decode them before releasing the native buffer.
 The generated schemas specify the exact host representation. Full-width Document

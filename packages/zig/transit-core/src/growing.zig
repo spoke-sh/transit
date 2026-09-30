@@ -10,6 +10,7 @@ const state_ops = @import("growing_state.zig");
 const work_ops = @import("growing_work.zig");
 pub const Genesis = struct {
     version: u32 = g.version,
+    definition: g.Definition = g.current_definition,
     realm: u64,
     root_key: [32]u8,
     max_clock_error_ms: ?u32 = null,
@@ -35,12 +36,14 @@ pub const Genesis = struct {
 };
 pub const Head = struct {
     version: u32 = g.version,
+    definition: g.Definition,
     position: u64,
     genesis: [32]u8,
     catalog: catalog.Snapshot,
     time_floor_ms: u64 = 0,
     outputs: u64 = 0,
     history_floor: u64 = 0,
+    last_collection: ?u64 = null,
 };
 pub const Record = struct { position: u64, previous: ?pages.Reference, next: Head, request: g.Request, time: ?core.Time.Sample };
 pub const Entry = union(enum) { genesis: struct { genesis: Genesis, head: Head }, operation: Record };
@@ -56,6 +59,7 @@ pub const StoredSnapshot = struct {
     nonce: [16]u8,
 };
 pub const ResourceGrant = struct { principal_epoch: u64, permissions: u8 };
+pub const RetiredProcess = struct { pid: u64, lifecycle: @FieldType(g.Process, "lifecycle") };
 pub const Maintenance = @import("growing_maintenance.zig");
 
 fn genesisHash(genesis: Genesis) ![32]u8 {
@@ -69,7 +73,7 @@ fn genesisHash(genesis: Genesis) ![32]u8 {
     var writer: std.Io.Writer = .fixed(&bytes);
     try std.json.Stringify.value(genesis, .{}, &writer);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.genesis.v3\x00");
+    hash.update("transit.genesis.v1\x00");
     hash.update(writer.buffered());
     return hash.finalResult();
 }
@@ -102,13 +106,13 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (try journal.tail() == 0) {
                 var candidate = try Catalog.open(page_store, .{});
                 try candidate.put(address(.principal, 0), Principal{ .grant = .{ .subject = 0, .public_key = genesis.root_key, .permissions = p.all_permissions }, .revision = 0, .epoch = 0 });
-                const head: Head = .{ .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot };
+                const head: Head = .{ .definition = g.current_definition, .position = 1, .genesis = fingerprint, .catalog = candidate.snapshot };
                 _ = try journal.append(0, .{ .genesis = .{ .genesis = genesis, .head = head } });
             }
             return open(journal, page_store, genesis);
         }
         pub fn open(journal: *Journal, page_store: *PageStore, genesis: Genesis) !Self {
-            var self: Self = .{ .journal = journal, .page_store = page_store, .genesis = genesis, .head = .{ .position = 0, .genesis = try genesisHash(genesis), .catalog = .{} } };
+            var self: Self = .{ .journal = journal, .page_store = page_store, .genesis = genesis, .head = .{ .definition = g.current_definition, .position = 0, .genesis = try genesisHash(genesis), .catalog = .{} } };
             try self.refresh();
             const root = try self.principal(0);
             if (!std.mem.eql(u8, &root.grant.public_key, &genesis.root_key)) return error.GenesisMismatch;
@@ -162,7 +166,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         }
         pub fn process(self: *Self, pid: u64) !g.Process {
             var current = try self.state();
-            return (try current.get(g.Process, address(.process, pid))) orelse error.UnknownProcess;
+            if (try current.get(g.Process, address(.process, pid))) |value| return value;
+            if (try current.get(RetiredProcess, address(.retired_process, pid)) != null) return error.RetiredProcess;
+            return error.UnknownProcess;
         }
         pub fn query(self: *Self, signed: g.SignedQuery) !g.Response {
             return @import("growing_read.zig").read(self, signed);
@@ -190,20 +196,21 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         }
         fn authorize(self: *Self, principal_value: Principal, command: g.Command) !void {
             const needed: p.Permission = switch (command) {
-                .spawn => .spawn,
+                .spawn, .create => .spawn,
                 .send => .send,
                 .begin_turn, .turn, .turn_with_versions, .open_view, .close_view => .execute,
                 .deliver => .delivery,
+                .declare_payload, .payload_ready => .publish,
                 .dispatch, .observe, .close_effect => .effect,
                 else => .admin,
             };
             if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;
             const pid: ?u64 = switch (command) {
-                inline .own, .rotate_worker, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect => |c| c.pid,
+                inline .own, .rotate_worker, .retry, .send, .begin_turn, .turn, .associate, .open_view, .close_view, .dispatch, .observe, .close_effect, .cancel_effect, .runtime_intent, .runtime_observe, .runtime_upgrade, .activate, .declare_payload, .payload_ready, .retire_payload, .payload_deleted, .collect, .initialize, .@"suspend", .@"resume" => |c| c.pid,
                 .turn_with_versions => |command_value| command_value.turn.pid,
                 .deliver => |id| (try work_ops.output(self, id)).destination,
                 .create_resource => |c| c.writer,
-                .terminate, .expire => |id| id,
+                .terminate, .expire, .expire_suspension => |id| id,
                 else => null,
             };
             if (principal_value.grant.pid) |scope| if (pid != scope) return error.Forbidden;
@@ -241,13 +248,16 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             if (self.head.position < ceiling) return;
             if (self.head.position >= ceiling + self.genesis.control_reserve) return error.ControlCapacity;
             switch (command) {
-                .revoke, .retry, .terminate, .expire, .own, .rotate_worker, .begin_turn, .close_view, .retire_resource, .expire_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint => {},
+                .revoke, .retry, .terminate, .expire, .own, .rotate_worker, .begin_turn, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .deliver, .observe, .close_effect, .cancel_effect, .checkpoint, .payload_ready, .retire_payload, .payload_deleted, .collect => {},
                 .grant_resource => |c| if (c.permissions != 0) return error.AdmissionClosed,
                 .turn => |t| {
                     if (t.effect != null) return error.AdmissionClosed;
                     for (t.outputs) |o| if (o != null) return error.AdmissionClosed;
                 },
                 .turn_with_versions => |tv| try self.checkCapacity(.{ .turn = tv.turn }),
+                .runtime_intent => |c| if (c.desired != .stopped) return error.AdmissionClosed,
+                .runtime_observe => {},
+                .@"suspend", .expire_suspension => {},
                 else => return error.AdmissionClosed,
             }
         }
@@ -259,7 +269,9 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             var candidate = try self.state();
             var next = self.head;
             const needs_time = switch (request.command) {
-                .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint => false,
+                .grant, .create_principal, .revoke, .terminate, .close_view, .grant_resource, .retire_resource, .checkpoint, .runtime_observe, .payload_ready, .retire_payload, .payload_deleted, .collect => false,
+                .reclaim_resource => |id| ((try state_ops.resource(self, id)).history_ms orelse 0) > 0,
+                .runtime_intent => |c| c.desired == .running,
                 .close_effect => |c| c.reason == .deadline,
                 .deliver => |id| (try self.process((try work_ops.output(self, id)).source)).lifecycle == .running,
                 .cancel_effect => |c| (try self.process(c.pid)).lifecycle == .running,
@@ -271,6 +283,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     break :needs false;
                 },
                 .spawn => |c| c.work_before_ms != null,
+                .create => |c| c.process.work_before_ms != null,
                 else => true,
             };
             const sample = if (needs_time) (if (self.clock) |clock| try clock.sample() else null) else null;
@@ -308,12 +321,20 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
         pub fn executable(self: *Self, process_value: g.Process, sample: ?core.Time.Sample, settlement: bool) !void {
             if (process_value.lifecycle != .running) return error.RetiredProcess;
             if (process_value.failure != null) return error.BlockedProcess;
+            if (process_value.control) |control| if (control.phase != .ready) return error.InvalidLifecycle;
             try self.admissible(process_value, sample, settlement);
+            if (process_value.control != null) try @import("growing_lifecycle.zig").required(self, process_value, sample);
+        }
+        pub fn provisionable(self: *Self, process_value: g.Process, sample: ?core.Time.Sample) !void {
+            if (process_value.lifecycle != .running) return error.RetiredProcess;
+            if (process_value.failure != null) return error.BlockedProcess;
+            try self.admissible(process_value, sample, false);
         }
         /// A handler failure blocks execution, not the durable mailbox. New
         /// external admission still obeys work lifetime and required state.
         fn admissible(self: *Self, process_value: g.Process, sample: ?core.Time.Sample, settlement: bool) !void {
             if (process_value.lifecycle != .running) return error.RetiredProcess;
+            if (process_value.control) |control| if (control.phase == .suspended) try self.before(sample, control.resume_before_ms.?);
             if (process_value.work_before_ms) |cutoff| try self.before(sample, if (settlement and process_value.turn_permit != null) process_value.settle_before_ms.? else cutoff);
             try state_ops.dependencies(self, process_value.pid, sample);
         }
@@ -340,16 +361,18 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     subject.epoch = position;
                     try candidate.put(address(.principal, id), subject);
                 },
+                .declare_payload, .payload_ready, .retire_payload, .payload_deleted => try @import("growing_payload.zig").apply(self, candidate, request, sample),
                 .spawn => |create| {
                     if ((create.work_before_ms == null) != (create.settle_before_ms == null)) return error.InvalidLifetime;
                     if (create.work_before_ms) |cutoff| {
                         if (create.settle_before_ms.? <= cutoff) return error.InvalidLifetime;
                         try self.before(sample, cutoff);
                     }
-                    try candidate.put(address(.process, position), g.Process{ .pid = position, .code = create.code, .work_before_ms = create.work_before_ms, .settle_before_ms = create.settle_before_ms });
+                    try candidate.put(address(.process, position), g.Process{ .pid = position, .allow_collection = create.allow_collection, .code = create.code, .work_before_ms = create.work_before_ms, .settle_before_ms = create.settle_before_ms });
                 },
                 .own => |own| {
                     var process_value = try self.process(own.pid);
+                    if (process_value.binding != null) return error.RuntimeActivationRequired;
                     try self.executable(process_value, sample, true);
                     if (process_value.generation != own.expected_generation) return error.StaleGeneration;
                     const worker = try self.principal(own.worker);
@@ -362,6 +385,7 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                 .rotate_worker => |rotation| {
                     if (request.principal != 0 or rotation.worker == 0) return error.Forbidden;
                     var process_value = try self.process(rotation.pid);
+                    if (process_value.binding != null) return error.RuntimeActivationRequired;
                     try self.executable(process_value, sample, true);
                     if (process_value.generation != rotation.expected_generation) return error.StaleGeneration;
                     var worker = try self.principal(rotation.worker);
@@ -398,9 +422,8 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     // Validate current work lifetime/dependencies after clearing
                     // only the candidate's block. No accepted input is skipped.
                     try self.executable(process_value, sample, false);
-                    process_value.owner = null;
-                    process_value.turn_permit = null;
-                    process_value.generation += 1;
+                    try @import("growing_lifecycle.zig").restartBinding(&process_value, position);
+                    try @import("growing_lifecycle.zig").fence(&process_value);
                     try candidate.put(address(.process, command.pid), process_value);
                 },
                 .terminate, .expire => |pid| {
@@ -414,8 +437,14 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try candidate.put(address(.process, pid), process_value);
                     try state_ops.retireIndexes(candidate, pid);
                 },
-                .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .begin_turn, .turn, .turn_with_versions => try state_ops.apply(self, candidate, next, request, sample),
+                .create_resource, .grant_resource, .associate, .open_view, .close_view, .retire_resource, .expire_resource, .reclaim_resource, .begin_turn, .turn, .turn_with_versions => try state_ops.apply(self, candidate, next, request, sample),
                 .deliver, .dispatch, .observe, .close_effect, .cancel_effect => try work_ops.apply(self, candidate, request, sample),
+                .runtime_intent, .runtime_observe, .runtime_upgrade, .activate => try @import("growing_runtime.zig").apply(self, candidate, request, sample),
+                .create, .initialize, .@"suspend", .@"resume", .expire_suspension => try @import("growing_lifecycle.zig").apply(self, candidate, request, sample),
+                .collect => |command| {
+                    try @import("growing_collection.zig").apply(self, candidate, command);
+                    next.last_collection = position;
+                },
                 .checkpoint => {
                     if (!self.genesis.allow_history_trim) return error.RetentionNotEnabled;
                     // This publication is itself a complete root checkpoint.

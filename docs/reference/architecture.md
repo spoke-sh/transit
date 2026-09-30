@@ -86,11 +86,11 @@ Transit-owned protocol before 1.0. Breaking changes use hard cutovers that remov
 superseded implementations and update consumers together. Matching version labels
 alone do not establish compatibility between builds.
 
-Legacy protocol/state profiles retain their fixed limits. The growing v3 profile
-uses bounded pages and immutable state roots, allowing retained collections to
-grow beyond resident caches. There is no automatic history conversion between
-profiles. Query v1, query v2, service bindings, SDK ABIs, application revisions
-and ownership generations are distinct compatibility dimensions.
+Native v1 uses bounded pages and immutable state roots, allowing retained
+collections to grow beyond resident caches. There is no automatic history
+conversion across incompatible definitions. Wire formats, service bindings,
+SDK ABIs, application revisions and ownership generations retain their own
+compatibility checks.
 
 Transit supports local application installation, Station SDKs,
 finite HTTP/gRPC effects, structured Documents, finite KV/Table/Document queries,

@@ -24,10 +24,10 @@ pub const Configuration = struct {
 };
 configuration: Configuration,
 source: *q.UnifiedBehavior.Source,
-pub fn interface(self: *Self) s.GrowingGenServer.Handler {
+pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }
-fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
+fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
     const self: *Self = @ptrCast(@alignCast(raw.?));
     if (self.source.peer != self.configuration.peer or self.source.initializer != self.configuration.initializer) return error.QueryConfigurationChanged;
     const before = turn.decision;
@@ -39,7 +39,7 @@ fn initialize(raw: ?*anyopaque, turn: *s.GrowingTurn) !void {
     try source.initialize.?(source.context, turn);
     try turn.validate();
 }
-fn handle(raw: ?*anyopaque, turn: *s.GrowingTurn, frame: s.Frame) !void {
+fn handle(raw: ?*anyopaque, turn: *s.Turn, frame: s.Frame) !void {
     const self: *Self = @ptrCast(@alignCast(raw.?));
     try q.UnifiedSource.checkCurrent(try self.configuration.definition(turn.view.resource), turn);
     const source = self.source.interface();

@@ -1,8 +1,7 @@
 # SELECT
 
-`SELECT` executes a finite read against one explicitly configured source. Table
-v1 accepts one Table; unified v2 accepts a declared KV, Table or accepted Document
-projection. Names and types come from that declaration. SQL neither creates the
+`SELECT` executes a finite read against one explicitly declared KV, Table or
+accepted Document projection. Names and types come from that declaration. SQL neither creates the
 source nor grants access to it.
 
 ## Syntax
@@ -21,7 +20,7 @@ comparison := = | <> | != | < | <= | > | >=
 column     := name | qualifier.name
 ```
 
-The grammar also recognizes an outer `LIMIT` on aggregates; both compilers reject
+The grammar also recognizes an outer `LIMIT` on aggregates; the compiler rejects
 it with `UnsupportedAggregateLimit`. The forms above describe compilable shapes.
 See [syntax](syntax.md) for identifiers, literals and statement bounds.
 
@@ -36,8 +35,7 @@ SELECT items.value, items.id FROM items;
 ```
 
 Explicit lists preserve the requested order and contain one or two different
-column names. Star selects both columns in Table v1 or all one to eight declared
-columns in unified v2. Wider explicit lists require typed plans. Output aliases,
+column names. Star selects all one to eight declared columns. Wider explicit lists require typed plans. Output aliases,
 expressions and `DISTINCT` are unsupported.
 
 Results follow defined source order, including primary-key order for Tables.
@@ -57,14 +55,14 @@ There is one optional predicate. `AND`, `OR`, `NOT`, `IS NOT NULL`, `IN`, `LIKE`
 match the declared source; mismatched names reject rather than selecting another
 source.
 
-| Comparison | Table v1 | Unified v2 |
-| --- | --- | --- |
-| `=`, `<>`, `!=` | Typed equality/inequality | Exactly typed equality/inequality |
-| `<`, `<=`, `>`, `>=` | int64 operands; null comparison selects no rows | Exactly typed comparison, with byte ordering for UTF-8/binary |
-| `IS NULL` | Explicit null | Explicit null; missing remains distinct |
-| Comparison with `NULL` | Selects no rows | Rejected with `UnsupportedNullComparison` |
+| Comparison | Query semantics |
+| --- | --- |
+| `=`, `<>`, `!=` | Exactly typed equality/inequality |
+| `<`, `<=`, `>`, `>=` | Exactly typed comparison, including byte ordering for UTF-8/binary |
+| `IS NULL` | Explicit null; missing remains distinct |
+| Comparison with `NULL` | Rejected with `UnsupportedNullComparison` |
 
-There are no implicit casts. Unified v2 carries value, null, missing, type error
+There are no implicit casts. Query v1 carries value, null, missing, type error
 and conflict as distinct cells. SQL does not provide tests for all those states;
 use the typed API where required. Do not treat an error or conflict as null.
 
@@ -76,7 +74,7 @@ SELECT * FROM items LIMIT 0;
 ```
 
 Filtering precedes the limit. A limit applies across the whole query, independently
-of page size. Table v1 admits 0–32; unified v2 admits 0–18446744073709551615.
+of page size. The count ranges from 0–18446744073709551615.
 `LIMIT 0` produces no rows. Omitting the limit adds no implicit truncation, while
 operation, source and result budgets still govern execution. `OFFSET` is unsupported.
 
@@ -88,12 +86,13 @@ SELECT SUM(value) FROM items WHERE id > 0;
 ```
 
 An aggregate returns one result cell. `COUNT(*)` counts selected rows, including
-null and, in v2, every other cell state. Its result is int64 in v1 and uint64 in v2;
-an empty input gives zero. `COUNT(column)` is unsupported.
+null and every other cell state. Its result is uint64;
+an empty input gives zero. Flight checks conversion to its published int64
+result type. `COUNT(column)` is unsupported.
 
 `SUM(column)` requires int64. It adds values with checked overflow in source order,
-skips null in v1 and missing/null in v2, and returns null on empty/all-skipped
-input. A v2 error or conflict cell fails the sum. `AVG`, `MIN`, `MAX`, grouping,
+skips missing/null, and returns null on empty/all-skipped
+input. An error or conflict cell fails the sum. `AVG`, `MIN`, `MAX`, grouping,
 multiple aggregates and mixing an aggregate with row columns are unsupported.
 
 ### Aggregate a limited input
@@ -126,8 +125,7 @@ and [console use](../../../apps/transit-cli/docs/console.md).
 Unknown sources, columns or qualifiers reject. So do duplicate projections,
 type mismatches, invalid binary literals, unsupported limits/comparisons and
 oversized cells. The compiler returns no successful prefix or approximate plan.
-[Table SQL v1](../../../packages/zig/transit-fuze/docs/sql.md) and
-[unified SQL v2](../../../packages/zig/transit-fuze/docs/unified-sql.md) own exact
+[Query SQL v1](../../../packages/zig/transit-fuze/docs/unified-sql.md) owns exact
 compiler APIs and errors.
 
 Joins, sorting, grouping, arithmetic, writes, general casts, historical clauses

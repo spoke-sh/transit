@@ -27,7 +27,7 @@ public sealed record Credential
     }
     public override string ToString() => $"Credential[Realm={Realm}, Principal={Principal}]";
 }
-public enum Profile { GrowingV3 }
+public enum Profile { NativeV1 }
 public sealed record ClientConfig
 {
     public Uri Endpoint { get; }
@@ -38,9 +38,9 @@ public sealed record ClientConfig
     public ClientConfig(Uri endpoint, Profile profile, uint timeoutMillis = 5000, string? nativeDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
-        if (profile != Profile.GrowingV3 || !endpoint.IsAbsoluteUri || endpoint.Scheme is not ("http" or "https") ||
+        if (profile != Profile.NativeV1 || !endpoint.IsAbsoluteUri || endpoint.Scheme is not ("http" or "https") ||
             endpoint.Host.Length == 0 || endpoint.UserInfo.Length != 0 || endpoint.Query.Length != 0 || endpoint.Fragment.Length != 0 ||
-            timeoutMillis is < 1 or > 60000) throw new ArgumentException("Select GrowingV3, an HTTP endpoint and a bounded timeout");
+            timeoutMillis is < 1 or > 60000) throw new ArgumentException("Select NativeV1, an HTTP endpoint and a bounded timeout");
         // Keep reserved path bytes escaped; shared native transport joins routes.
         NativeEndpoint = Value.Text(endpoint.GetComponents(UriComponents.HttpRequestUrl, UriFormat.UriEscaped), 4096);
         Endpoint = endpoint; Profile = profile; TimeoutMillis = timeoutMillis;

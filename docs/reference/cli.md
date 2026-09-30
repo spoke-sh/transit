@@ -14,7 +14,7 @@ transit serve [--config FILE] [--initialize] [--no-ui]
 transit server [--config FILE] [--initialize] [--no-ui]
 transit console [--config FILE] [--format table|json] [-c SQL | -f FILE] [--init FILE | --no-rc]
 transit query FILE
-transit query-v2 FILE
+transit query FILE
 transit app install --config FILE --file DECLARATION --operation ID
 transit app replace --config FILE --file REPLACEMENT --operation ID
 transit app retry --config FILE --operation ID
@@ -27,7 +27,7 @@ transit app connect --config FILE --application NAME --caller NAME [--output FIL
 | `serve`, `server` | Aliases. Run the local supervisor in the foreground; `--initialize` creates a new installation. Version 3 starts Board by default; `--no-ui` runs headlessly |
 | `console` | Interactive and batch finite SQL, automatic query identity/progress/results, terminal assistance and saved recovery |
 | `query` | Compatibility: original single-line Table v1 shell and positional configuration |
-| `query-v2` | Compatibility: single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
+| `query` | Compatibility: single-line KV/Table/Document shell with positional configuration and explicit recovery exports |
 | `app install` | Freeze/sign a declaration under an operation ID; accepted management intent is separate from installed/ready/domain state |
 | `app replace` | Conditional role replacement using `expected_revision`; stable durable IDs and current permissions remain |
 | `app retry` | Retry the original frozen management request after uncertainty |
@@ -176,7 +176,7 @@ SQL uses a fresh leased snapshot by default and executes locally without durable
 query state. In `execution: durable` mode, SQL chooses a fresh identity, records
 exact intent, advances its upload and prints verified results. Recovery commands
 apply to durable mode. `.new`, `.retry`, `.advance`, `.next` and
-manual recovery exports are not console commands. `query` and `query-v2` remain
+manual recovery exports are not console commands. `query` and `query` remain
 callable compatibility shells with their own explicit protocols and dot commands;
 root help advertises `console` as the query interface.
 
@@ -185,7 +185,7 @@ root help advertises `console` as the query interface.
 Use [server configuration](../../apps/transit-cli/docs/server.md),
 [application installation](../../apps/transit-cli/docs/applications.md),
 [console configuration](../../apps/transit-cli/docs/console.md) and
-[v2 source configuration](../../apps/transit-cli/docs/unified-query.md) for exact
+[source configuration](../../apps/transit-cli/docs/unified-query.md) for exact
 fields, paths and bounds. Configuration alone never creates a grant.
 
 Console JSON output keeps prompts and diagnostics off stdout. Full-width

@@ -2,7 +2,7 @@ const std = @import("std");
 const station = @import("transit_station");
 const wire = station.client;
 const telemetry = wire.observability.telemetry;
-const Config = struct { url: []const u8, realm: u64, principal: u8, seed_file: []const u8, mode: station.Controller.Mode, watches: []const station.Controller.Watch, interval_ms: u32 = 100, request_timeout_ms: u32 = 5000 };
+const Config = struct { url: []const u8, realm: u64, principal: u64, seed_file: []const u8, mode: station.Controller.Mode, watches: []const station.Controller.Watch, interval_ms: u32 = 100, request_timeout_ms: u32 = 5000 };
 pub fn main(init: std.process.Init) !void {
     var diagnostics = telemetry.Runtime.init(init.io, "transit-station-controller", try telemetry.Config.environment(init.environ_map));
     diagnostics.start();
@@ -40,7 +40,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             continue;
         };
         if (progress and controller.pending == null) diagnostics.event(.{ .name = "station.controller.observation", .level = .info, .outcome = .ok });
-        if (once and controller.pending == null) return;
+        if (once and controller.pending == null and controller.completed_passes != 0) return;
         if (!progress) try init.io.sleep(.fromMilliseconds(config.interval_ms), .awake);
     }
 }

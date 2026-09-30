@@ -34,7 +34,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
         public = json.loads(subprocess.check_output([proof, 'public']))
         url = f'http://127.0.0.1:{free_port()}'
         config = root / 'node.json'
-        config.write_text(json.dumps({'profile': 'growing_v3',
+        config.write_text(json.dumps({'profile': 'native_v1',
             'genesis': {'realm': 46, 'root_key': public, 'max_clock_error_ms': 10000},
             'ursula_url': fixture.url, 'bucket': 'interactive', 'journal': 'authority',
             'port': int(url.rsplit(':', 1)[1]), 'resident_pages': resident_pages, 'request_timeout_ms': 10000}))
@@ -42,7 +42,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
         blocked = [False]
 
         def before(path, body):
-            kind = json.loads(body)['query']['kind'] if path == '/v3/query' else {}
+            kind = json.loads(body)['query']['kind'] if path == '/v1/query' else {}
             retained = 'snapshot_entries' in kind or ('snapshot_read' in kind and 'existing' in kind['snapshot_read']['snapshot'])
             if blocked[0] and retained:
                 gate.set()
@@ -65,7 +65,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 if age:
                     invoke('age', str(age))
                 settings = json.loads((root / 'shell.json').read_text())
-                settings.update(version=1, profile='unified_v2', execution='interactive',
+                settings.update(version=1, profile='unified_v1', execution='interactive',
                                 transport='loopback', url=probe.url, format='json')
                 connection = root / 'console.json'
                 connection.write_text(json.dumps(settings))

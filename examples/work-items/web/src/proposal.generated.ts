@@ -78,7 +78,7 @@ export const proposal = decodeDefinition({
             0,
             0
           ],
-          "profile": "unified_v2",
+          "profile": "unified_v1",
           "sql": "SELECT * FROM items LIMIT 32",
           "refresh": "snapshot",
           "starts": 1

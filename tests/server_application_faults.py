@@ -35,10 +35,10 @@ class ExistingKey:
 
 def native(key, realm, principal, value, sequence=None):
     if sequence is None:
-        body = dict(version=3, realm=realm, principal=principal, kind=value)
-        return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v3\0' + compact(body)).digest()))
-    body = dict(version=3, realm=realm, principal=principal, sequence=sequence, command=value)
-    return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v3\0' + compact(body)).digest()))
+        body = dict(version=1, definition='4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679', realm=realm, principal=principal, kind=value)
+        return dict(query=body, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(body)).digest()))
+    body = dict(version=1, definition='4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679', realm=realm, principal=principal, sequence=sequence, command=value)
+    return dict(request=body, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(body)).digest()))
 
 
 def post(port, path, value, expected=200, headers=None):
@@ -103,7 +103,7 @@ def node(real, directory, args):
                 upstream.request(self.command, self.path, body, {'Content-Type': 'application/json'})
                 response = upstream.getresponse()
                 data = response.read()
-                if self.path == '/v3/command' and response.status == 200:
+                if self.path == '/v1/command' and response.status == 200:
                     envelope = json.loads(body)
                     with mutex:
                         # Saved before dropping: native receipt remains real and
@@ -276,7 +276,7 @@ def run(cli, node_binary, host, worker, operator):
         domain('operator', 'step', 'copy-1')
         wait_file(fixture.root / 'retried-copy-send')
         frozen = json.loads((fixture.root / 'accepted-worker.json').read_text())
-        post(fixture.config['ports']['node'], '/v3/command', frozen, 403)
+        post(fixture.config['ports']['node'], '/v1/command', frozen, 403)
         # Lose a committed worker turn reply. Its live host must retry exact
         # bytes; this is separate from reconstructing work after owner loss.
         arm(fixture, 'turn', 'worker-copy', principal)
@@ -300,8 +300,8 @@ def run(cli, node_binary, host, worker, operator):
         # current native rights. The application workflow above never reads them.
         root = ExistingKey(fixture.root, fixture.installation / 'root.seed')
         def revoke(command):
-            current = post(fixture.config['ports']['node'], '/v3/query', native(root, 73, 0, {'capabilities': {}}))
-            return post(fixture.config['ports']['node'], '/v3/command', native(root, 73, 0, command, current['principal_sequence'] + 1))
+            current = post(fixture.config['ports']['node'], '/v1/query', native(root, 73, 0, {'capabilities': {}}))
+            return post(fixture.config['ports']['node'], '/v1/command', native(root, 73, 0, command, current['principal_sequence'] + 1))
         inspector = json.loads((fixture.root / 'inspector.json').read_text())
         revoke({'grant_resource': {'resource': ready['resources'][0]['id'], 'subject': inspector['principal'], 'permissions': 0}})
         assert 'AccessDenied' in domain('inspector', 'inspect', fail=True).stderr

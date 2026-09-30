@@ -17,7 +17,7 @@ with Kubernetes/Substrate remaining the reference isolation profile.
 ## Defaults and configuration
 
 The installed local bundle runs without a configuration file. Defaults select
-version 3, realm 1, an installation at `./.transit`, loopback ports 19101–19105
+version 1, realm 1, an installation at `./.transit`, loopback ports 19101–19105
 for cold storage, cold console, store, node and gateway, application management
 on 19106, and Board on 19107. Application quotas are eight applications and 32
 roles. For missing executable settings, lookup prepends the directory containing
@@ -91,7 +91,7 @@ is refused by the same installation identity checks.
 A complete YAML configuration can override these defaults:
 
 ```yaml
-version: 3
+version: 1
 installation: "./local-transit"
 realm: 73
 gateway_allowed_hosts: []
@@ -212,7 +212,7 @@ Authorization and forwarded-identity headers remain forbidden in this native
 gateway profile; accepting a local name does not enable browser access or confer
 native permissions. Application-serving Origin policies remain separate.
 
-The same gateway policy and ready fields apply to the version 2
+The same gateway policy and ready fields apply to the version 1
 [application installation profile](applications.md). Its separate management
 listener retains its numeric loopback authority; `gateway_allowed_hosts` applies
 only to the native protocol gateway.
@@ -295,7 +295,7 @@ not child payloads or credentials. Retention remains unlimited; query execution
 budgets cap each request at 1,000 source pages, 128 segments and 1 MiB result data.
 Provider heap targets are not hard RSS limits or an isolation guarantee.
 
-The gateway forwards only native `/v3/query`, `/v3/command` and `/health` routes,
+The gateway forwards only native `/v1/query`, `/v1/command` and `/health` routes,
 preserving the signed body and upstream response status. Node and gateway permit
 64 sequential exchanges per connection; clients discard connections after 200 ms
 idle, and the listener bounds idle waits to one second. Commands, health and
@@ -333,7 +333,7 @@ provisioning operation is reconciled even when restarting headlessly. Re-enablin
 never renews a completed grant. Revoked resources disappear from Board; revoking
 its principal fails UI-enabled startup until an explicit authorized policy repair.
 
-Applications opt into resource inspection with declaration version 2 and an
+Applications opt into resource inspection with declaration version 1 and an
 explicit `inspection` list; see [application inspection](applications.md#board-inspection).
 Board's growing profile uses a realm-wide process inspector with individually
 filtered resources. Process metadata is shared across this trusted local realm;
@@ -350,14 +350,11 @@ invalid responses or unsafe/revoked principals fail visibly. Shutdown joins Boar
 and parent death kills it with the same Linux mechanism as other owned roles.
 Default startup never silently falls back to headless operation.
 
-Versions 1 and 2 remain headless configurations and require `--no-ui` with this
-CLI. They cannot name Board settings or its executable. An installation created
-by an older CLI retains its exact artifact/configuration hashes: neither this
-flag nor changing the configuration version upgrades it. Keep such an installation on its
-original pinned package/configuration. To adopt this profile, initialize a
-separately named version-3 installation with the matching packaged artifacts;
-there is no in-place history import or runtime upgrade in this profile. Once
-created under version 3, all UI toggles use the same configuration and history.
+The server accepts the current version-1 configuration and installation records.
+An incompatible record, artifact or configuration hash rejects before startup.
+Initialize a separately named installation with matching packaged artifacts for
+a hard cutover; no in-place history conversion is provided. `--no-ui` and later
+UI re-enablement use the same compatible installation and retained history.
 
 Retain the `transit-local` Nix output with a profile or GC-rooted build link for
 the lifetime of its installations. Its manifest includes Board and all native

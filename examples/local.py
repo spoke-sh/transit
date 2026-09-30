@@ -93,7 +93,7 @@ backend = "inline"
             worker_key, worker_public = key("caller")
             port = free_port()
             url = f"http://127.0.0.1:{port}"
-            node = write("node", {"genesis": {"realm": 71, "root_key": root_public},
+            node = write("node", {"genesis": {"realm": 71, "root_key": root_public, "max_clock_error_ms": 10000},
                 "ursula_url": ursula_url, "bucket": f"example-{name}", "journal": "authority", "port": port})
             authority = start([binaries["transit-node"], node, "--bootstrap"])
             ready(authority, url + "/health")
@@ -105,25 +105,34 @@ backend = "inline"
                 request = write(f"request-{sequence}", {"realm": 71, "principal": 0, "sequence": sequence, "command": value})
                 return invoke(binaries["rey-cli"], "submit", root_key, request, url)["position"]
 
-            pid = command({"spawn": {"initial_state": (b"0" if name == "counter" else b"").hex()}})
+            pid = command({"spawn": {}})
             command({"grant": {"subject": 1, "public_key": worker_public, "permissions": 24, "pid": pid}})
-            command({"own": {"pid": pid, "worker": 1, "expected_generation": 0}})
+            resource = command({"create_resource": {"writer": pid}})
+            for subject in (0, 1):
+                command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
+            association = "counter" if name == "counter" else "data"
+            command({"associate": {"pid": pid, "name": association.encode().hex(), "resource": resource}})
+            command({"own": {"pid": pid, "worker": 1, "expected_generation": 1}})
             values = [b"7", b"5"] if name == "counter" else [b"hello", b" world"]
             for value in values:
                 command({"send": {"pid": pid, "value": value.hex()}})
             caller = write("caller", {"url": url, "realm": 71, "principal": 1, "pid": pid,
-                                       "generation": 1, "seed_file": str(worker_key)})
+                                       "generation": 2, "seed_file": str(worker_key)})
             for _ in values:
                 invoke(binaries[f"example-{name}"], "--once", caller)
-            read = write("read", {"realm": 71, "principal": 0, "sequence": 0, "command": {"inspect": pid}})
-            view = invoke(binaries["rey-cli"], "view", root_key, read, url)
+            def query(kind):
+                request = write("read", {"realm": 71, "principal": 0, "kind": kind})
+                return invoke(binaries["rey-cli"], "query", root_key, request, url)["body"]
+            view = query({"process": pid})["process"]
+            entries = query({"read_entries": {"resource": resource, "keys": [b"value".hex()] + [None]*7}})["read_entries"]["entries"]
             expected = b"12" if name == "counter" else b"hello world"
-            actual = bytes.fromhex(view["process"]["state"])
+            actual = bytes.fromhex(entries[0]["value"])
             assert actual == expected and view["process"]["consumed"] == len(values), view
             print(f"{name}: state={actual.decode()!r}, consumed={len(values)}, pending={view['input']}")
             if board:
                 reader_key, reader_public = key("board-reader")
                 command({"grant": {"subject": 2, "public_key": reader_public, "permissions": 16}})
+                command({"grant_resource": {"resource": resource, "subject": 2, "permissions": 3}})
                 board_port = free_port()
                 origin = f"http://127.0.0.1:{board_port}"
                 options = {"upstream": url, "realm": 71, "principal": 2, "seed_file": str(reader_key),

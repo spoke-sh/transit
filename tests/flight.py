@@ -27,7 +27,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
         port, flight_port = free_port(), free_port()
         url = f'http://127.0.0.1:{port}'
         config = fixture.root / 'node.json'
-        config.write_text(json.dumps(dict(profile='growing_v3', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='flight', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
+        config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='flight', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
         processes, logs, hosts = [], [], {}
         def start(name, command):
             log = (fixture.root / f'{name}.log').open('w+')
@@ -36,13 +36,19 @@ def run(node, host, gateway, proof, mode=None, board=None):
             processes.append(child)
             hosts[name] = child
             return child
+        def start_workers(directory, prefix=''):
+            for name in ('source', 'requester', 'courier'):
+                path = directory / f'{name}.json'
+                settings = json.loads(path.read_text())
+                settings['idle_max_interval_ms'] = 1000
+                path.write_text(json.dumps(settings))
+                start(prefix + name, [host, str(path)])
         try:
             subprocess.run([node, str(config), '--initialize'], check=True, capture_output=True, timeout=30)
             authority = start('node', [node, str(config)])
             wait_ready(fixture.http, authority, url + '/health')
             subprocess.run([proof, url, 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=60)
-            for name in ('source', 'requester', 'courier'):
-                start(name, [host, str(fixture.root / f'{name}.json')])
+            start_workers(fixture.root)
             caller = json.loads((fixture.root / 'cli.json').read_text())
             token = 'a' * 64
             (fixture.root / 'credential').write_text(token)
@@ -57,8 +63,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
                 (second / 'credential').write_text('b' * 64)
                 other = json.loads((second / 'cli.json').read_text())
                 options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=other['connection'], service=1, binding_revision=1, columns=['id', 'value']))
-                for name in ('source', 'requester', 'courier'):
-                    start('second-' + name, [host, str(second / f'{name}.json')])
+                start_workers(second, 'second-')
             gateway_config = fixture.root / 'gateway.json'
             gateway_config.write_text(json.dumps(options))
             process = start('gateway', [gateway, str(gateway_config)])
@@ -74,6 +79,22 @@ def run(node, host, gateway, proof, mode=None, board=None):
             def descriptor(command):
                 packed = Any(); packed.Pack(command)
                 return flight.FlightDescriptor.for_command(packed.SerializeToString())
+            def available(operation):
+                # The native listener has finite request capacity. Read-only
+                # calls and explicitly frozen statements may be retried; a
+                # failed stream is discarded in full before reading again.
+                deadline = time.monotonic() + 180
+                while True:
+                    try:
+                        return operation()
+                    except (flight.FlightUnavailableError, OSError) as error:
+                        # PyArrow's GetSchema reports gRPC UNAVAILABLE as
+                        # OSError; retain the exact status check for that API.
+                        if not isinstance(error, flight.FlightUnavailableError) and 'Detail: Unavailable' not in str(error):
+                            raise
+                        assert time.monotonic() < deadline
+                        assert process.poll() is None
+                        time.sleep(.1)
             deadline = time.monotonic() + 20
             while True:
                 try:
@@ -82,44 +103,60 @@ def run(node, host, gateway, proof, mode=None, board=None):
                 except flight.FlightUnavailableError:
                     assert process.poll() is None and time.monotonic() < deadline
                     time.sleep(.1)
-            catalogs = client.get_flight_info(descriptor(sql.CommandGetCatalogs()), call_options())
-            assert client.do_get(catalogs.endpoints[0].ticket, call_options()).read_all().to_pylist() == [{'catalog_name':'transit'}]
+            catalogs = available(lambda: client.get_flight_info(descriptor(sql.CommandGetCatalogs()), call_options()))
+            assert available(lambda: client.do_get(catalogs.endpoints[0].ticket, call_options()).read_all()).to_pylist() == [{'catalog_name':'transit'}]
             statement = descriptor(sql.CommandStatementQuery(query='SELECT id, value FROM items'))
-            schema = client.get_schema(statement, call_options()).schema
+            schema = available(lambda: client.get_schema(statement, call_options())).schema
             assert schema == pa.schema([pa.field('id',pa.int64(),False),pa.field('value',pa.int64())])
             started = time.monotonic()
             if boundary:
                 boundary.drop = True
-                try:
-                    client.get_flight_info(statement, call_options(2))
-                except flight.FlightUnavailableError: pass
-                else: raise AssertionError('lost native acceptance reported success')
-                assert boundary.original and boundary.receipt
+                drop_deadline = time.monotonic() + 180
+                while boundary.original is None:
+                    try:
+                        client.get_flight_info(statement, call_options(2))
+                    except flight.FlightUnavailableError:
+                        assert time.monotonic() < drop_deadline
+                        time.sleep(.1)
+                    else: raise AssertionError('lost native acceptance reported success')
+                assert boundary.receipt
                 process.kill(); process.wait(timeout=5)
                 process = start('gateway-replacement', [gateway, str(gateway_config)])
                 client.close()
                 client = flight.connect(uri, tls_root_certs=certificate)
-            info = client.get_flight_info(statement, call_options(2))
+            def retained_info(sequence):
+                # Admission can return temporary capacity or lose any upload
+                # reply. Retry only this caller's same SQL and first sequence.
+                deadline = time.monotonic() + 180
+                while True:
+                    try:
+                        return client.get_flight_info(statement, call_options(sequence))
+                    except flight.FlightUnavailableError:
+                        assert time.monotonic() < deadline
+                        assert all(hosts[name].poll() is None for name in ('source', 'requester', 'courier'))
+                        time.sleep(.1)
+            info = retained_info(2)
             assert info.total_records == 41 and len(info.endpoints) == 1
-            table = client.do_get(info.endpoints[0].ticket, call_options()).read_all()
+            assert json.loads(info.app_metadata) == {'version': 1, 'next_sequence': json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30))}
+            table = available(lambda: client.do_get(info.endpoints[0].ticket, call_options()).read_all())
             expected = [dict(id=i, value=None if i % 5 == 0 else 9007199254740993+i) for i in range(41)]
             assert table.to_pylist() == expected
-            assert client.do_get(info.endpoints[0].ticket, call_options()).read_all().equals(table)
-            retry = client.get_flight_info(statement, call_options(2))
-            assert client.do_get(retry.endpoints[0].ticket, call_options()).read_all().equals(table)
+            assert available(lambda: client.do_get(info.endpoints[0].ticket, call_options()).read_all()).equals(table)
+            retry = retained_info(2)
+            assert available(lambda: client.do_get(retry.endpoints[0].ticket, call_options()).read_all()).equals(table)
             print(f'Flight actual finite statement, full-width/null rows, schema, metadata and exact retry passed in {time.monotonic()-started:.2f}s', flush=True)
             if faults:
                 assert boundary.retries >= 2
                 from flight_board import Observer
                 observation = Observer(locals(), board)
-                observation.check(caller['connection']['resource'], 'capture')
-                observation.check(caller['connection']['requests'], 'manifest')
+                observation.check(caller['connection']['resource'], 'execution')
+                observation.check(caller['connection']['requests'], 'request')
                 from flight_lifecycle import qualify
                 qualify(locals())
                 return
             client.close()
             from flight_adbc import verify
-            verify(uri, edge.root / 'certificate.pem', fixture.root, token, schema, expected)
+            verify(uri, edge.root / 'certificate.pem', fixture.root, token, schema, expected, lambda: json.loads(subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)))
 
         except BaseException:
             for log in logs:

@@ -1,6 +1,6 @@
 # Ruby raw client
 
-Use `Transit::ClientConfig` with explicit `profile: :growing_v3`, an HTTP endpoint
+Use `Transit::ClientConfig` with explicit `profile: :native_v1`, an HTTP endpoint
 without URL credentials/query/fragment, and optionally `timeout_ms` (1–60000) or
 `native_host`. `ProcessRef` and `ResourceRef` are distinct immutable values;
 protocol counters must fit the generated public bound. `Credential` contains a

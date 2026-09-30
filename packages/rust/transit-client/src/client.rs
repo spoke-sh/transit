@@ -104,7 +104,7 @@ fn classify(error: Error, bytes: &[u8]) -> DispatchError {
 }
 pub(crate) fn info(value: &Value) -> Result<MutationInfo> {
     if value["version"] != 1
-        || value["profile"] != "growing_v3"
+        || value["profile"] != "native_v1"
         || value["kind"] != "growing_command"
     {
         return Err(Error::new(

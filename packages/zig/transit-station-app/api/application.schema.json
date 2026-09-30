@@ -316,8 +316,7 @@
                     "profile": {
                       "type": "string",
                       "enum": [
-                        "table_v1",
-                        "unified_v2"
+                        "unified_v1"
                       ]
                     },
                     "sql": {

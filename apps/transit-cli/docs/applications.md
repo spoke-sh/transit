@@ -8,7 +8,7 @@ for executed evidence.
 
 ## Start and install
 
-Use the version-3 configuration and executable paths in
+Use the version-1 configuration and executable paths in
 [server configuration](server.md). For a new application-capable installation, add:
 
 ```json
@@ -154,13 +154,13 @@ bounded record/page reads do not turn that history into a resident queue.
 
 ## Board inspection
 
-A version-3 server starts Board by default. A declaration with `version: 2` may
+A version-1 server starts Board by default. A declaration with `version: 1` may
 include `"inspection": [{"resource":"data","permissions":3}]`, where `data`
 is one of its declared resource names. Permission `1` allows metadata; `3` also
 allows bounded entry/framework inspection. Write bits, unknown resources and
 duplicates reject before provisioning. Omitting this list grants no resources.
-Version-1 declarations keep their original canonical signed bytes and cannot
-request this field with a nonempty value. Management and bootstrap remain v1.
+The installation, management and bootstrap contracts all use v1. Incompatible
+definitions require a new installation; version labels alone do not prove compatibility.
 
 The trusted installer authorizes this declaration; Board receives its own
 inspection-only principal, never a caller's signing seed. Accepted resource grants

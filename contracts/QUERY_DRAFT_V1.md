@@ -1,7 +1,7 @@
 # Finite query draft budget v1
 
 The query draft budget bounds automatic finite-query evaluation for a Table
-workspace. It extends the v2 requester without changing
+workspace. It extends the v1 requester without changing
 explicit Run or Follow semantics. It supplies no watch or continuous query support.
 
 An explicit open conditionally advances the requester's draft generation. It

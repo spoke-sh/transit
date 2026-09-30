@@ -5,8 +5,8 @@ const x = @import("root.zig");
 const s = x.station;
 const p = x.p;
 const g = p.Growth;
-const Turn = s.GrowingTurn;
-const Server = s.GrowingGenServer;
+const Turn = s.Turn;
+const Server = s.GenServer;
 pub const Options = struct { tick: []const u8, admission_missing: anyerror, followup_missing: anyerror, request_oversize: anyerror, limits: x.Limits };
 pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Options) type {
     return struct {
@@ -41,7 +41,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             // Retry only identical Transit bytes. Returning uncertainty terminates
             // this activation; a new OS worker must obtain fresh fenced ownership.
             for (0..3) |_| {
-                return self.reader.wire.submitGrowing(signed) catch |err| {
+                return self.reader.wire.submit(signed) catch |err| {
                     if (err == error.Rejected or err == error.Conflict or err == error.AccessDenied) return err;
                     continue;
                 };
@@ -187,7 +187,7 @@ pub fn For(comptime Host: type, comptime Adapter: type, comptime options: Option
             const source = try self.reader.reader(ex.resource);
             const page = try self.reader.query(.{ .entries = .{ .resource = ex.resource, .revision = source.view.revision, .key = x.Exchange.key(ex.id, 'i', 0) } });
             const record = page.body.entries.page.entries[0] orelse return error.UnknownEffect;
-            // Growing v3 gives entries and the same-turn effect their publication
+            // Growing v1 gives entries and the same-turn effect their publication
             // position. The immutable intent is therefore a durable exact lookup
             // anchor, avoiding a scan through all of this PID's earlier effects.
             if (record.revision == 0) return error.InvalidExchangeAttempt;

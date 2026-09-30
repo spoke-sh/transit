@@ -58,7 +58,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
         grpc_fixtures = target / 'grpc-fixtures.json'
         shutil.copy2(root / 'packages/zig/transit-station-grpc/src/fixtures/service.json', grpc_fixtures)
         golden = target / 'grpc-golden.json'
-        golden.write_text(json.dumps({'profile': 'growing_v3', 'grpc_fixtures': str(grpc_fixtures)}))
+        golden.write_text(json.dumps({'profile': 'native_v1', 'grpc_fixtures': str(grpc_fixtures)}))
         subprocess.run(['dotnet', str(output / 'Consumer.dll'), 'grpc-golden', str(golden)], env=environment, cwd=target, check=True, timeout=30)
         def command(mode, config):
             if mode.startswith(('http-', 'grpc-', 'document-')):

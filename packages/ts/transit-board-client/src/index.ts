@@ -22,7 +22,7 @@ export const validateCapabilities = (value: unknown): value is Capabilities =>
 export async function request<T>(
   path: string,
   validate: (value: unknown) => value is T,
-  options?: { signal?: AbortSignal; body?: QueryRequest | UnifiedQueryRequest },
+  options?: { signal?: AbortSignal; body?: UnifiedQueryRequest },
 ): Promise<T> {
   if (!path.startsWith("/api/v1/")) throw new BoardError(0, "InvalidPath");
   // Board permits a five-second request budget; leave bounded time for its
@@ -45,7 +45,7 @@ export async function request<T>(
   // V2 carries a <=64 KiB Arrow segment as hex plus decoded cells. JSON
   // control-character escaping can expand those cell bytes sixfold; include
   // bounded schema/conflict/provenance overhead without changing row limits.
-  const maximum = path === "/api/v1/query-v2" ? 1048576 : 262144;
+  const maximum = path === "/api/v1/query" ? 1048576 : 262144;
   const chunks: Uint8Array[] = [];
   try {
     while (true) {
@@ -124,8 +124,6 @@ export type {
   UnifiedQueryResponse,
   AtlasResponse,
   ParticipationResponse,
-  QueryRequest,
-  QueryResponse,
   RecordsResponse,
   HttpResponse,
   GrpcResponse,
@@ -136,8 +134,6 @@ import type {
   UnifiedQueryResponse,
   AtlasResponse,
   ParticipationResponse,
-  QueryRequest,
-  QueryResponse,
   RecordsResponse,
   HttpResponse,
   GrpcResponse,
@@ -146,7 +142,6 @@ import type {
 import {
   AtlasResponse as atlasValidator,
   ParticipationResponse as participationValidator,
-  QueryResponse as queryValidator,
   RecordsResponse as recordsValidator,
   HttpResponse as httpValidator,
   GrpcResponse as grpcValidator,
@@ -439,46 +434,6 @@ export function records(
   return request(`/api/v1/resources/${resource}/records${suffix}`, validateRecords, { signal });
 }
 export const validateAtlas = (value: unknown): value is AtlasResponse => atlasValidator(value);
-export const validateQuery = (value: unknown): value is QueryResponse => {
-  if (!queryValidator(value)) return false;
-  const result = value as QueryResponse;
-  if (!("page" in result)) return true;
-  const page = result.page;
-  if (
-    page.version !== 1 ||
-    page.count > 32 ||
-    page.count > page.manifest.rows ||
-    page.ordinal >= page.manifest.segments ||
-    page.next !== (page.ordinal + 1 < page.manifest.segments ? page.ordinal + 1 : null) ||
-    page.columns[0] === null ||
-    page.rows.some((row, index) => (row !== null) !== index < page.count)
-  )
-    return false;
-  for (const column of page.columns) {
-    if (column && !/^[A-Za-z_][A-Za-z_0-9]{0,15}$/.test(column.name)) return false;
-  }
-  for (const row of page.rows)
-    if (row)
-      for (const [index, cell] of row.entries()) {
-        const column = page.columns[index];
-        if ((cell !== null) !== (column !== null)) return false;
-        if (cell && column) {
-          if ("null" in cell ? !column.nullable : !(column.type in cell)) return false;
-          if ("int64" in cell) {
-            if (!/^(0|-?[1-9][0-9]{0,18})$/.test(cell.int64)) return false;
-            const integer = BigInt(cell.int64);
-            if (integer < -9223372036854775808n || integer > 9223372036854775807n) return false;
-          } else if ("binary" in cell) {
-            if (cell.binary.length > 440 || !/^(?:[0-9a-f]{2})*$/.test(cell.binary)) return false;
-          } else if (
-            "utf8" in cell &&
-            (new TextEncoder().encode(cell.utf8).length > 220 || /[\uD800-\uDFFF]/u.test(cell.utf8))
-          )
-            return false;
-        }
-      }
-  return true;
-};
 export function atlas(
   cursor?: { position: number; process_after?: number; resource_after?: number },
   signal?: AbortSignal,
@@ -515,20 +470,7 @@ export function participation(
     { signal },
   );
 }
-export async function query(operation: QueryRequest, signal?: AbortSignal): Promise<QueryResponse> {
-  // A rate refusal occurs before dispatch. Retry the same body; never compile a
-  // replacement for an uncertain signed submission or use a fresh sequence.
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await request("/api/v1/query", validateQuery, { signal, body: operation });
-    } catch (cause) {
-      if (!(cause instanceof BoardError) || cause.status !== 429 || attempt >= 3 || signal?.aborted)
-        throw cause;
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-  }
-}
-const queryTransport = httpTransport("/api/v1/query-v2");
+const queryTransport = httpTransport("/api/v1/query");
 export const unifiedQuery = (
   operation: UnifiedQueryRequest,
   signal?: AbortSignal,

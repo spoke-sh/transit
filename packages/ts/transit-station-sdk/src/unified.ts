@@ -185,7 +185,7 @@ function sourceWire(source: Source): WireSource {
   switch (source.kind) {
     case "kv":
       return {
-        version: 2,
+        version: 1,
         resource: id.resource,
         source: {
           kv: {
@@ -197,7 +197,7 @@ function sourceWire(source: Source): WireSource {
       };
     case "table":
       return {
-        version: 2,
+        version: 1,
         resource: id.resource,
         source: {
           table: {
@@ -212,7 +212,7 @@ function sourceWire(source: Source): WireSource {
       if (!(ref instanceof DocumentReference))
         throw new TypeError("Expected accepted Document reference");
       return {
-        version: 2,
+        version: 1,
         resource: id.resource,
         source: {
           document: {
@@ -258,7 +258,7 @@ function planWire(plan: Plan): WireBundle["plan"] {
     };
   else if (selected !== undefined) throw new TypeError("Expected query predicate");
   return {
-    version: 2,
+    version: 1,
     projection: plan.projection.map((v) => integer(v, "column", 0, 7)),
     predicate,
     limit: plan.limit === undefined ? null : wide(plan.limit).toString(),

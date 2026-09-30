@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !void {
         const worker_key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8));
         const process = try admin.provision(65536, worker_key);
         try admin.send(process.pid, 1);
-        var server = try station.GrowingGenServer.init(.{ .client = &wire, .realm = 45, .principal = 65536, .pid = process.pid, .generation = 2, .key = worker_key }, "state");
+        var server = try station.GenServer.init(.{ .client = &wire, .realm = 45, .principal = 65536, .pid = process.pid, .generation = 2, .key = worker_key }, "state");
         for (0..10) |_| {
             if (try server.poll(deadline(init.io)) == .ready) break;
         } else return error.NoReadyTurn;
@@ -79,12 +79,12 @@ pub fn main(init: std.process.Init) !void {
         const parsed = try std.json.parseFromSlice(Expected, init.gpa, bytes, .{});
         defer parsed.deinit();
         try verify(&admin, parsed.value);
-        try t.expectError(error.AuthorityUnavailable, wire.submitGrowing(parsed.value.pending));
+        try t.expectError(error.AuthorityUnavailable, wire.submit(parsed.value.pending));
         try t.expectEqual(@as(?p.ErrorCode, .AdmissionClosed), wire.last_rejection);
         while ((try admin.query(.{ .capabilities = {} })).position < 28) _ = try admin.submit(.{ .revoke = 65536 });
         try t.expectError(error.AuthorityUnavailable, admin.submit(.{ .own = .{ .pid = parsed.value.pid, .expected_generation = 2, .worker = 0 } }));
         try t.expectEqual(@as(?p.ErrorCode, .ControlCapacity), wire.last_rejection);
-        try t.expectError(error.AccessDenied, wire.submitGrowing(parsed.value.pending));
+        try t.expectError(error.AccessDenied, wire.submit(parsed.value.pending));
         break :blk parsed.value;
     } else return error.UnknownPhase;
     try verify(&admin, expected);

@@ -1,7 +1,7 @@
 # Unified requester uploads
 
-`UnifiedUpload` and `UnifiedBehavior.Requester/Source` implement the finite v2
-request lifecycle. The [contract](../../../../contracts/UNIFIED_QUERY_V2.md)
+`UnifiedUpload` and `UnifiedBehavior.Requester/Source` implement the finite v1
+request lifecycle. The [contract](../../../../contracts/UNIFIED_QUERY_V1.md)
 owns wire versions. Component, signed all-source lifecycle/SDK and Table physical
 placement qualification is recorded in the [proof guide](../../../../tests/README.md#m18-qualification).
 

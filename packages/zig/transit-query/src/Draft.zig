@@ -3,7 +3,7 @@
 const std = @import("std");
 const q = @import("root.zig");
 const p = q.protocol;
-const Turn = q.station.GrowingTurn;
+const Turn = q.station.Turn;
 pub const max_starts = 8;
 pub const Open = struct {
     expected: u64,
@@ -102,7 +102,7 @@ pub fn open(turn: *Turn, input: Open) !void {
         if (previous.enabled and previous.starts < previous.open.limit) return error.QueryDraftActive;
     }
     try turn.write(key(generation), try (Record{ .generation = generation, .open = input }).encode());
-    try turn.write(key(0), q.Request.identity(generation));
+    try turn.write(key(0), q.UnifiedRecords.identityValue(generation));
 }
 pub fn close(turn: *Turn, generation: u64) !void {
     var record = (try status(turn, generation)) orelse return error.QueryDraftNotFound;

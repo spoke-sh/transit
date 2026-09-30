@@ -17,7 +17,7 @@ fn configuration(path: &Path) -> Result<(ServiceConfig, ProcessRef)> {
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
     let n = |name| value[name].as_u64().ok_or_else(invalid);
     let s = |name| value[name].as_str().ok_or_else(invalid);
-    if s("profile")? != "growing_v3" {
+    if s("profile")? != "native_v1" {
         return Err(invalid());
     }
     let process = ProcessRef::new(n("realm")?, n("pid")?)?;

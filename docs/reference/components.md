@@ -33,7 +33,7 @@ The [architecture](architecture.md) explains dependency direction and authority.
 | [transit-runtime-substrate](../../packages/zig/transit-runtime-substrate/README.md) / `transit_runtime_substrate` | Provider identity, template validation, sandbox lifecycle operations | transit-observability; invokes pinned external CLI |
 | [transit-station](../../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
 | [transit-station-bindings](../../packages/zig/transit-station-bindings/README.md) / `station_abi` | Shared native SDK handles, detached turn actions, C exports and generated host schemas; composes above the framework | transit-station, transit-client ABI, transit-station-http |
-| [transit-query](../../packages/zig/transit-query/README.md) / `transit_query` | Signed public Table queries, admission behaviors, verified typed pages and v2 KV/Table/Document adapters | transit-station, transit-station-document |
+| [transit-query](../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-station, transit-station-document |
 | [transit-fuze](../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
 
 
@@ -50,10 +50,10 @@ The [architecture](architecture.md) explains dependency direction and authority.
 | [transit-station-controller](../../apps/transit-station-controller/README.md) | Observes Station timers/children or applies separately scoped lifecycle intent |
 | [transit-station-host](../../apps/transit-station-host/README.md) | Bounded native port for host languages; delegates to the shared ABIs |
 | [transit-client-host](../../apps/transit-client-host/README.md) | Standalone raw client port; canonical recovery and metadata without Station |
-| [transit-query-host](../../apps/transit-query-host/README.md) | Runnable growing v1/v2 source/requester workers and scoped courier |
-| [transit-cli](../../apps/transit-cli/README.md) (`transit`) | Local server/application lifecycle, explicit-submit console and signed v1 Table/v2 unified SQL shells |
+| [transit-query-host](../../apps/transit-query-host/README.md) | Runnable source/requester workers and scoped courier |
+| [transit-cli](../../apps/transit-cli/README.md) (`transit`) | Local server/application lifecycle, explicit-submit console and signed query SQL shell |
 | [transit-docs](../../apps/transit-docs/README.md) | Static documentation over guides/reference, Internals, component guides and generated interface descriptions |
-| [transit-board](../../apps/transit-board/README.md) | Inspection API plus optional separate v1 Table or v2 unified query capability with embedded [TanStack Router frontend](../../apps/transit-board-web/README.md); public client and transit-board-api composition |
+| [transit-board](../../apps/transit-board/README.md) | Inspection API plus optional query capability with embedded [TanStack Router frontend](../../apps/transit-board-web/README.md); public client and transit-board-api composition |
 | [kubectl-transit](../../apps/kubectl-transit/README.md) | Kubernetes installation/workload inspection, service logs and origin-aware Board access |
 | [rey-cli](../../apps/rey-cli/README.md) | Signs/submits commands and reads scoped views |
 | [example-counter](../../examples/counter/README.md) | Complete caller, also the reference deployment workload |

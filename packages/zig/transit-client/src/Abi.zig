@@ -22,11 +22,6 @@ pub const Status = enum(u32) {
     incompatible_version = 10,
 };
 pub const Kind = enum(u32) {
-    command = 1,
-    view = 2,
-    state = 3,
-    inspection = 4,
-    delivery = 5,
     growing_command = 6,
     growing_query = 7,
 };
@@ -41,22 +36,18 @@ const ClientImpl = struct {
     busy: std.atomic.Value(bool) = .init(false),
 };
 const Signed = union(Kind) {
-    command: p.SignedRequest,
-    view: p.SignedRequest,
-    state: p.State.SignedQuery,
-    inspection: p.Inspection.SignedQuery,
-    delivery: p.Delivery.SignedQuery,
     growing_command: p.Growth.SignedRequest,
     growing_query: p.Growth.SignedQuery,
 };
 const OperationImpl = struct { signed: Signed };
-const Frozen = struct { version: u32 = version, operation: Signed };
+/// Shared saved-operation representation, also emitted by Station handles.
+pub const Frozen = struct { version: u32 = version, definition: p.Growth.Definition, operation: Signed };
 /// Descriptive local metadata, not evidence of authenticity or admission.
 pub const Metadata = struct {
     version: u32 = 1,
     identity: []const u8,
     kind: Kind,
-    profile: enum { legacy_v2, growing_v3 },
+    profile: enum { native_v1 },
     realm: u64,
     principal: u64,
     sequence: ?[]const u8 = null,
@@ -115,17 +106,6 @@ pub fn extractJson(alloc: std.mem.Allocator, bytes: []const u8, path: []const u8
 }
 fn validate(signed: Signed) !void {
     switch (signed) {
-        .command => |s| {
-            if (s.request.command == .inspect) return error.InvalidArgument;
-            try p.validate(s.request);
-        },
-        .view => |s| {
-            if (s.request.command != .inspect or s.request.sequence != 0) return error.InvalidArgument;
-            try p.validate(s.request);
-        },
-        .state => |s| try p.State.validateQuery(s.query),
-        .inspection => |s| try p.Inspection.validate(s.query),
-        .delivery => |s| try p.Delivery.validate(s.query),
         .growing_command => |s| try p.Growth.validate(s.request),
         .growing_query => |s| try p.Growth.validateQuery(s.query),
     }
@@ -134,6 +114,11 @@ fn validate(signed: Signed) !void {
 /// This declaration is also the source of generated C prototypes. All integer
 /// tags enter as integers so malformed foreign enum values are checked safely.
 pub const Api = struct {
+    /// Compare the complete contract definition before constructing handles.
+    pub fn transit_client_abi_definition_matches(definition: [*]const u8, len: usize) callconv(.c) u32 {
+        const expected = @tagName(p.Growth.current_definition);
+        return @intFromBool(len == expected.len and std.mem.eql(u8, definition[0..len], expected));
+    }
     pub fn transit_client_abi_version() callconv(.c) u32 {
         return version;
     }
@@ -192,14 +177,6 @@ pub const Api = struct {
         defer std.crypto.secureZero(u8, std.mem.asBytes(&pair));
         const bytes = json[0..json_len];
         const signed: Signed = switch (kind) {
-            .command, .view => blk: {
-                const request = parse(p.Request, bytes) catch |err| return fail(err);
-                const s = p.sign(request, pair) catch |err| return fail(err);
-                break :blk if (kind == .command) .{ .command = s } else .{ .view = s };
-            },
-            .state => .{ .state = p.State.sign(parse(p.State.Query, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
-            .inspection => .{ .inspection = p.Inspection.sign(parse(p.Inspection.Query, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
-            .delivery => .{ .delivery = p.Delivery.sign(parse(p.Delivery.Query, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
             .growing_command => .{ .growing_command = p.Growth.sign(parse(p.Growth.Request, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
             .growing_query => .{ .growing_query = p.Growth.signQuery(parse(p.Growth.Query, bytes) catch |err| return fail(err), pair) catch |err| return fail(err) },
         };
@@ -213,7 +190,7 @@ pub const Api = struct {
     pub fn transit_operation_export(operation: *const Operation, out: *?*Buffer) callconv(.c) Status {
         out.* = null;
         const handle: *const OperationImpl = @ptrCast(@alignCast(operation));
-        buffer(Frozen{ .operation = handle.signed }, out) catch |err| return fail(err);
+        buffer(Frozen{ .definition = p.Growth.current_definition, .operation = handle.signed }, out) catch |err| return fail(err);
         return .ok;
     }
     /// The shared implementation classifies imported requests. Identity is the
@@ -221,15 +198,15 @@ pub const Api = struct {
     pub fn transit_operation_metadata(operation: *const Operation, out: *?*Buffer) callconv(.c) Status {
         out.* = null;
         const handle: *const OperationImpl = @ptrCast(@alignCast(operation));
-        const bytes = std.json.Stringify.valueAlloc(allocator, Frozen{ .operation = handle.signed }, .{}) catch return .out_of_memory;
+        const bytes = std.json.Stringify.valueAlloc(allocator, Frozen{ .definition = p.Growth.current_definition, .operation = handle.signed }, .{}) catch return .out_of_memory;
         defer allocator.free(bytes);
         var digest: [32]u8 = undefined;
         std.crypto.hash.sha2.Sha256.hash(bytes, &digest, .{});
         const identity = std.fmt.bytesToHex(digest, .lower);
         var sequence: [20]u8 = undefined;
-        var info: Metadata = .{ .identity = &identity, .kind = handle.signed, .profile = .legacy_v2, .realm = 0, .principal = 0 };
+        var info: Metadata = .{ .identity = &identity, .kind = handle.signed, .profile = .native_v1, .realm = 0, .principal = 0 };
         switch (handle.signed) {
-            inline .command, .view, .growing_command => |signed| {
+            .growing_command => |signed| {
                 const request = signed.request;
                 info.realm = request.realm;
                 info.principal = request.principal;
@@ -242,7 +219,6 @@ pub const Api = struct {
                 info.principal = signed.query.principal;
             },
         }
-        if (handle.signed == .growing_command or handle.signed == .growing_query) info.profile = .growing_v3;
         buffer(info, out) catch |err| return fail(err);
         return .ok;
     }
@@ -301,7 +277,7 @@ fn exchange(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*B
             error.AccessDenied => .denied,
             error.Rejected => .rejected,
             error.Conflict => .conflict,
-            else => if (signed == .command or signed == .growing_command) .uncertain else if (err == error.InvalidAuthorityResponse) .invalid_response else .unavailable,
+            else => if (signed == .growing_command) .uncertain else if (err == error.InvalidAuthorityResponse) .invalid_response else .unavailable,
         };
     };
     return .ok;
@@ -309,13 +285,8 @@ fn exchange(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*B
 
 fn call(alloc: std.mem.Allocator, client: anytype, signed: Signed, out: *?*Buffer) !void {
     switch (signed) {
-        .command => |s| try bufferWithAllocator(alloc, try client.submit(s), out),
-        .view => |s| try bufferWithAllocator(alloc, try client.call(p.View, "/v2/view", s), out),
-        .state => |s| try bufferWithAllocator(alloc, try client.call(p.State.Page, "/v2/state", s), out),
-        .inspection => |s| try bufferWithAllocator(alloc, try client.call(p.Inspection.Page, "/v2/inspect", s), out),
-        .delivery => |s| try bufferWithAllocator(alloc, try client.call(p.Delivery.Status, "/v2/delivery", s), out),
-        .growing_command => |s| try bufferWithAllocator(alloc, try client.submitGrowing(s), out),
-        .growing_query => |s| try bufferWithAllocator(alloc, try client.call(p.Growth.Response, "/v3/query", s), out),
+        .growing_command => |s| try bufferWithAllocator(alloc, try client.submit(s), out),
+        .growing_query => |s| try bufferWithAllocator(alloc, try client.call(p.Growth.Response, "/v1/query", s), out),
     }
 }
 
@@ -339,16 +310,38 @@ test "independent JSON access bounds and owned string bytes" {
     }.run, .{});
 }
 
+test "saved v1 requests reject missing or foreign definitions without changing retry bytes" {
+    const t = std.testing;
+    const signed: Signed = .{ .growing_command = try p.Growth.sign(.{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } }, try p.Ed25519.KeyPair.generateDeterministic(@splat(7))) };
+    const canonical = try std.json.Stringify.valueAlloc(t.allocator, Frozen{ .definition = p.Growth.current_definition, .operation = signed }, .{});
+    defer t.allocator.free(canonical);
+    var out: ?*Operation = null;
+    try t.expectEqual(.ok, Api.transit_operation_import(canonical.ptr, canonical.len, &out));
+    Api.transit_operation_destroy(out);
+    const parsed = try std.json.parseFromSlice(std.json.Value, t.allocator, canonical, .{});
+    defer parsed.deinit();
+    var frozen = parsed.value;
+    frozen.object.getPtr("definition").?.* = .{ .string = "previous-v1-definition" };
+    const foreign = try std.json.Stringify.valueAlloc(t.allocator, frozen, .{});
+    defer t.allocator.free(foreign);
+    const preserved = try t.allocator.dupe(u8, foreign);
+    defer t.allocator.free(preserved);
+    try t.expectEqual(.invalid_argument, Api.transit_operation_import(foreign.ptr, foreign.len, &out));
+    try t.expectEqual(@as(?*Operation, null), out);
+    try t.expectEqualSlices(u8, preserved, foreign);
+    _ = frozen.object.swapRemove("definition");
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, frozen, .{});
+    defer t.allocator.free(missing);
+    try t.expectEqual(.invalid_argument, Api.transit_operation_import(missing.ptr, missing.len, &out));
+    try t.expectEqual(@as(?*Operation, null), out);
+}
+
 test "every post-commit response allocation failure remains uncertain and releases buffers" {
     const t = std.testing;
     const Accepted = struct {
         last_rejection: ?p.ErrorCode = null,
         calls: usize = 0,
-        fn submit(self: *@This(), _: p.SignedRequest) anyerror!p.Receipt {
-            self.calls += 1;
-            return .{ .position = 37 };
-        }
-        fn submitGrowing(self: *@This(), _: p.Growth.SignedRequest) anyerror!p.Receipt {
+        fn submit(self: *@This(), _: p.Growth.SignedRequest) anyerror!p.Receipt {
             self.calls += 1;
             return .{ .position = 37 };
         }
@@ -357,10 +350,6 @@ test "every post-commit response allocation failure remains uncertain and releas
         }
     };
     const cases = [_]Signed{
-        .{ .command = .{
-            .request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .spawn = .{} } },
-            .signature = @splat(0),
-        } },
         .{ .growing_command = .{
             .request = .{ .realm = 42, .principal = 65536, .sequence = 1, .command = .{ .spawn = .{} } },
             .signature = @splat(0),

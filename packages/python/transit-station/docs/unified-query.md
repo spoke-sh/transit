@@ -1,6 +1,6 @@
 # Unified state queries
 
-`transit_station.unified` exposes the v2 KV, Table and accepted Document query
+`transit_station.unified` exposes the v1 KV, Table and accepted Document query
 profile. Python owns typed values and scheduling; shared Zig validates bundles,
 signs commands, observes admission and verifies result pages. Existing Table v1
 queries keep their original APIs. Source adapters never infer an application

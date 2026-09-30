@@ -359,7 +359,7 @@ def http_consumer(mode, cfg):
             assert isinstance(value, bytes)
             return value
         def decode(self, value): return value
-    config = ServiceConfig(cfg['url'], 'growing_v3', Activation(ProcessRef(72, cfg['pid']),
+    config = ServiceConfig(cfg['url'], 'native_v1', Activation(ProcessRef(72, cfg['pid']),
         cfg['principal'], cfg['generation'], Path(cfg['seed_file'])))
     peer = ProcessRef(72, cfg['peer'])
     request = prepare_http(ResourceRef(72, cfg['resource']), 2**64-1,
@@ -530,7 +530,7 @@ def grpc_consumer(mode, cfg):
             assert isinstance(value, bytes)
             return value
         def decode(self, value): return value
-    config = ServiceConfig(cfg['url'], 'growing_v3', Activation(ProcessRef(72, cfg['pid']),
+    config = ServiceConfig(cfg['url'], 'native_v1', Activation(ProcessRef(72, cfg['pid']),
         cfg['principal'], cfg['generation'], Path(cfg['seed_file'])))
     peer = ProcessRef(72, cfg['peer'])
     request = prepare_grpc(ResourceRef(72, cfg['resource']), 2**64-1,

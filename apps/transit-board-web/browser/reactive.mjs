@@ -55,14 +55,14 @@ try {
       let sequence = config.sequence;
       const identity = async () => {
         const query = {
-          version: 3,
+          version: 1,
           realm: scope.realm,
           principal: scope.principal,
           kind: { identity: {} },
         };
         return {
           query,
-          signature: await sign("transit.query.v3", utf8.encode(JSON.stringify(query))),
+          signature: await sign("transit.query.v1", utf8.encode(JSON.stringify(query))),
         };
       };
       const cursorBytes = (cursor) => {
@@ -101,7 +101,7 @@ try {
       };
       const command = async (payload) => {
         const request = {
-          version: 3,
+          version: 1,
           realm: scope.realm,
           principal: scope.principal,
           sequence: ++sequence,
@@ -114,7 +114,7 @@ try {
         };
         return {
           request,
-          signature: await sign("transit.request.v3", utf8.encode(JSON.stringify(request))),
+          signature: await sign("transit.request.v1", utf8.encode(JSON.stringify(request))),
         };
       };
       const attach = async (nonce, revision, cursor = null) => ({

@@ -21,14 +21,14 @@ pub const Command = union(enum) {
         var bytes: [q.station.Frame.max_payload]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll(switch (self) {
-            .initialize => "UQI2",
-            .begin => "UQB2",
-            .part => "UQP2",
-            .seal => "UQS2",
-            .submit => "UQX2",
-            .cancel => "UQK2",
-            .collect => "UQG2",
-            .retire => "UQR2",
+            .initialize => "UQI1",
+            .begin => "UQB1",
+            .part => "UQP1",
+            .seal => "UQS1",
+            .submit => "UQX1",
+            .cancel => "UQK1",
+            .collect => "UQG1",
+            .retire => "UQR1",
             .draft_open => "UQD1",
             .draft_close => "UQH1",
             .draft_submit => "UQE1",
@@ -65,13 +65,13 @@ pub const Command = union(enum) {
         if (value.len < 4 or value.len > q.station.Frame.max_payload) return error.InvalidQueryUpload;
         var reader: std.Io.Reader = .fixed(value.slice());
         const tag = try reader.take(4);
-        const result: Command = if (std.mem.eql(u8, tag, "UQI2")) .initialize else if (std.mem.eql(u8, tag, "UQB2")) .{ .begin = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))) } else if (std.mem.eql(u8, tag, "UQP2")) blk: {
+        const result: Command = if (std.mem.eql(u8, tag, "UQI1")) .initialize else if (std.mem.eql(u8, tag, "UQB1")) .{ .begin = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))) } else if (std.mem.eql(u8, tag, "UQP1")) blk: {
             const namespace = try reader.takeInt(u64, .little);
             const ordinal = try reader.takeInt(u32, .little);
             const second = try reader.takeByte();
             if (second > 1) return error.InvalidQueryUpload;
             break :blk .{ .part = .{ .namespace = namespace, .ordinal = ordinal, .second = second == 1, .bytes = try reader.take(reader.bufferedLen()) } };
-        } else if (std.mem.eql(u8, tag, "UQS2")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQX2")) .{ .submit = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQK2")) .{ .cancel = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQG2")) .{ .collect = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQR2")) .{ .retire = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQD1")) .{ .draft_open = try q.Draft.Open.read(&reader) } else if (std.mem.eql(u8, tag, "UQH1")) .{ .draft_close = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQE1")) .{ .draft_submit = .{ .generation = try reader.takeInt(u64, .little), .namespace = try reader.takeInt(u64, .little) } } else return error.InvalidQueryUpload;
+        } else if (std.mem.eql(u8, tag, "UQS1")) .{ .seal = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQX1")) .{ .submit = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQK1")) .{ .cancel = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQG1")) .{ .collect = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQR1")) .{ .retire = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQD1")) .{ .draft_open = try q.Draft.Open.read(&reader) } else if (std.mem.eql(u8, tag, "UQH1")) .{ .draft_close = try reader.takeInt(u64, .little) } else if (std.mem.eql(u8, tag, "UQE1")) .{ .draft_submit = .{ .generation = try reader.takeInt(u64, .little), .namespace = try reader.takeInt(u64, .little) } } else return error.InvalidQueryUpload;
         if (reader.bufferedLen() != 0 or !(try result.encode()).eql(value.*)) return error.InvalidQueryUpload;
         return result;
     }
@@ -96,7 +96,7 @@ pub const Status = struct {
         if (self.collected and self.phase != .cancelled and self.phase != .retired) return error.InvalidQueryUpload;
         var bytes: [151]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
-        try writer.writeAll("UQU2");
+        try writer.writeAll("UQU1");
         try writer.writeAll((try self.reference.encode()).slice());
         try writer.writeByte(@backingInt(self.phase));
         try writer.writeInt(u64, self.correlation, .little);
@@ -108,7 +108,7 @@ pub const Status = struct {
     pub fn decode(value: p.Value) !Status {
         try value.validate();
         var reader: std.Io.Reader = .fixed(value.slice());
-        if (!std.mem.eql(u8, try reader.take(4), "UQU2")) return error.InvalidQueryUpload;
+        if (!std.mem.eql(u8, try reader.take(4), "UQU1")) return error.InvalidQueryUpload;
         var out: Status = .{ .reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .phase = std.enums.fromInt(Phase, try reader.takeByte()) orelse return error.InvalidQueryUpload, .correlation = try reader.takeInt(u64, .little) };
         out.manifest = switch (try reader.takeByte()) {
             0 => null,

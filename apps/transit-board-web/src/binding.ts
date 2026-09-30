@@ -1,9 +1,5 @@
 import type { Definition } from "@rey/transit-application";
-import {
-  BoardError,
-  type QueryResponse,
-  type UnifiedQueryResponse,
-} from "@rey/transit-board-client";
+import { BoardError, type UnifiedQueryResponse } from "@rey/transit-board-client";
 export type QueryBinding = Extract<
   Definition["bindings"][number]["source"],
   { query: unknown }
@@ -18,7 +14,7 @@ export function unifiedContract(
   value: Extract<UnifiedQueryResponse, { compiled: unknown }>["compiled"],
 ) {
   if (
-    binding.profile !== "unified_v2" ||
+    binding.profile !== "unified_v1" ||
     value.source.resource !== binding.resource ||
     !(binding.source_kind in value.source.source) ||
     !sameDigest(binding.schema, value.contract)
@@ -34,28 +30,6 @@ export function unifiedPage(
     basis.resource !== binding.resource ||
     basis.kind !== binding.source_kind ||
     !sameDigest(basis.contract, binding.schema)
-  )
-    mismatch();
-}
-export type TableContract = Extract<QueryResponse, { contract: unknown }>["contract"];
-export function tableContract(binding: QueryBinding, value: TableContract) {
-  if (
-    binding.profile !== "table_v1" ||
-    binding.source_kind !== "table" ||
-    value.source.connection.resource !== binding.resource ||
-    value.source.connection.name !== binding.name ||
-    !sameDigest(value.fingerprint, binding.schema)
-  )
-    mismatch();
-}
-export function tablePage(
-  contract: TableContract,
-  page: Extract<QueryResponse, { page: unknown }>["page"],
-) {
-  if (
-    page.manifest.table !== contract.source.connection.table ||
-    page.manifest.basis.resource !== contract.source.connection.resource ||
-    !sameDigest(page.manifest.basis.schema, contract.schema)
   )
     mismatch();
 }

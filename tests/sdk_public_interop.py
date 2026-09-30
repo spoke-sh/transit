@@ -62,7 +62,7 @@ def run(node, cli, library, artifacts, report_path=None):
             output.mkdir()
             # Exercise native URL joining without a path-normalizing proxy.
             return {'url': system.url + '/', 'realm': 72, 'principal': principal, 'pid': pid, 'generation': 2,
-                    'seed_file': str(key), 'profile': 'growing_v3', 'peer': pid, 'role': role, 'resource': resource,
+                    'seed_file': str(key), 'profile': 'native_v1', 'peer': pid, 'role': role, 'resource': resource,
                     'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(target / 'unused.json'),
                     'query_results': role in ('table', 'query'), 'work_before_ms': None, 'arrow_adapter': False}
         def config(client, cfg):

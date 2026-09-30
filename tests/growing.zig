@@ -5,7 +5,7 @@ const adapter = @import("transit_backend_ursula");
 const g = core.protocol.Growth;
 const t = std.testing;
 const Journal = struct {
-    store: adapter.GrowingStore,
+    store: adapter.Store,
     fault: enum { none, before, after } = .none,
     pub fn tail(self: *@This()) !u64 {
         return self.store.tail();

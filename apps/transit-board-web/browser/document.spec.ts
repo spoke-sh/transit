@@ -12,7 +12,7 @@ test("accepted Document metadata clears on current read revocation", async ({ pa
   const resource = process.env.BOARD_DOCUMENT_RESOURCE!;
   const admin = (path: string) =>
     execFileSync(process.env.BOARD_DOCUMENT_CLI!, [
-      "growing-submit",
+      "submit",
       process.env.BOARD_DOCUMENT_SEED!,
       path,
       process.env.BOARD_DOCUMENT_AUTHORITY!,

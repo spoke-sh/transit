@@ -25,15 +25,15 @@ def run(node, cli, worker, courier, controller):
             assert (process.wait(timeout=20) == 0) == success
 
         def create(principal, role, destination=None):
-            pid = s.command({"lifecycle": {"create": {"required": [b"data".hex(), None, None, None]}}})
-            resource = s.command({"state": {"create": {"writer": pid}}})
+            pid = s.command({"create": {"required": [b"data".hex(), None, None, None]}})
+            resource = s.command({"create_resource": {"writer": pid}})
             seed, public = s.key(role)
             s.command({"grant": {"subject": principal, "public_key": public, "permissions": 88, "pid": pid}})
             for subject in (0, principal):
-                s.command({"state": {"grant": {"resource": resource, "subject": subject, "permissions": 7}}})
-            s.command({"state": {"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}}})
+                s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 7}})
+            s.command({"associate": {"pid": pid, "name": b"data".hex(), "resource": resource}})
             command(pid, b"init")
-            s.command({"lifecycle": {"initialize": {"pid": pid, "expected_generation": 1}}})
+            s.command({"initialize": {"pid": pid, "expected_generation": 1}})
             s.command({"own": {"pid": pid, "worker": principal, "expected_generation": 2}})
             configs[pid] = {"url": s.url, "realm": 72, "principal": principal, "pid": pid,
                             "generation": 3, "seed_file": str(seed), "role": role,
@@ -45,6 +45,15 @@ def run(node, cli, worker, courier, controller):
         ledger = create(1, "ledger")
         requester = create(2, "requester", ledger)
         coordinator = create(4, "coordinator", ledger)
+        # A PID-scoped actuator reads its supervisor's intent through an explicit
+        # optional association as well as a separate read grant.
+        s.command({"suspend": {"pid": ledger, "expected_generation": 3,
+                               "resume_before_ms": int(time.time() * 1000) + 60000}})
+        s.command({"associate": {"pid": ledger, "name": b"supervisor".hex(),
+                                "resource": resources[coordinator], "required": False}})
+        s.command({"resume": {"pid": ledger, "expected_generation": 5}})
+        s.command({"own": {"pid": ledger, "worker": 1, "expected_generation": 6}})
+        configs[ledger]["generation"] = 7
         configs[requester]["registry"] = coordinator
         courier_seed, public = s.key("courier")
         s.command({"grant": {"subject": 3, "public_key": public, "permissions": 132}})
@@ -57,7 +66,7 @@ def run(node, cli, worker, courier, controller):
         admin_seed, public = s.key("scoped-admin")
         s.command({"grant": {"subject": 6, "public_key": public, "permissions": 17, "pid": ledger}})
         for resource, subject in ((resources[requester], 5), (resources[coordinator], 5), (resources[coordinator], 6)):
-            s.command({"state": {"grant": {"resource": resource, "subject": subject, "permissions": 3}}})
+            s.command({"grant_resource": {"resource": resource, "subject": subject, "permissions": 3}})
 
         def control(mode, watches):
             nonlocal serial
@@ -70,17 +79,21 @@ def run(node, cli, worker, courier, controller):
 
         def await_input(pid):
             for _ in range(200):
-                if s.post("/v2/view", s.signed({"inspect": pid}))["input"] is not None:
+                if s.native_query({"process": pid})["body"]["process"]["input"] is not None:
                     return
                 time.sleep(.025)
             raise AssertionError(("missing input", pid))
 
         def value(pid, key):
-            path = s.root / "query.json"
-            path.write_text(json.dumps({"realm": 72, "principal": 0, "kind": "entries",
-                                       "resource": resources[pid], "key": key.hex()}))
-            entry = s.post("/v2/state", s.invoke("sign-state", s.seed, path))["entries"][0]
-            return bytes.fromhex(entry["value"]) if entry else None
+            resource = resources[pid]
+            revision = s.native_query({'resource': resource})['body']['resource']['revision']
+            entry = s.native_query({'entries': {'resource': resource, 'revision': revision, 'key': key.hex()}})['body']['entries']['page']['entries'][0]
+            return bytes.fromhex(entry['value']) if entry else None
+
+        # Coordinator initialization records a separate self-turn to respect
+        # the shared four-mutation bound.
+        await_input(coordinator)
+        worker_once(coordinator)
 
         def registration(operation, revision, destination):
             return b"RGQ1" + bytes([operation]) + struct.pack("<IQQB", 1, revision, destination, 6) + b"ledger"
@@ -116,6 +129,7 @@ def run(node, cli, worker, courier, controller):
         worker_once(requester)
         assert value(requester, b"answer") == b"timeout"
         waiting = value(requester, b"\x00w" + timed_input.to_bytes(8, "little"))
+        assert len(waiting) == 34
         assert waiting[1] == 3
         await_input(ledger)
         worker_once(ledger)  # accepted request may still finish after cancellation
@@ -134,13 +148,13 @@ def run(node, cli, worker, courier, controller):
         worker_once(coordinator)
         child_key = b"\x00c" + ledger.to_bytes(8, "little") + b"\x00"
         child = value(coordinator, child_key)
-        assert child[14] == 1 and child[15] == 3  # one durable retry request
+        assert child[13] == 1 and child[14] == 3  # one durable retry request
         s.command({"own": {"pid": coordinator, "worker": 4, "expected_generation": 3}})
         configs[coordinator]["generation"] = 4
         control("lifecycle", watch)
         process = s.inspect("process", ledger)["processes"][0]
         assert process["failure"] is None
-        assert s.post("/v2/view", s.signed({"inspect": ledger}))["input"]["position"] == bad_input
+        assert s.native_query({"process": ledger})["body"]["process"]["input"]["position"] == bad_input
         # A fresh controller sees accepted retry progress and makes no second retry.
         control("lifecycle", watch)
         control("observe", watch)
@@ -153,14 +167,29 @@ def run(node, cli, worker, courier, controller):
         control("observe", watch)
         await_input(coordinator)
         worker_once(coordinator)
-        assert value(coordinator, child_key)[15] == 4  # exhausted; head retained
+        assert value(coordinator, child_key)[14] == 4  # exhausted; head retained
         s.command({"terminate": ledger})
         control("observe", watch)
         await_input(coordinator)
         worker_once(coordinator)
-        assert value(coordinator, child_key)[15] == 5
+        assert value(coordinator, child_key)[14] == 5
         control("lifecycle", watch)  # retirement never becomes retry/spawn
         assert s.inspect("process", ledger)["processes"][0]["lifecycle"] == "terminated"
+        # One configured supervisor contains more children than a read page.
+        # A complete --once pass must reach every terminal child.
+        children = []
+        for _ in range(9):
+            child = s.command({"spawn": {}})
+            children.append(child)
+            command(coordinator, f"watch:{child}".encode())
+            worker_once(coordinator)
+            s.command({"terminate": child})
+        control("observe", [{"pid": coordinator, "resource": resources[coordinator]}])
+        for child in children:
+            await_input(coordinator)
+            worker_once(coordinator)
+        for child in children:
+            assert value(coordinator, b"\x00c" + child.to_bytes(8, "little") + b"\x00")[14] == 5
         courier_process.terminate()
         courier_process.wait(timeout=10)
         print("Station services: durable registry/rebind routing, observed timeout/late-result closure, scoped bounded supervision and recovery passed.")

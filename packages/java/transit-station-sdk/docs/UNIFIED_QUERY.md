@@ -1,6 +1,6 @@
 # Unified state queries
 
-`io.transit.sdk.station.UnifiedQuery` exposes the explicit v2 KV/Table/accepted-
+`io.transit.sdk.station.UnifiedQuery` exposes the explicit v1 KV/Table/accepted-
 Document profile. It delegates source/plan validation, encoding, signed requests,
 recovery and result verification to shared Zig through the generated port schemas.
 The original Table API remains available in `Query`.

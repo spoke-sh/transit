@@ -6,14 +6,14 @@ const s = root.station;
 const p = root.protocol;
 const m = root.Model;
 const c = root.Codec;
-const Turn = s.GrowingTurn;
+const Turn = s.Turn;
 const Self = @This();
 configuration: m.Configuration,
 
-pub fn interface(self: *Self) s.GrowingGenServer.Handler {
+pub fn interface(self: *Self) s.GenServer.Handler {
     return .{ .context = self, .initialize = initialize, .handle = handle };
 }
-pub fn guard(self: *Self) s.GrowingGenServer.InputGuard {
+pub fn guard(self: *Self) s.GenServer.InputGuard {
     return .{ .context = self, .reject = rejectInput };
 }
 pub fn binding(reader: anytype) !?m.Binding {

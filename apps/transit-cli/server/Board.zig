@@ -10,7 +10,7 @@ pub fn configuration(installation: *Installation, allocator: std.mem.Allocator) 
     const board = installation.config.board.?;
     const path = try installation.path("board.json");
     try Files.json(installation.init.io, allocator, path, .{
-        .profile = "growing_v3",
+        .profile = "native_v1",
         .upstream = installation.wire.url,
         .realm = installation.config.realm,
         .principal = Installation.board,
@@ -33,7 +33,7 @@ pub fn check(installation: *Installation) !void {
     defer init.gpa.free(seed_path);
     var key = try q.wire.readKey(init.gpa, init.io, seed_path);
     defer std.crypto.secureZero(u8, std.mem.asBytes(&key));
-    const response = try installation.wire.queryGrowing(.{ .realm = installation.config.realm, .principal = Installation.board, .kind = .identity }, key);
+    const response = try installation.wire.query(.{ .realm = installation.config.realm, .principal = Installation.board, .kind = .identity }, key);
     const identity = response.body.identity;
     if (identity.principal != Installation.board or identity.pid != null or identity.permissions != q.protocol.permission(.inspect)) return error.UnsafeBoardPrincipal;
     const address = try std.fmt.allocPrint(init.gpa, "{s}/health", .{installation.config.board.?.public_origin.?});

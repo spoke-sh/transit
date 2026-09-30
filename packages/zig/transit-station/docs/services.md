@@ -17,8 +17,8 @@ lookup or mutate names.
 `Request` encodes a versioned lookup/register/rebind/unregister operation, a
 UTF-8 name of 1–24 bytes, expected revision and destination. Mutations serialize
 in the registry's mailbox. Stale revisions fail, unregister retains a tombstone,
-and recovery preserves both bindings and revision evidence. Default unlimited
-retention can exhaust the legacy 32-key resource; no automatic tombstone eviction occurs.
+and recovery preserves both bindings and revision evidence. Default retention is unlimited. Records occupy paged durable state; resident
+pages remain bounded and tombstones are not automatically evicted.
 `Registry.route` consumes an authenticated lookup reply, records the registry
 PID/binding revision/resolved PID and commits delivery to that fixed PID. A
 later rebind never redirects the committed output or retry. A retired destination
@@ -29,12 +29,10 @@ Scope descriptors use `00 s <scope:u32le>`/`RGS1`; bindings use
 These records and schemas are explicit framework declarations, not authority
 inferred from application names. `Registry` owns the bounded binary codecs.
 
-M15 also qualifies these helpers on growing Zig turns. Authorization and lookup
-use three fallible point reads, independent of retained name count; each mutation
-updates one binding. Principal IDs use the existing eight-byte grant-key field,
-including IDs above 255. Read and reply failures roll back the private proposal.
-The same encodings and revision rules apply to both profiles. This does not add
-growing supervision, runtime bindings or a foreign registry capability.
+Authorization and lookup use three fallible point reads, independent of retained
+name count; each mutation updates one binding. Principal IDs use the eight-byte
+grant-key field across the native 53-bit range. Read and reply failures roll back
+the private proposal. The shared native ABI exposes these same helpers.
 
 ## Waiting and time
 
@@ -42,8 +40,7 @@ growing supervision, runtime bindings or a foreign registry capability.
 a deadline and dedicated observer principal. Requested deadlines must fit known
 process and required resource bounds; finite lifetimes cannot silently create
 unlimited waits. The waiter record commits with the request and acts as a durable
-timer subscription. Its v1 record is 27 bytes, including observer ID (255 means
-none). The observer sends `TMO1` time evidence only after the recorded deadline.
+timer subscription. Its v1 record includes an optional full-width observer identity. The observer sends `TMO1` time evidence only after the recorded deadline.
 
 Reply, timeout and explicit `Waiting.cancel` close a wait in mailbox order.
 The first closure wins. Late outcomes have recorded dispositions without another

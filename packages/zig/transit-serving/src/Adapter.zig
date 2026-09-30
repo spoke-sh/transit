@@ -30,7 +30,7 @@ pub fn submit(self: Self, signed: g.SignedRequest, public_key: [32]u8) !Receipt 
     if (frame.kind != .cast) return error.InvalidServingCommand;
     _ = try m.Command.decode(frame.payload);
     // No native sequence is prepared here; 202 proves this native send only.
-    const receipt = self.resources.wire.submitGrowing(signed) catch |err| {
+    const receipt = self.resources.wire.submit(signed) catch |err| {
         if (err == error.Rejected or err == error.Conflict) switch (self.resources.wire.last_rejection orelse return err) {
             .ConflictingRetry, .SequenceGap, .RetryHorizonExceeded => return error.ServingSequenceConflict,
             .StateResourceExpired, .DeadlineExpired, .RetiredProcess => return error.ResourceUnavailable,
@@ -49,7 +49,7 @@ fn identity(self: Self, signed: m.SignedRead, public_key: [32]u8) !void {
 pub fn authorize(self: Self, signed: g.SignedQuery, public_key: [32]u8) !void {
     if (signed.query.realm != self.resources.realm or signed.query.kind != .identity) return error.ServingDenied;
     try p.Ed25519.Signature.fromBytes(signed.signature).verify(&try g.queryDigest(signed.query), try p.Ed25519.PublicKey.fromBytes(public_key));
-    const response = try self.resources.wire.call(g.Response, "/v3/query", signed);
+    const response = try self.resources.wire.call(g.Response, "/v1/query", signed);
     try g.validateResponse(response, signed.query);
     const current = response.body.identity;
     if (current.principal != signed.query.principal or current.pid != self.ingress or current.permissions & p.permission(.inspect) == 0) return error.ServingDenied;

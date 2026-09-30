@@ -42,7 +42,7 @@ Station behaviors build on this client boundary. `Input` exposes position,
 opaque value and a versioned authenticated origin. Applications match the expected
 source process/output or effect attempt before accepting correlated replies;
 external admission authenticates a principal, not a claimed process sender.
-See the [public input contract](../../contracts/TRANSIT_V2.md).
+See the [public input contract](../../contracts/TRANSIT_V1.md).
 
 ## One caller turn
 
@@ -190,7 +190,7 @@ Arrow result fixture; retain the Zig caller as the reference program.
 
 The [counter](../../examples/counter/README.md), [byte log](../../examples/byte-log/README.md)
 and [Station ledger](../../examples/station-ledger/README.md) remain Zig reference
-applications. [Binding examples](../../examples/station-bindings/README.md) qualify
+applications. [Binding examples](../../examples/station-sdk/README.md) qualify
 host-language callers against the same authority. The
 [caller proof](../../tests/README.md#independent-caller-evidence) checks that the node
 does not execute application handlers.
@@ -287,7 +287,7 @@ above the shared Station implementation, consumed by the
 It compiles M12 SQL against current authorized Table metadata, freezes signed
 submission/cancellation identity and reads verified bounded result segments.
 It owns no kernel authority, storage access or independent query semantics.
-See the [public contract](../../contracts/PUBLIC_QUERY_V1.md) for admission,
+See the [public contract](https://github.com/rupurt/rey/blob/425b7243595f46397be2f4165bd8f6b2ecc2b6ee/contracts/PUBLIC_QUERY_V1.md) for admission,
 uncertainty, current authorization and deployment limits.
 
 ## HTTP connector callers

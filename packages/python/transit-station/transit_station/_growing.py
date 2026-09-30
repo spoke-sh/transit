@@ -16,7 +16,7 @@ class Growing:
         self.api = Library('station', Path(__file__).with_name('station-abi.json'), config.native_directory)
         self.raw = Library('client', Path(transit_client.__file__).with_name('client-abi.json'), config.native_directory)
         self.caps: dict[str, Any] = self.api.call('station_growing_capabilities')
-        if self.caps.get('version') != 1 or self.caps.get('profile') != 'growing_v3' or not all(self.caps.get(name) for name in ('gated_dispatch', 'retained_confirmation', 'scoped_turns', 'paged_state', 'tables', 'retained_sources')):
+        if self.caps.get('version') != 1 or self.caps.get('profile') != 'native_v1' or not all(self.caps.get(name) for name in ('gated_dispatch', 'retained_confirmation', 'scoped_turns', 'paged_state', 'tables', 'retained_sources')):
             raise UnsupportedCapability('Native Station lacks the required growing turn capabilities')
         if config.query_results and not self.caps['query_results']:
             raise UnsupportedCapability('Native Station does not support growing query results')
@@ -52,7 +52,7 @@ class Growing:
             if status:
                 raise native_error(status, phase='authority_capabilities')
             result = self.raw.call('transit_client_call', client, operation)['body']['capabilities']
-            if result['version'] != 3 or result['profile'] != 'growing_v1' or not all(result[name] for name in ('association_lookup', 'scoped_retry', 'retained_read_versions')):
+            if result['version'] != 1 or result['profile'] != 'growing_v1' or not all(result[name] for name in ('association_lookup', 'scoped_retry', 'retained_read_versions')):
                 raise UnsupportedCapability('Authority lacks required growing state/recovery primitives')
         finally:
             self.raw.lib.transit_operation_destroy(operation)
@@ -108,7 +108,7 @@ class Growing:
         finally:
             self.raw.lib.transit_operation_destroy(pointer)
         purpose = event['pending_kind']
-        if metadata['kind'] != 'growing_command' or metadata['profile'] != 'growing_v3' or metadata['command'] not in {'permit': ('begin_turn',), 'open': ('open_view',), 'commit': ('turn', 'turn_with_versions')}[purpose]:
+        if metadata['kind'] != 'growing_command' or metadata['profile'] != 'native_v1' or metadata['command'] not in {'permit': ('begin_turn',), 'open': ('open_view',), 'commit': ('turn', 'turn_with_versions')}[purpose]:
             raise IncompatibleNative('Native pending mutation has an incompatible purpose')
         return FrozenMutation(OperationIdentity(metadata['identity']), purpose, event['pending_input'], frozen)
 

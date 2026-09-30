@@ -81,19 +81,19 @@ pub fn jobId(input: u64) !u64 {
     if (input == 0 or input > p.max_counter) return error.InvalidDocumentRoute;
     return input | (@as(u64, 1) << 63);
 }
-pub fn route(service: Service, turn: *s.GrowingTurn, id: u64) !Route {
+pub fn route(service: Service, turn: *s.Turn, id: u64) !Route {
     const out = try Route.decode((try turn.read(service.key('r', id))) orelse return error.InvalidDocumentRoute);
     if (out.owner != turn.delivery.pid or out.request.document != service.document or try jobId(out.input) != id) return error.InvalidDocumentRoute;
     return out;
 }
-fn basis(service: Service, turn: *s.GrowingTurn, revision: ?u64) !Client.Reference {
+fn basis(service: Service, turn: *s.Turn, revision: ?u64) !Client.Reference {
     const head = try service.head(turn);
     return .{ .resource = service.resource, .document = service.document, .epoch = head.state.epoch, .type_revision = head.state.type_revision, .revision = revision orelse head.state.revision };
 }
-fn send(turn: *s.GrowingTurn, caller: u64, correlation: u64, reply: Reply) !void {
+fn send(turn: *s.Turn, caller: u64, correlation: u64, reply: Reply) !void {
     try turn.send(caller, .{ .kind = .reply, .correlation = correlation, .payload = try reply.encode() });
 }
-fn decline(service: Service, turn: *s.GrowingTurn, caller: u64, correlation: u64, reason: Reason) !void {
+fn decline(service: Service, turn: *s.Turn, caller: u64, correlation: u64, reason: Reason) !void {
     try send(turn, caller, correlation, .{ .status = .rejected, .reason = reason, .job = 0, .basis = if (reason == .denied or reason == .invalid_request) null else try basis(service, turn, null) });
 }
 /// Infrastructure/corruption failures are deliberately absent from this list.
@@ -117,7 +117,7 @@ fn requestReason(err: anyerror) ?Reason {
     };
 }
 pub const Admission = enum { admitted, repeated, rejected };
-pub fn admit(service: Service, turn: *s.GrowingTurn, policy: Policy, source: anytype, node_limit: u32) !Admission {
+pub fn admit(service: Service, turn: *s.Turn, policy: Policy, source: anytype, node_limit: u32) !Admission {
     const before = turn.decision;
     errdefer turn.decision = before;
     const frame = try s.Frame.decode(turn.delivery.input.value);
@@ -159,7 +159,7 @@ pub fn admit(service: Service, turn: *s.GrowingTurn, policy: Policy, source: any
 }
 /// Explicit terminal rejection closes the candidate and freezes its correlated
 /// response in one turn; independent cleanup never changes that disposition.
-pub fn reject(service: Service, turn: *s.GrowingTurn, id: u64, reason: Reason) !void {
+pub fn reject(service: Service, turn: *s.Turn, id: u64, reason: Reason) !void {
     const before = turn.decision;
     errdefer turn.decision = before;
     if (reason == .none) return error.InvalidDocumentReply;
@@ -170,7 +170,7 @@ pub fn reject(service: Service, turn: *s.GrowingTurn, id: u64, reason: Reason) !
     try send(turn, record.caller, record.correlation, .{ .status = .rejected, .reason = reason, .job = id, .basis = if (reason == .denied or reason == .invalid_request) null else try basis(service, turn, null) });
 }
 pub const Progress = enum { idle, progress, accepted, duplicate, rejected };
-pub fn advance(service: Service, turn: *s.GrowingTurn, policy: Policy, source: anytype) !Progress {
+pub fn advance(service: Service, turn: *s.Turn, policy: Policy, source: anytype) !Progress {
     const before = turn.decision;
     errdefer turn.decision = before;
     const head = try service.head(turn);

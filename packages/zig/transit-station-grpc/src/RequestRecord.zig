@@ -47,7 +47,7 @@ pub fn key(namespace: u64) x.p.Value {
 /// Advance at most one durable upload step. False means the caller must schedule
 /// another turn with the same owned source bytes. True means both records were
 /// published before this turn, so call admission may share this turn safely.
-pub fn stage(turn: *x.station.GrowingTurn, reference: Reference, metadata: []const u8, batch: []const u8) !bool {
+pub fn stage(turn: *x.station.Turn, reference: Reference, metadata: []const u8, batch: []const u8) !bool {
     try reference.validate();
     if (reference.resource != turn.view.resource or metadata.len != reference.metadata_bytes or batch.len != reference.batch_bytes) return error.InvalidGrpcRequestReference;
     return x.station.PublicationUpload.step(turn, .{

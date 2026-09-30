@@ -24,7 +24,7 @@ def run(node, proof, board):
         url, origin = f'http://127.0.0.1:{port}', f'http://127.0.0.1:{board_port}'
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         node_config = fixture.root / 'node.json'
-        node_config.write_text(json.dumps({'profile': 'growing_v3', 'genesis': {'realm': 49, 'root_key': public, 'max_clock_error_ms': 10000}, 'ursula_url': fixture.url, 'bucket': 'application-browser', 'journal': 'authority', 'port': port, 'resident_pages': 64, 'request_timeout_ms': 10000}))
+        node_config.write_text(json.dumps({'profile': 'native_v1', 'genesis': {'realm': 49, 'root_key': public, 'max_clock_error_ms': 10000}, 'ursula_url': fixture.url, 'bucket': 'application-browser', 'journal': 'authority', 'port': port, 'resident_pages': 64, 'request_timeout_ms': 10000}))
         manifest = fixture.root / 'application.json'
         def request(path, value=None, status=200, origin_header=origin):
             time.sleep(.15)
@@ -52,7 +52,7 @@ def run(node, proof, board):
             seed = fixture.root / 'inspector.seed'
             seed.write_text('0a' * 32 + '\n')
             config = fixture.root / 'board.json'
-            options = {'upstream': url, 'realm': 49, 'principal': 65538, 'profile': 'growing_v3', 'seed_file': str(seed), 'public_origin': origin, 'development_allow_insecure_http': True, 'port': board_port, 'request_timeout_ms': 5000, 'upstream_timeout_ms': 1500, 'interface': scope}
+            options = {'upstream': url, 'realm': 49, 'principal': 65538, 'profile': 'native_v1', 'seed_file': str(seed), 'public_origin': origin, 'development_allow_insecure_http': True, 'port': board_port, 'request_timeout_ms': 5000, 'upstream_timeout_ms': 1500, 'interface': scope}
             config.write_text(json.dumps(options))
             serving = start('board-disabled', [board, str(config)])
             wait_ready(fixture.http, serving, origin + '/health')

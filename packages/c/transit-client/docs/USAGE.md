@@ -1,7 +1,7 @@
 # Ownership, outcomes and recovery
 
 Call `transit_sdk_growing_config(url)` and `transit_sdk_client_open`. This selects
-growing_v3 explicitly; it does not fall back to M9's legacy profile. Credentials
+native_v1 explicitly; it does not fall back to M9's legacy profile. Credentials
 specify a realm, principal and seed file. The seed is read only for preparation,
 bounded, and wiped after use. No credentials or request payloads enter diagnostics.
 References and protocol counters are checked at every public boundary; protocol

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 import { text } from "./components";
 import {
   validateCapabilities,
-  validateQuery,
   validateRecords,
   validateHttp,
   validateGrpc,
@@ -10,7 +9,6 @@ import {
   type DocumentResponse,
   type GrpcResponse,
   type HttpResponse,
-  type QueryResponse,
   BoardError,
 } from "@rey/transit-board-client";
 import { message } from "./state";
@@ -27,13 +25,13 @@ describe("inspection semantics", () => {
   it("validates exact integer identity at the TypeScript boundary", () => {
     const caps = {
       version: 1,
-      profile: "legacy_v2",
+      profile: "native_v1",
       query_enabled: false,
       realm: 9007199254740991,
       scope_pid: null,
       read_only: true,
       shared_principal: true,
-      page_size: 16,
+      page_size: 8,
       scan_limit: 128,
       max_edges: 32,
       min_refresh_ms: 5000,
@@ -47,6 +45,7 @@ describe("inspection semantics", () => {
       push: false,
     };
     expect(validateCapabilities(caps)).toBe(true);
+    expect(validateCapabilities({ ...caps, profile: "legacy_v2" })).toBe(false);
     expect(validateCapabilities({ ...caps, realm: 9007199254740992 })).toBe(false);
     expect(validateCapabilities({ ...caps, scope_pid: "1" })).toBe(false);
     expect(validateCapabilities({ ...caps, unexpected: true })).toBe(false);
@@ -67,6 +66,9 @@ describe("exchange metadata boundary", () => {
       deadline_ms: null,
       phase: "active",
       retired_at: null,
+      history_ms: null,
+      changed_ms: 0,
+      last_turn: null,
     },
     page: {
       entries: [{ key: "0045", revision: 18 }, ...Array(7).fill(null)],
@@ -304,55 +306,6 @@ describe("RPC metadata boundary", () => {
     expect(
       validateGrpc({ ...page(), policy: { ...page().policy, method: "/private.Method" } }),
     ).toBe(false);
-  });
-});
-
-describe("typed query boundary", () => {
-  const page = (): Extract<QueryResponse, { page: unknown }>["page"] => ({
-    version: 1,
-    manifest: {
-      result: 20,
-      destination: 8,
-      correlation: 10,
-      table: 1,
-      policy_revision: 1,
-      basis: { resource: 3, revision: 15, schema: Array(32).fill(0) },
-      plan: Array(32).fill(0),
-      segments: 1,
-      bytes: 288,
-      rows: 1,
-      chain: Array(32).fill(0),
-      schema: Array(32).fill(0),
-    },
-    ordinal: 0,
-    columns: [{ name: "value", type: "int64", nullable: true }, null],
-    rows: [[{ int64: "9223372036854775807" }, null], ...Array(31).fill(null)],
-    count: 1,
-    next: null,
-  });
-  it("preserves full-width values and rejects overflow, wrong types and row gaps", () => {
-    const value = page();
-    expect(validateQuery({ page: value })).toBe(true);
-    value.rows[0]![0] = { int64: "9223372036854775808" };
-    expect(validateQuery({ page: value })).toBe(false);
-    value.rows[0]![0] = { utf8: "9223372036854775807" };
-    expect(validateQuery({ page: value })).toBe(false);
-    value.rows[0]![0] = { null: {} };
-    expect(validateQuery({ page: value })).toBe(true);
-    value.rows[1] = value.rows[0]!;
-    value.rows[0] = null;
-    expect(validateQuery({ page: value })).toBe(false);
-  });
-  it("rejects invented continuation and malformed text", () => {
-    const value = page();
-    value.next = 1;
-    expect(validateQuery({ page: value })).toBe(false);
-    value.next = null;
-    value.columns[0]!.type = "utf8";
-    value.rows[0]![0] = { utf8: "\ud800" };
-    expect(validateQuery({ page: value })).toBe(false);
-    value.rows[0]![0] = { utf8: "🙂" };
-    expect(validateQuery({ page: value })).toBe(true);
   });
 });
 

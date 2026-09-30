@@ -96,7 +96,7 @@ The [private client contract](../../../contracts/REACTIVE_CLIENT_V1.md) describe
 credential scope, source evidence and generated browser validation. This consumer
 foundation alone does not qualify complete live query replacement or UI fairness.
 
-M21's opt-in `LiveService` composes the ingress with the v2 finite requester.
+M21's opt-in `LiveService` composes the ingress with the v1 finite requester.
 The [refresh guide](docs/refresh.md) owns its bounded round-robin scheduler,
 eight-intent limit per follow generation, current scoped proofs and plan copying.
 Accepted work survives view closure; only new scheduling depends on a live lease.

@@ -10,7 +10,7 @@ export const Route = createFileRoute("/")({
         : "all",
     sort: search.sort === "backlog" ? "backlog" : "pid",
   }),
-  component: () => (useScope().scope?.profile === "growing_v3" ? <DeclaredView /> : <Overview />),
+  component: () => (useScope().scope?.profile === "native_v1" ? <DeclaredView /> : <Overview />),
 });
 function Overview() {
   const view = useObservation("processes");

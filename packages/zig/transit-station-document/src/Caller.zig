@@ -44,7 +44,7 @@ pub const Progress = enum { progress, sent, waiting, complete };
 /// Freeze the target with the call in the same turn. Changing a name/configuration
 /// afterward cannot redirect it. A rejected call needs an explicit new namespace
 /// to resubmit; this helper never retries a semantic rejection automatically.
-pub fn stage(turn: *s.GrowingTurn, target: Target, reference: Request.Reference, change: m.Change) !Progress {
+pub fn stage(turn: *s.Turn, target: Target, reference: Request.Reference, change: m.Change) !Progress {
     const before = turn.decision;
     errdefer turn.decision = before;
     const expected = try Request.prepare(turn.view.resource, reference.namespace, reference.policy_revision, change);
@@ -73,7 +73,7 @@ pub fn outcome(source: anytype, namespace: u64) !?Remote.Reply {
 }
 /// Call from the Station reply handler (which already settles its wait record).
 /// The durable call binding independently validates provenance and response basis.
-pub fn accept(turn: *s.GrowingTurn, namespace: u64) !Remote.Reply {
+pub fn accept(turn: *s.Turn, namespace: u64) !Remote.Reply {
     const before = turn.decision;
     errdefer turn.decision = before;
     const saved = (try pending(turn, namespace)) orelse return error.UnknownDocumentCall;

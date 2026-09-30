@@ -63,7 +63,7 @@ def run(host, library=None):
         assert all(r['status'] == 1 for r in responses[7:])
         if library:
             # The generated ABI declares the exact same implementation as the port.
-            from transit_station import _Library, TransitError
+            from abi_support import _Library, TransitError
             directory = Path(temporary) / 'lib'
             directory.mkdir()
             (directory / 'libtransit_station.so').symlink_to(Path(library).resolve())
@@ -170,9 +170,8 @@ def run(host, library=None):
         activation = {'realm': 72, 'principal': 1, 'pid': 1, 'generation': 1, 'association': 'data'}
         for profile in ({'local_codec': True},
                         {'url': 'http://127.0.0.1:1'},
-                        {'url': 'http://127.0.0.1:1', 'seed_file': str(seed), 'server': activation},
                         {'url': 'http://127.0.0.1:1', 'seed_file': str(seed), 'growing_server': dict(activation,
-                            profile='growing_v3', failure_policy='stop', query_results=True)}):
+                            profile='native_v1', failure_policy='stop', query_results=True)}):
             config.write_text(json.dumps(profile))
             with subprocess.Popen([host, config], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL) as child:
@@ -180,7 +179,8 @@ def run(host, library=None):
                 assert child.wait(timeout=5) == 0
                 assert json.loads(child.stdout.readline()) == {'status': 0, 'value': {'closed': True}}
                 assert child.stdout.read() == b''
-        for invalid in ({}, {'local_codec': True, 'url': 'http://127.0.0.1:1'},
+        for invalid in ({}, {'url': 'http://127.0.0.1:1', 'seed_file': str(seed), 'server': activation},
+                        {'local_codec': True, 'url': 'http://127.0.0.1:1'},
                         {'local_codec': True, 'seed_file': '/missing-never-read.key'}):
             config.write_text(json.dumps(invalid))
             rejected = subprocess.run([host, config], input='', text=True, stdout=subprocess.PIPE,

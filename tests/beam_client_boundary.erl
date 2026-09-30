@@ -5,7 +5,7 @@
 init(Config) -> {ok, {#{strategy => one_for_one, intensity => 1, period => 5}, [transit_client:child_spec(Config)]}}.
 main() ->
     [Directory, Mode] = init:get_plain_arguments(),
-    {ok, Config} = transit_client:config(<<"http://127.0.0.1:1">>, growing_v3),
+    {ok, Config} = transit_client:config(<<"http://127.0.0.1:1">>, native_v1),
     case Mode of
         "missing" -> {error, #transit_error{kind = incompatible_native}} = transit_client:open(Config);
         "normal" ->

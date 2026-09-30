@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "charts/transit"
 VALUES = {
     "node": {"image": "example.invalid/transit-node:proof", "config": {
-        "genesis": {"realm": 49, "root_key": [1] * 32, "retry_policy": "last_per_principal", "max_clock_error_ms": 2000},
+        "genesis": {"realm": 49, "root_key": [1] * 32, "max_clock_error_ms": 2000},
         "bucket": "proof", "journal": "authority", "request_timeout_ms": 3000}},
     "board": {"enabled": True, "image": "example.invalid/transit-board:proof", "existingSecret": "board-credentials",
               "config": {"realm": 49, "principal": 4, "public_origin": "https://board.example.invalid:8443"}},

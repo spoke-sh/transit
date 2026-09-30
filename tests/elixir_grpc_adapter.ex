@@ -41,7 +41,7 @@ defmodule ElixirGrpcAdapter do
   end
 
   def open(cfg, shared, request) do
-    {:ok, client} = Client.config(cfg["url"], :growing_v3)
+    {:ok, client} = Client.config(cfg["url"], :native_v1)
 
     service = %ServiceConfig{
       client: client,

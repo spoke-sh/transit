@@ -100,7 +100,7 @@ def run(profile, node, host, gateway, proof):
             (work / 'ursula.toml').write_text('[server]\nlisten = "0.0.0.0:8080"\nadmin_listen = "127.0.0.1:0"\n[runtime]\ncore_count = 2\n[raft]\nnode_id = 1\ngroup_count = 1\n[raft.wal]\nbackend = "disk"\npath = "' + wal + '"\n' + cold.config().replace(cold.url, endpoint))
             (work / 'ursula.toml').chmod(0o600)
             public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
-            write(work / 'operator/node.json', dict(profile='growing_v3', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), ursula_url='http://ursula:8080', bucket='flight', journal='authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
+            write(work / 'operator/node.json', dict(profile='native_v1', genesis=dict(realm=45, root_key=public, max_clock_error_ms=10000), ursula_url='http://ursula:8080', bucket='flight', journal='authority', port=8080, listen='0.0.0.0', resident_pages=8, request_timeout_ms=10000))
             if profile == 'compose':
                 placement.call('create', 'ursula')
                 network = placement.project + '_storage'
@@ -178,7 +178,7 @@ def run(profile, node, host, gateway, proof):
                 assert client.do_get(retry.endpoints[0].ticket, options).read_all().to_pylist() == expected
                 print(f'Flight {profile}: original ticket and exact admission retry passed after physical recovery.', flush=True)
             finally: client.close()
-            verify(uri, edge.root/'certificate.pem', work, token, schema, expected)
+            verify(uri, edge.root/'certificate.pem', work, token, schema, expected, lambda: json.loads(admin('next-sequence')))
             if profile == 'reference': placement.check_hosts(workers.values())
             print(f'Flight {profile}: TLS PyArrow/ADBC C/Python, physical gateway/worker/node/store recovery and exact retry passed in {time.monotonic()-started:.2f}s; {cold.data_objects()} cold objects / {cold.file_bytes()} bytes.', flush=True)
         except BaseException:

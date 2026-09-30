@@ -4,7 +4,7 @@
 [public Erlang query API](../../transit-station-sdk/docs/unified-query.md).
 `KvSource`, `TableSource` and `DocumentSource` share `Plan`, `Budgets`, typed
 projections and six tagged scalar types. Source/plan semantics and binary codecs
-remain in shared Zig. Explicit v2 querying does not change the original Table API.
+remain in shared Zig. Explicit v1 querying does not change the original Table API.
 
 ```elixir
 alias Transit.Station.Sdk.UnifiedQuery, as: Q

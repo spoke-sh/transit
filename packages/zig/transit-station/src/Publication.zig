@@ -2,7 +2,7 @@
 //! until the enclosing turn commits. See contracts/STATION_PUBLICATION_V1.md.
 const std = @import("std");
 const p = @import("transit_client").protocol;
-const Turn = @import("Turn.zig").Growing;
+const Turn = @import("Turn.zig");
 const Publication = @This();
 const Sha256 = std.crypto.hash.sha2.Sha256;
 

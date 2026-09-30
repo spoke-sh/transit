@@ -1,7 +1,7 @@
 # Durable finite refresh
 
 M21's qualified `LiveService` composes `Service`, M20 sessions
-and the v2 query requester in one Station owner/resource. Install its handler and
+and the v1 query requester in one Station owner/resource. Install its handler and
 input guard together, initialize privately, and provision caller, worker and
 resource grants before exposing ingress. Standalone `Service` rejects refreshes.
 PID-scoped reads also require optional cross-resource associations installed

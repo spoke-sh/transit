@@ -306,7 +306,7 @@ public final class JavaStationSdk {
             body, new Http.Options(BigInteger.valueOf(7), cfg.get("deadline").getAsLong(), 1));
         byte original = request.body().copy()[0]; body[0] ^= 127; byte[] copy = request.body().copy(); copy[0] ^= 1;
         check(request.body().copy()[0] == original && request.body().size() == 513);
-        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
+        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1),
             new Activation(new ProcessRef(72, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
                 new Credential(72, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))));
         Http.Outcome disposal = cfg.has("outcome") ? (Http.Outcome)Http.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
@@ -439,7 +439,7 @@ public final class JavaStationSdk {
             List.of(message, new Bytes(new byte[0])), new Grpc.Options(BigInteger.valueOf(7), cfg.get("deadline").getAsLong(), 1));
         byte[] original = request.batch().copy(); body[0] ^= 127; byte[] copy = request.batch().copy(); copy[0] ^= 1;
         check(Arrays.equals(original, request.batch().copy()) && request.batch().size() == message.size() + 16);
-        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
+        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1),
             new Activation(new ProcessRef(72, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
                 new Credential(72, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))));
         Grpc.Outcome disposal = cfg.has("outcome") ? (Grpc.Outcome)Grpc.decodeReply(72, HexFormat.of().parseHex(cfg.get("outcome").getAsString())) : null;
@@ -493,7 +493,7 @@ public final class JavaStationSdk {
     }
     static <T> void execute(String mode, JsonObject cfg, Handler<T> handler, Codec<T> codec) throws Exception {
         long realm = cfg.get("realm").getAsLong();
-        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3),
+        ServiceConfig config = new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1),
             new Activation(new ProcessRef(realm, cfg.get("pid").getAsLong()), cfg.get("generation").getAsLong(),
                 new Credential(realm, cfg.get("principal").getAsLong(), Path.of(cfg.get("seed_file").getAsString()))), "data", cfg.get("query_results").getAsBoolean());
         Store store = new Store(mode, Path.of(cfg.get("pending").getAsString()));
@@ -608,7 +608,7 @@ public final class JavaStationSdk {
             report(Values.obj("codecs",true)); return;
         }
         List<Document.Prepared> changes=cfg.getAsJsonArray("changes").asList().stream().map(v -> Document.prepare(Document.decode(HexFormat.of().parseHex(v.getAsString())))).toList();
-        ServiceConfig config=new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()),ClientConfig.Profile.GROWING_V3),new Activation(new ProcessRef(72,cfg.get("pid").getAsLong()),cfg.get("generation").getAsLong(),new Credential(72,cfg.get("principal").getAsLong(),Path.of(cfg.get("seed_file").getAsString()))));
+        ServiceConfig config=new ServiceConfig(new ClientConfig(URI.create(cfg.get("url").getAsString()),ClientConfig.Profile.NATIVE_V1),new Activation(new ProcessRef(72,cfg.get("pid").getAsLong()),cfg.get("generation").getAsLong(),new Credential(72,cfg.get("principal").getAsLong(),Path.of(cfg.get("seed_file").getAsString()))));
         DocumentHandler handler=new DocumentHandler(changes); Document.Reference saved=null;
         try(Runner<Bytes> runner=Runner.open(config,handler,new GrpcBytes(),FailurePolicy.STOP,new Recovery.FreshOwnership())) {
             Document.Reader reader=runner.documents(); BufferedReader input=new BufferedReader(new InputStreamReader(System.in));
@@ -651,14 +651,14 @@ public final class JavaStationSdk {
     public static void main(String[] args) throws Exception {
         String mode = args[0]; Path path = Path.of(args[1]); JsonObject cfg = read(path);
         check(Path.of(Runner.class.getProtectionDomain().getCodeSource().getLocation().toURI()).startsWith(path.getParent()));
-        check(cfg.get("profile").getAsString().equals("growing_v3"));
+        check(cfg.get("profile").getAsString().equals("native_v1"));
         if (mode.startsWith("document-")) { document(mode,cfg); return; }
         if (mode.equals("grpc-golden")) { grpcGolden(cfg); return; }
         if (mode.startsWith("grpc-")) { grpc(mode, cfg); return; }
         if (mode.startsWith("http-")) { http(mode, cfg); return; }
         if (mode.equals("codecs")) { codecs(cfg); return; }
         if (mode.equals("recover")) {
-            try (Client client = Client.open(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.GROWING_V3));
+            try (Client client = Client.open(new ClientConfig(URI.create(cfg.get("url").getAsString()), ClientConfig.Profile.NATIVE_V1));
                  PendingMutation pending = await(client.recoverMutation(Files.readAllBytes(Path.of(cfg.get("pending").getAsString()))))) {
                 var result = await(client.dispatchMutation(pending)); check(result instanceof io.transit.client.Outcomes.Confirmed);
                 report(Values.obj("receipt", ((io.transit.client.Outcomes.Confirmed) result).receipt().position()));

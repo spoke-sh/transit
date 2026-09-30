@@ -18,7 +18,7 @@ validation still applies. Web Locks require a secure browser context.
 The gateway reader uses separately provisioned current resource grants. Its
 `viewer` contains an explicitly provisioned control principal and key file;
 `snapshot_values` must be false in Board. Board's base inspection credential
-remains read-only. Enabling `viewer.refresh` also requires `query_v2`, with the
+remains read-only. Enabling `viewer.refresh` also requires `query`, with the
 same caller principal, requester/ingress PID and request resource. Each worker
 needs the cross-resource associations and grants described by the
 [durable refresh owner](../../../packages/zig/transit-serving/docs/refresh.md).
@@ -31,7 +31,7 @@ Follow is explicit. Pause, route unmount and browser hiding stop acquisition and
 lease renewal, then attempt exact control recovery and close. An unavailable
 close leaves the lease to expire; it cannot cancel accepted queries.
 
-For an eligible completed v2 Table query, **Follow changes** reuses the submitted
+For an eligible completed v1 Table query, **Follow changes** reuses the submitted
 immutable plan and admits new finite query identities through the durable owner.
 The SQL draft remains independent. One newest invalidation coalesces source
 changes, and the requester fairly chooses between its bounded active views.

@@ -110,6 +110,8 @@ class Installation:
         value = json.loads(self.manifest.read_text())
         if (value["version"], value["profile"], value["name"]) != (1, self.profile, self.name):
             raise RuntimeError("Unrecognized launcher installation; refusing to adopt it")
+        if value.get("protocol") != "native_v1":
+            raise RuntimeError("Incompatible launcher protocol; preserve this installation and use its matching build")
         if value.get("example", "counter") != self.example:
             raise RuntimeError("This installation runs another example; choose a new name")
         if self.path.is_symlink():
@@ -180,7 +182,7 @@ class Installation:
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name, "example": self.example,
-              "state_profile": 1, "runtime_profile": 1,
+              "protocol": "native_v1",
               "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
         self.configs()
@@ -194,8 +196,7 @@ class Installation:
         node = {"genesis": {"realm": config["realm"], "root_key": config["root_public"]},
                 "ursula_url": storage, "bucket": "development", "journal": "authority", "accept_trace_parent": True,
                 "listen": "0.0.0.0" if container else "127.0.0.1", "port": 8080 if container else base + 1}
-        if config.get("state_profile") == 1:
-            node["genesis"]["max_clock_error_ms"] = 10000
+        node["genesis"]["max_clock_error_ms"] = 10000
         write(self.path / "node.json", node)
         write(self.path / "host-node.json", {**node, "ursula_url": f"http://127.0.0.1:{base}"})
         write(self.path / "maintenance/config.json", {**node, "maintenance": {
@@ -262,7 +263,7 @@ backend = "inline"
         deadline = time.monotonic() + 20
         while True:
             try:
-                request = urllib.request.Request(self.url + "/v2/command", signed, {"Content-Type": "application/json"})
+                request = urllib.request.Request(self.url + "/v1/command", signed, {"Content-Type": "application/json"})
                 with HTTP.open(request, timeout=6) as response:
                     receipt = read_json(response, 1024)
                 if (not isinstance(receipt, dict) or set(receipt) != {"position"}
@@ -300,21 +301,17 @@ backend = "inline"
             return json.loads(receipt.read_text())["receipt"]["position"]
 
     def provision(self):
-        managed = self.load().get("runtime_profile") == 1
-        creation = {"lifecycle": {"create": {"initial_state": b"0".hex(), "required": [b"counter".hex(), None, None, None]}}} if managed else {"spawn": {"initial_state": b"0".hex()}}
-        pid = self.command("spawn-counter", creation)
+        pid = self.command("spawn-counter", {"create": {"required": [b"counter".hex(), None, None, None]}})
         write(self.path / "pid.json", pid)
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 33), (5, "delivery", 132)):
+        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 128)):
             self.command("grant-" + label, {"grant": {"subject": principal,
                 "public_key": self.key(label + "/seed.key"), "permissions": permissions}})
-        if self.load().get("state_profile") == 1:
-            resource = self.command("create-counter-state", {"state": {"create": {"writer": pid}}})
-            write(self.path / "state-resource.json", resource)
-            self.command("inspect-counter-state", {"state": {"grant": {"resource": resource, "subject": 0, "permissions": 7}}})
-            self.command("associate-counter-state", {"state": {"associate": {"pid": pid, "name": b"counter".hex(), "resource": resource}}})
-            self.command("board-counter-state", {"state": {"grant": {"resource": resource, "subject": 2, "permissions": 1}}})
-        if managed:
-            self.command("initialize-counter", {"lifecycle": {"initialize": {"pid": pid, "expected_generation": 1}}})
+        resource = self.command("create-counter-state", {"create_resource": {"writer": pid}})
+        write(self.path / "state-resource.json", resource)
+        self.command("inspect-counter-state", {"grant_resource": {"resource": resource, "subject": 0, "permissions": 7}})
+        self.command("associate-counter-state", {"associate": {"pid": pid, "name": b"counter".hex(), "resource": resource}})
+        self.command("board-counter-state", {"grant_resource": {"resource": resource, "subject": 2, "permissions": 1}})
+        self.command("initialize-counter", {"initialize": {"pid": pid, "expected_generation": 1}})
         for value in (7, 5):
             self.command(f"seed-{value}", {"send": {"pid": pid, "value": str(value).encode().hex()}})
         self.configs()
@@ -328,9 +325,7 @@ backend = "inline"
             pid = json.loads((self.path / "pid.json").read_text())
             with lock(self.path / "operator/lock"):
                 self._flush(json.loads((self.path / "operator/sequence.json").read_text()))
-            read = self.path / "operator/read.json"
-            write(read, {"realm": self.load()["realm"], "principal": 0, "sequence": 0, "command": {"inspect": pid}})
-            view = json.loads(run([self.cli, "view", self.path / "operator/root.key", read, self.url], capture=True))["process"]
+            view = self.native_query({"process": pid})["body"]["process"]["process"]
             if view["lifecycle"] != "running" or view["failure"] or view["binding"]:
                 raise RuntimeError("Counter is retired, blocked or provider-bound; refusing automatic replacement")
             identity = secrets.token_hex(12)
@@ -345,28 +340,27 @@ backend = "inline"
                 **self.counter_config()})
 
     def counter_config(self):
-        return {"state_association": "counter"} if self.load().get("state_profile") == 1 else {}
+        return {"state_association": "counter"}
 
     def grant_counter_state(self, identity):
-        if self.load().get("state_profile") == 1:
-            resource = json.loads((self.path / "state-resource.json").read_text())
-            self.command("worker-state-" + identity, {"state": {"grant": {"resource": resource, "subject": 1, "permissions": 7}}})
+        resource = json.loads((self.path / "state-resource.json").read_text())
+        self.command("worker-state-" + identity, {"grant_resource": {"resource": resource, "subject": 1, "permissions": 7}})
+
+    def native_query(self, kind):
+        read = self.path / "operator/read.json"
+        write(read, {"realm": self.load()["realm"], "principal": 0, "kind": kind})
+        return json.loads(run([self.cli, "query", self.path / "operator/root.key", read, self.url], capture=True))
 
     def counter_value(self):
         # Example-specific decoding belongs in the example/operator tools, not Board.
-        if self.load().get("state_profile") != 1:
-            return int(bytes.fromhex(self.view()["state"]))
         resource = json.loads((self.path / "state-resource.json").read_text())
-        query = self.path / "operator/state-query.json"
-        write(query, {"realm": self.load()["realm"], "principal": 0, "kind": "entries", "resource": resource, "key": b"value".hex()})
-        page = json.loads(run([self.cli, "state", self.path / "operator/root.key", query, self.url], capture=True))
+        revision = self.native_query({"resource": resource})["body"]["resource"]["revision"]
+        page = self.native_query({"entries": {"resource": resource, "revision": revision, "key": b"value".hex()}})["body"]["entries"]["page"]
         return int(bytes.fromhex(page["entries"][0]["value"])) if page["entries"][0] else 0
 
     def view(self):
         pid = json.loads((self.path / "pid.json").read_text())
-        read = self.path / "operator/read.json"
-        write(read, {"realm": self.load()["realm"], "principal": 0, "sequence": 0, "command": {"inspect": pid}})
-        return json.loads(run([self.cli, "view", self.path / "operator/root.key", read, self.url], capture=True))["process"]
+        return self.native_query({"process": pid})["body"]["process"]["process"]
 
     def validate_counter_update(self):
         process = self.view()

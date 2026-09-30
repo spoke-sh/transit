@@ -5,8 +5,8 @@ const station = @import("transit_station");
 const client = station.client;
 const p = station.protocol;
 const g = p.Growth;
-const Server = station.GrowingGenServer;
-const Turn = station.GrowingTurn;
+const Server = station.GenServer;
+const Turn = station.Turn;
 const t = std.testing;
 const Realm = 49;
 const Principal = 65536;
@@ -191,7 +191,7 @@ pub fn main(init: std.process.Init) !void {
         _ = try admin.submit(.{ .own = .{ .pid = saved.pid, .expected_generation = saved.generation, .worker = Principal } });
         saved.generation += 1;
         if (saved.stale) |request| {
-            try t.expectError(error.Rejected, wire.submitGrowing(request));
+            try t.expectError(error.Rejected, wire.submit(request));
             try t.expectEqual(.StaleGeneration, wire.last_rejection.?);
             saved.stale = null;
         }

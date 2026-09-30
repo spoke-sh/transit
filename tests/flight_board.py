@@ -11,7 +11,7 @@ class Observer:
         self.fixture = env['fixture']
         self.origin = f'http://127.0.0.1:{free_port()}'
         config = self.fixture.root / 'board.json'
-        config.write_text(json.dumps(dict(upstream=env['url'], realm=45, principal=55, profile='growing_v3', seed_file=str(self.fixture.root / 'inspector.seed'), public_origin=self.origin, port=int(self.origin.rsplit(':',1)[1]), request_timeout_ms=5000, upstream_timeout_ms=3500)))
+        config.write_text(json.dumps(dict(upstream=env['url'], realm=45, principal=55, profile='native_v1', seed_file=str(self.fixture.root / 'inspector.seed'), public_origin=self.origin, port=int(self.origin.rsplit(':',1)[1]), request_timeout_ms=5000, upstream_timeout_ms=3500)))
         process = env['start']('board', [str(Path(binary).resolve()), str(config)])
         wait_ready(self.fixture.http, process, self.origin+'/health')
         with self.fixture.http.open(self.origin+'/api/v1/capabilities') as response:

@@ -1,8 +1,8 @@
 # Unified SQL shell
 
 Build with `zig build transit -Doptimize=ReleaseSafe`, then run
-`zig-out/bin/transit query-v2 query-v2.json`. Provision the
-[v2 query behaviors](../../transit-query-host/README.md) and current caller grants
+`zig-out/bin/transit query query.json`. Provision the
+[v1 query behaviors](../../transit-query-host/README.md) and current caller grants
 first. The configuration contains `url`, `seed_file`, `connection` (realm,
 principal, source, resource, requester, requests), optional `request_timeout_ms` (1–60000; default 5000), and `workspace`:
 
@@ -10,7 +10,7 @@ principal, source, resource, requester, requests), optional `request_timeout_ms`
 {
   "name": "items",
   "source": {
-    "version": 2,
+    "version": 1,
     "resource": 7,
     "source": {"kv": {"prefix": "646174612f", "key": {"version": 1, "type": "binary"}, "value": {"version": 1, "type": "utf8"}}}
   },
@@ -32,7 +32,7 @@ SELECT value FROM items LIMIT 33
 .next
 ```
 
-SQL compiles through the [shared v2 compiler](../../../packages/zig/transit-fuze/docs/unified-sql.md).
+SQL compiles through the [shared v1 compiler](../../../packages/zig/transit-fuze/docs/unified-sql.md).
 Each statement freezes a finite bundle and advances its upload, committing each
 input before preparing its successor. A receipt means input admission. A command
 waits at most 30 seconds for input progress before returning `waiting_for_input`;
