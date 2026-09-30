@@ -21,6 +21,7 @@ defines the exact profile:
 | --- | --- |
 | `SELECT *` | All one to eight declared columns |
 | One to eight named columns | Ordered projection; duplicate names reject |
+| `FROM source AS alias` | Alias supplies the column qualifier; source and output column identities stay unchanged |
 | One comparison | Exactly typed int64, uint64, finite float64, bool, UTF-8 or binary literal; byte ordering for text/binary |
 | `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state selection |
 | `LIMIT` | Full u64 count after filtering; no limit means no implicit truncation |

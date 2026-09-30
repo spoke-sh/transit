@@ -27,6 +27,7 @@ pub const Predicate = union(enum) {
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
 pub const Ast = struct {
     source: m.Name,
+    source_alias: ?m.Name = null,
     selection: Selection,
     predicate: Predicate = .all,
     limit: ?u64 = null,
@@ -184,6 +185,7 @@ fn statement(parser: *Parser) !Ast {
         try parser.requireWord("FROM");
         var ast: Ast = .{ .source = try parser.name(), .selection = selection };
         if (parser.assistance) |h| h.source = ast.source;
+        ast.source_alias = try parser.sourceAlias();
         ast.predicate = try parser.predicate();
         const limit = try parser.limit();
         try parser.require(.right);
@@ -197,6 +199,7 @@ fn statement(parser: *Parser) !Ast {
     }
     var ast: Ast = .{ .source = try parser.name(), .selection = selection };
     if (parser.assistance) |h| h.source = ast.source;
+    ast.source_alias = try parser.sourceAlias();
     ast.predicate = try parser.predicate();
     ast.limit = try parser.limit();
     try parser.end();
@@ -358,6 +361,16 @@ const Parser = struct {
         try self.advance();
         return result;
     }
+    fn sourceAlias(self: *Parser) !?m.Name {
+        if (!self.word("AS")) return null;
+        try self.advance();
+        const previous = self.name_role;
+        self.name_role = .alias;
+        defer self.name_role = previous;
+        const alias = try self.name();
+        if (self.assistance) |h| h.source_alias = alias;
+        return alias;
+    }
     fn column(self: *Parser) !Column {
         const previous = self.name_role;
         self.name_role = .column;
@@ -511,6 +524,7 @@ pub const Hints = struct {
     symbols: [16]?Tag = @splat(null),
     name_role: ?NameRole = null,
     source: ?m.Name = null,
+    source_alias: ?m.Name = null,
     qualifier: ?m.Name = null,
     literal_column: ?Column = null,
     predicate_column: ?Column = null,

@@ -25,6 +25,8 @@ const AstView = struct {
         try out.beginObject();
         try out.objectField("source");
         try out.write(ast.source.slice());
+        try out.objectField("source_alias");
+        try out.write(if (ast.source_alias) |*name| name.slice() else @as(?[]const u8, null));
         try out.objectField("selection");
         try out.beginObject();
         try out.objectField("kind");

@@ -146,7 +146,8 @@ The [syntax reference](sql/syntax.md) describes lexical rules and option lists;
 
 Unquoted ASCII names fold to lowercase. Double-quoted names preserve case but
 must satisfy Fuze's identifier rules. A column qualifier must match the declared
-source (or the restricted derived-table alias). The compiler does no catalog or
+source, its explicit `AS` alias, or the restricted derived-table alias in its own
+scope. The compiler does no catalog or
 schema-name lookup. Keywords are case-insensitive.
 
 Literals include signed decimal int64, `TRUE`, `FALSE`, `NULL`, UTF-8 strings

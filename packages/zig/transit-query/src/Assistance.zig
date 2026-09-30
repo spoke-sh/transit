@@ -75,10 +75,11 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
     builder.quoted = selected.quoted;
     const hints = try sql.hints(request.sql[0..selected.start]);
     if (hints.source) |source| if (!std.mem.eql(u8, source.slice(), name.slice())) return builder.finish(range);
-    if (hints.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), name.slice())) return builder.finish(range);
+    const source_qualifier = if (hints.source_alias) |alias| try m.Name.init(alias.slice()) else name;
+    if (hints.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source_qualifier.slice())) return builder.finish(range);
     var predicate_type: ?m.Type = null;
     if (hints.predicate_column) |column| {
-        if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), name.slice())) return builder.finish(range);
+        if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source_qualifier.slice())) return builder.finish(range);
         for (schema.columns) |candidate| if (std.mem.eql(u8, candidate.name.slice(), column.name.slice())) {
             predicate_type = candidate.type;
             break;
@@ -97,13 +98,13 @@ pub fn complete(allocator: std.mem.Allocator, name: m.Name, schema: m.Schema, re
                 if (hints.sum_only and column.type != .int64) continue;
                 try builder.add(column.name.slice(), .column, @tagName(column.type));
             }
-            if (hints.qualifier == null and (!hints.sum_only or has_int64)) try builder.add(name.slice(), .source, "Column qualifier");
+            if (hints.qualifier == null and (!hints.sum_only or has_int64)) try builder.add(source_qualifier.slice(), .source, "Column qualifier");
         },
         .alias => {}, // User-chosen names are not a catalog; no invented authority.
     };
     var literal_type: ?m.Type = null;
     if (hints.literal_column) |column| {
-        if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), name.slice())) return builder.finish(range);
+        if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source_qualifier.slice())) return builder.finish(range);
         for (schema.columns) |candidate| if (std.mem.eql(u8, candidate.name.slice(), column.name.slice())) {
             literal_type = candidate.type;
             break;

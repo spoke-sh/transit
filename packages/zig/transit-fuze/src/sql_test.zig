@@ -148,6 +148,12 @@ test "incomplete grammar expectations come from the production parser" {
     const literal = try sql.hints("SELECT * FROM items WHERE id = ");
     try t.expectEqualStrings("id", literal.literal_column.?.name.slice());
     try t.expectEqualStrings("items", literal.source.?.slice());
+    const aliased = try sql.hints("SELECT * FROM items AS x WHERE x.");
+    try t.expectEqualStrings("items", aliased.source.?.slice());
+    try t.expectEqualStrings("x", aliased.source_alias.?.slice());
+    try t.expectEqualStrings("x", aliased.qualifier.?.slice());
+    try t.expectEqual(sql.NameRole.column, aliased.name_role.?);
+    try t.expectEqual(sql.NameRole.alias, (try sql.hints("SELECT * FROM items AS ")).name_role.?);
     for ([_][]const u8{ "DELETE ", "SELECT * JOIN ", "SELECT 'open;", "SELECT \"open", "/* open", "-- ignored" }) |prefix| {
         const hints = try sql.hints(prefix);
         try t.expect(hints.name_role == null);
