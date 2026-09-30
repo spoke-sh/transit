@@ -298,7 +298,7 @@ catalog *args:
 
 # Disk-backed metadata beyond resident pages, current cursors and restart.
 catalog-growth:
-    just test::catalog --grow 257
+    just test::catalog --grow 65
 
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]

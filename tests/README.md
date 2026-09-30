@@ -1012,8 +1012,12 @@ The native contract definition is unchanged. Binary SHA-256 identities:
 Eight component seeds pass **40 package schedules / 1264 events** with identical
 replay in **13.719 s**, including the shared inspection code. The log and report
 are `/tmp/transit-sql-catalog-metadata-domain.log` and
-`/tmp/transit-sql-catalog-metadata-domain.json`. New inspection/cursor guard mutants
-are executable tasks but are not yet recorded as qualified at this checkpoint.
+`/tmp/transit-sql-catalog-metadata-domain.json`. At committed `6464b125`, all **nine
+compiling component mutants** are detected by executed assertions, including
+removing inspection authorization or the cursor revision guard from `Inspection`.
+The log and copied report are `/tmp/transit-sql-catalog-metadata-mutants.log` and
+`/tmp/transit-sql-catalog-metadata-mutants.json`; detailed traces remain in
+`.cache/verification/domain-simulation-mutations/`.
 
 The 257-additional-Table disk run fails during creation-status polling with
 `AuthorityTimeout`; the owner also reports an uncertain turn. It does not reach
@@ -1021,7 +1025,31 @@ the final listing/restart checks and remains failed. The log is
 `/tmp/transit-sql-catalog-metadata-growth.log`; it does not retain an exact completed
 creation count. The fixture now retains incomplete progress, operation counts and
 metadata timings in `native.json`, including on failures. Bounds and timeouts are
-unchanged. Smaller paged growth and the larger schedule require executed evidence.
+unchanged. The larger schedule remains incomplete.
+
+The subsequent `just test::catalog --grow 65` schedule passes in **292.798 s** on
+development source based on `869f112e`, with the binary hashes above. It creates
+65 additional Tables and lists **70 definitions across nine pages**, checks each
+name lookup and exact object/revision against the listing, kills/restarts the
+node and disk store, and repeats the complete listing. Actual committed growth
+invalidates an old cursor; changed scope/revision and current native/catalog
+revocation reject. There are 72 applied Tables across both resources, 6382 total
+reads (3209 from the catalog caller), 101 accepted turn responses and the original
+five caller/three owner receipt-loss cases. Bounds remain four mutations,
+132-byte observed values and eight resident authority pages. This is the finite
+default `test::catalog-growth` schedule; it does not complete the failed 257 case.
+The report and log are `/tmp/transit-sql-catalog-metadata-growth-65.json` and
+`/tmp/transit-sql-catalog-metadata-growth-65.log`.
+
+The report separates caller reads from worker polling. Cold signed listing costs
+**19 reads for eight definitions** and 15 for six; successful name lookup costs
+five and exact definition lookup three. A missing name costs three. Measurements
+cover 19 successful listing calls (including one during growth), 142 name
+lookups and 142 definition reads across the two walks. Growth creation takes
+211.962 s; cumulative 16/32/48/64-Table times are 27.904/71.741/134.220/206.188 s.
+These shared-host measurements expose increasing creation cost and a bounded
+point-read batching opportunity; they do not attribute the cost to a specific
+subsystem or establish end-to-end latency targets.
 
 The initial native metadata attempts fail converting a Zig JSON byte string as a
 Python integer array; the corrected fixture passes the small schedule. A new
