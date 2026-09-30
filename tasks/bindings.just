@@ -47,6 +47,7 @@ python-test: python-build
     zig build transit-station-grpc-worker
     python3 -B tests/python_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/wheels zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language python
+    just test::table-mutation --sdk python
 
 # Build installed Node SDK tarballs with independent native artifacts.
 node-build: build
@@ -227,6 +228,11 @@ document-beam: beam-build
     mix format --check-formatted packages/beam/transit-station-elixir/lib/document.ex tests/elixir_document_adapter.ex
     zig build transit-node rey-cli
     python3 -B tests/sdk_document_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings --language beam
+
+# Installed Python sync/async mutation clients and exact saved receipt recovery.
+mutation-python: python-build
+    mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station examples/station-sdk/python/transit_sdk_examples
+    just test::table-mutation --sdk python
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

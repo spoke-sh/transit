@@ -33,6 +33,12 @@ use separate generated, runtime-validated [query](../../packages/ts/transit-quer
 [application](../../packages/ts/transit-application/README.md) packages; the Node
 native client is not a browser credential adapter.
 
+[Python Table mutation clients](../../packages/python/transit-station/docs/mutations.md)
+provide synchronous and asynchronous SQL compilation, explicit staging, exact
+saved retries and durable status through the shared Zig owner. They require an
+explicit writer/resource/Table connection and a separate mutation policy.
+Read-query clients do not confer mutation access.
+
 ## Rules that travel across languages
 
 - Supply credentials and the protocol profile explicitly; imports perform no I/O.

@@ -14,10 +14,17 @@ from storage import Fixture, free_port, wait_ready
 from table_mutation_abi import Native, Port, Failure, check_profiles
 
 
-def run(node, proof, host, port_host, library):
+def run(node, proof, host, port_host, library, *, sdks=()):
     started = time.monotonic()
+    print('Mutation SDK selection: '+(', '.join(sdks) if sdks else 'native/port only'),flush=True)
     with Fixture() as fixture:
         root = fixture.root
+        installed = []
+        install_started = time.monotonic()
+        if sdks:
+            from sdk_mutations import install
+            installed = install(root/'installed',sdks)
+        sdk_install_seconds = round(time.monotonic()-install_started,3) if sdks else 0
         # Keep a matched build through worker/node/store restarts.
         for name, original in [('node', node), ('proof', proof), ('host', host), ('port',port_host), ('library.so',library)]:
             shutil.copy2(original, root/name)
@@ -297,9 +304,12 @@ def run(node, proof, host, port_host, library):
             caller_seed.chmod(0o600)
             connection = dict(realm=46,principal=1234,writer=json.loads((root/'mutation.json').read_text())['writer']['pid'],resource=description['resource'],table=1)
             check_profiles(port_host,root,proxy_url,connection)
-            factories = [lambda: Native(library,proxy_url,connection),lambda: Port(port_host,root,proxy_url,connection)]
+            factories = [('native',lambda: Native(library,proxy_url,connection)),('port',lambda: Port(port_host,root,proxy_url,connection))]
+            factories += [(label,lambda factory=factory: factory(proxy_url,connection,root)) for label,factory in installed]
             foreign_statuses = []
-            for namespace,label,factory in zip((7,8),('native','port'),factories,strict=True):
+            caller_timings = []
+            for namespace,(label,factory) in enumerate(factories,7):
+                caller_started = time.monotonic()
                 owner = factory(); clients.append(owner)
                 assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3
                 assert owner.call({'describe':{}})['description']['resource'] == description['resource']
@@ -330,6 +340,8 @@ def run(node, proof, host, port_host, library):
                 assert result['phase'] == 'applied' and result['affected_rows'] == 1
                 snapshot(namespace,'applied',[('replacement',),(label,),(None,)],1)
                 foreign_statuses.append((owner,operation['reference'],result))
+                caller_timings.append(dict(caller=label,seconds=round(time.monotonic()-caller_started,3)))
+                print(f'Mutation caller {label}: exact lost-receipt recovery and durable application passed.',flush=True)
             for reader,reference,result in foreign_statuses:
                 assert reader.call({'status':reference})['status'] == result
             writer.kill(); writer.wait(timeout=10); writer = None
@@ -342,7 +354,7 @@ def run(node, proof, host, port_host, library):
                 else: raise AssertionError('Foreign status reader ignored current revocation')
             assert counts['max_mutations'] == 4
             print(json.dumps({'proof':'Table mutation native admission','elapsed_seconds':round(time.monotonic()-started,3),
-                **counts,'resident_authority_pages':8,'lost_receipts':counts['lost_caller_receipts']+1,
+                **counts,'selected_sdks':list(sdks),'sdk_install_seconds':sdk_install_seconds,'caller_timings':caller_timings,'resident_authority_pages':8,'lost_receipts':counts['lost_caller_receipts']+1,
                 'node_sha256':hashlib.sha256(Path(node).read_bytes()).hexdigest(),
                 'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest(),
                 'host_sha256':hashlib.sha256(Path(host).read_bytes()).hexdigest(),
@@ -370,4 +382,9 @@ def run(node, proof, host, port_host, library):
 
 
 if __name__ == '__main__':
-    run(*sys.argv[1:])
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    for name in ('node','proof','host','port_host','library'): parser.add_argument(name)
+    parser.add_argument('--sdk',action='append',default=[])
+    args = parser.parse_args()
+    run(args.node,args.proof,args.host,args.port_host,args.library,sdks=args.sdk)

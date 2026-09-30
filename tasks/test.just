@@ -285,8 +285,9 @@ sql:
     nix shell .#sql-tools --command zig build test-sql
 
 # Real Table mutation authority gates, exact frozen recovery and disk restart.
-table-mutation:
-    zig build test-table-mutation -Doptimize=ReleaseSafe
+[positional-arguments]
+table-mutation *args:
+    zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
 
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:

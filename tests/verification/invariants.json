@@ -1432,13 +1432,15 @@
         "apps/transit-query-host/main.zig",
         "packages/zig/transit-query/src/TableMutationBridge.zig",
         "packages/zig/transit-station-bindings/src/TableMutationAbi.zig",
-        "apps/transit-station-host/main.zig"
+        "apps/transit-station-host/main.zig",
+        "packages/python/transit-station/transit_station/mutations.py"
       ],
       "profile": "transit-v1/state-v1/station-v1/table-mutation-v1",
       "tasks": [
         "test::unit",
         "test::sql",
-        "test::table-mutation"
+        "test::table-mutation",
+        "bindings::python-test"
       ],
       "scenarios": [
         "Independent typed request/policy/status/command bytes and complete-input SQL rejection",
@@ -1449,11 +1451,12 @@
         "Explicit supplied writer configuration and authorized initialization",
         "Fresh-fenced host restart during upload and retained input rejection without replacing request status",
         "Owned neutral request/reference and opaque signed actions through the real writer, with current status denial",
-        "Real ABI/port caller replacement after lost admission receipt, exact saved retry and current disclosure revocation"
+        "Real ABI/port caller replacement after lost admission receipt, exact saved retry and current disclosure revocation",
+        "Installed Python sync/async UPDATE, owned saved command across caller replacement, exact receipt recovery and current status denial"
       ],
-      "limits": "Explicit supplied writer host and shared Zig/native ABI/port callers; CLI/language SDK mutation routes remain. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
+      "limits": "Explicit supplied writer host and shared Zig/native ABI/port/Python callers; CLI and other language SDK mutation routes remain. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
       "model": null,
-      "qualification": "See tests/README.md for executed shared Zig client, native and private-turn schedules; supplied host/CLI/SDK integration remains a separate boundary."
+      "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed Python schedules; CLI and other SDK integration remains a separate boundary."
     }
   ]
 }

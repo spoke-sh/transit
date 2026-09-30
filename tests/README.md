@@ -5319,5 +5319,50 @@ query-delivery deadline inside `test::growing-service`. The last recorded native
 history position was 560 and commands were still succeeding; no assertion proved
 incorrect results. This is an incomplete proof, not a pass or evidence that the
 deadline is sufficient under shared-host contention. The failure checkout remains
-`/var/tmp/transit-ci-n_3e42w_`. A focused rerun on that frozen revision, after the
-binding regression finishes, is tracked separately without raising the deadline.
+`/var/tmp/transit-ci-n_3e42w_`. A focused `just test::query` rerun on that frozen
+revision, after the binding regression finished, passed with the same binaries
+and original deadline: write **7.550 s**, seal **11.852 s**, recovery **31.933 s**,
+publication **3.586 s**, delivery **146.497 s**. It independently decoded 41 rows,
+21,296 bytes and six IPC segments through exact retry and disk restarts during
+staging, sealing, publication and partial consumption. The initial rerun stopped
+before testing because Nix could not recreate a cached shell derivation; disabling
+Nix's evaluation cache allowed the pinned bindings shell to start. This focused
+pass does not convert the preceding incomplete clean run into a pass.
+
+### Installed Python Table mutation callers
+
+`just test::table-mutation --sdk python` passes with independently installed
+0.2.0 wheels in a clean environment outside the checkout. Both public synchronous
+and asynchronous callers compile an UPDATE, preserve opaque prepared bytes, lose
+the admitted send receipt, close and recreate their caller, recover that exact
+receipt, finish staging, and read the durable one-row result. Both stop status
+disclosure after current native read revocation. Their exception adapters check
+that uncertainty retains the exact original recovery bytes. The earlier native,
+ABI, port and supplied-writer schedules remain in the same run.
+
+The expanded schedule takes **22.645 s**, including **1.628 s** for installation.
+The synchronous and asynchronous caller intervals take **2.455 s** and **2.444 s**;
+they include caller creation, replacement, upload and result checks. The proxy
+records **1791 reads**, **51 mutation-send responses**, **50 turn responses** and
+six lost receipts (five caller sends plus one writer commit). The bounds remain
+four mutations, 256-byte stored values and eight resident authority pages. Native
+binary digests match the preceding ABI/port record. These are unpaired workload
+measurements, not comparative SDK throughput claims.
+
+An initial wrapper omitted Just's positional-arguments attribute, so its green
+run exercised only native/port callers; it is excluded from Python evidence.
+The corrected schedule prints its selected SDKs and per-caller completion.
+Its first actual Python run exposed a test-adapter result-key mismatch; the
+adapter now preserves the bridge's `observation` field. Both modes pass after
+that correction. Shared native cases cover INSERT/UPDATE/DELETE; this installed
+Python extension exercises UPDATE recovery, not an independent full SQL corpus.
+The public Python API passes strict type checking across 21 source files, and
+the complete repository `just check` passes. `bindings::python-test` owns
+the installed mutation schedule, and `bindings::mutation-python` provides its
+focused entry point. Other language mutation clients and the CLI remain separate
+integration work.
+
+The final `just bindings::mutation-python` rebuild/install/type-check rerun also
+passes: **23.170 s**, **1777 reads**, unchanged send/turn/lost-receipt counts and
+native digests, with **1.731 s** installation and **2.322/2.421 s** Python caller
+intervals. Poll-dependent read counts and shared-host timings vary between runs.

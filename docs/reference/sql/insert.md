@@ -1,7 +1,8 @@
 # INSERT
 
 Bounded literal inserts are available through the shared Zig mutation client,
-[native ABI/port caller](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+[native ABI/port caller](../../../packages/zig/transit-station-bindings/docs/table-mutations.md),
+[Python mutation clients](../../../packages/python/transit-station/docs/mutations.md)
 and an explicitly configured writer. Applications can also compose the private
 `station.TableMutation.applySql` helper. The console, Board query workspace, Flight SQL
 and language SDK query clients do not admit SQL mutations.

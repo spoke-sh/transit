@@ -498,6 +498,12 @@ codec stop/block policy, scoped/thread access, cancellation/join, expiry and
 revocation during result reading. Other public languages must add equivalent
 observations; Python evidence does not qualify those runtimes.
 
+`bindings::python-test` also runs installed synchronous and asynchronous Table
+mutation clients through `test::table-mutation --sdk python`. Each compiles an
+UPDATE, replaces its caller after an accepted-but-lost receipt, retries the
+original saved bytes, observes application and rejects disclosure after current
+grant revocation. `bindings::mutation-python` selects this schedule independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps
