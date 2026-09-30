@@ -40,6 +40,7 @@ pub fn build(b: *std.Build) void {
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);
     const station = b.dependency("transit_station", .{ .target = target, .optimize = optimize });
     const station_bindings = b.dependency("transit_station_bindings", .{ .target = target, .optimize = optimize });
@@ -161,6 +162,7 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_grpc.module("transit_station_grpc") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = station_http.module("transit_station_http") })).step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = query.module("transit_query") })).step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog.module("transit_catalog") })).step);
     const unified_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     unified_contract_test.addFileArg(b.path("tests/unified_contract.py"));
     unified_contract_test.has_side_effects = true;
@@ -171,6 +173,11 @@ pub fn build(b: *std.Build) void {
     mutation_contract_test.has_side_effects = true;
     mutation_contract_test.stdio = .inherit;
     test_step.dependOn(&mutation_contract_test.step);
+    const catalog_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
+    catalog_contract_test.addFileArg(b.path("tests/catalog_contract.py"));
+    catalog_contract_test.has_side_effects = true;
+    catalog_contract_test.stdio = .inherit;
+    test_step.dependOn(&catalog_contract_test.step);
     const document_contract_test = b.addSystemCommand(&.{ "python3", "-B" });
     document_contract_test.addFileArg(b.path("tests/document_contract.py"));
     document_contract_test.has_side_effects = true;
@@ -874,6 +881,20 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
+    const catalog_proof = b.addExecutable(.{ .name = "transit-catalog-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/catalog_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_catalog", .module = catalog.module("transit_catalog") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    build_test_step.dependOn(&catalog_proof.step);
+    const catalog_native = b.addSystemCommand(&.{ "python3", "-B" });
+    catalog_native.addFileArg(b.path("tests/catalog_native.py"));
+    catalog_native.addArtifactArg(node_artifact);
+    catalog_native.addArtifactArg(catalog_proof);
+    catalog_native.has_side_effects = true;
+    catalog_native.stdio = .inherit;
+    b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);
     const mutation_proof = b.addExecutable(.{ .name = "transit-table-mutation-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/table_mutation_native.zig"),
         .target = target,

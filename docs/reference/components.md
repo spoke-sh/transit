@@ -34,6 +34,7 @@ The [architecture](architecture.md) explains dependency direction and authority.
 | [transit-station](../../packages/zig/transit-station/README.md) / `transit_station` | GenServer, durable calls, scoped names, supervision, Tables and captured queries | transit-client, transit-fuze |
 | [transit-station-bindings](../../packages/zig/transit-station-bindings/README.md) / `station_abi` | Shared native SDK handles, detached turn actions, C exports and generated host schemas; composes above the framework | transit-station, transit-client ABI, transit-station-http |
 | [transit-query](../../packages/zig/transit-query/README.md) / `transit_query` | Signed query admission, verified typed pages and KV/Table/Document adapters | transit-station, transit-station-document |
+| [transit-catalog](../../packages/zig/transit-catalog/README.md) / `transit_catalog` | Conditional named Table creation, immutable definitions, exact receipts and bounded metadata | transit-station |
 | [transit-fuze](../../packages/zig/transit-fuze/README.md) / `transit_fuze` | Source/plan contracts, Table SQL compilation and bounded Zig-native Arrow execution | pinned zarrow, zarrow-compute |
 
 

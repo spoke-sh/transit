@@ -1551,6 +1551,34 @@
       "limits": "Pure in-memory Zig API and review SQL only. One to eight columns per definition, sixteen-byte names and 4096-byte input. No catalog lookup, provisioning, publication, wire/ABI action or language SDK/CLI administrative route.",
       "model": null,
       "qualification": "See tests/README.md#offline-state-declaration-compiler for executed parser, component and capability evidence."
+    },
+    {
+      "id": "SQL-CATALOG-01",
+      "claim": "Explicit catalog Table creation keeps its descriptor, immutable definition, name binding and exact operation result in one bounded private turn",
+      "owner": "contracts/DECLARATIVE_CATALOG_V1.md",
+      "implementation": [
+        "packages/zig/transit-catalog/src/Catalog.zig",
+        "packages/zig/transit-catalog/src/Model.zig",
+        "packages/zig/transit-catalog/src/Records.zig",
+        "tests/catalog_contract.py"
+      ],
+      "profile": "declarative-catalog-v1/native-v1",
+      "tasks": [
+        "test::unit",
+        "test::catalog"
+      ],
+      "scenarios": [
+        "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
+        "Four-write creation and one-write terminal conflicts; no adoption, exact repeats and changed-intent rejection",
+        "Owner/configuration changes, orphan namespace refusal, independent conditional create/inspect rights and current denial",
+        "Orphan Table row refusal, unchanged incoming proposals and sticky read poison at each point/page read",
+        "257 definitions over 33 bounded metadata pages, fixed source revision, malformed pages and live Table schema validation",
+        "Independent four-record bytes at one native revision; caller-send and owner-commit receipt loss with exact recovery after disk restart",
+        "No-write application duplicate, terminal name conflict, conflicting native retry, stale ownership and current native write/read denial"
+      ],
+      "limits": "Explicit Zig integration and test application only; no supplied catalog host, signed catalog client or administrative CLI/SDK route. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule has two applied Tables and is not a native catalog growth or host power-loss proof.",
+      "model": null,
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component and disk recovery evidence; supplied host and installed caller proofs remain."
     }
   ]
 }

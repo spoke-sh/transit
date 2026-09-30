@@ -1,10 +1,13 @@
 # CREATE TABLE
 
-**Offline compiler; no publication.** Fuze's Zig `Declaration.compile` validates
-this statement as a typed definition and formats it for review. Query interfaces
-reject it; it does not provision a resource, choose a writer, establish grants
-or register a query source. CLI, Board and language SDKs have no administrative
-route for this declaration.
+**Offline compiler and explicit Zig integration.** Fuze's `Declaration.compile`
+validates this statement as a typed definition and formats it for review. The
+[catalog helper](../../../packages/zig/transit-catalog/README.md) can create a
+compatible empty Table and publish its named definition in an application's
+authorized Station turn. Query interfaces reject the statement. CLI, Board and
+language SDKs have no administrative route for it. Neither compilation nor the
+helper provisions a native resource, chooses a writer, grants access or registers
+a query source implicitly.
 
 ## Syntax
 
@@ -45,6 +48,16 @@ for canonical formatting, bounds and errors.
 
 ## Meaning and current interface
 
+`Model.CreateTable.compile` produces the owned request for `Catalog.createTable`.
+It binds realm/resource/catalog scope, operation and object IDs, a physical Table
+ID, the normalized name and complete two-column schema. An explicitly initialized
+catalog checks current create policy, refuses existing names/objects/Tables and
+proposes four atomic writes: Table descriptor, immutable definition, name binding
+and attributed receipt. Exact retries recover the original outcome; changed intent
+under the same operation ID rejects. A private result is not committed until the
+native turn succeeds. The [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md)
+defines policies, conflict outcomes, bounded inspection and recovery responsibilities.
+
 The form is a relational spelling of typed Table creation. Actual
 [Tables](../tables.md) are Station state over a resource, with explicit writer
 ownership, current grants and bounded mutation batches. Schema declarations do
@@ -58,6 +71,6 @@ Primary keys, defaults, uniqueness, foreign keys, generated columns, `IF NOT EXI
 and `CREATE TABLE AS SELECT` are outside this grammar.
 `ALTER TABLE` and `DROP TABLE` are also absent. Bounded [INSERT](insert.md),
 [UPDATE](update.md) and [DELETE](delete.md) use an explicitly configured Table
-writer; their availability does not make this creation statement executable.
+writer; creating a catalog Table does not enable those routes implicitly.
 
 Source: [`createTable`, `columnDef`, `dataType`, `nullability`](../../../contracts/sql/TransitExtensions.g4).

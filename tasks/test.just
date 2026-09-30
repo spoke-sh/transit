@@ -117,6 +117,7 @@ packages:
     cd packages/zig/transit-exchange && zig build test
     cd packages/zig/transit-station-http && zig build test
     cd packages/zig/transit-query && zig build test
+    cd packages/zig/transit-catalog && zig build test
     cd packages/zig/transit-station && zig build test
     cd packages/zig/transit-fuze && zig build test
     cd packages/zig/transit-observability && zig build test
@@ -144,6 +145,7 @@ packages-build:
     cd packages/zig/transit-exchange && zig build check
     cd packages/zig/transit-station-http && zig build check
     cd packages/zig/transit-query && zig build check
+    cd packages/zig/transit-catalog && zig build check
     cd packages/zig/transit-station && zig build check
     cd packages/zig/transit-fuze && zig build check
     cd packages/zig/transit-observability && zig build check
@@ -288,6 +290,10 @@ sql:
 [positional-arguments]
 table-mutation *args:
     zig build test-table-mutation -Doptimize=ReleaseSafe -- "$@"
+
+# Catalog Table publication, exact receipt recovery and native fencing on disk.
+catalog:
+    zig build test-catalog -Doptimize=ReleaseSafe
 
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]

@@ -6,6 +6,72 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Conditional declarative catalog
+
+The additive `transit-catalog` package composes Fuze's declaration compiler with
+Station's existing two-column Table and four-mutation turn. It publishes the
+Table descriptor, immutable definition, name binding and attributed receipt at
+one commit. It is an explicit Zig integration API; the test application does not
+establish a supplied catalog host, signed catalog client, SQL administrative
+endpoint or CLI/SDK route. Native/ABI definitions and existing stored formats
+are unchanged. The [contract](../contracts/DECLARATIVE_CATALOG_V1.md) owns the
+current profile; `SQL-CATALOG-01` maps its proof obligations.
+
+Executed in the pinned bindings shell on development source based on `ef3053af`:
+
+- Standalone `transit-catalog` `zig build test` passes ten component tests.
+  Independent Python fixtures pin every record kind, key and definition digest.
+  Tests cover full-width application IDs, mandatory definition checks, orphan
+  namespace/row refusal, exact application retries, changed intent, three terminal
+  conflicts, separate conditional policies, changed scope/schema/digest, private
+  rollback and poisoned reads at every point-read boundary. A successful new
+  creation performs seven private point-read callbacks, one bounded row-prefix
+  page check and four writes. A private mutation before creation rejects the
+  committed page check; a page-read failure poisons the turn.
+- A dynamic-map component store holds 257 objects and lists them in 33 pages,
+  each with at most eight definitions. Changed revisions, revoked inspection,
+  private writes and malformed page shapes reject. This is bounded helper
+  evidence, not native disk growth or performance evidence.
+- Full `just check` passes, including package/unit and generated contract checks,
+  frontend checks/tests and the production documentation build. This run preceded
+  registration of the native proof and the following evidence documentation.
+- Final `just check-core` passes after the orphan-row check. The independent
+  `just test::sql` oracle also passes, including 182 declaration cases and the
+  existing SELECT, unified-source and mutation schedules. Inventory/docs checks
+  cover 52 invariants, 52 classified bounds, 12 SDK scenarios and 4509 links
+  across 474 files.
+- `TMPDIR=/var/tmp just test::catalog` passes against the real native authority
+  and disk-backed Ursula. It loses one accepted caller-send receipt and one
+  owner-commit receipt, restarts node/storage separately at both boundaries, and
+  recovers the original frozen signed requests and exact receipts. An independent
+  Python oracle checks all four stored records at one resource revision. Input
+  progress, no-write application duplicates and terminal name conflicts agree.
+  Changed native retry, stale ownership, revoked write authority and revoked
+  reads reject; restoring write permission permits the same unaccepted request.
+
+The final native schedule takes **2.406 seconds** with **155 reads**, **6 accepted turn
+responses**, **8 resident authority pages**, at most **4 mutations** and **127
+value bytes** for this fixture. Component maximum-name fixtures separately check
+138-byte requests, 163-byte definitions and 155-byte receipts. The native timing
+includes provisioning/recovery and is not a service latency or throughput result.
+The report `.cache/verification/catalog/native.json` records source/dirty status,
+counts and frozen binary hashes:
+
+| Binary | SHA-256 |
+| --- | --- |
+| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Catalog proof | `ac649f3e3410924cb1e03c58da4e1c975f8e209b6e3907f21fc280955be1f7a9` |
+
+Logs are `/tmp/transit-sql-catalog-orphan-components.log`,
+`/tmp/transit-sql-catalog-check.log`, `/tmp/transit-sql-catalog-final-checks.log`
+and `/tmp/transit-sql-catalog-orphan-native-check.log`.
+The native proof is registered in the growth lane. It creates two applied Tables;
+it does not establish native catalog growth, host power-loss recovery or installed
+caller compatibility. Native page scans may cross the catalog prefix; the helper
+does not decode or return those other values, but cannot promise zero row-byte
+I/O at the boundary. Current proofs do not qualify the remaining declaration,
+dependency, lifecycle, maintained-query or effect systems.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned

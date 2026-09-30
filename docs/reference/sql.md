@@ -40,10 +40,12 @@ capabilities. Each operation has an explicit support boundary:
 | Grammar only | The reference parser recognizes the form; query interfaces do not execute it |
 | Separate compiler | Application definitions compile offline and use explicit publication operations |
 | Offline compiler | State definitions parse, validate and format for review; no SQL publication operation |
+| Zig integration | An application explicitly invokes a typed helper inside its authorized Station turn |
 | Unsupported | The form has no accepted SQL grammar or execution contract |
 
-State definitions have an offline Zig compiler. Administrative publication,
-grants and connector catalog listings remain **grammar-only**;
+State definitions have an offline Zig compiler. An explicit Zig catalog helper
+also creates and publishes named two-column Tables. Public SQL administrative
+routes, grants and connector catalog listings remain unavailable;
 their examples describe syntax and do not execute in the query console. Unsupported command entries
 explain the current alternatives without defining new syntax.
 
@@ -78,7 +80,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
 | `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
-| `CREATE TABLE` | Offline compiler; no publication | [Columns, types and nullability](sql/create-table.md) |
+| `CREATE TABLE` | Offline compiler and explicit Zig catalog helper; no public SQL route | [Columns, types and nullability](sql/create-table.md) |
 | `CREATE DOCUMENT` | Offline compiler; no publication | [Document declaration](sql/create-document.md) |
 | `CREATE KV` | Offline compiler; no publication | [Typed KV declaration](sql/create-kv.md) |
 | `GRANT` | Grammar only | [Privilege declaration](sql/grant.md) |

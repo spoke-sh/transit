@@ -94,6 +94,9 @@ preserves unspecified nullability and explicitly checks the current Table schema
 The [declaration corpus](corpus/declarations.json) and generated type/nullability
 matrix compare Zig with independent ANTLR ASTs, formatting and Table fingerprints.
 These are not PostgreSQL DDL compatibility or administrative execution checks.
+The separate [declarative catalog helper](../DECLARATIVE_CATALOG_V1.md) creates
+and publishes a compatible Table inside an explicitly authorized Station turn.
+It does not enable CREATE in public SQL transports.
 `CREATE CONNECTION`/`SOURCE`/`SINK`, `GRANT`, `REVOKE`, and connector forms of
 `SHOW` remain grammar-only. No declaration compiler resolves catalogs, provisions
 resources or authorizes effects. `Sql.parseMutation` and
