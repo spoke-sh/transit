@@ -42,6 +42,7 @@ support boundary before giving examples.
 | Installation and composition | [Application installation, definitions and migration](reference/applications.md), [language SDKs](reference/sdks.md) |
 | Effects and inbound APIs | [Connectors](reference/connectors.md), [serving](reference/serving.md), [reactive sessions and views](reference/reactive.md) |
 | Queries and interchange | [SQL](reference/sql.md), [query execution](reference/queries.md), [Arrow](reference/arrow.md), [Flight SQL/ADBC](reference/flight.md) |
+| Type coverage and schema discovery | [Implemented types and planned CSV/JSONL inference](reference/sql/types.md), [planned DuckDB performance comparisons](reference/performance.md#planned-schema-on-demand-comparisons) |
 | Interface specifications | [CLI](reference/cli.md), [native protocol](reference/native.md), [serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md), [AsyncAPI](reference/asyncapi.md) |
 | Operation and contribution | [Deployment](reference/deployment.md), [Board](guides/inspect-board.md), [observability](reference/observability.md), [verification limits](reference/verification.md), [contributing](guides/contributing.md) |
 
