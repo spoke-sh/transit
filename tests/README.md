@@ -1738,6 +1738,32 @@ merging, all **61** core component tests pass, including 64 further inserts,
 old-root preservation and refusal/lost-acknowledgement at every staging boundary
 of the first repaired mutation. Disk qualification of that repair follows.
 
+At `85009af5`, the repaired node `89e7f544…d65f0a19` resumes the exact original
+turn: input **538** produces receipt **540**, with the worker and signed turn
+unchanged across replacement. The full run still fails after **145** additions
+in **477.296 s**. Ursula reports `ColdBackpressure` at its **64 MiB** hot-store
+limit; this fixture has no cold tier. The node records 161 `page.stage`
+`ServiceUnavailable` failures. Joined cleanup succeeds and the private fixture
+is retained. This establishes receipt recovery, not full growth qualification.
+
+`--cold` selects the existing owned S3 fixture with an **8 MiB** hot-store
+limit and **8 MiB** cold cache. It requires actual persisted cold chunks and
+records object count and file bytes. Use it with `--initial-node` for continued
+growth beyond the hot-only fixture's capacity; operation deadlines, eight
+authority cache pages and four application mutations remain unchanged. Failed
+upgrade runs retain the stopped cold-store files with their private disk fixture.
+Cold-store qualification is pending.
+
+The same `85009af5` passes full `just check` and the eight-seed resource
+simulation: **798 traces**, **15,496 events**, **1598 executions**, identical
+replay and all six negative controls in **431.120 s**. Its committed-head clean
+core attempt fails in the first task's CLI terminal cleanup after **81.49 s**;
+the remaining 21 tasks do not run. Strict cleanup diagnostics expose exit 130
+when cleanup sends Ctrl-C during command output. The fixture now queues editor
+draft clearing and ordinary `.quit`, preserving explicit interrupt tests and
+rethrowing unexpected exits/timeouts. The focused 399-case CLI diagnostic suite
+passes with queued quit. Clean-core requalification remains pending.
+
 The clean experience run at rebased `ef2cc97d` passes all **seven tasks** in
 **433.89 s**, including Station's Arrow exchange, replacements and persistent
 restart in **220.67 s**. This revision includes main's type/schema-discovery

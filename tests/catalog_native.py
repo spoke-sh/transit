@@ -2,6 +2,7 @@
 import argparse
 import copy
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
@@ -15,6 +16,7 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from cold_storage import ColdStore
 from catalog_abi import Native, Port, Failure, check_profiles
 from catalog_cli import Cli
 
@@ -55,7 +57,7 @@ def diagnostic_errors(log):
     return dict(groups=list(errors.values()), dropped=dropped)
 
 
-def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth=0, initial_node=None):
+def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth=0, initial_node=None, cold=False):
     if growth < 0: raise ValueError('Catalog growth count must be nonnegative')
     if initial_node and (languages or growth < 139):
         raise ValueError('The page-depth recovery schedule requires at least 139 additions and no optional SDKs')
@@ -90,7 +92,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
         finally:
             entry['seconds'] += time.monotonic() - began
             entry['caller_reads'] += counts['caller_reads'] - reads
-    with Fixture() as fixture:
+    with ColdStore() if cold else nullcontext() as cold_store, Fixture(cold_store.config() if cold_store else None) as fixture:
         root = fixture.root
         installation_started = time.monotonic()
         installed = []
@@ -792,6 +794,8 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             stop_worker()
             assert not failures and all(f['recovered'] for f in faults.values())
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256
+            if cold_store:
+                assert cold_store.data_objects() > 0, 'Catalog history did not spill to cold storage'
             report.update(lost_caller_receipts=5 + len(installed), lost_writer_receipts=3, listed_definitions=len(expected_names))
         finally:
             failure = sys.exc_info()[1]
@@ -820,6 +824,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 sys.stderr.write(worker_log.read()[-12000:])
             log.close()
             worker_log.close()
+            report['storage'] = dict(cold=cold, hot_bytes_limit=(8 if cold else 64) * 1024 * 1024,
+                                    cold_objects=cold_store.data_objects() if cold_store else 0,
+                                    cold_file_bytes=cold_store.file_bytes() if cold_store else 0)
             if initial_node and failure is not None:
                 # Retain the private failed fixture for accepted-work diagnosis,
                 # after joining every owned process. This is not a passed proof.
@@ -829,6 +836,10 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 recovery['original_fixture'] = str(root)
                 shutil.move(root, retained)
                 recovery['retained_fixture'] = str(retained)
+                if cold_store:
+                    subprocess.run(['docker', 'stop', cold_store.name], check=True,
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=15)
+                    shutil.move(cold_store.root, retained / 'cold-store')
             report['cleanup_failures'] = [str(error) + ": " + ", ".join(error.__notes__) for error in cleanup_errors]
             record(failure is None and not cleanup_errors,
                    type(failure).__name__ if failure is not None else 'Cleanup' if cleanup_errors else None)
@@ -842,7 +853,8 @@ if __name__ == '__main__':
     for binary in ('node', 'proof', 'catalog_host', 'port_host', 'library', 'cli'): parser.add_argument(binary)
     parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'], action='append', default=[])
     parser.add_argument('--grow', type=int, default=0)
+    parser.add_argument('--cold', action='store_true', help='use the owned S3 cold tier with an 8 MiB hot-store limit')
     parser.add_argument('--initial-node', type=Path,
                         help='start with an explicit pre-fix node; recover its repeated depth failure using the built node')
     args = parser.parse_args()
-    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk, args.grow, args.initial_node)
+    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk, args.grow, args.initial_node, args.cold)
