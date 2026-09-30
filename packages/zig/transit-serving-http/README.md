@@ -1,14 +1,15 @@
 # transit-serving-http
 
-The current host requires native `resource_read_batch` support. Bounded service
+The current host requires the native `resource_read_batch` capability and its
+`read_entries` operation. Bounded service
 and session reads acquire their keys at one current cut; responses still check
 current caller/service authority before disclosure. This removes repeated
 point-read races with live clock and renewal commits without retaining versions.
 
 Reusable Zig HTTP, fetch-SSE and WebSocket host for
-[transit-serving](../transit-serving/README.md). The M21 extraction keeps the
-[M20 protocol](../../../contracts/REACTIVE_V1.md) and existing serving example
-unchanged on the wire. The neutral [HTTP server](../transit-http-server/README.md)
+[transit-serving](../transit-serving/README.md) and its
+[reactive v1 protocol](../../../contracts/REACTIVE_V1.md).
+The neutral [HTTP server](../transit-http-server/README.md)
 owns listener admission, deadlines and WebSocket framing; this package owns
 signed dispatch, challenge consumption and joined streaming tasks.
 
@@ -27,11 +28,19 @@ tasks. Each task owns a bounded upstream allocator. Challenges stay local to thi
 context: route SSE challenge and events to the same instance. Durable session
 and cursor recovery still uses the public serving reader and configured signer.
 
-The extracted host retains two-second challenges, 500 ms idle authority checks,
+The host uses two-second challenges, 500 ms idle authority checks,
 one-second writes and the configured finite connection deadline. Cancellation
 joins receive/event tasks before releasing sockets and buffers. No response
 status is appended after streaming headers. Data capacity and control capacity
 remain separate; accepted application work is never cancelled by disconnect.
+After consuming a challenge, attachment admission and commit observation share
+a ten-second retry window inside the joined HTTP task. Temporary upstream
+capacity or timeout failures retain the exact signed attachment. A denial,
+expiry or incompatible scope still fails immediately; retries do not renew the
+session or authorize another use of the challenge.
+Stream observations retry temporary read-capacity conflicts for up to 500 ms;
+they release no event or heartbeat until a fresh authority check succeeds.
+Sustained unavailability interrupts the stream.
 
 From this directory, `zig build test` checks the standalone manifest. The actual
 host is exercised by `just test::serving-tls`, `just test::reactive`, and the

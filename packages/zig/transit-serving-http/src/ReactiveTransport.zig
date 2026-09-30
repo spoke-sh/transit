@@ -71,22 +71,53 @@ const Task = struct {
         return .{ .base = .{ .resources = .{ .wire = client, .realm = host.config.realm, .principal = host.config.principal, .key = host.key }, .service = config.service, .ingress = config.ingress, .resource = config.resource }, .clock = .{ .context = self, .upper = upper } };
     }
     fn read(self: *Task, signed: r.SignedRead, key: [32]u8) !serving.ReactiveAdapter.Response {
-        var client = self.newClient();
-        defer client.deinit();
-        return self.adapter(&client).read(signed, key);
-    }
-    fn check(self: *Task, signed: r.SignedRead, key: [32]u8) !void {
-        var client = self.newClient();
-        defer client.deinit();
-        try self.adapter(&client).check(signed, key);
-    }
-    fn attach(self: *Task, bootstrap: wire.Bootstrap, key: [32]u8, fixed: *std.heap.FixedBufferAllocator) !void {
-        {
+        const start = Io.Clock.awake.now(self.io);
+        while (true) {
             var client = self.newClient();
             defer client.deinit();
-            _ = try self.adapter(&client).attach(bootstrap, key);
+            return self.adapter(&client).read(signed, key) catch |err| {
+                if (!self.retryRead(start, err)) return err;
+                try self.io.sleep(.fromMilliseconds(20), .awake);
+                continue;
+            };
         }
+    }
+    fn check(self: *Task, signed: r.SignedRead, key: [32]u8) !void {
         const start = Io.Clock.awake.now(self.io);
+        while (true) {
+            var client = self.newClient();
+            defer client.deinit();
+            self.adapter(&client).check(signed, key) catch |err| {
+                if (!self.retryRead(start, err)) return err;
+                try self.io.sleep(.fromMilliseconds(20), .awake);
+                continue;
+            };
+            return;
+        }
+    }
+    fn retryRead(self: *Task, start: Io.Timestamp, err: anyerror) bool {
+        // No event or heartbeat is released until a complete fresh read and
+        // authority check succeed. Sustained unavailability still interrupts.
+        return (err == error.AuthorityUnavailable or err == error.ServiceReadConflict) and
+            start.durationTo(Io.Clock.awake.now(self.io)).toMilliseconds() < 500;
+    }
+    fn attach(self: *Task, bootstrap: wire.Bootstrap, key: [32]u8, fixed: *std.heap.FixedBufferAllocator) !void {
+        const start = Io.Clock.awake.now(self.io);
+        while (true) {
+            fixed.reset();
+            var client = self.newClient();
+            defer client.deinit();
+            _ = self.adapter(&client).attach(bootstrap, key) catch |err| {
+                // The socket challenge has already been consumed. Keep this
+                // task and the identical signed admission while retrying finite
+                // upstream capacity loss; never issue another attachment.
+                if ((err != error.AuthorityUnavailable and err != error.AuthorityTimeout and err != error.ServiceReadConflict) or
+                    start.durationTo(Io.Clock.awake.now(self.io)).toMilliseconds() >= 10000) return err;
+                try self.io.sleep(.fromMilliseconds(20), .awake);
+                continue;
+            };
+            break;
+        }
         // Native acceptance and owner commit are separate. A two-second window
         // can repeatedly abandon already accepted attachments during capture,
         // creating control churn and starving lease renewal on slower hosts.
@@ -97,7 +128,8 @@ const Task = struct {
             // Acquiring an event/cursor here would duplicate the stream's first
             // read and consume the finite attachment observation budget.
             self.check(bootstrap.read, key) catch |err| {
-                if (err != error.ReactiveAttachmentConflict and err != error.ServiceReadConflict and err != error.Conflict) return err;
+                if (err != error.ReactiveAttachmentConflict and err != error.ServiceReadConflict and err != error.Conflict and
+                    err != error.AuthorityUnavailable and err != error.AuthorityTimeout) return err;
                 try self.io.sleep(.fromMilliseconds(20), .awake);
                 continue;
             };
