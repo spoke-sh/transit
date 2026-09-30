@@ -7180,6 +7180,44 @@ cancels immediately after begin, before the subsequent partial-upload extension;
 it does not qualify that extension or the optional cold/installed-SDK schedule.
 Its log is `/tmp/transit-sql-installed-mutation-profiles-native.log`.
 
+The complete cold-storage selection above passes at clean source `207003bf`:
+**98 profiles across fourteen caller variants in 988.246 s**, including
+**42.403 s** of installed-consumer setup. It records **25,692 reads**, **582 turn
+responses**, **677 mutation-send responses** and **100 lost receipts** (99 caller
+receipts and one writer receipt). All retained outcomes survive physical
+node/store restart and current read revocation denies every selected status.
+Row/revision assertions run before that restart; the native application cases
+separately check atomic row/result recovery. Cleanup completes before the final
+success marker. The store records **604 cold objects / 71,935,123 filesystem
+bytes**, including provider metadata. Four mutations, 256-byte values and eight
+resident authority pages remain the observed maxima. The log and full report are
+`/tmp/transit-sql-installed-mutation-profiles-all.log` and
+`/tmp/transit-sql-installed-mutation-profiles-all.json`. The runner SHA-256 is
+`a18888ead65bd90e49300be94231afd82cb83e531e30954369f2cc27da719a02`;
+the report records every frozen binary digest. All ten SDK package builds and
+full `just check` also pass at this source.
+
+The separate committed-head clean growth run at `207003bf` remains **failed**:
+Arrow, pages and growing authority pass, then `test::growing-service` exceeds the
+query delivery subprocess's **180-second** deadline. That task takes **598.71 s**;
+the lane takes **792.65 s**, with its remaining **17 tasks unrun**, including the
+changed mutation schedule. The isolated checkout and lane records remain at
+`/var/tmp/transit-ci-i4cuegoj/src`; the log is
+`/tmp/transit-sql-installed-mutation-profiles-ci-clean-growth.log`.
+
+That run uses Debug binaries. The unchanged focused schedule
+`zig build test-query -Doptimize=ReleaseSafe` passes at the same source: write
+**9.986 s**, seal **7.731 s**, recover **13.546 s**, publish **1.768 s** and deliver
+**79.959 s**. It verifies **41 rows / 21,296 bytes**, exact retries, bounded Arrow
+validation, cancellation and retained acknowledgement. Its log is
+`/tmp/transit-sql-growth-query-release-safe.log`. These are separate build-profile
+observations, not a diagnosis of the Debug timeout or an engine speedup claim.
+The growing service and focused query recipes now explicitly select ReleaseSafe,
+as other installed integration proofs do. Safety checks, workload, fault
+injections, timeouts and resident limits remain unchanged; Debug remains
+available through the direct Zig commands. A new committed-head clean run is
+required to qualify the recipe change.
+
 ### Full-reference mutation command cutover
 
 Mutation parts, seal, apply and cancel now carry the complete 68-byte immutable

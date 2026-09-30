@@ -112,7 +112,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
 | `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and an owned Docker cold store; retains each sample |
-| `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU |
+| `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
+| `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |
 | `just ci::select BASE [HEAD]` | Previews conservative PR qualification selection |
 | `just ci::complete`, `just ci-clean --complete` | Includes installed Chromium in ordinary local or clean-checkout qualification |
@@ -136,6 +137,13 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::runtime-upgrade` | Proves provider-switch fencing and recovery after a lost provider response |
 | `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
+
+The growing service and focused query recipes select ReleaseSafe explicitly,
+retaining runtime safety checks with the same fault schedules, deadlines and
+resident bounds. `test::growing-service-release` selects that same profile.
+Use `zig build test-growing-service -Doptimize=Debug` or
+`zig build test-query -Doptimize=Debug` to reproduce those integration schedules
+in Debug. Unit tests retain their default Debug build.
 
 Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer
