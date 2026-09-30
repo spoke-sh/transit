@@ -9174,3 +9174,22 @@ A subsequent focused rerun of all 23 source/type tests passes after centralizing
 saved-binding metadata validation. Logs are `/tmp/rey-fuze-sources-check.log`
 and `/tmp/rey-fuze-source-final-test.log`; these local paths are not portable
 artifacts or independent durability evidence.
+
+Committed source checkpoint `2b729f7a` passes `just ci-clean --lane core` without
+inherited outputs. Foundation/package checks, properties, client ABI, Station,
+disk storage, service, runtime upgrade, callers, inspection and state all finish
+successfully. Evidence is `.cache/ci/clean/2b729f7afdcc-transit-ci-9iwhecgd` and
+`/tmp/rey-fuze-source-ci-clean.log`. This is the core lane, not every integration
+or installed SDK profile.
+
+The shared file/native SQL checkpoint passes all 65 Fuze package tests and
+`just test::sql`: 104 independent parser ASTs, 86 Table plans/results and 24
+unified results over three source bases/eight page widths, plus declaration and
+mutation oracles. File tests exercise shared finite filtering/projection/LIMIT,
+COUNT/ordered SUM, late failures behind LIMIT, exact typed uint128 predicates,
+and exhaustive allocation failures. Logical JSON tests preserve recursive
+descriptors, full-width integers and signed floating zero through owned codecs;
+missing/foreign definitions and noncanonical numeric strings reject. Logs are
+`/tmp/rey-fuze-logical-json-test.log` and `/tmp/rey-fuze-sql-regression.log`.
+Physical acquisition, installed SDK extensions and comparative performance
+remain separate qualification gates.

@@ -138,3 +138,42 @@ most 2 MiB. Raw JSON separately limits a value to 64 KiB, 16 levels, 4096 syntax
 tokens and 256 fields per object. Conflict count remains 2–8. These bound one
 value/schema operation, not total source cardinality. Callers may supply stricter
 validation budgets. Encoding and decoding enforce the default wire bounds.
+
+## Neutral logical JSON
+
+`LogicalJson` exposes an owned, validated JSON encoding independently of native
+query transport admission. A type envelope is `{"definition":IDENTIFIER,"type":TYPE}`;
+a value envelope is `{"definition":IDENTIFIER,"field":FIELD,"cell":CELL}`. The
+identifier is the same mandatory current type definition as `FTY1`; missing or
+foreign definitions reject. Duplicate/unknown fields and trailing input reject.
+
+`TYPE` is an object with exactly one logical tag. Parameterless types have an
+empty-object payload, for example `{"int64":{}}`. Decimal has `precision`/`scale`;
+timestamp has `"civil"` or `"utc"`. Struct/union payloads are field arrays;
+list has `type`/`nullable`; array has `length`/`element`; map has `key`/`value`.
+Fields have `name`, `type`, `nullable` and `optional`; omitted flags default to
+false. Element nullability also defaults to false. Logical validation and
+descriptor fingerprints are identical to the binary codec.
+
+`CELL` has exactly one of `missing:{}`, `null:{}`, `type_error:TAG`,
+`value:VALUE`, or `conflict:[ALTERNATIVE...]`. Alternatives carry canonical
+decimal-string `counter`/`replica` and a `value` cell restricted to null, type
+error or value. `VALUE` selects `atom`, `structure`, `list`, `array`, `map`,
+`tagged_union` or `json`. Struct/list/array contain cells in declared order;
+maps contain `key` atoms and `value` cells; unions have integer `index` and
+`value` cell; JSON contains the exact validated JSON text as a string.
+
+Atoms select `signed`, `unsigned`, `decimal`, `float_bits`, `boolean`, `utf8`,
+`binary`, `date_days`, `time_nanos`, `timestamp_micros`, `interval` or `uuid`.
+All integers, decimal coefficients and temporal units use canonical decimal
+strings without leading zeros, plus signs or negative zero. Boolean and UTF-8
+use JSON boolean/string. Floats carry exact little-endian IEEE bytes as lowercase
+hex (8/16 characters); binary and UUID use lowercase hex, UUID exactly 32
+characters. Interval has decimal-string `months`, `days`, `nanos`. The declared
+logical type checks each atom's variant/range. JSON numeric conversion never
+rounds an integer or decimal through a host float.
+
+Type JSON input is at most 64 KiB; value JSON is at most 256 KiB, with 96 syntax
+levels and 32768 tokens before recursive logical budgets apply. Decoding owns
+all descriptor/name/value bytes. Call `deinit()` exactly once. These JSON
+bounds are transport bounds; a valid binary envelope can exceed them.
