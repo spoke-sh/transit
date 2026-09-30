@@ -130,14 +130,13 @@ CREATE ACTION inspector.open WITH (
 );
 ```
 
-Save the program as `interface.sql`, then use the repository's
-[offline compiler](../../../packages/zig/transit-station-app/README.md):
+Save the program as `interface.sql`, then use the
+[offline compiler](../../../packages/zig/transit-station-app/README.md) with
+`transit-app` on `PATH`:
 
 ```sh
-nix develop
-zig build transit-app
-zig-out/bin/transit-app parse interface.sql
-zig-out/bin/transit-app module interface.sql
+transit-app parse interface.sql
+transit-app module interface.sql
 ```
 
 `parse` returns the validated model; `module` emits a TypeScript proposal module.

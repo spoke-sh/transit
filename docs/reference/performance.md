@@ -262,23 +262,11 @@ needs its own ordering and fencing design.
 
 ## Reproduce and compare
 
-From the repository's pinned development environment:
-
-```sh
-nix develop
-just test::console-latency --single
-just test::console-latency --single --resident-pages 64
-just test::console-latency --single --worker-interval-ms 200
-just test::console-latency --single --repeat 3 --age-queries 5
-just test::console-latency --single --instrument
-just test::console-latency --single --execution durable
-just test::interactive-query
-just test::interactive-query --source table --rows 257 --age 128
-just test::interactive-query --source table --resident-pages 0
-just test::pages --keys 256 --cache 2 --mutation-batch 1
-just test::pages --keys 256 --cache 2 --mutation-batch 8
-just test::pages-cold --keys 1024 --cache 2
-```
+Use the [benchmark reproduction commands](../../tests/README.md#query-performance-reproduction)
+in the proof ledger with the repository’s pinned development environment.
+They cover console latency, populated interactive sources, cache and worker
+polling controls, durable-history aging, transport instrumentation, mutation
+batch sizes and cold storage. The settings below describe those fixture runners.
 
 The runner reports first stdout byte, completion, sampled console RSS (20 ms
 sampling), node CPU, sampled node RSS and executable hashes. Repetitions share an installation;

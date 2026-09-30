@@ -4,38 +4,18 @@ This guide is for contributors building and checking the repository. Application
 users can start with [Run Transit locally](../guides/quickstart.md); documentation
 contributors use the [site guide](../../apps/transit-docs/README.md).
 
-Install Nix with flakes and `nix-command`, then work from the repository root:
+Prepare the checkout with the [development toolchain guide](../../nix/README.md),
+then use the [repository task reference](../../tasks/README.md) for builds,
+locked dependency installation and checks. The toolchain pins the compiler and
+frontend dependencies; build dependent packages from the same checkout.
 
-```sh
-nix develop
-just doctor
-just transit-board::install
-just check
-```
+For persistent development systems, the
+[launcher overview](launchers.md) compares local, Compose and reference placements.
+Their [repository runbook](../../launchers/README.md) owns setup, commands,
+configuration and recovery. New resource-backed installations require Linux and
+a synchronized trusted clock. Toolchain support for other platforms is separate
+from these runtime requirements.
 
-`just transit-board::install` installs locked frontend dependencies. `just build` lists
-the Zig optimization profiles; `just build::debug` builds platform executables
-including the embedded Board. Use `just build::release-safe` for an optimized
-build with safety checks; see the [build profiles](../../tasks/README.md#build-profiles)
-for other modes, component selection and output paths. Use
-`just launchers::local::up` for a persistent native system with Board and the
-counter example, then `status`, `inspect`, `logs`, `send`, `update`, or `restart` in that
-same task group. `down` preserves data; `reset` explicitly deletes a stopped
-installation. The [launcher guide](../../launchers/README.md) owns the workflow,
-configuration and recovery limits. New resource-backed installations require
-Linux and a synchronized trusted clock. The development toolchain's support for
-other platforms is separate from these runtime requirements.
-
-`launchers::compose` exercises the same development scenario in containers.
-`launchers::reference` provides a persistent Kubernetes/Substrate installation
-and separate qualification tasks. All three profiles distinguish candidate
-`build`, deployment `update`, and selected-version `restart`. These steps
-preserve protocol semantics while adding deployment-specific evidence; they do
-not imply automatic data migration or equivalent runtime isolation.
-The [examples](../../examples/README.md) also provide disposable one-shot demos.
-Per-checkout `.env` settings loaded by `.envrc` configure Board's listen address,
-port and browser origin, including remote LAN development. See the
-[configuration guide](../../launchers/README.md#local-development-configuration).
 Incompatible protocol definitions require an explicit cutover. Automatic history
 or signature conversion is not implemented; preserve existing recovery material.
 
@@ -56,16 +36,17 @@ Follow the [ownership guide](../README.md#where-documentation-lives).
 
 ## Documentation site
 
-Run `just transit-docs::dev` for the user handbook. `just transit-docs::check`
-validates strict types, generated API rendering and a production build with
-broken-link checks; `just check` includes it. Edit the owning Markdown, not a
-copy in the frontend. See the [site guide](../../apps/transit-docs/README.md).
+Edit the owning Markdown, not a copy in the frontend. The
+[site guide](../../apps/transit-docs/README.md) owns preview and validation commands.
+Site checks cover strict types, generated API rendering, published command
+conventions and a production build with broken-link checks. Browser proofs
+exercise both root and prefixed hosting.
 
 ## Guides by responsibility
 
 | Task | Guide |
 | --- | --- |
-| Install, inspect, or update tools; understand CI caching | [Nix toolchain](../../nix/README.md) |
+| Install, inspect, or update tools; understand CI caching | [Development toolchain](../../nix/README.md) |
 | Browse common and namespaced commands | [Task reference](../../tasks/README.md) |
 | Use a library or configure a service | [Component map](../reference/components.md) |
 | Change public types or generate bindings | [transit-protocol](../../packages/zig/transit-protocol/README.md) |
@@ -74,36 +55,29 @@ copy in the frontend. See the [site guide](../../apps/transit-docs/README.md).
 | Set up or tear down Kubernetes/Substrate | [Reference runbook](../../deploy/reference/README.md) |
 | Contribute code or documentation | [Agent instructions](../../AGENTS.md), [documentation ownership](../README.md#where-documentation-lives) |
 
-Board's Vite+/pnpm workspace is implemented. Use `just transit-board::demo` to inspect a
-running disposable realm, `just transit-board::check` for frontend/contract checks, and
-`just transit-board::browser` for the real UI proof. [Board's app guide](../../apps/transit-board/README.md)
-owns configuration, private access boundaries and runnable commands.
-
 ## Package workflow
 
-Each implemented Zig library owns `build.zig`, `build.zig.zon`, direct dependencies,
-and an exported module. Local dependencies allow coordinated monorepo changes;
+Each Zig library owns `build.zig`, `build.zig.zon`, direct dependencies and an
+exported module. Local dependencies allow coordinated monorepo changes;
 consumers use module interfaces, not sibling source imports. The root build
-composes those packages; `just test::packages` runs their tests independently.
-CI uses `just test::packages-build` to compile each test suite through its own
-manifest while `just test::unit` owns shared runtime execution. Fuze's extra
-upstream suite has the explicit `just test::compute` owner. Package-local
-`zig build test` still compiles and executes; `zig build check` compiles only.
-Package READMEs give focused commands and integration requirements.
+composes those packages. The [task reference](../../tasks/README.md) distinguishes
+standalone package compilation, shared unit execution and focused engine proofs.
+Package READMEs give integration requirements.
 
-All packages use the Nix-pinned compiler. External dependencies belong to their
-consumer's manifest with immutable revision/hash pins. Libraries become static
-or shared artifacts only when needed. Build dependent packages from the same
-checkout; independent releases are not available. Board frontend tooling lives in a Vite+/pnpm
-workspace, connected through generated OpenAPI and shared Transit contracts.
+External dependencies belong to their consumer’s manifest with immutable
+revision/hash pins. Libraries become static or shared artifacts only when
+needed. Independent package releases are not available. Board frontend tooling
+lives in a Vite+/pnpm workspace, connected through generated OpenAPI and shared
+Transit contracts. [Board’s app guide](../../apps/transit-board/README.md) owns
+configuration, private access boundaries and focused validation.
 
 ## Verification
 
-Run `just check` for formatting, tooling, unit tests, Transit/Board contract drift,
-frontend lint/types/tests, and local Markdown links. Run `just ci` for the local
-package/storage/service/caller suite. Before pushing committed changes, use
-`just ci-clean` to run that suite in a fresh clone without workspace build outputs.
+Run the repository checks for formatting, tooling, unit tests, contract drift,
+frontend lint/types/tests and Markdown links. Before pushing committed changes,
+run the clean-checkout suite to expose dependencies hidden by workspace build
+outputs. The [task reference](../../tasks/README.md) owns these commands.
 Reference-cluster and physical-capacity proofs have explicit extra prerequisites;
 passing local checks does not establish those deployment guarantees. Choose
-additional proofs from the [test guide](../../tests/README.md) for the boundary you
-change, and record failures against their owning design.
+additional proofs from the [test guide](../../tests/README.md) for the boundary
+you change, and record executed outcomes and remaining limits there.

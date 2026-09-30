@@ -162,7 +162,7 @@ export const sections: Section[] = [
   {
     label: "Operate Transit",
     pages: [
-      page("launchers/README.md", "guides/launchers", "Development launchers"),
+      guide("launchers", "Development launchers"),
       reference("deployment", "Deployment and recovery"),
       guide("inspect-board", "Inspect with Board"),
       page("apps/transit-board/docs/configuration.md", "guides/board", "Configure Board"),

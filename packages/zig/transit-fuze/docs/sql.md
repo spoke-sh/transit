@@ -97,8 +97,6 @@ Board query workspace and [Flight gateway](../../../../docs/reference/flight.md)
 provide separately configured ingress and capability checks. No optimizer rewrite
 is enabled.
 
-Run `just test::sql` for the shared ANTLR/PostgreSQL/Zig AST and actual paged
-Arrow proof; `just check` includes the package's parser/compiler unit tests.
-`just test::sql-rewrites` checks the separately scoped Lean theorems. See the
-[test guide](../../../../tests/README.md)
-for evidence and limitations.
+The [test guide](../../../../tests/README.md) owns commands, evidence and limits
+for the shared ANTLR/PostgreSQL/Zig AST and paged Arrow proof, parser/compiler
+unit tests, and separately scoped Lean theorems.

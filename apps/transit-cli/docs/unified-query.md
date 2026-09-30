@@ -1,7 +1,6 @@
 # Unified SQL shell
 
-Build with `zig build transit -Doptimize=ReleaseSafe`, then run
-`zig-out/bin/transit query query.json`. Provision the
+With `transit` on `PATH`, run `transit query query.json`. Provision the
 [v1 query behaviors](../../transit-query-host/README.md) and current caller grants
 first. The configuration contains `url`, `seed_file`, `connection` (realm,
 principal, source, resource, requester, requests), optional `request_timeout_ms` (1–60000; default 5000), and `workspace`:
@@ -72,6 +71,5 @@ the protected session; prior terminal output was already disclosed. A cursor is
 not a grant. Request retirement does not erase the source's independent result
 publication or permanent identity facts.
 
-`just test::unified-query -Doptimize=ReleaseSafe -Dunified-shell=true` exercises
-the real shell with all three source daemons and recovery. The
-[proof guide](../../../tests/README.md) records completed measurements.
+The [proof guide](../../../tests/README.md) records commands and completed
+measurements for the real shell with all three source daemons and recovery.

@@ -38,17 +38,11 @@ the [site guide](apps/transit-docs/README.md) covers local previews.
 
 ## Develop the repository
 
-After completing the [development setup](docs/guides/contributing.md), start the
-local stack from the repository root:
-
-```sh
-nix develop
-just launchers::local::up
-```
-
-Open the printed Board URL on a private development network. Ctrl-C stops services
-and preserves data. See the [launcher guide](launchers/README.md) for configuration
-and lifecycle commands.
+Use the [contributor guide](docs/guides/contributing.md) for source ownership and
+validation responsibilities, the [toolchain setup](nix/README.md) to prepare the
+checkout, and the [launcher guide](launchers/README.md) for development lifecycle
+commands. To run an installed bundle, follow the [local quickstart](docs/guides/quickstart.md)
+with `transit` on `PATH`.
 
 ## Find your way
 

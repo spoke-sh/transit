@@ -48,7 +48,7 @@ with dbapi.connect(uri, db_kwargs={
         result = cursor.fetch_arrow_table()
 ```
 
-Use the pinned `nix develop .#flight` environment for these clients. The
+Use the client versions listed above. The
 [finite example](../../examples/flight/README.md) provisions isolated native,
 Compose and reference installations and executes the actual Python/C consumers.
 

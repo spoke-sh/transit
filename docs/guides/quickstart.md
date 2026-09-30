@@ -1,25 +1,23 @@
 # Run Transit locally
 
 This starts an isolated, application-capable local installation and queries an
-empty Table. Use Linux x86_64 with Nix flakes enabled and this repository checked
-out. The complete local bundle includes pinned Transit, Board, Ursula and MinIO;
-Docker is not required for this path.
-
-Run from the repository root. Choose unused ports 19101–19107 and a new
-`.cache/docs-start` directory. Keep that directory to resume the installation.
-
-## Build the local bundle
+empty Table. Use Linux x86_64 with the complete local bundle installed and
+`transit` available on `PATH` in both terminals. The bundle includes matching
+Transit, Board, Ursula and MinIO executables; Docker is not required at runtime.
+Check that the command is available:
 
 ```sh
-nix develop
-mkdir -p .cache
-nix build .#transit-local --out-link .cache/transit-local
+transit --version
 ```
 
-This builds the current checkout with locked dependencies. Keep its Nix output
-link while using the installation: startup requires the same artifact hashes.
-Published versioned downloads and general Transit upgrades are not available; see
+The [source installation guide](../../nix/README.md#transit-cli-packages) covers
+building and installing the bundle. Published versioned downloads and general
+Transit upgrades are not available. Keep the installed bundle for the lifetime
+of the installation: startup requires the same artifact hashes. See
 [deployment limits](../reference/deployment.md).
+
+Choose unused ports 19101–19107 and a new `.cache/docs-start` directory under
+your working directory. Keep that directory to resume the installation.
 
 ## Start with defaults
 
@@ -28,9 +26,9 @@ configuration file, the server uses `./.transit` for private state. Create a
 working directory and deliberately initialize it:
 
 ```sh
-mkdir .cache/docs-start
+mkdir -p .cache/docs-start
 cd .cache/docs-start
-../transit-local/bin/transit server --initialize
+transit server --initialize
 ```
 
 Optional `transit.yaml` settings overlay these defaults. Discovery selects the
@@ -52,11 +50,11 @@ explicit [inspection declaration](../../apps/transit-cli/docs/applications.md#bo
 
 ## Query from a second terminal
 
-From the repository root:
+From the same parent working directory used above:
 
 ```sh
 cd .cache/docs-start
-../transit-local/bin/transit console
+transit console
 ```
 
 In the console:
@@ -71,7 +69,7 @@ The console assigns an identity, advances the upload and prints the verified
 result: count zero. Enter `.quit` to disconnect. To run one query and exit:
 
 ```sh
-../transit-local/bin/transit console -c 'SELECT COUNT(*) FROM items'
+transit console -c 'SELECT COUNT(*) FROM items'
 ```
 
 See the [console guide](../../apps/transit-cli/docs/console.md) for output and
@@ -84,7 +82,7 @@ In the server terminal, still in `.cache/docs-start`, resume with the same
 configuration and artifacts:
 
 ```sh
-../transit-local/bin/transit server
+transit server
 ```
 
 Do not add `--initialize` on restart. For a previously submitted query, use

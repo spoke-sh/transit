@@ -12,10 +12,11 @@ migration. Keep the server running while building and installing the application
 
 ## Build and install
 
-In a second Nix development shell, from the repository root:
+Use the repository’s [pinned Zig toolchain](../../nix/README.md) to build the
+example. In a second terminal with `transit` on `PATH`, from the repository root
+(the parent of `.cache/docs-start` in this walkthrough):
 
 ```sh
-export PATH="$PWD/.cache/transit-local/bin:$PATH"
 export TRANSIT_MANAGEMENT="$PWD/.cache/docs-start/.transit/management.yaml"
 (cd examples/work-items && zig build -Doptimize=ReleaseSafe)
 export WORK_ITEMS="$PWD/examples/work-items/zig-out/bin"

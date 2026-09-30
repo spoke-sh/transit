@@ -59,6 +59,13 @@ Optional links to technical reasoning are allowed; operating an interface must
 not require reconstructing its semantics from an engineering record. See
 [documentation ownership](../../docs/README.md#where-documentation-lives).
 
+Published command examples use `transit` on `PATH` and state the required
+installed bundle. Repository environment setup and task-runner commands stay
+in repository tooling guides outside the catalog and search. The public launcher
+overview retains its route and links to the repository runbook. Content checks
+reject repository tool commands and path-qualified CLI invocations in published
+code, including included component guides and generated reference content.
+
 Use direct interface language in the homepage and documentation. Describe
 operations, compatibility, configuration and errors without maturity labels or
 blanket readiness disclaimers. State specific limits where readers need them.

@@ -54,6 +54,11 @@ the separate planning and historical records. Usage guides, component guides and
 wire contracts describe capabilities without delivery-plan labels. A reader
 can understand the interface contract without reconstructing an engineering history.
 
+Public command examples invoke `transit` from `PATH`. State the required installed
+bundle and matching dependencies beside the workflow. Keep repository environment
+setup and task-runner commands in the source tooling guides, outside
+the site catalog and search. Link to those owners for setup and proof execution.
+
 Write interfaces in the present tense: what they do, how to use them, supported
 types and platforms, version compatibility and failure behavior. Avoid maturity
 labels and blanket readiness caveats. Put concrete limits beside the operation
@@ -112,10 +117,7 @@ source evidence when moving material. Keep dates and outcomes on historical revi
 
 Read the public topic, its component guide and relevant wire contract before
 changing behavior. Update all affected user explanations with the code. Use
-[contributing](guides/contributing.md) for commands and
-[verification](reference/verification.md) to select evidence. Documentation work
-uses `just transit-docs::check`; `just check` includes it.
-
-Preview with `nix develop .#docs`, `just transit-docs::install` and
-`just transit-docs::dev`. The [site guide](../apps/transit-docs/README.md) covers
-hosting, generated references and root/prefixed browser checks.
+[contributing](guides/contributing.md) for the repository workflow and
+[verification](reference/verification.md) to select evidence. The
+[site guide](../apps/transit-docs/README.md) owns preview, validation,
+hosting, generated references and root/prefixed browser check commands.

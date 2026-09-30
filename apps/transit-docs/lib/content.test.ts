@@ -8,6 +8,20 @@ import { object, readSpecification, renderSpecification, specifications } from "
 const root = path.resolve(import.meta.dirname, "../../..");
 
 describe("documentation ownership and navigation", () => {
+  it("keeps public commands independent of repository tooling and executable paths", () => {
+    for (const entry of pages) {
+      const content = pageContent(root, entry.source);
+      // Check code spans and fences, including environment-prefixed commands.
+      const examples = content.match(/```[\s\S]*?```|`[^`\n]+`/g) ?? [];
+      for (const example of examples) {
+        expect(example, entry.source).not.toMatch(/(?:^|[\s`])(?:nix|just)(?=[\s`]|$)/);
+        expect(example, entry.source).not.toMatch(
+          /[^\s`"']*\/transit\s+(?:--[\w-]+|serve|server|console|query|app)\b/,
+        );
+        expect(example, entry.source).not.toMatch(/(?:\.\/|\bbin\/)transit(?=[\s`"']|$)/);
+      }
+    }
+  });
   it("describes capabilities without delivery-plan references across usage and interface sources", () => {
     const deliveryReference = /\b(?:m\d+|milestones?|roadmap)\b/i;
     for (const entry of handbookPages) {
@@ -60,6 +74,12 @@ describe("documentation ownership and navigation", () => {
     expect(
       resolveLink(root, "docs/reference/cli.md", "../../apps/transit-cli/docs/console.md", "/"),
     ).toBe("/guides/console");
+    expect(resolveLink(root, "docs/guides/contributing.md", "launchers.md", "/handbook/")).toBe(
+      "/handbook/guides/launchers",
+    );
+    expect(
+      resolveLink(root, "docs/guides/launchers.md", "../../launchers/README.md", "/handbook/"),
+    ).toBe("https://github.com/rupurt/rey/blob/main/launchers/README.md");
     expect(
       resolveLink(
         root,

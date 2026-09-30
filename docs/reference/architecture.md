@@ -8,8 +8,9 @@ never substitutes for that history.
 This reference is shared by application authors, Transit contributors and agents.
 Start with [the quickstart](../guides/quickstart.md) for an executable local system
 and [interface selection](../guides/choose-interface.md) for supported profiles.
-The local application server runs on Linux x86_64. Build it from source using the
-quickstart; release downloads are not available.
+The local application server runs on Linux x86_64. The quickstart assumes an
+installed local bundle with `transit` on `PATH`; its linked source installation
+guide covers building that bundle. Release downloads are not available.
 
 ## Responsibilities
 

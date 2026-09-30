@@ -37,7 +37,8 @@ transit app install --config /absolute/local-transit/management.yaml \
 transit app status --config /absolute/local-transit/management.yaml --application work-items
 ```
 
-Run these commands in the pinned Nix development environment. The separately
+Build with the repository’s [pinned Zig toolchain](../../../nix/README.md) and
+run the CLI with `transit` on `PATH`. The separately
 built package depends on public Transit packages, not private CLI/server code.
 The server executes the artifact directly, without a compiler, shell, Python,
 source checkout or downstream supervisor. It starts roles in declared dependency

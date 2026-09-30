@@ -23,13 +23,11 @@ management product is implemented.
 | [Share an incident notebook](#share-an-incident-notebook-with-zig) | Zig | Accepted Document revision, explicit conflicts and Unicode text |
 | [Replay captured enrichment](#replay-captured-enrichment-with-zig) | Zig | Recorded connector outcome; replay performs no external request |
 
-Use Linux x86_64 and run commands from the repository root. `nix develop` supplies
-the pinned default tools; the Rust recipe uses `nix develop .#bindings`. Install
-locked frontend dependencies once with `just transit-board::install` before the
-TypeScript checks. These SDKs are built from the checkout, not downloaded from
-public package registries. The full fixture commands below can take minutes and
-require the local disk-store/container prerequisites in their linked guides.
-They use disposable synthetic installations, not your running server.
+Use Linux x86_64 with `transit` on `PATH` for the console examples. The SDKs
+are built from the checkout, not downloaded from public package registries.
+The linked example guides own their build and fixture commands, including
+language toolchains and disk-store/container prerequisites. Their full fixture
+runs can take minutes and use disposable synthetic installations.
 
 The local `transit app` supervisor currently hosts Zig workers. The other language
 examples use their own public SDK runners; installing a Python package or Node
@@ -41,7 +39,7 @@ Start the [local quickstart](quickstart.md). From its `.cache/docs-start` workin
 directory, open the console:
 
 ```sh
-../transit-local/bin/transit console
+transit console
 ```
 
 ```text
@@ -60,7 +58,7 @@ declare a different source. There are no joins, grouping or general sorting.
 For one statement and exit:
 
 ```sh
-../transit-local/bin/transit console -c 'SELECT COUNT(*) FROM items;'
+transit console -c 'SELECT COUNT(*) FROM items;'
 ```
 
 Read the phase timings alongside the [performance reference](../reference/performance.md).
@@ -68,15 +66,8 @@ The current console uses durable captured queries. Fresh interactive sessions
 and cancellation on exit are [planned behavior](../reference/queries.md#interactive-sessions).
 The commands above do not demonstrate that future lifecycle.
 
-To exercise populated sources without modifying your local installation:
-
-```sh
-just examples::query table
-just examples::query kv
-just examples::query document
-```
-
-These run the [recoverable query example](../../examples/state-query/README.md)
+The [recoverable query example](../../examples/state-query/README.md) exercises
+populated Table, KV and Document sources in a disposable installation
 against synthetic Unicode data. It saves the original submission and checks
 complete nested result coverage with bounded pages. KV requires an explicit
 decoder; Document projections preserve missing, null, conflict and type-error
@@ -116,12 +107,6 @@ class TableService:
 malformed messages and out-of-range integers. The runner commits the inserted
 row with input progress; a handler field is not the durable Table. An effectively
 unlimited row count does not remove page and execution bounds.
-
-Run the installed wheel consumer and real authority schedule:
-
-```sh
-just bindings::python-test
-```
 
 The [Python example guide](../../examples/station-sdk/python/README.md) explains
 installation and explicit configuration. Its Table/query schedule checks 41 rows
@@ -174,10 +159,6 @@ values use `bigint`, and the counter checks addition overflow. This requester
 deliberately accepts one start; a recurring workflow needs explicit per-job
 identity and lifecycle rather than deleting an unresolved `REQUEST`.
 
-```sh
-just bindings::node-sdk-test
-```
-
 The [installed TypeScript examples](../../examples/station-sdk/typescript/README.md)
 exercise worker replacement as well as Table/query handling. The CLI roles require
 fresh ownership after host loss; applications choosing exact pending-operation
@@ -217,10 +198,6 @@ all segments. A callback that retains every batch defeats the example's bounded
 consumption pattern. File uploads or other callback effects need their own
 idempotency policy because the handler's turn has not committed yet.
 
-```sh
-nix develop .#bindings --command just bindings::rust-sdk-test
-```
-
 The [Rust example guide](../../examples/station-sdk/rust/README.md) covers the
 installed crates and full runner. Its proof independently decodes the same IPC
 with PyArrow. This is an explicit durable query job, unlike the proposed console
@@ -250,12 +227,9 @@ through bounded sequence pages and reports revision, merge epoch, retained floor
 and title alternatives. Its 512-byte/128-page display budget fails explicitly
 when exceeded. It does not silently choose a conflicting title or truncate text.
 
-```sh
-just examples::document
-```
-
-The same pattern can support shared research context or an agent's evidence
-notebook. Current grants still govern every read; collaborative merge semantics
+The [Document example guide](../../examples/station-document/README.md) owns the
+complete fixture and its run commands. The same pattern can support shared
+research context or an agent's evidence notebook. Current grants still govern every read; collaborative merge semantics
 do not create a multi-user identity service or authorize writes. Search and
 analytical projections would need their own accepted source basis and explicit
 freshness; they are [planned structures](../reference/workloads.md#architectural-priorities).
@@ -281,10 +255,6 @@ while (try replay.read()) |part| {
     if (part.complete) break;
 }
 if (!replay.done) return error.IncompleteExchange;
-```
-
-```sh
-just examples::http
 ```
 
 The schedule checks exactly one external send and recovery of the captured
