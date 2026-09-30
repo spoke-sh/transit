@@ -286,7 +286,7 @@ sql:
 
 # Record pure compiler/engine costs separately from interactive source I/O.
 sql-benchmark *args:
-    zig build sql-benchmark
+    zig build sql-benchmark -Doptimize=safe
     python3 -B tests/sql/benchmark.py zig-out/bin/transit-sql-benchmark {{args}}
 
 # Real signed query shell, growing workers, exact retry and current read rights.
