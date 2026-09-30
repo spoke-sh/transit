@@ -44,7 +44,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M34](M34.md) | Relational guarantees, joins and aggregation | Proposed; explicit source vectors, finite Table joins/grouping, maintained revisions and semantic gates for reshuffling |
 | [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 | [M36](M36.md) | SQL language completeness and declarative dataflows | Proposed; scoped inspection, bounded Table mutations, typed declarations, maintained queries and recorded effect bindings |
-| [M37](M37.md) | Simulation and external fault verification | In progress; authority/delivery simulation first, broader deterministic and Vortex-style real-binary testing planned |
+| [M37](M37.md) | Simulation and external fault verification | Implemented deterministic and Vortex-style profiles; repository-wide clean and hosted qualification remain open |
 | [M38](M38.md) | Standards, multi-model dataflows and schema branching | Proposed; standards ledger, graph/foreign relations, historical catalogs, isolated branches and reviewed merges |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed

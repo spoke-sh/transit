@@ -1,5 +1,65 @@
 # Validation and milestone evidence
 
+## Expanded fault-verification qualification — 2026-09-30
+
+The [local experiment record](verification/results/m37-local-2026-09-30.json)
+binds the source revisions, dirty development runs, compiler/binary/runner hashes,
+counts, fault coverage, negative controls and elapsed times. The last implementation
+revision is `b0462904`; subsequent ledger changes contain documentation/evidence.
+Passing profiles below retain their actual source identity. They do not combine
+into a complete ordinary-suite pass.
+
+| Executed profile | Result and scope |
+| --- | --- |
+| Repository checks | `just check` passed at committed `fb912908`, including units/contracts, ownership inventory, frontend checks and the public Docusaurus build |
+| Expanded resource simulation | At committed `5b267061`, 204 traces / 3,958 events replayed identically in 111.250 s; staging/read/publication/trim faults and independent atomicity/view checks |
+| Clean ordinary simulations | At `e92087ff`, 14 authority traces / 749 events, six resource traces / 112 events, eight Session/courier traces / 542 events and eight component package schedules passed with identical replay |
+| Compiling mutations | At committed `5b267061`, all nine new resource, scheduler and component mutants were detected by executed contract checks; build failures/timeouts did not count |
+| External supervisor | At `f7d0361f`, seed 19 / twelve rounds passed in a fresh checkout in 19.588 s; the later clean core run also passed four rounds, with requested faults observed and cleanup joined |
+| Installed SDKs | Python/Node package builds and independent installed consumers passed in 30.343 s total; signed histories, cancellation/disposal and exactly two admissions retained |
+| Application/provider fixture | Lost provisioning, rotation, migration and activation replies plus runtime upgrade passed in 28.531 s total |
+| Query lifetimes | Durable lifecycle, durable expiry and interactive Table cancellation/current denial passed in 385.887 s total |
+| Browser/reactive lifecycle | The real TLS/browser owner passed refresh replacement, pause, revocation, stream loss/resume, pagehide/expiry and reset/resnapshot in 169.381 s total |
+
+`just ci-clean --lane core` passed all 22 tasks at `e92087ff` in 1,186.95 s.
+`just ci-clean --lane experience` passed all seven tasks at `b0462904` in
+443.77 s, including the real local Station launcher and clean Node dependency
+build. These are distinct committed revisions.
+
+Repository-wide qualification remains incomplete:
+
+- At `5b267061`, 27 tasks passed before the publication expiry assertion failed;
+  37 tasks were unrun. The clock-bound fixture correction subsequently passed
+  the complete publication proof in the `fb912908` clean run.
+- At `fb912908`, 37 tasks passed before HTTP cancellation follow-up admission
+  failed; 27 tasks were unrun. The corrected fixture chooses its finite
+  reconciliation window before initial acceptance and checks that every follow-up
+  preserves it; production deadlines are unchanged.
+- The parallel `e92087ff` growth lane passed three tasks, then exceeded the
+  existing 180-second query delivery deadline. No deadline was relaxed.
+- The `e92087ff` bindings lane passed native bindings and the full installed
+  Python/Node SDK tasks, then its Rust Station consumer terminated with SIGSEGV
+  in `decode-block`. Eleven later tasks were unrun; the cause is unresolved.
+
+The earlier clean Node check failed because it checked Station before emitting
+its client's package exports. The corrected dependency ordering passed the
+complete clean experience lane above. None of these corrections relabels a
+failed or incomplete run as successful.
+
+The installed/service/browser runs are separate selected local profiles, with their
+original revision/dirty flags retained in the record. They do not certify other
+hosts or Kubernetes placement. Vortex checks quiescent public correspondence,
+not arbitrary concurrent-read linearizability; process SIGKILL is not power loss.
+Simulation assumes atomic journal append and does not qualify physical page GC.
+Component schedules replay seeds with pinned binaries; only the JSON-trace profiles
+provide edited-trace replay and bounded minimization.
+
+Hosted run [36678421267](https://github.com/rupurt/rey/actions/runs/36678421267)
+produced no test execution: GitHub refused job startup because of account
+payments/spending limits. The local observations do not requalify hosted feedback,
+aggregate runner time or cache budgets. Hosted ordinary/discovery runs and cost
+measurement remain tracked by [issue #26](https://github.com/rupurt/rey/issues/26).
+
 ## Publication clock-bound correction
 
 The committed clean run at `5b267061` passed 27 ordinary tasks, then stopped at
@@ -34,11 +94,12 @@ the same bounded, byte-preserving recovery-file retry as the owning application
 proof; intentionally faulted calls still return immediately for explicit checks.
 The rerun passed dropped spawn, worker rotation, migration send/turn and activation
 send replies in 21.551 seconds, including current revocation and management bounds.
-Provider-upgrade qualification remains a separate stage in that profile.
+The separate provider-upgrade stage also passed; the consolidated record below
+binds both stages to their executed source revision.
 
-`just check` passed during this development run. The application, query and
-browser/reactive profiles, complete committed-HEAD clean suite and hosted cost
-remain separately recorded gates. SIGKILL is not host power loss; local durations
+`just check` and the selected application, query and browser/reactive profiles
+passed during development. Complete committed-HEAD clean qualification and hosted
+cost remain separate gates in the consolidated record. SIGKILL is not host power loss; local durations
 do not establish hosted feedback budgets or a runtime performance target.
 
 ## Stored-definition recovery correction
