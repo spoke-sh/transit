@@ -5862,3 +5862,28 @@ port checks, canonical signatures, full-width growing identities, disk/host
 restart, exact uncertain recovery, current revocation and malformed replies.
 The log is `/tmp/transit-sql-publication-domains-client-abi.log`. This focused
 pass does not complete the earlier failed clean lane.
+
+After the fixture correction, **`just ci-clean --lane core` passes at committed
+`79b648b2`** without inherited workspace build outputs. All core tasks complete,
+including foundation/CLI checks (**74.24 s**), properties/simulation, independent
+package builds (**136.52 s**), raw client ABI (**6.32 s**), Station (**149.86 s**),
+disk storage (**390.85 s**), signed service (**64.94 s**), runtime upgrade,
+runnable callers (**22.81 s**), inspection (**7.50 s**) and state (**17.61 s**).
+The readiness write takes **241.79 s** within the existing fixture bound. The
+log is `/tmp/transit-sql-publication-domains-ci-clean-fixed.log`; completion
+evidence is `.cache/ci/clean/79b648b2c3ed-transit-ci-vz30niqm`. This is a complete
+core-lane pass, not a full-suite pass.
+
+`just test::unified-ingress table` and `just test::unified-ingress kv` pass the
+actual SQL shell, generated Board client, concurrent Board instances and browser
+worksheet on this definition. They preserve frozen signed retries, separate
+inspection/query grants, current prefix denial, complete results, retirement and
+draft/view separation. Table also proves finite Live draft budgets and exact
+saved recovery. The full source schedules take **212.76 / 177.37 s**, each with
+41 rows, six IPC segments and eight resident authority pages. Two Board instances
+use **42582016 / 40566784 bytes RSS** in the respective samples. The Table draft
+budget schedule takes **17.25 s**. The log is
+`/tmp/transit-sql-publication-domains-ingress-rerun.log`; Document ingress is
+still running at this checkpoint. The first invocation failed before execution
+on a missing cached Nix shell derivation. Disabling the Nix evaluation cache
+recreates the pinned shell; no toolchain or lockfile changes are involved.
