@@ -11,6 +11,7 @@ import time
 import urllib.request
 import urllib.error
 import uuid
+import xml.etree.ElementTree as ET
 from storage import free_port
 
 
@@ -44,18 +45,28 @@ class ColdStore:
                 check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
             deadline = time.monotonic() + 30
             while True:
+                ready = False
                 try:
                     with self.http.open(self.url + "/minio/health/ready", timeout=0.5) as response:
-                        if response.status == 200:
-                            break
+                        ready = response.status == 200
                 except (urllib.error.URLError, TimeoutError, ConnectionError):
                     pass
+                if ready:
+                    try:
+                        # The health route can answer before PutBucket is ready.
+                        # This empty PUT names only this fixture's owned bucket.
+                        self.create_bucket()
+                    except urllib.error.HTTPError as error:
+                        if error.code != 503:
+                            raise
+                        error.close()
+                    else:
+                        break
                 if time.monotonic() >= deadline:
                     raise TimeoutError("Owned cold-store readiness deadline")
                 time.sleep(0.05)
             self.pid = int(subprocess.check_output(
                 ["docker", "inspect", "--format", "{{.State.Pid}}", self.name], text=True, timeout=10))
-            self.create_bucket()
             return self
         except BaseException:
             self.__exit__(None, None, None)
@@ -80,7 +91,23 @@ class ColdStore:
         authorization = f"AWS4-HMAC-SHA256 Credential={self.access}/{scope}, SignedHeaders={signed_headers}, Signature={signature}"
         request = urllib.request.Request(self.url + "/" + self.bucket, data=b"", method="PUT",
             headers={"Authorization": authorization, "x-amz-date": timestamp, "x-amz-content-sha256": payload})
-        with self.http.open(request, timeout=5) as response:
+        try:
+            response = self.http.open(request, timeout=5)
+        except urllib.error.HTTPError as error:
+            if error.code != 409:
+                raise
+            # A previous PUT can have succeeded before a lost/503 response.
+            # Never accept another owner's bucket or an unrelated conflict.
+            body = error.read(4096)
+            error.close()
+            try:
+                owned = ET.fromstring(body).findtext('Code') == 'BucketAlreadyOwnedByYou'
+            except ET.ParseError:
+                owned = False
+            if not owned:
+                raise
+            return
+        with response:
             assert response.status == 200
 
     def config(self):

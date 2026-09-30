@@ -4925,3 +4925,14 @@ down from five, with identical proposed bytes and affected counts. This is a
 `just test::unit test::sql` passes again, including rollback, sticky read failure,
 all 31 mutation cases and the unchanged query corpus. Inserts remain at most
 nine private point reads for three rows.
+
+### Cold-store setup readiness
+
+Repeated SQL ingress attempts observe an owned MinIO health response followed by
+HTTP 503 from bucket creation, before any authority/source setup. The fixture now
+includes the signed empty PutBucket in its existing 30-second readiness deadline.
+It retries that 503 and accepts only an explicit `BucketAlreadyOwnedByYou`
+conflict when recovering a completed creation. Other conflicts and authorization
+failures still reject. Three fresh pinned MinIO fixtures pass readiness, a second
+creation of the same owned bucket and cleanup. This qualifies setup only; the
+interrupted query/browser runs are not passing evidence.
