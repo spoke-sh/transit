@@ -590,6 +590,14 @@ is retained in `/tmp/transit-sql-catalog-rust-components.log`.
 catalog recovery. These are development and focused passes; committed-HEAD
 clean validation and the other seven catalog SDKs remain.
 
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at
+`f77fcc29dd6eeb0c98670d4f4f3b1212129bb55a` in 710.42 s**. The clone inherits
+no workspace build outputs. Completion and per-task timings are recorded in
+`.cache/ci/clean/f77fcc29dd6e-transit-ci-2wn0hfvk/core.meta.json` and `core.json`;
+the log is `/tmp/transit-sql-catalog-rust-ci-clean.log`. This qualifies the core
+lane plus the focused Python/TypeScript/Rust schedule, not a full clean suite
+or the remaining catalog SDKs. The following commit records evidence only.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
