@@ -197,6 +197,9 @@
       "test::server-board-package",
       "transit-docs::browser",
       "test::resource-simulation"
+    ],
+    "aggregate": [
+      "bindings::test"
     ]
   },
   "nested_tasks": {
