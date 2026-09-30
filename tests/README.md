@@ -5040,3 +5040,43 @@ transport tests pass. The added inspection schedule checks upstream's exact
 termination at current denial. Its first draft used an invalid request field
 and failed before dispatch; the corrected request passes without unhandled
 promises. Public-query and Document integration reruns remain in progress.
+
+### Native Table mutation visibility and recovery
+
+`just test::table-mutation` passes in **7.890 s** against owned disk-backed Ursula
+and the real native node, with eight resident authority pages. The test
+application calls the public mutation admission owner through ordinary Station
+casts. It does not add a supplied host, CLI or SDK write route.
+
+The schedule stages a multi-chunk UTF-8/null request and confirms no rows exist
+before the final native commit. All three rows and the terminal result then have
+the same resource revision, the original terminal input identity is retained,
+and native input progress is consumed. The proxy removes the accepted commit's
+receipt; after process exit and node/store SIGKILL/restart, the unchanged frozen
+signed proposal returns the original receipt and unchanged rows/result. A changed
+signed retry rejects. A new apply of the same namespace returns the original
+result without row writes.
+
+A two-row INSERT conflict after the first absent key leaves that key absent and
+the existing rows unchanged. An earlier resource revision cannot open a captured
+view after intervening staging commits. A prepared update from an older writer
+generation rejects without changing rows/result, then the fresh fenced writer
+resumes the original admitted input. Revoking native write rights rejects an
+already frozen delete; restoring rights permits that exact saved request.
+Separate application-policy revocation records a denied result with no row
+change, and revoked read rights prevent inspection of an earlier result.
+
+The proxy observed **555 read requests** and **26 successful turn responses**,
+including exact receipt retries; these are transport counts, not 26 unique
+accepted mutations. The largest proposal has four mutations and the largest
+stored value has 256 bytes. Runtime includes the fixture's provisioning,
+inspection, fault injection and recovery, but excludes compilation. This is one
+local schedule, not a statement-latency target or a paired performance comparison.
+The fixture freezes and hashes both executables before running. Unit/catalog
+checks and the independent SQL oracle retain their own evidence above.
+
+The initial schedule also passed before adding the stale-resource-view case;
+the final schedule above is the qualifying result. The ordinary growth lane now
+owns `test::table-mutation`, and invariant `SQL-MUTATION-01` maps its contracts,
+implementation, SQL oracle and native proof. Native integration does not complete
+the remaining supplied-host and public caller work.

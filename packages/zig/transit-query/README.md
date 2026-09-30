@@ -30,7 +30,10 @@ still reject writes. No read permission implicitly enables mutation dispatch.
 See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof
-is `just test::unified-query`; [tests](../../../tests/README.md) record evidence.
+is `just test::unified-query`; `just test::table-mutation` exercises an explicit
+mutation application against native authority and disk-backed Ursula, including
+exact frozen recovery, writer fencing and current grants.
+[Tests](../../../tests/README.md) record evidence and interface limits.
 
 `Interactive.open/next/close` owns one finite statement over a fresh
 `transit-client.SnapshotReader`. The caller supplies a fresh 16-byte nonce,

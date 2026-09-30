@@ -20,8 +20,9 @@ and the native contract definition are unchanged.
 `transit-query.TableMutationAdmission` supplies an explicitly composed private-turn
 admission owner. It stages these requests, checks a separate writer policy and
 proposes the terminal result atomically with the rows. The supplied query hosts
-do not dispatch its commands. Its reference-store checks do not establish native
-durable recovery or installed-client write support.
+do not dispatch its commands. An integrating application uses Station's frozen
+native commit and current authority gates; installed-client write routes remain
+separate from this composition API.
 
 ## Syntax and types
 

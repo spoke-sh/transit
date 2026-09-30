@@ -32,6 +32,7 @@
       "test::growing-service",
       "test::public-query",
       "test::publication",
+      "test::table-mutation",
       "test::http-transport",
       "test::tls-alpn",
       "test::grpc-libraries",

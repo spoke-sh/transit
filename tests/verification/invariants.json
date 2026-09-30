@@ -1418,6 +1418,31 @@
       "limits": "4..32 external rounds. OS timing is nondeterministic; quiescent observations are not an arbitrary concurrent-read linearizability proof. Each selected profile has its own host/provider assumptions. No hardware power-loss or Kubernetes placement claim.",
       "model": null,
       "qualification": "Retain each run report and history; failed/incomplete profiles do not count as executed qualification. See tests/README.md."
+    },
+    {
+      "id": "SQL-MUTATION-01",
+      "claim": "An explicitly composed Table mutation owner commits a bounded row batch and its terminal result with input progress, preserving namespace identity and current authority gates",
+      "owner": "contracts/TABLE_MUTATION_V1.md",
+      "implementation": [
+        "packages/zig/transit-query/src/TableMutationAdmission.zig",
+        "packages/zig/transit-query/src/TableMutationRecords.zig",
+        "packages/zig/transit-station/src/TableMutation.zig"
+      ],
+      "profile": "transit-v1/state-v1/station-v1/table-mutation-v1",
+      "tasks": [
+        "test::unit",
+        "test::sql",
+        "test::table-mutation"
+      ],
+      "scenarios": [
+        "Independent typed request/policy/status/command bytes and complete-input SQL rejection",
+        "Interrupted halves, namespace conflict, principal/policy fencing, rollback and sticky read poison",
+        "Native rows/result/input visibility, exact accepted-but-lost commit recovery after node/store restart, changed retry refusal",
+        "Stale captured revision, fenced writer, current resource write/read grants and application-policy revocation"
+      ],
+      "limits": "Explicit test application and public Station composition APIs; no supplied host/CLI/SDK mutation route yet. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
+      "model": null,
+      "qualification": "See tests/README.md for executed native and private-turn schedules; public caller integration remains a separate boundary."
     }
   ]
 }

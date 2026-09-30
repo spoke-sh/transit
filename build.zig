@@ -867,6 +867,20 @@ pub fn build(b: *std.Build) void {
     publication_test.has_side_effects = true;
     publication_test.stdio = .inherit;
     b.step("test-publication", "Prove bounded immutable Station publication and crash recovery").dependOn(&publication_test.step);
+    const mutation_proof = b.addExecutable(.{ .name = "transit-table-mutation-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/table_mutation_native.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{ .{ .name = "transit_query", .module = query.module("transit_query") }, .{ .name = "transit_station", .module = station.module("transit_station") } },
+    }) });
+    build_test_step.dependOn(&mutation_proof.step);
+    const mutation_native_test = b.addSystemCommand(&.{ "python3", "-B" });
+    mutation_native_test.addFileArg(b.path("tests/table_mutation_native.py"));
+    mutation_native_test.addArtifactArg(node_artifact);
+    mutation_native_test.addArtifactArg(mutation_proof);
+    mutation_native_test.has_side_effects = true;
+    mutation_native_test.stdio = .inherit;
+    b.step("test-table-mutation", "Prove Table mutation rows and results share native recovery and authority gates").dependOn(&mutation_native_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
