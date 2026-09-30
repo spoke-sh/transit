@@ -1569,6 +1569,25 @@ The failed clean report remains at
 `/var/tmp/transit-ci-n4hi0a30/src/.cache/ci/core.json`; its log is
 `/tmp/transit-sql-catalog-all-metadata-ci-clean.log`. It is not a clean-lane pass.
 
+The next committed clean core attempt at `0621d2a1` fails the external Vortex
+schedule after two rounds. Its third turn receives HTTP 503 `AuthorityTimeout`;
+the proxy drops that response, and the supervisor incorrectly assumes acceptance
+before killing the worker/node/store. The recorded history establishes a missing
+test premise, not lost accepted work. Evidence remains under
+`/var/tmp/transit-ci-l2btxgaw/src/.cache/verification/vortex/1790796726338078073-seed-1/`
+and `/tmp/transit-sql-pr27-state-fixed-ci-clean.log`.
+
+Response-loss/delay injection now waits for HTTP 200 acceptance, forwarding other
+responses and retaining the armed fault within the existing supervisor deadline.
+An independent loopback proxy check forces a 503 followed by acceptance for both
+fault kinds and checks that only the accepted response triggers the fault. It
+passes at `/tmp/transit-sql-pr27-vortex-proxy.log` and runs in `test::vortex`.
+The real disk schedule `just test::vortex --seed 19 --rounds 12` passes in
+**33.892 s** with joined cleanup after this correction; its report/history are
+`.cache/verification/vortex/1790796842894520667-seed-19/` and its log is
+`/tmp/transit-sql-pr27-vortex-acceptance.log`. Production admission, timeouts and
+recovery assertions are unchanged. Neither prior failed clean attempt is a pass.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

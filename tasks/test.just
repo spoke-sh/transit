@@ -515,6 +515,7 @@ domain-simulation-mutations:
 
 # External OS/network faults over owned binaries and actual disk Ursula.
 vortex *args:
+    python3 -B tests/verification/vortex_proxy.py
     zig build test-vortex -- {{args}}
 
 # Installed Python/Node, local application, query or browser/reactive faults.
