@@ -24,6 +24,8 @@ with each history verified before joined cleanup. An initial 256-case attempt in
 one history exhausted the fixture's 64 MiB hot-storage quota during provisioning.
 It did not complete and is not lifetime evidence for all 256 cases. Quotas remain
 unchanged; the batched profile keeps this host-lifetime proof within its scope.
+The corrected batched run passed all 256 cases across eight independently verified
+histories using one installed consumer build, followed by joined cleanup.
 
 Qualification of the correction is in progress. An initial corrected run passed
 the raw-client regression but could not compile the Station consumer because
@@ -48,6 +50,23 @@ exceeded its existing 240-second Station write deadline, experience received
 `503 Unavailable` observing a Board operation, and bindings reported an unexpected
 Python Station event. Runner assertions now preserve the actual unexpected event.
 These results do not establish the complete ordinary gate.
+
+The expanded deterministic profiles passed on committed sources. Authority and
+resource reports identify `028e2f7b`; shared-client and component reports identify
+`2b9faa53`, whose intervening change corrects the separate state API polling fixture.
+All four retain clean-source identity, binary/oracle hashes and identical replay.
+
+| Expanded profile | Executed result | Simulation time |
+| --- | --- | ---: |
+| Authority: 32 seeds, 128 steps | 38 traces / 5,293 events | 119.304 s |
+| Resources: four seeds, every observed I/O boundary | 3,202 traces / 60,704 events | 1,744.224 s |
+| Shared client: 32 seeds, 128 steps | 36 traces / 6,490 events | 158.158 s |
+| Components: 32 seeds | 128 schedules across Document, Exchange, query/refresh and runtime owners | 38.139 s |
+
+The resource checker rejects corrupted values, input progress, outputs and views,
+plus stalled and incomplete histories. The retained reports include the full trace
+hash lists and actual fault counts. These in-process results preserve the existing
+atomic-journal premise; disk durability and host scheduling use their separate proofs.
 
 ## Expanded fault-verification qualification — 2026-09-30
 
