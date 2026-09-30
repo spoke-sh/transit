@@ -55,13 +55,13 @@ class ColdStore:
                 time.sleep(0.05)
             self.pid = int(subprocess.check_output(
                 ["docker", "inspect", "--format", "{{.State.Pid}}", self.name], text=True, timeout=10))
-            self.create_bucket()
+            self.create_bucket(deadline)
             return self
         except BaseException:
             self.__exit__(None, None, None)
             raise
 
-    def create_bucket(self):
+    def create_bucket(self, deadline):
         # Minimal SigV4 for this one empty PutBucket request; no cloud credentials
         # or SDK chain are consulted. Ursula itself exercises the S3 data path.
         now = datetime.now(timezone.utc)
@@ -80,8 +80,26 @@ class ColdStore:
         authorization = f"AWS4-HMAC-SHA256 Credential={self.access}/{scope}, SignedHeaders={signed_headers}, Signature={signature}"
         request = urllib.request.Request(self.url + "/" + self.bucket, data=b"", method="PUT",
             headers={"Authorization": authorization, "x-amz-date": timestamp, "x-amz-content-sha256": payload})
-        with self.http.open(request, timeout=5) as response:
-            assert response.status == 200
+        retries = 0
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("Owned cold-store bucket readiness deadline")
+            try:
+                with self.http.open(request, timeout=min(5, remaining)) as response:
+                    assert response.status == 200
+                if retries:
+                    print(f"Cold-store bucket readiness: {retries} temporary HTTP 503 responses before creation.", flush=True)
+                return
+            except urllib.error.HTTPError as error:
+                # The health route can become ready before bucket operations.
+                # Repeat this same private fixture request only for temporary
+                # unavailability, within the original startup deadline.
+                if error.code != 503:
+                    raise
+                error.close()
+                retries += 1
+            time.sleep(min(0.05, max(0, deadline-time.monotonic())))
 
     def config(self):
         return f'''[storage.cold]
