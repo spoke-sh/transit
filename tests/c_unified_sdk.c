@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "unified_inspection_fixture.h"
 
 static void checked(transit_sdk_error error) {
     if(error.kind) { fprintf(stderr,"C query error kind=%d status=%u phase=%s code=%s\n",error.kind,error.native_status,error.phase,error.code); abort(); }
@@ -100,7 +101,13 @@ static void serve(char **args) {
         char *command=strtok(line," \n"),*arg=strtok(NULL," \n"),*token=strtok(NULL," \n"); assert(command);
         if(!strcmp(command,"close"))break;
         transit_sdk_error error={0};
-        if(!strcmp(command,"next")) {
+        if(!strcmp(command,"inspect")) {
+            transit_sdk_bytes sql=unhex(token); ((char *)sql.data)[sql.size]='\0';
+            transit_station_unified_budgets budgets={0}; budgets.pages=strtoull(strtok(NULL," \n"),NULL,10);budgets.segments=strtoull(strtok(NULL," \n"),NULL,10);budgets.result_bytes=strtoull(strtok(NULL," \n"),NULL,10);
+            transit_station_unified_inspection out={0};error=transit_station_unified_inspect_sql(client,&d.source,arg,(const char *)sql.data,budgets,&out);free((void *)sql.data);
+            if(!error.kind){assert(out.resource.resource==connection.resource.resource&&out.source_kind==(transit_station_unified_source_kind)kind);printf("{\"status\":0,\"value\":");print_inspection(&out);puts("}");}
+            else assert(out.name[0]=='\0'&&out.policy_revision==0&&out.resource.resource==0&&out.details.description.column_count==0);
+        } else if(!strcmp(command,"next")) {
             transit_sdk_bytes input=unhex(token); transit_station_unified_bundle *v=NULL; checked(transit_station_unified_bundle_import(input,&v)); free((void *)input.data); transit_station_unified_prepared *out=NULL;
             error=transit_station_unified_prepare_next(client,strtoull(arg,NULL,10),v,&out); transit_station_unified_bundle_destroy(v);
             if(!error.kind) { printf("{\"status\":0,\"value\":{\"prepared_hex\":"); if(out) { checked(transit_station_unified_prepared_bytes(out,&data)); putchar('"'); print_hex(data); putchar('"'); }else printf("null"); puts("}}"); }

@@ -201,8 +201,11 @@ class CConsumer(Consumer):
         elif 'submit' in action: command = 'submit ' + action['submit'].encode().hex()
         elif 'next' in action:
             v = action['next']; command = f"next {v['namespace']} {v['bundle']}"
+        elif 'inspect' in action:
+            v = action['inspect']; scope = v['scope']; limits = scope['limits']
+            command = f"inspect {scope['name']} {v['sql'].encode().hex()} {limits['pages']} {limits['segments']} {limits['result_bytes']}"
         elif 'page' in action:
-            v = action['page']; command = f"page {v['namespace']} {v['cursor'].encode().hex() if v['cursor'] is not None else '-'}"
+            v = action['page']; command = f"page {v['namespace']} {v['cursor'].encode().hex() if v.get('cursor') is not None else '-'}"
         else:
             name, value = next(iter(action.items())); command = f'{name} {value}'
         self.child.stdin.write(command+'\n'); self.child.stdin.flush()
@@ -227,6 +230,7 @@ def install_c(root, fixtures, language):
     flags = shlex.split(subprocess.check_output(['pkg-config', '--cflags', '--libs', 'transit-station-c' if language == 'c' else 'transit-station-cpp'], text=True, env=env))
     filename = 'c_unified_sdk.c' if language == 'c' else 'cpp_unified_sdk.cpp'
     source = root/filename; shutil.copyfile(ROOT/'tests'/filename, source)
+    shutil.copyfile(ROOT/'tests/unified_inspection_fixture.h', root/'unified_inspection_fixture.h')
     executable = root/'consumer'
     subprocess.run(['zig', 'cc' if language == 'c' else 'c++', '-std=c11' if language == 'c' else '-std=c++17', '-Wall', '-Wextra', '-Werror', source, *flags, '-lpthread', '-o', executable], cwd=root, env=env, check=True)
     source.unlink()
@@ -241,7 +245,7 @@ def install_c(root, fixtures, language):
     def open_callers(url, connection, state, kind):
         arguments = [executable, 'serve', url, str(state/'caller.seed'), kind, str(state/'bundle.bin')]
         arguments += [str(connection[key]) for key in ('realm', 'principal', 'source', 'resource', 'requester', 'requests')]
-        return [CConsumer(arguments, env, root)]
+        return [CConsumer(arguments, env, root, inspection=True)]
     return open_callers
 
 

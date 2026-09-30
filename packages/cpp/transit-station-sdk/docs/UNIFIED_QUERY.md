@@ -23,6 +23,15 @@ explicit credential and a durable positive namespace. `Source` is a variant of
 `All`, `IsState` or typed `Compare`, an optional full-width limit and an explicit
 aggregate. Unsupported decoder versions, types and paths reject.
 
+`client.inspect_sql(source, name, sql, budgets)` executes scoped `DESCRIBE name`,
+`SHOW TABLES` or `EXPLAIN SELECT ...`. Its owned `Inspection` carries source/schema
+digests, current resource/policy revisions and a variant of `SourceDescription`,
+`TableListing` and `Explanation`. The explanation owns typed operators, predicate
+structure without literals, projection/output columns and explicit budgets.
+Full-width values use `uint64_t`; results can be copied and outlive the client.
+The shared Zig owner checks current authorization before and after resolution,
+creates no snapshot and admits no query. The listing covers one configured source.
+
 Persist `command->data()` before `client.submit(*command)`. An
 `Error` with `TRANSIT_SDK_UNKNOWN_OUTCOME` leaves the caller-owned token intact;
 recover it using `Prepared::recover` and resubmit the identical bytes. Admission,

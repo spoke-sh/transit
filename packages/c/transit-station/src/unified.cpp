@@ -83,6 +83,15 @@ size_t array_size(const Raw &raw,const Bytes &bytes,const std::string &path,size
 void fixed_bytes(const Raw &raw,const Bytes &bytes,const std::string &path,uint8_t *out,size_t count) {
     const auto value=unhex(raw.field(bytes,path,true),count);require(value.size()==count,"query-reference-width");std::copy(value.begin(),value.end(),out);
 }
+void inspected_name(const Raw &raw,const Bytes &bytes,const std::string &path,char (&out)[33]) {
+    const auto value=raw.field(bytes,path,true);require(value.size()<=32 && value.find('\0')==std::string::npos,"inspection-name");
+    std::copy(value.begin(),value.end(),out);out[value.size()]='\0';
+}
+transit_station_unified_source_description inspected_columns(const Raw &raw,const Bytes &bytes,const std::string &path) {
+    transit_station_unified_source_description out{};out.column_count=array_size(raw,bytes,path,8);require(out.column_count>0,"inspection-columns");
+    for(size_t i=0;i<out.column_count;++i){const auto column=path+"/"+decimal(i);inspected_name(raw,bytes,column+"/name",out.columns[i].name);out.columns[i].type=static_cast<transit_station_unified_type>(select_name(raw.field(bytes,column+"/type",true),types,6));}
+    return out;
+}
 struct NativeQuery {
     Local local;
     std::unique_ptr<station_query_client,decltype(&::station_unified_query_destroy)> handle;
@@ -183,6 +192,31 @@ void transit_station_unified_client_destroy(transit_station_unified_client *v){U
 transit_sdk_error transit_station_unified_describe(transit_station_unified_client *client,const transit_station_unified_source *source,transit_station_unified_description *out){
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){require(source&&out,"query-description");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");const auto v=n.call("{\"describe\":"+source_wire(*source)+"}");const auto &r=n.local.raw;const std::string p="description/";transit_station_unified_description result{};
         result.resource_revision=r.number(v,p+"resource_revision",true);result.policy_revision=wide(r,v,p+"policy_revision");result.budgets={wide(r,v,p+"limits/pages"),wide(r,v,p+"limits/segments"),wide(r,v,p+"limits/result_bytes")};result.has_active=r.field(v,p+"active")!="null";if(result.has_active)result.active=wide(r,v,p+"active");result.bundle_bytes=r.number(v,p+"capabilities/bundle_bytes");result.segment_bytes=r.number(v,p+"capabilities/segment_bytes");result.batch_rows=r.number(v,p+"capabilities/batch_rows");*out=result;});
+}
+transit_sdk_error transit_station_unified_inspect_sql(transit_station_unified_client *client,const transit_station_unified_source *source,const char *name,const char *sql,transit_station_unified_budgets budgets,transit_station_unified_inspection *out){
+    Uninterruptible guard;if(out)*out={};return run(client,[&](NativeQuery &n){
+        require(source&&out,"query-inspection");require(source->resource.realm==client->connection.resource.realm&&source->resource.resource==client->connection.resource.resource,"query-source-resource");
+        const auto v=n.call("{\"inspect\":{\"scope\":{\"source\":"+source_wire(*source)+",\"name\":"+quote(text(name,32))+",\"limits\":"+limits_wire(budgets)+"},\"sql\":"+quote(text(sql,4096))+"}}");
+        const auto &r=n.local.raw;const std::string p="inspection/",d=p+"details/";transit_station_unified_inspection result{};
+        require(r.number(v,p+"version")==1&&r.field(v,p+"scope",true)=="configured_source"&&r.number(v,p+"resource")==source->resource.resource,"inspection-scope");
+        inspected_name(r,v,p+"name",result.name);result.resource=source->resource;const char *kinds[]={"kv","table","document"};
+        result.source_kind=static_cast<transit_station_unified_source_kind>(select_name(r.field(v,p+"source_kind",true),kinds,3));
+        digest(r,v,p+"contract",result.source_digest);digest(r,v,p+"schema",result.schema_digest);
+        result.resource_revision=r.number(v,p+"resource_revision",true);result.policy_revision=wide(r,v,p+"policy_revision");
+        if(exists(r,v,d+"description")){result.kind=TRANSIT_UNIFIED_DESCRIPTION;result.details.description=inspected_columns(r,v,d+"description/columns");}
+        else if(exists(r,v,d+"tables")){result.kind=TRANSIT_UNIFIED_TABLES;auto &list=result.details.tables;list.count=array_size(r,v,d+"tables",1);for(size_t i=0;i<list.count;++i)inspected_name(r,v,d+"tables/"+decimal(i),list.names[i]);}
+        else {result.kind=TRANSIT_UNIFIED_EXPLANATION;const auto e=d+"explanation/";auto &plan=result.details.explanation;
+            const char *operators[]={"scan","filter","limit","project","count","sum"};plan.operator_count=array_size(r,v,e+"operators",4);require(plan.operator_count>=2,"inspection-operators");
+            for(size_t i=0;i<plan.operator_count;++i)plan.operators[i]=static_cast<transit_station_unified_inspection_operator>(select_name(r.field(v,e+"operators/"+decimal(i),true),operators,6));
+            if(exists(r,v,e+"predicate/all"))plan.predicate=TRANSIT_UNIFIED_ALL;
+            else if(exists(r,v,e+"predicate/state")){plan.predicate=TRANSIT_UNIFIED_IS_STATE;inspected_name(r,v,e+"predicate/state/column",plan.column);plan.state=static_cast<transit_station_unified_state>(select_name(r.field(v,e+"predicate/state/value",true),states,5));}
+            else {plan.predicate=TRANSIT_UNIFIED_COMPARE;const char *comparisons[]={"eq","ne","lt","le","gt","ge"};inspected_name(r,v,e+"predicate/compare/column",plan.column);plan.comparison=static_cast<transit_station_comparison>(select_name(r.field(v,e+"predicate/compare/op",true),comparisons,6));plan.type=static_cast<transit_station_unified_type>(select_name(r.field(v,e+"predicate/compare/type",true),types,6));}
+            plan.projection_count=array_size(r,v,e+"projection",8);for(size_t i=0;i<plan.projection_count;++i)inspected_name(r,v,e+"projection/"+decimal(i),plan.projection[i]);
+            plan.has_limit=r.field(v,e+"limit")!="null";if(plan.has_limit)plan.limit=wide(r,v,e+"limit");const char *aggregates[]={"rows","count","sum"};plan.aggregate=static_cast<transit_station_aggregate>(select_name(r.field(v,e+"aggregate",true),aggregates,3));
+            plan.output=inspected_columns(r,v,e+"columns");plan.budgets={wide(r,v,e+"budgets/pages"),wide(r,v,e+"budgets/segments"),wide(r,v,e+"budgets/result_bytes")};
+        }
+        *out=result;
+    });
 }
 transit_sdk_error transit_station_unified_prepare_next(transit_station_unified_client *client,uint64_t ns,const transit_station_unified_bundle *bundle,transit_station_unified_prepared **out){
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeQuery &n){require(ns&&bundle&&out,"query-next");auto value=prepared(n.local.raw,n.call("{\"next\":{\"namespace\":"+quote(decimal(ns))+",\"bundle\":"+quote(hex(bundle->bytes))+"}}"));*out=value.release();});

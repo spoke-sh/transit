@@ -4853,3 +4853,16 @@ revoked and retired disclosure, and preserve the full signed recovery schedule.
 The Java test adapter now treats an omitted cursor as no cursor, allowing the
 existing final retirement probe to reach the public SDK. Document is still
 running and is not included in this completed evidence.
+
+### C and C++ SQL inspection
+
+`just bindings::c-build` compiles the independent archives, C11/C++17 examples
+and C++ ownership checks. The public C result contains bounded inline metadata
+with no borrowed pointers; C++ returns owned strings, vectors and variants.
+`zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=c,cpp
+-Dunified-source=table` passes in 159.85 s, including four-caller metadata
+agreement, predicate variants, redaction, zero/full-width limits, zeroed C error
+output, current denial, permanent retirement and the existing disk recovery
+schedule. The test adapters normalize public typed results through a shared
+fixture printer; they do not invoke the raw inspection action. KV and Document
+installed coverage remain outstanding for this increment.

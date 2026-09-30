@@ -170,6 +170,24 @@ inline Rows decode_arrow(const std::vector<Column> &columns, const Bytes &ipc, u
 }
 struct Connection { ProcessRef source; ResourceRef resource; ProcessRef requester; ResourceRef requests; };
 using Description = transit_station_unified_description;
+enum class SourceKind { Kv, Table, Document };
+enum class InspectionOperator { Scan, Filter, Limit, Project, Count, Sum };
+struct InspectedState { std::string column; State state; };
+struct InspectedComparison { std::string column; Comparison comparison; Type type; };
+using InspectedPredicate = std::variant<All, InspectedState, InspectedComparison>;
+struct SourceDescription { std::vector<Column> columns; };
+struct TableListing { std::vector<std::string> names; };
+struct Explanation {
+    std::vector<InspectionOperator> operators; InspectedPredicate predicate;
+    std::vector<std::string> projection; std::optional<uint64_t> limit;
+    Aggregate aggregate; std::vector<Column> columns; Budgets budgets;
+};
+struct Inspection {
+    std::string name; ResourceRef resource; SourceKind source_kind;
+    std::array<uint8_t,32> source_digest, schema_digest;
+    uint64_t resource_revision, policy_revision;
+    std::variant<SourceDescription, TableListing, Explanation> details;
+};
 using Manifest = transit_station_unified_manifest;
 enum class Phase { Uploading, Sealed, Admitted, Complete, Cancelled, Denied, Rejected, Retired };
 struct Status { Phase phase; uint64_t correlation; std::array<uint8_t, 68> reference; std::optional<std::array<uint8_t, 68>> manifest; bool collected; };
@@ -192,6 +210,28 @@ public:
         check(transit_station_unified_open(&cfg, &identity, {connection.source.native(), connection.requester.native(), connection.resource.native(), connection.requests.native()}, &out)); return Client(out);
     }
     Description describe(const Source &source) { const detail::SourceView s(source); Description out{}; check(transit_station_unified_describe(value_.get(), &s.value, &out)); return out; }
+    Inspection inspect_sql(const Source &source,const std::string &name,const std::string &sql,Budgets budgets) {
+        checked_string(name); checked_string(sql); const detail::SourceView s(source); transit_station_unified_inspection out{};
+        check(transit_station_unified_inspect_sql(value_.get(),&s.value,name.c_str(),sql.c_str(),{budgets.pages,budgets.segments,budgets.result_bytes},&out));
+        Inspection result{out.name,ResourceRef(out.resource.realm,out.resource.resource),static_cast<SourceKind>(out.source_kind),{},{},out.resource_revision,out.policy_revision,SourceDescription{}};
+        std::copy(std::begin(out.source_digest),std::end(out.source_digest),result.source_digest.begin());
+        std::copy(std::begin(out.schema_digest),std::end(out.schema_digest),result.schema_digest.begin());
+        auto columns=[](const transit_station_unified_source_description &v) {
+            std::vector<Column> values; for(size_t i=0;i<v.column_count;++i)values.push_back({v.columns[i].name,static_cast<Type>(v.columns[i].type)}); return values;
+        };
+        if(out.kind==TRANSIT_UNIFIED_DESCRIPTION)result.details=SourceDescription{columns(out.details.description)};
+        else if(out.kind==TRANSIT_UNIFIED_TABLES){TableListing list;for(size_t i=0;i<out.details.tables.count;++i)list.names.emplace_back(out.details.tables.names[i]);result.details=std::move(list);}
+        else {
+            const auto &p=out.details.explanation;Explanation plan{{},All{},{},std::nullopt,static_cast<Aggregate>(p.aggregate),columns(p.output),{p.budgets.pages,p.budgets.segments,p.budgets.result_bytes}};
+            for(size_t i=0;i<p.operator_count;++i)plan.operators.push_back(static_cast<InspectionOperator>(p.operators[i]));
+            for(size_t i=0;i<p.projection_count;++i)plan.projection.emplace_back(p.projection[i]);
+            if(p.has_limit)plan.limit=p.limit;
+            if(p.predicate==TRANSIT_UNIFIED_IS_STATE)plan.predicate=InspectedState{p.column,static_cast<State>(p.state)};
+            else if(p.predicate==TRANSIT_UNIFIED_COMPARE)plan.predicate=InspectedComparison{p.column,static_cast<Comparison>(p.comparison),static_cast<Type>(p.type)};
+            result.details=std::move(plan);
+        }
+        return result;
+    }
     std::optional<Prepared> prepare_next(uint64_t ns, const Bundle &bundle) {
         transit_station_unified_prepared *out = nullptr; check(transit_station_unified_prepare_next(value_.get(), ns, bundle.native(), &out));
         if (!out) return {}; return Prepared(out);
