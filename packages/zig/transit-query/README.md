@@ -21,8 +21,12 @@ may retry the read, but must never regenerate uncertain mutations automatically.
 
 `TableMutationRequest` encodes owned, definition-bound requests over the shared
 Table mutation plan and Station Table codecs. It can produce an immutable
-publication reference without admission or execution. Applications still own
-writer authorization and result recording; public query clients reject writes.
+publication reference without admission or execution. `TableMutationAdmission`
+composes explicit principal/Table policies, immutable upload staging and a
+terminal result with the row proposal in one private Station turn. Applications
+must install its policy through their authorized configuration path and opt into
+its external-cast dispatch; the supplied query hosts and public query clients
+still reject writes. No read permission implicitly enables mutation dispatch.
 See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 
 `zig build test` checks the package independently. The real host and shell proof

@@ -17,6 +17,12 @@ The canonical request below supports immutable transport; it does not create a
 public admission route or standalone transaction session. Existing Table storage
 and the native contract definition are unchanged.
 
+`transit-query.TableMutationAdmission` supplies an explicitly composed private-turn
+admission owner. It stages these requests, checks a separate writer policy and
+proposes the terminal result atomically with the rows. The supplied query hosts
+do not dispatch its commands. Its reference-store checks do not establish native
+durable recovery or installed-client write support.
+
 ## Syntax and types
 
 ```sql
@@ -149,3 +155,97 @@ current command authorization and record the result at the row-commit boundary.
 A request/reference is neither an admitted operation nor a saved signed native
 command. Exact recovery still requires the original native identity and signature.
 No read-query bundle or query upload is reinterpreted as a mutation request.
+
+## Application-composed admission
+
+`TableMutationAdmission.dispatch` consumes an ordinary Station cast from the
+turn's actual delivered input. Its principal comes exclusively from the native
+external origin. Process/effect inputs, anonymous principals and non-cast frames
+reject. Applications expose this owner explicitly; a public query policy or
+source declaration cannot opt into it. `setPolicy` is an application configuration
+API, not an unauthenticated message command.
+
+A policy binds one principal, Table ID, exact source-declaration fingerprint,
+monotonic revision and a permission mask: INSERT=1, UPDATE=2, DELETE=4. Zero
+permissions revokes without deleting history. Installation requires the expected
+previous revision and exactly its successor; the initial expected revision is
+zero. An exact repeated policy returns unchanged. The current Table declaration
+must match. Native current authorization, resource ownership and fencing remain
+separate requirements at commit and observation.
+
+One active upload per owning resource is represented by a durable namespace
+pointer. Begin binds the immutable request reference, originating principal,
+Table, current declaration and expected policy revision. The namespace cannot
+already belong to another publication. A repeated exact begin preserves the
+original status; changing its reference, Table or policy revision rejects.
+Further parts, seal, apply and cancellation must come from that original
+principal. An active namespace prevents another begin. A terminal pointer may
+be replaced by the next begin; terminal evidence remains retained.
+
+Parts reuse `PublicationParts`: 128-byte halves of a 256-byte immutable chunk.
+The maximum request uses four chunks. Parts and seal recheck the original policy
+revision and current declaration. An unchanged permission mask with a newer
+revision still fences an old upload. Publication sequencing, repeated-half
+comparison and digest checks retain their existing meanings. Seal publishes
+the complete bytes and marks the status sealed in the same private proposal.
+Staging/retained records are paged durable state, not a resident backlog.
+
+Apply requires a sealed namespace and a fresh private proposal. It verifies the
+entire immutable request before proposing any row write, then checks the native
+definition, realm, writer, resource, Table, descriptor and operation permission.
+The final proposal changes at most three row keys plus one status key. That
+record holds phase, affected count, reason and original terminal input position;
+it becomes a durable result only when the native turn commits. The active pointer
+is not cleared in this turn, so the existing four-mutation bound is preserved.
+No timestamp, journal position or resource commit revision is invented locally.
+
+An existing row rejects an entire INSERT with `row_exists`. Policy revocation or
+revision change rejects with `denied`; declaration changes reject with
+`source_changed`; verified but malformed/incompatible request bytes reject with
+`invalid_request`. A helper mutation-budget rejection uses `budget`. Unavailable
+reads, corrupt stored descriptors or broken immutable publication integrity
+propagate as errors; they never become acknowledged invalid user requests. Any
+error restores the incoming proposal and preserves sticky read failure.
+
+Repeated apply/cancel of a terminal namespace preserves the original result and
+input identity without reselecting rows. Cancellation before application records
+`cancelled`; an uploading publication is abandoned. Cancellation remains possible
+after policy revocation for the original principal, subject to native ingress
+authority. It cannot undo an applied mutation. These operations retain publication
+bytes, half-chunk scratch and terminal records; they do not run cleanup or opt into
+expiry. Native deployment quotas still apply to the retained durable state.
+
+### Record and command encodings
+
+`TableMutationRecords` keys use byte prefix `00 4d`, one tag byte, and two u64
+big-endian fields. Tags are policy `p` (principal, Table), status `u` (namespace,
+zero), active `a` (zero, zero), and scratch `h` (namespace, zero). The active value
+is one nonzero u64 little-endian namespace. Publication keys retain their own
+existing domain. All integers below are little-endian and fields are contiguous.
+
+| Record | Fields after four-byte magic |
+| --- | --- |
+| Policy `TML1`, 57 bytes | principal u64, Table u32, revision u64, declaration 32 bytes, permissions u8 |
+| Status `TMS1`, 135 bytes | existing `SPF1` reference 68 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64 |
+
+Phases are uploading=1, sealed=2, applied=3, rejected=4, cancelled=5. Reasons are
+none=0, row_exists=1, source_changed=2, invalid_request=3, denied=4, budget=5.
+Uploading/sealed require zero count, reason and terminal input. Applied has reason
+none and zero to three affected rows. Rejected has a nonzero reason and zero
+count. Cancelled has reason none and zero count. Every terminal phase requires a
+positive input within the native safe-integer limit. Missing, truncated, trailing
+or inconsistent fields reject; stored values never receive compatibility defaults.
+
+| Cast payload magic | Following fields |
+| --- | --- |
+| Begin `TMB1` | `SPF1` reference, Table u32, expected policy revision u64 |
+| Part `TMP1` | namespace u64, chunk ordinal u32, second-half flag u8 (0 or 1), 1–128 payload bytes |
+| Seal `TMZ1` | namespace u64 |
+| Apply `TMX1` | namespace u64 |
+| Cancel `TMK1` | namespace u64 |
+
+These payloads fit an ordinary Station frame. The contextual publication owner
+checks each part's exact required length. Decode borrows part bytes from the
+input only for the enclosing handler; durable staging copies them into the private
+proposal. Native envelope and persisted-head definition checks bind the enclosing
+framework semantics; the canonical request separately requires that definition.

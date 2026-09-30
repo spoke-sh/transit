@@ -1,4 +1,5 @@
 """Independent canonical request fixtures; shared Table storage, current definition."""
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -6,6 +7,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT/'packages/zig/transit-query/src/fixtures/table-mutation-v1.json'
+RECORDS = FIXTURE.with_name('table-mutation-records-v1.json')
 
 
 def generate():
@@ -32,11 +34,38 @@ def generate():
     return json.dumps(dict(version=1,definition=definition,realm=46,writer=2,resource=7,table=9,cases=cases),ensure_ascii=False,indent=2)+'\n'
 
 
+def records(requests):
+    data = bytes.fromhex(json.loads(requests)['cases'][0]['wire_hex'])
+    format_id = 0x31524d54
+    chain = hashlib.sha256(b'transit.station.publication.v1\0'+struct.pack('<II',format_id,len(data))).digest()
+    for ordinal,offset in enumerate(range(0,len(data),256)):
+        chunk = data[offset:offset+256]
+        chain = hashlib.sha256(b'\1'+chain+struct.pack('<IH',ordinal,len(chunk))+chunk).digest()
+    reference = b'SPF1'+struct.pack('<QQQII',7,99,1,format_id,len(data))+chain
+    descriptor = b'TBL1\1\2id\5value'
+    declaration = hashlib.sha256(b'transit.query.source.v1\0UQS1'+struct.pack('<QBI',7,2,9)+bytes([len(descriptor)])+descriptor).digest()
+    policy = b'TML1'+struct.pack('<QIQ',10,9,4)+declaration+b'\7'
+    statuses = []
+    for phase,count,reason,input_id in [(1,0,0,0),(2,0,0,0),(3,3,0,123),(4,0,1,124),(5,0,0,125)]:
+        value = b'TMS1'+reference+struct.pack('<QI',10,9)+declaration+struct.pack('<QBBBQ',4,phase,count,reason,input_id)
+        statuses.append(dict(phase=phase,affected=count,reason=reason,input=input_id,wire_hex=value.hex()))
+    commands = [b'TMB1'+reference+struct.pack('<IQ',9,4),
+                b'TMP1'+struct.pack('<QIB',99,0,0)+data[:128],
+                b'TMP1'+struct.pack('<QIB',99,0,1)+data[128:256],
+                *[tag+struct.pack('<Q',99) for tag in [b'TMZ1',b'TMX1',b'TMK1']]]
+    # This request is shorter than one chunk. The second half is still nonempty.
+    assert 128 < len(data) <= 256
+    return json.dumps(dict(version=1,declaration=declaration.hex(),reference=reference.hex(),policy=policy.hex(),statuses=statuses,commands=[value.hex() for value in commands]),indent=2)+'\n'
+
+
 if __name__ == '__main__':
     expected = generate()
+    expected_records = records(expected)
     if sys.argv[1:] == ['--write']:
         FIXTURE.write_text(expected)
+        RECORDS.write_text(expected_records)
     else:
         assert not sys.argv[1:]
         assert FIXTURE.read_text() == expected, 'Regenerate the reviewed Table mutation request fixtures'
-        print('Table mutation request: five independent definition-bound layouts and four Table value types passed.')
+        assert RECORDS.read_text() == expected_records, 'Regenerate the reviewed Table mutation record fixtures'
+        print('Table mutations: five definition-bound requests, policy, five statuses and six commands agree with independent bytes.')

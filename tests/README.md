@@ -4989,3 +4989,33 @@ Board reader processes peak at 41,189,376 combined RSS bytes; Chromium is exclud
 This completes the installed KV inspection set across all ten SDKs when combined
 with the earlier language runs. The remaining eight SDK Document callers and
 Document browser are still being verified.
+
+### Application-composed Table mutation admission
+
+`TableMutationAdmission` passes `just test::unit` and the independent package
+`zig build test`. It uses the existing publication/half-chunk components and
+an explicit per-principal/Table policy. Begin uses four private mutations;
+application of three rows uses three row mutations plus one result. A terminal
+active pointer is replaced on the next begin without discarding the old result.
+
+Reference-store schedules cover interrupted/repeated halves and owner
+reconstruction, identical recomputed pre-commit proposals, repeated terminal
+apply/cancel with the original input identity, conflicting/foreign namespaces,
+forged process origin, another principal, busy uploads, conditional policy
+updates, zero-mask revocation, same-mask revision fencing and per-operation
+permissions. INSERT conflict leaves every row unchanged; same-value UPDATE
+counts one and missing UPDATE/DELETE count zero. Declaration drift rejects.
+A read failure on the second insert restores the first proposed row and leaves
+sticky read poison; no terminal record is fabricated. Foreign definition bytes
+with a valid publication commitment produce an invalid-request result, while
+post-publication chunk corruption propagates as an integrity error.
+
+The independent Python contract oracle additionally encodes the source
+fingerprint, publication commitment, one policy, five status phases and six
+commands. Zig matches their bytes and rejects truncated fixed records/commands,
+inconsistent terminal fields, permission bits, part flags and exceeded part
+bounds. These are private-turn/model checks, not native durability, transport
+uncertainty or public mutation-client proofs. The supplied query hosts still
+reject mutation messages; the native integration is the next proof boundary.
+`just check`, including generated-contract, frontend and documentation checks,
+passes for this increment. The verification catalog also passes.
