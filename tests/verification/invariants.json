@@ -1578,14 +1578,19 @@
         "packages/python/transit-station/transit_station/catalog.py",
         "tests/python_catalog_sdk.py",
         "tests/python_catalog_values.py",
-        "tests/sdk_catalog.py"
+        "tests/sdk_catalog.py",
+        "packages/ts/transit-station-sdk/src/catalog.ts",
+        "packages/ts/transit-station-sdk/src/catalog.test.ts",
+        "packages/ts/transit-station-sdk/src/bridge.ts",
+        "tests/node_catalog_sdk.mjs"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
         "test::unit",
         "test::catalog",
         "test::cli-diagnostics",
-        "bindings::catalog-python"
+        "bindings::catalog-python",
+        "bindings::catalog-node"
       ],
       "scenarios": [
         "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
@@ -1602,11 +1607,12 @@
         "Neutral caller values match independent binary/JSON fixtures, retain full-width identities and owned fields, and reject malformed values before transport",
         "Real catalog C ABI/port controls and creation, full-width neutral values, malformed/profile rejection, owned buffers, caller/node/store replacement after lost sends, exact original receipts and current application/native disclosure denial",
         "Explicit CLI offline compilation without credentials or transport, typed/canonical artifact agreement and foreign-definition rejection before key loading, private non-replacing files, exact saved-file recovery across lost admission and caller/node/store replacement, separate outcomes and current policy/native denial",
-        "Installed Python synchronous/asynchronous catalog methods preserve immutable full-width values, exact saved commands after lost admission and caller/node/store replacement, current-policy denial, malformed-response uncertainty and joined cleanup after await cancellation"
+        "Installed Python synchronous/asynchronous catalog methods preserve immutable full-width values, exact saved commands after lost admission and caller/node/store replacement, current-policy denial, malformed-response uncertainty and joined cleanup after await cancellation",
+        "TypeScript frozen catalog values and bigint identities, generated port request/response validation, malformed-success uncertainty and original-request status matching; installed package saved creation recovery after caller/node/store replacement and current denial"
       ],
-      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async SDK methods; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, nine with the optional Python sync/async schedule and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async and TypeScript promise methods; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, ten with the optional Python sync/async and TypeScript schedule and is not a native catalog growth or host power-loss proof.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python/TypeScript and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }
   ]
 }

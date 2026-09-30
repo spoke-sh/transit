@@ -107,3 +107,5 @@ export type {
   DocumentResynchronization,
   DocumentProgress,
 } from "./document.ts";
+
+export * as catalog from "./catalog.ts";

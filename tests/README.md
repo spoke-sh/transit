@@ -464,6 +464,61 @@ The following evidence-only commit changes no production code. This qualifies
 the core lane plus the installed Python schedule above, not a complete clean
 suite or the other nine catalog SDKs.
 
+### TypeScript catalog caller
+
+The public TypeScript `catalog.Client` uses the existing owned native port and
+shared generated catalog request/result schemas. Frozen typed declarations and
+controls retain full-width `bigint` identities; canonical byte getters return
+copies and prepared text stays opaque. The client distinguishes original creation
+receipts from input dispositions and preserves uncertain submissions, including
+malformed successful native responses. Status decoding checks the complete
+original request. No shared protocol definition changes.
+
+On development source based on `70919367`, **`just bindings::node-check` passes
+28 tests**, including 11 new catalog value/port-boundary cases and existing
+mutation/runner ownership tests. Cases cover mutable input copies, native-number
+versus bigint boundaries, invalid revisions, unknown observations, malformed
+admission receipts and missing/foreign native definitions. Generated schemas
+validate the real port path; injected hosts do not establish authority outcomes.
+
+The final combined **`just test::catalog --sdk python --sdk node` passes in
+29.190 seconds**, including **4.662 seconds** of isolated package installation.
+It uses frozen, hashed Python wheels and TypeScript tarballs outside the checkout.
+The new TypeScript caller prepares initialization/policy controls, compiles and
+creates a full-width request, loses its admission response, replaces caller/node/
+store and recovers the same saved command and original receipt. Current catalog
+and native disclosure revocation still hide earlier results. Python sync/async
+callers pass in the same schedule.
+
+The schedule records **1863 reads**, **45 accepted turn responses**, **eight lost
+caller receipts** and **three lost owner receipts**, with ten applied Tables over
+two resources. Bounds remain **four mutations**, **133-byte maximum fixture values**
+and **eight resident authority pages**. Installation and expanded recovery work
+are included; the interval is not an equivalent-workload speedup, latency target,
+native growth proof or host power-loss guarantee. The six frozen executable hashes
+and four Python wheel hashes match the preceding Python schedule. TypeScript
+package hashes in `.cache/verification/catalog/native.json` are:
+
+| Tarball | SHA-256 |
+| --- | --- |
+| `transit-station` | `1ddd05e7a8da2f506c658dc3b72dfac2ebfee377e5effcbed6a9fe98fb63aa56` |
+| `transit-native-station` | `f738de57b1c4912b0787c37a0e42303fb4230f41c80db1a88ce16ae0145171b5` |
+| `transit-client` | `263043a2da762afd3771dbfd8d6c411a8195ba017ba877ffeca0dae385bb901e` |
+| `transit-native-client` | `815e315a33426f171954cd5763d87e1c39fe0e7001889ea1d8d859f96cd25f0d` |
+
+The packaged catalog guide and README also match the working sources. Logs are
+`/tmp/transit-sql-catalog-node-check.log`,
+`/tmp/transit-sql-catalog-node-final-native.log` and
+`/tmp/transit-sql-catalog-node-final-format.log`.
+
+Full **`just check` passes**, including generated contracts, 346 CLI diagnostics,
+4551 local links across 478 files, 52 invariants, 53 classified bounds, 13 SDK
+scenarios, frontend checks and documentation build
+(`/tmp/transit-sql-catalog-node-full-check.log`). The focused
+`bindings::catalog-node` recipe and regular `bindings::node-sdk-test` include
+installed catalog recovery. These are development and focused checks; the other
+eight catalog SDKs and committed-HEAD clean validation for this increment remain.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned

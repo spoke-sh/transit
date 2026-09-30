@@ -39,6 +39,9 @@ import type {
   TableMutationAction,
   TableMutationResult,
   TableMutationConfig,
+  CatalogAction,
+  CatalogResult,
+  CatalogConfig,
 } from "./wire.ts";
 import {
   FrozenMutation,
@@ -388,6 +391,57 @@ export class MutationBridge {
         validator: validation.TableMutationResult,
       },
     )) as TableMutationResult;
+  }
+  close(): Promise<void> {
+    return this.#port.close();
+  }
+}
+
+/** Explicit catalog caller; shared schemas validate its port boundary. */
+export class CatalogBridge {
+  readonly #port: Port;
+  private constructor(port: Port) {
+    this.#port = port;
+  }
+  static async open(
+    url: string,
+    seedFile: string,
+    config: CatalogConfig,
+    nativeHost?: string,
+  ): Promise<CatalogBridge> {
+    const port = await openPort({ url, seed_file: seedFile, catalog_client: config }, nativeHost);
+    try {
+      const bridge = new CatalogBridge(port);
+      const result = await bridge.call({ capabilities: {} });
+      if (!("capabilities" in result))
+        throw new IncompatibleNative("Expected catalog capabilities");
+      const caps = result.capabilities;
+      if (
+        caps.version !== 1 ||
+        caps.definition !== contract.definition ||
+        caps.table_columns !== 2 ||
+        caps.max_saved_bytes !== 8192 ||
+        !caps.initialize ||
+        !caps.create_table ||
+        !caps.conditional_policy ||
+        !caps.current_metadata
+      )
+        throw new UnsupportedCapability("Native catalog client lacks the named Table profile");
+      return bridge;
+    } catch (error) {
+      await port.close();
+      throw error;
+    }
+  }
+  async call(action: CatalogAction): Promise<CatalogResult> {
+    return (await this.#port.request(
+      { catalog: action },
+      {
+        phase: "catalog",
+        mutation: "submit" in action,
+        validator: validation.CatalogResult,
+      },
+    )) as CatalogResult;
   }
   close(): Promise<void> {
     return this.#port.close();

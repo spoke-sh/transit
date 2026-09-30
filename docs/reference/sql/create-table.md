@@ -10,7 +10,8 @@ submit to an explicit
 [`catalog` host](../../../apps/transit-query-host/README.md) or application
 integration. The [catalog CLI](../../../apps/transit-cli/docs/catalog.md)
 compiles, saves and explicitly submits these declarations through the same owner.
-Python exposes [typed sync/async catalog methods](../../../packages/python/transit-station/docs/catalog.md).
+Python exposes [typed sync/async catalog methods](../../../packages/python/transit-station/docs/catalog.md);
+TypeScript exposes [typed promise methods](../../../packages/ts/transit-station-sdk/docs/catalog.md).
 Query interfaces reject the statement. Board and other language SDKs have no
 administrative route for it. Neither compilation nor the
 helper provisions a native resource, chooses a writer, grants access or registers

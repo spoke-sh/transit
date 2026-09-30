@@ -60,3 +60,7 @@ Qualification is tracked per source and SDK.
 The [Table mutation guide](docs/mutations.md) covers explicit SQL writes, owned
 request references, exact saved-command recovery and durable results through
 the shared Zig mutation caller.
+
+The [catalog guide](docs/catalog.md) covers explicit typed initialization,
+conditional policy, Table creation and exact saved-command recovery, with
+`bigint` identities and generated runtime validation through the native port.

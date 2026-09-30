@@ -32,7 +32,7 @@ node-check:
     vp exec --filter @transit/client tsc
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts
 
 # Build version-matched Python wheels, including separate native dependencies.
 python-build: build
@@ -60,7 +60,7 @@ node-sdk-test: node-build
     vp exec --filter @transit/client tsc --noEmit
     cd packages/ts/transit-station-sdk && vp check
     vp exec --filter @transit/station tsc --noEmit
-    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts
+    vp exec --filter @transit/station node --test src/scope.test.ts src/runner.test.ts src/mutations.test.ts src/catalog.test.ts
     cd examples/station-sdk/typescript && vp check
     vp exec --filter @transit/sdk-examples tsc --noEmit
     zig build transit-node rey-cli transit-station-http-worker
@@ -69,6 +69,7 @@ node-sdk-test: node-build
     python3 -B tests/node_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/node zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language node
     just test::table-mutation --sdk node
+    just test::catalog --sdk node
 
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
@@ -324,3 +325,7 @@ unified-all: python-build node-build ruby-build rust-build c-build java-build do
 catalog-python: python-build
     mypy --config-file packages/python/transit-station/pyproject.toml packages/python/transit-client/transit_client packages/python/transit-station/transit_station
     just test::catalog --sdk python
+
+# Installed TypeScript catalog caller with generated runtime checks and saved recovery.
+catalog-node: node-build node-check
+    just test::catalog --sdk node
