@@ -4866,3 +4866,14 @@ output, current denial, permanent retirement and the existing disk recovery
 schedule. The test adapters normalize public typed results through a shared
 fixture printer; they do not invoke the raw inspection action. KV and Document
 installed coverage remain outstanding for this increment.
+
+### Erlang and Elixir SQL inspection
+
+`just bindings::beam-build` compiles the OTP applications and Elixir structs.
+`zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=erlang,elixir
+-Dunified-source=table` passes in 157.89 s. The installed adapters use public
+records/structs and normalize their results for comparison with native and port
+callers. The same description/list/plan, redaction, state/limit, current denial,
+retirement and signed disk recovery checks pass. Atom conversion uses fixed
+allowlists. The controller now handles omitted page cursors for the final
+retirement probe. KV/Document installed coverage remains outstanding.

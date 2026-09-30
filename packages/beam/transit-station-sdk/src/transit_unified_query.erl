@@ -1,16 +1,17 @@
 %% Public immutable query values; the native worker owns signed protocol work.
 -module(transit_unified_query).
 -include("transit_unified_query.hrl").
--export([prepare/3,prepare/4,decode_arrow/3,decode_arrow/4,open/3,close/1,describe/2,
+-export([prepare/3,prepare/4,decode_arrow/3,decode_arrow/4,open/3,close/1,describe/2,inspect_sql/5,
          prepare_next/3,prepare_control/3,submit/2,observe/2,status/2,page/2,page/3]).
 %% Internal bounded-worker callbacks, not an application wire interface.
 -export([open/2,execute/2,evidence/1]).
--export_type([client/0,source/0,scalar/0,cell/0,predicate/0]).
+-export_type([client/0,source/0,scalar/0,cell/0,predicate/0,inspection/0]).
 -opaque client() :: {transit_unified_client,transit_sdk_worker:handle()}.
 -type source() :: #transit_unified_kv{} | #transit_unified_table{} | #transit_unified_document{}.
 -type scalar() :: {int64,integer()} | {uint64,non_neg_integer()} | {float64,float()} | {boolean,boolean()} | {utf8,binary()} | {binary,binary()}.
 -type cell() :: missing | null | {type_error,atom()} | {value,scalar()} | {conflict,[#transit_unified_alternative{}]}.
 -type predicate() :: all | {state,0..7,missing | null | type_error | value | conflict} | {compare,0..7,eq | ne | lt | le | gt | ge,scalar()}.
+-type inspection() :: #transit_unified_inspection{}.
 -record(state,{bridge,connection=undefined}).
 u64(V) -> transit_sdk_value:integer(V,0,18446744073709551615).
 positive(V) -> transit_sdk_value:integer(V,1,18446744073709551615).
@@ -108,6 +109,7 @@ close(#state{bridge=Bridge}) -> transit_station_bridge:close(Bridge).
 evidence(_) -> undefined.
 call({transit_unified_client,Worker},Request) -> transit_sdk_worker:invoke(Worker,Request).
 describe(Client,Source) -> call(Client,{describe,Source}).
+inspect_sql(Client,Source,Name,Sql,Budgets) -> call(Client,{inspect,Source,Name,Sql,Budgets}).
 prepare_next(Client,Namespace,Bundle) -> call(Client,{next,Namespace,Bundle}).
 prepare_control(Client,Control,Namespace) -> call(Client,{control,Control,Namespace}).
 submit(Client,Prepared) -> case call(Client,{submit,Prepared}) of {error,#transit_error{kind=unknown_outcome}=E}->{uncertain,Prepared,E}; Other->Other end.
@@ -125,6 +127,13 @@ cursor(V) -> #transit_unified_cursor{opaque=transit_sdk_value:text(V,4096)}.
 operation(B,#transit_unified_connection{resource=R},{describe,S}) ->
     true=source_resource(S)=:=R,#{<<"description">>:=V}=request(B,#{<<"describe">>=>source(S)}),Caps=maps:get(<<"capabilities">>,V),
     #transit_unified_description{resource_revision=transit_sdk_value:counter(maps:get(<<"resource_revision">>,V),0),policy_revision=wide(maps:get(<<"policy_revision">>,V)),budgets=parsed_budgets(maps:get(<<"limits">>,V)),active=parsed_optional(maps:get(<<"active">>,V),fun wide/1),bundle_bytes=maps:get(<<"bundle_bytes">>,Caps),segment_bytes=maps:get(<<"segment_bytes">>,Caps),batch_rows=maps:get(<<"batch_rows">>,Caps)};
+operation(B,#transit_unified_connection{resource=R},{inspect,S,Name,Sql,Budgets}) ->
+    true=source_resource(S)=:=R,
+    #{<<"inspection">>:=V}=request(B,#{<<"inspect">>=>#{<<"scope">>=>#{<<"source">>=>source(S),<<"name">>=>transit_sdk_value:text(Name,32),<<"limits">>=>budgets(Budgets)},<<"sql">>=>transit_sdk_value:text(Sql,4096)}}),
+    #{<<"version">>:=1,<<"scope">>:=<<"configured_source">>,<<"resource">>:=Id}=V,true=Id=:=R#transit_resource.resource,
+    #transit_unified_inspection{name=transit_sdk_value:text(maps:get(<<"name">>,V),32),resource=R,source_kind=known(maps:get(<<"source_kind">>,V),[kv,table,document]),
+        source_digest=transit_station_value:digest(maps:get(<<"contract">>,V)),schema_digest=transit_station_value:digest(maps:get(<<"schema">>,V)),
+        resource_revision=transit_sdk_value:counter(maps:get(<<"resource_revision">>,V),0),policy_revision=positive(wide(maps:get(<<"policy_revision">>,V))),details=inspection_details(maps:get(<<"details">>,V))};
 operation(B,_,{next,N,#transit_unified_bundle{bytes=Bundle}}) ->
     #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"namespace">>=>decimal(positive(N)),<<"bundle">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bundle,16384))}}),prepared(V);
 operation(B,_,{control,Control,N}) -> #{<<"prepared">>:=V}=request(B,#{<<"prepare">>=>#{enum(Control,[cancel,retire,collect])=>decimal(positive(N))}}),prepared(V);
@@ -142,6 +151,22 @@ operation(B,#transit_unified_connection{source=#transit_process{realm=Realm}},{p
     #{<<"page">>:=V}=request(B,#{<<"page">>=>#{<<"namespace">>=>decimal(positive(N)),<<"cursor">>=>C}}),
     #transit_unified_page{manifest=manifest(maps:get(<<"manifest">>,V),Realm),columns=[parsed_column(X)||X<-array(maps:get(<<"columns">>,V),8)],ordinal=wide(maps:get(<<"ordinal">>,V)),rows=transit_sdk_value:integer(maps:get(<<"rows">>,V),0,8),ipc=transit_sdk_value:unhex(maps:get(<<"ipc">>,V),65536),next=cursor(maps:get(<<"next">>,V))}.
 status_value(V) -> #transit_unified_status{phase=known(maps:get(<<"phase">>,V),[uploading,sealed,admitted,complete,cancelled,denied,rejected,retired]),correlation=wide(maps:get(<<"correlation">>,V)),reference=fixed(maps:get(<<"reference">>,V),68),manifest=parsed_optional(maps:get(<<"manifest">>,V),fun(X)->fixed(X,68) end),collected=transit_sdk_value:boolean(maps:get(<<"collected">>,V))}.
+inspection_details(V) when map_size(V)=:=1 ->
+    case V of
+        #{<<"description">>:=#{<<"columns">>:=Columns}} -> #transit_unified_source_description{columns=[parsed_column(C)||C<-array(Columns,8)]};
+        #{<<"tables">>:=Names} -> #transit_unified_table_listing{names=[transit_sdk_value:text(N,32)||N<-array(Names,1)]};
+        #{<<"explanation">>:=Plan} ->
+            Operators=[known(O,[scan,filter,limit,project,count,sum])||O<-array(maps:get(<<"operators">>,Plan),4)],true=length(Operators)>=2,
+            #transit_unified_explanation{operators=Operators,predicate=inspection_predicate(maps:get(<<"predicate">>,Plan)),projection=[transit_sdk_value:text(N,32)||N<-array(maps:get(<<"projection">>,Plan),8)],
+                limit=parsed_optional(maps:get(<<"limit">>,Plan),fun wide/1),aggregate=known(maps:get(<<"aggregate">>,Plan),[rows,count,sum]),
+                columns=[parsed_column(C)||C<-array(maps:get(<<"columns">>,Plan),8)],budgets=parsed_budgets(maps:get(<<"budgets">>,Plan))}
+    end.
+inspection_predicate(V) when map_size(V)=:=1 ->
+    case V of
+        #{<<"all">>:=_} -> all;
+        #{<<"state">>:=#{<<"column">>:=Column,<<"value">>:=State}} -> {state,transit_sdk_value:text(Column,32),known(State,[missing,null,type_error,value,conflict])};
+        #{<<"compare">>:=#{<<"column">>:=Column,<<"op">>:=Op,<<"type">>:=Type}} -> {compare,transit_sdk_value:text(Column,32),known(Op,[eq,ne,lt,le,gt,ge]),known(Type,[int64,uint64,float64,boolean,utf8,binary])}
+    end.
 manifest(V,Realm) ->
     Basis=maps:get(<<"basis">>,V),
     #transit_unified_manifest{job=maps:get(<<"job">>,V),source=transit_station_value:version(maps:get(<<"source">>,V)),requester=#transit_process{realm=Realm,pid=maps:get(<<"requester">>,V)},correlation=wide(maps:get(<<"correlation">>,V)),policy_revision=wide(maps:get(<<"policy_revision">>,V)),request=fixed(maps:get(<<"request">>,V),68),
