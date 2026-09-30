@@ -18,24 +18,12 @@ class Compose:
     def docker(self, *args, spawn=False, **kwargs):
         values_file = self.path / "compose.env.json"
         env = dict(os.environ)
-        if values_file.exists():
-            values = json.loads(values_file.read_text())
-            # Older installations must still be inspectable/stoppable before
-            # their first up selects immutable image identities.
-            prefix = values.get("REY_COMPOSE_IMAGE_PREFIX")
-            if prefix:
-                for role, artifact in (("NODE", "transit-node"), ("BOARD", "transit-board"), ("COUNTER", "example-counter"), ("DELIVERY", "transit-delivery")):
-                    values.setdefault("REY_COMPOSE_" + role + "_IMAGE", prefix + "/" + artifact)
-            # New topology must not strand pre-M8 installations. These defaults
-            # permit status/down only; startup/update writes identified images.
-            values.setdefault("REY_COMPOSE_DELIVERY_IMAGE", "transit-delivery:unselected")
-            values.setdefault("REY_COMPOSE_DELIVERY_LOG_LEVEL", "info")
-            values.setdefault("REY_COMPOSE_DELIVERY_LOG_FORMAT", "json")
-            env.update(values)
-            config = self.installation.compose_topology
-        else:
-            # Allow existing installations to stop before their first new up.
-            config = self.path / "compose.json"
+        values = json.loads(values_file.read_text())
+        for role in self.installation.artifacts.roles([]):
+            if "REY_COMPOSE_" + role.upper().replace("-", "_") + "_IMAGE" not in values:
+                raise RuntimeError("Incomplete Compose configuration; preserve this installation and restore its matching build")
+        env.update(values)
+        config = self.installation.compose_topology
         command = ["docker", "compose", "--project-name", self.installation.load()["project"],
                    "--env-file", os.devnull, "--file", config, *args]
         if spawn:
@@ -44,7 +32,7 @@ class Compose:
         return run(command, env=env, **kwargs)
 
     def configured(self):
-        return (self.path / "compose.env.json").exists() or (self.path / "compose.json").exists()
+        return (self.path / "compose.env.json").exists()
 
     def services(self):
         if not self.configured():

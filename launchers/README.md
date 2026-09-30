@@ -79,9 +79,7 @@ still apply.
 
 Updates read supported `.env` settings for the selected roles. Restarts reuse
 saved configuration. General topology changes to Process Compose require `down`/`up`.
-A coordinated upgrade from a manager without the delivery service replaces that
-manager and ends its foreground attachment; use `attach` afterward. Source
-watching and frontend HMR are not supported by the launcher.
+Source watching and frontend HMR are not supported by the launcher.
 
 The example counter's update contract is `code=1` with the same state encoding.
 Updates preserve its PID/state and pending inputs. This is a caller/deployer
@@ -93,21 +91,13 @@ Local/Compose replace direct owners; reference uses the
 retaining the Actor UID, reconciling a suspended template switch, and activating
 a fresh pod/key/generation. Retrying does not redispatch effects.
 
-An existing local/Compose installation from before identified artifacts needs
-one `down`/`up` cycle to select binaries and load the new manager configuration.
-Its durable data and keys are retained.
-
-Identified installations without authenticated input origins and the delivery
-service need a coordinated `update` with no service names: read envelopes changed
-and node, callers, Board and the courier must match.
-Partial upgrades are refused until delivery is selected. Run this while the
-reference installation is running on its previous version; a stopped reference
-installation must first be started with that version, because its bound workload
-requires the recorded image-upgrade protocol. Stopped local/Compose installations
-can run `update` to select compatible artifacts, then `up`. Existing genesis,
-state and creation policy stay unchanged; new installations opt into the
-initialization barrier. Downgrading a realm that accepted the newer origin,
-delivery or lifecycle commands to binaries without those capabilities is unsupported.
+Installation and artifact records require the current native contract definition.
+Missing or incompatible definitions, selected artifacts and topology reject
+before startup or replacement; `up` and `update` do not convert old installations.
+Preserve the original records, data and pending requests, and use their matching
+build to resolve accepted work. Follow the [hard-cutover procedure](../docs/reference/versioning.md#durable-data-and-pending-operations)
+before choosing a separately named fresh installation. Compatible artifact updates
+within the current definition retain the existing realm, state and creation policy.
 
 ## Start locally
 

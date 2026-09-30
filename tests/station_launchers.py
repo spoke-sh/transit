@@ -33,11 +33,10 @@ def exercise(profile, name=None, base=None, existing=False):
         return result.stdout
 
     def entry(role, key):
-        query = installation.path / "operator/proof-state.json"
-        write(query, {"realm": installation.load()["realm"], "principal": 0, "kind": "entries",
-                      "resource": installation.records()[role]["resource"], "key": key.hex()})
-        page = json.loads(run([installation.cli, "state", installation.path / "operator/root.key", query, installation.url], capture=True))
-        value = page["entries"][0]
+        page = installation.native_query({"read_entries": {
+            "resource": installation.records()[role]["resource"],
+            "keys": [key.hex()] + [None] * 7}})
+        value = page["body"]["read_entries"]["entries"][0]
         return bytes.fromhex(value["value"]) if value else None
 
     def total():
@@ -77,8 +76,9 @@ def exercise(profile, name=None, base=None, existing=False):
                             assert lens["source"]["pid"] == record["pid"] and lens["source"]["resource"] == record["resource"]
                             kinds.update(lens["declaration"])
                     page = response["observation"]
-                    if page["next"] is None: return kinds
-                    response = board(path + "?" + urllib.parse.urlencode({"after": page["next"], **page["cut"]}))
+                    if page["next_key"] is None: return kinds
+                    response = board(path + "?" + urllib.parse.urlencode({
+                        "after_key": page["next_key"], "revision": page["resources"][0]["revision"], **page["cut"]}))
             except CutExpired:
                 # Concurrent controller/output progress invalidates the whole
                 # snapshot. Never retry one old cursor or stitch different cuts.

@@ -10,8 +10,8 @@ The [reference proof](../../deploy/reference/README.md) installs this chart and
 qualifies controller/worker recovery, persistent storage, maintenance, and Board
 isolation. The [Station example](../../examples/station-ledger/docs/running.md)
 uses three PID-scoped runtime controllers and separate framework controllers.
-The chart packages the bounded reference profile;
-it is not an HA production installer.
+The chart packages one native v1 authority with bounded resident pages and
+persistent catalogs. It does not configure authority replication or failover.
 
 ## Resources and values
 
@@ -35,6 +35,11 @@ and validated by their binaries; the chart does not duplicate those schemas.
 | `workerPool` | Optional Substrate WorkerPool. Supply `spec` and any workload selector labels. Requires the pinned Substrate CRD/controller already installed. |
 
 Names default to `<release>-<component>` and can be overridden per component.
+Maintenance leaves checkpoint trimming disabled by default. To enable it,
+explicitly set `node.config.genesis.allow_history_trim: true` when initializing
+the realm and `maintenance.config.checkpoint_every_records` to at least 2.
+This does not enable application data expiry.
+
 Additional controller names must be unique across both arrays and base components.
 Their `config` is public configuration: signing credentials come from the
 mounted Secret's `seed` key. Use separate recorded grants for each responsibility;

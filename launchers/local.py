@@ -197,12 +197,11 @@ class Local:
 
     def apply_update(self, operation):
         from updates import publish, completed
-        topology_upgrade = not any(p["name"] == "delivery" for p in self.services())
+        services = self.services()
+        if services and not any(p["name"] == "delivery" for p in services):
+            raise RuntimeError("Incompatible launcher topology; preserve this installation and use its matching build")
         publish(self, operation)
-        if topology_upgrade:
-            # Process Compose cannot add a service to a live manager. Replace
-            # the owned topology and recover the same durable PID with new code.
-            self.down()
+        if not services:
             self.up(detached=True)
             for role in operation["services"]:
                 completed(self, operation, role)

@@ -8,6 +8,7 @@ import re
 import secrets
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -16,6 +17,7 @@ from urllib.parse import urlsplit
 import settings
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFINITION = json.loads((ROOT / "contracts/transit-v1.schema.json").read_text())["x-transit"]["definition"]
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, message, headers, url):
         return None
@@ -112,6 +114,8 @@ class Installation:
             raise RuntimeError("Unrecognized launcher installation; refusing to adopt it")
         if value.get("protocol") != "native_v1":
             raise RuntimeError("Incompatible launcher protocol; preserve this installation and use its matching build")
+        if value.get("definition") != DEFINITION:
+            raise RuntimeError("Incompatible launcher definition; preserve this installation and use its matching build")
         if value.get("example", "counter") != self.example:
             raise RuntimeError("This installation runs another example; choose a new name")
         if self.path.is_symlink():
@@ -182,7 +186,7 @@ class Installation:
         write(self.path / "operator/sequence.json", {"sequence": 0, "pending": None})
         (self.path / "wal").mkdir(mode=0o700)
         write(self.manifest, {"version": 1, "profile": self.profile, "name": self.name, "example": self.example,
-              "protocol": "native_v1",
+              "protocol": "native_v1", "definition": DEFINITION,
               "project": "rey-" + self.profile + "-" + secrets.token_hex(6),
               "realm": secrets.randbelow(2**31 - 1) + 1, "base_port": base, "root_public": root_public})
         self.configs()
@@ -303,7 +307,7 @@ backend = "inline"
     def provision(self):
         pid = self.command("spawn-counter", {"create": {"required": [b"counter".hex(), None, None, None]}})
         write(self.path / "pid.json", pid)
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 128)):
+        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 132)):
             self.command("grant-" + label, {"grant": {"subject": principal,
                 "public_key": self.key(label + "/seed.key"), "permissions": permissions}})
         resource = self.command("create-counter-state", {"create_resource": {"writer": pid}})
@@ -349,14 +353,26 @@ backend = "inline"
     def native_query(self, kind):
         read = self.path / "operator/read.json"
         write(read, {"realm": self.load()["realm"], "principal": 0, "kind": kind})
-        return json.loads(run([self.cli, "query", self.path / "operator/root.key", read, self.url], capture=True))
+        command = list(map(str, [self.cli, "query", self.path / "operator/root.key", read, self.url]))
+        deadline = time.monotonic() + 20
+        while True:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                return json.loads(result.stdout)
+            # Concurrent workers can occupy the authority's finite read slots.
+            # Retry only a read with a classified transient transport result.
+            transient = result.stderr.rstrip().endswith(("error: AuthorityUnavailable", "error: AuthorityTimeout"))
+            if not transient or time.monotonic() >= deadline:
+                print(result.stderr, file=sys.stderr, end="")
+                result.check_returncode()
+            time.sleep(.1)
 
     def counter_value(self):
         # Example-specific decoding belongs in the example/operator tools, not Board.
         resource = json.loads((self.path / "state-resource.json").read_text())
-        revision = self.native_query({"resource": resource})["body"]["resource"]["revision"]
-        page = self.native_query({"entries": {"resource": resource, "revision": revision, "key": b"value".hex()}})["body"]["entries"]["page"]
-        return int(bytes.fromhex(page["entries"][0]["value"])) if page["entries"][0] else 0
+        entries = self.native_query({"read_entries": {"resource": resource,
+            "keys": [b"value".hex()] + [None] * 7}})["body"]["read_entries"]["entries"]
+        return int(bytes.fromhex(entries[0]["value"])) if entries[0] else 0
 
     def view(self):
         pid = json.loads((self.path / "pid.json").read_text())

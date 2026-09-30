@@ -175,12 +175,30 @@ def proof(profile):
         root_key = (installation.path / "operator/root.key").read_bytes()
         invoke("down")
         assert installation.manifest.exists() and not launcher.services()
-        # A stopped pre-M8 artifact manifest can select the coordinated upgrade
-        # without starting services, changing identity or dropping retained data.
+        # Missing current artifacts and incompatible v1 definitions must not
+        # select replacements, start services or alter the retained installation.
         selection = installation.artifacts.read("selected")
         installation.artifacts.select({k: v for k, v in selection.items() if k != "transit-delivery"})
+        incomplete = (installation.artifacts.path / "selected.json").read_bytes()
         invoke("update", "board", "--no-build", success=False)
-        assert "Coordinated artifacts selected" in invoke("update", "--no-build")
+        invoke("update", "--no-build", success=False)
+        invoke("up", success=False)
+        assert (installation.artifacts.path / "selected.json").read_bytes() == incomplete
+        installation.artifacts.select(selection)
+        saved_manifest = installation.manifest.read_bytes()
+        manifest = json.loads(saved_manifest)
+        for definition in (None, "00" * 32):
+            changed = dict(manifest)
+            if definition is None:
+                del changed["definition"]
+            else:
+                changed["definition"] = definition
+            write(installation.manifest, changed)
+            rejected_manifest = installation.manifest.read_bytes()
+            invoke("up", success=False)
+            invoke("update", "--no-build", success=False)
+            assert installation.manifest.read_bytes() == rejected_manifest
+        installation.manifest.write_bytes(saved_manifest)
         assert not launcher.services()
         assert (installation.path / "operator/root.key").read_bytes() == root_key
         invoke("up")

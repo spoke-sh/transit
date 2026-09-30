@@ -13,9 +13,9 @@ def exercise(installation, launcher):
         # Queue work while suspended and require a new activation of the same PID.
         before = installation.view()
         value = installation.counter_value()
-        installation.command("readiness-suspend", {"lifecycle": {"suspend": {
+        installation.command("readiness-suspend", {"suspend": {
             "pid": before["pid"], "expected_generation": before["generation"],
-            "resume_before_ms": int(time.time() * 1000) + 240000}}})
+            "resume_before_ms": int(time.time() * 1000) + 240000}})
         stopped = launcher.await_process(lambda p: p["binding"]["desired"] == "stopped" and p["binding"]["phase"] == "stopped", "logical suspension provider stop")
         values = launcher.values()
         for pool in values["workerPools"]:
@@ -27,8 +27,8 @@ def exercise(installation, launcher):
         launcher.deploy(values)
         installation.command("readiness-queued", {"send": {"pid": before["pid"], "value": b"2".hex()}})
         assert installation.view()["consumed"] == before["consumed"]
-        installation.command("readiness-resume", {"lifecycle": {"resume": {
-            "pid": before["pid"], "expected_generation": stopped["generation"]}}})
+        installation.command("readiness-resume", {"resume": {
+            "pid": before["pid"], "expected_generation": stopped["generation"]}})
         resumed = launcher.await_process(lambda p: p["binding"]["activation"] is not None and p["consumed"] == before["consumed"] + 1, "logical resumption and queued input")
         assert resumed["pid"] == before["pid"] and resumed["generation"] > stopped["generation"]
         assert resumed["binding"]["incarnation"] == before["binding"]["incarnation"]

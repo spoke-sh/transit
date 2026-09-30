@@ -45,7 +45,8 @@ maintenance:
     principal: 3
     interval_ms: 200
     operation_timeout_ms: 5000
-    checkpoint_every_records: 16
+    # Opt in only with node.config.genesis.allow_history_trim enabled.
+    checkpoint_every_records: null
   logging: {level: info, format: json}
   resources:
     requests: {cpu: 100m, memory: 128Mi}

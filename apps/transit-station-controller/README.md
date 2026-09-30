@@ -28,7 +28,9 @@ identity and clock are a trusted framework boundary; telemetry does not supply
 these observations.
 
 In `lifecycle` mode, use a separate admin/inspect principal (17), scoped to the
-child PID, with read/inspect rights to the supervisor resource. The controller
+child PID, with read/inspect rights to the supervisor resource. Associate that
+resource with the child through an optional association so it is inside the
+principal's PID scope; the association does not replace the resource grant. The controller
 only acts on a recorded retry intent. It verifies the current generation and
 exact failure record, then submits the kernel retry operation. A bound child
 first gets a recorded provider-stop intent; the runtime adapter must confirm

@@ -33,11 +33,18 @@ class StationInstallation(Installation):
             resource = self.command("resource-" + role, {'create_resource': {"writer": pid}})
             self.command("operator-state-" + role, {'grant_resource': {"resource": resource, "subject": 0, "permissions": 7}})
             self.command("associate-" + role, {'associate': {"pid": pid, "name": b"data".hex(), "resource": resource}})
-            self.command("initialize-" + role, {'initialize': {"pid": pid, "expected_generation": 1}})
             records[role] = {"pid": pid, "resource": resource, "principal": principal}
+        # The lifecycle identity is scoped to the ledger PID. Its separate read
+        # grant can reach the supervisor's intent only through this association.
+        self.command("associate-supervisor", {"associate": {
+            "pid": records["ledger"]["pid"], "name": b"supervisor".hex(),
+            "resource": records["coordinator"]["resource"], "required": False}})
+        for role, record in records.items():
+            generation = self.native_query({"process": record["pid"]})["body"]["process"]["process"]["generation"]
+            self.command("initialize-" + role, {'initialize': {"pid": record["pid"], "expected_generation": generation}})
         write(self.path / "station.json", records)
         write(self.path / "pid.json", records["ledger"]["pid"])
-        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 128),
+        for principal, label, permissions in ((2, "board", 16), (3, "maintenance", 161), (5, "delivery", 132),
                                               (10, "station-observer", 20), (11, "station-lifecycle", 17)):
             grant = {"subject": principal, "public_key": self.key(label + "/seed.key"), "permissions": permissions}
             if label == "station-lifecycle": grant["pid"] = records["ledger"]["pid"]

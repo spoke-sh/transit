@@ -55,9 +55,12 @@ def exercise(installation, launcher, invoke, observe):
         legacy["REY_COMPOSE_IMAGE_PREFIX"] = installation.load()["project"]
         try:
             write(file, legacy)
-            assert launcher.services(), "pre-update installations must remain stoppable"
-            rendered = json.loads(launcher.docker("config", "--format", "json", capture=True))
-            assert rendered["services"]["node"]["image"] == legacy["REY_COMPOSE_IMAGE_PREFIX"] + "/transit-node"
+            try:
+                launcher.services()
+                raise AssertionError("Obsolete Compose configuration was accepted")
+            except RuntimeError as error:
+                assert "Incomplete Compose configuration" in str(error), error
+            assert json.loads(file.read_text()) == legacy
         finally:
             write(file, current)
 

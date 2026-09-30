@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import shutil
 
-from common import ROOT, run, write
+from common import ROOT, DEFINITION, run, write
 
 ROLES = {"node": "transit-node", "maintenance": "transit-node", "delivery": "transit-delivery", "counter": "example-counter",
          "board": "transit-board", "controller": "transit-runtime-controller"}
@@ -27,7 +27,12 @@ class Artifacts:
 
     def read(self, kind):
         file = self.path / (kind + ".json")
-        return json.loads(file.read_text()) if file.exists() else {}
+        if not file.exists():
+            return {}
+        value = json.loads(file.read_text())
+        if value.get("definition") != DEFINITION:
+            raise RuntimeError("Incompatible launcher artifacts; preserve this installation and use its matching build")
+        return value
 
     def roles(self, names):
         available = [r for r in self.mapping if r != "controller" or self.installation.profile == "reference"]
@@ -95,6 +100,7 @@ class Artifacts:
                       "zig": run(["zig", "version"], capture=True).strip(),
                       "flake_lock": digest(ROOT / "flake.lock"), "optimize": "ReleaseSafe"}
         candidates["provenance"] = provenance
+        candidates["definition"] = DEFINITION
         write(self.path / "candidates.json", candidates)
         return candidates
 
@@ -120,8 +126,10 @@ class Artifacts:
     def initialize(self):
         if self.read("selected"):
             if "transit-delivery" not in self.read("selected"):
-                raise RuntimeError("Pre-M8 artifacts require a coordinated launcher update without service names; see launchers/README.md")
+                raise RuntimeError("Incomplete launcher artifacts; preserve the selection and restore its matching build")
             return
+        if self.installation.manifest.exists():
+            raise RuntimeError("Missing launcher artifacts; preserve this installation and restore its original selection")
         candidates = self.build()
         write(self.path / "selected.json", candidates)
 
@@ -133,6 +141,8 @@ class Artifacts:
         return Path(value["path"])
 
     def select(self, selection):
+        if selection.get("definition") != DEFINITION:
+            raise RuntimeError("Incompatible launcher artifacts; preserve this installation and use its matching build")
         write(self.path / "selected.json", selection)
 
     def plan(self, names, no_build=False):

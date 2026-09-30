@@ -72,7 +72,8 @@ builds require the recovery procedure above.
 
 The native contract carries an opaque `definition` identifier in canonical
 signed requests and queries, query responses, persisted authority heads and
-saved-operation envelopes. Local installation records also require it. The
+saved-operation envelopes. Local installation records and the launchers'
+installation, candidate and selected-artifact records also require it. The
 current identifier is exported as `x-transit.definition` in the
 [generated schema](../../contracts/transit-v1.schema.json), from the shared
 protocol type. Unsupported identifiers reject; stored heads and saved requests
