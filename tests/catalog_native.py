@@ -25,6 +25,30 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
     if growth < 0: raise ValueError('Catalog growth count must be nonnegative')
     started = time.monotonic()
     counts = dict(reads=0, caller_reads=0, turns=0, max_mutations=0, max_value_bytes=0)
+    upstream = {}
+    metrics_lock = threading.Lock()
+    growth_phases = {name: dict(calls=0, failures=0, seconds=0.0, caller_reads=0)
+                     for name in ('compile', 'prepare', 'admit', 'await_application')}
+    growth_current = None
+    growth_baseline = None
+    def metrics():
+        with metrics_lock:
+            return copy.deepcopy(upstream)
+    def growth_phase(index, name, work):
+        nonlocal growth_current
+        growth_current = dict(index=index, phase=name)
+        began = time.monotonic()
+        reads = counts['caller_reads']
+        entry = growth_phases[name]
+        entry['calls'] += 1
+        try:
+            return work()
+        except BaseException:
+            entry['failures'] += 1
+            raise
+        finally:
+            entry['seconds'] += time.monotonic() - began
+            entry['caller_reads'] += counts['caller_reads'] - reads
     with Fixture() as fixture:
         root = fixture.root
         installation_started = time.monotonic()
@@ -91,9 +115,27 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                         self.end_headers()
                         self.wfile.write(b'{}')
                         return
-                    connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
-                    response = connection.getresponse()
-                    data = response.read()
+                    request = envelope['query'] if self.path == '/v1/query' else envelope['request']
+                    operation = request['kind'] if self.path == '/v1/query' else request['command']
+                    operation = operation if isinstance(operation, str) else next(iter(operation))
+                    role = {1234: 'caller', 65536: 'owner', 0: 'administrator'}.get(request['principal'], 'other')
+                    label = f'{role}:{operation}'
+                    began = time.monotonic_ns()
+                    status = None
+                    try:
+                        connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
+                        response = connection.getresponse()
+                        data = response.read()
+                        status = response.status
+                    finally:
+                        duration = time.monotonic_ns() - began
+                        with metrics_lock:
+                            metric = upstream.setdefault(label, dict(attempts=0, transport_failures=0, http_errors=0, elapsed_ns=0, max_ns=0))
+                            metric['attempts'] += 1
+                            metric['transport_failures'] += status is None
+                            metric['http_errors'] += status is not None and status != 200
+                            metric['elapsed_ns'] += duration
+                            metric['max_ns'] = max(metric['max_ns'], duration)
                     if self.path == '/v1/command' and response.status == 200:
                         command = envelope['request']['command']
                         turn = command.get('turn')
@@ -206,6 +248,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
         report = dict(version=1, completed=False,
             revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
             dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
+            runner_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             resident_pages=8, requested_growth_tables=growth, selected_sdks=list(languages),
             sdk_install_seconds=install_seconds,
             sdk_artifacts={language: json.loads((root / 'catalog-sdks' / language / 'artifacts.json').read_text()) for language in languages},
@@ -216,6 +259,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             report.update(completed=completed, error=error,
                 seconds=round(time.monotonic() - started, 3), counts=counts,
                 catalog_growth_tables=len(grown_names), growth_samples=growth_samples,
+                growth_current=growth_current, growth_baseline=growth_baseline,
+                growth_phases=copy.deepcopy(growth_phases),
+                upstream_operations=metrics(),
                 metadata_measurements=metadata_measurements)
             destination.write_text(json.dumps(report, indent=2) + '\n')
         record()
@@ -536,18 +582,21 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                         assert reads <= 5, 'Neutral catalog page exceeded its signed read budget'
             retained_pages = []
             growth_started = time.monotonic()
+            growth_baseline = dict(counts=counts.copy(), upstream_operations=metrics())
+            record()
             for index in range(growth):
                 growing = caller_results[0][0]
                 name = f'grow_{index:05}'
                 identity = maximum - 10000 - index
-                compiled = growing.call({'compile': dict(operation=str(identity), object=str(identity), table=1000 + index, sql=statement.replace('items', name))})['compiled']
-                command = growing.call({'prepare_create': compiled['request']})['prepared']
-                position = growing.call({'submit': command})['receipt']['position']
-                result = await_value(lambda: growing.call({'status': compiled['request']})['status'])
+                compiled = growth_phase(index, 'compile', lambda: growing.call({'compile': dict(operation=str(identity), object=str(identity), table=1000 + index, sql=statement.replace('items', name))})['compiled'])
+                command = growth_phase(index, 'prepare', lambda: growing.call({'prepare_create': compiled['request']})['prepared'])
+                position = growth_phase(index, 'admit', lambda: growing.call({'submit': command})['receipt']['position'])
+                result = growth_phase(index, 'await_application', lambda: await_value(lambda: growing.call({'status': compiled['request']})['status']))
                 assert result['outcome'] == 'applied' and result['input'] == position
                 grown_names.append(name)
+                growth_current = None
                 if (index + 1) % 16 == 0 or index + 1 == growth:
-                    growth_samples.append(dict(tables=index + 1, seconds=round(time.monotonic() - growth_started, 3), counts=counts.copy()))
+                    growth_samples.append(dict(tables=index + 1, seconds=round(time.monotonic() - growth_started, 3), counts=counts.copy(), phases=copy.deepcopy(growth_phases), upstream_operations=metrics()))
                     record()
                 if index == 8:
                     assert invoke('list')['next'] is not None
@@ -688,7 +737,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             report['cleanup_failures'] = [str(error) + ": " + ", ".join(error.__notes__) for error in cleanup_errors]
             record(failure is None and not cleanup_errors,
                    type(failure).__name__ if failure is not None else 'Cleanup' if cleanup_errors else None)
-            print(json.dumps({key: value for key, value in report.items() if key not in ('growth_samples', 'metadata_measurements')}, indent=2))
+            print(json.dumps({key: value for key, value in report.items() if key not in ('growth_samples', 'growth_baseline', 'metadata_measurements', 'upstream_operations')}, indent=2))
             if cleanup_errors:
                 raise ExceptionGroup('Catalog caller cleanup failed', cleanup_errors)
 

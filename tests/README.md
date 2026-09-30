@@ -1588,6 +1588,34 @@ The real disk schedule `just test::vortex --seed 19 --rounds 12` passes in
 `/tmp/transit-sql-pr27-vortex-acceptance.log`. Production admission, timeouts and
 recovery assertions are unchanged. Neither prior failed clean attempt is a pass.
 
+### Catalog growth attribution
+
+`just test::catalog-growth` runs the disk-backed schedule with 65 additional
+Tables; `just test::catalog --grow 257` selects the larger investigation. The
+report at `.cache/verification/catalog/native.json` retains source revision,
+dirty status, runner and native binary hashes, growth progress and failure state.
+Copy it before another run overwrites it. No timeout, cache, turn or value limit
+changes with this instrumentation.
+
+The report separates `compile`, `prepare`, `admit` and `await_application` wall
+time, calls, failures and caller reads. A failed phase retains its zero-based
+growth index; a successful application clears it. An admitted send is not an
+applied Table, and a failed status read does not establish rejection. A baseline
+immediately before growth and cumulative samples every sixteen Tables (plus the
+last Table) allow subtraction of setup work and comparison of successive blocks.
+Cursor checks during growth remain outside the four timed phases.
+
+The owned proxy groups upstream attempts by fixed caller/owner/administrator/
+other roles and native operation. It records transport failures, HTTP errors,
+cumulative elapsed nanoseconds and the maximum observed duration. Durations end
+after the upstream body is read; they include queue/provider work and proxy
+overhead, overlap across requests, and are not independent CPU measurements.
+Deliberately blocked requests never reach upstream; lost-reply attempts count
+even when the caller cannot observe the result. Counts describe attempts, not
+unique durable commits. Metrics contain no request bodies or credential values.
+Compare native request counts and phase costs at equivalent workload boundaries;
+shared-host durations do not establish percentiles or throughput guarantees.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
