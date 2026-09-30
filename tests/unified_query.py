@@ -255,7 +255,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 invoke('retire-source', direct=True)
                 for owner in (native, port_client, *callers):
                     try:
-                        owner.call({'page': {'namespace': '1'}})
+                        owner.call({'page': {'namespace': '1', 'cursor': None}})
                         raise AssertionError('retired source disclosed a completed result')
                     except Failure as failure:
                         # SDK error types preserve the authority's concrete
