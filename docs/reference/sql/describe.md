@@ -28,6 +28,11 @@ The form represents metadata inspection, separate from granting access or readin
 application values. An implementation would need a scoped catalog and exact
 description/result contract; grammar acceptance supplies neither.
 
+The query compiler receives one caller-supplied source schema. It has no catalog
+lookup with which to execute this statement. Adding a parser keyword alone
+would not supply metadata authorization, dependency information or a result
+schema. `DESCRIBE SELECT ...` is absent from the reference grammar as well.
+
 Use the supported metadata commands in the
 [console guide](../../../apps/transit-cli/docs/console.md), the
 [Board API](../board-api.md), or the declared [query source schema](../queries.md#source-declarations).

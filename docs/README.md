@@ -16,7 +16,7 @@ and operations remain shared references below those entry points.
 | Interface | Start here |
 | --- | --- |
 | CLI | [Commands](reference/cli.md), [console](../apps/transit-cli/docs/console.md), [local server](../apps/transit-cli/docs/server.md) |
-| SQL | [Profiles and statement index](reference/sql.md), [syntax](reference/sql/syntax.md), [SELECT](reference/sql/select.md), [application declarations](reference/sql/application.md) |
+| SQL | [Statements and support](reference/sql.md), [syntax](reference/sql/syntax.md), [types](reference/sql/types.md), [functions and operators](reference/sql/expressions.md), [streaming and effects](reference/sql/streaming.md) |
 | SDKs | [Language SDKs](reference/sdks.md), [caller semantics](reference/callers.md) |
 | HTTP APIs | [Serving OpenAPI](reference/openapi.md), [Board OpenAPI](reference/board-api.md) |
 | Reactive APIs | [AsyncAPI](reference/asyncapi.md), [sessions and watches](reference/reactive.md) |
@@ -24,8 +24,9 @@ and operations remain shared references below those entry points.
 | Native protocol | [Signed operations](reference/native.md) |
 
 The SQL statement index covers the complete checked grammar, including
-administrative forms that remain grammar-only. Each statement's page explains
-its support boundary before giving examples.
+administrative forms that remain grammar-only. It also indexes absent operations
+such as INSERT, UPDATE and DELETE with their current application API alternatives.
+Each statement's page explains its support boundary before giving examples.
 
 | Topic | Public documentation |
 | --- | --- |

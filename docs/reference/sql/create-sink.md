@@ -41,4 +41,7 @@ operations. Naming a sink would not authorize dispatch, resolve credentials or
 promise cancellation of remote work. See [CREATE CONNECTION](create-connection.md)
 for the configuration syntax and secret references.
 
+See [streaming and effects](streaming.md) for query-to-effect boundaries and
+[INSERT](insert.md) for the absence of SQL writes.
+
 Source: [`createSink`](../../../contracts/sql/TransitExtensions.g4).

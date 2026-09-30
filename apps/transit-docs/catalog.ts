@@ -42,7 +42,13 @@ export const sections: Section[] = [
     pages: [
       reference("sql", "SQL reference"),
       reference("sql/syntax", "Syntax, names and literals"),
+      reference("sql/types", "Data types and cell states"),
+      reference("sql/expressions", "Functions and operators"),
       reference("sql/select", "SELECT"),
+      reference("sql/insert", "INSERT"),
+      reference("sql/update", "UPDATE"),
+      reference("sql/delete", "DELETE"),
+      reference("sql/streaming", "Streaming and effects"),
       reference("sql/create-connection", "CREATE CONNECTION"),
       reference("sql/create-source", "CREATE SOURCE"),
       reference("sql/create-sink", "CREATE SINK"),
@@ -60,7 +66,7 @@ export const sections: Section[] = [
       page(
         "packages/zig/transit-fuze/docs/unified-sql.md",
         "reference/sql-unified",
-        "Unified SQL v2",
+        "Unified state SQL",
       ),
       page(
         "packages/zig/transit-query/docs/compatibility.md",
