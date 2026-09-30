@@ -90,12 +90,18 @@ failure(A, R, Mode, N) ->
     end.
 worker(A, R, S) ->
     case unicode:characters_to_binary(io:get_line("")) of
-        <<"one\n">> -> E = until_event(A, R, 32),
+        Action when Action =:= <<"one\n">>; Action =:= <<"reconcile\n">> ->
+            First = case Action of <<"reconcile\n">> -> ok(A, A:reconcile(R)); _ -> next(A, R) end,
+            E = case kind(A, First) of progress -> until_event(A, R, 31); _ -> First end,
             case kind(A, E) of needs_recovery ->
                 #{mutation := Mutation} = view(A, E), Bytes = maps:get(bytes, view(A, Mutation)),
                 {ok, Bytes} = file:read_file(maps:get(<<"pending">>, get(S, config))); _ -> ok end,
             Name = case kind(A, E) of committed -> <<"Committed">>; idle -> <<"Idle">>; needs_recovery -> <<"NeedsRecovery">>; blocked -> <<"Blocked">> end,
-            report(#{event => Name}), worker(A, R, S);
+            Result = case kind(A, E) of needs_recovery ->
+                #{phase := Phase, error := Error} = view(A, E),
+                #{event => Name, phase => Phase, code => maps:get(code, view(A, Error))};
+                _ -> #{event => Name} end,
+            report(Result), worker(A, R, S);
         <<"close\n">> -> ok(A, A:close(R)), expired(A, S),
             [begin #{ordinal := I, ipc := Bytes} = view(A, Segment), ok = file:write_file(path(S, <<(integer_to_binary(I))/binary, ".arrow">>), Bytes) end || {{segment, _}, Segment} <- ets:tab2list(S)],
             report(#{closed => true})

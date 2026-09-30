@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{
     collections::{BTreeSet, HashMap},
     fs,
@@ -13,7 +13,7 @@ use transit_client::{
     OperationIdentity, ProcessRef, ResourceRef, Result,
 };
 use transit_sdk_examples::codecs::*;
-use transit_sdk_examples::{Counter, QueryRequester, Requester, TableService, TABLE, TOTAL};
+use transit_sdk_examples::{Counter, QueryRequester, Requester, TABLE, TOTAL, TableService};
 use transit_station_sdk::*;
 
 fn number(cfg: &Value, name: &str) -> u64 {
@@ -471,10 +471,15 @@ fn drive<M: 'static, H: Handler<M>>(
                 report(json!({"closed":true}));
                 return Ok(());
             }
-            assert_eq!(line, "one");
+            assert!(line == "one" || line == "reconcile");
             let mut result = None;
-            for _ in 0..32 {
-                match runner.next()?.unwrap() {
+            for index in 0..32 {
+                let event = if line == "reconcile" && index == 0 {
+                    runner.reconcile()?.unwrap()
+                } else {
+                    runner.next()?.unwrap()
+                };
+                match event {
                     RunnerEvent::Progress => {}
                     RunnerEvent::Committed { .. } => {
                         result = Some(json!({"event":"Committed"}));
@@ -603,27 +608,31 @@ fn codecs(cfg: &Value) -> Result<()> {
     };
     assert_eq!(released.resource, ResourceRef::new(72, 7)?);
     assert_eq!(released.exchange, u64::MAX);
-    assert!(codec
-        .encode(&HttpMessage::Reply(HttpReply::Released(released)))
-        .is_err());
+    assert!(
+        codec
+            .encode(&HttpMessage::Reply(HttpReply::Released(released)))
+            .is_err()
+    );
     assert!(decode_http_reply(72, &released_bytes[..19], None).is_err());
-    assert!(prepare_http(
-        ResourceRef::new(72, 8)?,
-        1,
-        &HttpRequest {
-            method: HttpMethod::Get,
-            target: vec![HttpPiece::Literal("//other/".into())],
-            headers: vec![],
-        },
-        b"",
-        HttpRequestOptions {
-            endpoint_revision: 1,
-            reconcile_before_ms: Count::new(9000)?,
-            max_attempts: 1
-        },
-        None
-    )
-    .is_err());
+    assert!(
+        prepare_http(
+            ResourceRef::new(72, 8)?,
+            1,
+            &HttpRequest {
+                method: HttpMethod::Get,
+                target: vec![HttpPiece::Literal("//other/".into())],
+                headers: vec![],
+            },
+            b"",
+            HttpRequestOptions {
+                endpoint_revision: 1,
+                reconcile_before_ms: Count::new(9000)?,
+                max_attempts: 1
+            },
+            None
+        )
+        .is_err()
+    );
     Ok(())
 }
 

@@ -1,6 +1,8 @@
 """A public-SDK ring: every target is service and requester for a foreign peer."""
 from contextlib import ExitStack
 from datetime import datetime, timezone
+from http.client import HTTPConnection
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
 import os
 import platform
@@ -11,6 +13,7 @@ import select
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from client_abi import Native
 from client_abi_growing import GrowingSystem
@@ -33,6 +36,42 @@ def run(node, cli, library, artifacts, report_path=None):
                                  ('c', 'c'), ('java', 'java'), ('dotnet', 'dotnet'), ('beam', 'beam')):
             importlib.import_module(f'{language}_station_sdk').run(node, cli, library, artifacts / folder, execute=install)
         installed_at = time.monotonic()
+        fault = {'pid': None, 'lost': 0}
+        class Proxy(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def do_POST(self):
+                # Reject raw double slashes rather than letting the HTTP
+                # handler's normalized path conceal a native URL-joining bug.
+                path = self.requestline.split()[1]
+                if path not in ('/v1/command', '/v1/query'):
+                    self.send_error(400)
+                    return
+                body = self.rfile.read(int(self.headers['Content-Length']))
+                envelope = json.loads(body)
+                command = envelope.get('request', {}).get('command', {})
+                turn = command.get('turn', command.get('turn_with_versions', {}).get('turn', {}))
+                connection = HTTPConnection('127.0.0.1', system.port, timeout=15)
+                try:
+                    connection.request('POST', path, body, {'Content-Type': 'application/json'})
+                    response = connection.getresponse()
+                    data = response.read()
+                    if response.status == 200 and fault['pid'] is not None and turn.get('pid') == fault['pid']:
+                        fault['pid'] = None
+                        fault['lost'] += 1
+                        self.close_connection = True
+                        return
+                    self.send_response(response.status)
+                    self.send_header('Content-Length', str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                except (BrokenPipeError, ConnectionResetError): pass
+                finally: connection.close()
+        proxy = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
+        thread = threading.Thread(target=proxy.serve_forever, daemon=True)
+        thread.start()
+        def close_proxy():
+            proxy.shutdown(); proxy.server_close(); thread.join(timeout=5)
+        stack.callback(close_proxy)
         native = Native(library)
         admin = native.client(system.url, timeout_ms=5000)
         stack.callback(native.lib.transit_client_destroy, admin)
@@ -61,8 +100,7 @@ def run(node, cli, library, artifacts, report_path=None):
             command({'own': {'pid': pid, 'worker': principal, 'expected_generation': 1}})
             output = target / f'output-{pid}'
             output.mkdir()
-            # Exercise native URL joining without a path-normalizing proxy.
-            return {'url': system.url + '/', 'realm': 72, 'principal': principal, 'pid': pid, 'generation': 2,
+            return {'url': f'http://127.0.0.1:{proxy.server_port}/', 'realm': 72, 'principal': principal, 'pid': pid, 'generation': 2,
                     'seed_file': str(key), 'profile': 'native_v1', 'peer': pid, 'role': role, 'resource': resource,
                     'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(target / 'unused.json'),
                     'query_results': role in ('table', 'query'), 'work_before_ms': None, 'arrow_adapter': False}
@@ -87,6 +125,7 @@ def run(node, cli, library, artifacts, report_path=None):
                     if value['phase'] == 'pending': command({'deliver': value['id']})
                     after = value['id']
         children = []
+        reconciliations = 0
         def worker(client, cfg):
             consumer = client[2]
             child = subprocess.Popen(consumer.command('worker', config(client, cfg)), cwd=client[1], env=consumer.environment,
@@ -94,13 +133,24 @@ def run(node, cli, library, artifacts, report_path=None):
             children.append(child)
             return child
         def one(child):
-            child.stdin.write('one\n'); child.stdin.flush()
-            assert select.select([child.stdout], [], [], 90)[0], 'Public mixed-language runner timed out'
-            line = child.stdout.readline()
-            assert line, f'Public worker exited with {child.poll()}'
-            result = json.loads(line)
-            assert result['event'] in ('Committed', 'Idle'), result
-            return result['event']
+            nonlocal reconciliations
+            action, deadline = 'one', time.monotonic() + 90
+            while True:
+                child.stdin.write(action + '\n'); child.stdin.flush()
+                assert select.select([child.stdout], [], [], max(0, deadline-time.monotonic()))[0], 'Public mixed-language runner timed out'
+                line = child.stdout.readline()
+                assert line, f'Public worker exited with {child.poll()}'
+                result = json.loads(line)
+                if result['event'] in ('Committed', 'Idle'): return result['event']
+                assert (result['event'] == 'NeedsRecovery' and result.get('phase') in ('dispatch', 'observe-confirmation', 'observe_confirmation')
+                        and result.get('code') in ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpConnectionClosing')
+                        and time.monotonic() < deadline), result
+                # Each installed consumer checks its pending bytes against the
+                # saved file. Reconcile the paused runner; never open a new turn
+                # or rebuild a command after an uncertain dispatch.
+                reconciliations += 1
+                action = 'reconcile'
+                time.sleep(.1)
         def close(child):
             child.stdin.write('close\n'); child.stdin.flush()
             assert json.loads(child.stdout.readline()) == {'closed': True}
@@ -134,7 +184,10 @@ def run(node, cli, library, artifacts, report_path=None):
             table, query = provision(service, 'table'), provision(requester, 'query')
             table['peer'], query['peer'] = query['pid'], table['pid']
             server, caller = worker(service, table), worker(requester, query)
+            before_recovery = reconciliations
+            fault['pid'] = table['pid']
             send(table, b'TSQ\x01\x01'); assert one(server) == 'Committed'
+            assert fault['pid'] is None and reconciliations > before_recovery
             expected = [{'id': -(2**63), 'value': None}, {'id': 0, 'value': 2**53+1}, {'id': 2**63-1, 'value': -(2**63)}]
             for row in expected:
                 payload = b'TSQ\x01\x02' + row['id'].to_bytes(8, 'little', signed=True)
@@ -158,7 +211,8 @@ def run(node, cli, library, artifacts, report_path=None):
             pair = f'{service[0]} -> {requester[0]}'
             pairs.append(pair)
             timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3)})
-            print(f'Public pair {pair}: installed CLIs, restarted durable reply, typed Table/query and owned original IPC passed.', flush=True)
+            print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, typed Table/query and owned original IPC passed.', flush=True)
+        assert fault['lost'] == len(clients)
         check('public-language-ring', {'pairs': pairs, 'reply_value': str(2**64-1), 'query_rows_per_pair': 3,
                                       'fresh_requesters': True, 'owned_ipc_after_close': not children})
         elapsed = time.monotonic()-started
@@ -169,6 +223,8 @@ def run(node, cli, library, artifacts, report_path=None):
                       'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                       'proof_sha256': {str(path.relative_to(Path(__file__).resolve().parents[1])): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources},
                       'elapsed_seconds': round(elapsed, 3), 'consumer_install_seconds': round(installed_at-started, 3), 'pairs': timings,
+                      'reconciled_transient_results': reconciliations,
+                      'injected_lost_receipts': fault['lost'],
                       'limits': 'Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement.'}
             Path(report_path).parent.mkdir(parents=True, exist_ok=True)
             Path(report_path).write_text(json.dumps(report, indent=2) + '\n')

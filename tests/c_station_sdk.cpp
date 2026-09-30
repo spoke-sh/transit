@@ -318,9 +318,9 @@ static void drive(const Config &cfg) {
         std::string line;
         while (std::getline(std::cin, line)) {
             if (line == "close") { runner->close(); runner.reset(); check_expired(shared); save_owned(shared, cfg); report("{\"closed\":true}"); return; }
-            assert(line == "one"); bool observed = false;
+            assert(line == "one" || line == "reconcile"); bool observed = false;
             for (size_t i = 0; i < 32; ++i) {
-                const auto event = runner->next(); const auto info = event.info();
+                const auto event = line == "reconcile" && i == 0 ? runner->reconcile() : runner->next(); const auto info = event.info();
                 if (info.kind == TRANSIT_EVENT_PROGRESS) continue;
                 const char *name = info.kind == TRANSIT_EVENT_COMMITTED ? "Committed" : info.kind == TRANSIT_EVENT_IDLE ? "Idle" : info.kind == TRANSIT_EVENT_BLOCKED ? "Blocked" : "NeedsRecovery";
                 if (info.kind == TRANSIT_EVENT_NEEDS_RECOVERY) assert(event.pending()->export_bytes() == read_file(cfg.pending));

@@ -332,9 +332,9 @@ def consumer(mode, config_path):
             if action == 'close':
                 print(json.dumps({'closed': True}), flush=True)
                 return
-            if action != 'one': raise AssertionError(action)
-            for _ in range(32):
-                event = runner.next()
+            if action not in ('one', 'reconcile'): raise AssertionError(action)
+            for index in range(32):
+                event = runner.reconcile() if action == 'reconcile' and index == 0 else runner.next()
                 if isinstance(event, (Committed, NeedsRecovery, Blocked, Idle)): break
             if isinstance(event, NeedsRecovery):
                 assert event.mutation.export() == Path(cfg['pending']).read_bytes()

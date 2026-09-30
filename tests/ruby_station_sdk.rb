@@ -765,14 +765,16 @@ begin
         report(closed: true)
         break
       end
-      check line.chomp == 'one'
+      check %w[one reconcile].include?(line.chomp)
       event = nil
-      32.times do
-        event = runner.next
+      32.times do |index|
+        event = line.chomp == 'reconcile' && index.zero? ? runner.reconcile : runner.next
         break unless event.is_a?(S::Progress)
       end
       check event.mutation.export == File.binread(cfg.fetch('pending')) if event.is_a?(S::NeedsRecovery)
-      report(event: event.class.name.split('::').last)
+      response = { event: event.class.name.split('::').last }
+      response.merge!(phase: event.phase, code: event.error.code) if event.is_a?(S::NeedsRecovery)
+      report(response)
     end
   end
 ensure

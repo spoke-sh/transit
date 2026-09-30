@@ -560,10 +560,12 @@ public final class JavaStationSdk {
                         if (handler instanceof TableProof table) table.expired();
                         report(Values.obj("closed", true)); break;
                     }
-                    check(line.equals("one")); Event event = null;
-                    for (int count = 0; count < 32; count++) { event = await(runner.next()); if (!(event instanceof Progress)) break; }
+                    check(line.equals("one") || line.equals("reconcile")); Event event = null;
+                    for (int count = 0; count < 32; count++) { event = await(line.equals("reconcile") && count == 0 ? runner.reconcile() : runner.next()); if (!(event instanceof Progress)) break; }
                     if (event instanceof NeedsRecovery paused) check(Arrays.equals(paused.mutation().export(), Files.readAllBytes(store.pending)));
-                    report(Values.obj("event", Objects.requireNonNull(event).getClass().getSimpleName()));
+                    report(event instanceof NeedsRecovery paused
+                        ? Values.obj("event", "NeedsRecovery", "phase", paused.phase(), "code", paused.error().code())
+                        : Values.obj("event", Objects.requireNonNull(event).getClass().getSimpleName()));
                 }
             }
         }

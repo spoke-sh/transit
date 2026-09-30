@@ -23,7 +23,7 @@ stop(R) -> transit_station_sdk:stop(R).
 view(#transit_error{kind=K,phase=P,status=S,code=C}) -> #{kind=>K,phase=>P,status=>S,code=>C};
 view(#transit_committed{receipt=R}) -> #{kind=>committed,receipt=>R};
 view(#transit_blocked{receipt=R}) -> #{kind=>blocked,receipt=>R};
-view(#transit_needs_recovery{mutation=M,phase=P,receipt=R}) -> #{kind=>needs_recovery,mutation=>M,phase=>P,receipt=>R};
+view(#transit_needs_recovery{mutation=M,phase=P,receipt=R,error=E}) -> #{kind=>needs_recovery,mutation=>M,phase=>P,receipt=>R,error=>E};
 view(#transit_runner_shutdown{pending=P,last_event=E}) -> #{pending=>P,last_event=>E};
 view(#transit_frozen{identity=I,purpose=P,bytes=B}) -> #{identity=>I,purpose=>P,bytes=>B};
 view(#transit_page{entries=E,cursor=C,basis=B}) -> #{entries=>E,cursor=>C,basis=>B};
