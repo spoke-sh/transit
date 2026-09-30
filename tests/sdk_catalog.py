@@ -23,6 +23,9 @@ def install(root, languages):
         if language == 'rust':
             factories.append(install_rust(root / language))
             continue
+        if language == 'ruby':
+            factories.append(install_ruby(root / language))
+            continue
         if language != 'python': raise ValueError('Unsupported catalog SDK proof language')
         target = root / language
         target.mkdir()
@@ -119,3 +122,30 @@ def install_rust(target):
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
         return Consumer([str(executable), str(config)], environment, target)
     return 'rust', create
+
+
+def install_ruby(target):
+    target.mkdir()
+    default = subprocess.check_output(['ruby', '-rrubygems', '-e', 'puts Gem.default_dir'], text=True).strip()
+    environment = {k: v for k, v in os.environ.items() if k not in ('RUBYLIB', 'RUBYOPT', 'GEM_HOME', 'GEM_PATH', 'TRANSIT_HOST', 'TRANSIT_LIBRARY_DIR')}
+    environment.update(GEM_HOME=str(target / 'gems'), GEM_PATH=f'{target / "gems"}:{default}')
+    files = []
+    artifacts = {}
+    for name in ('transit-native-client-0.2.0-x86_64-linux.gem', 'transit-client-0.2.0.gem',
+                 'transit-native-station-0.2.0-x86_64-linux.gem', 'transit-station-0.2.0.gem'):
+        path = target / name
+        shutil.copy2(ROOT / '.cache/bindings/ruby' / name, path)
+        artifacts[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+        files.append(path)
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    subprocess.run(['gem', 'install', '--local', '--no-document', '--ignore-dependencies', *files], env=environment, cwd=target, check=True, stdout=subprocess.DEVNULL)
+    script = target / 'consumer.rb'
+    values = target / 'values.rb'
+    shutil.copy2(ROOT / 'tests/ruby_catalog_sdk.rb', script)
+    shutil.copy2(ROOT / 'tests/ruby_catalog_values.rb', values)
+    subprocess.run(['ruby', str(values)], env=environment, cwd=target, check=True)
+    def create(url, connection, state):
+        config = target / 'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
+        return Consumer(['ruby', str(script), str(config)], environment, target)
+    return 'ruby', create

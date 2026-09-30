@@ -587,8 +587,8 @@ guide match the working files. Logs are
 `/tmp/transit-sql-catalog-rust-final-format.log`; the initial source artifact failure
 is retained in `/tmp/transit-sql-catalog-rust-components.log`.
 `bindings::catalog-rust` and regular `bindings::rust-sdk-test` include installed
-catalog recovery. These are development and focused passes; committed-HEAD
-clean validation and the other seven catalog SDKs remain.
+catalog recovery. These development and focused passes cover Rust; the other
+seven catalog SDKs remain.
 
 Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at
 `f77fcc29dd6eeb0c98670d4f4f3b1212129bb55a` in 710.42 s**. The clone inherits
@@ -597,6 +597,63 @@ no workspace build outputs. Completion and per-task timings are recorded in
 the log is `/tmp/transit-sql-catalog-rust-ci-clean.log`. This qualifies the core
 lane plus the focused Python/TypeScript/Rust schedule, not a full clean suite
 or the remaining catalog SDKs. The following commit records evidence only.
+
+### Ruby catalog caller
+
+The public `Transit::Station::Catalog::Client` uses the existing owned worker
+and native port. Frozen typed declarations, controls and copied recovery strings
+retain full-width integers. Generated request/response schemas validate the port;
+public adapters validate canonical IDs, exact result fields and original-request
+status matching. `Catalog::Uncertain` retains the original prepared object after
+unconfirmed submission, malformed success or allocation failure. Definite native
+rejections preserve their category, status and code. The Zig definition and
+native binaries are unchanged.
+
+Executed on development source based on `f77fcc29` in the pinned bindings shell:
+
+- Full **`just check` passes**, including generated contracts, 346 CLI diagnostic
+  cases, 4565 local links across 480 files, 52 invariants, 53 classified bounds,
+  13 SDK scenarios, frontend checks and documentation build. Ruby source/fixture
+  syntax and the final verification inventory also pass.
+- Installed gems pass owned/frozen value checks, maximum-width identities,
+  malformed successful receipts, unchanged definite denial and original-request
+  matching. An injected allocation failure retains uncertainty. Real owned child
+  processes exercise generated response validation and child loss. A separately
+  injected blocked operation keeps the worker busy after its waiting thread is
+  killed, and explicit close joins active work and child cleanup.
+- Final **`just test::catalog --sdk python --sdk node --sdk rust --sdk ruby`
+  passes in 54.910 s**, including 24.273 s isolated package installation. Each
+  artifact is copied and hashed outside the checkout. The Ruby consumer verifies
+  it loaded the installed gem; its native host uses the installed matching gem.
+  It prepares initialization and conditional policy, compiles full-width creation,
+  recovers exact saved submission after lost admission and caller/node/store
+  replacement, observes the original result, then checks current catalog/native
+  denial. Python sync/async, TypeScript and Rust repeat the shared schedule.
+- The report records **2151 reads, 51 accepted turn responses, ten lost caller
+  replies and three lost owner replies**, with at most four mutations, 133-byte
+  values and eight resident authority pages. Twelve applied Tables across two
+  resources do not establish native growth or host power-loss recovery. The
+  interval includes installation, provisioning and recovery, and is not an SDK
+  latency comparison.
+
+Final Ruby gem SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `transit-station` | `2e43bc199d383643280deb893d0101b6d6abd7c88bcd1072bc145d9dd5181424` |
+| `transit-native-station` | `4653bccd2758a788ec99f0df17407ca772942b3e1a8513d84eb41306ef1a2570` |
+| `transit-client` | `e627518b495c150e8661d233e4b8856c806b9bc239b13d6396b6fc6b82953725` |
+| `transit-native-client` | `71894ce4dba5fe70942c1b8ad2fb5bdf36c3c72cb8e5d0133fb888b38d8f52fc` |
+
+All six native executables/libraries and the Python, TypeScript and Rust artifacts
+match the preceding Rust schedule. The packaged Ruby README, catalog guide and
+sources match the working files. Logs are
+`/tmp/transit-sql-catalog-ruby-full-check.log`,
+`/tmp/transit-sql-catalog-ruby-final-native.log` and
+`/tmp/transit-sql-catalog-ruby-syntax.log`. `bindings::catalog-ruby` and regular
+`bindings::ruby-sdk-test` include the installed schedule. These are development
+and focused passes; committed-HEAD clean validation and the other six catalog
+SDKs remain.
 
 ## Offline state declaration compiler
 

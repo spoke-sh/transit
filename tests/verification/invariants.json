@@ -1585,7 +1585,11 @@
         "tests/node_catalog_sdk.mjs",
         "packages/rust/transit-station-sdk/src/catalog.rs",
         "packages/rust/transit-station-sdk/src/bridge.rs",
-        "tests/rust_catalog_sdk.rs"
+        "tests/rust_catalog_sdk.rs",
+        "packages/ruby/transit-station/lib/transit/station/catalog.rb",
+        "packages/ruby/transit-station/lib/transit/station/bridge.rb",
+        "tests/ruby_catalog_sdk.rb",
+        "tests/ruby_catalog_values.rb"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
@@ -1594,7 +1598,8 @@
         "test::cli-diagnostics",
         "bindings::catalog-python",
         "bindings::catalog-node",
-        "bindings::catalog-rust"
+        "bindings::catalog-rust",
+        "bindings::catalog-ruby"
       ],
       "scenarios": [
         "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
@@ -1613,11 +1618,12 @@
         "Explicit CLI offline compilation without credentials or transport, typed/canonical artifact agreement and foreign-definition rejection before key loading, private non-replacing files, exact saved-file recovery across lost admission and caller/node/store replacement, separate outcomes and current policy/native denial",
         "Installed Python synchronous/asynchronous catalog methods preserve immutable full-width values, exact saved commands after lost admission and caller/node/store replacement, current-policy denial, malformed-response uncertainty and joined cleanup after await cancellation",
         "TypeScript frozen catalog values and bigint identities, generated port request/response validation, malformed-success uncertainty and original-request status matching; installed package saved creation recovery after caller/node/store replacement and current denial",
-        "Installed Rust catalog crates preserve owned full-width values and borrowed saved commands; compiler rejects overlapping mutable borrows and reuse after close; malformed success receipts and an injected admitted-worker panic remain uncertain; creation recovers after caller/node/store replacement with current disclosure denial"
+        "Installed Rust catalog crates preserve owned full-width values and borrowed saved commands; compiler rejects overlapping mutable borrows and reuse after close; malformed success receipts and an injected admitted-worker panic remain uncertain; creation recovers after caller/node/store replacement with current disclosure denial",
+        "Installed Ruby catalog gems retain immutable full-width values and exact saved recovery after caller/node/store replacement; generated port validation, malformed replies, child loss and allocation failure retain uncertain commands; cancelled waiting threads preserve busy ownership and joined cleanup"
       ],
-      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise and Rust blocking methods; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, eleven with the optional Python sync/async, TypeScript and Rust schedule and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking and Ruby synchronous methods; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, twelve with the optional Python sync/async, TypeScript, Rust and Ruby schedule and is not a native catalog growth or host power-loss proof.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python/TypeScript/Rust and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python/TypeScript/Rust/Ruby and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }
   ]
 }

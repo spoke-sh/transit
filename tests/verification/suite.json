@@ -202,7 +202,8 @@
       "test::resource-simulation",
       "bindings::catalog-python",
       "bindings::catalog-node",
-      "bindings::catalog-rust"
+      "bindings::catalog-rust",
+      "bindings::catalog-ruby"
     ]
   },
   "nested_tasks": {
