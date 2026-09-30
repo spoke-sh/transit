@@ -113,7 +113,7 @@ No launcher or foreign binding switches profiles implicitly.
 
 Massive-scale deployment also requires an explicit authority-partition and routing
 design, including grant/revocation and cross-partition delivery semantics. Measure
-the single-realm serialization bottleneck in M10; [M34](../roadmap/M34.md) qualifies
+the single-realm serialization bottleneck in M10; [M35](../roadmap/M35.md) qualifies
 broader clustered execution. Additional node replicas do not by themselves create
 independent write capacity or a cross-partition transaction guarantee.
 

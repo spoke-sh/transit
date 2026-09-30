@@ -28,9 +28,10 @@ def available_post(post, path, signed):
 
 
 class System:
-    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800):
+    def __init__(self, node, cli, clock_error_ms=None, allow_history_trim=False, request_timeout_ms=800,
+                 storage_config=None):
         self.node, self.cli = node, cli
-        self.store = Fixture()
+        self.store = Fixture(storage_config)
         self.children, self.logs = [], []
         self.sequence = 0
         self.clock_error_ms = clock_error_ms

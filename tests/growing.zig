@@ -78,6 +78,40 @@ fn value(index: usize) core.Value {
     std.mem.writeInt(u64, bytes[0..8], index, .big);
     return core.Value.init(&bytes) catch unreachable;
 }
+fn incompatibleHistory(journal: *Journal, page_store: *adapter.PackedPageStore, genesis: core.growing.Genesis, writing: bool) !void {
+    const allocator = journal.store.journal.client.http.allocator;
+    const position = try journal.tail();
+    const writes = page_store.created;
+    const requests = page_store.requests;
+    for ([_][]const u8{ "foreign-definition", "missing-definition" }, 0..) |name, index| {
+        var incompatible: Journal = .{ .store = .{ .journal = journal.store.journal } };
+        incompatible.store.journal.stream.name = name;
+        if (writing) {
+            const encoded = try std.json.Stringify.valueAlloc(allocator, (try journal.store.read(0)).?, .{});
+            defer allocator.free(encoded);
+            var parsed = try std.json.parseFromSlice(std.json.Value, allocator, encoded, .{});
+            defer parsed.deinit();
+            const head = parsed.value.object.getPtr("genesis").?.object.getPtr("head").?;
+            if (index == 0) head.object.getPtr("definition").?.* = .{ .string = "previous-v1-definition" } else {
+                try t.expect(head.object.swapRemove("definition"));
+            }
+            const bytes = try std.json.Stringify.valueAlloc(allocator, parsed.value, .{});
+            defer allocator.free(bytes);
+            try incompatible.store.journal.create();
+            try t.expect(try incompatible.store.journal.append(0, bytes));
+        }
+        var before = try incompatible.store.journal.read(0);
+        defer before.deinit();
+        try t.expectError(if (index == 0) error.InvalidEnumTag else error.MissingField, Engine.open(&incompatible, page_store, genesis));
+        try t.expectEqual(@as(u64, 1), try incompatible.tail());
+        var after = try incompatible.store.journal.read(0);
+        defer after.deinit();
+        try t.expectEqualStrings(before.body, after.body);
+    }
+    try t.expectEqual(position, try journal.tail());
+    try t.expectEqual(writes, page_store.created);
+    try t.expectEqual(requests, page_store.requests);
+}
 fn verifyRows(caller: Caller, expected: Expected, mode: enum { current, view, retained }) !void {
     var after: ?core.Value = null;
     var count: usize = 0;
@@ -307,29 +341,7 @@ pub fn main(init: std.process.Init) !void {
     var wrong = genesis;
     wrong.realm += 1;
     try t.expectError(error.WrongProtocolRealm, Engine.open(&journal, &page_store, wrong));
-    // There is one current Store after the v1 cutover. Exercise actual foreign
-    // and absent stored definitions, not that same Store under a legacy alias.
-    for ([_][]const u8{ "foreign-definition", "missing-definition" }, 0..) |name, index| {
-        var invalid: Journal = .{ .store = .{ .journal = journal.store.journal } };
-        invalid.store.journal.stream.name = name;
-        if (writing) {
-            const original = (try journal.store.read(0)).?;
-            const bytes = try std.json.Stringify.valueAlloc(init.gpa, original, .{});
-            defer init.gpa.free(bytes);
-            var parsed = try std.json.parseFromSlice(std.json.Value, init.gpa, bytes, .{});
-            defer parsed.deinit();
-            const head = parsed.value.object.getPtr("genesis").?.object.getPtr("head").?;
-            if (index == 0) head.object.getPtr("definition").?.* = .{ .string = "foreign-v1-definition" } else _ = head.object.swapRemove("definition");
-            const malformed = try std.json.Stringify.valueAlloc(init.gpa, parsed.value, .{});
-            defer init.gpa.free(malformed);
-            try invalid.store.journal.create();
-            try t.expect(try invalid.store.journal.append(0, malformed));
-        }
-        const writes = page_store.created;
-        if (index == 0) try t.expectError(error.InvalidEnumTag, Engine.open(&invalid, &page_store, genesis)) else try t.expectError(error.MissingField, Engine.open(&invalid, &page_store, genesis));
-        try t.expectEqual(writes, page_store.created);
-        try t.expectEqual(@as(u64, 1), try invalid.tail());
-    }
+    try incompatibleHistory(&journal, &page_store, genesis, writing);
     // Remove page storage only in the disposable fixture, after all
     // restart assertions. Missing required content must not become empty state.
     if (trimmed) {
