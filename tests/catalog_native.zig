@@ -208,9 +208,10 @@ pub fn main(init: std.process.Init) !void {
         try save(init, directory, "catalog.json", config);
         return print(init, config);
     }
-    if (std.mem.eql(u8, mode, "revoke-writer") or std.mem.eql(u8, mode, "restore-writer") or std.mem.eql(u8, mode, "revoke-reader")) {
-        const reader = std.mem.eql(u8, mode, "revoke-reader");
-        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = if (reader) 1234 else 65536, .permissions = if (reader) 0 else if (std.mem.eql(u8, mode, "restore-writer")) p.State.all_permissions else p.State.permission(.inspect) | p.State.permission(.read) } });
+    if (std.mem.eql(u8, mode, "revoke-writer") or std.mem.eql(u8, mode, "restore-writer") or std.mem.eql(u8, mode, "revoke-reader") or std.mem.eql(u8, mode, "restore-reader")) {
+        const reader = std.mem.eql(u8, mode, "revoke-reader") or std.mem.eql(u8, mode, "restore-reader");
+        const permissions: u8 = if (std.mem.eql(u8, mode, "revoke-reader")) 0 else if (std.mem.eql(u8, mode, "restore-writer")) p.State.all_permissions else p.State.permission(.inspect) | p.State.permission(.read);
+        _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = if (reader) 1234 else 65536, .permissions = permissions } });
         return print(init, .{ .changed = true });
     }
     if (std.mem.eql(u8, mode, "snapshot")) {

@@ -1,5 +1,6 @@
 """Real catalog Table creation, exact receipt recovery and native fencing."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import hashlib
@@ -56,6 +57,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
         failures = []
         active = 0
         active_lock = threading.Lock()
+        metadata_gate = dict(armed=False)
+        metadata_entered = threading.Event()
+        metadata_release = threading.Event()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
@@ -73,6 +77,12 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                         counts['reads'] += 1
                         if envelope['query']['principal'] == 1234:
                             counts['caller_reads'] += 1
+                            kind = envelope['query']['kind']
+                            batch = kind.get('read_entries') if isinstance(kind, dict) else None
+                            if metadata_gate['armed'] and batch and batch['keys'][0].startswith((b'\0C' + struct.pack('>Q', 2**64 - 1) + b'd').hex()):
+                                metadata_gate['armed'] = False
+                                metadata_entered.set()
+                                assert metadata_release.wait(10), 'Dependent metadata batch was not released'
                     if any(f.get('blocked') and body == f['body'] for f in faults.values()):
                         self.send_response(503)
                         self.send_header('Content-Length', '2')
@@ -177,7 +187,10 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 assert result.returncode != 0 and error in result.stderr, (mode, error, result.stdout, result.stderr)
                 return None
             assert result.returncode == 0, (mode, result.stderr)
-            return json.loads(result.stdout)
+            value = json.loads(result.stdout)
+            if mode == 'list':
+                assert metadata_measurements[-1]['reads'] <= 5, 'Signed page exceeded its read budget'
+            return value
 
         def absent():
             snapshot = invoke('snapshot')
@@ -478,6 +491,20 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 assert status['outcome'] == 'applied' and status['request'] == request and status['input'] == position
                 assert client.call({'input_disposition': dict(prepared=prepared, input=position)})['disposition'] is None
                 caller_results.append((client, request, status))
+            # Revoke native read rights after the list's initial policy/name
+            # reads but before its dependent definition batch reaches authority.
+            metadata_gate['armed'] = True
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                blocked_read = executor.submit(invoke, 'list', error='AccessDenied')
+                try:
+                    assert metadata_entered.wait(5), 'Signed list did not reach its dependent batch'
+                    invoke('revoke-reader')
+                finally:
+                    metadata_release.set()
+                blocked_read.result(timeout=15)
+            invoke('restore-reader')
+            assert any(invoke('list')['entries'])
+            report['revoked_during_metadata_read'] = True
             growth_started = time.monotonic()
             for index in range(growth):
                 growing = caller_results[0][0]
@@ -558,6 +585,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             report.update(lost_caller_receipts=5 + len(installed), lost_writer_receipts=3, listed_definitions=len(expected_names))
         finally:
             failure = sys.exc_info()[1]
+            metadata_release.set()
             cleanup_errors = []
             for client in clients:
                 try:

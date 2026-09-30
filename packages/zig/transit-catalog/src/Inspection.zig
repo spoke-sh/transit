@@ -48,13 +48,27 @@ pub fn definition(self: Self, source: anytype, object: u64, revision: u64) !?m.D
 /// Validate an already-authorized binding against its definition/live source.
 /// Creation conflict checks use their create permission, not inspect permission.
 pub fn resolveBinding(self: Self, source: anytype, name: c.fuze.model.Name, binding: m.Binding) !m.Definition {
+    const result = try self.bindingDefinition(source, name, binding);
+    try validateSource(source, result);
+    return result;
+}
+fn bindingDefinition(self: Self, source: anytype, name: c.fuze.model.Name, binding: m.Binding) !m.Definition {
     try self.scope(binding.scope);
     const result = (try self.readDefinition(source, binding.object, binding.revision)) orelse return error.CatalogDefinitionMissing;
     if (!std.meta.eql(result.name, name) or !std.mem.eql(u8, &binding.digest, &try result.digest())) return error.CatalogDefinitionChanged;
+    return result;
+}
+fn validateSource(source: anytype, result: m.Definition) !void {
     switch (result.source) {
         .table => |table| if (!std.meta.eql((try c.station.Table.open(source, table.id)).schema, table.schema)) return error.CatalogSourceChanged,
     }
-    return result;
+}
+fn prefetch(source: anytype, keys: []const p.Value) !void {
+    const Source = switch (@typeInfo(@TypeOf(source))) {
+        .pointer => |pointer| pointer.child,
+        else => @TypeOf(source),
+    };
+    if (@hasDecl(Source, "prefetch")) try source.prefetch(keys);
 }
 pub fn lookup(self: Self, source: anytype, name: c.fuze.model.Name) !?m.Definition {
     const address = try r.nameKey(self.configuration.scope.catalog, name);
@@ -73,16 +87,37 @@ pub fn list(self: Self, source: anytype, cursor: ?Cursor) !Page {
     const entries = try source.page(after);
     try validatePage(entries, after, source.view.revision);
     var result: Page = .{ .resource_revision = source.view.revision };
+    var names: [p.Growth.page_size]c.fuze.model.Name = undefined;
+    var bindings: [p.Growth.page_size]m.Binding = undefined;
+    var keys: [p.Growth.page_size]p.Value = undefined;
+    var count: usize = 0;
     for (entries.entries, 0..) |slot, index| {
         const entry = slot orelse break;
         if (!std.mem.startsWith(u8, entry.key.slice(), namespace.slice())) {
             result.next = null;
-            return result;
+            break;
         }
         const name = try c.fuze.model.Name.init(entry.key.slice()[namespace.len..]);
-        result.entries[index] = try self.resolveBinding(source, name, try r.decode(m.Binding, 'n', entry.value));
+        const binding = try r.decode(m.Binding, 'n', entry.value);
+        try self.scope(binding.scope);
+        names[index] = name;
+        bindings[index] = binding;
+        keys[index] = self.key('d', binding.object, binding.revision);
+        count += 1;
         if (entries.next != null) result.next = .{ .scope = self.configuration.scope, .resource_revision = source.view.revision, .after = name };
     }
+    // Current native readers can acquire each dependent layer in one bounded
+    // batch. Turn readers keep their ordinary point reads and poison semantics.
+    try prefetch(source, keys[0..count]);
+    for (0..count) |index| {
+        const definition_value = try self.bindingDefinition(source, names[index], bindings[index]);
+        result.entries[index] = definition_value;
+        keys[index] = switch (definition_value.source) {
+            .table => |table| c.station.Table.descriptorKey(table.id),
+        };
+    }
+    try prefetch(source, keys[0..count]);
+    for (result.entries[0..count]) |entry| try validateSource(source, entry.?);
     return result;
 }
 pub fn validatePage(entries: c.station.Turn.Page, after: p.Value, revision: u64) !void {

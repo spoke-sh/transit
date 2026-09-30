@@ -128,6 +128,7 @@ pub fn describe(self: *Self) !Description {
 }
 const MetadataReader = struct {
     metadata: wire.ResourceReader.Batch,
+    prefetched: ?wire.ResourceReader.Batch = null,
     current: wire.ResourceReader.Reader,
     view: @FieldType(wire.ResourceReader.Reader, "view"),
     pub fn read(self: *@This(), key: p.Value) !?p.Value {
@@ -136,7 +137,29 @@ const MetadataReader = struct {
         for (self.metadata.keys) |slot| if (slot) |requested| {
             if (requested.eql(key)) return self.metadata.read(key);
         };
+        if (self.prefetched) |*batch_value| {
+            for (batch_value.keys) |slot| if (slot) |requested| {
+                if (requested.eql(key)) return batch_value.read(key);
+            };
+        }
         return self.current.read(key);
+    }
+    pub fn prefetch(self: *@This(), keys: []const p.Value) !void {
+        if (keys.len > g.page_size) return error.InvalidCatalogPage;
+        var unique: [g.page_size]p.Value = undefined;
+        var count: usize = 0;
+        next_key: for (keys) |key| {
+            for (unique[0..count]) |old| if (old.eql(key)) continue :next_key;
+            unique[count] = key;
+            count += 1;
+        }
+        if (count == 0) return;
+        // Batch support was negotiated by metadataReader. This observation is
+        // confined to this operation and replaces the preceding dependency
+        // layer; it does not cache authority or grow with the catalog.
+        const batch_value = try (wire.ResourceReader.Batches{ .client = self.current.client }).read(self.view.resource, self.view.revision, unique[0..count]);
+        if (batch_value.resource.id != self.view.resource or batch_value.resource.revision != self.view.revision or batch_value.resource.phase != .active or batch_value.resource.writer != self.metadata.resource.writer) return error.CatalogOwnerChanged;
+        self.prefetched = batch_value;
     }
     pub fn page(self: *@This(), after: ?p.Value) !g.Batch(g.Entry, p.Value) {
         return self.current.page(after);

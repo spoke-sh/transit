@@ -1062,6 +1062,70 @@ a distinct lower operation ID fixes the test. Failed logs are
 links, 56 invariants, 53 classified bounds and 13 SDK scenarios. Neither fixture
 failure establishes a successful production check.
 
+### Batched signed catalog pages
+
+The signed reader fetches the page's definition records and Table descriptors in
+two dependent batches. Each requires the exact initial resource revision and
+current native grants; the second replaces the first after definitions are copied
+into the result. Private-turn callers retain ordinary point reads and sticky
+failure behavior. Resident dependency storage holds at most eight keys/entries,
+independently of retained catalog size.
+
+On development source based on `55f360e3`, the same 65-additional-Table disk
+schedule passes in **218.313 s**: 70 named definitions over nine pages, exact
+point/list agreement, node/store restart, current denial, five caller and three
+owner receipt-loss cases. It records 5981 total reads, 2958 caller reads and 101
+accepted turn responses; bounds remain four mutations, 132-byte values and eight
+resident pages. Source/dirty status and binary hashes are in
+`/tmp/transit-sql-catalog-metadata-batch-growth.json`; the log is
+`/tmp/transit-sql-catalog-metadata-batch-growth.log`.
+
+All **19 successful list calls cost five signed reads**, including the two
+six-entry final pages. Compared with the earlier matching growth schedule, a
+full eight-definition page falls from **19 to five reads**; listing calls total
+353 reads before and 95 after. The 142 name lookups retain their five-read
+successful/three-read absent costs, and the 142 exact-definition calls retain
+three reads each. Listing wall times total 6.972 s before and 3.258 s after, but
+these shared-host runs are unpaired: only the measured request-count reduction
+establishes the batching improvement. Total runtime and worker polling are not
+used as a latency or throughput guarantee. The failed 257-Table attempt remains
+incomplete.
+
+Root unit checks pass, and eight seeded component runs pass **40 package
+schedules / 1264 events** with identical replay in **13.732 s** after changing the
+read order. Logs are `/tmp/transit-sql-catalog-metadata-batch-unit.log` and
+`/tmp/transit-sql-catalog-metadata-batch-domain.log`; the domain report is copied
+to `/tmp/transit-sql-catalog-metadata-batch-domain.json`.
+
+A separate real native schedule pauses the first dependent definition batch
+after initial policy/name reads, revokes the caller's native resource read grant,
+then releases the batch. Listing fails with `AccessDenied`; restoring the grant
+permits a fresh listing. This check passes in **43.676 s**, with 1428 total reads,
+507 caller reads and 36 turn responses. It preserves the original five
+caller/three owner receipt-loss cases, five listed definitions and the same
+resident/write bounds. Every successful listing asserts a five-read budget.
+The log and report are `/tmp/transit-sql-catalog-metadata-batch-revocation-fixed.log`
+and `/tmp/transit-sql-catalog-metadata-batch-revocation.json`. The first attempt
+does not compile because the new fixture gives an eight-bit permission field a
+32-bit value; `/tmp/transit-sql-catalog-metadata-batch-revocation.log` retains that
+failure. It is corrected without changing protocol fields or limits.
+
+Final native binary hashes (the growth run uses the preceding helper hash
+`cc3c0b7046c631bca1ed2fb96154b148127aac94b897d0cf2fa44bc188c5f941`):
+
+| Binary | SHA-256 |
+| --- | --- |
+| node | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| catalog proof | `18a822862a38cc4a52a4edd0c5c42716a7795a2700ed4fc7d04c94ad637ffe6b` |
+| catalog host | `dc96313fc0d17aa038e34791c6ea7e2af527ee445172791555995fd27e9bc8eb` |
+| native port | `62442c92768565973e7879ad6e83328f3674add9406d560e1156447b80bad63d` |
+| native library | `5fb61f939a4aacf5b5355196a5a78534689a7bdb160ce9e01a06746eeeceaad4` |
+| CLI | `f373d7886a3d0b696723441a974376834f6e0e86703ac76b6b74b618b98eea42` |
+
+Full `just check` passes at `/tmp/transit-sql-catalog-metadata-batch-full-check.log`,
+including unchanged generated contracts and 4625 documentation links. Committed
+clean validation and the post-batching mutation qualification remain separate.
+
 ### Neutral catalog metadata values
 
 Shared definition/cursor/page conversions match independently assembled metadata

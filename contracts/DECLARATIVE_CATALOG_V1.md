@@ -322,6 +322,10 @@ revision and current native grants. No retained view, admission or permission
 cache is created. A cursor is a local continuation value, not a bearer grant;
 catalog inspection authorization precedes continuation validation. Native
 ABI/port, CLI and language SDK metadata mappings do not yet expose these methods.
+Signed listing fetches definition records in one bounded batch and their Table
+descriptors in a second batch. Both require the same current revision and native
+grants. The second batch replaces the first after definitions are validated and
+copied into the owned page; no metadata observation survives the call.
 
 Shared neutral conversion types represent object/revision/operation IDs as
 canonical decimal strings. `Bridge.Definition` retains scope, name, typed Table
@@ -332,8 +336,9 @@ entries and an optional cursor. Conversion rejects holes, non-increasing names,
 mixed scopes and continuation that does not match the last entry and revision.
 These conversions introduce no additional executable neutral actions by themselves.
 
-Resident work holds one native page, at most eight definitions and bounded point
-reads for those definitions and Table descriptors. Durable names, definitions and
+Resident work holds one native page, at most eight definitions, a configuration/
+policy batch and at most one eight-key dependent batch. Private-turn sources use
+their existing bounded point reads for definitions and Table descriptors. Durable names, definitions and
 receipts live in paged KV state with no fixed total-cardinality array. Native
 deployment quotas still govern accepted storage. Quota pressure does not authorize
 expiry, silent truncation, adoption or loss of accepted receipts.

@@ -30,6 +30,9 @@ bind continuation to the exact resource revision. A changed revision requires a
 fresh listing; current native or catalog denial rejects old cursors too. These
 metadata methods currently belong to the Zig API; their native ABI, CLI and
 language SDK mappings are separate work.
+Signed pages fetch definitions and Table descriptors in two bounded batches at
+the same revision, rechecking current native grants on each. The dependent batch
+is replaced after each layer; it is not retained across calls.
 `inputDisposition` separately reads a supplied behavior's control or rejected-input
 outcome under current inspection rights, bound to the original send and input
 position. Conditional policy control requires the configured administrator,
