@@ -173,6 +173,17 @@ pub fn Catalog(comptime Store: type) type {
             const value = (try self.getBytes(address)) orelse return null;
             return try decode(T, &value);
         }
+        /// Bounded data reads at this root, without caching permission decisions.
+        pub fn getMany(self: *const Self, comptime T: type, addresses: []const pages.Key) ![pages.page_entries]?T {
+            if (addresses.len > pages.page_entries) return error.PageReadBudget;
+            for (addresses) |address| try validateKey(&address);
+            const values = try self.tree.getMany(self.snapshot.root, addresses);
+            var result: [pages.page_entries]?T = @splat(null);
+            for (values, 0..) |value, i| if (value) |bytes| {
+                result[i] = try decode(T, &bytes);
+            };
+            return result;
+        }
         fn getBytes(self: *const Self, address: pages.Key) !?pages.Value {
             const cache = if (RecordCache.eligible(address)) self.record_cache else null;
             if (cache) |records| {

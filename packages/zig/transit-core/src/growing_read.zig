@@ -160,9 +160,14 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             const resource = try state.resource(engine, q.resource);
             try state.usable(engine, resource, try sample(engine));
             if (q.revision) |revision| if (resource.revision != revision) return error.StaleStateResource;
-            var result: [g.page_size]?g.Entry = @splat(null);
+            var addresses: [g.page_size]core.pages.Key = undefined;
+            var count: usize = 0;
             for (q.keys, 0..) |slot, i| if (slot) |key| {
-                result[i] = try current.get(g.Entry, try c.key(.entry, resource.id, 0, key.slice()));
+                addresses[i] = try c.key(.entry, resource.id, 0, key.slice());
+                count += 1;
+            };
+            const result = try current.getMany(g.Entry, addresses[0..count]);
+            for (q.keys, 0..) |slot, i| if (slot) |key| {
                 if (result[i]) |entry| if (!entry.key.eql(key)) return error.InvalidHistory;
             };
             try state.usable(engine, resource, try sample(engine));
