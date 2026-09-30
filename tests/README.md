@@ -1541,8 +1541,21 @@ Elapsed time is 356.319 s, including 61.592 s installation. The failed report is
 
 The fixture now joins an EOF child before reporting its exit code and annotates
 catalog cleanup failures with the caller surface. Those diagnostics do not
-change SDK behavior or turn an incomplete cleanup into success. A rerun is
-required before the combined result can pass.
+change SDK behavior or turn an incomplete cleanup into success.
+
+The same ten-language command with `--grow 17` passes on development source
+based on `8e021cc6`, with those diagnostics and test-only growth timing, in
+**393.676 s**, including 85.563 s installation. All fourteen metadata surfaces
+agree on 33 definitions over five pages before/after disk restart, current
+denial, sixteen lost caller replies and three lost owner replies; final cleanup
+reports no failures. Counts are 16473 reads, 8565 caller reads and 86 turn
+responses, with the same four-mutation, 134-byte-value and eight-resident-page
+bounds. All six native binary hashes match the earlier focused runs. Report and
+package hashes are `/tmp/transit-sql-catalog-all-ten-metadata-native-diagnostic.json`;
+the log is `/tmp/transit-sql-catalog-all-ten-metadata-native-diagnostic.log`.
+This successful rerun does not identify the earlier cleanup failure's cause or
+erase that failed run. Surface and final-exit diagnostics remain in the fixture
+for recurrence; no SDK runtime fix is claimed.
 
 ## SQL branch integration of seeded simulations
 
