@@ -20,7 +20,9 @@ pub fn apply(turn: anytype, table: Table, plan: Plan) !Result {
             affected += 1;
         },
         .update => |row| if (try table.get(turn, row.key) != null) {
-            try table.update(turn, row);
+            // Existence was checked in this same private view. Upsert retains
+            // schema/write checks without reading the row a second time.
+            try table.upsert(turn, row);
             affected = 1;
         },
         .delete => |key| if (try table.get(turn, key) != null) {

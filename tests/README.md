@@ -4913,3 +4913,15 @@ no end-to-end performance improvement is inferred.
 The first broad check exposes a catalog omission in the rebased CI consolidation:
 `bindings::test` remains an invariant owner but was removed from lane membership.
 It is now listed as an external aggregate, preserving the once-per-lane SDK run.
+
+### Avoid repeated mutation selection
+
+After the initial mutation baseline, the Station helper uses `Table.upsert` only
+after finding the existing row in the same private view. It retains descriptor,
+type and write validation without repeating the existence lookup. The independent
+oracle now asserts exactly three private point reads for each existing-row update,
+down from five, with identical proposed bytes and affected counts. This is a
+40% reduction in those callback reads, not a network or commit-latency claim.
+`just test::unit test::sql` passes again, including rollback, sticky read failure,
+all 31 mutation cases and the unchanged query corpus. Inserts remain at most
+nine private point reads for three rows.

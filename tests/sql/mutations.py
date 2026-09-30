@@ -130,6 +130,8 @@ def check(binary):
         assert response['index'] == index
         if isinstance(wanted, dict):
             assert {name:response.get(name) for name in wanted} == wanted, (cases[index], response, wanted)
+            if cases[index]['sql'].startswith('UPDATE') and wanted['affected'] == 1:
+                assert response['reads'] == 3, ('redundant update point reads', response)
         else:
             assert 'err' in response and (wanted is None or response['err']==wanted), (cases[index], response, wanted)
     print(f'SQL mutations: {agreed} ANTLR/Postgres ASTs agree; {len(cases)} independent storage/outcome or rejection cases; maximum {max(row["reads"] for row in actual)} private point reads. No authority/admission claim.')
