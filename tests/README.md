@@ -4800,3 +4800,24 @@ carry the mapped `ResourceUnavailable` error. The assertion now accepts that
 specific retirement rejection; no production error translation is changed.
 Other language SDKs and installed KV/Document inspection are not covered by
 this run.
+
+### Current Document metadata batching
+
+`UnifiedClient` shares the current metadata key selection between inspection and
+interactive snapshots. Document description batches policy, lifecycle head and
+accepted revision records at one current resource revision, then uses the same
+`UnifiedSource.checkCurrent` checks as before. The reader caches protocol support,
+never permissions or source state.
+
+`just test::unit` passes, including current batch checks for exact Document
+identity, missing requested keys, access denial, reclaimed history and permanent
+retirement. `just test::interactive-query` passes all three source kinds. Each
+inspection now requires exactly five native requests, enforced by the fixture:
+one capability read plus source/requester reads before and after resolution.
+The earlier Document baseline used 14 requests. No snapshots or writes occur;
+current denial, bounded results, fresh cuts and cancellation remain verified.
+
+Document DESCRIBE/SHOW/EXPLAIN wall times are 27.75/16.03/17.35 ms, with sampled
+peak RSS 9.5–10.2 MiB; the full Document fixture takes 304.08 s. The corresponding
+earlier statement times were 50.25/34.98/35.12 ms. These separate local runs
+establish the nine-request reduction, not a paired latency or memory claim.

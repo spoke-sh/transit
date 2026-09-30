@@ -107,6 +107,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                     counts = probe.snapshot() - before_counts
                     assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
                     assert not any(value for key, value in counts.items() if 'snapshot' in key), counts
+                    assert counts['POST'] == 5, (sql, dict(counts))  # capabilities + two current reads before/after
                     result = json.loads(stdout)['inspection']
                     assert result['version'] == 1 and result['scope'] == 'configured_source'
                     assert result['source_kind'] == kind and result['name'] == 'items'
