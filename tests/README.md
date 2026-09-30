@@ -39,6 +39,16 @@ removes library retention fails the mapping assertion immediately. The authority
 (14 traces / 749 events), resource (204 / 3,958), shared-client (eight / 542)
 and component (eight schedules) simulations passed with identical replay.
 
+The first concurrent clean attempts at `4ae88b99` remain incomplete. Core passed
+21 tasks, then its final state test observed `Conflict` while maintenance changed
+the authority tail during a resource metadata read. The corrected maintenance
+poll retries that fresh read within the existing ten-second deadline; the focused
+state proof passed. Snapshot cuts and mutation retries are unchanged. Growth
+exceeded its existing 240-second Station write deadline, experience received
+`503 Unavailable` observing a Board operation, and bindings reported an unexpected
+Python Station event. Runner assertions now preserve the actual unexpected event.
+These results do not establish the complete ordinary gate.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)

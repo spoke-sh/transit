@@ -763,6 +763,208 @@
       ],
       "reason": "Installed Python Station query loop returned an unexpected event after two passing tasks; old assertion did not retain event details",
       "log_sha256": "15c3b8148c247fb4636dea92ad3014f8e696d8a437fbb08a8e582e02d3f4979a"
+    },
+    {
+      "lane": "core",
+      "concurrent_lanes": true,
+      "metadata": {
+        "version": 1,
+        "revision": "4ae88b99671ad3ac2d43996aa8d0d934a3eba558",
+        "tier": "core",
+        "completed": false,
+        "expected_tasks": [
+          "check-core",
+          "test::properties",
+          "test::simulation",
+          "test::resource-simulation-smoke",
+          "test::scheduler-simulation",
+          "test::domain-simulation",
+          "test::vortex",
+          "test::codecs",
+          "test::dev-environment",
+          "test::kubectl-transit",
+          "test::deployments",
+          "test::telemetry",
+          "test::packages-build",
+          "test::compute",
+          "test::client-abi",
+          "test::station",
+          "test::storage",
+          "test::service",
+          "test::runtime-upgrade",
+          "test::callers",
+          "test::inspection",
+          "test::state"
+        ],
+        "seconds": 1298.02,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "results": [
+        {
+          "lane": "core",
+          "task": "check-core",
+          "seconds": 77.02,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::properties",
+          "seconds": 15.59,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::simulation",
+          "seconds": 21.16,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::resource-simulation-smoke",
+          "seconds": 4.53,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::scheduler-simulation",
+          "seconds": 17.31,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::domain-simulation",
+          "seconds": 3.93,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::vortex",
+          "seconds": 17.33,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::codecs",
+          "seconds": 4.74,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::dev-environment",
+          "seconds": 0.08,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::kubectl-transit",
+          "seconds": 4.11,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::deployments",
+          "seconds": 1.68,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::telemetry",
+          "seconds": 1.62,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::packages-build",
+          "seconds": 162.99,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::compute",
+          "seconds": 0.37,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::client-abi",
+          "seconds": 7.94,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::station",
+          "seconds": 255.29,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::storage",
+          "seconds": 564.82,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::service",
+          "seconds": 77.94,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::runtime-upgrade",
+          "seconds": 5.95,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::callers",
+          "seconds": 24.53,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::inspection",
+          "seconds": 9.71,
+          "exit_code": 0
+        },
+        {
+          "lane": "core",
+          "task": "test::state",
+          "seconds": 19.36,
+          "exit_code": 1
+        }
+      ],
+      "reason": "21 tasks passed; final state API maintenance poll rejected expected read Conflict when maintenance advanced the authority tail",
+      "log_sha256": "82d3bd86d83e00e2355fd7b3bbbb62b5e9c26d0293e2693fe28f6ae95c156936"
     }
-  ]
+  ],
+  "state_poll_correction": {
+    "base_revision": "028e2f7b",
+    "dirty": true,
+    "completed": true,
+    "scope": "Retry only current resource metadata reads on Conflict or documented transient unavailability during maintenance; unchanged ten-second progress deadline and unchanged snapshot/mutation semantics",
+    "command": "just test::state",
+    "log_sha256": "fc9fdeb142f10e4734df5a0af608d10e98b5fbbddc6aed805a930c2228c7de5c"
+  },
+  "repository_checks_followup": {
+    "revision": "028e2f7b",
+    "completed": true,
+    "log_sha256": "dd24d6e240fef1e1bf24cb9facf0e91c1141f4752f7116ee9d4ac0ae8e32fe78"
+  }
 }

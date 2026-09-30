@@ -99,9 +99,16 @@ def run(node, cli, counter):
             maintenance = s.start(node, s.config, '--maintain')
             until = time.monotonic() + 10
             while True:
-                metadata = s.native_query({'resource': resource})['body']['resource']
-                if metadata['phase'] == 'reclaimed':
+                status, response = s.native_query({'resource': resource}, status=None)
+                if status == 200 and response['body']['resource']['phase'] == 'reclaimed':
                     break
+                # Maintenance can publish between data acquisition and the
+                # final authority-tail check. Poll this fresh metadata read;
+                # never retry a mutation or combine pages from different cuts.
+                assert (status == 200 or
+                        (status == 409 and response.get('err') == 'Conflict') or
+                        (status == 503 and response.get('err') in
+                         ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpCapacity'))), (status, response)
                 assert time.monotonic() < until and maintenance.poll() is None
                 time.sleep(.05)
             maintenance.kill()
