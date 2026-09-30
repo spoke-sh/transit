@@ -190,7 +190,7 @@ pub fn main(init: std.process.Init) !void {
     const writing = std.mem.eql(u8, args[2], "write");
     if (writing) {
         const capabilities = (try root.query(.{ .capabilities = {} })).body.capabilities;
-        try t.expect(!capabilities.station and !capabilities.runtime_bindings and capabilities.history_reclamation);
+        try t.expect(capabilities.station and capabilities.runtime_bindings and capabilities.history_reclamation);
         try t.expectEqual(.unlimited, capabilities.retained_history);
         try t.expectError(error.Rejected, root.submit(.{ .checkpoint = {} }));
         _ = try root.submit(.{ .grant = .{ .subject = 65536, .public_key = worker.key.public_key.toBytes(), .permissions = p.all_permissions } });
