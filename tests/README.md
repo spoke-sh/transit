@@ -456,6 +456,14 @@ scenarios, frontend checks and documentation build. Logs are
 `bindings::python-test` also includes it. Other nine idiomatic catalog SDKs and
 committed-HEAD clean qualification for this Python increment remain separate.
 
+Committed-HEAD **`just ci-clean --lane core` passes all 18 tasks at `70919367`**
+without inherited workspace build outputs, in **706.64 seconds**.
+Evidence is `.cache/ci/clean/70919367bbec-transit-ci-cian9wcj/core.json` and
+`core.meta.json`; the full log is `/tmp/transit-sql-catalog-python-ci-clean.log`.
+The following evidence-only commit changes no production code. This qualifies
+the core lane plus the installed Python schedule above, not a complete clean
+suite or the other nine catalog SDKs.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
