@@ -6,6 +6,50 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Handbook grammar inventory and implementation plan
+
+The documentation-first work for issue #31 starts from PR #27's pushed
+`9051f0a4209b874ebb4c1ba69aecd50fa7c8225a`. The handbook checkpoint `37996e4f`
+adds the public implemented/planned inventory and navigation, corrects stale
+state-declaration descriptions, and reconciles system-time comments without
+changing any accepted grammar rule or production execution. M38 now consumes
+that inventory with staged ledger/semantic/historical work and explicit exits;
+no runtime work package is marked complete by this documentation.
+
+Executed in the pinned development shell with locked frontend dependencies:
+
+- Full `just check` passes for the handbook checkpoint, including generated
+  contracts, unit/CLI checks, frontend types/tests and production documentation.
+  The documentation check reports 4642 local links across 484 files.
+- `just test::sql` passes: 49 published SQL examples, 104 SELECT AST comparisons,
+  16 syntax exclusions, 14 extensions, 86 actual plans/Arrow checks, 24 unified
+  results across three bases/eight page widths, 31 mutation outcome/rejection
+  cases, and 182 declaration cases. Proposed syntax uses explicitly labeled text
+  blocks; these checks do not accept or qualify the proposed graph/branch forms.
+- The initial `just transit-docs::browser` run has two passes and two failures:
+  inherited assertions expect the SQL index's old label and still describe
+  CREATE TABLE as grammar-only. `7316a9e5` corrects those expectations, retains
+  the grammar-only connection check and exercises the new inventory through
+  navigation/search with distinct Table-publication and KV/Document labels.
+  The corrected root-hosting run passes all four browser tests in 15.6 s.
+- `just transit-docs::check` passes after the browser changes; the subsequent
+  repository link check, including the roadmap sequence, passes 4647 links
+  across 484 files. These are working-tree documentation results, not new
+  runtime qualification.
+
+Committed-HEAD `just ci-clean --lane experience` at `37996e4f` **fails** in
+`transit-board::query-test`: `tests/board_query.py` receives HTTP 503
+`Unavailable` while observing an upload. Board check, documentation check, Node
+binding check, observability and Board inspection pass first; the final local
+Station launcher task does not run. The failed checkout and task timings remain
+at `/var/tmp/transit-ci-e1al9pr1`; the log is
+`/tmp/rey-grammar-ci-clean-inventory.log`. A focused rerun of the unchanged query
+test in that checkout fails with the same response; its log is
+`/tmp/rey-grammar-query-rerun.log`. The failure is unresolved. Neither that run
+nor the focused documentation/browser passes establish a clean-lane or complete
+clean-suite pass. No graph, foreign-capture, historical-query, branch, merge or
+standards-conformance execution is claimed.
+
 ## Conditional declarative catalog
 
 The additive `transit-catalog` package composes Fuze's declaration compiler with

@@ -86,7 +86,8 @@ SDK exposes catalog operations.
 | `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
 | Expressions, boolean composition, aliases and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
-| `JOIN`, `GROUP BY`, `HAVING`, `ORDER BY`, set composition and further aggregates | **Planned — syntax undecided** | Selected finite profiles, bag multiplicity, exact source vectors, checked arithmetic and bounded state; no claim of every join or aggregate variant |
+| `JOIN`, `GROUP BY`, `COUNT(column)` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
+| `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |
 | Timestamp/interval types, event-time windows and watermarks | **Planned — syntax undecided** | Time domains, lateness, corrections and finality; resource revisions are not event time |
 | Query-to-sink bindings and triggers | **Planned — syntax undecided** | Explicit activation, stable recorded intent, atomic input progress plus intent, authorized attempt and captured outcome |
@@ -102,6 +103,12 @@ checked grammar. [Streaming and effects](streaming.md) explains the current
 application materialization, watch/refresh and connector alternatives. A finite
 result delivered in batches is not a continuous query; a retracted row cannot
 undo an external effect.
+
+The first planned Table join/group profile excludes `HAVING`, `DISTINCT`,
+arbitrary sorting, general subqueries, non-equality/full/right joins and more than
+one join. It also excludes `LIMIT` on the new composed profile; implemented
+single-source limits keep their existing meaning. Broader composition does not
+implicitly select every SQL operator or relax these initial bounds.
 
 ## Planned standards and data-model surface
 

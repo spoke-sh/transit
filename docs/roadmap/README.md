@@ -45,7 +45,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 | [M36](M36.md) | SQL language completeness and declarative dataflows | In progress: finite queries/inspection, combined Table reads/writes, ten mutation SDKs, saved-file CLI mutations and conditional Zig Table catalog; administrative callers, remaining declarations and maintained dataflows remain |
 | [M37](M37.md) | Simulation and external fault verification | Implemented deterministic and Vortex-style profiles; repository-wide clean and hosted qualification remain open |
-| [M38](M38.md) | Standards, multi-model dataflows and schema branching | Proposed; standards ledger, graph/foreign relations, historical catalogs, isolated branches and reviewed merges |
+| [M38](M38.md) | Standards, multi-model dataflows and schema branching | Handbook grammar inventory published; implementation sequence starts with the standards ledger and historical contracts; graph/foreign relations, branches and merges remain planned |
 | [M39](M39.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
