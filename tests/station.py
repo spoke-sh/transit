@@ -11,6 +11,7 @@ import time
 
 import pyarrow as pa
 
+from arrow import field, simple_rows
 from inspection import System
 from storage import wait_ready
 
@@ -195,9 +196,12 @@ def run(node, cli, worker, courier):
             def query_key(tag, identity, ordinal=0, fragment=0):
                 return b'\0Q' + tag.encode() + struct.pack('>QQH', identity, ordinal, fragment)
             manifest = value(requester_resource, query_key('c', query_input))
-            assert len(manifest) == 208 and manifest[:4] == b'GQM1'
+            assert len(manifest) == 241 and manifest[:4] == b'GQM1'
+            assert manifest[40] == 2  # Table source kind.
+            assert int.from_bytes(manifest[41:49], 'little') == ledger_resource
+            assert manifest[89:121] == hashlib.sha256(b'transit.fuze.schema.v1\0\2\2\1id\6\1amount').digest()
             result_id = int.from_bytes(manifest[4:12], 'little')
-            segments, size, rows = struct.unpack_from('<QQQ', manifest, 120)
+            segments, size, rows = struct.unpack_from('<QQQ', manifest, 153)
             assert segments == 1 and rows == 1
             data = b''.join(value(requester_resource, query_key('d', query_input, 0, index))
                             for index in range((size + 220) // 221))
@@ -206,8 +210,8 @@ def run(node, cli, worker, courier):
             assert hashlib.sha256(data).digest() == segment[-32:]
             with pa.ipc.open_stream(data) as reader:
                 table = reader.read_all()
-            assert table.to_pylist() == [{'id': 1, 'amount': 10}]
-            assert table.schema == pa.schema([pa.field('id', pa.int64(), nullable=False), pa.field('amount', pa.int64())])
+            assert simple_rows(table) == [{'id': 1, 'amount': 10}]
+            assert table.schema == pa.schema([field('id', pa.int64()), field('amount', pa.int64())])
             pump_until(lambda: value(ledger_resource, query_key('j', result_id))[57] == 4)
 
             # Stop delivery long enough to order revocation ahead of continuation.

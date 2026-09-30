@@ -74,6 +74,7 @@ class System:
             response = error
         with response:
             body = json.load(response)
+            if status is None: return response.status, body
             assert response.status == status, (response.status, body, status)
             return body
 

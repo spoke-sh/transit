@@ -31,7 +31,16 @@ def run(node, cli, worker):
             else: assert status == 0
 
         def query(kind, **values):
-            metadata = s.native_query({'resource': resource})['body']['resource']
+            # Reclamation can publish between acquiring and validating a
+            # current read. Restart only that read; retain no mixed-cut values.
+            until = time.monotonic() + 5
+            while True:
+                status, response = s.native_query({'resource': resource}, status=None)
+                if status == 200:
+                    metadata = response['body']['resource']
+                    break
+                assert status == 409 and response == {'err': 'Conflict'} and time.monotonic() < until, (status, response)
+                time.sleep(.025)
             if kind == 'resources': return {'resources': [metadata]}
             return s.native_query({'entries': {'resource': resource, 'revision': metadata['revision'], **values}})['body']['entries']['page']
 
