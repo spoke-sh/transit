@@ -48,6 +48,30 @@ values; recovery across process loss requires externally persisted commands.
 External values map only to fixed allowed atoms. Created Tables do not
 implicitly become query sources or mutation writers.
 
+## Metadata
+
+`lookup(Client, Name)` reads an exact case-sensitive ASCII name of one to sixteen
+bytes. `definition(Client, Object, Revision)` reads immutable metadata by positive
+uint64 identities. Success contains a `#transit_catalog_definition{}` or
+`undefined` for absence, inside `{ok, Value}`. The definition owns scope, original
+name, Table/schema and creation attribution.
+
+`list(Client)` starts a page; `list(Client, Cursor)` continues using the original
+`#transit_catalog_cursor{definition, scope, resource_revision, after_name}`.
+Every field is mandatory, including the matching compatibility definition.
+`#transit_catalog_page{resource_revision, entries, next}` contains an immutable
+dense list of at most eight definitions. `next = undefined` ends the listing;
+passing `undefined` as the input starts a new listing. An empty final page is
+possible. A changed resource revision returns a native conflict; restart the
+listing and keep results from different revisions separate.
+
+Metadata reads submit no command or snapshot and recheck current catalog
+inspection and native rights, including continuation. Responses validate requested
+identity, ordered pages, scope and continuation cut. A malformed neutral response
+fails with `read_failed` through the existing port; invalid typed metadata fails
+with `incompatible_native`. Native rejections retain their category/status/code.
+The same bounded worker and joined cleanup rules apply to these reads.
+
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 policies, atomic publication and bounds. The
 [proof ledger](../../../../tests/README.md) records installed recovery and

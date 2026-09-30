@@ -12,6 +12,10 @@
 -record(transit_catalog_prepared, {bytes :: binary()}).
 -record(transit_catalog_capabilities, {version, definition, initialize, create_table, conditional_policy, current_metadata, max_saved_bytes, table_columns}).
 -record(transit_catalog_description, {configuration :: #transit_catalog_configuration{}, policy :: #transit_catalog_policy{}, resource_revision :: non_neg_integer()}).
+-record(transit_catalog_table_source, {table :: pos_integer(), schema :: #transit_catalog_schema{}}).
+-record(transit_catalog_definition, {scope :: #transit_catalog_scope{}, object :: pos_integer(), revision :: pos_integer(), name :: binary(), source :: #transit_catalog_table_source{}, principal :: non_neg_integer(), operation :: pos_integer(), input :: pos_integer()}).
+-record(transit_catalog_cursor, {definition :: binary(), scope :: #transit_catalog_scope{}, resource_revision :: pos_integer(), after_name :: binary()}).
+-record(transit_catalog_page, {resource_revision :: pos_integer(), entries = [] :: [#transit_catalog_definition{}], next :: undefined | #transit_catalog_cursor{}}).
 -record(transit_catalog_receipt, {request :: #transit_catalog_create_table{}, principal :: non_neg_integer(), input :: pos_integer(), outcome :: applied | name_conflict | object_conflict | table_conflict}).
 -record(transit_catalog_disposition, {scope :: #transit_catalog_scope{}, origin :: external | process | effect, principal :: non_neg_integer(), input :: pos_integer(), payload :: binary(), outcome :: initialized | policy_applied | invalid_command | denied | identity_conflict | stale_policy}).
 -endif.

@@ -511,9 +511,8 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             invoke('restore-reader')
             assert any(invoke('list')['entries'])
             report['revoked_during_metadata_read'] = True
-            # These callers share the neutral bridge. SDK metadata mappings
-            # join this set as their typed public methods are implemented.
-            metadata_surfaces = {'abi', 'port', 'cli', 'python-sync', 'python-async', 'node', 'rust', 'ruby', 'c', 'cpp', 'java', 'dotnet'}
+            # Native transports and all typed SDK metadata callers share this history.
+            metadata_surfaces = {'abi', 'port', 'cli', 'python-sync', 'python-async', 'node', 'rust', 'ruby', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'}
             metadata_clients = [(name, result[0]) for (name, _), result in zip(factories, caller_results) if name in metadata_surfaces]
             report['metadata_surfaces'] = [name for name, _ in metadata_clients]
             def metadata_call(name, client, action, expected_error=None):
@@ -692,7 +691,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     for binary in ('node', 'proof', 'catalog_host', 'port_host', 'library', 'cli'): parser.add_argument(binary)
-    parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'java', 'dotnet', 'erlang', 'elixir'], action='append', default=[])
+    parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'], action='append', default=[])
     parser.add_argument('--grow', type=int, default=0)
     args = parser.parse_args()
     run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk, args.grow)

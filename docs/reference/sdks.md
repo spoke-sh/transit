@@ -47,7 +47,11 @@ Erlang provides [immutable records and an owned worker](../../packages/beam/tran
 Elixir provides [structs over the Erlang caller](../../packages/beam/transit-station-elixir/docs/catalog.md).
 These support initialization, conditional policy, named Table creation and exact
 saved recovery through the shared [native catalog boundary](../../packages/zig/transit-station-bindings/docs/catalog.md),
-retaining full-width identities. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
+retaining full-width identities. All ten SDKs also expose exact-name lookup,
+immutable definition reads and ordered pages of at most eight definitions.
+Continue with the original mandatory-definition cursor; a changed revision
+requires a fresh listing. Every metadata call rechecks current inspection and
+native rights. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same
 Zig owner; query connections do not enable administration.
 
 ## Table mutation callers

@@ -19,12 +19,21 @@ request(#{<<"scope">>:=S,<<"operation">>:=O,<<"object">>:=Obj,<<"table">>:=T,<<"
     #transit_catalog_create_table{scope=scope(S),operation=binary_to_integer(O),object=binary_to_integer(Obj),table=T,name=N,schema=#transit_catalog_schema{names=Names,value_type=Atom}}.
 request_json(#transit_catalog_create_table{scope=S,operation=O,object=Obj,table=T,name=N,schema=#transit_catalog_schema{names=Names,value_type=Type}})->
     #{scope=>scope_json(S),operation=>integer_to_binary(O),object=>integer_to_binary(Obj),table=>T,name=>N,schema=>#{names=>Names,value_type=>atom_to_binary(Type)}}.
+cursor(null)->undefined;
+cursor(#{<<"definition">>:=D,<<"scope">>:=S,<<"resource_revision">>:=R,<<"after">>:=N})->#transit_catalog_cursor{definition=D,scope=scope(S),resource_revision=R,after_name=N}.
+cursor_json(#transit_catalog_cursor{definition=D,scope=S,resource_revision=R,after_name=N})->#{definition=>D,scope=>scope_json(S),resource_revision=>R,'after'=>N}.
+definition_json(#transit_catalog_definition{scope=S,object=O,revision=R,name=N,source=#transit_catalog_table_source{table=T,schema=#transit_catalog_schema{names=Names,value_type=Type}},principal=P,operation=Op,input=I})->
+    #{scope=>scope_json(S),object=>integer_to_binary(O),revision=>integer_to_binary(R),name=>N,source=>#{table=>#{id=>T,schema=>#{names=>Names,value_type=>atom_to_binary(Type)}}},principal=>P,operation=>integer_to_binary(Op),input=>I}.
+page_json(#transit_catalog_page{resource_revision=R,entries=Entries,next=Next})->#{resource_revision=>R,entries=>[definition_json(D)||D<-Entries]++lists:duplicate(8-length(Entries),null),next=>optional(Next,fun cursor_json/1)}.
 action(A,C,#{<<"capabilities">>:=_})->
     #transit_catalog_capabilities{version=V,definition=D,initialize=I,create_table=T,conditional_policy=P,current_metadata=M,max_saved_bytes=S,table_columns=Cols}=result(A:capabilities(C)),
     #{capabilities=>#{version=>V,definition=>D,initialize=>I,create_table=>T,conditional_policy=>P,current_metadata=>M,max_saved_bytes=>S,table_columns=>Cols}};
 action(A,C,#{<<"describe">>:=_})->
     #transit_catalog_description{configuration=Configuration,policy=Policy,resource_revision=Revision}=result(A:describe(C)),
     #{description=>#{configuration=>configuration_json(Configuration),policy=>policy_json(Policy),resource_revision=>Revision}};
+action(A,C,#{<<"lookup">>:=Name})->#{definition=>optional(result(A:lookup(C,Name)),fun definition_json/1)};
+action(A,C,#{<<"definition">>:=#{<<"object">>:=O,<<"revision">>:=R}})->#{definition=>optional(result(A:definition(C,binary_to_integer(O),binary_to_integer(R))),fun definition_json/1)};
+action(A,C,#{<<"list">>:=Cursor})->#{page=>page_json(result(A:list(C,cursor(Cursor))))};
 action(A,C,#{<<"compile">>:=#{<<"sql">>:=Sql,<<"operation">>:=O,<<"object">>:=Obj,<<"table">>:=T}})->
     #transit_catalog_compiled{request=R,canonical=Canonical}=result(A:compile_sql(C,Sql,binary_to_integer(O),binary_to_integer(Obj),T)),#{compiled=>#{request=>request_json(R),canonical=>hex(Canonical)}};
 action(A,C,#{<<"prepare_initialize">>:=V})->#transit_catalog_prepared{bytes=B}=result(A:prepare_initialize(C,configuration(V))),#{prepared=>B};

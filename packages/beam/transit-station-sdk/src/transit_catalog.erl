@@ -1,7 +1,7 @@
 %% Immutable public records; shared Zig owns compilation, signing and recovery.
 -module(transit_catalog).
 -include("transit_catalog.hrl").
--export([open/3,close/1,capabilities/1,describe/1,compile_sql/5,prepare_initialize/2,
+-export([open/3,close/1,capabilities/1,describe/1,lookup/2,definition/3,list/1,list/2,compile_sql/5,prepare_initialize/2,
          prepare_create/2,prepare_policy/2,submit/2,observe/3,input_disposition/3,status/2]).
 %% Internal callbacks for the existing bounded owned worker.
 -export([open/2,execute/2,evidence/1]).
@@ -16,6 +16,15 @@ counter(V) -> transit_sdk_value:counter(V).
 table(V) -> transit_sdk_value:integer(V,1,4294967295).
 wide(V) -> positive(transit_sdk_value:wide(V)).
 identifier(V) -> B=transit_sdk_value:text(V,16),true=byte_size(B)>0,B.
+letter(C) -> (C >= $A andalso C =< $Z) orelse (C >= $a andalso C =< $z) orelse C =:= $_.
+metadata_name(V) ->
+    B=identifier(V),<<First,_/binary>>=B,true=letter(First),
+    true=lists:all(fun(C)->letter(C) orelse (C >= $0 andalso C =< $9) end,binary_to_list(B)),B.
+metadata(F) -> try F() catch _:_ -> transit_sdk_value:fail(incompatible_native,catalog_metadata) end.
+cursor(undefined) -> null;
+cursor(#transit_catalog_cursor{definition=Definition,scope=Scope,resource_revision=Revision,after_name=After}) ->
+    Definition=maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)),
+    #{<<"definition">>=>Definition,<<"scope">>=>scope(Scope),<<"resource_revision">>=>counter(Revision),<<"after">>=>metadata_name(After)}.
 fixed(V,N) -> B=transit_sdk_value:unhex(V,N),true=byte_size(B)=:=N,B.
 saved(#transit_catalog_prepared{bytes=B}) -> true=byte_size(B)>0,transit_sdk_value:text(B,8192).
 prepared(V) -> P=#transit_catalog_prepared{bytes=transit_sdk_value:text(V,8192)},saved(P),P.
@@ -62,6 +71,36 @@ parse_create(Value) ->
     S=fields(maps:get(<<"schema">>,V),[<<"names">>,<<"value_type">>]),[Key,ValueName]=maps:get(<<"names">>,S),
     #transit_catalog_create_table{scope=parse_scope(maps:get(<<"scope">>,V)),operation=wide(maps:get(<<"operation">>,V)),object=wide(maps:get(<<"object">>,V)),
         table=table(maps:get(<<"table">>,V)),name=identifier(maps:get(<<"name">>,V)),schema=#transit_catalog_schema{names=[identifier(Key),identifier(ValueName)],value_type=known(maps:get(<<"value_type">>,S),[int64,boolean,utf8,binary])}}.
+parse_definition(null) -> undefined;
+parse_definition(Value) ->
+    V=fields(Value,[<<"scope">>,<<"object">>,<<"revision">>,<<"name">>,<<"source">>,<<"principal">>,<<"operation">>,<<"input">>]),
+    Source=fields(maps:get(<<"source">>,V),[<<"table">>]),T=fields(maps:get(<<"table">>,Source),[<<"id">>,<<"schema">>]),
+    S=fields(maps:get(<<"schema">>,T),[<<"names">>,<<"value_type">>]),[K,N]=maps:get(<<"names">>,S),true=K=/=N,
+    Schema=#transit_catalog_schema{names=[metadata_name(K),metadata_name(N)],value_type=known(maps:get(<<"value_type">>,S),[int64,boolean,utf8,binary])},
+    #transit_catalog_definition{scope=parse_scope(maps:get(<<"scope">>,V)),object=wide(maps:get(<<"object">>,V)),revision=wide(maps:get(<<"revision">>,V)),name=metadata_name(maps:get(<<"name">>,V)),
+        source=#transit_catalog_table_source{table=table(maps:get(<<"id">>,T)),schema=Schema},principal=transit_sdk_value:counter(maps:get(<<"principal">>,V),0),operation=wide(maps:get(<<"operation">>,V)),input=counter(maps:get(<<"input">>,V))}.
+resolved(Value,Scope,Name,Object,Revision) -> metadata(fun()->
+    case parse_definition(Value) of
+        undefined->undefined;
+        #transit_catalog_definition{scope=Scope,name=N,object=O,revision=R}=D ->
+            true=(Name=:=undefined orelse Name=:=N),true=(Object=:=undefined orelse Object=:=O),true=(Revision=:=undefined orelse Revision=:=R),D
+    end end).
+parse_cursor(null) -> undefined;
+parse_cursor(Value) ->
+    V=fields(Value,[<<"definition">>,<<"scope">>,<<"resource_revision">>,<<"after">>]),
+    C=#transit_catalog_cursor{definition=maps:get(<<"definition">>,V),scope=parse_scope(maps:get(<<"scope">>,V)),resource_revision=counter(maps:get(<<"resource_revision">>,V)),after_name=metadata_name(maps:get(<<"after">>,V))},cursor(C),C.
+page_entries([],_,_,Acc)->lists:reverse(Acc);
+page_entries([null|Rest],Scope,_,Acc)->page_entries(Rest,Scope,true,Acc);
+page_entries([Value|Rest],Scope,false,Acc)->
+    #transit_catalog_definition{scope=Scope,name=Name}=D=parse_definition(Value),
+    case Acc of []->ok; [#transit_catalog_definition{name=Previous}|_]->true=Previous<Name end,
+    page_entries(Rest,Scope,false,[D|Acc]).
+parse_page(Value,Scope,Previous)->metadata(fun()->
+    V=fields(Value,[<<"resource_revision">>,<<"entries">>,<<"next">>]),Revision=counter(maps:get(<<"resource_revision">>,V)),
+    Slots=maps:get(<<"entries">>,V),true=is_list(Slots),8=length(Slots),Entries=page_entries(Slots,Scope,false,[]),Next=parse_cursor(maps:get(<<"next">>,V)),
+    case Next of undefined->ok; #transit_catalog_cursor{scope=Scope,resource_revision=Revision,after_name=After}->#transit_catalog_definition{name=After}=lists:last(Entries) end,
+    case Previous of undefined->ok; #transit_catalog_cursor{resource_revision=Revision,after_name=Before}->case Entries of []->ok; [#transit_catalog_definition{name=First}|_]->true=First>Before end end,
+    #transit_catalog_page{resource_revision=Revision,entries=Entries,next=Next} end).
 parse_caps(Value) ->
     V=fields(Value,[<<"version">>,<<"definition">>,<<"initialize">>,<<"create_table">>,<<"conditional_policy">>,<<"current_metadata">>,<<"max_saved_bytes">>,<<"table_columns">>]),
     Definition=maps:get(<<"definition">>,transit_sdk_value:contract(transit_station_sdk)),
@@ -89,6 +128,10 @@ evidence(_) -> undefined.
 call({transit_catalog_client,Worker},Request) -> transit_sdk_worker:invoke(Worker,Request).
 capabilities(Client) -> call(Client,capabilities).
 describe(Client) -> call(Client,describe).
+lookup(Client,Name) -> call(Client,{lookup,Name}).
+definition(Client,Object,Revision) -> call(Client,{definition,Object,Revision}).
+list(Client) -> list(Client,undefined).
+list(Client,Cursor) -> call(Client,{list,Cursor}).
 compile_sql(Client,Sql,Operation,Object,Table) -> call(Client,{compile,Sql,Operation,Object,Table}).
 prepare_initialize(Client,Configuration) -> call(Client,{prepare_initialize,Configuration}).
 prepare_create(Client,Request) -> call(Client,{prepare_create,Request}).
@@ -98,6 +141,13 @@ submit(Client,Prepared) -> case call(Client,{submit,Prepared}) of
 observe(Client,Prepared,Input) -> call(Client,{observe,Prepared,Input}).
 input_disposition(Client,Prepared,Input) -> call(Client,{input_disposition,Prepared,Input}).
 status(Client,Original) -> call(Client,{status,Original}).
+execute({lookup,Name},#state{bridge=B,connection=#transit_catalog_connection{scope=Scope}}=State) ->
+    N=metadata_name(Name),Value=request(B,#{<<"lookup">>=>N},<<"definition">>),{{ok,resolved(Value,Scope,N,undefined,undefined)},State};
+execute({definition,Object,Revision},#state{bridge=B,connection=#transit_catalog_connection{scope=Scope}}=State) ->
+    Action=#{<<"definition">>=>#{<<"object">>=>integer_to_binary(positive(Object)),<<"revision">>=>integer_to_binary(positive(Revision))}},
+    Value=request(B,Action,<<"definition">>),{{ok,resolved(Value,Scope,undefined,Object,Revision)},State};
+execute({list,Cursor},#state{bridge=B,connection=#transit_catalog_connection{scope=Scope}}=State) ->
+    Value=request(B,#{<<"list">>=>cursor(Cursor)},<<"page">>),{{ok,parse_page(Value,Scope,Cursor)},State};
 execute(Request,#state{bridge=B}=State) -> {{ok,operation(B,Request)},State}.
 request(B,A,Key) -> result(transit_station_bridge:catalog_call(B,A,false),Key).
 

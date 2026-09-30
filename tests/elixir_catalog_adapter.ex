@@ -5,6 +5,11 @@ defmodule ElixirCatalogAdapter do
   def close(c), do: result(C.close(c))
   def capabilities(c), do: result(C.capabilities(c))
   def describe(c), do: result(C.describe(c))
+  def lookup(c, name), do: result(C.lookup(c, name))
+  def definition(c, object, revision), do: result(C.definition(c, object, revision))
+  def list(c), do: result(C.list(c))
+  def list(c, :undefined), do: result(C.list(c))
+  def list(c, cursor), do: result(C.list(c, C.convert(cursor)))
 
   def compile_sql(c, sql, operation, object, table),
     do: result(C.compile_sql(c, sql, operation, object, table))

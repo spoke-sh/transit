@@ -42,6 +42,21 @@ rejection result; `status(client, original_request)` reports the original creati
 receipt. Optional values use `nil` inside `{:ok, value}`. Only outcome `:applied`
 establishes creation. Current catalog/native policies gate result disclosure.
 
+`lookup(client, name)` and `definition(client, object, revision)` return an
+immutable `Definition` struct or `nil` inside `{:ok, value}`. Names are exact
+case-sensitive ASCII identifiers of one to sixteen bytes; object/revision IDs
+are positive uint64 integers. Definitions retain original creation attribution
+and a typed `TableSource` with its schema.
+
+`list(client)` starts a bounded page. When `page.next` is a `Cursor`,
+`list(client, page.next)` continues at its original scope and resource revision.
+`Page.entries` contains at most eight ordered definitions; `nil` next ends the
+listing, and an empty final page is possible. Persist every original cursor field,
+including the mandatory matching `definition` and `after_name`. A changed revision
+fails; restart and keep results from different revisions separate. Metadata reads
+submit no command or snapshot, and current catalog/native rights apply to every
+call. The Erlang owner validates response identity, ordering and continuation cuts.
+
 Calls wait on the bounded owned worker. Overlap returns `:busy`. Killing a waiting
 Task does not stop native work or cancel durable work; `close` joins cleanup.
 Creating-owner loss initiates monitored cleanup. Persist recovery values outside

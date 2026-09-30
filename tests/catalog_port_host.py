@@ -23,7 +23,7 @@ try:
         if 'shutdown' in request:
             print(json.dumps({'status': 0, 'value': {'closed': True}}), flush=True)
             break
-        if 'submit' in request.get('catalog', {}):
+        if any(name in request.get('catalog', {}) for name in ('submit', 'lookup', 'definition', 'list')):
             mode = json.loads((root / 'mode.json').read_text())
             (root / 'entered').write_text('1')
             if mode == 'loss': break

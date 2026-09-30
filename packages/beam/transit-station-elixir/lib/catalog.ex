@@ -82,6 +82,30 @@ defmodule Transit.Station.Sdk.Catalog.Description do
   defstruct [:configuration, :policy, :resource_revision]
 end
 
+defmodule Transit.Station.Sdk.Catalog.TableSource do
+  @enforce_keys [:table, :schema]
+  @derive {Inspect, only: []}
+  defstruct [:table, :schema]
+end
+
+defmodule Transit.Station.Sdk.Catalog.Definition do
+  @enforce_keys [:scope, :object, :revision, :name, :source, :principal, :operation, :input]
+  @derive {Inspect, only: []}
+  defstruct [:scope, :object, :revision, :name, :source, :principal, :operation, :input]
+end
+
+defmodule Transit.Station.Sdk.Catalog.Cursor do
+  @enforce_keys [:definition, :scope, :resource_revision, :after_name]
+  @derive {Inspect, only: []}
+  defstruct [:definition, :scope, :resource_revision, :after_name]
+end
+
+defmodule Transit.Station.Sdk.Catalog.Page do
+  @enforce_keys [:resource_revision, :entries, :next]
+  @derive {Inspect, only: []}
+  defstruct [:resource_revision, :entries, :next]
+end
+
 defmodule Transit.Station.Sdk.Catalog.Receipt do
   @enforce_keys [:request, :principal, :input, :outcome]
   @derive {Inspect, only: []}
@@ -115,6 +139,10 @@ defmodule Transit.Station.Sdk.Catalog do
     Prepared,
     Capabilities,
     Description,
+    TableSource,
+    Definition,
+    Cursor,
+    Page,
     Receipt,
     Disposition
   }
@@ -138,6 +166,13 @@ defmodule Transit.Station.Sdk.Catalog do
   def close(client), do: result(:transit_catalog.close(client))
   def capabilities(client), do: result(:transit_catalog.capabilities(client))
   def describe(client), do: result(:transit_catalog.describe(client))
+  def lookup(client, name), do: result(:transit_catalog.lookup(client, name))
+
+  def definition(client, object, revision),
+    do: result(:transit_catalog.definition(client, object, revision))
+
+  def list(client), do: result(:transit_catalog.list(client))
+  def list(client, %Cursor{} = cursor), do: result(:transit_catalog.list(client, native(cursor)))
 
   def compile_sql(client, sql, operation, object, table),
     do: result(:transit_catalog.compile_sql(client, sql, operation, object, table))
@@ -206,6 +241,21 @@ defmodule Transit.Station.Sdk.Catalog do
     do:
       {:transit_catalog_description, native(v.configuration), native(v.policy),
        v.resource_revision}
+
+  def native(%TableSource{} = v), do: {:transit_catalog_table_source, v.table, native(v.schema)}
+
+  def native(%Definition{} = v),
+    do:
+      {:transit_catalog_definition, native(v.scope), v.object, v.revision, v.name,
+       native(v.source), v.principal, v.operation, v.input}
+
+  def native(%Cursor{} = v),
+    do:
+      {:transit_catalog_cursor, v.definition, native(v.scope), v.resource_revision, v.after_name}
+
+  def native(%Page{} = v),
+    do:
+      {:transit_catalog_page, v.resource_revision, Enum.map(v.entries, &native/1), native(v.next)}
 
   def native(%Receipt{} = v),
     do: {:transit_catalog_receipt, native(v.request), v.principal, v.input, v.outcome}
@@ -284,6 +334,39 @@ defmodule Transit.Station.Sdk.Catalog do
       configuration: convert(configuration),
       policy: convert(policy),
       resource_revision: resource_revision
+    }
+
+  def convert({:transit_catalog_table_source, table, schema}),
+    do: %TableSource{table: table, schema: convert(schema)}
+
+  def convert(
+        {:transit_catalog_definition, scope, object, revision, name, source, principal, operation,
+         input}
+      ),
+      do: %Definition{
+        scope: convert(scope),
+        object: object,
+        revision: revision,
+        name: name,
+        source: convert(source),
+        principal: principal,
+        operation: operation,
+        input: input
+      }
+
+  def convert({:transit_catalog_cursor, definition, scope, resource_revision, after_name}),
+    do: %Cursor{
+      definition: definition,
+      scope: convert(scope),
+      resource_revision: resource_revision,
+      after_name: after_name
+    }
+
+  def convert({:transit_catalog_page, resource_revision, entries, next}),
+    do: %Page{
+      resource_revision: resource_revision,
+      entries: Enum.map(entries, &convert/1),
+      next: convert(next)
     }
 
   def convert({:transit_catalog_receipt, request, principal, input, outcome}),

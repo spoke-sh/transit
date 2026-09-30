@@ -1486,6 +1486,46 @@ logs are `/tmp/transit-sql-catalog-dotnet-metadata-build.log` and
 `/tmp/transit-sql-catalog-dotnet-metadata-native-fixed.log`. This focused result
 does not qualify Erlang/Elixir metadata or establish a latency comparison.
 
+### Erlang/Elixir catalog metadata
+
+Erlang adds immutable definition, Table source, cursor and bounded dense page
+records; Elixir maps them to mandatory-field structs through the same owned
+worker. Each installed language exercises full-width values, requested identity,
+absence, repeated/changed continuation cuts, twelve malformed-page cases and
+empty pages through the actual port boundary. Missing/foreign cursor definitions
+reject; external text never becomes a newly allocated atom. Existing uncertain
+submission and waiting-process loss/join checks remain in the schedule.
+
+The first installed attempt expects `incompatible_native` for every malformed
+page. The existing port instead reports `read_failed` when a neutral reply fails
+its generated schema before metadata decoding. The corrected test checks those
+exact categories separately from semantic metadata failures. No transport error
+mapping changes. The failed attempt remains at
+`/tmp/transit-sql-catalog-beam-metadata-native.log`.
+
+Rebuilt installed packages pass
+`just test::catalog --sdk erlang --sdk elixir --grow 17` in **81.413 s**, including
+**9.413 s** installation. Both agree with Zig/ABI/port/CLI on **24 definitions,
+three full pages and an empty final page**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. Creation/control recovery retains seven lost caller replies and three
+lost owner replies. Counts are 6002 reads, 3144 caller reads and 59 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. Each
+language makes seven populated listings at four signed reads and two empty final
+listings at two signed reads with negotiated batch support.
+
+Source is development based on `bbb6e11d`; native binary hashes are unchanged.
+Report/package hashes are `/tmp/transit-sql-catalog-beam-metadata-native.json`;
+logs are `/tmp/transit-sql-catalog-beam-metadata-build.log` and
+`/tmp/transit-sql-catalog-beam-metadata-native-fixed.log`. All ten SDK metadata
+APIs now have focused installed evidence. Cumulative full `just check` passes at
+`/tmp/transit-sql-catalog-all-metadata-full-check.log`, including the documentation
+build. The first combined command stops at argument parsing because splitting the
+Ruby/C commits accidentally removed `c`/`cpp` from the runner's allowed options.
+Those options are restored; the stopped attempt remains at
+`/tmp/transit-sql-catalog-all-ten-metadata-native.log`. This record does not
+establish a completed combined run or a clean-suite pass.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
