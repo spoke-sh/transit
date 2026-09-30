@@ -1,7 +1,10 @@
 """Public value ownership and malformed native responses, without network access."""
 import asyncio
 import ctypes
+import copy
 from dataclasses import FrozenInstanceError
+import json
+from pathlib import Path
 import threading
 from transit_client import ProcessRef, ResourceRef
 from transit_client._worker import Worker
@@ -43,6 +46,7 @@ class Api:
         self.destroyed = False
         self.entered = None
         self.release = None
+        self.contract = json.loads(Path(m.__file__).with_name('station-abi.json').read_bytes())
     def call(self, *args, **kwargs):
         if self.entered is not None:
             self.entered.set()
@@ -80,6 +84,47 @@ try:
     assert description.policy.revision == (1 << 64) - 1
     owner._api.response = {'observation': 'cancelled'}
     rejects(IncompatibleNative, lambda: owner.observe(prepared, 1))
+    metadata = dict(scope=dict(realm=46, resource=7, catalog=str(scope.catalog)), object=str((1 << 64) - 1), revision=str((1 << 64) - 1), name='items',
+        source=dict(table=dict(id=(1 << 32) - 1, schema=dict(names=['id', 'value'], value_type='utf8'))), principal=17, operation=str((1 << 64) - 1), input=2)
+    token = dict(definition=owner._api.contract['definition'], scope=copy.deepcopy(metadata['scope']), resource_revision=3, after='items')
+    page = dict(resource_revision=3, entries=[copy.deepcopy(metadata)] + [None] * 7, next=token)
+    owner._api.response = dict(page=copy.deepcopy(page))
+    retained = owner.list()
+    assert retained.entries[0].object_id == (1 << 64) - 1 and retained.entries[0].revision == (1 << 64) - 1
+    assert retained.entries[0].source.table == (1 << 32) - 1 and retained.next.definition == owner._api.contract['definition']
+    owner._api.response['page']['entries'][0]['source']['table']['schema']['names'][0] = 'changed'
+    assert retained.entries[0].source.schema.names == ('id', 'value')
+    rejects(FrozenInstanceError, lambda: setattr(retained.next, 'after', 'changed'))
+    values = list(retained.entries)
+    public_page = m.Page(3, values, retained.next)
+    values.clear()
+    assert public_page.entries == retained.entries
+    owner._api.response = dict(definition=copy.deepcopy(metadata))
+    assert owner.lookup('items') == retained.entries[0]
+    assert owner.definition((1 << 64) - 1, (1 << 64) - 1) == retained.entries[0]
+    rejects(IncompatibleNative, lambda: owner.lookup('other'))
+    rejects(IncompatibleNative, lambda: owner.definition(1, 1))
+    for malformed in ('hole', 'order', 'scope', 'cut', 'next_name', 'missing_definition', 'foreign_definition', 'numeric_object', 'unknown_source'):
+        bad = copy.deepcopy(page)
+        if malformed == 'hole': bad['entries'][1], bad['entries'][0] = bad['entries'][0], None
+        elif malformed == 'order': bad['entries'][1] = copy.deepcopy(bad['entries'][0])
+        elif malformed == 'scope': bad['entries'][0]['scope']['catalog'] = '1'
+        elif malformed == 'cut': bad['next']['resource_revision'] += 1
+        elif malformed == 'next_name': bad['next']['after'] = 'other'
+        elif malformed == 'missing_definition': del bad['next']['definition']
+        elif malformed == 'foreign_definition': bad['next']['definition'] = '0' * 64
+        elif malformed == 'numeric_object': bad['entries'][0]['object'] = (1 << 64) - 1
+        else: bad['entries'][0]['source'] = dict(document={})
+        owner._api.response = dict(page=bad)
+        rejects(IncompatibleNative, owner.list)
+    owner._api.response = dict(page=copy.deepcopy(page))
+    rejects(IncompatibleNative, lambda: owner.list(retained.next))  # Repeated first entry.
+    owner._api.response = dict(page=dict(resource_revision=4, entries=[None] * 8, next=None))
+    rejects(IncompatibleNative, lambda: owner.list(retained.next))
+    owner._api.response['page']['resource_revision'] = 3
+    assert owner.list(retained.next) == m.Page(3, (), None)
+    owner._api.response = dict(definition=None)
+    assert owner.lookup('absent') is None and owner.definition(1, 1) is None
 finally:
     owner.close()
 assert owner._api.destroyed
@@ -115,4 +160,4 @@ async def cancellation():
 
 
 asyncio.run(cancellation())
-print('Python catalog values: full-width immutable ownership, strict native responses, uncertain submission recovery and cancelled-await joined cleanup passed.')
+print('Python catalog values: full-width immutable definitions/pages, strict cursors and response identity, uncertain submission recovery and cancelled-await joined cleanup passed.')

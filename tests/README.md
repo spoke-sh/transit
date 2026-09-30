@@ -1219,6 +1219,34 @@ checkpoint. Source revision is `7fc92b33`; report/package hashes and log are
 `/tmp/transit-sql-catalog-metadata-all-ten-regression.log`. Committed clean
 validation remains a separate execution.
 
+### Python catalog metadata
+
+Python sync/async public methods return immutable definitions, Table sources,
+cursors and dense page tuples. Strict decoding checks full-width identities,
+requested scope/name/revision, continuation and page structure. Type checking
+passes all 18 source files, and focused malformed-response/ownership checks pass
+at `/tmp/transit-sql-catalog-python-metadata-values.log`. Missing/foreign cursor
+definitions, holes, duplicate order, changed cuts, wrong identity and source
+variants reject; copied name/entry collections remain independent and frozen.
+
+Rebuilt installed wheels pass `just test::catalog --sdk python --grow 17` in
+**72.256 s**, including **2.022 s** installation. Both public clients agree with
+Zig/ABI/port/CLI on **24 definitions, three full pages and an empty final page**,
+all exact/name reads and missing records before and after node/store disk
+restart. Original cursors reject after creation, and both catalog/native
+revocation deny each metadata method. Seven lost caller replies and three lost
+owner replies retain the existing exact creation/control recovery checks.
+Counts are 5839 reads, 3146 caller reads and 59 turn responses; bounds remain
+four mutations, 133-byte observed values and eight resident pages. Each Python
+client's seven successful populated list calls cost four signed reads and two
+empty final pages cost two, using already negotiated native batch support.
+
+The native report and installed-wheel hashes are
+`/tmp/transit-sql-catalog-python-metadata-native.json`; the log is
+`/tmp/transit-sql-catalog-python-metadata-native.log`. Source is development based
+on `8c375486`; all six native binary hashes match the ABI/CLI metadata checkpoint.
+This proves Python metadata mappings, not the remaining nine SDKs.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

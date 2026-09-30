@@ -68,6 +68,28 @@ do not recompile, re-sign or prepare a replacement. Malformed success responses
 also preserve submission uncertainty. A definite native rejection keeps its
 status/code. Neither process exit nor deleting local recovery bytes cancels work.
 
+## Definition reads and pages
+
+`lookup(name)` returns a `Definition` or `None`, checking the exact name binding
+and live Table schema. `definition(object_id, revision)` reads an immutable
+object/revision pair; it does not require that the current Table still matches.
+`Definition` owns its scope, full-width integer identities, name, `TableSource`
+(physical `table` and schema), original principal, operation and input position.
+
+`list()` returns a `Page` with a native `resource_revision`, an immutable tuple
+of at most eight ordered `entries` and an optional `next` cursor. Continue with
+`list(page.next)` only when `next` is present; an empty final page is possible.
+`Cursor` requires all four fields when restoring it: contract `definition`,
+`scope`, `resource_revision` and `after`. Never substitute a missing definition.
+Every read rechecks current catalog inspection policy and native grants.
+Changed scope/revision returns a conflict; start a fresh listing and discard the
+old partial result. Cursors confer no authority and retain no snapshot.
+
+Response decoding checks canonical identities, requested scope/name/revision,
+dense ordered pages and exact continuation. Malformed native metadata raises
+`IncompatibleNative`. Metadata calls submit no command and perform no automatic
+retry. The asynchronous client exposes the same three methods with `await`.
+
 ## Ownership and asynchronous calls
 
 Each client admits one operation at a time and rejects overlap with `Busy`.

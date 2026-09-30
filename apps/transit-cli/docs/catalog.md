@@ -169,8 +169,9 @@ Each remote read checks current catalog inspection policy and native grants.
 Cursors confer no authority. Continuation requires the exact resource revision;
 `CatalogCursorChanged` means start a fresh listing without `--file` and discard
 the old partial result. These are current reads, not retained snapshots. Listing
-does not create a view or submit a command. Public language SDK metadata methods
-are separate from their existing creation/control methods.
+does not create a view or submit a command. Python has equivalent sync/async
+metadata methods; other SDK metadata mappings remain separate from their
+existing creation/control methods.
 
 Typed initialization/policy inputs and compiled artifacts are at most 4096 bytes;
 prepared envelopes are at most 65536 bytes, with an inner saved command bounded

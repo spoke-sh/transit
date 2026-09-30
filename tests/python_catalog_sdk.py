@@ -25,10 +25,20 @@ def request_json(v):
     return dict(scope=scope_json(v.scope), operation=str(v.operation), object=str(v.object_id), table=v.table, name=v.name,
                 schema=dict(names=list(v.schema.names), value_type=v.schema.value_type.value))
 
+def cursor(v): return None if v is None else m.Cursor(v['definition'], scope(v['scope']), v['resource_revision'], v['after'])
+def cursor_json(v): return None if v is None else dict(definition=v.definition, scope=scope_json(v.scope), resource_revision=v.resource_revision, after=v.after)
+def definition_json(v):
+    return None if v is None else dict(scope=scope_json(v.scope), object=str(v.object_id), revision=str(v.revision), name=v.name,
+        source=dict(table=dict(id=v.source.table, schema=dict(names=list(v.source.schema.names), value_type=v.source.schema.value_type.value))),
+        principal=v.principal, operation=str(v.operation), input=v.input)
+
 
 def translate(client, action):
     name, value = next(iter(action.items()))
     if name in ('capabilities', 'describe'): return getattr(client, name)()
+    if name == 'lookup': return client.lookup(value)
+    if name == 'definition': return client.definition(int(value['object']), int(value['revision']))
+    if name == 'list': return client.list(cursor(value))
     if name == 'compile': return client.compile_sql(value['sql'], int(value['operation']), int(value['object']), value['table'])
     if name == 'prepare_initialize': return client.prepare_initialize(configuration(value))
     if name == 'prepare_create': return client.prepare_create(request(value))
@@ -42,6 +52,9 @@ def translate(client, action):
 def result(action, value):
     name = next(iter(action))
     if name == 'capabilities': return dict(capabilities=asdict(value))
+    if name in ('lookup', 'definition'): return dict(definition=definition_json(value))
+    if name == 'list': return dict(page=dict(resource_revision=value.resource_revision,
+        entries=[definition_json(entry) for entry in value.entries] + [None] * (8 - len(value.entries)), next=cursor_json(value.next)))
     if name == 'describe':
         return dict(description=dict(configuration=configuration_json(value.configuration), policy=policy_json(value.policy), resource_revision=value.resource_revision))
     if name == 'compile': return dict(compiled=dict(request=request_json(value.request), canonical=value.canonical.hex()))

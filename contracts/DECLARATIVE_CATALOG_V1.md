@@ -324,8 +324,9 @@ resource writer. Subsequent point/page reads require that exact current resource
 revision and current native grants. No retained view, admission or permission
 cache is created. A cursor is a local continuation value, not a bearer grant;
 catalog inspection authorization precedes continuation validation. Native
-ABI/port actions and explicit CLI commands expose the same methods; language SDK
-metadata mappings remain separate from their creation/control methods.
+ABI/port actions, explicit CLI commands and Python sync/async methods expose the
+same reads. Other language SDK metadata mappings remain separate from their
+creation/control methods.
 Signed listing fetches definition records in one bounded batch and their Table
 descriptors in a second batch. Both require the same current revision and native
 grants. The second batch replaces the first after definitions are validated and

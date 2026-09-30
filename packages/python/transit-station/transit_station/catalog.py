@@ -33,6 +33,13 @@ def _boolean(value: object) -> bool:
     return value
 
 
+def _name(value: object) -> str:
+    name = _text(value, 16)
+    if not name.isascii() or not (name[0].isalpha() or name[0] == '_') or not all(c.isalnum() or c == '_' for c in name):
+        raise ValueError('Expected an ASCII catalog name')
+    return name
+
+
 @dataclass(frozen=True, slots=True)
 class Scope:
     resource: ResourceRef
@@ -186,6 +193,66 @@ class Description:
 
 
 @dataclass(frozen=True, slots=True)
+class TableSource:
+    table: int
+    schema: Schema
+    def __post_init__(self) -> None:
+        integer(self.table, 'table', maximum=(1 << 32) - 1)
+        if not isinstance(self.schema, Schema): raise TypeError('Expected Table schema')
+
+
+@dataclass(frozen=True, slots=True)
+class Definition:
+    scope: Scope
+    object_id: int
+    revision: int
+    name: str
+    source: TableSource
+    principal: int
+    operation: int
+    input: int
+    def __post_init__(self) -> None:
+        if not isinstance(self.scope, Scope) or not isinstance(self.source, TableSource): raise TypeError('Expected catalog scope and Table source')
+        _wide(self.object_id, 'object'); _wide(self.revision, 'definition revision'); _wide(self.operation, 'operation')
+        _name(self.name)
+        integer(self.principal, 'principal', minimum=0); integer(self.input, 'input')
+
+
+@dataclass(frozen=True, slots=True)
+class Cursor:
+    """Exact local continuation; all fields are required when restoring it."""
+    definition: str
+    scope: Scope
+    resource_revision: int
+    after: str
+    def __post_init__(self) -> None:
+        _hex(self.definition, 32, True)
+        if not isinstance(self.scope, Scope): raise TypeError('Expected catalog scope')
+        integer(self.resource_revision, 'resource revision')
+        _name(self.after)
+    def _wire(self) -> object:
+        return dict(definition=self.definition, scope=self.scope._wire(), resource_revision=self.resource_revision, after=self.after)
+
+
+@dataclass(frozen=True, slots=True)
+class Page:
+    resource_revision: int
+    entries: tuple[Definition, ...]
+    next: Cursor | None
+    def __post_init__(self) -> None:
+        integer(self.resource_revision, 'resource revision')
+        if len(self.entries) > 8 or not all(isinstance(entry, Definition) for entry in self.entries): raise ValueError('Expected at most eight definitions')
+        object.__setattr__(self, 'entries', tuple(self.entries))
+        for previous, entry in zip(self.entries, self.entries[1:]):
+            if previous.scope != entry.scope or previous.name >= entry.name: raise ValueError('Expected ordered definitions in one scope')
+        if self.next is not None:
+            if not isinstance(self.next, Cursor) or not self.entries: raise ValueError('Continuation requires a last definition')
+            last = self.entries[-1]
+            if self.next.scope != last.scope or self.next.after != last.name or self.next.resource_revision != self.resource_revision:
+                raise ValueError('Continuation does not match the page')
+
+
+@dataclass(frozen=True, slots=True)
 class Receipt:
     request: CreateTable
     principal: int
@@ -236,6 +303,50 @@ def _request(value: object) -> CreateTable:
     if not isinstance(s['names'], list) or len(s['names']) != 2: raise ValueError('Expected two column names')
     schema = Schema((s['names'][0], s['names'][1]), CellType(s['value_type']))
     return CreateTable(_scope(v['scope']), _decimal(v['operation']), _decimal(v['object']), v['table'], v['name'], schema)
+
+
+def _definition(value: object) -> Definition | None:
+    if value is None: return None
+    v = _object(value, 'scope object revision name source principal operation input')
+    table = _object(_object(v['source'], 'table')['table'], 'id schema')
+    s = _object(table['schema'], 'names value_type')
+    if not isinstance(s['names'], list) or len(s['names']) != 2: raise ValueError('Expected two column names')
+    names = (_name(s['names'][0]), _name(s['names'][1]))
+    if names[0] == names[1]: raise ValueError('Expected distinct column names')
+    source = TableSource(table['id'], Schema(names, CellType(s['value_type'])))
+    return Definition(_scope(v['scope']), _decimal(v['object']), _decimal(v['revision']), v['name'], source,
+                      v['principal'], _decimal(v['operation']), v['input'])
+
+
+def _resolved(value: object, scope: Scope, *, name: str | None = None, object_id: int | None = None, revision: int | None = None) -> Definition | None:
+    result = _definition(value)
+    if result is not None and (result.scope != scope or (name is not None and result.name != name) or
+        (object_id is not None and result.object_id != object_id) or (revision is not None and result.revision != revision)):
+        raise ValueError('Definition does not match its requested identity')
+    return result
+
+
+def _page(value: object, scope: Scope, definition: str, previous: Cursor | None) -> Page:
+    v = _object(value, 'resource_revision entries next')
+    if not isinstance(v['entries'], list) or len(v['entries']) != 8: raise ValueError('Expected eight optional definition slots')
+    entries: list[Definition] = []
+    ended = False
+    for item in v['entries']:
+        entry = _definition(item)
+        if entry is None: ended = True
+        else:
+            if ended or entry.scope != scope: raise ValueError('Page has a hole or foreign scope')
+            entries.append(entry)
+    cursor = None
+    if v['next'] is not None:
+        c = _object(v['next'], 'definition scope resource_revision after')
+        if c['definition'] != definition: raise ValueError('Foreign cursor definition')
+        cursor = Cursor(c['definition'], _scope(c['scope']), c['resource_revision'], c['after'])
+    page = Page(v['resource_revision'], tuple(entries), cursor)
+    if previous is not None and (page.resource_revision != previous.resource_revision or
+        (page.entries and page.entries[0].name <= previous.after)):
+        raise ValueError('Response does not continue the requested page')
+    return page
 
 
 def _hex(value: object, limit: int, exact: bool = False) -> bytes:
@@ -294,6 +405,15 @@ def _input(kind: str, prepared: Prepared, position: int) -> object:
     return {kind: dict(prepared=prepared.data.decode(), input=integer(position, 'input'))}
 
 
+def _list(cursor: Cursor | None) -> object:
+    if cursor is not None and not isinstance(cursor, Cursor): raise TypeError('Expected catalog cursor')
+    return {'list': None if cursor is None else cursor._wire()}
+
+
+def _exact(object_id: int, revision: int) -> object:
+    return {'definition': dict(object=str(_wide(object_id, 'object')), revision=str(_wide(revision, 'definition revision')))}
+
+
 class Client:
     """One owned worker with bounded admission; no implicit retries or provisioning."""
     def __init__(self, url: str, principal: int, seed_file: Path, connection: Connection, *,
@@ -339,6 +459,12 @@ class Client:
 
     def capabilities(self) -> Capabilities: return self._call({'capabilities': {}}, 'capabilities', _capabilities)
     def describe(self) -> Description: return self._call({'describe': {}}, 'description', _description)
+    def lookup(self, name: str) -> Definition | None:
+        return self._call({'lookup': _name(name)}, 'definition', lambda v: _resolved(v, self.connection.scope, name=name))
+    def definition(self, object_id: int, revision: int) -> Definition | None:
+        return self._call(_exact(object_id, revision), 'definition', lambda v: _resolved(v, self.connection.scope, object_id=object_id, revision=revision))
+    def list(self, cursor: Cursor | None = None) -> Page:
+        return self._call(_list(cursor), 'page', lambda v: _page(v, self.connection.scope, self._api.contract['definition'], cursor))
     def compile_sql(self, sql: str, operation: int, object_id: int, table: int) -> Compiled:
         return self._call(_compile(sql, operation, object_id, table), 'compiled', _compiled)
     def prepare_initialize(self, configuration: Configuration) -> Prepared:
@@ -374,6 +500,12 @@ class AsyncClient:
         return await owned_await(self._owner._worker.submit(lambda: self._owner._invoke(action, field_name, decoder, recovery)))
     async def capabilities(self) -> Capabilities: return await self._call({'capabilities': {}}, 'capabilities', _capabilities)
     async def describe(self) -> Description: return await self._call({'describe': {}}, 'description', _description)
+    async def lookup(self, name: str) -> Definition | None:
+        return await self._call({'lookup': _name(name)}, 'definition', lambda v: _resolved(v, self.connection.scope, name=name))
+    async def definition(self, object_id: int, revision: int) -> Definition | None:
+        return await self._call(_exact(object_id, revision), 'definition', lambda v: _resolved(v, self.connection.scope, object_id=object_id, revision=revision))
+    async def list(self, cursor: Cursor | None = None) -> Page:
+        return await self._call(_list(cursor), 'page', lambda v: _page(v, self.connection.scope, self._owner._api.contract['definition'], cursor))
     async def compile_sql(self, sql: str, operation: int, object_id: int, table: int) -> Compiled:
         return await self._call(_compile(sql, operation, object_id, table), 'compiled', _compiled)
     async def prepare_initialize(self, configuration: Configuration) -> Prepared:
