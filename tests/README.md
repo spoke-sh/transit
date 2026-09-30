@@ -800,7 +800,14 @@ hashes. Native binary hashes match the rebased report below. Final Java artifact
 
 `bindings::catalog-java` owns the focused installed schedule; the regular Java
 SDK regression also includes it. These are development and focused passes.
-Committed-HEAD clean validation and .NET/Erlang/Elixir catalog callers remain.
+Committed `66d0a97e` passes `just ci-clean --lane core`: all **22 tasks**
+complete in **742.17 s** without inherited build outputs, including the new
+resource, scheduler, domain and Vortex simulation tasks. Evidence is under
+`.cache/ci/clean/66d0a97e4044-transit-ci-137qp_eh/` (`core.json` and
+`core.meta.json`); the log is `/tmp/transit-sql-catalog-java-ci-clean.log`.
+This is the expanded core lane and focused installed checks above, not the
+full clean suite. .NET/Erlang/Elixir catalog callers remain. The following
+commit records this evidence only.
 
 ## SQL branch integration of seeded simulations
 
