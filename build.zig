@@ -98,6 +98,13 @@ pub fn build(b: *std.Build) void {
         .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
     }) });
     b.step("sql-benchmark", "Build the pure SQL performance probe").dependOn(&b.addInstallArtifact(sql_benchmark, .{}).step);
+    const declarative_benchmark = b.addExecutable(.{ .name = "transit-declarative-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/declarative_bench.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_station", .module = station.module("transit_station") }},
+    }) });
+    b.step("declarative-benchmark", "Build declarative workload component benchmarks").dependOn(&b.addInstallArtifact(declarative_benchmark, .{}).step);
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });

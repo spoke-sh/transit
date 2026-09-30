@@ -35,7 +35,7 @@ support boundary before giving examples.
 | Internals | [System models, mechanisms and evidence](internals/README.md), [scientific standard](internals/standard.md) |
 | Model and components | [Architecture and scope](reference/architecture.md), [component directory](reference/components.md), [glossary](reference/glossary.md) |
 | Compatibility policy | [Versioning and hard cutovers](reference/versioning.md) |
-| Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [examples across languages](guides/workload-examples.md) |
+| Workloads and performance | [Workload priorities](reference/workloads.md), [measured performance and improvement plan](reference/performance.md), [declarative benchmarks](reference/benchmarks.md), [examples across languages](guides/workload-examples.md) |
 | Durable execution | [Processes and turns](reference/processes.md), [streams and delivery](reference/streams.md), [caller/SDK semantics](reference/callers.md) |
 | Authority and lifetime | [Security](reference/security.md), [retention and capacity](reference/retention.md), [storage](reference/storage.md) |
 | Application state | [State resources](reference/state.md), [Station](reference/station.md), [Tables](reference/tables.md), [Documents](reference/documents.md) |

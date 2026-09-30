@@ -48,6 +48,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M38](M38.md) | Standards, multi-model dataflows and schema branching | Handbook grammar inventory published; implementation sequence starts with the standards ledger and historical contracts; graph/foreign relations, branches and merges remain planned |
 | [M39](M39.md) | Comprehensive types and bounded schema on demand | Planned; shared scalar/nested semantics, CSV/JSONL discovery and DuckDB correctness/performance comparisons |
 | [M40](M40.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |
+| [M41](M41.md) | Declarative benchmark coverage and measurement | 28 components measured and full TPC coverage inventoried; clean qualification in progress; complete suites blocked |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

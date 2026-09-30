@@ -60,6 +60,7 @@ check: check-core transit-board::check transit-docs::check
 check-core:
     nixfmt --check flake.nix nix/*.nix
     actionlint .github/workflows/*.yml
+    python3 -B tests/benchmarks/test_runner.py
     python3 -B tests/ci_runner.py
     python3 -B tests/reference_launcher_state.py
     python3 -B tests/verification/check.py

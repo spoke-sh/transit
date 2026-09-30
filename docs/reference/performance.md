@@ -15,6 +15,9 @@ The instrumented fixture also records cumulative upstream elapsed nanoseconds
 by native operation and principal. Those durations include provider/queue time
 and proxy overhead; they are not independent CPU measurements.
 
+See [declarative benchmarks](benchmarks.md) for synthetic compiler/execution
+measurements and explicit TPC-C, TPC-E, TPC-H and TPC-DS coverage gaps.
+
 ## Interactive execution measurements
 
 The default local server returns the empty typed Table in **15–18 ms** across

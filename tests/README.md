@@ -6,6 +6,79 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Declarative benchmark components
+
+The [component harness](benchmarks/README.md) measures synthetic SQL compilation,
+paged Fuze/Arrow execution, declarations and private Station mutation proposals.
+It enumerates all 151 full-workload units across TPC-C/E/H/DS as blocked.
+Component correctness never changes full-suite coverage or implies a TPC score.
+Executed in the pinned development shell, using locked frontend dependencies:
+
+- Eight report/inventory tests pass, including missing/duplicate results,
+  incompatible definitions, wrong build mode, absent timings and failure reports.
+- The 28 components pass independent SQLite/PyArrow results, declaration schema
+  checks and mutation-byte oracles. Smoke runs cover zero rows/page width one,
+  one null row, 17 rows with the maximum uint32 seed, and 257 rows/page width
+  three. Nine exact rejection probes pass; `--require-full` exits 2.
+- `just test::sql` passes its 49 public examples, 104 SELECT AST cases,
+  86 plan/Arrow cases, 24 unified results, 31 mutation cases and 182 declaration
+  cases. These remain component/grammar proofs, not complete TPC execution.
+
+Full `just check` passes, including the unit/protocol checks, 346 CLI diagnostic
+cases, generated contracts, frontend tests/types and production handbook build.
+The final report tests and a 17-row/three-row-page smoke pass after report
+validation was tightened to reject missing timings and retain decoded outputs.
+Logs: `/tmp/transit-benchmark-check.log`, `/tmp/transit-benchmark-sql.log`,
+`/tmp/transit-benchmark-smoke.log` and `/tmp/transit-benchmark-final-smoke.log`.
+
+At clean committed source `8446688afda8d0662bea1503ec8151fd3a6ac942`,
+`just test::declarative-benchmark` passes all 28 components and nine blocker probes
+with five samples, 8192 synthetic rows, eight-row pages, seed 42, ten query
+executions and 2000 compilations/proposals. The
+[retained report](benchmarks/results/2026-09-30.json) has `dirty: false`, all 52
+timed phases, independently verified query outputs and mutation proposals,
+fixture/build/source hashes and host metadata. Binary SHA-256 is
+`4b8457964e12931d1058c2149d6483676e54618890863bb45959d600e2023e19`.
+The [public summary](../docs/reference/benchmarks.md#recorded-component-measurements)
+reports the exact scope and shared-host limits. Measurement log:
+`/tmp/transit-benchmark-measurement.log`. These are unpaired component timings;
+all 151 complete-workload units remain blocked. Native authority, disk durability
+and public transport latency are outside this harness's measured boundary.
+A separate fresh clone of `95d0107797551fbf6e4c7d0a47c72aa0e26830c1` builds
+`transit-declarative-benchmark` without inherited workspace outputs and passes
+all component oracles with 257 rows, three-row pages, one sample/execution and
+50 compilations/proposals. The copied report is
+`.cache/verification/benchmarks/clean-smoke.json` with `dirty: false`.
+Broader committed-HEAD clean-lane outcomes are recorded in PR #38 after
+those runs; they do not expand the benchmark's execution boundary.
+
+After rebasing onto `main` at `4c22b426058c7299af62a8cba03ab5925336ba44`,
+the default measurement repeats at clean source
+`bc9476ba7c9613df625a28e9277bf10e568e0f6c`. The
+[second raw report](benchmarks/results/2026-09-30-main.json) retains five samples,
+all 52 timed phases and the same 28 passing components/nine rejection probes.
+The executable, fixture, manifest, harness, driver and lock hashes match the
+earlier report, as do independently decoded query outputs. The new SDK catalog
+metadata readers do not change the measured Fuze/Station implementation or
+remove any full-workload blocker. Both reports preserve their original source
+identity; the public summary uses this repeat without claiming a speedup.
+Log: `/tmp/transit-benchmark-rebased-measurement.log`.
+
+The rebased executable also passes zero-row/one-row-page, one-null-row,
+maximum-uint32-seed and 257-row/three-row-page cases; `--require-full` writes a
+component-success/full-workloads-blocked report and exits 2. These focused
+runs use one sample/execution and 50 compilations/proposals; documentation/report
+updates are present in the working tree and their reports record `dirty: true`.
+Log: `/tmp/transit-benchmark-rebased-edges.log`.
+
+With these report/documentation updates, `just transit-board::install`, full
+`just check` and `just test::sql` pass in the pinned shell. This includes all
+eight report tests, 399 CLI diagnostics, generated contracts, frontend checks,
+the production handbook and the same SQL case counts listed above. Log:
+`/tmp/transit-benchmark-rebased-check.log`. Committed-HEAD clean-lane outcomes
+remain separately recorded in PR #38; earlier clean runs do not qualify
+the rebased source by inheritance.
+
 ## Handbook grammar inventory and implementation plan
 
 The documentation-first work for issue #31 starts from PR #27's pushed
