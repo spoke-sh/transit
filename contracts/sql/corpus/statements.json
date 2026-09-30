@@ -1399,9 +1399,9 @@
       }
     },
     {
-      "id": "table-projection-bound",
+      "id": "duplicate-projection-after-width-expansion",
       "sql": "SELECT id, value, id FROM items",
-      "compile_error": "InvalidProjection"
+      "compile_error": "DuplicateProjection"
     }
   ],
   "reject": [
