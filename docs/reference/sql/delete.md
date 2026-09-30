@@ -1,7 +1,10 @@
 # DELETE
 
-Deletion by primary-key equality is available through the Zig application writer
-helper `station.TableMutation.applySql`. The console, Board query workspace,
+Deletion by primary-key equality is available through the explicit mutation
+writer and shared Zig/native ABI/port callers. The
+[caller guide](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+defines signed preparation, exact recovery and durable result observation.
+Applications can also compose `station.TableMutation.applySql` in a private turn. The console, Board query workspace,
 Flight SQL and language SDK query clients do not admit SQL mutations.
 
 ```sql

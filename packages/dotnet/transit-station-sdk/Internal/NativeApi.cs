@@ -6,6 +6,15 @@ internal sealed class NativeApi {
     internal const string Definition = "b17eab6aefacb9013afbbcfebf9eededea9f57dcd8be304bab4a18e5d41cd016";
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_table_mutation_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
+    internal readonly station_table_mutation_createDelegate station_table_mutation_create;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void station_table_mutation_destroyDelegate(IntPtr arg0);
+    internal readonly station_table_mutation_destroyDelegate station_table_mutation_destroy;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_table_mutation_callDelegate(IntPtr arg0, [In] byte[] arg1, nuint arg2, out IntPtr arg3);
+    internal readonly station_table_mutation_callDelegate station_table_mutation_call;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_unified_query_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
     internal readonly station_unified_query_createDelegate station_unified_query_create;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -93,6 +102,9 @@ internal sealed class NativeApi {
     internal delegate void station_buffer_destroyDelegate(IntPtr arg0);
     internal readonly station_buffer_destroyDelegate station_buffer_destroy;
     internal NativeApi(IntPtr library) {
+        station_table_mutation_create = Marshal.GetDelegateForFunctionPointer<station_table_mutation_createDelegate>(NativeLibrary.GetExport(library, "station_table_mutation_create"));
+        station_table_mutation_destroy = Marshal.GetDelegateForFunctionPointer<station_table_mutation_destroyDelegate>(NativeLibrary.GetExport(library, "station_table_mutation_destroy"));
+        station_table_mutation_call = Marshal.GetDelegateForFunctionPointer<station_table_mutation_callDelegate>(NativeLibrary.GetExport(library, "station_table_mutation_call"));
         station_unified_query_create = Marshal.GetDelegateForFunctionPointer<station_unified_query_createDelegate>(NativeLibrary.GetExport(library, "station_unified_query_create"));
         station_unified_query_destroy = Marshal.GetDelegateForFunctionPointer<station_unified_query_destroyDelegate>(NativeLibrary.GetExport(library, "station_unified_query_destroy"));
         station_unified_query_call = Marshal.GetDelegateForFunctionPointer<station_unified_query_callDelegate>(NativeLibrary.GetExport(library, "station_unified_query_call"));

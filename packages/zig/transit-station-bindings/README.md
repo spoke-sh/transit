@@ -43,3 +43,8 @@ transports; this alone does not qualify a language SDK or signed query lifecycle
 The query caller handle and `query_client` port profile now share signed
 preparation, admission observation and current-policy verified pages. The [proof ledger](../../../tests/README.md) records executed source and
 installed-language recovery schedules.
+
+The explicit [Table mutation caller](docs/table-mutations.md) exports signed
+preparation, frozen recovery and separate durable result/input-rejection reads
+through its own native handle and port profile. It delegates to the shared
+query package; read-query handles do not acquire mutation capability.

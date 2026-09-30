@@ -44,8 +44,10 @@ dispositions for the explicit host role. CLI/SDK query routes still require
 mutation integration. `TableMutationBridge` supplies owned neutral actions/results
 over the same caller, including exact compiled-reference validation and opaque
 saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
-keeps full-width namespaces out of JSON numbers; ABI/port exports remain a
-separate integration step.
+keeps full-width namespaces out of JSON numbers. The
+[native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
+exposes these actions through an explicit profile; idiomatic SDK/CLI integration
+remains separate.
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit

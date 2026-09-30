@@ -1,7 +1,9 @@
 # INSERT
 
-Bounded literal inserts are available through the Zig application writer helper
-`station.TableMutation.applySql`. The console, Board query workspace, Flight SQL
+Bounded literal inserts are available through the shared Zig mutation client,
+[native ABI/port caller](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+and an explicitly configured writer. Applications can also compose the private
+`station.TableMutation.applySql` helper. The console, Board query workspace, Flight SQL
 and language SDK query clients do not admit SQL mutations.
 
 ## Syntax and values
@@ -39,7 +41,12 @@ original identity under the [caller contract](../callers.md).
 An application exposing the shared admission owner can use
 `transit-query.TableMutationClient` for signed preparation, saved exact retries,
 bounded upload resumption and durable status observation. The writer must expose
-that operation explicitly; the supplied query hosts do not install it implicitly.
+that operation explicitly. The supplied query host has an opt-in
+[`table_writer` role](../../../apps/transit-query-host/README.md), requiring
+authorized initialization and a separate mutation policy. Its terminal result
+commits with the rows and input progress. Reconcile the original signed send,
+observe its processed input and separate rejection, then read durable status;
+a send receipt alone does not prove rows were applied.
 
 `INSERT ... SELECT`, `DEFAULT VALUES`, `ON CONFLICT` and `RETURNING` are unsupported.
 [CREATE TABLE](create-table.md) does not provision a SQL target, and inserting

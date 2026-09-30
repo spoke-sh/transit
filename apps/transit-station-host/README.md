@@ -90,7 +90,14 @@ Prepared requests and result continuations are opaque strings. Retain the exact
 prepared string before dispatch; replacing a child process cannot resolve an
 uncertain submission or renew a revoked grant.
 
-`shutdown` explicitly destroys all Station, query and raw-client handles,
+The independent `mutation_client` profile uses an explicit realm/principal,
+writer/resource and Table connection. Its `table_mutation` actions delegate to
+the [mutation caller ABI](../../packages/zig/transit-station-bindings/docs/table-mutations.md).
+It cannot be combined with query, server or local-codec profiles. Current grants
+and the writer’s separate policy remain required; the profile does not provision
+resources or infer a write target.
+
+`shutdown` explicitly destroys all Station, query, mutation and raw-client handles,
 then responds with `{"closed":true}` and exits without waiting for stdin EOF.
 This works in authority and local-codec modes. Await the acknowledgement and
 successful child exit when joining cleanup; loss of either is a cleanup failure.

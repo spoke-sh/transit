@@ -1,8 +1,11 @@
 # UPDATE
 
-Literal value updates by primary-key equality are available through the Zig
-application writer helper `station.TableMutation.applySql`. Public query
-transports do not admit these statements.
+Literal value updates by primary-key equality are available through the explicit
+mutation writer and shared Zig/native ABI/port callers. The
+[caller guide](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+defines signed preparation, exact recovery and durable result observation.
+Applications can also compose `station.TableMutation.applySql` in a private
+turn. Public read-query transports do not admit these statements.
 
 ```sql
 UPDATE items SET value = 13 WHERE id = 7;

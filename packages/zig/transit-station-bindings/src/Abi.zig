@@ -9,6 +9,7 @@ pub const document_bridge = @import("DocumentBridge.zig");
 pub const document = @import("DocumentCodec.zig");
 pub const unified_query = @import("QueryCodec.zig");
 pub const query_client = @import("QueryAbi.zig");
+pub const mutation_client = @import("TableMutationAbi.zig");
 pub const grpc = @import("GrpcCodec.zig");
 pub const http = @import("HttpCodec.zig");
 pub const version: u32 = 1;
@@ -55,6 +56,9 @@ pub fn failure(err: anyerror, out: *?*Buffer) Status {
     return status(err);
 }
 pub const Api = struct {
+    pub const station_table_mutation_create = mutation_client.create;
+    pub const station_table_mutation_destroy = mutation_client.destroy;
+    pub const station_table_mutation_call = mutation_client.call;
     pub const station_unified_query_create = query_client.create;
     pub const station_unified_query_destroy = query_client.destroy;
     pub const station_unified_query_call = query_client.call;
@@ -134,5 +138,6 @@ test {
     _ = document;
     _ = document_bridge;
     _ = unified_query;
+    _ = mutation_client;
     _ = query_client;
 }

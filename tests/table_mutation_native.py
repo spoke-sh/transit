@@ -11,16 +11,19 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from table_mutation_abi import Native, Port, Failure, check_profiles
 
 
-def run(node, proof, host):
+def run(node, proof, host, port_host, library):
     started = time.monotonic()
     with Fixture() as fixture:
         root = fixture.root
         # Keep a matched build through worker/node/store restarts.
-        for name, original in [('node', node), ('proof', proof), ('host', host)]:
+        for name, original in [('node', node), ('proof', proof), ('host', host), ('port',port_host), ('library.so',library)]:
             shutil.copy2(original, root/name)
         node, proof, host = str(root/'node'), str(root/'proof'), str(root/'host')
+        port_host, library = str(root/'port'), str(root/'library.so')
+        clients = []
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         port = free_port()
         url = f'http://127.0.0.1:{port}'
@@ -31,7 +34,7 @@ def run(node, proof, host):
             'port':port,'resident_pages':8,'request_timeout_ms':10000}))
         faults = {'lose':False,'body':None,'receipt':None,'recovered':False}
         send_fault = {'lose':False,'body':None,'receipt':None,'recovered':False}
-        counts = {'reads':0,'turns':0,'mutation_send_responses':0,'max_mutations':0,'max_value_bytes':0}
+        counts = {'reads':0,'turns':0,'mutation_send_responses':0,'max_mutations':0,'max_value_bytes':0,'lost_caller_receipts':0}
         errors = []
 
         class Proxy(BaseHTTPRequestHandler):
@@ -49,6 +52,7 @@ def run(node, proof, host):
                     if request.get('principal') == 1234 and 'send' in request.get('command',{}) and response.status == 200:
                         counts['mutation_send_responses'] += 1
                         if send_fault['lose']:
+                            counts['lost_caller_receipts'] += 1
                             send_fault.update(lose=False,body=body,receipt=json.loads(data))
                             data = b'{}'
                         elif send_fault['body'] == body:
@@ -288,17 +292,64 @@ def run(node, proof, host):
             snapshot(6,'applied',[('replacement',),('host',),(None,)],1)
             duplicate_host = subprocess.run([host,str(root/'writer.json')],env=fixture.env,capture_output=True,text=True,timeout=15)
             assert duplicate_host.returncode != 0 and 'FreshOwnershipRequired' in duplicate_host.stderr
+            caller_seed = root/'caller.seed'
+            caller_seed.write_text('0a'*32)
+            caller_seed.chmod(0o600)
+            connection = dict(realm=46,principal=1234,writer=json.loads((root/'mutation.json').read_text())['writer']['pid'],resource=description['resource'],table=1)
+            check_profiles(port_host,root,proxy_url,connection)
+            factories = [lambda: Native(library,proxy_url,connection),lambda: Port(port_host,root,proxy_url,connection)]
+            foreign_statuses = []
+            for namespace,label,factory in zip((7,8),('native','port'),factories,strict=True):
+                owner = factory(); clients.append(owner)
+                assert owner.call({'capabilities':{}})['capabilities']['max_rows'] == 3
+                assert owner.call({'describe':{}})['description']['resource'] == description['resource']
+                operation = owner.call({'compile':dict(name='items',sql=f"UPDATE items SET value='{label}' WHERE id=2",namespace=str(namespace))})['compiled']
+                token = owner.call({'next':operation})['prepared']
+                saved = root/f'{label}-prepared.txt'
+                saved.write_text(token)
+                send_fault.update(lose=True,recovered=False)
+                try: owner.call({'submit':token})
+                except Failure as error: assert error.status == 6, error
+                else: raise AssertionError('Missing admitted receipt was reported as success')
+                owner.close(); clients.remove(owner)
+                owner = factory(); clients.append(owner)
+                assert saved.read_text() == token
+                receipt = owner.call({'submit':saved.read_text()})['receipt']
+                assert send_fault['recovered'] and receipt['position'] == send_fault['receipt']['position']
+                for _ in range(16):
+                    processed(receipt['position'])
+                    observation = dict(prepared=token,input=receipt['position'])
+                    assert owner.call({'observe':observation}) == {'observation':'processed'}
+                    assert owner.call({'rejection':observation}) == {'rejection':None}
+                    token = owner.call({'next':operation})['prepared']
+                    if token is None: break
+                    saved.write_text(token)
+                    receipt = owner.call({'submit':saved.read_text()})['receipt']
+                else: raise AssertionError('Foreign mutation caller exceeded bounded stage count')
+                result = owner.call({'status':operation['reference']})['status']
+                assert result['phase'] == 'applied' and result['affected_rows'] == 1
+                snapshot(namespace,'applied',[('replacement',),(label,),(None,)],1)
+                foreign_statuses.append((owner,operation['reference'],result))
+            for reader,reference,result in foreign_statuses:
+                assert reader.call({'status':reference})['status'] == result
             writer.kill(); writer.wait(timeout=10); writer = None
             invoke('revoke-reader')
             mutation({'status':compiled['reference']},error='AccessDenied')
             invoke('inspect',1,error='AccessDenied')
+            for reader,reference,_ in foreign_statuses:
+                try: reader.call({'status':reference})
+                except Failure as error: assert error.status == 4, error
+                else: raise AssertionError('Foreign status reader ignored current revocation')
             assert counts['max_mutations'] == 4
             print(json.dumps({'proof':'Table mutation native admission','elapsed_seconds':round(time.monotonic()-started,3),
-                **counts,'resident_authority_pages':8,'lost_receipts':2,
+                **counts,'resident_authority_pages':8,'lost_receipts':counts['lost_caller_receipts']+1,
                 'node_sha256':hashlib.sha256(Path(node).read_bytes()).hexdigest(),
                 'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest(),
-                'host_sha256':hashlib.sha256(Path(host).read_bytes()).hexdigest()}),flush=True)
+                'host_sha256':hashlib.sha256(Path(host).read_bytes()).hexdigest(),
+                'port_sha256':hashlib.sha256(Path(port_host).read_bytes()).hexdigest(),
+                'library_sha256':hashlib.sha256(Path(library).read_bytes()).hexdigest()}),flush=True)
             print('Table mutation native: shared client preparation/observation/resumption, exact caller-send and writer-commit lost-receipt disk recovery, atomic rows/result/input, conflicting retry, duplicate outcome, batch rollback, fenced writer and current native/application grants passed.',flush=True)
+            print('Native mutation ABI and port: shared actions, lost admission receipts, caller recreation, exact retry, durable status and current denial passed.',flush=True)
             print('Supplied Table writer: explicit configuration, fresh-fenced restart during upload, recorded input rejection, continued application, exact status and activation reuse refusal passed.',flush=True)
         except BaseException:
             log.flush(); log.seek(0); sys.stderr.write(log.read()[-5000:])
@@ -306,6 +357,7 @@ def run(node, proof, host):
                 sys.stderr.write(Path(output.name).read_text()[-5000:])
             raise
         finally:
+            for client in reversed(clients): client.close()
             if writer is not None:
                 if writer.poll() is None: writer.kill()
                 writer.wait(timeout=10)

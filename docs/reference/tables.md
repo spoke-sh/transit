@@ -14,6 +14,9 @@ outputs. A failed proposal cannot expose half the batch.
 
 Applications can explicitly expose bounded SQL INSERT, primary-key UPDATE and
 DELETE through the [Table mutation owner](../../contracts/TABLE_MUTATION_V1.md).
+The supplied host has an explicit writer role, with shared signed Zig and
+[native ABI/port callers](../../packages/zig/transit-station-bindings/docs/table-mutations.md).
+Native admission receipts and terminal row results remain separate.
 Its shared Zig client prepares and saves signed commands, resumes immutable
 uploads and reads durable outcomes under current grants. A separate mutation
 policy controls each caller; read-query access alone cannot enable writes.

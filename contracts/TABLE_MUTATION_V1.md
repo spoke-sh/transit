@@ -385,8 +385,9 @@ execute query calls; client/CLI/SDK read-query routes retain their own profiles.
 `TableMutationBridge` owns language-neutral actions and results above the signed
 Zig client. Its returned strings and schema names belong to the supplied result
 allocator; decoded requests own their cells and names independently of input
-bytes. Native ABI/port exports and idiomatic CLI/language adapters have separate
-integration boundaries. A local bridge value does not establish a write route,
+bytes. The [native ABI/port caller](../packages/zig/transit-station-bindings/docs/table-mutations.md)
+exposes these actions through an explicit mutation profile. Idiomatic CLI/language
+adapters have separate integration boundaries. A local bridge value does not establish a write route,
 current grants or a running compatible writer.
 
 Native realm/principal/PID/resource/input/revision counters and Table IDs use

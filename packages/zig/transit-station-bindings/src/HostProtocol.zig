@@ -3,7 +3,7 @@ const abi = @import("Abi.zig");
 const p = @import("transit_station").protocol;
 const raw = @import("client_abi").host;
 pub const version = 1;
-pub const Config = struct { url: ?[]const u8 = null, local_codec: bool = false, seed_file: ?[]const u8 = null, growing_server: ?abi.growing.Config = null, query_client: ?abi.query_client.Config = null, timeout_ms: u32 = 5000 };
+pub const Config = struct { url: ?[]const u8 = null, local_codec: bool = false, seed_file: ?[]const u8 = null, growing_server: ?abi.growing.Config = null, query_client: ?abi.query_client.Config = null, mutation_client: ?abi.mutation_client.Config = null, timeout_ms: u32 = 5000 };
 pub const Request = union(enum) {
     hello: void,
     shutdown: void,
@@ -12,6 +12,7 @@ pub const Request = union(enum) {
     document_codec: abi.document.Action,
     unified_query_codec: abi.unified_query.Action,
     unified_query: abi.query_client.bridge.Action,
+    table_mutation: abi.mutation_client.bridge.Action,
     grpc_codec: abi.grpc.Action,
     growing_grpc_read: abi.grpc.ReadAction,
     http_codec: abi.http.Action,

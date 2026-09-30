@@ -5272,3 +5272,52 @@ status and terminal-cancellation observations make this a different workload,
 not a paired performance improvement. Package tests, independent wire fixtures
 and documentation checks pass. Native ABI/port and installed SDK/CLI exposure
 remain separate integration work.
+
+### Mutation ABI and port callers
+
+The explicit `station_table_mutation_create/call/destroy` API and
+`mutation_client` port profile delegate to the neutral Zig bridge. Schemas and
+all generated language resources are regenerated from public types. A structural
+comparison confirms that existing exported signatures and all existing standalone
+schemas remain unchanged; only HostConfig/HostRequest gain the new optional
+profile/action, with three new mutation schemas. No existing wire or stored
+meaning changes in this additive export.
+
+Binding package tests pass current-target/signature validation before dispatch,
+malformed recovery rejection, bounded handle overlap, unconfirmed transport
+classification and buffers that outlive their client. The native schedule also
+checks conflicting local/query/mutation profiles and read-query refusal of
+mutation actions. The header generator initially needed the new opaque handle
+name registered; generated declarations now include it in C and foreign resources.
+
+`just test::table-mutation` passes in **16.044 s**. In addition to the earlier
+native/host schedule, real C ABI and port callers each compile, stage and apply
+an UPDATE, lose its accepted admission receipt, replace their handle/child, and
+recover the identical saved command. Both read their original durable result,
+and both stop after current native read revocation. Three caller receipts and one
+writer-commit receipt are lost independently. The schedule records **1406 reads**,
+**41 mutation-send responses** and **42 turn responses**, retaining four mutations,
+256-byte values and eight resident authority pages. These additional callers and
+faults expand the workload; the elapsed time is not a paired speedup comparison.
+
+The port SHA256 is `85ca4859050fc68e0859c4a446464c488ee747b11e29c787b7e0fb15a6e2c436`
+and library SHA256 is `b1bf78601f65df27a1038ee993fc8596ce0c770bb010a50905054a66e5dd603b`.
+The node, proof and writer digests match the preceding neutral-caller record.
+Actual idiomatic SDK callers, CLI integration and combined read/write source
+composition remain separate boundaries; generated declarations alone do not
+qualify them.
+
+The final mutation tree also passes full `just check`, `just bindings::check`,
+`just bindings::native`, documentation and the verification catalog. The broader
+binding regression preserves local-codec/native-port parity, scoped controls,
+poisoned reads, exact disk/host recovery, six independently decoded query segments,
+current denial and materialization update/delete/reinsert behavior.
+
+The separate committed-HEAD clean run at `8314f17b` passed core, growing authority,
+service/maintenance and Station recovery, then exceeded the existing **180 s**
+query-delivery deadline inside `test::growing-service`. The last recorded native
+history position was 560 and commands were still succeeding; no assertion proved
+incorrect results. This is an incomplete proof, not a pass or evidence that the
+deadline is sufficient under shared-host contention. The failure checkout remains
+`/var/tmp/transit-ci-n_3e42w_`. A focused rerun on that frozen revision, after the
+binding regression finishes, is tracked separately without raising the deadline.
