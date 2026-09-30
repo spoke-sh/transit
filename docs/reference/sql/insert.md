@@ -36,6 +36,11 @@ The [mutation contract](../../../contracts/TABLE_MUTATION_V1.md) defines the typ
 plan, errors and recovery. Reconcile an uncertain application command with its
 original identity under the [caller contract](../callers.md).
 
+An application exposing the shared admission owner can use
+`transit-query.TableMutationClient` for signed preparation, saved exact retries,
+bounded upload resumption and durable status observation. The writer must expose
+that operation explicitly; the supplied query hosts do not install it implicitly.
+
 `INSERT ... SELECT`, `DEFAULT VALUES`, `ON CONFLICT` and `RETURNING` are unsupported.
 [CREATE TABLE](create-table.md) does not provision a SQL target, and inserting
 rows does not dispatch a [sink effect](create-sink.md).

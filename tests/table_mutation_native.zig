@@ -68,6 +68,14 @@ fn stagedReference(init: std.process.Init, directory: []const u8, namespace: u64
     const name = try std.fmt.allocPrint(init.arena.allocator(), "mutation-{d}.json", .{namespace});
     return (try load(Staged, init, directory, name)).reference;
 }
+fn saveReference(init: std.process.Init, directory: []const u8, ref: s.PublicationReference) !void {
+    const name = try std.fmt.allocPrint(init.arena.allocator(), "mutation-{d}.json", .{ref.namespace});
+    const existing = load(Staged, init, directory, name) catch |err| return if (err == error.FileNotFound)
+        save(init, directory, name, Staged{ .definition = g.current_definition, .reference = ref })
+    else
+        err;
+    if (!std.meta.eql(existing.reference, ref)) return error.MutationIdentityConflict;
+}
 fn print(init: std.process.Init, value: anytype) !void {
     var buffer: [4096]u8 = undefined;
     var writer = std.Io.File.stdout().writerStreaming(init.io, &buffer);
@@ -79,9 +87,19 @@ fn makeServer(wire: *s.client.Client, config: Config) !s.GenServer {
     return s.GenServer.init(.{ .client = wire, .realm = 46, .principal = 65536, .pid = config.writer.pid, .generation = config.writer.generation, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(8)) }, "state");
 }
 fn send(wire: *s.client.Client, config: Config, command: r.Command) !p.Receipt {
-    const key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10));
-    const sequence = (try wire.query(.{ .realm = 46, .principal = 1234, .kind = .capabilities }, key)).principal_sequence + 1;
-    return wire.submit(try g.sign(.{ .realm = 46, .principal = 1234, .sequence = sequence, .command = .{ .send = .{ .pid = config.writer.pid, .value = try (s.Frame{ .kind = .cast, .payload = try command.encode() }).encode() } } }, key));
+    var caller = try mutationClient(wire, config);
+    return caller.submit(try caller.prepare(command));
+}
+fn mutationClient(wire: *s.client.Client, config: Config) !q.TableMutationClient {
+    return .{ .wire = wire, .connection = .{ .realm = 46, .principal = 1234, .writer = config.writer.pid, .resource = config.writer.resource, .table = 1 }, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+}
+fn savePrepared(init: std.process.Init, directory: []const u8, prepared: q.TableMutationClient.Prepared) !void {
+    const bytes = try prepared.save(init.arena.allocator());
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try path(init, directory, "mutation-send.json"), .data = bytes });
+}
+fn restorePrepared(init: std.process.Init, directory: []const u8) !q.TableMutationClient.Prepared {
+    const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try path(init, directory, "mutation-send.json"), init.arena.allocator(), .limited(q.TableMutationClient.Prepared.max_saved_bytes));
+    return q.TableMutationClient.Prepared.restore(init.arena.allocator(), bytes);
 }
 fn applyCommand(init: std.process.Init, wire: *s.client.Client, config: Config, command: r.Command, freeze: bool) !s.GenServer {
     _ = try send(wire, config, command);
@@ -117,26 +135,32 @@ pub fn main(init: std.process.Init) !void {
         return print(init, config);
     }
     var config = try load(Config, init, directory, "mutation.json");
-    if (std.mem.eql(u8, mode, "stage")) {
+    if (std.mem.eql(u8, mode, "stage") or std.mem.eql(u8, mode, "prepare-upload")) {
         if (args.len != 6) return error.Usage;
         const namespace = try std.fmt.parseInt(u64, args[4], 10);
-        var resource = try (s.client.ResourceReader{ .wire = &wire, .realm = 46, .principal = 1234, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) }).open(config.writer.resource);
-        const table = try s.Table.open(&resource, 1);
-        const grant = (try admission.policy(&resource, 1234, 1)).?;
-        const request = try q.TableMutationRequest.fromSql(46, config.writer.pid, table, try .init("items"), args[5]);
+        var caller = try mutationClient(&wire, config);
+        const request = try caller.compileSql(try .init("items"), args[5]);
         const ref = try request.reference(namespace);
-        try save(init, directory, try std.fmt.allocPrint(init.arena.allocator(), "mutation-{d}.json", .{namespace}), Staged{ .definition = g.current_definition, .reference = ref });
-        _ = try applyCommand(init, &wire, config, .{ .begin = .{ .reference = ref, .table = 1, .policy_revision = grant.revision } }, false);
-        var buffer: [q.TableMutationRequest.max_bytes]u8 = undefined;
-        const bytes = try request.encode(&buffer);
-        for (0..ref.spec.chunks()) |ordinal| {
-            const offset = ordinal * s.Publication.chunk_bytes;
-            const chunk = bytes[offset..][0..try ref.spec.size(@intCast(ordinal))];
-            _ = try applyCommand(init, &wire, config, .{ .part = .{ .reference = ref, .ordinal = @intCast(ordinal), .second = false, .bytes = chunk[0..@min(chunk.len, r.part_bytes)] } }, false);
-            if (chunk.len > r.part_bytes) _ = try applyCommand(init, &wire, config, .{ .part = .{ .reference = ref, .ordinal = @intCast(ordinal), .second = true, .bytes = chunk[r.part_bytes..] } }, false);
+        try saveReference(init, directory, ref);
+        for (0..16) |_| {
+            const prepared = (try caller.prepareNext(namespace, request)) orelse return error.UnexpectedTerminalMutation;
+            const frame = try s.Frame.decode(prepared.signed.request.command.send.value);
+            const command = try r.Command.decode(&frame.payload);
+            if (command == .apply) return print(init, .{ .staged = namespace });
+            try savePrepared(init, directory, prepared);
+            if (std.mem.eql(u8, mode, "prepare-upload")) return print(init, .{ .prepared = namespace });
+            const recovered = try restorePrepared(init, directory);
+            const receipt = try caller.submit(recovered);
+            try t.expectEqual(.pending, try caller.observe(recovered, receipt.position));
+            var worker = try makeServer(&wire, config);
+            try drive(init.io, &worker, false);
+            try t.expectEqual(.processed, try caller.observe(recovered, receipt.position));
         }
-        _ = try applyCommand(init, &wire, config, .{ .seal = ref }, false);
-        return print(init, .{ .staged = namespace });
+        return error.StepBudgetExceeded;
+    }
+    if (std.mem.eql(u8, mode, "submit-upload")) {
+        var caller = try mutationClient(&wire, config);
+        return print(init, try caller.submit(try restorePrepared(init, directory)));
     }
     if (std.mem.eql(u8, mode, "prepare")) {
         if (args.len != 5) return error.Usage;

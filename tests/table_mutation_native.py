@@ -30,7 +30,8 @@ def run(node, proof):
             'ursula_url':fixture.url,'bucket':'mutation','journal':'authority',
             'port':port,'resident_pages':8,'request_timeout_ms':10000}))
         faults = {'lose':False,'body':None,'receipt':None,'recovered':False}
-        counts = {'reads':0,'turns':0,'max_mutations':0,'max_value_bytes':0}
+        send_fault = {'lose':False,'body':None,'receipt':None,'recovered':False}
+        counts = {'reads':0,'turns':0,'mutation_send_responses':0,'max_mutations':0,'max_value_bytes':0}
         errors = []
 
         class Proxy(BaseHTTPRequestHandler):
@@ -44,6 +45,15 @@ def run(node, proof):
                     connection.request('POST', self.path, body, {'Content-Type':'application/json'})
                     response = connection.getresponse()
                     data = response.read()
+                    request = envelope.get('request',{})
+                    if request.get('principal') == 1234 and 'send' in request.get('command',{}) and response.status == 200:
+                        counts['mutation_send_responses'] += 1
+                        if send_fault['lose']:
+                            send_fault.update(lose=False,body=body,receipt=json.loads(data))
+                            data = b'{}'
+                        elif send_fault['body'] == body:
+                            assert json.loads(data)['position'] == send_fault['receipt']['position']
+                            send_fault['recovered'] = True
                     turn = envelope.get('request',{}).get('command',{}).get('turn')
                     if turn and response.status == 200:
                         mutations = [entry for entry in turn['mutations'] if entry]
@@ -106,7 +116,29 @@ def run(node, proof):
             start()
             invoke('provision')
             text = '東京🙂/'+'x'*180
-            invoke('stage',1,f"INSERT INTO items (id,value) VALUES(1,'{text}'),(2,'two'),(3,NULL)")
+            statement = f"INSERT INTO items (id,value) VALUES(1,'{text}'),(2,'two'),(3,NULL)"
+            # Caller loss is separate from writer commit loss. Recover the
+            # original prepared native send before selecting an upload successor.
+            invoke('prepare-upload',1,statement)
+            frozen_send = (root/'mutation-send.json').read_bytes()
+            send_fault['lose'] = True
+            invoke('submit-upload',error='InvalidAuthorityResponse')
+            assert send_fault['receipt'] is not None and not send_fault['lose']
+            authority.kill(); authority.wait(timeout=10); authority = None
+            fixture.stop(); fixture.start(); start()
+            receipt = invoke('submit-upload')
+            assert receipt['position'] == send_fault['receipt']['position'] and send_fault['recovered']
+            assert (root/'mutation-send.json').read_bytes() == frozen_send
+            assert invoke('progress')['pending'] == receipt['position']
+            invoke('resume')
+            snapshot(1,'uploading',[None,None,None])
+            saved_reference = (root/'mutation-1.json').read_bytes()
+            invoke('stage',1,'DELETE FROM items WHERE id=1',error='MutationIdentityConflict')
+            assert (root/'mutation-1.json').read_bytes() == saved_reference
+            invoke('prepare-upload',99,'DELETE FROM items WHERE id=1',error='MutationBusy')
+            # No accepted second begin or mutated row can arise from preparation.
+            assert invoke('progress')['pending'] is None
+            invoke('stage',1,statement)
             before = snapshot(1,'sealed',[None,None,None])
             prepared = invoke('prepare',1)
             assert prepared['mutations'] == 4
@@ -171,14 +203,18 @@ def run(node, proof):
             invoke('apply',5)
             denied = snapshot(5,'rejected',[('replacement',),None,(None,)],0)
             assert denied['reason'] == 'denied'
+            invoke('prepare-upload',6,'DELETE FROM items WHERE id=1',error='MutationDenied')
+            invoke('cancel',5)
+            repeated = snapshot(5,'rejected',[('replacement',),None,(None,)],0)
+            assert repeated['input'] == denied['input'] and repeated['result_revision'] == denied['result_revision']
             invoke('revoke-reader')
             invoke('inspect',1,error='AccessDenied')
             assert counts['max_mutations'] == 4
             print(json.dumps({'proof':'Table mutation native admission','elapsed_seconds':round(time.monotonic()-started,3),
-                **counts,'resident_authority_pages':8,'lost_receipts':1,
+                **counts,'resident_authority_pages':8,'lost_receipts':2,
                 'node_sha256':hashlib.sha256(Path(node).read_bytes()).hexdigest(),
                 'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest()}),flush=True)
-            print('Table mutation native: atomic rows/result/input, exact lost-receipt disk recovery, conflicting retry, duplicate outcome, batch rollback, fenced writer, current write/read grants and application-policy revocation passed.',flush=True)
+            print('Table mutation native: shared client preparation/observation/resumption, exact caller-send and writer-commit lost-receipt disk recovery, atomic rows/result/input, conflicting retry, duplicate outcome, batch rollback, fenced writer and current native/application grants passed.',flush=True)
         except BaseException:
             log.flush(); log.seek(0); sys.stderr.write(log.read()[-5000:])
             raise

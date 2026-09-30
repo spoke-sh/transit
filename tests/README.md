@@ -5151,3 +5151,39 @@ also pass canonical signing, missing/foreign-definition refusal, seedless exact
 recovery after host/store restart, current revocation, poisoned-read controls,
 shared local codecs and six independently decoded query segments. Installed
 language/browser cutover schedules and complete committed-HEAD CI remain separate.
+
+### Shared signed Table mutation client
+
+`TableMutationClient` now owns current metadata/SQL compilation, one-command
+preparation, canonical save/restore, explicit submit, processed-input observation,
+reference-bound status and bounded upload resumption. Package tests prove owned
+saved bytes, required outer/nested definitions, canonical framing, and target or
+signature rejection before touching the transport. The first test compile caught
+a slice binding that should be `const`; correcting the binding preserves the
+intentional mutation of its allocated bytes in the ownership test.
+
+The expanded `just test::table-mutation` passes in **9.711 s**. It exercises the
+shared client through real native commands, recreates each writer between stage
+commands, and checks pending/processed input progress. The proxy removes the
+accepted caller-send receipt, then the process exits and node/store restart.
+The restored signed command returns the same admission position; only after that
+receipt is reconciled and its original input processed does upload continue.
+The separate accepted writer-commit receipt loss/restart proof remains intact.
+Conflicting namespace preparation cannot overwrite the fixture's saved reference,
+a busy active upload cannot admit a second begin, and policy denial prevents new
+compilation. Cancelling a terminal denied request retains its original result.
+
+The proxy counts **674 reads**, **25 successful mutation-send responses** and
+**27 successful turn responses**, including exact retries. Bounds remain four
+mutations, 256-byte values and eight resident authority pages. The frozen node
+digest is `a511cb9f1f8996f93a94cdb795fece1d8cbdbb46bf2663e2fa2b034947362835`;
+the proof digest is `5e45e18b7f74d9fc117093f41c78476d8cad741c4b386882f620c3066dd02c2e`.
+This expanded schedule adds a second node/store restart, explicit stage progress
+reads, failed preparations and duplicate cancellation, so its totals are not an
+equivalent-workload comparison with the earlier admission-only proof.
+
+Metadata acquisition requests at most six keys in one native batch. Replacing
+a terminal active pointer needs one additional prior-status batch; immutable
+feature support is cached, while current credentials, grants, source metadata
+and policy are not. Saved retry submission performs no metadata read or new
+signing. Supplied host/CLI/language SDK write integration remains outstanding.

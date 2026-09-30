@@ -12,6 +12,14 @@ Validate column types and operation budgets before proposing a batch. Accepted
 mutations within one turn become visible together with its consumed input and
 outputs. A failed proposal cannot expose half the batch.
 
+Applications can explicitly expose bounded SQL INSERT, primary-key UPDATE and
+DELETE through the [Table mutation owner](../../contracts/TABLE_MUTATION_V1.md).
+Its shared Zig client prepares and saves signed commands, resumes immutable
+uploads and reads durable outcomes under current grants. A separate mutation
+policy controls each caller; read-query access alone cannot enable writes.
+The console, Board, Flight SQL and language SDK query routes do not admit these
+mutations yet.
+
 Growing Table rows use the resource's ordered key/value index, with encoded
 primary keys and a separate schema descriptor. Arrow is the query interchange
 and result representation; the Table's persistent rows are not columnar Arrow

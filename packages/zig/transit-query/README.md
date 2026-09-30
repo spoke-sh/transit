@@ -31,6 +31,16 @@ its external-cast dispatch; the supplied query hosts and public query clients
 still reject writes. No read permission implicitly enables mutation dispatch.
 See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 
+`TableMutationClient` supplies the shared Zig caller for applications that expose
+that owner: current metadata/SQL compilation, canonical saved signed commands,
+explicit submission, input observation, status and bounded upload resumption.
+It retains full request identity across caller and writer recovery. Preparing the
+next step requires reconciling the preceding exact command first; a native send
+receipt is admission, and only a terminal mutation status establishes the result.
+The [caller contract](../../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller)
+defines these APIs and the required current grants. Supplied hosts and CLI/SDK
+query routes still require explicit mutation integration.
+
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit
 mutation application against native authority and disk-backed Ursula, including

@@ -263,3 +263,59 @@ checks each part's exact required length. Decode borrows part bytes from the
 input only for the enclosing handler; durable staging copies them into the private
 proposal. Native envelope and persisted-head definition checks bind the enclosing
 framework semantics; the canonical request separately requires that definition.
+
+## Signed Zig caller
+
+`transit-query.TableMutationClient` composes the public signed native client.
+Applications supply a `Connection` with realm, originating principal, writer PID,
+resource and Table ID, plus the caller's key and native transport. The writer
+must explicitly expose the admission owner above; configuring a query host or
+granting read access does not install a mutation handler. Native ingress rights,
+current resource reads and the separately installed mutation policy remain
+distinct. The shared client does not discover a writer or provision these grants.
+
+| API | Result and behavior |
+| --- | --- |
+| `describe()` | Current Table descriptor, principal's mutation policy, resource revision and active namespace from one bounded metadata batch |
+| `compileSql(name, text)` | Owned typed request; checks current schema/policy and the operation permission, without submission |
+| `prepare(command)` | One owned signed cast for the explicit target; performs advisory current checks without sending |
+| `Prepared.save(allocator)` / `restore(allocator, bytes)` | Canonical owned saved operation, bounded to 8192 input bytes on restore |
+| `submit(prepared)` | Validates target and signature, then submits the exact original native request; performs no new metadata read, signing or implicit retry |
+| `observe(prepared, receipt.position)` | `pending` or `processed` input progress for that admitted send, never a fabricated row result |
+| `status(original_reference)` | Optional durable status bound to the original reference, principal and Table; current native read rights apply |
+| `prepareNext(namespace, request)` | One next begin/part/seal/apply command from committed staging state, or null for an existing terminal result |
+
+The saved envelope has required `version` (1), current `definition`, `connection`
+and `signed` fields. All connection identities and nested native fields retain
+their owning bounds. Canonical equality rejects missing/defaulted fields,
+unknown fields, trailing content and alternate JSON encodings. Restoring copies
+the complete operation; no reference into input bytes survives. Structural checks
+run before network use, and submission verifies the native signature with the
+configured key. Connection metadata grants no authority; the signed frame and
+stored immutable request determine the operation the writer may apply.
+
+On uncertain submission, keep and resubmit the exact `Prepared` object or its
+saved bytes. Do not prepare a new sequence, recompile the SQL, change its target
+or choose an upload successor. After reconciling the native receipt, observe its
+input as processed before preparing the next step. Callers serialize commands
+for a principal; separate handles may race for the native sequence and receive a
+conflict. No automatic re-signing resolves that conflict. A send receipt proves
+mailbox admission, while the terminal status records application, rejection or
+cancellation. A processed staging input alone proves none of those outcomes.
+
+Upload resumption uses the original owned canonical request and namespace. Its
+full reference must match stored status. Each step reads at most six requested
+metadata keys at one current resource revision, plus a previous active status
+when checking whether its terminal pointer can be replaced. It validates an
+existing half against the exact original bytes before selecting the second half.
+The next command copies its part bytes into the signed native frame before
+returning. Only immutable feature support is cached; credentials, metadata,
+policy and authorization are not cached. Admission rechecks all applicable
+conditions at the writer's captured commit basis.
+
+Current policy denial prevents compilation and new uploads. Apply and cancel
+can still be prepared for an existing request after application-policy revocation
+so the writer can record denial or cancellation. Terminal observations retain
+their original input/result identity; cancellation cannot undo applied rows.
+Unavailable reads, writer changes, conflicting references and malformed staging
+records propagate without inventing a result or submitting a replacement.
