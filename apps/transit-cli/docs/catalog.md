@@ -140,6 +140,38 @@ restores and validates the saved signed command. Callers sharing a principal mus
 coordinate native sequences; there is no automatic retry or session coordinator.
 Deleting local files does not remove accepted work or catalog objects.
 
+## Definition lookup and saved pages
+
+```sh
+transit catalog lookup --config catalog.yaml --name items
+transit catalog definition --config catalog.yaml --object 81 --revision 1
+transit catalog list --config catalog.yaml --output page-1.json
+transit catalog list --config catalog.yaml --file page-1.json --output page-2.json
+```
+
+`lookup` resolves an exact, case-sensitive catalog name and checks the live Table
+schema. `definition` reads an immutable object/revision pair without requiring
+that the current Table still matches it. Both return a `definition` envelope;
+an absent value is `null`. Names contain 1–16 ASCII letters, digits or underscores
+and start with a letter or underscore. Object and definition revision flags are
+canonical positive uint64 decimal values.
+
+`list` returns one `page` envelope: a native resource revision, exactly eight
+optional definition slots and an optional `next` cursor. Present entries are
+dense and strictly ordered by name. `--output` optionally saves the same envelope
+as a new private, non-replacing artifact; `--file` continues an original saved
+page. Page inputs are at most 8192 bytes and validate all entries, scope, ordering,
+revision and mandatory current cursor definition before credential loading.
+A saved final page has no continuation and is rejected by `--file`; it never
+implicitly restarts the listing. An empty final page is possible.
+
+Each remote read checks current catalog inspection policy and native grants.
+Cursors confer no authority. Continuation requires the exact resource revision;
+`CatalogCursorChanged` means start a fresh listing without `--file` and discard
+the old partial result. These are current reads, not retained snapshots. Listing
+does not create a view or submit a command. Public language SDK metadata methods
+are separate from their existing creation/control methods.
+
 Typed initialization/policy inputs and compiled artifacts are at most 4096 bytes;
 prepared envelopes are at most 65536 bytes, with an inner saved command bounded
 to 8192 bytes. Malformed local artifacts reject before key loading or network I/O.

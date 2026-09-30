@@ -28,8 +28,8 @@ independent; admission, processing and application are separate outcomes.
 a view or submitting work. Lists contain at most eight ordered definitions and
 bind continuation to the exact resource revision. A changed revision requires a
 fresh listing; current native or catalog denial rejects old cursors too. These
-metadata methods currently belong to the Zig API; their native ABI, CLI and
-language SDK mappings are separate work.
+metadata methods also use the shared neutral native ABI/port and explicit CLI;
+language SDK metadata methods remain separate work.
 Signed pages fetch definitions and Table descriptors in two bounded batches at
 the same revision, rechecking current native grants on each. The dependent batch
 is replaced after each layer; it is not retained across calls.
@@ -48,13 +48,16 @@ result strings belong to the supplied allocator.
 `Bridge.Definition`, `Cursor` and `Page` provide owned neutral metadata
 conversions. Cursors require the current definition, scope, resource revision and
 last normalized name. Page conversion checks order, dense entries, shared scope
-and continuation consistency. These value types do not yet add metadata actions
-to the native ABI/port or language SDKs.
+and continuation consistency. `lookup`, `definition` and `list` actions expose
+these values through the native ABI/port and CLI without changing existing
+creation/control actions or saved bytes.
 The [catalog ABI/port](../transit-station-bindings/docs/catalog.md) composes these
 values with explicit native handle ownership and transport uncertainty.
 
 The [catalog CLI](../../../apps/transit-cli/docs/catalog.md) uses this same owner
-for offline compilation, private saved preparation, exact submission and outcomes.
+for offline compilation, private saved preparation, exact submission, outcomes
+and bounded metadata. Its saved pages retain the exact continuation and reject
+missing/foreign definitions before loading credentials.
 
 An application supplies an already authorized Station turn, explicit catalog
 configuration and native commit/recovery handling. Initialize in a separate turn.

@@ -76,7 +76,7 @@ pub fn call(pointer: *Client, json: [*]const u8, len: usize, out: *?*base.Buffer
             error.CatalogDenied => .denied,
             error.CatalogOwnerUnavailable, error.ResourceUnavailable => .unavailable,
             error.CatalogNotInitialized => .not_ready,
-            error.CatalogIdentityConflict, error.CatalogScopeChanged, error.CatalogOwnerChanged, error.CatalogConfigurationChanged, error.CatalogPolicyConflict => .conflict,
+            error.CatalogIdentityConflict, error.CatalogScopeChanged, error.CatalogOwnerChanged, error.CatalogConfigurationChanged, error.CatalogPolicyConflict, error.CatalogCursorChanged, error.CatalogDefinitionChanged, error.CatalogSourceChanged => .conflict,
             else => base.status(err),
         };
     };

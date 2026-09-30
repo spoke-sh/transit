@@ -199,12 +199,11 @@ pub const Page = struct {
     resource_revision: u64,
     entries: [p.Growth.page_size]?Definition,
     next: ?Cursor,
-    pub fn fromNative(allocator: Allocator, value: c.Inspection.Page) !Page {
+    fn validate(value: c.Inspection.Page) !void {
         try m.nativeId(value.resource_revision);
-        var result: Page = .{ .resource_revision = value.resource_revision, .entries = @splat(null), .next = null };
         var previous: ?m.Definition = null;
         var ended = false;
-        for (value.entries, 0..) |slot, index| {
+        for (value.entries) |slot| {
             const entry = slot orelse {
                 ended = true;
                 continue;
@@ -214,14 +213,27 @@ pub const Page = struct {
             if (previous) |old| {
                 if (!std.meta.eql(old.scope, entry.scope) or std.mem.order(u8, old.name.slice(), entry.name.slice()) != .lt) return error.InvalidCatalogPage;
             }
-            result.entries[index] = try Definition.fromNative(allocator, entry);
             previous = entry;
         }
         if (value.next) |cursor| {
             const last = previous orelse return error.InvalidCatalogPage;
             if (!std.meta.eql(last.scope, cursor.scope) or !std.meta.eql(last.name, cursor.after) or cursor.resource_revision != value.resource_revision) return error.InvalidCatalogPage;
-            result.next = try Cursor.fromNative(allocator, cursor);
         }
+    }
+    pub fn native(self: Page) !c.Inspection.Page {
+        var result: c.Inspection.Page = .{ .resource_revision = self.resource_revision, .next = if (self.next) |cursor| try cursor.native() else null };
+        for (self.entries, 0..) |slot, index| if (slot) |entry| {
+            result.entries[index] = try entry.native();
+        };
+        try validate(result);
+        return result;
+    }
+    pub fn fromNative(allocator: Allocator, value: c.Inspection.Page) !Page {
+        try validate(value);
+        var result: Page = .{ .resource_revision = value.resource_revision, .entries = @splat(null), .next = if (value.next) |cursor| try Cursor.fromNative(allocator, cursor) else null };
+        for (value.entries, 0..) |slot, index| if (slot) |entry| {
+            result.entries[index] = try Definition.fromNative(allocator, entry);
+        };
         return result;
     }
 };
@@ -240,6 +252,9 @@ pub const Input = struct { prepared: []const u8, input: u64 };
 pub const Action = union(enum) {
     capabilities,
     describe,
+    lookup: []const u8,
+    definition: struct { object: []const u8, revision: []const u8 },
+    list: ?Cursor,
     compile: struct { operation: []const u8, object: []const u8, table: u32, sql: []const u8 },
     prepare_initialize: Configuration,
     prepare_create: CreateTable,
@@ -252,6 +267,8 @@ pub const Action = union(enum) {
 pub const Result = union(enum) {
     capabilities: Capabilities,
     description: Description,
+    definition: ?Definition,
+    page: Page,
     compiled: Compiled,
     prepared: []const u8,
     receipt: p.Receipt,
@@ -275,6 +292,9 @@ pub fn apply(allocator: Allocator, client: *c.Client, action: Action) !Result {
             const value = try client.describe();
             break :blk .{ .description = .{ .configuration = try Configuration.fromNative(allocator, value.configuration), .policy = try Policy.fromNative(allocator, value.policy), .resource_revision = value.resource_revision } };
         },
+        .lookup => |value| .{ .definition = if (try client.lookup(try .init(value))) |result| try Definition.fromNative(allocator, result) else null },
+        .definition => |value| .{ .definition = if (try client.definition(try unsigned(value.object), try unsigned(value.revision))) |result| try Definition.fromNative(allocator, result) else null },
+        .list => |value| .{ .page = try Page.fromNative(allocator, try client.list(if (value) |cursor| try cursor.native() else null)) },
         .compile => |value| .{ .compiled = try compile(allocator, client.connection, value) },
         .prepare_initialize => |value| .{ .prepared = try (try client.prepareInitialize(try value.native())).save(allocator) },
         .prepare_create => |value| .{ .prepared = try (try client.prepareCreate(try value.native())).save(allocator) },

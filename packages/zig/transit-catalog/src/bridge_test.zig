@@ -63,6 +63,12 @@ test "neutral catalog commands reject unsafe numbers and malformed recovery with
     const caps = (try b.apply(a, &client, .capabilities)).capabilities;
     try t.expect(caps.initialize and caps.create_table and caps.conditional_policy);
     try t.expectEqual(p.Growth.current_definition, caps.definition);
+    try t.expectError(error.InvalidColumnName, b.apply(a, &client, .{ .lookup = "" }));
+    try t.expectError(error.InvalidCatalogInteger, b.apply(a, &client, .{ .definition = .{ .object = "01", .revision = "1" } }));
+    try t.expectError(error.InvalidCatalogIdentity, b.apply(a, &client, .{ .definition = .{ .object = "1", .revision = "0" } }));
+    var invalid_cursor = fixture.cursor;
+    invalid_cursor.resource_revision = 0;
+    try t.expectError(error.InvalidCatalogIdentity, b.apply(a, &client, .{ .list = invalid_cursor }));
     for ([_][]const u8{ "", "00", "+1", "-1", " 1", "18446744073709551616" }) |value| {
         var request = fixture.compiled.request;
         request.operation = value;
@@ -108,6 +114,7 @@ test "neutral metadata agrees with independent definitions and owns full-width c
     var page: c.Inspection.Page = .{ .resource_revision = 2, .next = try fixture.cursor.native() };
     page.entries[0] = try fixture.metadata.native();
     try t.expectEqualDeep(fixture.page, try b.Page.fromNative(a, page));
+    try t.expectEqualDeep(page, try fixture.page.native());
 }
 
 test "neutral metadata rejects malformed page structure and incompatible saved cursors" {
@@ -137,13 +144,20 @@ test "neutral metadata rejects malformed page structure and incompatible saved c
     try t.expectError(error.InvalidCatalogIdentity, cursor.native());
     cursor.resource_revision = p.max_counter + 1;
     try t.expectError(error.InvalidCatalogIdentity, cursor.native());
-    for (0..2) |case| {
+    for (0..3) |case| {
         var tree = (try std.json.parseFromSlice(std.json.Value, a, try p.Json.valueAlloc(a, fixture.cursor), .{})).value;
         if (case == 0) {
             try t.expect(tree.object.swapRemove("definition"));
-        } else tree.object.getPtr("definition").?.* = .{ .string = "foreign-v1-definition" };
+        } else tree.object.getPtr("definition").?.* = .{ .string = if (case == 1) "foreign-v1-definition" else "0000000000000000000000000000000000000000000000000000000000000000" };
         const bytes = try std.json.Stringify.valueAlloc(a, tree, .{});
         if (p.Json.parseFromSlice(b.Cursor, a, bytes)) |parsed| {
+            parsed.deinit();
+            return error.TestUnexpectedResult;
+        } else |_| {}
+        var nested = (try std.json.parseFromSlice(std.json.Value, a, try p.Json.valueAlloc(a, fixture.page), .{})).value;
+        nested.object.getPtr("next").?.* = tree;
+        const page_bytes = try std.json.Stringify.valueAlloc(a, nested, .{});
+        if (p.Json.parseFromSlice(b.Page, a, page_bytes)) |parsed| {
             parsed.deinit();
             return error.TestUnexpectedResult;
         } else |_| {}

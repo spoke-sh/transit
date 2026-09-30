@@ -8,6 +8,7 @@ const Diagnostic = @import("Diagnostic.zig");
 const Config = struct { version: u8, connection: B.Connection, url: ?[]const u8 = null, seed_file: ?[]const u8 = null, request_timeout_ms: u32 = 5000 };
 const CompiledFile = struct { compiled: B.Compiled };
 const PreparedFile = struct { prepared: []const u8 };
+const PageFile = struct { page: B.Page };
 pub const help =
     \\Compile, prepare, submit and inspect explicit catalog operations.
     \\
@@ -16,6 +17,9 @@ pub const help =
     \\Commands:
     \\  capabilities        Read local capabilities without configuration or I/O
     \\  describe            Read current authorized configuration and policy
+    \\  lookup              Read a named definition under current rights
+    \\  definition          Read an exact object and definition revision
+    \\  list                Read one page; optionally continue a saved page
     \\  compile             Compile CREATE TABLE into a new private artifact offline
     \\  prepare-initialize  Save an explicit initialization command
     \\  prepare-create      Save creation from a reviewed compiled artifact
@@ -54,7 +58,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
         if (!(std.mem.eql(u8, uri.scheme, "http") or std.mem.eql(u8, uri.scheme, "https")) or uri.host == null or uri.user != null or uri.password != null or uri.query != null or uri.fragment != null) return diagnostic.invalidField("url", "requires an HTTP or HTTPS authority URL without embedded credentials, query or fragment", null);
     }
     // Malformed local artifacts reject before credential loading or network I/O.
-    const action = try actionFromFile(init, options, diagnostic);
+    const action = try actionFromInput(init, options, diagnostic);
     if (options.mode == .compile) {
         return publish(init, options, diagnostic, .{ .compiled = try B.compile(alloc, connection, action.compile) });
     }
@@ -99,9 +103,19 @@ fn artifact(comptime T: type, init: std.process.Init, path: []const u8, limit: u
     // All returned strings, including escaped paths/commands, own invocation-arena memory.
     return std.json.parseFromSliceLeaky(T, alloc, bytes, .{ .allocate = .alloc_always });
 }
-fn actionFromFile(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !B.Action {
+fn actionFromInput(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !B.Action {
     const alloc = init.arena.allocator();
     if (options.mode == .describe) return .describe;
+    if (options.mode == .lookup) return .{ .lookup = options.flags.name.? };
+    if (options.mode == .definition) return .{ .definition = .{ .object = options.flags.object.?, .revision = options.flags.revision.? } };
+    if (options.mode == .list) {
+        const path = options.flags.file orelse return .{ .list = null };
+        const previous = try artifact(PageFile, init, path, 8192, diagnostic);
+        _ = try previous.page.native();
+        const cursor = previous.page.next orelse return diagnostic.invalidField("page.next", "the saved page has no continuation", null);
+        _ = try cursor.native();
+        return .{ .list = cursor };
+    }
     const path = options.flags.file.?;
     switch (options.mode) {
         .compile => {

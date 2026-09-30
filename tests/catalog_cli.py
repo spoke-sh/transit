@@ -22,7 +22,7 @@ class Cli:
     def saved(self, kind, value):
         for path in self.root.glob('output-*.json'):
             artifact = json.loads(path.read_bytes())
-            if kind in artifact and (artifact[kind]['request'] if kind == 'compiled' else artifact[kind]) == value:
+            if kind in artifact and (artifact[kind]['request'] if kind == 'compiled' else artifact[kind]['next'] if kind == 'page' else artifact[kind]) == value:
                 return path
         raise AssertionError('Recovery must use the original saved CLI artifact')
 
@@ -35,6 +35,8 @@ class Cli:
                 raise Failure(6, dict(err='unknown_outcome'))
             if 'CatalogDenied' in result.stderr: raise Failure(4, dict(err='CatalogDenied'))
             if 'permission denied' in result.stderr: raise Failure(4, dict(err='access_denied'))
+            for conflict in ('CatalogCursorChanged', 'CatalogScopeChanged', 'CatalogDefinitionChanged', 'CatalogSourceChanged'):
+                if conflict in result.stderr: raise Failure(5, dict(err=conflict))
             raise AssertionError('Unexpected catalog CLI failure: ' + result.stderr)
         assert not result.stderr, result.stderr
         return json.loads(result.stdout)
@@ -50,6 +52,14 @@ class Cli:
             sql = self.root / f'{uuid.uuid4().hex}.sql'
             sql.write_text(value['sql'])
             args += ['--file', sql, '--operation', value['operation'], '--object', value['object'], '--table', value['table']]
+        elif name == 'lookup':
+            args += ['--name', value]
+        elif name == 'definition':
+            args += ['--object', value['object'], '--revision', value['revision']]
+        elif name == 'list':
+            if value is not None:
+                path = self.saved('page', value)
+                args += ['--file', path]
         elif name in ('prepare_create', 'status'):
             path = self.saved('compiled', value)
             args += ['--file', path]
@@ -65,7 +75,7 @@ class Cli:
         else:
             assert name == 'describe'
         if path: original = path.read_bytes()
-        if name == 'compile' or name.startswith('prepare_'):
+        if name in ('compile', 'list') or name.startswith('prepare_'):
             output = self.root / f'output-{uuid.uuid4().hex}.json'
             args += ['--output', output]
         try:

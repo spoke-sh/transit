@@ -1,5 +1,6 @@
 """Real catalog Table creation, exact receipt recovery and native fencing."""
 import argparse
+import copy
 from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -439,6 +440,11 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 invalid_actions = [] if name not in ('abi', 'port') else [
                     {'compile': dict(operation=maximum, object='1', table=1, sql=statement)},
                     {'compile': dict(operation='1', object='1', table='1', sql=statement)},
+                    {'lookup': 'bad name'},
+                    {'definition': dict(object=maximum, revision='1')},
+                    {'definition': dict(object='01', revision='1')},
+                    {'list': dict(scope=connection['scope'], resource_revision=1, after='items')},
+                    {'list': dict(definition='0' * 64, scope=connection['scope'], resource_revision=1, after='items')},
                     {'submit': '{}'}]
                 for invalid in invalid_actions:
                     try:
@@ -505,6 +511,26 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             invoke('restore-reader')
             assert any(invoke('list')['entries'])
             report['revoked_during_metadata_read'] = True
+            # These callers share the neutral bridge. SDK metadata mappings
+            # join this set as their typed public methods are implemented.
+            metadata_clients = [(name, result[0]) for (name, _), result in zip(factories[:3], caller_results[:3])]
+            def metadata_call(name, client, action, expected_error=None):
+                before = counts['caller_reads']
+                began = time.monotonic()
+                try:
+                    result = client.call(action)
+                    assert expected_error is None, 'Metadata caller accepted a rejected read'
+                    return result
+                except Failure as error:
+                    assert expected_error is not None and error.status == expected_error, error
+                finally:
+                    operation = next(iter(action))
+                    reads = counts['caller_reads'] - before
+                    metadata_measurements.append(dict(surface=name, operation=operation, expected_error=expected_error,
+                        reads=reads, seconds=round(time.monotonic() - began, 6)))
+                    if operation == 'list' and expected_error is None:
+                        assert reads <= 5, 'Neutral catalog page exceeded its signed read budget'
+            retained_pages = []
             growth_started = time.monotonic()
             for index in range(growth):
                 growing = caller_results[0][0]
@@ -521,8 +547,14 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                     record()
                 if index == 8:
                     assert invoke('list')['next'] is not None
+                    for name, client in metadata_clients:
+                        cursor = metadata_call(name, client, {'list': None})['page']['next']
+                        assert cursor is not None
+                        retained_pages.append((name, client, cursor))
                 if index == 9:
                     invoke('list', 'continue', error='CatalogCursorChanged')
+                    for name, client, cursor in retained_pages:
+                        metadata_call(name, client, {'list': cursor}, 5)
             def listed():
                 page = invoke('list')
                 revision = page['resource_revision']
@@ -543,6 +575,40 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                     assert invoke('definition', entry['object'], entry['revision']) == entry
                 assert invoke('lookup', 'absent') is None
                 assert invoke('definition', maximum - 9999, 1) is None
+                def neutral(entry):
+                    result = copy.deepcopy(entry)
+                    result['scope']['catalog'] = str(result['scope']['catalog'])
+                    for field in ('object', 'revision', 'operation'): result[field] = str(result[field])
+                    result['name'] = result['name']['bytes'][:result['name']['len']]
+                    schema = result['source']['table']['schema']
+                    assert schema.pop('version') == 1
+                    schema['names'] = [column['bytes'][:column['len']] for column in schema['names']]
+                    return result
+                expected = [neutral(entry) for entry in entries]
+                for name, client in metadata_clients:
+                    page = metadata_call(name, client, {'list': None})['page']
+                    actual = []
+                    while True:
+                        assert page['resource_revision'] == revision
+                        present = [entry for entry in page['entries'] if entry is not None]
+                        assert page['entries'] == present + [None] * (8 - len(present))
+                        actual.extend(present)
+                        cursor = page['next']
+                        if cursor is None: break
+                        assert cursor['definition'] == definition.hex() and cursor['scope'] == connection['scope']
+                        assert cursor['resource_revision'] == revision and cursor['after'] == present[-1]['name']
+                        if name != 'cli':
+                            stale = dict(cursor, resource_revision=revision - 1)
+                            metadata_call(name, client, {'list': stale}, 5)
+                            foreign = dict(cursor, scope=dict(cursor['scope'], catalog='1'))
+                            metadata_call(name, client, {'list': foreign}, 5)
+                        page = metadata_call(name, client, {'list': cursor})['page']
+                    assert actual == expected, (name, actual, expected)
+                    for entry in expected:
+                        assert metadata_call(name, client, {'lookup': entry['name']}) == dict(definition=entry)
+                        assert metadata_call(name, client, {'definition': dict(object=entry['object'], revision=entry['revision'])}) == dict(definition=entry)
+                    assert metadata_call(name, client, {'lookup': 'absent'}) == dict(definition=None)
+                    assert metadata_call(name, client, {'definition': dict(object=str(maximum - 9999), revision='1')}) == dict(definition=None)
                 return names
             expected_names = sorted(['items', 'other', *grown_names, *[request['name'] for _, request, _ in caller_results]])
             assert listed() == expected_names
@@ -558,6 +624,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             invoke('list', error='CatalogDenied')
             invoke('lookup', 'items', error='CatalogDenied')
             invoke('definition', maximum, 1, error='CatalogDenied')
+            for name, client in metadata_clients:
+                for action in ({'list': None}, {'lookup': 'items'}, {'definition': dict(object=str(maximum), revision='1')}):
+                    metadata_call(name, client, action, 4)
             for client, request, status in caller_results:
                 try:
                     client.call({'status': request})
@@ -572,6 +641,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             invoke('list', error='AccessDenied')
             invoke('lookup', 'items', error='AccessDenied')
             invoke('definition', maximum, 1, error='AccessDenied')
+            for name, client in metadata_clients:
+                for action in ({'list': None}, {'lookup': 'items'}, {'definition': dict(object=str(maximum), revision='1')}):
+                    metadata_call(name, client, action, 4)
             invoke('input-disposition', rejected, error='AccessDenied')
             for client, request, _ in caller_results:
                 try:

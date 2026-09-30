@@ -2,17 +2,20 @@
 const std = @import("std");
 const c = @import("transit_catalog");
 const Diagnostic = @import("Diagnostic.zig");
-pub const Mode = enum { capabilities, describe, compile, @"prepare-initialize", @"prepare-create", @"prepare-policy", submit, observe, disposition, status };
-pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, table: ?[]const u8 = null, input: ?[]const u8 = null };
+pub const Mode = enum { capabilities, describe, lookup, definition, list, compile, @"prepare-initialize", @"prepare-create", @"prepare-policy", submit, observe, disposition, status };
+pub const Flags = struct { config: ?[]const u8 = null, file: ?[]const u8 = null, output: ?[]const u8 = null, operation: ?[]const u8 = null, object: ?[]const u8 = null, revision: ?[]const u8 = null, name: ?[]const u8 = null, table: ?[]const u8 = null, input: ?[]const u8 = null };
 pub const Options = struct { mode: Mode, flags: Flags = .{}, table: u32 = 0, input: u64 = 0, help: bool = false };
 fn preparation(mode: Mode) bool {
     return mode == .@"prepare-initialize" or mode == .@"prepare-create" or mode == .@"prepare-policy";
 }
 fn allowed(mode: Mode, field: []const u8) bool {
     if (std.mem.eql(u8, field, "config")) return mode != .capabilities;
-    if (std.mem.eql(u8, field, "file")) return mode != .capabilities and mode != .describe;
-    if (std.mem.eql(u8, field, "output")) return mode == .compile or preparation(mode);
-    if (std.mem.eql(u8, field, "operation") or std.mem.eql(u8, field, "object") or std.mem.eql(u8, field, "table")) return mode == .compile;
+    if (std.mem.eql(u8, field, "file")) return mode != .capabilities and mode != .describe and mode != .lookup and mode != .definition;
+    if (std.mem.eql(u8, field, "output")) return mode == .compile or preparation(mode) or mode == .list;
+    if (std.mem.eql(u8, field, "operation") or std.mem.eql(u8, field, "table")) return mode == .compile;
+    if (std.mem.eql(u8, field, "object")) return mode == .compile or mode == .definition;
+    if (std.mem.eql(u8, field, "revision")) return mode == .definition;
+    if (std.mem.eql(u8, field, "name")) return mode == .lookup;
     if (std.mem.eql(u8, field, "input")) return mode == .observe or mode == .disposition;
     return false;
 }
@@ -20,6 +23,9 @@ pub fn usage(mode: Mode) []const u8 {
     return switch (mode) {
         .capabilities => "transit catalog capabilities",
         .describe => "transit catalog describe --config PATH",
+        .lookup => "transit catalog lookup --config PATH --name NAME",
+        .definition => "transit catalog definition --config PATH --object ID --revision ID",
+        .list => "transit catalog list --config PATH [--file PREVIOUS_PAGE] [--output PAGE]",
         .compile => "transit catalog compile --config PATH --operation ID --object ID --table ID --file SQL --output COMPILED",
         .@"prepare-initialize" => "transit catalog prepare-initialize --config PATH --file CONFIGURATION --output PREPARED",
         .@"prepare-create" => "transit catalog prepare-create --config PATH --file COMPILED --output PREPARED",
@@ -68,7 +74,7 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
             }
         }
         if (!found) return diagnostic.invalidArgument("unexpected input");
-        if (std.mem.eql(u8, args[i], "--operation") or std.mem.eql(u8, args[i], "--object")) {
+        if (std.mem.eql(u8, args[i], "--operation") or std.mem.eql(u8, args[i], "--object") or std.mem.eql(u8, args[i], "--revision")) {
             const value = c.Bridge.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive uint64 integer");
             if (value == 0) return diagnostic.invalidOption("must be a canonical positive uint64 integer");
         } else if (std.mem.eql(u8, args[i], "--table")) {
@@ -78,11 +84,14 @@ pub fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
         } else if (std.mem.eql(u8, args[i], "--input")) {
             result.input = c.Bridge.unsigned(args[i + 1]) catch return diagnostic.invalidOption("must be a canonical positive native position");
             c.Model.nativeId(result.input) catch return diagnostic.invalidOption("must be a canonical positive native position");
+        } else if (std.mem.eql(u8, args[i], "--name")) {
+            _ = c.fuze.model.Name.init(args[i + 1]) catch return diagnostic.invalidOption("requires a name of 1 through 16 ASCII letters, digits or underscores, starting with a letter or underscore");
         }
         i += 2;
     }
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        if (!result.help and allowed(mode, field) and @field(result.flags, field) == null) {
+        const optional = mode == .list and (std.mem.eql(u8, field, "file") or std.mem.eql(u8, field, "output"));
+        if (!result.help and allowed(mode, field) and !optional and @field(result.flags, field) == null) {
             diagnostic.atArgument(null, "--" ++ field);
             diagnostic.usage = usage(mode);
             return diagnostic.invalidOption("is required");
@@ -97,7 +106,7 @@ pub fn help(io: std.Io, mode: Mode) !void {
     const out = &writer.interface;
     try out.print("Usage: {s}\n\nOptions:\n  --help  Show this help\n", .{usage(mode)});
     inline for (@typeInfo(Flags).@"struct".field_names) |field| {
-        if (allowed(mode, field)) try out.writeAll("  --" ++ field ++ " " ++ (if (comptime std.mem.eql(u8, field, "config")) "PATH  Explicit catalog connection" else if (comptime std.mem.eql(u8, field, "file")) "PATH  Input SQL, typed control or saved JSON artifact" else if (comptime std.mem.eql(u8, field, "output")) "PATH  New private artifact; existing paths are refused" else if (comptime std.mem.eql(u8, field, "operation")) "ID  Positive uint64 application operation" else if (comptime std.mem.eql(u8, field, "object")) "ID  Positive uint64 catalog object" else if (comptime std.mem.eql(u8, field, "table")) "ID  Positive uint32 physical Table" else "POSITION  Receipt position for this exact saved command") ++ "\n");
+        if (allowed(mode, field)) try out.writeAll("  --" ++ field ++ " " ++ (if (comptime std.mem.eql(u8, field, "config")) "PATH  Explicit catalog connection" else if (comptime std.mem.eql(u8, field, "file")) "PATH  Input SQL, typed control or saved JSON artifact" else if (comptime std.mem.eql(u8, field, "output")) "PATH  New private artifact; existing paths are refused" else if (comptime std.mem.eql(u8, field, "operation")) "ID  Positive uint64 application operation" else if (comptime std.mem.eql(u8, field, "object")) "ID  Positive uint64 catalog object" else if (comptime std.mem.eql(u8, field, "revision")) "ID  Positive uint64 definition revision" else if (comptime std.mem.eql(u8, field, "name")) "NAME  Exact catalog name, at most 16 ASCII characters" else if (comptime std.mem.eql(u8, field, "table")) "ID  Positive uint32 physical Table" else "POSITION  Receipt position for this exact saved command") ++ "\n");
     }
     try out.writeAll("\nOnly submit sends a command. Save each prepared artifact before submitting.\nA receipt is admission; observe processing and read status or disposition.\nConfiguration and recovery: apps/transit-cli/docs/catalog.md\n");
     try out.flush();

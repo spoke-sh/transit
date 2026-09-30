@@ -60,10 +60,33 @@ does not establish application success.
 
 Errors retain their native cause and authority code where available. Native or
 catalog denial returns `denied`; changed scope/owner/configuration or conditional
-policy conflict returns `conflict`; missing catalog initialization returns
+policy conflict, changed cursor revision or changed referenced metadata returns
+`conflict`; missing catalog initialization returns
 `not_ready`; unavailable resource/owner returns `unavailable`. The ABI adds these
 exports and schemas without changing earlier layouts or saved creation bytes.
 Callers still require matching definition checks and the requested exports.
+
+## Bounded metadata
+
+`lookup` takes an exact name and returns an optional definition after validating
+the binding and live Table schema. `definition` takes canonical decimal-string
+`object` and `revision` IDs and returns an optional immutable definition.
+`list` takes null or a complete cursor and returns at most eight ordered
+definitions at one current resource revision. Definition results own their
+names, schema and original creation attribution; full-width IDs remain strings.
+
+The page has exactly eight optional slots, dense present entries and optional
+`next`. A cursor includes the mandatory current contract definition, scope,
+resource revision and last name. Reuse that exact cursor for continuation;
+missing/foreign definitions and malformed fields reject. A changed resource
+revision returns `conflict` and requires a new listing. Do not concatenate the
+old partial result with a new revision. An empty final page is possible.
+
+Metadata calls check current catalog inspection policy and native grants, including
+when continuing an earlier page. They acquire no view and submit no command.
+Dependent definition/Table batches stay at the initial revision and recheck
+native grants. These actions add no handle-layout or saved-command changes.
+Public SDK metadata methods remain separate from existing typed controls.
 
 ## Port configuration
 

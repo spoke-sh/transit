@@ -1152,6 +1152,62 @@ Committed `55f360e3` also passes `just ci-clean --lane core`: **22 tasks in
 `/tmp/transit-sql-catalog-neutral-metadata-ci-clean.log`. It does not include
 the later signed-read batching or metadata action additions.
 
+### Catalog metadata through native ABI, port and CLI
+
+The neutral bridge adds `lookup`, exact `definition` and `list` actions using
+the shared signed client. Generated schemas/resources cover the new variants;
+earlier action/result fields, handle layouts and saved commands are unchanged.
+CLI list continuation consumes the original private saved page and checks its
+complete structure before credential loading.
+
+On development source based on `fdaa53f4`, `just test::catalog --grow 17` passes
+in **48.402 s**. All three callers agree with Zig for **22 definitions over three
+pages**, every point lookup and exact definition, and missing records. The walk
+repeats after node/Ursula disk restart. A newly created Table invalidates an
+original cursor on all surfaces, including a saved CLI page. Catalog and native
+revocation deny all three metadata actions; the paused dependent-read revocation
+case also remains. Existing creation/control recovery retains five lost caller
+receipts and three lost owner receipts. Counts are 4201 total reads, 2193 caller
+reads and 53 turn responses; bounds remain four mutations, 132-byte values and
+eight resident pages.
+
+All 21 successful neutral list calls stay within five signed reads: seven each
+through ABI/port cost four with previously negotiated batch support, and seven
+fresh CLI invocations cost five. The cached capability is not an authorization
+cache. Every operation still fetches current configuration/policy and native
+grants; these unpaired wall times establish no latency claim.
+The report is `/tmp/transit-sql-catalog-metadata-abi-cli-native.json`; the log is
+`/tmp/transit-sql-catalog-metadata-abi-cli-native-schema-fixed.log`.
+The report retains source/dirty status and all six binary hashes. Node, proof and
+catalog host hashes match the preceding batched-reader proof. Updated binaries:
+
+| Binary | SHA-256 |
+| --- | --- |
+| native port | `f8329121706cfb35e41af77aaf96df35c1389d384849fa8d980f7055401bcb62` |
+| native library | `fac060c74e3f679858543451b494c1e1ebf4a3e5d7d5312897759be140539060` |
+| CLI | `7f427823c886cbd629b3325aaccbf98de48fbbb3dee92dad2f33563b4d9a993c` |
+
+Protocol/catalog unit tests and **399 real CLI diagnostic cases** pass at
+`/tmp/transit-sql-catalog-metadata-ordinal-fix.log`. New cases check required
+arguments, canonical IDs/names, saved-page holes, ordering/continuation scope and
+revision, missing/foreign definitions and final-page refusal before credential
+loading. The first CLI/native attempts expose a shared decoder defect: Zig's
+generic enum parser accepts an all-zero string as ordinal zero. The shared
+protocol shape validator now requires exact declared names; numeric aliases
+reject even when nested in a page or action. Logs
+`/tmp/transit-sql-catalog-metadata-abi-cli-expanded.log` and
+`/tmp/transit-sql-catalog-metadata-abi-cli-native.log` retain those failures.
+The following native attempt reaches metadata comparison but fails because its
+fixture retains the native schema's `version` field in the neutral expectation;
+`/tmp/transit-sql-catalog-metadata-abi-cli-native-fixed.log` records it. The
+fixture now verifies version one and compares the declared neutral schema.
+Full `just check` passes at
+`/tmp/transit-sql-catalog-metadata-abi-cli-full-check.log`; final documentation
+and verification inventory checks pass 4625 links across 486 files, 56
+invariants, 53 bounds and 13 SDK scenarios at
+`/tmp/transit-sql-catalog-metadata-abi-cli-docs.log`. Installed all-SDK regression
+and committed clean validation remain separate executions.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

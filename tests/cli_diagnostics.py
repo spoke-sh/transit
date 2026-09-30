@@ -114,7 +114,7 @@ invoke(['catalog', '--help'], 0, ('transit catalog COMMAND',))
 capabilities = json.loads(invoke(['catalog', 'capabilities'], 0).stdout)['capabilities']
 assert capabilities['create_table'] and capabilities['conditional_policy'] and capabilities['max_saved_bytes'] == 8192
 invoke(['catalog', 'private-must-not-appear'], contains=('unknown catalog subcommand', 'argument 2'))
-for mode in ('describe', 'compile', 'prepare-initialize', 'prepare-create', 'prepare-policy', 'submit', 'observe', 'disposition', 'status'):
+for mode in ('describe', 'lookup', 'definition', 'list', 'compile', 'prepare-initialize', 'prepare-create', 'prepare-policy', 'submit', 'observe', 'disposition', 'status'):
     invoke(['catalog', mode], contains=(f'Usage: transit catalog {mode}', '--config is required'))
     invoke(['catalog', mode, '--help'], 0, (f'Usage: transit catalog {mode}', 'Only submit sends a command'))
     invoke(['catalog', mode, '--config', 'private-must-not-appear', '--help'], 0)
@@ -122,7 +122,7 @@ for mode in ('describe', 'compile', 'prepare-initialize', 'prepare-create', 'pre
     invoke(['catalog', mode, '--help', '--unknown=private-must-not-appear'], contains=('argument 4',))
     invoke(['catalog', mode, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
     invoke(['catalog', mode, '--help', '--help'], stderr='error: --help can only be specified once\n')
-for mode, flag in [('capabilities', '--config'), ('submit', '--output'), ('describe', '--file'), ('status', '--operation')]:
+for mode, flag in [('capabilities', '--config'), ('submit', '--output'), ('describe', '--file'), ('status', '--operation'), ('lookup', '--file'), ('definition', '--name'), ('list', '--revision')]:
     invoke(['catalog', mode, flag, 'private-must-not-appear'], contains=(flag + ' is not supported',))
 for flag in ('--operation', '--object'):
     for value in ('0', '00', '+1', '-1', '01', '18446744073709551616'):
@@ -132,6 +132,14 @@ for value in ('0', '01', '4294967296'):
 for mode in ('observe', 'disposition'):
     for value in ('0', '01', '9007199254740992'):
         invoke(['catalog', mode, '--input', value], contains=('canonical positive native position',))
+invoke(['catalog', 'lookup', '--config', 'missing'], contains=('--name is required',))
+invoke(['catalog', 'definition', '--config', 'missing'], contains=('--object is required',))
+invoke(['catalog', 'definition', '--config', 'missing', '--object', '1'], contains=('--revision is required',))
+for value in ('1name', 'with space', 'name.with.dot', 'abcdefghijklmnopq', 'caf\u00e9'):
+    invoke(['catalog', 'lookup', '--name', value], contains=('1 through 16 ASCII',))
+for flag in ('--object', '--revision'):
+    for value in ('0', '00', '+1', '-1', '01', '18446744073709551616'):
+        invoke(['catalog', 'definition', flag, value], contains=('canonical positive uint64',))
 
 with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory:
     root = Path(directory)
@@ -200,6 +208,36 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['catalog', 'submit', '--config', catalog_config, '--file', bad_prepared], contains=('artifact', 'invalid or missing field'))
     bad_prepared.write_text('{"prepared":"{}"}')
     invoke(['catalog', 'submit', '--config', catalog_config, '--file', bad_prepared], 1, ('InvalidCatalogPrepared',))
+    # Entire saved pages, including mandatory definition and continuation
+    # consistency, validate before reading the missing signing credential.
+    fixture = Path(__file__).resolve().parents[1] / 'packages/zig/transit-catalog/src/fixtures/catalog-neutral-v1.json'
+    page = json.loads(fixture.read_text())['page']
+    page_path = root / 'catalog-page.json'
+    page_args = ['catalog', 'list', '--config', catalog_config, '--file', page_path]
+    for foreign in (None, '0' * 64):
+        invalid_page = copy.deepcopy(page)
+        if foreign is None: del invalid_page['next']['definition']
+        else: invalid_page['next']['definition'] = foreign
+        page_path.write_text(json.dumps(dict(page=invalid_page)))
+        invoke(page_args, contains=('artifact', 'invalid or missing field'))
+    invalid_page = copy.deepcopy(page)
+    invalid_page['next'] = None
+    page_path.write_text(json.dumps(dict(page=invalid_page)))
+    invoke(page_args, contains=('page.next', 'saved page has no continuation'))
+    for malformed in ('hole', 'scope', 'revision', 'name'):
+        invalid_page = copy.deepcopy(page)
+        if malformed == 'hole': invalid_page['entries'][1], invalid_page['entries'][0] = invalid_page['entries'][0], None
+        elif malformed == 'scope': invalid_page['next']['scope']['catalog'] = '1'
+        elif malformed == 'revision': invalid_page['next']['resource_revision'] += 1
+        else: invalid_page['next']['after'] = 'other'
+        page_path.write_text(json.dumps(dict(page=invalid_page)))
+        invoke(page_args, 1, ('InvalidCatalogPage',))
+    invalid_page = copy.deepcopy(page)
+    invalid_page['entries'][0]['object'] = '01'
+    page_path.write_text(json.dumps(dict(page=invalid_page)))
+    invoke(page_args, 1, ('InvalidCatalogInteger',))
+    page_path.write_text(json.dumps(dict(page=page)))
+    invoke(page_args, contains=('cannot load the catalog signing credential',))
     yaml_config = root / 'catalog.yaml'
     yaml_config.write_text("version: 1\nconnection:\n  scope:\n    realm: 46\n    resource: 2\n    catalog: '18446744073709551615'\n  owner: 1\n  principal: 1234\n")
     yaml_args = list(compile_args)

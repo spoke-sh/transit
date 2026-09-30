@@ -210,6 +210,9 @@ identity bounds still apply. Schema names are exactly two strings and
 | `capabilities` | Local supported operations, current definition and saved-command/Table bounds; no authority lookup |
 | `compile` | SQL, operation/object strings and physical Table ID; returns the typed request plus canonical `q` record hex; offline, with no policy or admission claim |
 | `describe` | Current configuration, caller policy and resource revision |
+| `lookup` | Exact name string; returns optional definition with current binding and live Table schema checks |
+| `definition` | Object and definition revision decimal strings; returns optional immutable definition |
+| `list` | Null for a fresh listing or a complete continuation cursor; returns one current-authorized page |
 | `prepare_initialize` | Exact configuration; returns the owned opaque prepared string |
 | `prepare_create` | Complete typed original request; returns the owned opaque prepared string |
 | `prepare_policy` | Expected revision string and complete target policy; returns the owned opaque prepared string |
@@ -321,7 +324,8 @@ resource writer. Subsequent point/page reads require that exact current resource
 revision and current native grants. No retained view, admission or permission
 cache is created. A cursor is a local continuation value, not a bearer grant;
 catalog inspection authorization precedes continuation validation. Native
-ABI/port, CLI and language SDK metadata mappings do not yet expose these methods.
+ABI/port actions and explicit CLI commands expose the same methods; language SDK
+metadata mappings remain separate from their creation/control methods.
 Signed listing fetches definition records in one bounded batch and their Table
 descriptors in a second batch. Both require the same current revision and native
 grants. The second batch replaces the first after definitions are validated and
@@ -334,7 +338,12 @@ definition, scope, native resource revision and last normalized name; decoding
 cannot default a missing compatibility field. `Bridge.Page` owns eight optional
 entries and an optional cursor. Conversion rejects holes, non-increasing names,
 mixed scopes and continuation that does not match the last entry and revision.
-These conversions introduce no additional executable neutral actions by themselves.
+The neutral `definition` result contains an optional `Bridge.Definition`; the
+`page` result contains `Bridge.Page`. Missing records return null after current
+authorization. Exact-definition reads do not revalidate the current live Table.
+Changed cursor scope/revision or referenced definition/Table metadata returns a
+conflict through the native ABI/port. A caller must not combine pages across
+resource revisions or silently restart a failed continuation.
 
 Resident work holds one native page, at most eight definitions, a configuration/
 policy batch and at most one eight-key dependent batch. Private-turn sources use

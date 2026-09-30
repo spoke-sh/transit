@@ -77,10 +77,10 @@ The shared Zig `Client` can prepare and submit that request to an explicitly
 integrated catalog application, preserve its exact signed send across caller
 replacement, and inspect its attributed outcome under current rights. A send
 receipt establishes admission; publication requires an applied catalog receipt.
-The Zig caller also supports name lookup, exact definition reads and lists of at
+Zig, native ABI/port and explicit CLI callers support name lookup, exact definition reads and lists of at
 most eight catalog definitions. Continuation binds the resource revision and
 rechecks current rights; a changed revision requires a fresh listing. These
-metadata methods are not yet exposed through the catalog CLI or language SDKs.
+metadata methods are not yet exposed through language SDKs.
 The supplied catalog host requires explicit native provisioning, initialization
 and grants. It does not enable the query console or infer query/mutation policy.
 
