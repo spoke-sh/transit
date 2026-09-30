@@ -307,9 +307,28 @@ pub fn main(init: std.process.Init) !void {
     var wrong = genesis;
     wrong.realm += 1;
     try t.expectError(error.WrongProtocolRealm, Engine.open(&journal, &page_store, wrong));
-    var legacy: adapter.Store = .{ .journal = journal.store.journal };
-    if (!checkpoint and !trimmed) {
-        if (legacy.read(0)) |_| return error.LegacyAcceptedGrowthHistory else |_| {}
+    // There is one current Store after the v1 cutover. Exercise actual foreign
+    // and absent stored definitions, not that same Store under a legacy alias.
+    for ([_][]const u8{ "foreign-definition", "missing-definition" }, 0..) |name, index| {
+        var invalid: Journal = .{ .store = .{ .journal = journal.store.journal } };
+        invalid.store.journal.stream.name = name;
+        if (writing) {
+            const original = (try journal.store.read(0)).?;
+            const bytes = try std.json.Stringify.valueAlloc(init.gpa, original, .{});
+            defer init.gpa.free(bytes);
+            var parsed = try std.json.parseFromSlice(std.json.Value, init.gpa, bytes, .{});
+            defer parsed.deinit();
+            const head = parsed.value.object.getPtr("genesis").?.object.getPtr("head").?;
+            if (index == 0) head.object.getPtr("definition").?.* = .{ .string = "foreign-v1-definition" } else _ = head.object.swapRemove("definition");
+            const malformed = try std.json.Stringify.valueAlloc(init.gpa, parsed.value, .{});
+            defer init.gpa.free(malformed);
+            try invalid.store.journal.create();
+            try t.expect(try invalid.store.journal.append(0, malformed));
+        }
+        const writes = page_store.created;
+        if (index == 0) try t.expectError(error.InvalidEnumTag, Engine.open(&invalid, &page_store, genesis)) else try t.expectError(error.MissingField, Engine.open(&invalid, &page_store, genesis));
+        try t.expectEqual(writes, page_store.created);
+        try t.expectEqual(@as(u64, 1), try invalid.tail());
     }
     // Remove page storage only in the disposable fixture, after all
     // restart assertions. Missing required content must not become empty state.

@@ -1,5 +1,17 @@
 # Validation and milestone evidence
 
+## Stored-definition recovery correction
+
+The former `LegacyAcceptedGrowthHistory` assertion instantiated the current
+`adapter.Store` under a legacy variable name and incorrectly required it to reject
+current history. The replacement writes separate foreign-definition and
+missing-definition records to disposable disk journals, then requires exact
+decoding errors before recovery can write pages or append authority. The checks
+repeat after provider restart and checkpoint/trim of the valid journal.
+At dirty source based on `a59e0d9c`, `just test::growing` passed write, recovery,
+checkpoint and trimmed recovery (54.098, 3.859, 6.668 and 3.776 seconds). This fixes
+that focused proof; a complete clean CI run remains separately required.
+
 ## Component simulation
 
 At dirty source based on `d3562a07`, `just test::domain-simulation --seeds 8`
