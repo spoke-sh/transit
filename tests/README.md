@@ -5619,3 +5619,31 @@ The BEAM increment passes full `just check`, including generated-contract drift,
 native unit/CLI checks, the verification catalog, frontend checks and the
 documentation build. The installed consumers pass Erlang and Elixir compilation
 with warnings as errors.
+
+### Standards-main rebase and clean CI boundary
+
+The SQL branch rebases through main `f481f2b9`, including `c50ee96a`'s standards,
+multi-model and historical-schema analysis. Runtime, fixtures, generated contracts
+and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
+the roadmap index and the independently added M38: main's standards/branching M38
+is preserved, and the SQL continuation becomes M39. Original author and committer
+dates are preserved by `git rebase --committer-date-is-author-date`.
+
+The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
+It passed core and the growing-service schedule in **428.16 s**, including query
+delivery in **148.517 s** under its unchanged 180-second bound. Public query,
+publication, native mutation, HTTP/gRPC libraries/transport/server and Flight
+metadata also passed. The ordinary gRPC worker proof passed in **736.96 s**
+(**726.53 s** excluding compilation), with nine sends and eight applications.
+
+`test::grpc-faults` then failed after **402.84 s**, after its preparation,
+dispatch, completion and observation recovery cases. During preparation of the
+second finite-lifetime exchange, an accepted send was followed by a native read
+returning HTTP 503 `DeadlineUncertain`, surfaced as `AuthorityUnavailable`.
+This is in the scenario that provisions a 60-second work cutoff before staging
+two exchanges; it did not reach the blocked-peer/control assertions. The log
+does not establish a generic transport outage. Deadlines and authority gates
+remain unchanged. The retained checkout is `/var/tmp/transit-ci-zlmded5l`, with
+the command log at `/tmp/transit-sql-rust-ci-clean.log`. Later suite tasks did
+not run. This failure is not a pass and the frozen checkpoint does not qualify
+the later C/C++, Java, .NET or BEAM mutation adapters.
