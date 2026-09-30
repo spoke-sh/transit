@@ -72,6 +72,16 @@ does not decode or return those other values, but cannot promise zero row-byte
 I/O at the boundary. Current proofs do not qualify the remaining declaration,
 dependency, lifecycle, maintained-query or effect systems.
 
+At committed `97378a8e`, **`just ci-clean --lane core` passes all 18 tasks**
+without inherited workspace build outputs in **702.52 seconds**. Independent
+package builds take 139.81 seconds, Station 148.66 seconds and disk storage
+213.72 seconds, including the 129.21-second readiness write. Completion metadata
+and per-task results are retained under
+`.cache/ci/clean/97378a8e43a2-transit-ci-twnd5sz1/`; the log is
+`/tmp/transit-sql-catalog-ci-clean.log`. The following evidence-only commit changes
+no production code. This is a clean core-lane pass plus the focused native/SQL
+proofs above, not a complete clean-suite or administrative-surface qualification.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
