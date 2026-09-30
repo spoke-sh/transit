@@ -2,25 +2,18 @@
 
 [![CI](https://github.com/rupurt/rey/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/rupurt/rey/actions/workflows/ci.yml)
 
-An agentic streaming kernel: a foundational execution protocol enforced by
-durable message sequences.
+Transit provides durable processes, messaging and state for applications.
 
-Transit gives programs durable processes, ordered mailboxes, and associated state.
-Application code runs in callers; the kernel governs what can commit and how work
-recovers. [Board](docs/guides/inspect-board.md) makes that history inspectable. [Station](docs/reference/station.md)
-provides behaviors, supervision, registries and typed Tables through Zig and
-shared language bindings. [Fuze](docs/reference/queries.md) queries declared KV, Table and accepted Document sources
-through one versioned plan and nested Arrow result model.
+Use the [CLI](docs/reference/cli.md) to run Transit and install applications,
+[SQL](docs/reference/sql.md) to query KV, Table and Document data, and
+[language SDKs](docs/reference/sdks.md) to build workers and callers.
+Integrate through [HTTP](docs/reference/openapi.md) and
+[reactive APIs](docs/reference/asyncapi.md), connect analytical tools with
+[Flight SQL and ADBC](docs/reference/flight.md), and inspect the system in
+[Board](docs/guides/inspect-board.md).
 
-This monorepo contains Transit's Zig libraries and services, TypeScript/Vite+
-frontends, and development tooling. Ursula supplies durable storage; Kubernetes
-with Agent Substrate is the reference deployment. **Rey is the intended downstream
-trading application**, using the same primitives as other workloads.
-
-Transit provides durable processes and state, Station SDKs, HTTP/gRPC connectors,
-KV/Table/Document queries, reactive APIs, finite Flight SQL and local application
-installation. The [interface guide](docs/guides/choose-interface.md) describes
-their operations, supported types and compatibility rules.
+The [interface guide](docs/guides/choose-interface.md) describes supported
+operations, types and compatibility rules for each entry point.
 
 ## Documentation
 
@@ -40,32 +33,22 @@ Start with [What is Transit?](docs/guides/introduction.md),
 | System internals | [Architecture, rationale and evidence](docs/internals/README.md), [scientific standard](docs/internals/standard.md) |
 | Example recipes | [SQL, Python, TypeScript, Rust and Zig](docs/guides/workload-examples.md) |
 
-Preview the Docusaurus site with `nix develop`, `just transit-docs::install` and
-`just transit-docs::dev`. The [documentation index](docs/README.md) and
-[site guide](apps/transit-docs/README.md) explain navigation and source ownership.
+The [documentation index](docs/README.md) explains navigation and source ownership;
+the [site guide](apps/transit-docs/README.md) covers local previews.
 
 ## Develop the repository
 
-For the current resource-backed local stack, use Linux with synchronized time
-and Nix with flakes and `nix-command` enabled:
+After completing the [development setup](docs/guides/contributing.md), start the
+local stack from the repository root:
 
 ```sh
 nix develop
-just doctor
-just transit-board::install
-just check
 just launchers::local::up
 ```
 
-Open the printed Board URL. Everyone who can reach Board can inspect its configured
-scope; run it on a private development network. Logs stream in the foreground;
-Ctrl-C stops services and preserves data.
-
-The [launcher guide](launchers/README.md) covers host/port settings, updates,
-Compose, and the Kubernetes reference. Use [development](docs/guides/contributing.md)
-for build profiles and checks, or run `just` to browse tasks.
-For the multi-process programming example, follow the
-[Station ledger guide](examples/station-ledger/docs/running.md).
+Open the printed Board URL on a private development network. Ctrl-C stops services
+and preserves data. See the [launcher guide](launchers/README.md) for configuration
+and lifecycle commands.
 
 ## Find your way
 
