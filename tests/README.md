@@ -1309,6 +1309,17 @@ Report/package hashes and log are
 on `9c6ca374`; native binary hashes are unchanged. Seven language metadata
 mappings remain outside this evidence.
 
+Committed `a65c4285` passes `just ci-clean --lane core`: **all 22 tasks in
+891.07 s**, including the seeded resource, scheduler, component and external
+fault suites. Completion metadata and every task exit code are retained at
+`.cache/ci/clean/a65c4285c45d-transit-ci-_g1s7lbt/core.{json,meta.json}`;
+the command log is `/tmp/transit-sql-catalog-three-sdk-metadata-ci-clean.log`.
+The cumulative Python/TypeScript/Rust source passes full `just check`, including
+the documentation build, at
+`/tmp/transit-sql-catalog-three-sdk-metadata-full-check.log`. This is the expanded
+clean core lane, not a full clean suite or evidence for the seven remaining
+language metadata APIs. The following evidence-only commit records these results.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
