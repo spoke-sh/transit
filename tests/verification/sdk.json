@@ -178,7 +178,7 @@
       },
       "proofs": [
         {
-          "task": "bindings::test",
+          "task": "bindings::native",
           "source": "tests/station_query_abi.py",
           "anchor": "check('query-abi'"
         }
@@ -320,7 +320,7 @@
       },
       "proofs": [
         {
-          "task": "bindings::test",
+          "task": "bindings::native",
           "source": "tests/station_growing_abi.py",
           "anchor": "check('decode-failure'"
         }

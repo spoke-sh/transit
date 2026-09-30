@@ -81,7 +81,16 @@
       "tasks": [
         "test::callers",
         "test::client-abi",
-        "bindings::test",
+        "bindings::native",
+        "bindings::python-test",
+        "bindings::node-sdk-test",
+        "bindings::rust-sdk-test",
+        "bindings::ruby-sdk-test",
+        "bindings::c-sdk-test",
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test",
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop",
         "test::properties",
         "test::model"
       ],
@@ -169,7 +178,16 @@
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
-        "bindings::test",
+        "bindings::native",
+        "bindings::python-test",
+        "bindings::node-sdk-test",
+        "bindings::rust-sdk-test",
+        "bindings::ruby-sdk-test",
+        "bindings::c-sdk-test",
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test",
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop",
         "test::client-abi"
       ],
       "scenarios": [
@@ -192,7 +210,16 @@
       "tasks": [
         "test::arrow",
         "test::station",
-        "bindings::test"
+        "bindings::native",
+        "bindings::python-test",
+        "bindings::node-sdk-test",
+        "bindings::rust-sdk-test",
+        "bindings::ruby-sdk-test",
+        "bindings::c-sdk-test",
+        "bindings::java-sdk-test",
+        "bindings::dotnet-sdk-test",
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop"
       ],
       "scenarios": [
         "Independent PyArrow and wide integers",
@@ -863,7 +890,7 @@
         "test::http-transport",
         "test::tls-alpn",
         "test::http-worker",
-        "bindings::test",
+        "bindings::native",
         "bindings::python-test",
         "bindings::node-sdk-test",
         "bindings::rust-sdk-test",
@@ -871,7 +898,8 @@
         "bindings::c-sdk-test",
         "bindings::java-sdk-test",
         "bindings::dotnet-sdk-test",
-        "bindings::beam-sdk-test"
+        "bindings::beam-sdk-test",
+        "bindings::sdk-interop"
       ],
       "scenarios": [
         "Four-mutation segment publication, conflicting identities, quota refusal and rollback",
