@@ -2259,6 +2259,26 @@ are retained in the follow-up record; clean integrated qualification remains
 separate. A fresh hosted check still does not start because GitHub reports the
 account payments/spending-limit restriction.
 
+The clean experience lane at `95ed6c72` again passes five tasks, then fails
+when a retained stale Atlas position returns temporary HTTP 503 instead of the
+required 409. The Station launcher and subsequent lanes remain unrun. A 503
+does not establish stale-cut rejection. The observation helper now gives each
+read one bounded retry loop, including reads with expected rejection statuses:
+eight attempts for query/inspection reads and twelve for Atlas. It retains the
+same URL, saved position, operation and request bytes; expected statuses and
+`no-store` assertions remain mandatory. The existing receipt/result deadlines
+still bound their reads, and mutations are never retried by this helper.
+
+Eleven controlled response schedules pass, including unavailable-then-expired,
+unavailable-then-denied, refusal to accept a successful stale-cut read, both retry
+bounds, unchanged query identity, deadline exhaustion, receipt observation and
+no mutation retry. The final helper also passes the complete real Board proof
+in a separate checkout based on `95ed6c72`. The simulation checkout remains at
+that unchanged commit while this fixture correction is validated; reports retain
+their actual source identities. The follow-up record embeds the failed clean
+attempt and controlled-check driver. Complete clean qualification of the final
+fixture is still required.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
