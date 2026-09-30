@@ -12,11 +12,15 @@ establishes syntax and AST agreement for its declared PostgreSQL subset; executi
 keeps Transit's documented types, cell states, ordering and arithmetic limits.
 The [standards and data-model analysis](../internals/query-engine.md#standards-and-multiple-data-models)
 explains future language targets without expanding the supported interface.
+The [grammar surface inventory](sql/grammar-surface.md) labels implemented and
+planned operations, including the intended graph, foreign-relation and historical
+schema syntax. Planned examples are proposals, not runnable SQL.
 
 ## Find an operation
 
 | Task | Reference |
 | --- | --- |
+| Compare implemented and planned grammar | [Grammar surface and semantic targets](sql/grammar-surface.md) |
 | Read rows, filter or aggregate | [SELECT](sql/select.md) |
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |

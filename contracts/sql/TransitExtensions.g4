@@ -169,15 +169,12 @@ explainStatement
     : EXPLAIN selectStatement
     ;
 
-// A fragment only: reserved for a future SELECT table-reference extension,
-// deliberately excluded from the executable SELECT profile here — `orders FOR SYSTEM_TIME AS OF 240`.
-// Deliberately the SQL:2011 system-versioned-table clause name (forensic
-// point-in-time reconstruction, not a windowing/event-time concept: see
-// docs/history/QUERY_LANGUAGE.md's forensic-first scoping), but its argument is a
-// Transit revision — an integer journal position — not the standard's
-// wall-clock TIMESTAMP literal. Names existing retained-read-version
-// machinery (contracts/READ_VERSIONS_V1.md, GROWTH-10) rather than inventing
-// new historical-read semantics.
+// Isolated fragment only; no production operation interprets this integer.
+// Keep the rule unchanged until a deliberate grammar/contract cutover.
+// The intended language reserves FOR SYSTEM_TIME for SQL temporal semantics
+// and uses separate typed Transit snapshot/branch/tag and resource selectors.
+// See docs/reference/sql/as-of.md; this rule enables neither historical queries
+// nor a mapping from a system-time expression to a resource journal revision.
 asOfClause
     : FOR SYSTEM_TIME AS OF INTEGER
     ;

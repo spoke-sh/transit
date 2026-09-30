@@ -83,6 +83,8 @@ and step evidence; broader transforms need their own implementation and proof.
 - [Compiler package](../../packages/zig/transit-station-app/README.md): real parse/format/schema/module commands and native APIs.
 - [Browser package](../../packages/ts/transit-application/README.md): generated runtime validation, scoped signing and proposal recovery.
 
-General DDL in the wider SQL reference grammar is still grammar-only. The
-application declaration compiler handles application definitions; the query
-console executes finite SELECT statements. See [SQL](sql.md).
+The application declaration compiler handles application definitions. State
+declarations have their own offline compiler, and compatible empty Tables publish
+through explicit catalog callers. Connector DDL and SQL privileges remain
+grammar-only; the query console does not execute administration. See the
+[SQL grammar surface](sql/grammar-surface.md) for implemented and planned forms.
