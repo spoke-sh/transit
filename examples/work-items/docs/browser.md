@@ -84,3 +84,7 @@ For the selected schema evolution, copy and verify the target Table while
 writes are paused, activate its epoch, update source query policy, publish the
 compatible interface, then explicitly release writes. These are separate owner
 commits, not a cross-resource transaction. See [migration](migration.md).
+
+The proof composition sets the requester and courier to a 100 ms base poll
+interval with an idle ceiling of one second. Idle polling backs off without
+changing query identity, admission budgets or native request capacity.
