@@ -1315,6 +1315,31 @@
       "limits": "Eight pending decision slots; at most 4096 actions. No actual client/worker/courier scheduler, HTTP, finite clock/lifetime, resource mutation, page fault or physical provider. Progress is conditional on the explicit finite schedule; atomic conditional append is assumed.",
       "model": null,
       "qualification": "See tests/README.md#authority-and-delivery-simulation for executed current-revision evidence; tracking issue #26 covers broader simulation and real-binary work."
+    },
+    {
+      "id": "SIM-02",
+      "claim": "Faulted immutable staging cannot partially publish resource state, input progress or outputs; captured roots and accepted work survive authorized prefix trim",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "packages/zig/transit-core/src/growing_state.zig",
+        "packages/zig/transit-core/src/pages.zig",
+        "tests/resource_simulation.zig"
+      ],
+      "profile": "one resource writer, one key, captured roots, a two-page test cache and atomic journal",
+      "tasks": [
+        "test::resource-simulation",
+        "test::resource-simulation-smoke",
+        "test::resource-simulation-mutations"
+      ],
+      "scenarios": [
+        "Numbered failures before/after individual and batched staging, unavailable page reads and cache eviction",
+        "Conditional append refusal and lost acknowledgement with exact frozen retries",
+        "Checkpoint publication, interrupted prefix trimming and cold recovery without staging",
+        "Independent resource/input/output/view oracle, identical replay and bounded failure minimization"
+      ],
+      "limits": "At most 512 events per trace. In-memory provider with atomic append and retained immutable pages; no physical WAL, deletion/GC, corruption or disk capacity claim. Ordinary exploration samples first/middle/last I/O boundaries; exhaustive enumeration is explicit.",
+      "model": null,
+      "qualification": "See tests/README.md and .cache/verification/resource-simulation.json for executed scope and completeness."
     }
   ]
 }

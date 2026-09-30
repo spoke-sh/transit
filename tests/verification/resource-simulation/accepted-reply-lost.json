@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "profile": "storage",
+  "seed": 1,
+  "actions": [
+    {
+      "kind": "send",
+      "value": 9761
+    },
+    {
+      "kind": "open_view"
+    },
+    {
+      "kind": "prepare",
+      "value": 3505
+    },
+    {
+      "kind": "commit",
+      "fault": "after_append",
+      "fault_at": 1
+    },
+    {
+      "kind": "clock",
+      "time": {
+        "unix_ms": 10
+      }
+    },
+    {
+      "kind": "grant"
+    },
+    {
+      "kind": "resource_grant"
+    },
+    {
+      "kind": "own"
+    },
+    {
+      "kind": "assert_drained"
+    },
+    {
+      "kind": "checkpoint"
+    },
+    {
+      "kind": "trim"
+    },
+    {
+      "kind": "evict"
+    },
+    {
+      "kind": "restart"
+    },
+    {
+      "kind": "assert_drained"
+    }
+  ]
+}

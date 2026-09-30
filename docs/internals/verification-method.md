@@ -76,6 +76,44 @@ owns bounds, reproduction and negative controls. The
 [simulation evidence](../../tests/README.md#authority-and-delivery-simulation)
 records executed results; no timing here establishes deployed throughput or latency.
 
+## Resource publication under I/O faults
+
+The question is whether interruption between immutable staging and authoritative
+publication can expose only part of a turn. The
+[resource driver](../../tests/resource_simulation.zig) executes the real core with
+one resource writer, a single key, captured views and an output to the same PID.
+Its [provider model](../../tests/simulation_store.zig) has an atomic journal,
+retained immutable pages and a two-slot volatile page cache. It includes the
+batched staging interface: an interrupted batch can retain orphan pages while
+returning no successful publication. Neither journal trimming nor eviction
+removes required immutable pages.
+
+The [independent oracle](../../tests/verification/resource_simulation.py) extends
+the existing logical resource model with captured values, output provenance and
+the accepted history floor. Rejected staging must leave all published projections
+unchanged. Lost journal acknowledgements retain accepted state and the original
+retry identity. The driver compares live observations with cold recovery after
+every event and rejects any recovery-time staging. These comparisons can refute
+atomic publication or retained-root recovery within the modeled boundary.
+
+A successful control trace measures reachable I/O call coordinates. Exploration
+injects a fault at the first, middle and last call of each eligible event; an
+explicit exhaustive mode visits every measured call. Each requested fault must
+fire. Coordinates choose the disturbance only: expected logical state comes from
+the separate oracle, never from the control run's state. Faults last one event;
+an explicit available-storage suffix drains accepted producer input and repeats
+checkpoint/trim/recovery. Pending outputs remain recorded for separate delivery
+checks. This is a finite recovery schedule, not scheduler fairness.
+
+Saved traces keep a small ordinary regression budget; broader enumeration is a
+focused experiment. Full traces, bounded minimized correspondence failures,
+source/compiler/binary/oracle identity and incomplete-run status are retained.
+Mutation checks omit actual resource writes or input progress to challenge the
+oracle. Physical WAL, page deletion/GC and arbitrary corruption remain outside
+this model. See the [harness guide](../../tests/verification/README.md#resource-publication-simulation)
+for reproducible commands and the [proof ledger](../../tests/README.md) for executed
+results and costs.
+
 ## Reproducibility
 
 Record the source/toolchain/provider revisions, commands, environment, workload,

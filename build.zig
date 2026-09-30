@@ -292,6 +292,19 @@ pub fn build(b: *std.Build) void {
     simulation.has_side_effects = true;
     simulation.stdio = .inherit;
     b.step("test-simulation", "Simulate competing workers, ordered delivery and bounded recovery progress").dependOn(&simulation.step);
+    const resource_simulation_driver = b.addExecutable(.{ .name = "transit-resource-simulation", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/resource_simulation.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_core", .module = core.module("transit_core") }},
+    }) });
+    const resource_simulation = b.addSystemCommand(&.{ "python3", "-B" });
+    resource_simulation.addFileArg(b.path("tests/verification/resource_simulation.py"));
+    resource_simulation.addArtifactArg(resource_simulation_driver);
+    resource_simulation.addPassthruArgs();
+    resource_simulation.has_side_effects = true;
+    resource_simulation.stdio = .inherit;
+    b.step("test-resource-simulation", "Simulate page I/O faults and atomic resource publication").dependOn(&resource_simulation.step);
     const formal = b.addSystemCommand(&.{ "python3", "-B" });
     formal.addFileArg(b.path("tests/verification/model.py"));
     formal.addArtifactArg(transition_driver);

@@ -49,6 +49,19 @@ simulation *args:
 simulation-mutations:
     python3 -B tests/verification/mutations.py --simulation
 
+# Small saved storage fault regression corpus.
+resource-simulation-smoke:
+    zig build test-resource-simulation -- --smoke
+
+# Compiling core mutations for atomic resource/input publication.
+resource-simulation-mutations:
+    python3 -B tests/verification/mutations.py --resource
+
+# Numbered page/journal faults, captured roots and checkpoint recovery.
+resource-simulation *args:
+    zig build test-resource-simulation -- {{args}}
+
+
 # Run finite codec regressions; optional Zig fuzz iteration budget.
 codecs *args:
     zig build test-codecs {{args}}

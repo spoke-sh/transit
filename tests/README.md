@@ -1,5 +1,19 @@
 # Validation and milestone evidence
 
+## Resource publication simulation
+
+The resource profile adds numbered page staging/read faults, a two-page cache,
+resource/input/output correspondence, captured view roots and checkpoint/trim
+recovery. The [harness guide](verification/README.md#resource-publication-simulation)
+owns commands and model limits. On the shared Linux host with pinned Zig
+`0.17.0-dev.2267+48abf1a34`, the first development sweep based on `38ac8781`
+passed 99 traces / 1,923 events, each replayed identically, in 53.290 seconds.
+After adding the saved corpus, `just test::resource-simulation-smoke` passed
+six traces / 112 events in 3.409 seconds. Both were dirty development runs;
+metadata records binary/oracle identity. These in-memory observations do not
+establish actual WAL durability, physical page reclamation, full CI completion
+or hosted cost. Compiling core mutation qualification is a separate command.
+
 ## Authority and delivery simulation
 
 The multi-process simulator executes real signed authority/outbox transitions for

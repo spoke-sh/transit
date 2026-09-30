@@ -48,6 +48,14 @@ An explicit finite schedule checks that remaining eligible input and pending
 outputs resolve once permissions and storage are available. That result does not
 establish fairness of an automatic worker/courier scheduler or external effects.
 
+The resource simulation injects numbered failures before/after immutable page
+staging, unavailable page reads, conditional publication and prefix trimming.
+An independent oracle checks resource values, input progress, outputs and captured
+view roots. A two-page test cache and explicit eviction exercise cold reads;
+recovery must preserve the same logical state without staging pages. Its journal
+is atomic and its pages remain in memory. These checks do not establish physical
+storage durability or authorize page garbage collection.
+
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
 current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,

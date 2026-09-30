@@ -48,9 +48,24 @@ SIMULATION_MUTANTS = {
     ),
 }
 
+RESOURCE_MUTANTS = {
+    "resource_write": ("growing_state.zig", "try candidate.mutate(mutations[0..mutation_count]);",
+                       "try candidate.mutate(mutations[0..0]); // Mutation: omit resource writes."),
+    "input_progress": ("growing_state.zig", "process.consumed += 1;",
+                       "process.consumed += 0; // Mutation: publish state/output without input progress."),
+}
+MODES = {
+    "properties": ("test-properties", ["--seeds", "1", "--steps", "1"], "mutations", MUTANTS,
+                   "Transition properties passed:", "Transition invariant failed; minimized replay at", "transitions/failure.json"),
+    "simulation": ("test-simulation", ["--seeds", "1", "--steps", "1"], "simulation-mutations", SIMULATION_MUTANTS,
+                   "Delivery simulation:", "Simulation failed (correspondence)", "simulation/minimized.json"),
+    "resource": ("test-resource-simulation", ["--smoke"], "resource-simulation-mutations", RESOURCE_MUTANTS,
+                 "Resource simulation:", "Resource simulation failed (correspondence)", "resource-simulation/minimized.json"),
+}
 
-def execute(checkout, simulation=False):
-    process = subprocess.Popen(["zig", "build", "test-simulation" if simulation else "test-properties", "--", "--seeds", "1", "--steps", "1"],
+def execute(checkout, mode):
+    target, arguments, *_ = MODES[mode]
+    process = subprocess.Popen(["zig", "build", target, "--", *arguments],
         cwd=checkout, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
         output, _ = process.communicate(timeout=180)
@@ -63,14 +78,18 @@ def execute(checkout, simulation=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--simulation', action='store_true', help='qualify delivery order and provenance checkers')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--resource', action='store_true', help='qualify resource/input atomicity checkers')
+    group.add_argument('--simulation', action='store_true', help='qualify delivery order and provenance checkers')
     args = parser.parse_args()
+    mode = "resource" if args.resource else "simulation" if args.simulation else "properties"
+    _, _, artifact, mutants, passed, marker, minimized = MODES[mode]
     # Snapshot semantics are deliberate. Running dirty source under an old
     # revision would make the recorded experiment misleading.
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT):
         raise SystemExit("Mutation checks use committed HEAD; commit source changes first.")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    destination = ROOT / (".cache/verification/simulation-mutations" if args.simulation else ".cache/verification/mutations")
+    destination = ROOT / ".cache/verification" / artifact
     destination.mkdir(parents=True, exist_ok=True)
     evidence = {"version": 1, "revision": revision, "status": "inconclusive", "mutants": []}
     try:
@@ -78,32 +97,29 @@ def main():
             checkout = Path(directory) / "src"
             subprocess.run(["git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout)], check=True)
             subprocess.run(["git", "checkout", "--quiet", "--detach", revision], cwd=checkout, check=True)
-            code, output = execute(checkout, args.simulation)
+            code, output = execute(checkout, mode)
             (destination / "baseline.log").write_text(output)
-            passed = "Delivery simulation:" if args.simulation else "Transition properties passed:"
             if code or passed not in output:
                 raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
-            for name, (filename, guard, replacement) in (SIMULATION_MUTANTS if args.simulation else MUTANTS).items():
+            for name, (filename, guard, replacement) in mutants.items():
                 source = checkout / CORE / filename
                 original = source.read_text()
                 assert original.count(guard) == 1, f"review changed guard: {name}"
                 source.write_text(original.replace(guard, replacement))
                 started = time.monotonic()
-                code, output = execute(checkout, args.simulation)
+                code, output = execute(checkout, mode)
                 (destination / f"{name}.log").write_text(output)
-                marker = "Simulation failed (correspondence)" if args.simulation else "Transition invariant failed; minimized replay at"
                 detected = code != 0 and marker in output
                 evidence["mutants"].append({"name": name,
                     "status": "detected" if detected else "survived" if code == 0 else "inconclusive",
                     "seconds": round(time.monotonic() - started, 3)})
                 if not detected:
                     raise RuntimeError(f"{name}: mutant survived or did not execute; inspect {destination}")
-                failure = checkout / (".cache/verification/simulation/minimized.json" if args.simulation else ".cache/verification/transitions/failure.json")
+                failure = checkout / ".cache/verification" / minimized
                 (destination / f"{name}.json").write_bytes(failure.read_bytes())
                 source.write_text(original)
         evidence["status"] = "passed"
-        print("Delivery simulation mutations: route-order and provenance defects detected by real-engine schedules." if args.simulation else
-              "Targeted mutations: generation, revision, current-permission and view-deadline omissions detected by real-engine schedules.")
+        print(f"{mode} mutations: {', '.join(mutants)} detected by real-engine schedules.")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
 

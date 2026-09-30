@@ -159,9 +159,11 @@ jobs:
           nix develop .#${{ matrix.shell }} --command just test::model --tail 5
           nix develop .#${{ matrix.shell }} --command just test::properties --seeds 128 --steps 128
           nix develop .#${{ matrix.shell }} --command just test::simulation --seeds 64 --steps 128
+          just test::resource-simulation --seeds 4
           nix develop .#${{ matrix.shell }} --command just test::codecs --fuzz=10K
           nix develop .#${{ matrix.shell }} --command just test::mutations
           nix develop .#${{ matrix.shell }} --command just test::simulation-mutations
+          just test::resource-simulation-mutations
       - name: Install browser and host dependencies
         if: matrix.lane == 'experience'
         run: nix develop .#${{ matrix.shell }} --command vp exec --filter @rey/transit-board-web playwright install --with-deps chromium
