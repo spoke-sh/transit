@@ -100,7 +100,16 @@ fn shape(comptime T: type, value: std.json.Value) anyerror!void {
             else => return error.InvalidJsonShape,
         },
         .bool => if (value != .bool) return error.InvalidJsonShape,
-        .@"enum" => if (value != .string) return error.InvalidJsonShape,
+        .@"enum" => |info| {
+            if (value != .string) return error.InvalidJsonShape;
+            // The generic Zig parser also accepts a quoted numeric ordinal.
+            // Public schemas permit only the declared string names, including
+            // the exact current contract definition, never an ordinal alias.
+            inline for (info.field_names) |name| {
+                if (std.mem.eql(u8, value.string, name)) return;
+            }
+            return error.InvalidJsonShape;
+        },
         .void => if (value != .object or value.object.count() != 0) return error.InvalidJsonShape,
         .array => |info| {
             if (value != .array or value.array.items.len != info.len) return error.InvalidJsonShape;
@@ -159,6 +168,20 @@ test "host JSON rejects quoted integers and preserves escaped UTF-8 at wide valu
     try std.testing.expectEqual(@import("root.zig").max_counter, decoded.value.position);
     try std.testing.expectEqualStrings("\x00\n\"é", decoded.value.text);
     try std.testing.expectError(error.InvalidJsonShape, parseFromSlice(Message, a, "{\"position\":\"1\",\"text\":\"ok\"}"));
+}
+
+test "host enum strings require declared names and reject ordinal aliases" {
+    const Tag = enum { current, @"7" };
+    const a = std.testing.allocator;
+    for ([_][]const u8{ "\"0\"", "\"0000\"", "\"1\"", "\"foreign\"", "0" }) |bytes| {
+        try std.testing.expectError(error.InvalidJsonShape, parseFromSlice(Tag, a, bytes));
+    }
+    const named = try parseFromSlice(Tag, a, "\"7\"");
+    defer named.deinit();
+    try std.testing.expectEqual(Tag.@"7", named.value);
+    const current = try parseFromSlice(Tag, a, "\"current\"");
+    defer current.deinit();
+    try std.testing.expectEqual(Tag.current, current.value);
 }
 
 test "owned host JSON survives input buffer reuse" {
