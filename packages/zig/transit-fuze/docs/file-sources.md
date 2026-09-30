@@ -12,6 +12,8 @@ durable job admission, connector dispatch or automatic source capture. Compresse
 or non-seekable inputs require a host that explicitly captures/decompresses them
 under encoded/expanded/disk quotas into immutable seekable content. No such host
 adapter is implicit in Fuze.
+The explicit [CLI file-query host](../../../../apps/transit-cli/docs/file-query.md)
+provides local acquisition, checked gzip and ephemeral unlinked disk captures.
 
 ## Discovery and execution
 

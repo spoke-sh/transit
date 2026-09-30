@@ -1,7 +1,9 @@
 # Data types and cell states
 
-SQL reads the types in an explicitly declared query source. It does not infer a
-schema from application bytes or create a resource. Query types, SQL literal
+Native SQL reads the types in an explicitly declared query source. The local
+[file-query command](../../../apps/transit-cli/docs/file-query.md) separately
+resolves a frozen CSV/JSONL schema before compiling SQL. Neither creates a
+resource from application bytes. Query types, SQL literal
 syntax, offline declaration types and published Table schemas have different coverage.
 The [planned type system and schema discovery](#planned-type-system-and-schema-discovery)
 below describe work that is not implemented; the scalar and cell-state sections
@@ -18,12 +20,14 @@ codec. JSON parsing preserves numeric lexemes and rejects duplicate decoded keys
 Map entries use strictly increasing typed keys, rejecting duplicates including
 positive/negative floating zero.
 
-These are local type/codec APIs. SQL, native query plans, catalogs, stored Tables,
+These are local type/codec APIs. Native query plans, catalogs, stored Tables,
 Arrow query transports and SDK queries accept the narrower profiles below.
 Recursive comparison/hash operations and general SQL casts are not enabled by a
 descriptor. Fuze's local Zig [file-source API](../../../packages/zig/transit-fuze/docs/file-sources.md)
 supplies explicit, sampled, full and raw CSV/JSONL discovery/decoding. Native
-query transports and SQL do not acquire those sources. See the [type contract](../../../contracts/FUZE_TYPES_V1.md)
+query transports do not acquire those sources. Local `FileQuery` plans and the
+file-query command can project their logical values, with exactly typed six-scalar
+SQL comparison literals and int64 SUM. See the [type contract](../../../contracts/FUZE_TYPES_V1.md)
 for precise admitted conversions, temporal representations and resident bounds.
 
 ## Scalar types
@@ -55,8 +59,8 @@ Decoded SQL text/binary literal cells have a 220-byte bound. See
 [syntax and literals](syntax.md#query-literals) for escaping and parser bounds.
 
 SQL has no `DECIMAL`, date, time, timestamp, interval, array, map or JSON type
-syntax. SQL file readers and schema inference are unsupported; local Zig callers use
-the separately scoped file-source API above.
+syntax. SQL file-reading functions are unsupported; the file-query command
+captures and binds inputs explicitly before SQL compilation.
 Accepted Document fields can be exposed through an explicit scalar
 projection; this does not add JSON path expressions to SQL. The interface does
 not choose a fixed-point representation for application monetary values.

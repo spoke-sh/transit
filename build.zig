@@ -631,6 +631,12 @@ pub fn build(b: *std.Build) void {
     diagnostics_test.has_side_effects = true;
     diagnostics_test.stdio = .inherit;
     b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
+    const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
+    file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
+    file_query_test.addArtifactArg(query_shell);
+    file_query_test.has_side_effects = true;
+    file_query_test.stdio = .inherit;
+    b.step("test-file-query", "Prove captured CSV/JSONL queries, gzip, quotas and cancellation").dependOn(&file_query_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
     for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board }) |artifact| server_test.addArtifactArg(artifact);

@@ -9193,3 +9193,29 @@ missing/foreign definitions and noncanonical numeric strings reject. Logs are
 `/tmp/rey-fuze-logical-json-test.log` and `/tmp/rey-fuze-sql-regression.log`.
 Physical acquisition, installed SDK extensions and comparative performance
 remain separate qualification gates.
+
+## Captured local file queries
+
+`just test::file-query` passes 83 cases against the real `transit` executable on
+Linux x86_64. Six independent Python source fixtures and all 46 scalar oracle
+cases cross acquisition, discovery/explicit decoding, SQL and neutral JSON;
+the Python checker reconstructs canonical descriptor/value bytes independently.
+Other cases verify gzip optional fields/header CRC/payload CRC/size, truncation,
+trailing/concatenated members, encoded/expanded quotas, exact aggregate results,
+late failures behind LIMIT, explicit type-error cells, duplicate names/keys,
+UTF-8 failures and invocation validation.
+
+SIGINT during idle/partial stdin and blocked stdout exits 130; a broken output
+pipe exits 1. SIGKILL during acquisition leaves no named capture. Each case
+checks its private temporary directory. Rewriting the original file after the
+schema is published leaves all 10000 captured values unchanged. A 192 MiB CSV
+scan returns the expected count under a **96 MiB RLIMIT_AS** process ceiling;
+captures use `/var/tmp` disk storage. This is larger than the process's permitted
+address space, not a claim that input exceeds host RAM or that host caches were
+cold. No durable job is admitted, so these are ephemeral cleanup/immutability
+proofs rather than accepted-work crash recovery.
+
+The CLI checkpoint passes full `just check` (generated contracts, Zig/CLI units,
+independent fixtures, frontend checks/tests and documentation build). Logs are
+`/tmp/rey-fuze-cli-proof.log` and `/tmp/rey-fuze-cli-check.log`. Arrow, installed
+SDK extensions and the DuckDB performance matrix are not qualified by this run.

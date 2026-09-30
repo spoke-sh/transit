@@ -541,3 +541,7 @@ fuze-types:
 fuze-sources:
     python3 -B tests/fuze_sources.py
     zig test packages/zig/transit-fuze/src/FileSource.zig
+
+# Real file/stdin/gzip query host, independent codecs and constrained process memory.
+file-query:
+    zig build test-file-query
