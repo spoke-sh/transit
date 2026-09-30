@@ -23,7 +23,9 @@ class Consumer:
     arrow_adapter: bool = True
 
 
-def run(node, cli, raw_library, install, label):
+def run(node, cli, raw_library, install, label, *, decode_block_repetitions=1, failures_only=False):
+    if not 1 <= decode_block_repetitions <= 1024:
+        raise ValueError('decode-block repetitions must be in 1..1024')
     from client_abi_growing import GrowingSystem
     from client_abi import Native
     from station import frame
@@ -175,13 +177,18 @@ def run(node, cli, raw_library, install, label):
             gates = json.loads(invoke('gates', gated))
             assert gates['gates'] == ['commit', 'open', 'permit']
             assert process(gated)['consumed'] == 1
-            for mode in ('decode-stop', 'decode-block', 'handler-stop', 'handler-block', consumer.invalid_handler, *consumer.extra_failures):
+            for mode in ('decode-stop', *('decode-block',) * decode_block_repetitions,
+                         'handler-stop', 'handler-block', consumer.invalid_handler, *consumer.extra_failures):
                 cfg = provision()
                 send(cfg, b'TSC\x02\x02' if mode.startswith('decode-') else b'TSC\x01\x01' + (1).to_bytes(8, 'little'))
                 invoke(mode, cfg)
                 state = process(cfg)
                 assert state['consumed'] == 0 and (state['failure'] is not None) == mode.endswith('-block')
                 assert read({'resource': cfg['resource']})['body']['resource']['entries'] == 0
+            if failures_only:
+                print(f'{label} Station lifetime: {decode_block_repetitions} fresh decode-block cases, '
+                      'codec/handler failures, retained native mappings and bounded image reuse passed.')
+                return
             async_cfg = provision()
             send(async_cfg, b'TSC\x01\x01' + (5).to_bytes(8, 'little'))
             fault['delay_marker'] = Path(async_cfg['output'], 'accepted')

@@ -27,10 +27,10 @@ pub struct Api {
     pub transit_buffer_data: unsafe extern "C" fn(*const transit_buffer) -> *const u8,
     pub transit_buffer_size: unsafe extern "C" fn(*const transit_buffer) -> usize,
     pub transit_buffer_destroy: unsafe extern "C" fn(*mut transit_buffer) -> (),
-    _library: libloading::Library,
+    _library: std::sync::Arc<libloading::Library>,
 }
 impl Api {
-    pub unsafe fn load(library: libloading::Library) -> Result<Self, libloading::Error> {
+    pub unsafe fn load(library: std::sync::Arc<libloading::Library>) -> Result<Self, libloading::Error> {
         Ok(Self {
             transit_client_abi_definition_matches: *unsafe { library.get(b"transit_client_abi_definition_matches\0")? },
             transit_client_abi_version: *unsafe { library.get(b"transit_client_abi_version\0")? },

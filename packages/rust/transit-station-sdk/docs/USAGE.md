@@ -11,6 +11,11 @@ after removing the extracted crates and build directory. An explicit
 Missing files, ABI differences and absent growing capabilities produce named
 errors; there is no fallback to incompatible definitions.
 
+Native code mappings remain until process exit and are shared across runners and
+codec calls. Runner close still releases its handles, buffers and owned work.
+The [raw client's loader rules](../../transit-client/README.md) bound resident
+images and require explicit override files to remain immutable within a process.
+
 ## Handler and runner
 
 Implement `Codec<Message>` and `Handler<Message>`. Codecs own versioned application

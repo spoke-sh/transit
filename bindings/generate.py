@@ -31,8 +31,8 @@ for family, directory in (("client", "transit-client"), ("station", "transit-sta
     for function in contract['functions']:
         args = ', '.join(rust_type(t) for t in function['parameters'])
         dynamic.append(f'    pub {function["name"]}: unsafe extern "C" fn({args}) -> {rust_type(function["result"])},')
-    dynamic += ['    _library: libloading::Library,', '}', 'impl Api {',
-                '    pub unsafe fn load(library: libloading::Library) -> Result<Self, libloading::Error> {', '        Ok(Self {']
+    dynamic += ['    _library: std::sync::Arc<libloading::Library>,', '}', 'impl Api {',
+                '    pub unsafe fn load(library: std::sync::Arc<libloading::Library>) -> Result<Self, libloading::Error> {', '        Ok(Self {']
     for function in contract['functions']:
         name = function['name']
         dynamic.append(f'            {name}: *unsafe {{ library.get(b"{name}\\0")? }},')

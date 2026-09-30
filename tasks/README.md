@@ -134,6 +134,13 @@ For prerequisites, proof boundaries, and troubleshooting, use the
 `just test::inspection` exercises the signed, bounded public read surface against
 isolated disk-backed Ursula.
 
+For repeated installed Rust runner destruction, use
+`nix develop .#bindings --command just bindings::rust-lifetime 256`.
+The focused task accepts 1–1024 fresh malformed-input cases (default 128);
+ordinary Rust SDK qualification also checks retained native code mappings.
+Use an owned disk-backed `TMPDIR` for large consumer builds, as the clean suite
+does. See the [proof ledger](../tests/README.md#rust-native-lifetime-investigation--2026-09-30).
+
 ## Public documentation
 
 `just transit-docs::install` installs locked workspace dependencies; the existing

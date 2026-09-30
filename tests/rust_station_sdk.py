@@ -21,6 +21,7 @@ def run(node, cli, library, artifacts, http_worker=None, *, execute=None):
                 archive.extractall(target / 'vendor', filter='data')
         (target / 'src/bin').mkdir(parents=True)
         shutil.copyfile(root / 'tests/rust_station_sdk.rs', target / 'src/main.rs')
+        shutil.copyfile(root / 'tests/rust_native_lifetime.rs', target / 'src/native_lifetime.rs')
         shutil.copyfile(target / 'vendor/transit-sdk-examples-rust-0.2.0/src/main.rs', target / 'src/bin/transit-rust-counter.rs')
         manifest = '''[package]
 name = "transit-rust-station-proof"

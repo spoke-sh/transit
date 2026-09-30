@@ -1418,6 +1418,27 @@
       "limits": "4..32 external rounds. OS timing is nondeterministic; quiescent observations are not an arbitrary concurrent-read linearizability proof. Each selected profile has its own host/provider assumptions. No hardware power-loss or Kubernetes placement claim.",
       "model": null,
       "qualification": "Retain each run report and history; failed/incomplete profiles do not count as executed qualification. See tests/README.md."
+    },
+    {
+      "id": "HOST-02",
+      "claim": "Rust native code remains mapped while detached I/O threads finish, with bounded image reuse across client and runner lifetimes",
+      "owner": "packages/rust/transit-client/README.md",
+      "implementation": [
+        "packages/rust/transit-client/src/library.rs",
+        "bindings/generate.py"
+      ],
+      "profile": "Rust public SDKs on Linux x86_64 with pinned native I/O runtime",
+      "tasks": [
+        "bindings::rust-sdk-test",
+        "bindings::rust-lifetime"
+      ],
+      "scenarios": [
+        "Installed raw clients perform I/O and close repeatedly without unloading or duplicating native images",
+        "Fresh malformed inputs block without consuming input or publishing state, then runners close with both code images retained",
+        "Explicit override reuse preserves identity; replaced or missing files reject without an embedded fallback"
+      ],
+      "limits": "Process-lifetime code mappings; at most sixteen distinct native images. Handles and buffers still release on close. Mapping checks are Linux-specific; finite stress does not prove every host schedule.",
+      "model": null
     }
   ]
 }

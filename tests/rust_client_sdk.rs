@@ -1,6 +1,7 @@
 use serde_json::{Value, json};
 use std::{fs, path::Path, sync::mpsc, thread, time::{Duration, Instant}};
 use transit_client::{Client, ClientConfig, Credential, DispatchError, ErrorKind, ProcessRef, Sequence};
+mod native_lifetime;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let arguments: Vec<_> = std::env::args().collect();
@@ -14,6 +15,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert!(Client::open(config.clone().with_native_directory("/missing-transit")).is_err());
     let pending_path = cfg["pending"].as_str().unwrap();
     if mode == "first" {
+        // Exercise real I/O and destruction, then require one retained image
+        // across repeated opens. This fails deterministically with per-handle
+        // dlclose even when the detached-thread race does not happen to crash.
+        let mut images = None;
+        for _ in 0..16 {
+            let mut probe = Client::open(config.clone())?;
+            probe.capabilities(&credential)?;
+            let expected = images.get_or_insert_with(native_lifetime::mappings);
+            assert_eq!(expected.len(), 1);
+            probe.close()?;
+            native_lifetime::retained(expected);
+        }
         let mut client = Client::open(config)?;
         let caps = client.capabilities(&credential)?;
         assert_eq!(caps.principal_sequence.get(), 0); assert_eq!(caps.page_size.get(), 8); assert!(caps.retained_versions);
@@ -28,6 +41,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             other => panic!("Expected uncertainty: {other:?}"),
         }
         drop(pending); client.close()?;
+        // Explicit overrides share pinned code and reject replacement rather
+        // than silently reusing the old or embedded image.
+        let directory = std::path::PathBuf::from(std::env::var("TRANSIT_RUST_TEST_NATIVE_DIRECTORY")?);
+        let original = directory.join("libtransit_client.so");
+        let load = || transit_client::internal::Artifact::open(b"", "libtransit_client.so", Some(&directory));
+        let first = load()?.load()?;
+        let weak = std::sync::Arc::downgrade(&first);
+        drop(first);
+        let second = load()?.load()?;
+        assert!(std::sync::Arc::ptr_eq(&weak.upgrade().unwrap(), &second));
+        let replacement = directory.join("replacement.so");
+        fs::copy(&original, &replacement)?;
+        fs::rename(replacement, &original)?;
+        assert!(matches!(load(), Err(error) if error.phase == "native-file-changed"));
+        fs::remove_file(original)?;
+        assert!(matches!(load(), Err(error) if error.phase == "native-file"));
     } else if mode == "recover" {
         assert!(!Path::new(cfg["seed"].as_str().unwrap()).exists());
         let mut client = Client::open(config)?;

@@ -1,5 +1,38 @@
 # Validation and milestone evidence
 
+## Rust native lifetime investigation — 2026-09-30
+
+Following PR #33, a fresh installed Rust suite passed on the merged source
+`a53d6262`, while a separate repeated malformed-input schedule reproduced the
+`decode-block` SIGSEGV on case 108 after 107 successful fresh cases. A retained
+core shows the detached native thread returning from `futexWake` through
+`Io.Threaded.WaitGroup.finish` and `Io.Threaded.worker` after the client library
+was unmapped. The Rust owner was removing the extracted artifact, and the main
+thread was joining that owner. Thus a passing ordinary rerun does not resolve
+the failure.
+
+The Rust loader now retains bounded shared code mappings until process exit,
+while handle and buffer destruction remain explicit. Installed raw/Station
+regressions check actual Linux mappings across close and repeated open. The
+focused `nix develop .#bindings --command just bindings::rust-lifetime 256`
+reuses the existing installed-consumer/real-authority fixture with fresh
+malformed inputs. It checks the failure marker, unchanged input progress and
+empty resource after each case. The case argument is bounded to 1–1024 and
+defaults to 128; this is a selected host schedule, not deterministic OS replay.
+
+Qualification of the correction is in progress. An initial corrected run passed
+the raw-client regression but could not compile the Station consumer because
+the shared `/tmp` filesystem ran out of space. That incomplete run is not a pass;
+subsequent work uses an owned disk-backed `TMPDIR`.
+
+The [follow-up record](verification/results/m37-followup-2026-09-30.json)
+retains hashes and separates incomplete, passing and unexecuted profiles.
+Installed raw-client checks passed, including sixteen I/O/open/close repetitions
+and override reuse/replacement/missing-file rejection. A compiling mutation that
+removes library retention fails the mapping assertion immediately. The authority
+(14 traces / 749 events), resource (204 / 3,958), shared-client (eight / 542)
+and component (eight schedules) simulations passed with identical replay.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
