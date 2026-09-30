@@ -76,6 +76,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just bindings::mutation-rust` | Install Rust crates outside the checkout; verify exclusive caller borrows, full-width mutation identity and exact saved recovery |
 | `just bindings::mutation-c` | Build and install C11/C++17 consumers; prove copied buffers, saved-command lifetime, full-width namespaces and exact recovery |
 | `just bindings::mutation-java` | Install Java JARs outside the checkout; verify immutable values, full-width mutation identity and exact caller replacement recovery |
+| `just bindings::mutation-dotnet` | Restore installed NuGet packages outside the checkout; verify immutable values, asynchronous disposal and exact mutation recovery |
 | `just bindings::mutation-ruby` | Build and install Ruby gems outside the checkout; prove immutable requests, full-width namespace recovery and current read denial |
 | `just bindings::mutation-node` | Build and install TypeScript packages outside the checkout; check owned mutation values, runtime response validation and exact receipt recovery with a full-width namespace |
 | `just test::sql-grammar`, `just test::sql-rewrites` | Regenerate the SQL reference parser, compare covered PostgreSQL ASTs, and type-check named Lean proofs with pinned optional tools |

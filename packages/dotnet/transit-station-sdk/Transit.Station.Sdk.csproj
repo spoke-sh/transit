@@ -15,5 +15,6 @@
     <None Update="README.md" Pack="true" PackagePath="" />
     <None Update="docs/USAGE.md" Pack="true" PackagePath="docs" />
     <None Update="docs/DOCUMENTS.md" Pack="true" PackagePath="docs" />
+    <None Update="docs/MUTATIONS.md" Pack="true" PackagePath="docs" />
   </ItemGroup>
 </Project>

@@ -5554,3 +5554,35 @@ CLI mutation callers remain outstanding.
 The Java increment passes full `just check`, including generated-contract drift,
 native unit/CLI checks, the verification catalog, frontend checks and the
 documentation build. Its installed consumer passes strict Java 21 compilation.
+
+### Installed .NET Table mutation caller
+
+`just bindings::mutation-dotnet` builds the public/native NuGet packages and
+restores an external .NET 8 consumer from only those exact local artifacts.
+Compilation treats warnings as errors. The executable runs after its source and
+restore cache are removed, without a checkout native-library override. Immutable
+values retain namespace **9223372036854775830**, copy input/output arrays and
+expose read-only column names. The caller rejects a changed request commitment,
+replaces its worker after receipt loss, recovers the exact admitted send, observes
+the one-row result and rejects current status disclosure after read revocation.
+Prepared bytes survive both successful and uncertain submission unchanged.
+
+The focused schedule passes in **21.404 s**, including **2.577 s** for installed
+consumer restore/compilation and **2.560 s** for the .NET caller interval. It
+records **1598 reads**, **46 send responses**, **46 turn responses**, four lost
+caller receipts and one lost writer receipt. Four mutations, 256-byte stored
+values, eight resident authority pages and all five native digests match the
+ABI/port record. The command ran on allowed CPUs 2–47. These unpaired shared-host
+measurements do not establish comparative throughput. The installed extension
+exercises UPDATE; native cases cover INSERT/UPDATE/DELETE and rollback.
+
+The adapter uses the existing bounded worker's cancellation and joined disposal
+semantics. This schedule observes asynchronous disposal and caller replacement;
+it does not independently inject cancellation into every mutation method. The
+ordinary .NET SDK task now includes the schedule. No full .NET runner/connector
+regression rerun is claimed for this additive adapter. Erlang, Elixir and CLI
+mutation callers remain outstanding.
+
+The .NET increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build.

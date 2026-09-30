@@ -535,6 +535,12 @@ over the existing generated-schema port. Its installed caller uses namespace
 saved command, rejects changed request commitments and enforces current status
 denial. `bindings::mutation-java` selects that schedule independently.
 
+`bindings::dotnet-sdk-test` adds immutable Table mutation values and asynchronous
+calls over the existing native worker. Its installed NuGet consumer uses namespace
+`9223372036854775830`, replaces the caller after receipt loss, recovers the exact
+saved command, rejects changed request commitments and enforces current status
+denial. `bindings::mutation-dotnet` selects that schedule independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

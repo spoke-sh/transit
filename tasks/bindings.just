@@ -161,6 +161,7 @@ dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_client_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
+    just test::table-mutation --sdk dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build
@@ -264,6 +265,10 @@ mutation-c: c-build
 # Installed Java mutation caller with immutable values and bounded futures.
 mutation-java: java-build
     just test::table-mutation --sdk java
+
+# Installed .NET mutation caller with immutable values and joined async ownership.
+mutation-dotnet: dotnet-build
+    just test::table-mutation --sdk dotnet
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

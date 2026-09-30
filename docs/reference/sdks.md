@@ -49,6 +49,7 @@ Read-query clients do not confer mutation access.
 | C | [Owned handles, buffers and typed observations](../../packages/c/transit-station/docs/TABLE_MUTATIONS.md) |
 | C++ | [Move-only clients and saved commands](../../packages/cpp/transit-station-sdk/docs/TABLE_MUTATIONS.md) |
 | Java | [Immutable values and bounded asynchronous calls](../../packages/java/transit-station-sdk/docs/MUTATIONS.md) |
+| .NET | [Immutable values, asynchronous calls and joined disposal](../../packages/dotnet/transit-station-sdk/docs/MUTATIONS.md) |
 
 Other language SDKs do not yet expose typed Table mutation clients. The
 [native ABI/port](../../packages/zig/transit-station-bindings/docs/table-mutations.md)
