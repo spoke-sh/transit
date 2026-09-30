@@ -36,6 +36,8 @@ def main():
     directory = tempfile.mkdtemp(prefix="transit-ci-", dir=args.work_root)
     evidence = ROOT / ".cache/ci/clean" / f"{revision[:12]}-{Path(directory).name}"
     checkout = Path(directory) / "src"
+    scratch = Path(directory) / "tmp"
+    scratch.mkdir()
     try:
         run("git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout))
         run("git", "checkout", "--quiet", "--detach", revision, cwd=checkout)
@@ -44,12 +46,16 @@ def main():
         # must not leak from the calling shell into the isolated proof.
         env = {key: value for key, value in os.environ.items()
                if not key.startswith("REY_") and key not in ("KUBECONFIG", "LOG_LEVEL", "LOG_FORMAT")}
-        selected = f"ci::{args.lane}" if args.lane else "ci::complete" if args.complete else "ci"
-        for task in ("transit-board::install", selected):
-            # Direct lane recipes expect their qualification tools in the shell;
-            # the ordinary/complete aggregate recipes enter this shell themselves.
-            shell = (".#bindings",) if args.lane and task == selected else ()
-            run("nix", "develop", *shell, "--command", "just", task, cwd=checkout, env=env)
+        run("nix", "develop", "--command", "env", f"TMPDIR={scratch}",
+            "just", "transit-board::install", cwd=checkout, env=env)
+        # Select TMPDIR after entering Nix, which supplies its own temporary
+        # directory. The all-language ring keeps several clean consumers alive;
+        # putting those builds in a shared tmpfs can exhaust unrelated fixtures.
+        # This is the same inventory runner used by every ci::* recipe, entered
+        # once with the pinned binding tools and this checkout's owned scratch.
+        selected = args.lane or ("complete" if args.complete else "all")
+        run("nix", "develop", ".#bindings", "--command", "env", f"TMPDIR={scratch}",
+            "python3", "-B", "tests/ci.py", selected, cwd=checkout, env=env)
     except (subprocess.CalledProcessError, KeyboardInterrupt):
         print(f"Clean CI did not complete; checkout and failure evidence retained at {directory}", flush=True)
         raise

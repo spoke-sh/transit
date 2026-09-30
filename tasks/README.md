@@ -35,7 +35,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just ci::core`, `just ci::experience`, `just ci::bindings`, `just ci::browser` | Run individual hosted lanes with task timings; select the matching shell, and install the browser before its proof |
 | `just ci::growth`, `just ci::launchers` | Run the growing-state and launcher/build-smoke lanes from the same inventory |
 | `just ci::cost RUN_ID` | Collect a completed hosted run's setup/check/cache cost and compare it with the declared CI budgets; requires authenticated `gh` |
-| `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs `just ci` without existing workspace outputs |
+| `just ci-clean` | Requires committed changes; clones HEAD into a temporary directory, installs locked frontend dependencies and runs the `just ci` inventory without existing workspace outputs |
 | `just ci-clean --lane NAME` | Runs one inventory lane in its own clean checkout; complete ordinary qualification needs all five lane reports at the same committed revision |
 | `just fmt` | Formats Nix, Zig and frontend source/Markdown; contract regeneration stays explicit |
 | `just build` | Lists Zig build profiles |
@@ -106,8 +106,10 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just launchers::reference::test-plugin` | Check discovery, logs and live forwarding using isolated chart-labelled resources on an existing reference cluster |
 | `nix flake check` | Evaluates outputs and runs Zig/TypeScript, Ursula, and Kubernetes CLI smoke checks without network access |
 
-Clean checkouts default to `/var/tmp`, outside Nix's temporary shell directory
-and the often memory-backed `/tmp`. They can consume over 10 GiB before cleanup.
+Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
+temporary shell directory and the often memory-backed `/tmp`. SDK consumer
+builds and storage fixtures share that run's disk-backed scratch directory.
+They can consume over 10 GiB before cleanup.
 `just ci-clean --work-root /short/path` selects a persistent parent; keep it short
 for the native launchers' Unix sockets. Failed-run timing/log evidence is retained;
 a failed or space-exhausted run does not satisfy the clean gate.
