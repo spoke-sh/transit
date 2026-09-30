@@ -5019,3 +5019,24 @@ uncertainty or public mutation-client proofs. The supplied query hosts still
 reject mutation messages; the native integration is the next proof boundary.
 `just check`, including generated-contract, frontend and documentation checks,
 passes for this increment. The verification catalog also passes.
+
+### SQL worktree main rebase
+
+The SQL worktree is rebased from `3ea81aaa` onto `2c1a9d2d`. One retired-source
+fixture conflict was resolved by keeping the explicit null cursor and concrete
+authority errors together with SQL inspection denial checks. Main's bounded
+startup/browser retries, installed SDK ready/reconcile schedules and current
+Arrow fixtures are retained. Its ten-language source evidence above qualifies
+the base query path; it is not substituted for the new inspection assertions.
+
+The remaining-eight-SDK Document/browser run was interrupted during provisioning
+to avoid mixing source revisions during the rebase. It had completed installed
+codec checks, but no source/browser success was reported. It is not a pass and
+will be rerun from the rebased worktree. The unfinished native mutation proof was
+saved and restored intact. Post-rebase `just check` and `just test::sql` pass.
+The transport package's formatting/lint, TypeScript check and eight focused
+transport tests pass. The added inspection schedule checks upstream's exact
+500/1000/2000 ms availability backoff, identical request bodies and immediate
+termination at current denial. Its first draft used an invalid request field
+and failed before dispatch; the corrected request passes without unhandled
+promises. Public-query and Document integration reruns remain in progress.

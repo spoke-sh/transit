@@ -112,3 +112,32 @@ test("signed submissions and semantic/authority conflicts never inherit read ret
     expect(fetcher).toHaveBeenCalledTimes(1);
   }
 });
+
+test("SQL inspection inherits bounded availability backoff and stops at current denial", async () => {
+  vi.useFakeTimers();
+  try {
+    const fetcher = vi
+      .fn()
+      .mockImplementationOnce(() => Response.json({ err: "AuthorityUnavailable" }, { status: 503 }))
+      .mockImplementationOnce(() => Response.json({ err: "AuthorityTimeout" }, { status: 503 }))
+      .mockImplementationOnce(() => Response.json({ err: "AuthorityUnavailable" }, { status: 503 }))
+      .mockResolvedValueOnce(Response.json({ err: "QueryAccessDenied" }, { status: 403 }));
+    vi.stubGlobal("fetch", fetcher);
+    const response = httpTransport("/query")({ inspect: { sql: "DESCRIBE items" } }).catch(
+      (error: unknown) => error,
+    );
+    for (const [attempt, delay] of [500, 1000, 2000].entries()) {
+      await vi.advanceTimersByTimeAsync(delay - 1);
+      expect(fetcher).toHaveBeenCalledTimes(attempt + 1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetcher).toHaveBeenCalledTimes(attempt + 2);
+    }
+    expect(await response).toMatchObject({ status: 403, code: "QueryAccessDenied" });
+    const bodies = fetcher.mock.calls.map((call) => call[1].body);
+    expect(new Set(bodies).size).toBe(1);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(fetcher).toHaveBeenCalledTimes(4);
+  } finally {
+    vi.useRealTimers();
+  }
+});
