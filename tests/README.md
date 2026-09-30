@@ -1757,8 +1757,31 @@ replacement. Its proxy-drain cleanup then fails, so the last report contains
 only an earlier **112-addition / 263.393 s** sample; final progress and fixture
 retention are not established. `b97406fe` makes cleanup continue through
 authority/proxy shutdown and final reporting after a drain error, and retains
-failed upgrade fixtures even when cleanup itself fails. A cold-tier retry is
-running without the two concurrent clean lanes; qualification remains pending.
+failed upgrade fixtures even when cleanup itself fails.
+
+The retry at committed `b97406fe` passes in **1438.997 s**. It recovers original
+input **538** as receipt **540** after two failures of the same signed turn,
+then applies all **257** additions. All **262 definitions / 33 pages** pass
+Zig, ABI, port and CLI metadata checks, a further node/store restart, current
+denial and joined cleanup. The worker and original SQL input are preserved;
+no send is resubmitted. The run retains eight authority cache pages, four
+mutations and the unchanged operation deadlines. Its S3 fixture uses an **8 MiB**
+hot limit and **8 MiB** cold cache, and holds **1125 persisted cold chunks** and
+**142,532,884 filesystem bytes** including object-store metadata.
+
+Growth takes **823.220 s**: compile **0.040 s**, prepare **15.111 s**, admit
+**78.784 s**, and await application **729.043 s**. There are **4890** measured
+metadata calls across the complete schedule. The only `AuthorityUnavailable`
+responses recorded by the node are the two expected pre-replacement failures;
+cleanup reports no failures. These shared-host durations are not a throughput
+comparison with the fresh balanced-tree schedule. Earlier failed runs remain
+failed, and their causes are not inferred from this retry's success.
+
+The target node digest is `89e7f544…d65f0a19`, the initial node is
+`1039c8de…328d6e07e`, and the runner is `f9329712…67ac8b82a`.
+The full hashes, source identity and measurements are retained in
+`/tmp/transit-sql-deep-catalog-recovery-cold-retry.json`; its matching `.log`
+contains the executed command and completion output.
 
 The same `85009af5` passes full `just check` and the eight-seed resource
 simulation: **798 traces**, **15,496 events**, **1598 executions**, identical
