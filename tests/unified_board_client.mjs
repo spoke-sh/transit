@@ -10,4 +10,4 @@ assert(!validate(changed), 'full-width manifest fields require strings');
 const oversized = structuredClone(page);
 oversized.page.cells = Array(9).fill(oversized.page.cells[0]);
 assert(!validate(oversized), 'only eight owned rows per page');
-console.log('Generated v2 Board client validates actual scoped descriptions, plans and nested result pages.');
+console.log('Generated v1 Board client validates actual scoped descriptions, plans and nested result pages.');

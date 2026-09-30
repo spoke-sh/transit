@@ -22,7 +22,7 @@ import urllib.request
 import uuid
 
 
-def run(binary, growing=False):
+def run(binary):
     assert sys.platform == "linux", "Physical capacity proof requires Linux"
     repo = Path(__file__).resolve().parents[1]
     image = json.loads((repo / "deploy/reference/versions.json").read_text())["ursula"]
@@ -162,14 +162,13 @@ print(json.dumps({'available': s.f_bavail*s.f_frsize, 'wal_bytes': sum(f.stat().
         def proof(phase):
             started = time.monotonic()
             result = subprocess.run([str(binary), f"http://127.0.0.1:{proxy.server_port}", phase],
-                check=not growing, timeout=120, capture_output=growing, text=True)
-            if growing:
-                if result.returncode:
-                    raise RuntimeError(f"Growing capacity {phase}: {result.stderr[-12000:]}")
-                value = json.loads(result.stdout)
-                value["seconds"] = round(time.monotonic() - started, 3)
-                phases.append(value)
-                print(f"Growing capacity: {json.dumps(value)}", flush=True)
+                check=False, timeout=120, capture_output=True, text=True)
+            if result.returncode:
+                raise RuntimeError(f"Native capacity {phase}: {result.stderr[-12000:]}")
+            value = json.loads(result.stdout)
+            value["seconds"] = round(time.monotonic() - started, 3)
+            phases.append(value)
+            print(f"Native capacity: {json.dumps(value)}", flush=True)
 
         try:
             subprocess.run(["docker", "start", container], check=True, stdout=subprocess.DEVNULL, timeout=20)
@@ -211,8 +210,7 @@ os.sync()
                 assert error.code == 503 and b"WalDiskPressure" in error.read()
             else:
                 raise AssertionError("Storage accepted a write under disk pressure")
-            if growing:
-                proof("pressure")
+            proof("pressure")
             # Admissions are already durably closed. Releasing only the reserve
             # cannot reopen them; the filler stays allocated throughout recovery.
             inside("import os; os.unlink('/proof/mount/reserve'); os.sync()")
@@ -236,15 +234,15 @@ os.sync()
             proof("recover")
             after_reconcile = stats()
             assert requests and set(requests) <= {"GET", "HEAD"}, "Completed maintenance issued a mutation"
-            evidence = {"version": 1, "status": "passed", "image": image, "profile": "native_v1" if growing else "v2",
+            evidence = {"version": 1, "status": "passed", "image": image, "profile": "native_v1",
                 "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip(),
                 "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=repo)),
                 "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(),
-                "admission_ceiling": 96 if growing else 256, "control_record_bound": 96 if growing else 4385,
+                "admission_ceiling": 96, "control_record_bound": 96,
                 "reserve_bytes": 1024**3, "before_pressure": before_pressure, "pressured": pressured,
                 "released": released, "after_control": after_control, "before_recovery": before_reconcile,
                 "after_recovery": after_reconcile, "recovery_methods": sorted(set(requests)), "phases": phases}
-            output = repo / (".cache/growing-capacity-evidence.json" if growing else ".cache/capacity-evidence.json")
+            output = repo / ".cache/growing-capacity-evidence.json"
             output.parent.mkdir(exist_ok=True)
             output.write_text(json.dumps(evidence, indent=2) + "\n")
             print("Physical ENOSPC, reserved control progress, checkpoint/trim and disk restart passed.")
@@ -260,5 +258,5 @@ os.sync()
 
 
 if __name__ == "__main__":
-    assert sys.argv[2:] in ([], ["--growing"]), "Expected binary [--growing]"
-    run(Path(sys.argv[1]).resolve(strict=True), growing=bool(sys.argv[2:]))
+    assert len(sys.argv) == 2, "Expected binary"
+    run(Path(sys.argv[1]).resolve(strict=True))

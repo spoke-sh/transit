@@ -15,7 +15,7 @@ export const acquireCaller: AcquireCaller = (caller, signal) => {
     });
     void navigator.locks
       .request(
-        `transit-caller-v3:${caller.realm}:${caller.principal}`,
+        `transit-caller-v1:${caller.realm}:${caller.principal}`,
         { mode: "exclusive", ...(signal ? { signal } : {}) },
         async () => {
           resolve(release);

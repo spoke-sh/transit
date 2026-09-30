@@ -1,4 +1,4 @@
-"""Own real v3 maintenance faults; snapshot publication is not trim permission."""
+"""Own real v1 maintenance faults; snapshot publication is not trim permission."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json

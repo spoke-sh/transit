@@ -2,35 +2,35 @@ const std = @import("std");
 const t = std.testing;
 const f = @import("root.zig");
 
-test "IPC inspection has bounded allocation and fingerprints schema independently of values and source identity" {
-    var workspace: [f.execution.working_bytes]u8 = undefined;
+test "current IPC inspection validates complete streams and fingerprints logical schema" {
+    const m = f.Unified;
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
     var output: [8192]u8 = undefined;
-    const cancel = f.execution.Cancellation.init(false);
-    const schema: f.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
-    const source: f.model.Source = .{ .basis = .{ .resource = 7, .revision = 1, .schema = try schema.fingerprint() }, .schema = schema, .rows = &.{.{ .key = 1, .value = .null }} };
-    const plan: f.Plan = .{};
-    const result = try f.execution.run(try plan.bind(source), source, &workspace, &output, &cancel);
-    const fingerprint = try f.Inspect.segment(result.bytes, result.rows, &workspace);
-    try t.expectError(error.OutOfMemory, f.Inspect.segment(result.bytes, result.rows, workspace[0..1]));
-    try t.expectError(error.InvalidArrowResult, f.Inspect.segment(result.bytes, 2, &workspace));
-    try t.expectError(error.InvalidArrowResult, f.Inspect.segment(result.bytes, 33, &workspace));
-    try t.expectError(error.InvalidArrowResult, f.Inspect.segment(result.bytes[0 .. result.bytes.len - 1], 1, &workspace));
+    const schema: m.Schema = .{ .columns = &.{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .int64 },
+    } };
+    const bytes = try m.Arrow.encode(schema, &.{.{ .cells = &.{ .{ .value = .{ .int64 = 1 } }, .null } }}, workspace, &output);
+    const fingerprint = try m.Inspect.segment(bytes, 1, workspace);
+    try t.expectEqualSlices(u8, &try schema.fingerprint(), &fingerprint);
+    try t.expectError(error.OutOfMemory, m.Inspect.segment(bytes, 1, workspace[0..1]));
+    try t.expectError(error.InvalidArrowResult, m.Inspect.segment(bytes, 2, workspace));
+    try t.expectError(error.InvalidArrowResult, m.Inspect.segment(bytes, 9, workspace));
+    try t.expectError(error.InvalidArrowResult, m.Inspect.segment(bytes[0 .. bytes.len - 1], 1, workspace));
     var concatenated: [16384]u8 = undefined;
-    @memcpy(concatenated[0..result.bytes.len], result.bytes);
-    @memcpy(concatenated[result.bytes.len..][0..result.bytes.len], result.bytes);
-    try t.expectError(error.InvalidArrowResult, f.Inspect.segment(concatenated[0 .. result.bytes.len * 2], 1, &workspace));
-    var other = source;
-    other.basis.resource = 9;
-    other.basis.revision = 7;
-    other.rows = &.{ .{ .key = 2, .value = .{ .int64 = std.math.maxInt(i64) } }, .{ .key = 3, .value = .{ .int64 = std.math.minInt(i64) } } };
-    const changed = try f.execution.run(try plan.bind(other), other, &workspace, &output, &cancel);
-    try t.expectEqualSlices(u8, &fingerprint, &try f.Inspect.segment(changed.bytes, changed.rows, &workspace));
-    const count: f.Plan = .{ .aggregate = .count };
-    const aggregate = try f.execution.run(try count.bind(other), other, &workspace, &output, &cancel);
-    try t.expect(!std.mem.eql(u8, &fingerprint, &try f.Inspect.segment(aggregate.bytes, aggregate.rows, &workspace)));
+    @memcpy(concatenated[0..bytes.len], bytes);
+    @memcpy(concatenated[bytes.len..][0..bytes.len], bytes);
+    try t.expectError(error.InvalidArrowResult, m.Inspect.segment(concatenated[0 .. bytes.len * 2], 1, workspace));
+    const changed = try m.Arrow.encode(schema, &.{.{ .cells = &.{ .{ .value = .{ .int64 = std.math.maxInt(i64) } }, .{ .value = .{ .int64 = std.math.minInt(i64) } } } }}, workspace, &output);
+    try t.expectEqualSlices(u8, &fingerprint, &try m.Inspect.segment(changed, 1, workspace));
+    const count = try m.Arrow.encode(.{ .columns = &.{.{ .name = try m.Name.init("count"), .type = .uint64 }} }, &.{.{ .cells = &.{.{ .value = .{ .uint64 = std.math.maxInt(u64) } }} }}, workspace, &output);
+    try t.expect(!std.mem.eql(u8, &fingerprint, &try m.Inspect.segment(count, 1, workspace)));
+    const empty = try m.Arrow.encode(schema, &.{}, workspace, &output);
+    try t.expectEqualSlices(u8, &fingerprint, &try m.Inspect.segment(empty, 0, workspace));
 }
 
-test "IPC inspection rejects nullability violations and cells beyond the qualified encoding" {
+test "current IPC inspection rejects primitive legacy result streams" {
     var workspace: [f.execution.working_bytes]u8 = undefined;
     var output: [8192]u8 = undefined;
     const data_type: f.arrow.DataType = .{ .string = {} };
@@ -53,6 +53,6 @@ test "IPC inspection rejects nullability violations and cells beyond the qualifi
         try writer.writeSchema(.{ .fields = &wire_fields });
         try writer.writeRecordBatch(batch);
         try writer.writeEnd();
-        try t.expectError(if (nullable) error.InvalidArrowResult else error.NullInNonNullableField, f.Inspect.segment(buffer.buffered(), 1, &workspace));
+        try t.expectError(error.InvalidArrowResult, f.Unified.Inspect.segment(buffer.buffered(), 1, &workspace));
     }
 }

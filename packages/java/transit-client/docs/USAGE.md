@@ -13,7 +13,7 @@ Maven resolution/publication is not part of the local installation proof.
 
 ```java
 var config = new ClientConfig(URI.create("http://127.0.0.1:8080"),
-    ClientConfig.Profile.GROWING_V3);
+    ClientConfig.Profile.NATIVE_V1);
 var credential = new Credential(72, 65536, Path.of("/private/client.seed"));
 try (var client = Client.open(config)) {
     var pending = client.prepareSend(new ProcessRef(72, 123), payload,
@@ -29,7 +29,7 @@ try (var client = Client.open(config)) {
 
 The application supplies its payload, current principal sequence, explicit seed
 file and persistence policy. Admission does not prove processing or a reply.
-`capabilities` reads current authority capabilities. Select `GROWING_V3` explicitly;
+`capabilities` reads current authority capabilities. Select `NATIVE_V1` explicitly;
 there is no fallback to the legacy bounded profile. Protocol counters use positive
 `long` values at most 2^53−1 (principal zero is supported); application u64 values
 in Station use `BigInteger`. Owned byte arrays are copied on entry and exit.

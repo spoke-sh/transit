@@ -164,6 +164,7 @@ pub const SignedSend = struct {
     request: struct {
         pub const json_schema_fields = .{ .version = .{ .@"const" = p.Growth.version } };
         version: u32 = p.Growth.version,
+        definition: p.Growth.Definition,
         realm: u64,
         principal: u64,
         sequence: u64,
@@ -171,9 +172,26 @@ pub const SignedSend = struct {
     },
     signature: [64]u8,
     pub fn native(self: SignedSend) p.Growth.SignedRequest {
-        return .{ .request = .{ .version = self.request.version, .realm = self.request.realm, .principal = self.request.principal, .sequence = self.request.sequence, .command = .{ .send = self.request.command.send } }, .signature = self.signature };
+        return .{ .request = .{ .version = self.request.version, .definition = self.request.definition, .realm = self.request.realm, .principal = self.request.principal, .sequence = self.request.sequence, .command = .{ .send = self.request.command.send } }, .signature = self.signature };
     }
 };
+
+test "reactive send envelope retains the signed native definition and rejects its omission" {
+    const t = std.testing;
+    const pair = try p.Ed25519.KeyPair.generateDeterministic(@splat(17));
+    const signed = try p.Growth.sign(.{ .realm = 49, .principal = 65536, .sequence = 1, .command = .{ .send = .{ .pid = 9, .value = try p.Value.init("command") } } }, pair);
+    const bytes = try p.Json.valueAlloc(t.allocator, signed);
+    defer t.allocator.free(bytes);
+    const decoded = try p.Json.parseFromSlice(SignedSend, t.allocator, bytes);
+    defer decoded.deinit();
+    try t.expectEqualDeep(signed, decoded.value.native());
+    var tree = try std.json.parseFromSlice(std.json.Value, t.allocator, bytes, .{});
+    defer tree.deinit();
+    try t.expect(tree.value.object.getPtr("request").?.object.orderedRemove("definition"));
+    const missing = try std.json.Stringify.valueAlloc(t.allocator, tree.value, .{});
+    defer t.allocator.free(missing);
+    try t.expectError(error.MissingField, p.Json.parseFromSlice(SignedSend, t.allocator, missing));
+}
 
 test "reactive records fit one bounded value and signatures bind scope and progress" {
     const t = std.testing;

@@ -3,7 +3,7 @@
 const std = @import("std");
 const f = @import("transit_fuze");
 const sql = f.Sql;
-const m = f.model;
+const m = f.Unified;
 const Case = struct {
     id: []const u8,
     sql: []const u8,
@@ -104,57 +104,62 @@ pub fn main(init: std.process.Init) !void {
             try stdout.interface.writeByte('\n');
             continue;
         };
-        const source: sql.Source = .{ .name = try m.Name.init(case.schema.name), .schema = .{
-            .names = .{ try m.Name.init(case.schema.columns[0]), try m.Name.init(case.schema.columns[1]) },
-            .value_type = case.schema.type,
-        } };
-        const plan = sql.compile(ast, source) catch |err| {
+        const columns = [_]m.Column{
+            .{ .name = try m.Name.init(case.schema.columns[0]), .type = .int64 },
+            .{ .name = try m.Name.init(case.schema.columns[1]), .type = case.schema.type },
+        };
+        const source: m.Sql.Source = .{ .name = try m.Name.init(case.schema.name), .schema = .{ .columns = &columns } };
+        const plan = m.Sql.compile(init.arena.allocator(), ast, source) catch |err| {
             try std.json.Stringify.value(.{ .id = case.id, .ast = AstView{ .ast = ast }, .compile_error = @errorName(err) }, .{}, &stdout.interface);
             try stdout.interface.writeByte('\n');
             continue;
         };
-        var encoded: [f.Stream.PlanCodec.encoded_bytes]u8 = undefined;
-        const saved = try f.Stream.PlanCodec.encode(plan, &encoded);
-        var hex: [2 * f.Stream.PlanCodec.encoded_bytes]u8 = undefined;
+        var encoded: [m.Codec.max_plan_bytes]u8 = undefined;
+        const saved = try m.Codec.encode(plan, &encoded);
+        var hex: [2 * m.Codec.max_plan_bytes]u8 = undefined;
         const alphabet = "0123456789abcdef";
         for (saved, 0..) |byte, i| {
             hex[2 * i] = alphabet[byte >> 4];
             hex[2 * i + 1] = alphabet[byte & 15];
         }
-        const restored = try f.Stream.PlanCodec.decode(saved);
-        if (!std.meta.eql(restored, plan)) return error.PlanRoundTrip;
+        const restored = try m.Codec.decode(saved);
+        var canonical: [m.Codec.max_plan_bytes]u8 = undefined;
+        if (!std.mem.eql(u8, saved, try m.Codec.encode(restored, &canonical))) return error.PlanRoundTrip;
         const segments = try execute(init, restored, source.schema, args[2], index);
         try std.json.Stringify.value(.{ .id = case.id, .ast = AstView{ .ast = ast }, .encoded = hex[0 .. 2 * saved.len], .segments = segments }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
     try stdout.interface.flush();
 }
-fn execute(init: std.process.Init, plan: f.Stream.Plan, schema: m.Schema, directory: []const u8, index: usize) !u64 {
-    const bound = try plan.bind(.{ .resource = 7, .revision = 9, .schema = try schema.fingerprint() }, schema);
-    var progress = bound.start();
-    var workspace: [f.execution.working_bytes]u8 = undefined;
-    var output: [8192]u8 = undefined;
+fn execute(init: std.process.Init, plan: m.Plan, schema: m.Schema, directory: []const u8, index: usize) !u64 {
+    const bound = try plan.bind(.{ .kind = .table, .resource = 7, .revision = 9, .contract = @splat(7), .schema = try schema.fingerprint() }, schema);
+    var progress: m.Stream.Progress = .start(bound);
+    const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    var cells: [7][2]m.Cell = undefined;
     var rows: [7]m.Row = undefined;
     const cancellation = f.execution.Cancellation.init(false);
     var offset: usize = 0;
     while (progress.finished == null) {
         for (&rows, 0..) |*row, i| {
             const ordinal = offset + i;
-            const value: m.Cell = switch (schema.value_type) {
+            const value: m.Scalar = switch (schema.columns[1].type) {
                 .int64 => .{ .int64 = @as(i64, @intCast(ordinal)) - 20 },
                 .boolean => .{ .boolean = ordinal % 2 == 0 },
-                .utf8 => .{ .utf8 = try m.Bytes.init(if (ordinal % 2 == 0) "it's 東京" else "a\\b") },
-                .binary => .{ .binary = try m.Bytes.init(if (ordinal % 2 == 0) &.{ 0, 255 } else "") },
+                .utf8 => .{ .utf8 = if (ordinal % 2 == 0) "it's 東京" else "a\\b" },
+                .binary => .{ .binary = if (ordinal % 2 == 0) &.{ 0, 255 } else "" },
+                else => return error.UnsupportedFixtureType,
             };
-            row.* = .{ .key = @as(i64, @intCast(ordinal)) - 35, .value = if (ordinal % 5 == 0) .null else value };
+            cells[i] = .{ .{ .value = .{ .int64 = @as(i64, @intCast(ordinal)) - 35 } }, if (ordinal % 5 == 0) .null else .{ .value = value } };
+            row.* = .{ .cells = &cells[i] };
         }
-        const step = try f.Stream.step(bound, progress, .{ .ordinal = progress.pages, .source = .{ .basis = bound.basis, .schema = schema, .rows = &rows }, .end = offset + rows.len == 70 }, &workspace, &output, &cancellation);
+        const step = try m.Stream.step(bound, progress, .{ .ordinal = progress.pages, .basis = bound.basis, .rows = &rows, .end = offset + rows.len == 70 }, workspace, &output, &cancellation);
         if (step.segment) |segment| {
             var path: [4096]u8 = undefined;
             const name = try std.fmt.bufPrint(&path, "{s}/{d}-{d}.arrow", .{ directory, index, progress.segments });
             try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = name, .data = segment.bytes });
         }
-        progress = try f.Stream.Progress.decode(&try step.progress.encode());
+        progress = try m.Stream.Progress.decode(&try step.progress.encode());
         offset += rows.len;
     }
     return progress.segments;

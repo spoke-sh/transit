@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
-/** Explicit v2 callers; shared Zig owns query, authorization and recovery semantics. */
+/** Explicit v1 callers; shared Zig owns query, authorization and recovery semantics. */
 public final class UnifiedQuery {
     private UnifiedQuery() {}
     private static String name(Enum<?> value) { return Objects.requireNonNull(value).name().toLowerCase(Locale.ROOT); }

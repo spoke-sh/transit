@@ -1,7 +1,7 @@
 /-
 Candidate rewrite-safety theorem for Fuze's planner, per docs/history/TESTING.md's
 Lean scoping ("a Fuze rewrite with exact error semantics") and
-docs/history/QUERY_LANGUAGE.md. This formalizes the SPECIFICATION in FUZE_V1.md
+docs/history/QUERY_LANGUAGE.md. This formalizes the SPECIFICATION in UNIFIED_QUERY_V1.md
 ("Filter precedes limit; aggregates consume that limited selection") at the
 row-selection level, not the Zig implementation. Model/implementation
 correspondence is a separate, stated assumption here, exactly as
@@ -16,7 +16,7 @@ consumer. They do not model Fuze's actual typed Cell/comparison implementation.
 A row is left abstract: the property holds for any row type, independent of
 Fuze's actual typed key/value representation. Predicates are total boolean
 tests per row (no unknown/three-valued logic at this level of abstraction;
-FUZE_V1.md's "comparison with null is unknown and does not select the row"
+UNIFIED_QUERY_V1.md's "comparison with null is unknown and does not select the row"
 is already folded into a predicate returning `false` for that case).
 -/
 

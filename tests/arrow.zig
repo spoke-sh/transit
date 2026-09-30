@@ -41,36 +41,39 @@ pub fn main(init: std.process.Init) !void {
 }
 
 fn stream(init: std.process.Init, name: []const u8, path: []const u8) !void {
-    const m = fuze.model;
-    const s = fuze.Stream;
+    const m = fuze.Unified;
     const data_type: m.Type = if (std.mem.eql(u8, name, "bool")) .boolean else if (std.mem.eql(u8, name, "text")) .utf8 else if (std.mem.eql(u8, name, "binary")) .binary else .int64;
-    const schema: m.Schema = .{ .names = .{ try m.Name.init("id"), try m.Name.init("value") }, .value_type = data_type };
+    const schema: m.Schema = .{ .columns = &.{ .{ .name = try m.Name.init("id"), .type = .int64 }, .{ .name = try m.Name.init("value"), .type = data_type } } };
+    var cells: [70][2]m.Cell = undefined;
     var rows: [70]m.Row = undefined;
-    const text: [m.max_cell_bytes]u8 = @splat('x');
-    for (&rows, 0..) |*row, index| {
-        const value: m.Cell = switch (data_type) {
+    var binaries: [70][3]u8 = undefined;
+    const text: [220]u8 = @splat('x');
+    for (&rows, &cells, &binaries, 0..) |*row, *cell, *binary, index| {
+        binary.* = .{ 0, 255, @intCast(index) };
+        const value: m.Scalar = switch (data_type) {
             .int64 => .{ .int64 = 9007199254740993 + @as(i64, @intCast(index)) },
             .boolean => .{ .boolean = index % 2 == 0 },
-            .utf8 => .{ .utf8 = try m.Bytes.init(&text) },
-            .binary => .{ .binary = try m.Bytes.init(&.{ 0, 255, @intCast(index) }) },
+            .utf8 => .{ .utf8 = &text },
+            .binary => .{ .binary = binary },
+            else => unreachable,
         };
-        row.* = .{ .key = @intCast(index), .value = if (index % 5 == 0) .null else value };
+        cell.* = .{ .{ .value = .{ .int64 = @intCast(index) } }, if (index % 5 == 0) .null else .{ .value = value } };
+        row.* = .{ .cells = cell };
     }
-    var plan: s.Plan = .{};
-    if (std.mem.eql(u8, name, "sum")) {
-        plan.aggregate = .sum;
-        plan.projection = .{ 1, null };
+    var plan: m.Plan = .{ .projection = &.{ 0, 1 } };
+    if (std.mem.eql(u8, name, "sum") or std.mem.eql(u8, name, "count")) {
+        plan.aggregate = if (std.mem.eql(u8, name, "sum")) .sum else .count;
+        plan.projection = &.{1};
     }
-    if (std.mem.eql(u8, name, "count")) plan.aggregate = .count;
-    if (std.mem.eql(u8, name, "null")) plan.predicate = .{ .is_null = 1 };
+    if (std.mem.eql(u8, name, "null")) plan.predicate = .{ .state = .{ .column = 1, .value = .null } };
     if (std.mem.eql(u8, name, "empty")) plan.limit = 0;
     if (std.mem.eql(u8, name, "limit")) {
         plan.limit = 37;
         plan.predicate = .{ .compare = .{ .column = 0, .op = .ge, .value = .{ .int64 = 3 } } };
     }
-    const physical = try plan.bind(.{ .resource = 7, .revision = 9, .schema = try schema.fingerprint() }, schema);
-    var progress = physical.start();
-    var workspace: [fuze.execution.working_bytes]u8 = undefined;
+    const physical = try plan.bind(.{ .kind = .table, .resource = 7, .revision = 9, .contract = @splat(3), .schema = try schema.fingerprint() }, schema);
+    var progress = m.Stream.Progress.start(physical);
+    const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
     var output: [8192]u8 = undefined;
     const cancel = fuze.execution.Cancellation.init(false);
     const Segment = struct { ordinal: u64, bytes: usize, rows: u8, digest: [32]u8 };
@@ -79,10 +82,10 @@ fn stream(init: std.process.Init, name: []const u8, path: []const u8) !void {
     var offset: usize = 0;
     var total_bytes: usize = 0;
     while (progress.finished == null) {
-        // Include an empty nonterminal batch and changing partition sizes.
-        const take: usize = if (progress.pages == 0) 0 else if (progress.pages % 2 == 0) 8 else 13;
+        // Include an empty nonterminal batch and changing bounded partitions.
+        const take: usize = if (progress.pages == 0) 0 else if (progress.pages % 2 == 0) 8 else 5;
         const end = @min(rows.len, offset + take);
-        const next = try s.step(physical, progress, .{ .ordinal = progress.pages, .source = .{ .basis = physical.basis, .schema = schema, .rows = rows[offset..end] }, .end = end == rows.len }, &workspace, &output, &cancel);
+        const next = try m.Stream.step(physical, progress, .{ .ordinal = progress.pages, .basis = physical.basis, .rows = rows[offset..end], .end = end == rows.len }, workspace, &output, &cancel);
         if (next.segment) |segment| {
             var path_buffer: [4096]u8 = undefined;
             const segment_path = try std.fmt.bufPrint(&path_buffer, "{s}.{d}.arrow", .{ path, count });
@@ -91,8 +94,7 @@ fn stream(init: std.process.Init, name: []const u8, path: []const u8) !void {
             count += 1;
             total_bytes += segment.bytes.len;
         }
-        // No Arrow allocation or borrowed native progress survives a step.
-        progress = try s.Progress.decode(&try next.progress.encode());
+        progress = try m.Stream.Progress.decode(&try next.progress.encode());
         offset = end;
     }
     var manifest_buffer: [8192]u8 = undefined;
@@ -105,30 +107,30 @@ fn stream(init: std.process.Init, name: []const u8, path: []const u8) !void {
 }
 
 fn query(init: std.process.Init, name: []const u8, path: []const u8) !void {
-    const m = fuze.model;
+    const m = fuze.Unified;
     const data_type: m.Type = if (std.mem.eql(u8, name, "bool")) .boolean else if (std.mem.eql(u8, name, "text")) .utf8 else if (std.mem.eql(u8, name, "binary")) .binary else .int64;
-    const schema: m.Schema = .{ .names = .{ try m.Name.init("id"), try m.Name.init("value") }, .value_type = data_type };
-    const value: m.Cell = switch (data_type) {
+    const schema: m.Schema = .{ .columns = &.{ .{ .name = try m.Name.init("id"), .type = .int64 }, .{ .name = try m.Name.init("value"), .type = data_type } } };
+    const value: m.Scalar = switch (data_type) {
         .int64 => .{ .int64 = 9007199254740993 },
         .boolean => .{ .boolean = true },
-        .utf8 => .{ .utf8 = try m.Bytes.init("東京") },
-        .binary => .{ .binary = try m.Bytes.init(&.{ 0, 255 }) },
+        .utf8 => .{ .utf8 = "東京" },
+        .binary => .{ .binary = &.{ 0, 255 } },
+        else => unreachable,
     };
-    const rows = [_]m.Row{ .{ .key = -1, .value = value }, .{ .key = 2, .value = .null } };
-    const source: m.Source = .{ .basis = .{ .resource = 7, .revision = 3, .schema = try schema.fingerprint() }, .schema = schema, .rows = &rows };
-    var plan: fuze.Plan = .{};
-    if (std.mem.eql(u8, name, "sum")) {
-        plan.aggregate = .sum;
-        plan.projection = .{ 1, null };
+    const rows = [_]m.Row{ .{ .cells = &.{ .{ .value = .{ .int64 = -1 } }, .{ .value = value } } }, .{ .cells = &.{ .{ .value = .{ .int64 = 2 } }, .null } } };
+    var plan: m.Plan = .{ .projection = &.{ 0, 1 } };
+    if (std.mem.eql(u8, name, "sum") or std.mem.eql(u8, name, "count")) {
+        plan.aggregate = if (std.mem.eql(u8, name, "sum")) .sum else .count;
+        plan.projection = &.{1};
     }
-    if (std.mem.eql(u8, name, "count")) plan.aggregate = .count;
-    if (std.mem.eql(u8, name, "null")) plan.predicate = .{ .is_null = 1 };
+    if (std.mem.eql(u8, name, "null")) plan.predicate = .{ .state = .{ .column = 1, .value = .null } };
     if (std.mem.eql(u8, name, "empty")) plan.limit = 0;
-    var workspace: [fuze.execution.working_bytes]u8 = undefined;
-    var output: [672]u8 = undefined;
+    const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
+    var output: [8192]u8 = undefined;
     const cancel = fuze.execution.Cancellation.init(false);
-    const result = try fuze.execution.run(try plan.bind(source), source, &workspace, &output, &cancel);
-    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = result.bytes });
+    const bound = try plan.bind(.{ .kind = .table, .resource = 7, .revision = 3, .contract = @splat(3), .schema = try schema.fingerprint() }, schema);
+    const result = try m.Stream.step(bound, .start(bound), .{ .basis = bound.basis, .ordinal = 0, .rows = &rows, .end = true }, workspace, &output, &cancel);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = path, .data = result.segment.?.bytes });
 }
 
 fn unified(init: std.process.Init, name: []const u8, path: []const u8) !void {

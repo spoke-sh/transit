@@ -11,26 +11,26 @@ ROOT = Path(__file__).resolve().parents[2]
 CORE = Path("packages/zig/transit-core/src")
 MUTANTS = {
     "generation": (
-        "root.zig",
-        "if (c.generation != p.generation or p.owner != record.request.principal) return error.StaleGeneration;",
+        "growing_state.zig",
+        "if (process.owner != principal or process.generation != command.generation) return error.StaleGeneration;",
         "// Mutation: omit activation fencing.",
     ),
     "revision": (
-        "root.zig",
-        "if (c.expected_revision != p.revision) return error.StaleState;",
-        "// Mutation: omit state revision comparison.",
+        "growing_state.zig",
+        "if (process.revision != command.expected_revision) return error.StaleState;\n    _ = try nextInput(engine, process, command.input);",
+        "// Mutation: omit state revision comparison.\n    _ = try nextInput(engine, process, command.input);",
     ),
     "permission": (
-        "root.zig",
-        "if (p.grant.permissions & permission(required) == 0) return error.Forbidden;",
-        "_ = required; // Mutation: omit current grant validation.",
+        "growing.zig",
+        "if (principal_value.grant.permissions & p.permission(needed) == 0) return error.Forbidden;",
+        "_ = needed; // Mutation: omit current grant validation.",
     ),
     "view_deadline": (
-        "resources.zig",
-        """now.before(view.meta.deadline_ms) catch |err| {
-                    if (err == error.DeadlineExpired) return error.StateViewExpired;
-                    return err;
-                };""",
+        "growing_state.zig",
+        """engine.before(sample, meta.deadline_ms) catch |err| {
+        if (err == error.DeadlineExpired) return error.StateViewExpired;
+        return err;
+    };""",
         "// Mutation: omit captured-view deadline validation.",
     ),
 }
@@ -58,7 +58,7 @@ def main():
     destination.mkdir(parents=True, exist_ok=True)
     evidence = {"version": 1, "revision": revision, "status": "inconclusive", "mutants": []}
     try:
-        with tempfile.TemporaryDirectory(prefix="transit-mutants-", dir="/tmp") as directory:
+        with tempfile.TemporaryDirectory(prefix="transit-mutants-") as directory:
             checkout = Path(directory) / "src"
             subprocess.run(["git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout)], check=True)
             subprocess.run(["git", "checkout", "--quiet", "--detach", revision], cwd=checkout, check=True)

@@ -123,7 +123,7 @@ export const sections: Section[] = [
     pages: [
       reference("native", "Native signed protocol"),
       page("contracts/SERVICE_V1.md", "reference/native-wire", "Native HTTP wire contract"),
-      page("contracts/TRANSIT_V1.md", "reference/growing-wire", "Growing protocol v3"),
+      page("contracts/TRANSIT_V1.md", "reference/native-protocol", "Native protocol v1"),
     ],
   },
   {

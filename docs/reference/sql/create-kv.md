@@ -27,7 +27,7 @@ CREATE KV counters (INT64);
 
 ## Meaning and current interface
 
-The form refers to the growing profile's [KV resource](../state.md).
+The form refers to a native v1 [KV resource](../state.md).
 Actual reads and mutations use the public client under current resource policy
 and writer ownership. Mutations share a turn's commit decision with input
 progress and outputs; the declaration creates no new transaction boundary.

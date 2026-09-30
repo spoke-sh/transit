@@ -101,8 +101,8 @@ defmodule Transit.Station.Sdk.Value do
     do: %S.QueryJob{result: result, correlation: correlation, source: convert(source)}
 
   def convert(
-        {:transit_manifest, result, source, destination, correlation, table, policy, basis, plan,
-         segments, bytes, rows, chain, schema}
+        {:transit_manifest, result, source, destination, correlation, table, policy, basis,
+         source_contract, plan, segments, bytes, rows, chain, schema}
       ),
       do: %S.Manifest{
         result: result,
@@ -112,6 +112,7 @@ defmodule Transit.Station.Sdk.Value do
         table: table,
         policy_revision: policy,
         basis: convert(basis),
+        source_contract: source_contract,
         plan: plan,
         segments: segments,
         byte_count: bytes,

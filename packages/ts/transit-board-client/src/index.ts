@@ -42,7 +42,7 @@ export async function request<T>(
   const reader = response.body?.getReader();
   if (!reader) throw new BoardError(0, "InvalidResponse");
   let size = 0;
-  // V2 carries a <=64 KiB Arrow segment as hex plus decoded cells. JSON
+  // V1 carries a <=64 KiB Arrow segment as hex plus decoded cells. JSON
   // control-character escaping can expand those cell bytes sixfold; include
   // bounded schema/conflict/provenance overhead without changing row limits.
   const maximum = path === "/api/v1/query" ? 1048576 : 262144;

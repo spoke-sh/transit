@@ -8,12 +8,11 @@ and [OpenAPI v1](../../contracts/transit-board-v1.openapi.json). Its runtime lib
 ## Configuration guide
 
 [Configuration and deployment](docs/configuration.md) covers identity provisioning,
-private access, origin/listener settings, and migration from experimental viewer
-keys/sessions. Board has no viewer authentication layer; its upstream Transit
+private access and origin/listener settings. Board has no viewer authentication layer; its upstream Transit
 inspection identity remains read-only. The [growing query profile](docs/configuration.md#atlas-and-resource-inspection) uses a different, explicitly configured identity.
-The additive [v1 workspace](docs/configuration.md#unified-state-query-workspace)
+The [v1 workspace](docs/configuration.md#unified-state-query-workspace)
 supports explicit KV/Table/Document declarations through the same query library
-as the shell and SDKs; the original Table workspace keeps its v1 contract.
+as the shell and SDKs.
 
 ## Try it
 
@@ -72,22 +71,22 @@ reserved `/health` handlers. Headers have at most one second; the overall reques
 deadline remains 100–5000 ms. Every handler owns its upstream client, arena and
 observation. Query operations are serialized within this Board instance; callers
 still preserve exact frozen tokens and coordinate their principal's sequence.
-Concurrent gateway admission across instances remains M19 work.
+Separate instances still coordinate shared principal sequences through exact retry.
 Upstream calls have a shorter timeout; no redirects or response cache. The minimum spacing
 between upstream reads is 100 ms by default (configurable up to 5000 ms), shared
 across concurrent viewers through an atomic throttle. Excess reads get
 `429 RateLimited`; clients back off. HTTP data capacity returns 503, while exhausted
 socket/task capacity closes the connection without claiming admission. Headers are
 8 KiB, inspection request bodies 4 KiB (routes accept empty bodies), query bodies
-16 KiB (48 KiB for the v1 query route), request targets 1024 bytes,
+48 KiB, request targets 1024 bytes,
 and upstream responses 256 KiB.
 
-Legacy inspection data preserves the public inspection observation plus explicit
+Inspection data preserves the public inspection observation plus explicit
 causal facts. Pages contain at most 16 facts and journeys at most 32 edges.
 Any authority change expires a continuation; busy writes may prevent pagination.
 Coverage is explicit after trimming, and no Board cache pins history. A running
 lifecycle is not worker liveness; delivered is admission, and closed-unknown is
-not external failure. This bounded experimental profile is not a throughput SLA.
+not external failure. These page bounds do not guarantee a throughput or latency target.
 
 ## Service diagnostics
 
@@ -151,15 +150,12 @@ or associations per page and uses the same explicit cut/restart rules. A 410
 `StateResourceExpired` is different from an empty KV result. A resource-level
 denial does not make other authorized process views unavailable.
 
-M7 removed the counter lens, `lenses` configuration, and response `lens` field.
-This is an intentional change to the experimental v1 API: regenerate external
-clients from OpenAPI and remove `lenses` from standalone configs. Launcher
-`update board` regenerates its configuration. No application value decoder or
-executable interpretation plugin remains in Board.
+Application values remain opaque in inspection. Board has no application value
+decoder or executable interpretation plugin.
 
 ## Growing atlas and workspace
 
-The opt-in `native_v1` profile exposes eight-process/eight-resource atlas pages
+The `native_v1` profile exposes eight-process/eight-resource atlas pages
 at one current authorized cut. The UI offers Processes/Resources emphasis,
 overhead detail, explicit resource entry, and coordinated Canvas/Browse views.
 Missing size, outbox and age measurements remain labeled unavailable. Catalog
@@ -189,8 +185,8 @@ never interprets protobuf, headers, routing values or credential references.
 Unknown outcomes have no complete terminal projection. Both panels share bounded
 polling, abort and clear-on-denial/tab-hide behavior.
 
-The separate query route compiles M12's Table SELECT subset through the shared
-Zig client. Queries execute in external Station hosts; verified Arrow segments
+The separate query route compiles finite SELECT over one declared KV, Table or
+Document source through the shared Zig client. Queries execute in external Station hosts; verified Arrow segments
 become typed cells only through the explicit query capability. Source schemas,
 exact result/source IDs and full-width integer strings survive both views.
 Switching views preserves the draft/result without submitting work. Unknown

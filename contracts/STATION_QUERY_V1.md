@@ -3,12 +3,12 @@
 `Query` captures results in bounded immutable segments. `QueryDelivery`
 and `QueryRecords` define publication, delivery and acknowledgement. Enable
 result frames by supplying a `QueryDelivery.Context` with a bounded workspace
-and cancellation flag. Without it, a growing `GenServer` rejects
+and cancellation flag. Without it, `GenServer` rejects
 `result_chunk`/`result_complete`/`result_ack` with `error.UnsupportedQuery`.
 The growing C/port ABI owns that context when configured with `query_results: true`.
 Public language runners use the same shared implementation. This contract builds
-on [growing Station](STATION_V1.md), [retained read versions](READ_VERSIONS_V1.md)
-and [incremental Fuze](FUZE_STREAM_V1.md). The native contract definition fences
+on [Station](STATION_V1.md), [retained read versions](READ_VERSIONS_V1.md)
+and [query v1](UNIFIED_QUERY_V1.md). The native contract definition fences
 incompatible stored results and foreign ABI consumers.
 
 ## Identity and source
@@ -27,15 +27,20 @@ writes or initial behavior creation. A Table source excludes private writes.
 Job and result data use the same associated resource as the service's Tables in
 this first profile. Cross-resource transactions are not introduced.
 
+The plan uses the canonical `FZP1` encoding and fits one 256-byte native value.
+The source declaration/basis and nested Arrow cells use the same definition as
+all other query clients. The engine workspace is 4 MiB; each Table page has at
+most eight rows. Count output is uint64, and sum is checked int64.
+
 The plan and source schema/basis are durable, not a promise to rerun whatever
 query a replacement binary happens to contain. A worker rejects unsupported
 plan, progress or segment versions. It reopens the recorded version and rebuilds
-the Table cursor from committed progress; it never substitutes current rows.
+the Table cursor from the committed job cursor; it never substitutes current rows.
 
 ## Bounded capture and sealing
 
 Each continuation reads a bounded source page and runs one Fuze step. A segment
-is a complete independent Arrow IPC stream, at most 8192 bytes in this initial
+is a complete independent Arrow IPC stream, at most 8192 bytes in this
 operation profile. A query may have many segments. Aggregate and global-limit
 state belongs to the whole query. Counters use checked arithmetic.
 
@@ -167,18 +172,19 @@ positions for a point index; its value is the result ID as u64le. Tags `m` and
 `f` identify sealed segment manifests and raw fragments. Total key count grows
 with retained results; no fixed array bounds that cardinality.
 
-All value integers are little endian. `GQJ1` job values are 108 bytes: result,
+All value integers are little endian. `GQJ1` job values are 117 bytes: result,
 destination, correlation (u64 each), Table ID (u32), retained source PID/input
 (u64 each)/slot (u8), policy revision (u64), phase (u8), captured byte total (u64),
-chain (32 bytes), publication segment (u64) and byte offset (u16). Phases are
+chain (32 bytes), publication segment (u64), byte offset (u16), Table cursor
+presence (0/1) and after-key (i64, zero when absent). Phases are
 capturing=1, captured=2, published=3, acknowledged=4, cancelled=5, denied=6;
 the publication fields/phases are populated by the delivery layout below.
 
 `GQS1` segment manifests are 55 bytes: result and ordinal (u64 each), bytes
 (u16), rows (u8), SHA-256 (32 bytes). The chain starts with 32 zero bytes. Each
 seal hashes `transit.station.query.segments.v1` followed by a zero byte, the
-prior chain and the exact encoded manifest. `GQT1` staging records are 204 bytes:
-143-byte `FZS1` candidate progress, 55-byte `GQS1` candidate manifest, and u16
+prior chain and the exact encoded manifest. `GQT1` staging records are 228 bytes:
+167-byte `FZS1` candidate progress, 55-byte `GQS1` candidate manifest, and u16
 written bytes. Fragment values hold at most 221 raw bytes. Three fragment writes
 plus one stage write fit the four-mutation budget; a seal writes manifest,
 progress, job and stage tombstone atomically. The tombstone closes transient
@@ -219,32 +225,24 @@ identically to capture continuations.
 `GQX1` result transfers are 110 bytes: result and source PID (u64 each),
 accumulated segments/bytes/rows (u64 each), chain (32 bytes), current fragment
 receive offset (u16), accumulated Arrow schema fingerprint (32 bytes, from
-`Inspect.segment`, independent of source identity or cell values). `segments =
+`Unified.Inspect.segment`, independent of source identity or cell values). `segments =
 0` requires bytes/rows/chain/schema to be their zero value; `rows` must fit
-the accumulated `segments` at `max_rows` (32) per segment.
+the accumulated `segments` at `max_rows` (8) per segment.
 
-`GQM1` complete-result manifests are 208 bytes: result, destination, correlation
-(u64 each), Table ID (u32), policy revision (u64), basis resource/revision
-(u64 each) and schema fingerprint (32 bytes), plan fingerprint (32 bytes),
+`GQM1` complete-result manifests are 241 bytes: result, destination, correlation
+(u64 each), Table ID (u32), policy revision (u64), basis source kind (u8, Table=2),
+resource/revision (u64 each), source declaration and schema fingerprints (32 bytes
+each), plan fingerprint (32 bytes),
 segments/bytes/rows totals (u64 each), chain (32 bytes), Arrow schema
 fingerprint (32 bytes). `check(transfer)` requires the receiver's accumulated
 `Transfer` to exactly match every total, the chain and the schema, with no
 fragment still pending, before a wait can close.
 
-Every segment is independently validated by `Inspect.segment` (`transit-fuze`)
-against the model's row/cell/column bounds before its schema fingerprint enters
-the chain — this is the boundary an untrusted or buggy peer's bytes cross, not
-an internal trust assumption. `Inspect.segment` does not special-case Arrow
-`BodyCompression`; a compressed record batch decodes transparently through the
-same call and is accepted like any other, bounded only by the caller's
-workspace allocator. Compression is out of scope for this profile by
-decision, not oversight: `segment_bytes` (8192) already caps the wire payload
-tightly against the model's row/cell ceilings (32 rows × 220-byte cells × 2
-columns encodes to at most 7,848 bytes), so IPC-level compression buys little
-here and only adds attacker-controlled decompression amplification. Rejecting
-`compression != null` explicitly in `Inspect.segment`, rather than relying on
-the caller's workspace bound alone, is the cheap follow-up if a future profile
-still declines to support it.
+Every segment is independently validated by `Unified.Inspect.segment` against
+the current nested cell schema and all row/cell/state bounds. Its logical schema
+fingerprint is independent of source identity and cell values. Primitive result
+layouts are rejected. Arrow allocations, including decompression, remain within
+the caller's bounded workspace; the sender emits uncompressed IPC.
 
 `GQG1` result credit is a 20-byte cast payload, sent receiver-to-sender rather
 than self-cast: result (u64), durably granted segment count (u64). The sender

@@ -1,5 +1,5 @@
-//! Allocation-free, single-Table SQL frontend. Parsing owns its bounded AST;
-//! compilation resolves only a caller-supplied schema, never a catalog or grant.
+//! Allocation-free SQL syntax and completion. Parsing owns its bounded AST;
+//! the current Unified.Sql compiler resolves an explicitly supplied source.
 const std = @import("std");
 const f = @import("root.zig");
 const m = f.model;
@@ -22,7 +22,7 @@ pub const Literal = union(enum) { null, int64: i64, boolean: bool, utf8: Text, b
 pub const Predicate = union(enum) {
     all,
     is_null: Column,
-    compare: struct { column: Column, op: f.Plan.Comparison, literal: Literal },
+    compare: struct { column: Column, op: f.Unified.Plan.Comparison, literal: Literal },
 };
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
 pub const Ast = struct {
@@ -32,7 +32,6 @@ pub const Ast = struct {
     limit: ?u64 = null,
     input: ?Input = null,
 };
-pub const Source = struct { name: m.Name, schema: m.Schema };
 
 /// Returned AST contains no pointers into text, allocations, effects or authority.
 pub fn parse(text: []const u8) !Ast {
@@ -76,67 +75,6 @@ fn statement(parser: *Parser) !Ast {
     return ast;
 }
 
-/// Convenience entry point. Source name/schema must already come from an
-/// authorized caller view; bind the returned plan to that view's exact basis.
-pub fn plan(text: []const u8, source: Source) !f.Stream.Plan {
-    return compile(try parse(text), source);
-}
-
-pub fn compile(ast: Ast, source: Source) !f.Stream.Plan {
-    try source.schema.validate();
-    if (!sameName(ast.source, source.name)) return error.UnknownSource;
-    if (ast.limit) |limit| if (limit > 32) return error.UnsupportedLimit;
-    if (ast.input) |input| if (input.limit) |limit| if (limit > 32) return error.UnsupportedLimit;
-    if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
-    if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
-    var result: f.Stream.Plan = .{ .limit = if (ast.input) |input| input.limit else ast.limit };
-    const input_projection = if (ast.input) |input| try resolveProjection(input.projection, source.name, source.schema) else [2]?u8{ 0, 1 };
-    const qualifier = if (ast.input) |input| input.alias else source.name;
-    switch (ast.selection) {
-        .rows => |projection| result.projection = try resolveProjection(projection, qualifier, source.schema),
-        .count => {
-            result.aggregate = .count;
-            result.projection = input_projection;
-        },
-        .sum => |column| {
-            const index = try resolve(column, qualifier, source.schema);
-            if (input_projection[0] != index and input_projection[1] != index) return error.UnknownColumn;
-            result.aggregate = .sum;
-            result.projection = .{ index, null };
-        },
-    }
-    result.predicate = switch (ast.predicate) {
-        .all => .all,
-        .is_null => |column| .{ .is_null = try resolve(column, source.name, source.schema) },
-        .compare => |comparison| .{ .compare = .{
-            .column = try resolve(comparison.column, source.name, source.schema),
-            .op = comparison.op,
-            .value = try literalCell(comparison.literal),
-        } },
-    };
-    // Reuse the engine's schema/type validation. This synthetic empty source
-    // performs no read and grants no capability; actual basis binding is later.
-    _ = try result.bind(.{ .resource = 1, .revision = 0, .schema = try source.schema.fingerprint() }, source.schema);
-    return result;
-}
-fn sameName(a: m.Name, b: m.Name) bool {
-    return std.mem.eql(u8, a.slice(), b.slice());
-}
-fn resolve(column: Column, qualifier: m.Name, schema: m.Schema) !u8 {
-    if (column.qualifier) |name| if (!sameName(name, qualifier)) return error.UnknownQualifier;
-    for (schema.names, 0..) |name, index| if (sameName(name, column.name)) return @intCast(index);
-    return error.UnknownColumn;
-}
-fn resolveProjection(projection: Projection, qualifier: m.Name, schema: m.Schema) ![2]?u8 {
-    if (projection[0] == null) {
-        if (projection[1] != null) return error.InvalidProjection;
-        return .{ 0, 1 };
-    }
-    const first = try resolve(projection[0].?, qualifier, schema);
-    const second: ?u8 = if (projection[1]) |column| try resolve(column, qualifier, schema) else null;
-    if (second == first) return error.DuplicateProjection;
-    return .{ first, second };
-}
 /// Shared checked SQL literal decoding; the returned value owns its bytes.
 pub fn literalCell(literal: Literal) !m.Cell {
     return switch (literal) {
@@ -333,7 +271,7 @@ const Parser = struct {
         if (self.token.tag == .cursor) if (self.assistance) |h| {
             for ([_]Tag{ .eq, .ne, .lt, .le, .gt, .ge }) |tag| h.symbol(tag);
         };
-        const op: f.Plan.Comparison = switch (self.token.tag) {
+        const op: f.Unified.Plan.Comparison = switch (self.token.tag) {
             .eq => .eq,
             .ne => .ne,
             .lt => .lt,

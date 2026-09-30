@@ -9,6 +9,42 @@ resource: u64,
 id: u32,
 schema: m.Schema,
 
+/// The current query source definition and schema are shared by Station capture
+/// and the general source adapter. These bytes convey no read authority.
+pub fn querySchema(self: Table, columns: *[f.Unified.max_columns]f.Unified.Column) !f.Unified.Schema {
+    if (self.resource == 0 or self.resource > p.max_counter) return error.InvalidQuerySource;
+    if (self.id == 0) return error.InvalidTableId;
+    try self.schema.validate();
+    columns[0] = .{ .name = try f.Unified.Name.init(self.schema.names[0].slice()), .type = .int64 };
+    columns[1] = .{ .name = try f.Unified.Name.init(self.schema.names[1].slice()), .type = switch (self.schema.value_type) {
+        .int64 => .int64,
+        .boolean => .boolean,
+        .utf8 => .utf8,
+        .binary => .binary,
+    } };
+    const result: f.Unified.Schema = .{ .columns = columns[0..2] };
+    try result.validate();
+    return result;
+}
+pub fn queryDefinition(self: Table, output: []u8) ![]const u8 {
+    var columns: [f.Unified.max_columns]f.Unified.Column = undefined;
+    _ = try self.querySchema(&columns);
+    var writer: std.Io.Writer = .fixed(output);
+    try writer.writeAll("UQS1");
+    try writer.writeInt(u64, self.resource, .little);
+    try writer.writeByte(@backingInt(f.Unified.SourceKind.table));
+    try writer.writeInt(u32, self.id, .little);
+    const encoded = try encodeSchema(self.schema);
+    try writer.writeByte(@intCast(encoded.len));
+    try writer.writeAll(encoded.slice());
+    return writer.buffered();
+}
+pub fn queryBasis(self: Table, revision: u64) !f.Unified.Basis {
+    var columns: [f.Unified.max_columns]f.Unified.Column = undefined;
+    var definition: [64]u8 = undefined;
+    return .{ .kind = .table, .resource = self.resource, .revision = revision, .contract = f.Unified.sourceFingerprint(try self.queryDefinition(&definition)), .schema = try (try self.querySchema(&columns)).fingerprint() };
+}
+
 pub fn descriptorKey(id: u32) p.Value {
     var bytes: [6]u8 = undefined;
     bytes[0..2].* = "\x00t".*;

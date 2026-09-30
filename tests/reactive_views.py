@@ -51,6 +51,7 @@ def run(env, tls):
     print('Observer reclaimed four abandoned sessions without deleting history.', flush=True)
     counter_host = f'127.0.0.1:{tls[env["gateway_ports"][1]].port}'
     operation = 100
+    counts = {}
 
     def mutate(row=1, delta=1):
         nonlocal operation
@@ -63,6 +64,10 @@ def run(env, tls):
             status, current = post(env['gateway_ports'][1], '/serving/v1/read', signed_read(keys[33], 33, ingress, 'status', operation), counter_host, None)
             assert status in (200, 404, 409, 429, 503, 504), (status, current)
             if status == 200 and current['stage'] == 'completed':
+                expected = counts.get(row, 0) + delta
+                result = bytes.fromhex(current['operation']['result'])
+                assert result == struct.pack('<q', expected), ('counter mutation result', operation, current)
+                counts[row] = expected
                 return
             time.sleep(.25)
         raise AssertionError(('counter mutation incomplete', operation))

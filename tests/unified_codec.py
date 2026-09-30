@@ -1,4 +1,4 @@
-"""Independent v2 binary fixtures and Arrow through native and local port APIs."""
+"""Independent v1 binary fixtures and Arrow through native and local port APIs."""
 import copy
 import ctypes as c
 import json

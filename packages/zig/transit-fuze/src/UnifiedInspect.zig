@@ -135,3 +135,45 @@ pub fn decode(schema: m.Schema, bytes: []const u8, expected_rows: u8, workspace:
     }
     if (source.bufferedLen() != 0) return error.InvalidArrowResult;
 }
+
+/// Infer the logical schema only from the current nested cell layout. The full
+/// decoder below validates every field, state, scalar and stream boundary.
+pub fn infer(bytes: []const u8, workspace: []u8, columns: *[m.max_columns]m.Column) !struct { schema: m.Schema, rows: u8 } {
+    if (bytes.len > m.Arrow.segment_bytes or bytes.len < 8 or !std.mem.eql(u8, bytes[bytes.len - 8 ..], &.{ 255, 255, 255, 255, 0, 0, 0, 0 })) return error.InvalidArrowResult;
+    var fixed = std.heap.FixedBufferAllocator.init(workspace);
+    var source: std.Io.Reader = .fixed(bytes);
+    var reader = a.IpcStreamReader(*std.Io.Reader).init(fixed.allocator(), &source);
+    defer reader.deinit();
+    const schema = try reader.readSchema();
+    if (schema.fields.len == 0 or schema.fields.len > m.max_columns) return error.InvalidArrowResult;
+    for (schema.fields, 0..) |field, index| {
+        if (field.data_type.* != .struct_ or field.data_type.struct_.fields.len != 4) return error.InvalidArrowResult;
+        columns[index] = .{ .name = try m.Name.init(field.name), .type = switch (field.data_type.struct_.fields[2].data_type.*) {
+            .int64 => .int64,
+            .uint64 => .uint64,
+            .double => .float64,
+            .bool => .boolean,
+            .string => .utf8,
+            .binary => .binary,
+            else => return error.InvalidArrowResult,
+        } };
+    }
+    const logical: m.Schema = .{ .columns = columns[0..schema.fields.len] };
+    try m.Arrow.validateSchema(logical, schema);
+    var batch = (try reader.nextRecordBatch()) orelse return error.InvalidArrowResult;
+    defer batch.deinit();
+    if (batch.numRows() > m.max_rows) return error.InvalidArrowResult;
+    return .{ .schema = logical, .rows = @intCast(batch.numRows()) };
+}
+/// Validate a self-describing segment before sealing it for durable delivery.
+/// No decoded cells escape this bounded operation.
+pub fn segment(bytes: []const u8, expected_rows: u8, workspace: []u8) ![32]u8 {
+    var columns: [m.max_columns]m.Column = undefined;
+    const metadata = try infer(bytes, workspace, &columns);
+    if (metadata.rows != expected_rows) return error.InvalidArrowResult;
+    var owned: [m.Arrow.segment_bytes]u8 = undefined;
+    var allocator = std.heap.FixedBufferAllocator.init(&owned);
+    var batch: Batch = undefined;
+    try decode(metadata.schema, bytes, expected_rows, workspace, allocator.allocator(), &batch);
+    return metadata.schema.fingerprint();
+}

@@ -190,6 +190,7 @@ typedef struct transit_station_manifest {
     uint32_t table;
     uint64_t policy_revision;
     transit_station_basis basis;
+    uint8_t source_contract[32];
     uint8_t plan[32];
     uint64_t segments, bytes, rows;
     uint8_t chain[32], schema[32];

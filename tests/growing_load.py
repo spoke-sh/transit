@@ -50,7 +50,7 @@ def main():
     node, caller = (str(Path(path).resolve(strict=True)) for path in (args.node, args.caller))
     artifact = args.output or root / '.cache/verification/growing-load.json'
     artifact.parent.mkdir(parents=True, exist_ok=True)
-    evidence = dict(version=1, status='inconclusive', profile='single sequential v3 node, public Zig client, finite offered load',
+    evidence = dict(version=1, status='inconclusive', profile='single sequential v1 node, public Zig client, finite offered load',
                     revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                     dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'])),
                     binaries={Path(p).name: hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (node, caller)},

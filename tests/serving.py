@@ -42,12 +42,12 @@ class Key:
 
 
 def native_query(key, principal, kind):
-    query = dict(version=1, definition='4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679', realm=REALM, principal=principal, kind=kind)
+    query = dict(version=1, definition='eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf', realm=REALM, principal=principal, kind=kind)
     return dict(query=query, signature=key.sign(hashlib.sha256(b'transit.query.v1\0' + compact(query)).digest()))
 
 
 def native_command(key, principal, sequence, command):
-    request = dict(version=1, definition='4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679', realm=REALM, principal=principal, sequence=sequence, command=command)
+    request = dict(version=1, definition='eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf', realm=REALM, principal=principal, sequence=sequence, command=command)
     return dict(request=request, signature=key.sign(hashlib.sha256(b'transit.request.v1\0' + compact(request)).digest()))
 
 
@@ -118,7 +118,14 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             return process
 
         def query(principal, kind):
-            return post(port, '/v1/query', native_query(keys[principal], principal, kind))
+            deadline = time.monotonic() + 10
+            while True:
+                status, response = post(port, '/v1/query', native_query(keys[principal], principal, kind), status=None)
+                if status == 503 and response == {'err': 'HttpCapacity'} and time.monotonic() < deadline:
+                    time.sleep(.05)
+                    continue
+                assert status == 200, ('/v1/query', status, response)
+                return response
 
         def send(command, principal=0):
             message = native_command(keys[principal], principal, sequences[principal] + 1, command)
@@ -136,9 +143,9 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
             send({'grant_resource': dict(resource=resource, subject=principal, permissions=permissions)})
 
         def provision(principal, resource_deadline=None, work_before=None, activate=True):
-            pid = send({'spawn': dict(code=1, work_before_ms=work_before, settle_before_ms=resource_deadline if work_before else None)})
+            pid = send({'spawn': dict(allow_collection=False, code=1, work_before_ms=work_before, settle_before_ms=resource_deadline if work_before else None)})
             grant(principal, 88, pid)
-            resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=resource_deadline)})
+            resource = send({'create_resource': dict(writer=pid, owned=True, deadline_ms=resource_deadline, history_ms=None)})
             for subject in (0, principal):
                 resource_grant(resource, subject, 7)
             send({'associate': dict(pid=pid, name=b'state'.hex(), expected_revision=0, resource=resource, required=True)})
@@ -523,7 +530,7 @@ def run(node, example, courier, tls=False, capacity=False, lifetimes=False, grow
                 expires_at = int(time.time() * 1000) + 10000
                 work_before = expires_at - 2000
                 ephemeral, ephemeral_resource = provision(77, expires_at, work_before)
-                offline = send({'spawn': dict(code=1, work_before_ms=None, settle_before_ms=None)})
+                offline = send({'spawn': dict(allow_collection=False, code=1, work_before_ms=None, settle_before_ms=None)})
                 ephemeral_config = dict(ingress_config, pid=ephemeral, generation=2)
                 ephemeral_worker = start('finite-ingress', example, ephemeral_config)
                 cast(ephemeral, b'SV1c\x00')

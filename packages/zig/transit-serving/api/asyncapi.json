@@ -113,6 +113,7 @@
             "additionalProperties": false,
             "x-transit-field-order": [
               "version",
+              "definition",
               "realm",
               "principal",
               "sequence",
@@ -121,6 +122,12 @@
             "properties": {
               "version": {
                 "const": 1
+              },
+              "definition": {
+                "type": "string",
+                "enum": [
+                  "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
+                ]
               },
               "realm": {
                 "type": "integer",
@@ -186,6 +193,7 @@
               }
             },
             "required": [
+              "definition",
               "realm",
               "principal",
               "sequence",
@@ -328,7 +336,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                      "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                     ]
                   },
                   "realm": {
@@ -370,7 +378,7 @@
                 ],
                 "x-transit-defaults": {
                   "version": 1,
-                  "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                  "definition": "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                 }
               },
               "signature": {
@@ -1144,7 +1152,7 @@
                   "definition": {
                     "type": "string",
                     "enum": [
-                      "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                      "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                     ]
                   },
                   "realm": {
@@ -1186,7 +1194,7 @@
                 ],
                 "x-transit-defaults": {
                   "version": 1,
-                  "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                  "definition": "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                 }
               },
               "signature": {
@@ -2007,6 +2015,7 @@
                 "additionalProperties": false,
                 "x-transit-field-order": [
                   "version",
+                  "definition",
                   "realm",
                   "principal",
                   "sequence",
@@ -2015,6 +2024,12 @@
                 "properties": {
                   "version": {
                     "const": 1
+                  },
+                  "definition": {
+                    "type": "string",
+                    "enum": [
+                      "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
+                    ]
                   },
                   "realm": {
                     "type": "integer",
@@ -2080,6 +2095,7 @@
                   }
                 },
                 "required": [
+                  "definition",
                   "realm",
                   "principal",
                   "sequence",
@@ -2474,7 +2490,7 @@
                       "definition": {
                         "type": "string",
                         "enum": [
-                          "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                          "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                         ]
                       },
                       "realm": {
@@ -2516,7 +2532,7 @@
                     ],
                     "x-transit-defaults": {
                       "version": 1,
-                      "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                      "definition": "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                     }
                   },
                   "signature": {
@@ -2589,6 +2605,7 @@
                         "additionalProperties": false,
                         "x-transit-field-order": [
                           "version",
+                          "definition",
                           "realm",
                           "principal",
                           "sequence",
@@ -2597,6 +2614,12 @@
                         "properties": {
                           "version": {
                             "const": 1
+                          },
+                          "definition": {
+                            "type": "string",
+                            "enum": [
+                              "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
+                            ]
                           },
                           "realm": {
                             "type": "integer",
@@ -2662,6 +2685,7 @@
                           }
                         },
                         "required": [
+                          "definition",
                           "realm",
                           "principal",
                           "sequence",
@@ -3056,7 +3080,7 @@
                               "definition": {
                                 "type": "string",
                                 "enum": [
-                                  "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                                  "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                                 ]
                               },
                               "realm": {
@@ -3098,7 +3122,7 @@
                             ],
                             "x-transit-defaults": {
                               "version": 1,
-                              "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                              "definition": "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                             }
                           },
                           "signature": {
@@ -3159,6 +3183,7 @@
                     "additionalProperties": false,
                     "x-transit-field-order": [
                       "version",
+                      "definition",
                       "realm",
                       "principal",
                       "sequence",
@@ -3167,6 +3192,12 @@
                     "properties": {
                       "version": {
                         "const": 1
+                      },
+                      "definition": {
+                        "type": "string",
+                        "enum": [
+                          "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
+                        ]
                       },
                       "realm": {
                         "type": "integer",
@@ -3232,6 +3263,7 @@
                       }
                     },
                     "required": [
+                      "definition",
                       "realm",
                       "principal",
                       "sequence",
@@ -3282,6 +3314,7 @@
                     "additionalProperties": false,
                     "x-transit-field-order": [
                       "version",
+                      "definition",
                       "realm",
                       "principal",
                       "sequence",
@@ -3290,6 +3323,12 @@
                     "properties": {
                       "version": {
                         "const": 1
+                      },
+                      "definition": {
+                        "type": "string",
+                        "enum": [
+                          "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
+                        ]
                       },
                       "realm": {
                         "type": "integer",
@@ -3355,6 +3394,7 @@
                       }
                     },
                     "required": [
+                      "definition",
                       "realm",
                       "principal",
                       "sequence",
@@ -3758,7 +3798,7 @@
                           "definition": {
                             "type": "string",
                             "enum": [
-                              "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                              "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                             ]
                           },
                           "realm": {
@@ -3800,7 +3840,7 @@
                         ],
                         "x-transit-defaults": {
                           "version": 1,
-                          "definition": "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679"
+                          "definition": "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf"
                         }
                       },
                       "signature": {

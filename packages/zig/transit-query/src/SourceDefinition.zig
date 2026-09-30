@@ -54,18 +54,7 @@ pub fn schema(self: Self, output: *[m.max_columns]m.Column) !m.Schema {
             output[1] = .{ .name = try m.Name.init("value"), .type = kv.value.type };
             break :blk 2;
         },
-        .table => |table| blk: {
-            if (table.id == 0) return error.InvalidTableId;
-            try table.schema.validate();
-            output[0] = .{ .name = try m.Name.init(table.schema.names[0].slice()), .type = .int64 };
-            output[1] = .{ .name = try m.Name.init(table.schema.names[1].slice()), .type = switch (table.schema.value_type) {
-                .int64 => .int64,
-                .boolean => .boolean,
-                .utf8 => .utf8,
-                .binary => .binary,
-            } };
-            break :blk 2;
-        },
+        .table => |table| (try (q.station.Table{ .resource = self.resource, .id = table.id, .schema = table.schema }).querySchema(output)).columns.len,
         .document => |document| blk: {
             _ = try document.reference.encode();
             if (document.reference.resource != self.resource or document.change_format != 1) return error.UnsupportedDocumentSource;
@@ -92,6 +81,7 @@ pub fn schema(self: Self, output: *[m.max_columns]m.Column) !m.Schema {
 pub fn encode(self: Self, output: []u8) ![]const u8 {
     var columns: [m.max_columns]m.Column = undefined;
     _ = try self.schema(&columns);
+    if (self.source == .table) return (q.station.Table{ .resource = self.resource, .id = self.source.table.id, .schema = self.source.table.schema }).queryDefinition(output);
     var writer: std.Io.Writer = .fixed(output);
     try writer.writeAll("UQS1");
     try writer.writeInt(u64, self.resource, .little);
@@ -102,12 +92,7 @@ pub fn encode(self: Self, output: []u8) ![]const u8 {
             try writer.writeAll(kv.prefix.slice());
             try writer.writeAll(&.{ kv.key.version, @backingInt(kv.key.type), kv.value.version, @backingInt(kv.value.type) });
         },
-        .table => |table| {
-            try writer.writeInt(u32, table.id, .little);
-            const encoded = try q.station.Table.encodeSchema(table.schema);
-            try writer.writeByte(@intCast(encoded.len));
-            try writer.writeAll(encoded.slice());
-        },
+        .table => unreachable,
         .document => |document| {
             try writer.writeAll((try document.reference.encode()).slice());
             try writer.writeInt(u32, document.change_format, .little);
@@ -137,10 +122,7 @@ fn writePath(writer: *std.Io.Writer, path: []const d.Name) !void {
 pub fn fingerprint(self: Self) ![32]u8 {
     var bytes: [max_bytes]u8 = undefined;
     const encoded = try self.encode(&bytes);
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.query.source.v1\x00");
-    hash.update(encoded);
-    return hash.finalResult();
+    return m.sourceFingerprint(encoded);
 }
 /// Every decoded slice belongs to allocator; use a bounded request arena.
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Self {

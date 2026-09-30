@@ -12,6 +12,28 @@ import tempfile
 import pyarrow as pa
 
 
+def field(name, datatype):
+    alternative = pa.struct([pa.field("counter", pa.uint64(), nullable=False),
+        pa.field("replica", pa.uint64(), nullable=False), pa.field("state", pa.uint8(), nullable=False),
+        pa.field("kind", pa.uint8(), nullable=False), pa.field("value", datatype)])
+    return pa.field(name, pa.struct([pa.field("state", pa.uint8(), nullable=False),
+        pa.field("kind", pa.uint8(), nullable=False), pa.field("value", datatype),
+        pa.field("alternatives", pa.list_(pa.field("item", alternative, nullable=False)), nullable=False)]), nullable=False)
+
+
+def simple_rows(table):
+    tags = {pa.int64(): 1, pa.uint64(): 2, pa.float64(): 3, pa.bool_(): 4, pa.string(): 5, pa.binary(): 6}
+    result = []
+    for row in table.to_pylist():
+        for name, cell in row.items():
+            tag = tags[table.schema.field(name).type.field("value").type]
+            assert cell["alternatives"] == [] and cell["state"] in (1, 3), cell
+            assert cell["kind"] == (7 if cell["state"] == 1 else tag), cell
+            assert cell["state"] != 1 or cell["value"] is None, cell
+        result.append({name: cell["value"] for name, cell in row.items()})
+    return result
+
+
 def run(binary):
     with tempfile.TemporaryDirectory(prefix="transit-arrow-") as directory:
         for aggregate in ("rows", "count", "sum"):
@@ -30,7 +52,7 @@ def run(binary):
                 assert actual == (expected if aggregate == "rows" else [len(expected)] if aggregate == "count" else [sum(expected)]), (aggregate, width, actual)
                 basis = progress["basis"]
                 def octets(value): return value.encode() if isinstance(value, str) else bytes(value)
-                wire = (b"FZS2\1" + struct.pack("<QQ", basis["resource"], basis["revision"])
+                wire = (b"FZS1\1" + struct.pack("<QQ", basis["resource"], basis["revision"])
                     + octets(basis["contract"]) + octets(basis["schema"]) + octets(progress["plan"])
                     + struct.pack("<QQQQQBqB", *(progress[k] for k in ("pages", "scanned", "selected", "segments", "rows")),
                         progress["sum"] is not None, progress["sum"] or 0, 2))
@@ -138,15 +160,15 @@ def run(binary):
             path = Path(directory) / f"{name}.arrow"
             subprocess.run([binary, f"query-{name}", str(path)], check=True, timeout=20)
             data = path.read_bytes()
-            assert len(data) <= 672
+            assert len(data) <= 8192
             with pa.ipc.open_stream(data) as reader:
                 table = reader.read_all()
             if name in ("sum", "count"):
-                assert table.schema == pa.schema([pa.field(name, pa.int64(), nullable=name == "sum")])
-                assert table.to_pylist() == [{name: 9007199254740993 if name == "sum" else 2}]
+                assert table.schema == pa.schema([field(name, pa.int64() if name == "sum" else pa.uint64())])
+                assert simple_rows(table) == [{name: 9007199254740993 if name == "sum" else 2}]
             else:
-                assert table.schema == pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("value", datatype)])
-                assert table.to_pylist() == ([] if name == "empty" else
+                assert table.schema == pa.schema([field("id", pa.int64()), field("value", datatype)])
+                assert simple_rows(table) == ([] if name == "empty" else
                     [{"id": 2, "value": None}] if name == "null" else
                     [{"id": -1, "value": cell}, {"id": 2, "value": None}])
         print("Fuze: all admitted Arrow types, filter, empty schema, count and exact integer sum passed independent validation")
@@ -156,21 +178,27 @@ def run(binary):
             manifest = json.loads(path.read_text())
             assert manifest["representation"] == "arrow-ipc-segments-v1"
             progress = manifest["progress"]
-            logical = json.dumps(manifest["plan"], ensure_ascii=False, separators=(",", ":")).encode()
-            assert bytes(progress["plan"]) == hashlib.sha256(b"transit.fuze.stream.plan.v1\x00" + logical).digest()
-            encoded = (b"FTP1" + struct.pack("<QQ", progress["basis"]["resource"], progress["basis"]["revision"])
-                       + bytes(progress["basis"]["schema"]) + bytes(progress["plan"])
-                       + struct.pack("<QQQQQ", *(progress[key] for key in ("pages", "scanned", "selected", "segments", "rows")))
-                       + struct.pack("<BqBqB", progress["last_key"] is not None, progress["last_key"] or 0,
+            # Independent canonical plan, source basis and progress encoding.
+            projection = [1] if name in ("count", "sum") else [0, 1]
+            limit = 37 if name == "limit" else 0 if name == "empty" else None
+            logical = (b"FZP1" + bytes([{"count": 1, "sum": 2}.get(name, 0), len(projection), *projection, limit is not None])
+                + struct.pack("<Q", limit or 0)
+                + (bytes([1, 1, 1]) if name == "null" else bytes([2, 0, 5, 1]) + struct.pack("<q", 3) if name == "limit" else b"\0"))
+            assert bytes(progress["plan"]) == hashlib.sha256(b"transit.fuze.plan.v1\0" + logical).digest()
+            basis = progress["basis"]
+            assert basis["kind"] == "table"
+            encoded = (b"FZS1\2" + struct.pack("<QQ", basis["resource"], basis["revision"])
+                       + octets(basis["contract"]) + octets(basis["schema"]) + octets(progress["plan"])
+                       + struct.pack("<QQQQQBqB", *(progress[key] for key in ("pages", "scanned", "selected", "segments", "rows")),
                                      progress["sum"] is not None, progress["sum"] or 0,
                                      {"source_end": 1, "limit": 2}[progress["finished"]]))
-            assert len(encoded) == 143 and Path(f"{path}.progress").read_bytes() == encoded
+            assert len(encoded) == 167 and Path(f"{path}.progress").read_bytes() == encoded
             actual = []
             total_bytes = 0
             datatype = {"bool": pa.bool_(), "text": pa.string(), "binary": pa.binary()}.get(name, pa.int64())
-            schema = (pa.schema([pa.field(name, pa.int64(), nullable=name == "sum")])
+            schema = (pa.schema([field(name, pa.uint64() if name == "count" else pa.int64())])
                       if name in ("count", "sum") else
-                      pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("value", datatype)]))
+                      pa.schema([field("id", pa.int64()), field("value", datatype)]))
             for ordinal, segment in enumerate(manifest["segments"]):
                 assert segment["ordinal"] == ordinal
                 data = Path(f"{path}.{ordinal}.arrow").read_bytes()
@@ -180,8 +208,8 @@ def run(binary):
                 with pa.ipc.open_stream(data) as reader:
                     batches = list(reader)
                     assert reader.schema == schema
-                assert len(batches) == 1 and batches[0].num_rows == segment["rows"] <= 32
-                actual.extend(batches[0].to_pylist())
+                assert len(batches) == 1 and batches[0].num_rows == segment["rows"] <= 8
+                actual.extend(simple_rows(pa.Table.from_batches(batches)))
                 total_bytes += len(data)
             keys = ([] if name == "empty" else range(3, 40) if name == "limit" else
                     range(0, 70, 5) if name == "null" else range(70))

@@ -111,7 +111,7 @@ test "query lens requires canonical records and preserves full-width counters" {
     try t.expect(try decode(allocator, 2, 7, q.records.key('j', 6, 0, 0), try job.encode()) == null);
     try t.expect(try decode(allocator, 2, 7, q.records.key('d', 5, 0, 0), try job.encode()) == null);
     try t.expect(try decode(allocator, 2, 7, key, try p.Value.init("GQJ3 private data")) == null);
-    var manifest: q.Manifest = .{ .result = 5, .destination = 8, .correlation = job.correlation, .table = 1, .policy_revision = 1, .basis = .{ .resource = 7, .revision = 9, .schema = @splat(1) }, .plan = @splat(2), .segments = std.math.maxInt(u64), .bytes = std.math.maxInt(u64), .rows = std.math.maxInt(u64), .chain = @splat(3), .schema = @splat(4) };
+    var manifest: q.Manifest = .{ .result = 5, .destination = 8, .correlation = job.correlation, .table = 1, .policy_revision = 1, .basis = .{ .kind = .table, .resource = 7, .revision = 9, .contract = @splat(5), .schema = @splat(1) }, .plan = @splat(2), .segments = std.math.maxInt(u64), .bytes = std.math.maxInt(u64), .rows = std.math.maxInt(u64), .chain = @splat(3), .schema = @splat(4) };
     const received = q.records.key('c', manifest.correlation, 0, 0);
     const projected = (try decode(allocator, 8, 10, received, try manifest.encode())).?.manifest;
     try t.expectEqualStrings("18446744073709551615", projected.rows);

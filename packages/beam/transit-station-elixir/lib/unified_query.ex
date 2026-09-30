@@ -173,7 +173,7 @@ end
 
 defmodule Transit.Station.Sdk.UnifiedQuery do
   @moduledoc """
-  Explicit v2 immutable sources, plans and signed query callers. Closing joins
+  Explicit v1 immutable sources, plans and signed query callers. Closing joins
   owned native work; killing a waiting task does not cancel a durable query.
   Persist Prepared.bytes before submit and retry identical bytes on uncertainty.
   """

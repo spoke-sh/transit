@@ -11,6 +11,7 @@ transit_station_manifest manifest(transit_station_turn &turn, uint64_t correlati
     out.correlation = wide(raw, value, path + "correlation"); const auto table = raw.number(value, path + "table");
     if (table > UINT32_MAX || out.correlation != correlation) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE, "manifest"); out.table = static_cast<uint32_t>(table);
     out.policy_revision = wide(raw, value, path + "policy_revision"); out.basis = basis(raw, value, path + "basis", realm);
+    digest(raw, value, path + "basis/contract", out.source_contract);
     digest(raw, value, path + "plan", out.plan); out.segments = wide(raw, value, path + "segments"); out.bytes = wide(raw, value, path + "bytes"); out.rows = wide(raw, value, path + "rows");
     digest(raw, value, path + "chain", out.chain); digest(raw, value, path + "schema", out.schema); return out;
 }

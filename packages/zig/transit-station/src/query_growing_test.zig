@@ -109,7 +109,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
     defer store.deinit();
     const table = try store.seed(70, .utf8);
     var start = try store.turn(.{ .kind = .call, .correlation = std.math.maxInt(u64) }, 8);
-    const job = try q.start(&start, table, .{});
+    const job = try q.start(&start, table, .{ .projection = &.{ 0, 1 } });
     try store.commit(start);
     var next = try request(start);
     const original = next;
@@ -172,7 +172,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
     try t.expectEqual(result.job.bytes, bytes);
     try t.expectEqualSlices(u8, &chain, &result.job.chain);
     var duplicate_call = try store.turn(.{ .kind = .call, .correlation = job.correlation }, 8);
-    try t.expectError(error.CorrelationAlreadyUsed, q.start(&duplicate_call, table, .{}));
+    try t.expectError(error.CorrelationAlreadyUsed, q.start(&duplicate_call, table, .{ .projection = &.{ 0, 1 } }));
     try t.expectError(error.InvalidQueryOrdinal, q.capturedSegment(&inspect, job.result, result.progress.segments, &buffer));
     const fragment = r.key('f', job.result, 0, 0);
     const old = store.state.get(fragment).?;
@@ -189,7 +189,7 @@ test "growing capture rejects changed staging and closes policy or source loss w
     defer store.deinit();
     const table = try store.seed(10, .utf8);
     var start = try store.turn(.{ .kind = .call, .correlation = 3 }, 8);
-    const job = try q.start(&start, table, .{});
+    const job = try q.start(&start, table, .{ .projection = &.{ 0, 1 } });
     try store.commit(start);
     var workspace: [f.execution.working_bytes]u8 = undefined;
     var cancel = f.execution.Cancellation.init(true);
@@ -231,7 +231,7 @@ test "growing capture rejects changed staging and closes policy or source loss w
     defer revoked.deinit();
     const second_table = try revoked.seed(10, .int64);
     start = try revoked.turn(.{ .kind = .call, .correlation = 4 }, 8);
-    const second = try q.start(&start, second_table, .{});
+    const second = try q.start(&start, second_table, .{ .projection = &.{ 0, 1 } });
     try revoked.commit(start);
     var policy = try revoked.turn(.{ .kind = .cast }, 2);
     try q.setPolicy(&policy, 8, 1, 1, false);
@@ -279,7 +279,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
         var turn = try target.turn(message.frame, message.source);
         if (!try q.dispatch(&turn, message.frame, context)) {
             if (message.frame.kind == .call) {
-                identity = (try q.start(&turn, table, .{})).result;
+                identity = (try q.start(&turn, table, .{ .projection = &.{ 0, 1 } })).result;
             } else {
                 try t.expectEqual(Frame.Kind.result_complete, message.frame.kind);
                 const result = try q.completed(&turn, correlation);
@@ -382,7 +382,7 @@ test "receiver rejects out-of-order conflicting and premature result evidence wi
     turn.delivery.input.value = try frame.encode();
     try t.expectError(error.ConflictingResultIdentity, q.dispatch(&turn, frame, context));
     const schema: f.model.Schema = .{ .names = .{ try .init("id"), try .init("value") }, .value_type = .int64 };
-    const manifest: q.Manifest = .{ .result = 55, .destination = 8, .correlation = correlation, .table = 1, .policy_revision = 1, .basis = .{ .resource = 7, .revision = 1, .schema = try schema.fingerprint() }, .plan = @splat(1), .segments = 1, .bytes = data.len, .rows = 1, .chain = @splat(0), .schema = @splat(0) };
+    const manifest: q.Manifest = .{ .result = 55, .destination = 8, .correlation = correlation, .table = 1, .policy_revision = 1, .basis = try (Table{ .resource = 7, .id = 1, .schema = schema }).queryBasis(1), .plan = @splat(1), .segments = 1, .bytes = data.len, .rows = 1, .chain = @splat(0), .schema = @splat(0) };
     frame = .{ .kind = .result_complete, .correlation = correlation, .payload = try manifest.encode() };
     turn.delivery.input.value = try frame.encode();
     try t.expectError(error.IncompleteResult, q.dispatch(&turn, frame, context));

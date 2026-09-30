@@ -51,7 +51,7 @@ const Handler = struct {
             return;
         }
         if (frame.kind == .call) {
-            const job = try q.start(turn, try station.Table.open(turn, 1), .{});
+            const job = try q.start(turn, try station.Table.open(turn, 1), .{ .projection = &.{ 0, 1 } });
             self.result = job.result;
             return;
         }
@@ -169,7 +169,7 @@ pub fn main(init: std.process.Init) !void {
         try drive(init.io, &write_server, &handler); // First three fragments, not a sealed segment.
         const stage = try q.records.Stage.decode((try value(&admin, writer.resource, q.records.key('s', handler.result, 0, 0))).?);
         try t.expect(stage.written == 3 * q.records.fragment_bytes and stage.written < stage.segment.bytes);
-        const progress = try f.Stream.Progress.decode((try value(&admin, writer.resource, q.records.key('e', handler.result, 0, 0))).?.slice());
+        const progress = try f.Unified.Stream.Progress.decode((try value(&admin, writer.resource, q.records.key('e', handler.result, 0, 0))).?.slice());
         try t.expectEqual(@as(u64, 0), progress.pages);
         try t.expectEqual(@as(u64, 0), progress.segments);
         try save(init, args[3], .{ .service = writer.pid, .requester = requester.pid, .resource = writer.resource, .requests = requester.resource, .result = handler.result, .correlation = request_handler.result, .output = after });
@@ -187,7 +187,7 @@ pub fn main(init: std.process.Init) !void {
         for (0..64) |_| {
             try deliver(&admin, &expected.output);
             try drive(init.io, &write_server, &handler);
-            const progress = try f.Stream.Progress.decode((try value(&admin, expected.resource, q.records.key('e', expected.result, 0, 0))).?.slice());
+            const progress = try f.Unified.Stream.Progress.decode((try value(&admin, expected.resource, q.records.key('e', expected.result, 0, 0))).?.slice());
             if (std.mem.eql(u8, args[2], "seal") and progress.segments == 1) {
                 try t.expectEqual(@as(u64, 1), progress.pages);
                 try t.expect(progress.finished == null);

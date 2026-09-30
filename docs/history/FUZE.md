@@ -10,7 +10,7 @@ use the [package API](../../packages/zig/transit-fuze/README.md) when embedding 
 engine. This page explains execution ownership and future extension boundaries.
 
 Status: the bounded M9 Table profile is implemented. The [package](../../packages/zig/transit-fuze/README.md)
-implements the [v1 bounded query profile](../../contracts/FUZE_V1.md), Arrow
+implements the [v1 bounded query profile](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_V1.md), Arrow
 dependency integration and finite IPC encoding. Broader capabilities below
 remain design direction. [M9](../roadmap/M9.md) introduces Fuze's
 bounded Table execution profile alongside Station. The shared query model targets
@@ -29,7 +29,7 @@ bounded query/result batches before public SDKs. The existing finite M9 source
 and IPC ceilings remain limits of the legacy path; they are not the intended
 maximum Table or retained-result size. A larger dataset must not imply collecting
 all rows or result bytes in a worker's memory.
-The [incremental execution contract](../../contracts/FUZE_STREAM_V1.md) now has a
+The [incremental execution contract](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_STREAM_V1.md) now has a
 qualified pure Zig engine with bounded batches and whole-query progress. Station's
 durable fragment/result publication and growing recovery are qualified separately
 in M10; pure engine evidence alone does not establish service recovery.

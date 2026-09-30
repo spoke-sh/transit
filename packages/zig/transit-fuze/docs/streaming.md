@@ -1,50 +1,55 @@
 # Incremental execution
 
-`transit_fuze.Stream` executes ordered source pages without loading the whole
-source or result into memory. It is a caller library with no client, storage or
-authority dependency. The [development contract](../../../../contracts/FUZE_STREAM_V1.md)
-owns exact semantics and the versioned progress encoding.
+`transit_fuze.Unified.Stream` evaluates bounded pages from one exact source
+without loading its complete data or result into memory. The
+[query v1 contract](../../../../contracts/UNIFIED_QUERY_V1.md) owns the plan,
+source basis, progress encoding and nested Arrow representation.
 
-Bind `Stream.Plan` to a resource/revision/schema with `plan.bind(basis, schema)`.
-Use `bound.start()` once, then pass each `Stream.Page` to `Stream.step`, with
-caller-owned workspace, output buffer and cancellation flag. A successful step
-returns candidate progress and optionally one segment whose bytes borrow the
-output buffer. Copy or consume those bytes before reusing it. A failed step
-returns no result; discard any partially written buffer and retain prior progress.
+Bind `Unified.Plan` with `plan.bind(basis, schema)`, then initialize
+`Unified.Stream.Progress.start(bound)`. Each `Stream.step` takes the previous
+progress, a `Unified.Page`, caller-owned workspace/output and cancellation.
+Success returns candidate progress and an optional segment borrowing the output
+buffer. Consume or copy those bytes before reusing it. On failure discard the
+partial output and retain the previous committed progress.
 
-Pages have consecutive ordinals and strictly increasing primary keys across
-boundaries. Set `end` only from the source adapter's completion evidence; an empty
-page does not establish completion. `Progress.encode/decode` makes an owned,
-pointer-free 143-byte checkpoint; validate it against the same bound plan before
-resuming. Cancellation is cooperative within a bounded synchronous step, not an
-external task cancellation or durable result rollback.
+Pages have consecutive ordinals and at most eight rows. Source adapters own
+ordering and cursor validation; `end` requires their completion evidence. An
+empty page alone does not establish completion. The pointer-free `FZS1` progress
+record is 167 bytes. It binds source kind, resource/revision, source declaration,
+schema and plan fingerprints, counters, aggregate carry and termination. Adapter
+cursors are stored beside it, never hidden in a native iterator.
 
-The nullable u64 `limit` applies after filtering across the **whole query**. Null
-means no logical row limit. Each source batch still has a 32-row safety bound,
-and each value/schema keeps the existing qualified encodings. Per-step workspace
-is caller-supplied (the usual budget is 1 MiB); output capacity is a separate
-caller-owned bound. Exhaustion returns an error, never a shortened successful
-result. Counter overflow also fails the candidate step.
+The optional u64 limit applies after filtering across the whole query; null
+means no logical row limit. Count includes selected null/missing rows and emits
+uint64. Checked int64 sum ignores null/missing values and remains null for an
+empty/all-null selection. Type errors or conflicts in compared/summed cells
+fail the step. Addition preserves source order across page boundaries; summing
+independent page totals could hide an intermediate overflow and is unsupported.
 
-Rows produce an independently valid Arrow IPC stream per nonempty selection.
-An empty final result still produces one schema-bearing empty segment. Count
-and sum carry across pages and produce a single scalar segment at termination.
-Sum feeds its previous carry into the pinned zarrow-compute kernel before the
-current selected values, preserving checked overflow in source order. It does
-not sum independent page totals. Count includes selected null rows; sum skips
-nulls and remains null when none of the selected values is nonnull.
+Callers supply up to 4 MiB of Arrow workspace and a separate output buffer.
+The general segment ceiling is 64 KiB; a consumer may impose a smaller explicit
+budget. Allocation/output exhaustion and counter overflow fail the candidate,
+never return a successful prefix. Cancellation is cooperative within the bounded
+step and does not cancel previously committed work.
 
-Read each output segment independently, or decode/re-encode its batches through
-an Arrow adapter. Concatenating complete IPC stream bytes does not produce one
-IPC stream. Each returned segment has a row count and SHA-256 digest; this is
-local evidence only. The caller must commit source progress and captured output
-together before describing it as durable or complete. The Station integration
-is still being implemented; `Stream` alone does not authorize sources, retain
-versions, stage fragments, deliver results or acknowledge a consumer.
+Row output emits independently valid nested Arrow IPC streams as selection
+advances. An empty complete result still emits a schema-bearing empty stream.
+Count/sum emit one scalar segment on completion. Each segment contains schema,
+one record batch and an end marker, with a row count and SHA-256 digest.
+Concatenating complete streams does not create one IPC stream.
 
-`just test::arrow` independently checks all admitted types and multi-page results
-with PyArrow, plus plan fingerprints and progress bytes with Python. The text
-case decodes 70 rows/16,008 bytes in seven segments. Package unit tests check
-global limits, nulls, ordered overflow, exact identity, cancellation, too-small
-workspace/output and retry determinism. These finite checks establish no
-throughput, parallel execution, join/spill or durable recovery capability.
+`Unified.Inspect.decode` checks an expected logical schema and copies decoded
+values into a caller-owned allocator. `Inspect.segment` infers the schema from
+the current nested layout, validates the complete stream and returns its logical
+schema fingerprint. It rejects primitive legacy result layouts.
+
+A pure result is local evidence. The owning integration commits source progress
+and captured output together before claiming durability. Station supplies
+[Table capture, credit and acknowledgement](../../transit-station/docs/queries.md);
+transit-query supplies [interactive and durable query clients](../../transit-query/README.md).
+Neither a basis nor an engine checkpoint grants access to source data.
+
+`just test::arrow` checks independent PyArrow decoding, plan fingerprints and
+checkpoint bytes. The proof ledger records executed schedules; package tests
+cover ordered overflow, empty/all-null results, changed identity, cancellation,
+allocation/output faults and deterministic retry.

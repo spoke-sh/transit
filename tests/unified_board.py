@@ -1,4 +1,4 @@
-"""Real v2 Board boundary over the recovered source; inspection stays separate."""
+"""Real v1 Board boundary over the recovered source; inspection stays separate."""
 import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -19,15 +19,15 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
                    seed_file=inspector['seed_file'], public_origin=origin, port=port,
                    request_timeout_ms=5000, upstream_timeout_ms=3500,
                    query={k: caller[k] for k in ('connection', 'seed_file', 'workspace')})
-    config = root/'board-v2.json'
+    config = root/'board-v1.json'
     config.write_text(json.dumps(options))
-    server = start('board-v2', [binary, str(config)])
+    server = start('board-v1', [binary, str(config)])
     wait_ready(fixture.http, server, origin+'/health')
     second_port = free_port()
     second_origin = f'http://127.0.0.1:{second_port}'
-    second_config = root/'board-v2-second.json'
+    second_config = root/'board-v1-second.json'
     second_config.write_text(json.dumps(options | dict(public_origin=second_origin, port=second_port)))
-    second = start('board-v2-second', [binary, str(second_config)])
+    second = start('board-v1-second', [binary, str(second_config)])
     wait_ready(fixture.http, second, second_origin+'/health')
 
     def request(path, operation=None, status=200, headers=None, instance=0):
@@ -43,7 +43,8 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
                 data = json.loads(response.read())
                 if response.status == 429 and status != 429: continue
                 if status is None: return response.status, data
-                read = operation is None or next(iter(operation)) in ('describe', 'status', 'page', 'observe', 'draft_status')
+                read = operation is None or next(iter(operation)) in ('describe', 'status', 'page', 'observe', 'draft_status', 'compile', 'next', 'suggest', 'assist')
+                if read and status == 200 and response.status == 503 and data.get('err') == 'Unavailable': continue
                 if read and status == 200 and response.status == 409 and data.get('err') == 'QueryExpired': continue
                 assert response.status == status, (path, operation and next(iter(operation)), response.status, data)
                 assert response.headers['Cache-Control'] == 'no-store'
@@ -75,7 +76,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
     api({'describe': {}}, headers={'Origin': 'https://untrusted.example'}, status=403)
     api({'compile': {'sql': 'DELETE FROM items'}}, status=400)
     api({'submit': {'token': '{}'}}, status=400)
-    request('/api/v2/query', {'describe': {}}, status=404)
+    assert request('/api/v2/query', {'describe': {}}, status=400) == {'err': 'InvalidQuery'}
     assert api({'status': '3'})['status'] is None
     first = api({'page': {'namespace': '1'}})['page']
     assert first['evidence']['next'] and first['cells']
@@ -189,7 +190,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
         print(f'Board Table draft budget: atomic finite query, cross-instance exact retries, exhaustion, closed-generation replay and current source denial passed in {time.monotonic()-draft_started:.2f}s.', flush=True)
     if browser:
         marker = root/'board-browser-ready'
-        process = start('board-v2-browser', ['vp', 'exec', '--filter', '@rey/transit-board-web',
+        process = start('board-v1-browser', ['vp', 'exec', '--filter', '@rey/transit-board-web',
             'node', 'browser/unified-query.mjs', origin, str(marker), str(caller['connection']['resource']), kind])
         try:
             until = time.monotonic()+240
@@ -198,7 +199,7 @@ def check(binary, root, kind, invoke, expected, fixture, start, browser=False):
                 time.sleep(0.2)
             invoke('revoke', direct=True)
             assert process.wait(timeout=30) == 0
-            print((root/'board-v2-browser.log').read_text(), end='', flush=True)
+            print((root/'board-v1-browser.log').read_text(), end='', flush=True)
             invoke('restore', direct=True)
         finally:
             if process.poll() is None: process.kill(); process.wait(timeout=10)

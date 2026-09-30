@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Transit.Client.Internal;
 internal sealed class NativeApi {
     internal const uint Version = 1;
-    internal const string Definition = "4f57c31ad9aaf94af701a6700ff2c5802d78027e7f3a1a5645970931beb4e679";
+    internal const string Definition = "eeffa57068491ade001639ae7b64d2895108d0b9a03cfecc382e1f20c5d33acf";
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint transit_client_abi_definition_matchesDelegate([In] byte[] arg0, nuint arg1);

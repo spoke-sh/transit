@@ -12,7 +12,7 @@ reconstructs committed state and required protocol evidence from that history
 and validated checkpoints. Index pages and caches accelerate access; evicting a
 cache does not delete logical data.
 
-The growing profile publishes immutable state roots and uses bounded resident
+Native v1 publishes immutable state roots and uses bounded resident
 pages independently of retained cardinality. That does not provide horizontal
 authority throughput: the current realm journal remains a serialization point.
 Do not infer cluster scaling from a growing-data test.

@@ -78,7 +78,7 @@ fn nativeAt(self: Self, command: m.Command, sequence: u64) !r.SignedSend {
     const payload = try command.encode();
     const value = try (root.station.Frame{ .kind = .cast, .payload = payload }).encode();
     const signed = try p.Growth.sign(.{ .realm = self.connection.realm, .principal = self.connection.principal, .sequence = sequence, .command = .{ .send = .{ .pid = self.connection.ingress, .value = value } } }, self.key);
-    return .{ .request = .{ .realm = signed.request.realm, .principal = signed.request.principal, .sequence = sequence, .command = .{ .send = signed.request.command.send } }, .signature = signed.signature };
+    return .{ .request = .{ .definition = signed.request.definition, .realm = signed.request.realm, .principal = signed.request.principal, .sequence = sequence, .command = .{ .send = signed.request.command.send } }, .signature = signed.signature };
 }
 pub fn validate(self: Self, prepared: r.SignedSend) !void {
     const request = prepared.native();

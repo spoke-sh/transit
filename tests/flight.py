@@ -50,19 +50,22 @@ def run(node, host, gateway, proof, mode=None, board=None):
             subprocess.run([proof, url, 'provision-flight', str(fixture.root)], check=True, capture_output=True, timeout=60)
             start_workers(fixture.root)
             caller = json.loads((fixture.root / 'cli.json').read_text())
+            def connection(caller):
+                return dict(caller['connection'], name=caller['workspace']['name'],
+                            table=caller['workspace']['source']['source']['table']['id'])
             token = 'a' * 64
             (fixture.root / 'credential').write_text(token)
             (fixture.root / 'ticket.seed').write_text('2a' * 32)
             boundary = owned.enter_context(NativeBoundary(url)) if faults else None
             options = dict(url=boundary.url if boundary else url, inspector=55, inspector_seed_file=str(fixture.root / 'inspector.seed'), ticket_seed_file=str(fixture.root / 'ticket.seed'), port=flight_port, ticket_ttl_ms=120000,
-                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=caller['connection'], service=1, binding_revision=1, columns=['id','value'])])
+                callers=[dict(credential_file=str(fixture.root / 'credential'), seed_file=str(fixture.root / 'caller.seed'), connection=connection(caller), service=1, binding_revision=1, columns=['id','value'])])
             if faults:
                 options['native_timeout_ms'] = 15000
                 second = fixture.root / 'second'; second.mkdir(mode=0o700)
                 subprocess.run([proof, url, 'provision-flight-second', str(second)], check=True, capture_output=True, timeout=60)
                 (second / 'credential').write_text('b' * 64)
                 other = json.loads((second / 'cli.json').read_text())
-                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=other['connection'], service=1, binding_revision=1, columns=['id', 'value']))
+                options['callers'].append(dict(credential_file=str(second / 'credential'), seed_file=str(second / 'caller.seed'), connection=connection(other), service=1, binding_revision=1, columns=['id', 'value']))
                 start_workers(second, 'second-')
             gateway_config = fixture.root / 'gateway.json'
             gateway_config.write_text(json.dumps(options))

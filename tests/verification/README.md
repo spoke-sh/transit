@@ -13,26 +13,20 @@ owners, exercised schedules and qualification limits. A null model means no
 formal model currently covers that claim. Tasks name executable checks, not an
 assertion that every possible violation is detected.
 
-[limits.json](limits.json) distinguishes total-cardinality ceilings from operation
-budgets, encodings, working sets and quota ceilings in the legacy profile. The
-checker rejects unreviewed changes to these constants and new `max_*` declarations
-in the audited files. Other component-specific transport/parser bounds still
-require review when those components change. It does not infer that a fixed
-array is scalable because its memory use is bounded.
-
-Every legacy total-cardinality ceiling also has a checked `growing_replacements`
-entry. It names the paged/segmented replacement or explicitly unsupported family.
-The checker rejects missing reviews and narrow generated v3 principal fields.
-This includes process/principal/association catalogs, retained work and checkpoint
-roots as well as application rows. External payload operations and growing
-registry/supervision APIs are not implicitly supplied by the legacy bindings;
-their unsupported status is part of the SDK handoff.
+[limits.json](limits.json) classifies the current operation, encoding, resident
+working-set and deployment quota bounds. Its `removed_bounds` entries retain the
+names of eliminated total-cardinality ceilings; `collections` names each current
+paged or segmented owner. The checker rejects lost replacement owners, drift in
+reviewed constants, unclassified `max_*` declarations in audited files and narrow
+generated principal fields. Other component-specific bounds still require review
+when those components change. A bounded resident array does not establish a bound
+on retained collection size.
 
 `python3 -B tests/verification/check.py` validates owners, links, classifications
 and drift; `just check` includes it. Missing tasks and unreviewed limit changes
-are negative controls. The growing profile's bounded qualification is recorded
-in the [test guide](../README.md#m10-verification-and-scale-foundations);
-inventory coverage does not imply all M10 gates have passed.
+are negative controls. The [current cutover evidence](../README.md#native-v1-cutover-checkpoint--2026-09-30)
+separates newly executed proofs from historical qualification. An inventory entry
+or preserved historical result is not evidence that its replacement passed.
 
 M21 registers the reactive API/client/refresh and placement proofs and adds the
 actual M20 browser peer plus Board/counter consumer schedules to the complete
@@ -290,8 +284,7 @@ edits production source in the working tree. Weekly CI runs this larger budget.
 ## Scale and offered load
 
 [scale.json](scale.json) defines progressive experiment sizes and required
-measurements for the growing profile. These are test datasets, not service SLOs
-or claims that the legacy profile supports them.
+measurements for the native v1 authority. These are test datasets, not service SLOs.
 
 `just test::scale` executes its smaller `qualification_matrix` twice by default,
 retaining each sample under `.cache/verification/scale/` and a completion manifest.
@@ -310,7 +303,7 @@ summarizes observed ranges and qualification limits.
 `just test::codecs` runs valid/malformed/truncated signed JSON and Station frame
 corpora, canonical-identity roundtrips and parser/output allocation enumeration.
 The growing request/query corpus additionally exercises full-width principal
-and retained-version identities under their distinct v3 signature domains.
+and retained-version identities under their distinct v1 signature domains.
 `just test::codecs --fuzz=1000` gives each of the three targets a bounded native Zig
 fuzz budget. The request parser has a fixed 128 KiB workspace and bounded input;
 no generated input can initiate a request or authority mutation.
@@ -331,7 +324,7 @@ retain responsibility for network and scheduler assumptions.
 
 M11's first native-boundary slice adds the `growing-profile-abi` scenario to
 [sdk.json](sdk.json). The [operation fixtures](sdk-operations-v1.json) pin
-canonical v3 bodies, full-width IDs, signature domains and exact signatures.
+canonical v1 bodies, full-width IDs, signature domains and exact signatures.
 `just test::client-abi` checks them and the real one-page-cache node/provider
 restart, lost/invalid responses, fresh-process retry and current revocation.
 This scenario qualifies the raw ABI. The growing Station boundary and public

@@ -622,7 +622,7 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArg("--example");
         unified_query_test.addArtifactArg(query_example);
     }
-    if (b.option(bool, "unified-shell", "Include the actual v2 SQL shell in unified recovery") orelse false) {
+    if (b.option(bool, "unified-shell", "Include the actual v1 SQL shell in unified recovery") orelse false) {
         unified_query_test.addArg("--shell");
         unified_query_test.addArtifactArg(query_shell);
     }
@@ -631,13 +631,13 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArtifactArg(query_shell);
     }
     if (b.option(bool, "unified-console-tls", "Qualify explicit console TLS trust through nginx") orelse false) unified_query_test.addArg("--console-tls");
-    if (b.option(bool, "unified-board", "Include Board's v2 query API in unified recovery") orelse false) {
+    if (b.option(bool, "unified-board", "Include Board's v1 query API in unified recovery") orelse false) {
         unified_query_test.addArg("--board");
         unified_query_test.addArtifactArg(board);
     }
-    if (b.option(bool, "unified-browser", "Include the actual v2 Board workspace in unified recovery") orelse false) unified_query_test.addArg("--browser");
+    if (b.option(bool, "unified-browser", "Include the actual v1 Board workspace in unified recovery") orelse false) unified_query_test.addArg("--browser");
     if (b.option(bool, "unified-expiry", "Qualify real finite request expiry across source kinds") orelse false) unified_query_test.addArg("--expiry");
-    if (b.option(bool, "unified-lifecycle", "Qualify current grants and cancellation during staged v2 capture") orelse false) unified_query_test.addArg("--lifecycle");
+    if (b.option(bool, "unified-lifecycle", "Qualify current grants and cancellation during staged v1 capture") orelse false) unified_query_test.addArg("--lifecycle");
     if (b.option([]const u8, "unified-source", "Limit unified query proof to kv, table or document")) |kind| unified_query_test.addArg(kind);
     if (b.option([]const u8, "unified-sdk", "Comma-separated installed SDKs for unified query recovery")) |languages| {
         var selected = std.mem.splitScalar(u8, languages, ',');

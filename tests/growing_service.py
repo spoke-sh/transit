@@ -1,4 +1,4 @@
-"""Qualify the v3 public client/node with owned disk storage and reply faults."""
+"""Qualify the v1 public client/node with owned disk storage and reply faults."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json

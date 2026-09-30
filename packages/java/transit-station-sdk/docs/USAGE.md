@@ -36,7 +36,7 @@ The application supplies an existing `Activation` with durable `ProcessRef`,
 generation and explicit credential. `ServiceConfig` selects an association
 (default `data`) and query-result opt-in. Capabilities are checked against the
 native host and authority before processing. The SDK never acquires ownership,
-provisions resources or falls back from `GROWING_V3` implicitly.
+provisions resources or falls back from `NATIVE_V1` implicitly.
 
 `Turn.state()` provides `find`, `require`, `put`, `delete` and bounded `page`.
 `Key<T>` carries the application codec. `Optional<T>` distinguishes absence;

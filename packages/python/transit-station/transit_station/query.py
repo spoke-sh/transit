@@ -88,6 +88,7 @@ class ResultManifest:
     table: int
     policy_revision: int
     basis: Basis
+    source_contract: bytes
     plan: bytes
     segments: int
     byte_count: int
@@ -131,7 +132,7 @@ class ResultReader:
         basis = value['basis']
         return ResultManifest(value['result'], ProcessRef(realm, value['source']), ProcessRef(realm, value['destination']),
                               int(value['correlation']), value['table'], int(value['policy_revision']),
-                              Basis(ResourceRef(realm, basis['resource']), basis['revision'], bytes(basis['schema'])),
+                              Basis(ResourceRef(realm, basis['resource']), basis['revision'], bytes(basis['schema'])), bytes(basis['contract']),
                               bytes(value['plan']), int(value['segments']), int(value['bytes']), int(value['rows']),
                               bytes(value['chain']), bytes(value['schema']))
 

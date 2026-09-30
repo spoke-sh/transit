@@ -1,5 +1,5 @@
+//! Station Table storage values and descriptors; query execution uses Unified.
 const std = @import("std");
-pub const max_rows = 32;
 pub const max_cell_bytes = 220;
 pub const Type = enum(u8) { int64 = 1, boolean = 2, utf8 = 3, binary = 4 };
 pub const Name = struct {
@@ -93,18 +93,3 @@ pub const Row = struct {
     }
 };
 pub const Basis = struct { resource: u64, revision: u64, schema: [32]u8 };
-pub const Capabilities = struct { ordered_scan: bool = true, exact_lookup: bool = true, max_rows: u8 = max_rows };
-pub const Source = struct {
-    basis: Basis,
-    schema: Schema,
-    rows: []const Row,
-    capabilities: Capabilities = .{},
-    pub fn validate(self: Source) !void {
-        if (self.basis.resource == 0 or !std.mem.eql(u8, &self.basis.schema, &(try self.schema.fingerprint()))) return error.SchemaMismatch;
-        if (!self.capabilities.ordered_scan or self.rows.len > @min(max_rows, self.capabilities.max_rows)) return error.SourceBudgetExceeded;
-        for (self.rows, 0..) |row, i| {
-            try row.value.validate(self.schema.value_type);
-            if (i > 0 and self.rows[i - 1].key >= row.key) return error.UnorderedSource;
-        }
-    }
-};

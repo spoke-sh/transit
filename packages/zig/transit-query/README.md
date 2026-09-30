@@ -38,8 +38,7 @@ never reopens a new cut. The [interactive contract](../../../contracts/INTERACTI
 owns quotas, lifetime, cancellation and incomplete-result semantics;
 `just test::interactive-query` exercises the real console for all source kinds.
 
-`UnifiedClient` adds signed v1 description, finite upload, frozen submission,
-committed-input observation, status and verified result pages. The
+The
 [caller guide](docs/unified-client.md) covers provisioning, ownership, retries and
 cancellation. `transit-query-host` composes its requester/source behaviors;
 `just test::unified-query` exercises these actual daemons over disk Ursula.

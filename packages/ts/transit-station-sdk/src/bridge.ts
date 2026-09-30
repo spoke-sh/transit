@@ -314,7 +314,7 @@ export class QueryBridge {
         !value.capabilities.table ||
         !value.capabilities.document
       )
-        throw new UnsupportedCapability("Native query caller lacks v2 capabilities");
+        throw new UnsupportedCapability("Native query caller lacks v1 capabilities");
       return bridge;
     } catch (error) {
       await port.close();

@@ -1,4 +1,4 @@
-//! Physical v3 pressure proof: one resident page, retained state, finite reserve.
+//! Physical v1 pressure proof: one resident page, retained state, finite reserve.
 const std = @import("std");
 const core = @import("transit_core");
 const adapter = @import("transit_backend_ursula");

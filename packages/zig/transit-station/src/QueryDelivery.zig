@@ -34,7 +34,7 @@ fn publishing(turn: *Turn, request: r.Publication, context: Context) !void {
     if (transfer.source != turn.delivery.pid or transfer.result != job.result or transfer.segments != job.send_segment or transfer.pending != 0) return error.InvalidResultTransfer;
     var output: [r.segment_bytes]u8 = undefined;
     const captured = try q.capturedSegment(turn, job.result, job.send_segment, &output);
-    const schema = try f.Inspect.segment(captured.bytes, captured.manifest.rows, context.workspace);
+    const schema = try f.Unified.Inspect.segment(captured.bytes, captured.manifest.rows, context.workspace);
     if (job.send_offset > captured.bytes.len) return error.InvalidResultTransfer;
     if (job.send_offset == captured.bytes.len) {
         transfer.pending = job.send_offset;
@@ -136,7 +136,7 @@ fn receiving(turn: *Turn, frame: Frame, context: Context) !bool {
         if (manifest.ordinal != transfer.segments or transfer.pending != manifest.bytes) return error.IncompleteResultSegment;
         var output: [r.segment_bytes]u8 = undefined;
         const encoded = try bytes(turn, frame.correlation, manifest, &output);
-        const schema = try f.Inspect.segment(encoded, manifest.rows, context.workspace);
+        const schema = try f.Unified.Inspect.segment(encoded, manifest.rows, context.workspace);
         try transfer.seal(manifest, schema);
         if (context.cancellation.load(.acquire)) return error.Cancelled;
         try turn.write(key, frame.payload);

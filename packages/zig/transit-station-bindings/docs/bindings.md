@@ -134,7 +134,7 @@ remaining native decision slots, including framework work already reserved.
 Local capabilities publish Table cell/name byte bounds for host-side validation.
 
 Query support requires `query_results: true` in the growing configuration. An
-enabled handle owns a bounded 1 MiB Fuze workspace until joined destruction;
+enabled handle owns a bounded 4 MiB Fuze workspace until joined destruction;
 disabled handles allocate none. Generated capabilities expose this budget,
 8192-byte segments and state/message/operation bounds. Query actions on a disabled
 handle reject even if the library advertises support. Registry actions create,
@@ -161,7 +161,9 @@ the containing turn's commitment. Consumers decode each IPC stream separately;
 concatenation is not the result format. The native port uses the same exports;
 public SDK runners own scheduling and persistence callbacks.
 
-`station_growing_arrow_cell` (port `growing_arrow_cell`) provides the optional
+The result uses the current nested Arrow cell layout. Its manifest includes the
+source declaration fingerprint as well as resource/revision and logical schema.
+Count results use uint64. `station_growing_arrow_cell` (port `growing_arrow_cell`) provides the optional
 native decoder for already-owned segment bytes, preserving full-width cells.
 It checks the whole IPC stream within the growing segment bound and has no
 resource access; retrieving a segment still requires the scoped, authorized

@@ -102,12 +102,20 @@ class WebSocket:
 
 class SSE:
     def __init__(self, port, host, tls, bootstrap):
-        self.connection = HTTPSConnection('127.0.0.1', tls[port].port, context=tls[port].context, timeout=5) if port in tls else HTTPConnection('127.0.0.1', port, timeout=5)
         headers = {'Host': host, 'Origin': 'https://' + host, 'Content-Type': 'application/json'}
         cursor = bootstrap['read']['read']['cursor']
         if cursor: headers['Last-Event-ID'] = cursor_bytes(cursor).hex()
-        self.connection.request('POST', '/reactive/v1/events', compact(bootstrap), headers)
-        self.response = self.connection.getresponse()
+        encoded = compact(bootstrap)
+        deadline = time.monotonic() + 10
+        while True:
+            self.connection = HTTPSConnection('127.0.0.1', tls[port].port, context=tls[port].context, timeout=5) if port in tls else HTTPConnection('127.0.0.1', port, timeout=5)
+            self.connection.request('POST', '/reactive/v1/events', encoded, headers)
+            self.response = self.connection.getresponse()
+            if self.response.status != 503 or time.monotonic() >= deadline: break
+            self.response.read()
+            self.connection.close()
+            # Retry the identical signed attachment after bounded capacity loss.
+            time.sleep(.05)
         assert self.response.status == 200, (self.response.status, self.response.read())
         assert self.response.headers['Content-Type'].startswith('text/event-stream')
 
@@ -346,7 +354,8 @@ def browser(env, tls, old_scope):
     public_der = subprocess.check_output(['openssl', 'pkey', '-pubin', '-outform', 'DER'], input=public_pem)
     spki = base64.b64encode(hashlib.sha256(public_der).digest()).decode()
     config = env['store'].root / 'browser.json'
-    config.write_text(json.dumps(dict(origin='https://' + env['public_host'], scope=scope, sequence=env['sequences'][65536], private_key=str(key.path), deadline=env['deadline_ms'], spki=spki)))
+    definition = native_query(key, scope['principal'], {'identity': {}})['query']['definition']
+    config.write_text(json.dumps(dict(origin='https://' + env['public_host'], definition=definition, scope=scope, sequence=env['sequences'][65536], private_key=str(key.path), deadline=env['deadline_ms'], spki=spki)))
     config.chmod(0o600)
     completed = subprocess.run(['vp', 'exec', '--filter', '@rey/transit-board-web', 'node', 'browser/reactive.mjs', str(config)], capture_output=True, text=True, timeout=45)
     assert completed.returncode == 0, (completed.stdout, completed.stderr)

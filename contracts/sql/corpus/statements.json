@@ -419,7 +419,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "int-<>-9223372036854775808",
@@ -467,7 +468,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "int-!=-9223372036854775808",
@@ -515,7 +517,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "int-<-9223372036854775808",
@@ -563,7 +566,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "int-<=-9223372036854775808",
@@ -611,7 +615,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "int->-9223372036854775808",
@@ -659,7 +664,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "int->=-9223372036854775808",
@@ -707,7 +713,8 @@
           "value"
         ],
         "type": "int64"
-      }
+      },
+      "compile_error": "UnsupportedNullComparison"
     },
     {
       "id": "boolean=TRUE",
@@ -1211,8 +1218,7 @@
           "value"
         ],
         "type": "int64"
-      },
-      "compile_error": "UnsupportedLimit"
+      }
     },
     {
       "id": "outer-aggregate-limit",
@@ -1315,8 +1321,7 @@
           "value"
         ],
         "type": "utf8"
-      },
-      "compile_error": "UnsupportedComparison"
+      }
     },
     {
       "id": "bool-sum",

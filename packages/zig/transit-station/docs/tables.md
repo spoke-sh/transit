@@ -1,63 +1,38 @@
-# Tables and finite Arrow replies
+# Tables and finite Arrow results
 
-The [Table profile](../../../../contracts/FUZE_V1.md) defines the two-column
-schema and operator matrix. `Table.create/open`, typed insert/update/upsert/delete,
-get and scan operate on a private `Turn`. `Table.atomic` restores the entire
-proposal on failure, including a cross-resource or distinct-key budget error.
-It never splits a transaction. Queries select a committed snapshot; querying
-after private mutations is rejected. Commit changes and query on a later input.
+A Table has two named columns: a non-null int64 primary key and a nullable
+int64, boolean, UTF-8 or binary value. Names are distinct ASCII identifiers of
+1–16 bytes; variable-width values are at most 220 bytes. `Table.create/open`,
+insert/update/upsert/delete and get operate on a private `Turn`. `Table.atomic`
+restores the entire proposal on error and never splits a transaction.
 
-The explicit [growing profile](growing.md) shares these point operations and adds
-`Table.page` with bounded typed batches and captured-view continuations. It does
-not yet use the captured Arrow result protocol described below; that protocol's
-fixed result-size limits remain specific to Station v1.
+`Table.page` reads at most eight rows in increasing primary-key order. Its
+continuation binds the captured or retained source identity, resource revision,
+Table and storage-schema fingerprint. A cursor cannot move to a newer snapshot.
+See [paged state](growing.md#bounded-access) for the view and retained-read rules.
+No fixed resident array limits the total Table cardinality.
 
-Descriptors use key `00 t <table:u32le>` and `TBL1`, value-type byte, then two
-length-prefixed column names. Rows use `00 r <table:u32le> <key:u64be>`, where
-the signed key's high bit is flipped to preserve numeric order. Values start
-with version 1 and a non-null byte; the body is i64le, a boolean byte or variable
-UTF-8/binary bytes. Null has no body. Every decode validates type and length.
+Descriptors use key `00 t <table:u32le>` and `TBL1`, value-type byte
+(int64=1, boolean=2, UTF-8=3, binary=4), then two length-prefixed column names.
+Rows use `00 r <table:u32le> <key:u64be>`, with the signed key's high bit flipped
+to preserve numeric order. Values start with version 1 and a non-null byte;
+the body is i64le, a boolean byte or UTF-8/binary bytes. Null has no body. Every
+decode validates type and length.
 
-`Query.setPolicy` is a trusted handler operation. The example only accepts policy
-changes from authority-derived root-principal origin. The durable per-peer policy
-allows one Table, has a conditional revision and explicitly permits copying
-results to that peer. No send grant or resource association implies this right.
+Table queries use the current [query v1 definition](../../../../contracts/UNIFIED_QUERY_V1.md).
+`Table.querySchema`, `queryDefinition` and `queryBasis` supply the same logical
+schema and source declaration to both Station capture and transit-query.
+Query schema fingerprints describe the logical columns; Table cursor fingerprints
+describe the storage descriptor. Neither supplies authorization.
 
-`Query.capture` requires a process-origin call. It evaluates Fuze in a 1 MiB
-bounded workspace and copies at most **672 IPC bytes** into up to three 224-byte
-state values plus a manifest. The query input, capture and self-continuation
-commit together. Four mutations and one output fit the existing kernel profile.
-The result identity is the writer's consumed input position; it fixes source
-resource/revision, schema fingerprint, destination, correlation, policy revision,
-row/byte counts and SHA-256. Oversize, allocation or query errors publish no
-capture; the application can return a recorded failure reply.
+A handler can use [query capture and delivery](queries.md) for durable
+Table results returned to an authenticated caller. `Query.start` binds a
+`fuze.Unified.Plan` to a retained committed version and records a revisioned
+peer/Table policy. It rejects private source mutations. The shared engine emits
+nested Arrow cells in bounded segments; capture, publication, receipt and
+acknowledgement each retain their own durable evidence.
 
-On continuation, Station reads those retained bytes, rechecks policy and digest,
-and commits up to three fragments plus completion with the manifest's progress.
-It never holds the old view or reevaluates against new rows. A revoked or revised
-policy closes publication with a denied reply. Already published copies cannot
-be recalled by changing the source grant. `published` means outbox intents exist;
-`acknowledged` requires the receiver's authenticated completion acknowledgement.
-Neither phase deletes history or result keys.
-
-Receivers store bounded fragments under their existing wait's correlation. They
-validate the source PID, result identity, ordinals, exact sizes, SHA-256 and finite
-Arrow schema/batch/end marker. Decoding has a fixed arena. Completion closes the
-wait, retains its manifest and sends acknowledgement in one turn. Application
-code runs only after this verification; it can use `Query.completed` to read
-the finite bytes. Duplicate identical fragments are inert; conflicting or
-incomplete results fail without partial success. A closed wait never reopens.
-
-Framework keys are `00 q <result:u64le> <slot:u8>` at the producer (manifest slot
-0, fragments 1–3), `00 i <correlation:u64le> <slot:u8>` at the consumer (fragments
-0–2, manifest 3), and `00 a <peer:u64le> 00` for query policy. All consume the same
-32-key resource budget as rows, schemas and waits. Result retention defaults to
-unlimited; callers eventually receive capacity errors unless they explicitly
-choose and implement a reclamation policy. [Wait closure](services.md#waiting-and-time)
-handles cancellation and timeout; process/resource expiry retains its kernel meaning.
-
-`just test::station` exercises actual writer/requester hosts, capture/publication
-and receiver restarts, independent PyArrow consumption, denied requests and
-revocation before publication. `just test::arrow` checks Fuze's full admitted
-type matrix with an independent Arrow reader. Unit tests cover private rollback,
-forged/duplicate/truncated/conflicting fragments, nulls, overflow and bounds.
+For interactive reads or durable KV/Table/Document submissions, use
+[transit-query](../../transit-query/README.md). These interfaces share query
+semantics and result encoding. All reads and commits retain the native grant,
+resource lifetime, fencing and recovery checks.

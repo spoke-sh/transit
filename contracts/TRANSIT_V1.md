@@ -35,7 +35,7 @@ and preservation of original recovery material across a hard cutover.
 
 ## Current identity observation
 
-The additive `identity` read returns the authenticated principal, current coarse
+The `identity` read returns the authenticated principal, current coarse
 permission bits, optional PID scope and policy revision, at the enclosing
 response's authority position. It requires current `inspect` permission and
 uses the normal v1 signed-query domain. It exposes no signing key or resource
@@ -95,7 +95,7 @@ and target inspection rights, returning null for either absence or a hidden
 target. It uses the same final authority-tail fence as paged discovery. The
 client validates the returned PID, name, resource and association revision.
 
-With `resource_read_access`, the additive `read_access: resource_id` query
+With `resource_read_access`, the `read_access: resource_id` query
 returns current active resource metadata only after checking both `inspect` and
 `read` resource rights, the caller's current native identity/PID association
 scope, and resource/dependency lifetime. It uses the normal signed-query domain
@@ -104,8 +104,7 @@ The signature may be retained and resubmitted as evidence of the caller's
 current read authority; every submission rechecks current keys and grants.
 Revoking `read` denies this query even when `resource` metadata remains readable.
 It grants no authority to a later read or mutation. Clients must require the
-capability; older nodes may reject the new variant. Existing query and signature
-encodings remain unchanged.
+capability and reject a peer that does not supply it.
 
 With `resource_read_batch`, `read_entries` acquires one to eight distinct keys
 from one resource in a single authorized observation. Its fixed eight-slot
@@ -120,8 +119,7 @@ The query uses the existing signed-query domain, native PID association scope,
 current resource inspect/read permissions, dependency/lifetime checks and final
 authority-tail fence. Its memory and read work use the existing eight-entry
 page budget; mutation limits are unchanged. Clients validate slot/key identity,
-entry revisions and active resource metadata. They require the new capability;
-older nodes reject this additive variant. Acquired bytes are one observation,
+entry revisions and active resource metadata. They require the capability and reject a peer that does not supply it. Acquired bytes are one observation,
 not an authorization cache for later disclosure.
 
 Process lists expose recorded metadata. An individual process read checks current
@@ -231,8 +229,9 @@ configured dependency budgets and history-reclamation policy. Only genesis
 opt-in allows a public `checkpoint`. A trusted `--maintain` process authenticates
 current realm-wide control authority, verifies committed intent and performs
 physical journal trimming. Its interval cannot authorize retention by itself.
-Station runs above native authority; the native `station` capability remains
-false because the kernel does not execute or validate application handlers.
+The `station` capability identifies support for the native ownership, resource
+and retained-read operations used by Station. Station runs above native authority;
+the kernel does not execute or validate application handlers.
 
 ## Runtime binding and readiness
 
@@ -307,7 +306,7 @@ have their own sequence and are not journal coordinates. These checks reject a
 malformed response; they do not replace an authenticated deployment boundary or
 prove that a compromised authority reports truthful application data.
 
-The additive `snapshot_read` capability combines bounded captured data and
+The `snapshot_read` capability combines bounded captured data and
 current metadata with snapshot acquisition or final validation/release. Its
 range budget is independent of the ordinary eight-record page and mutation
 budgets. See [combined snapshot reads](INTERACTIVE_QUERY_V1.md#combined-snapshot-reads)

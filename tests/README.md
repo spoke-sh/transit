@@ -48,6 +48,46 @@ documentation/legacy inventory and committed-HEAD `just ci-clean` are not yet
 claimed passed. No deployment or history conversion is authorized by this
 checkpoint.
 
+## Native v1 consolidation follow-up — 2026-09-30
+
+The current workspace removes the earlier Table compiler, plan, progress codec
+and executor. Station capture uses the same `FZP1` plans, `FZS1` progress,
+source definitions and nested Arrow cells as KV/Table/Document queries. The
+shared native/ABI definition changes with the stored Station records; generated
+contracts, installed SDK manifests and independent signing fixtures match it.
+Superseded Fuze contracts remain accessible through revision-pinned historical
+links, rather than as current specifications.
+
+The following executions use the pinned Linux x86_64 toolchain. Rows describe
+finite schedules, not a complete cutover qualification or performance guarantee.
+
+| Check | Observed result |
+| --- | --- |
+| `just check` | Passed native units and independent fixtures, generated contracts, verification inventory, 174 CLI diagnostic cases, documentation links, frontend checks and production documentation build |
+| `zig build test-query -Doptimize=ReleaseSafe` | Passed staging, sealing, publication and partial-consumption recovery over real disk Ursula: 41 rows, six current nested IPC segments, 21,296 bytes, exact retries and receiver credit |
+| `zig build test-arrow` | Independent PyArrow validated current scalar/state encoding, 13 malformed schema/state cases, all eight page widths, exact aggregates and 167-byte checkpoints; a 70-row text result occupied 38,296 bytes over 11 segments |
+| SQL grammar/compiler proofs | Three parsers agreed on 103 SELECT cases; 86 current plans matched the independent encoding/result oracle. Unified results covered three source bases and all eight page widths |
+| Unified Table shell/Board/browser/lifecycle | Passed frozen upload/restart, same signed retries, current grants, explicit cancellation, released-version refusal, finite draft budgets, complete coverage and retirement: 41 rows, six segments, 251.59 seconds |
+| Interactive Table/KV/Document queries | Passed fresh cuts, bounded frames, zero durable updates, cancellation and current denial: 3.60 / 3.07 / 314.63 seconds |
+| Serving lifecycle | Passed two-gateway exact retry, ordered cancel/timeout, late replies after restart, process/wait/resource limits and current revocation: 23.59 seconds |
+| Reactive browser view lifecycle | Passed shared-principal tabs, transport reconnection without replacing logical sessions, pagehide/expiry, explicit watch-generation reset/resnapshot and retirement: 61.61 seconds |
+| Local installation and replacement faults | Passed exact recovery after five lost replies: spawn, worker rotation, copy admission, worker copy and activation admission; fault schedule 22.252 seconds |
+| Native client ABI and `just bindings::native` | Passed canonical signatures, foreign/missing-definition rejection, saved-operation recovery, disk/host restart, revoked retry, scoped Station callbacks and independent decoding of six current query segments |
+| `just bindings::python-test` | Passed clean installed client/Station/example artifacts, scope/lifetime ownership, retained query segments and HTTP/gRPC capture/replay/disposal; HTTP 65.05 seconds, gRPC 68.94 seconds |
+| Installed Node and Rust SDKs | Passed raw clients, Station callbacks/recovery, current nested Arrow ownership and HTTP/gRPC capture, disposal and follow-up rejection. Node HTTP/gRPC: 76.28 / 76.20 seconds; Rust: 106.17 / 107.77 seconds |
+| Unified KV and Document shell/Board/browser | Passed frozen retries, disk/worker recovery, scoped denial, complete nested results and retirement. KV: 41 rows, six segments, 170.91 seconds; Document: 12 rows, two segments, 509.39 seconds |
+| Transition properties, codecs and bounded models | Passed 40 saved/generated authority traces (1,687 steps), codec corpus/allocation failures, the authority model with negative controls, and the delivery safety model |
+| Runtime upgrade and reference workload | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown |
+| Local and Compose counter launchers | Passed persistent restart, exact retry, artifact replacement, incompatible-definition refusal, courier recovery, Board evidence and foreground signal cleanup |
+| `just test::growing-capacity` | Real owned ext4 ENOSPC, physical control-reserve release and disk restart passed with 40 retained rows and one 8,544-byte resident page. Recovery created zero pages and issued only GET/HEAD requests |
+
+The Table, interactive, serving, reactive and installation executions precede
+the later Station-format/definition change; they qualify those consumer paths,
+while the current native/Station/Python proofs qualify the new definition.
+The remaining installed-language, source/browser, launcher/reference and final
+committed-HEAD checks are still in progress. No skipped schedule or earlier
+historical result is counted as a pass for the replacement.
+
 ## M19 qualification
 
 The initial HTTP serving profile is qualified on Linux x86_64 with the pinned
@@ -2206,7 +2246,7 @@ count/sum, nulls and exact integers agree across boundaries. Package/root unit
 tests additionally reject changed basis/plan/order, signed intermediate overflow,
 insufficient workspace/output and cancellation without publishing progress.
 This does not qualify durable large-result staging, delivery or recovery; those
-remain integration gates in the [incremental contract](../contracts/FUZE_STREAM_V1.md).
+remain integration gates in the [incremental contract](https://github.com/rupurt/rey/blob/c5ac253365ba7dfa136cc4dadf99ba0c21570af1/contracts/FUZE_STREAM_V1.md).
 
 `just test::query` (also part of `test::growing-service`) separately
 qualifies durable **capture**. Real Zig callers retain a 41-row Table, stage

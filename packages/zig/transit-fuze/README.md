@@ -18,10 +18,8 @@ The contract fixes workspace, segment and encoding budgets.
 
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and
-errors. `Sql` owns the shared parser and a specialized two-column Table lowering
-used by Station's Table query API. `Plan` executes one bounded Table batch;
-`Stream` preserves whole-query limits across batches. These are library execution
-interfaces with distinct input bounds, sharing the same native v1 authority.
+errors. `Sql` owns the shared parser and cursor assistance. All callers execute
+through `Unified.Plan` and `Unified.Stream`, including Station Table delivery.
 
 `Sql.hints` uses the production parser up to a token-boundary cursor and returns
 bounded grammar expectations. `SqlInput` frames semicolon termination and
@@ -37,20 +35,18 @@ conflict slices borrow its fixed alternative arrays. Any error invalidates the
 whole output. PyArrow-produced round trips and thirteen malformed schema/state
 cases qualify this reader independently of Fuze's encoder.
 
-Station owns authorized Table adapters and durable result publication; the
-[Query reference](../../../docs/reference/queries.md) describes the broader direction.
+Station owns Table storage and an authorized Table capture/delivery helper.
+The [query reference](../../../docs/reference/queries.md) describes interactive
+and durable queries across all supported sources. All use the same plan, source
+basis and nested Arrow result definition. `model` contains Table storage cells
+and descriptors, not a second query engine.
 
-`Stream` implements bounded steps with owned progress,
-whole-query limits/aggregates and Arrow segments. See the
-[incremental execution guide](docs/streaming.md) and
-[contract](../../../contracts/FUZE_STREAM_V1.md). Station supplies durable capture and delivery; a pure engine result alone is
-not a committed query.
-
-`Plan.bind(source)` validates the source's schema, capability and exact read
-basis. `execution.run` consumes that basis with caller-supplied workspace/output
-buffers and a cancellation flag. It retains no pointers or background tasks;
-the returned bytes borrow the output buffer. A physical plan rejects a changed
-source identity/revision. Explanations omit literals and application values.
+Bind a `Unified.Plan` to the exact basis/schema, initialize
+`Unified.Stream.Progress.start(bound)`, and call `Unified.Stream.step` for each
+bounded page. Workspace, output buffers and cancellation belong to the caller.
+A changed source identity, schema, plan or page ordinal rejects continuation.
+No native pointers or background tasks survive a step. See the
+[incremental execution guide](docs/streaming.md).
 
 `encode(allocator, batch, output)` writes a complete Arrow IPC stream into the
 caller-supplied buffer and returns a borrowed slice. Failure returns no result;

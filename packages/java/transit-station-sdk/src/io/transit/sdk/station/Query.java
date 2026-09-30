@@ -44,7 +44,7 @@ public final class Query {
     }
     public record Job(long result, BigInteger correlation, ReadVersion source) {}
     public record Manifest(long result, ProcessRef source, ProcessRef destination, BigInteger correlation, long table,
-                           BigInteger policyRevision, Basis basis, Bytes plan, BigInteger segments, BigInteger byteCount,
+                           BigInteger policyRevision, Basis basis, Bytes sourceContract, Bytes plan, BigInteger segments, BigInteger byteCount,
                            BigInteger rows, Bytes chain, Bytes schema) {}
     public record IpcSegment(Manifest manifest, BigInteger ordinal, int rows, Bytes digest, Bytes bytes) {
         public byte[] ipc() { return bytes.copy(); }
@@ -59,7 +59,7 @@ public final class Query {
             JsonObject value = object(turn.raw(obj("query_completed", correlation.toString())).get("manifest"));
             long realm = turn.process.realm();
             return new Manifest(number(value.get("result"), 1), new ProcessRef(realm, number(value.get("source"), 1)), new ProcessRef(realm, number(value.get("destination"), 1)),
-                NativeValues.wide(value.get("correlation"), true), number(value.get("table"), 1), NativeValues.wide(value.get("policy_revision"), false), NativeValues.basis(value.get("basis"), realm),
+                NativeValues.wide(value.get("correlation"), true), number(value.get("table"), 1), NativeValues.wide(value.get("policy_revision"), false), NativeValues.basis(value.get("basis"), realm), NativeValues.digest(object(value.get("basis")).get("contract")),
                 NativeValues.digest(value.get("plan")), NativeValues.wide(value.get("segments"), false), NativeValues.wide(value.get("bytes"), false), NativeValues.wide(value.get("rows"), false),
                 NativeValues.digest(value.get("chain")), NativeValues.digest(value.get("schema")));
         }

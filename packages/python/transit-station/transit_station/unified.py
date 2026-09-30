@@ -415,7 +415,7 @@ class Client:
             self._worker.call(create)
             caps = self._call({'capabilities': {}})['capabilities']
             if caps['version'] != 1 or not all(caps[name] for name in ('kv', 'table', 'document')):
-                raise UnsupportedCapability('Native query client lacks v2 source capabilities')
+                raise UnsupportedCapability('Native query client lacks v1 source capabilities')
         except BaseException:
             self.close()
             raise

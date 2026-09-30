@@ -3,7 +3,7 @@ const t = std.testing;
 const root = @import("root.zig");
 const n = root.Native;
 const p = root.protocol;
-test "native application signing agrees with independent v3 bytes and fences altered scope" {
+test "native application signing agrees with independent v1 bytes and fences altered scope" {
     const Fixture = struct { version: u8, command: n.Prepared, read: n.PreparedRead };
     const fixture = try p.Json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/native-signing-v1.json"));
     defer fixture.deinit();

@@ -56,6 +56,7 @@ try {
       const identity = async () => {
         const query = {
           version: 1,
+          definition: config.definition,
           realm: scope.realm,
           principal: scope.principal,
           kind: { identity: {} },
@@ -102,6 +103,7 @@ try {
       const command = async (payload) => {
         const request = {
           version: 1,
+          definition: config.definition,
           realm: scope.realm,
           principal: scope.principal,
           sequence: ++sequence,
@@ -130,13 +132,24 @@ try {
         read: await read("events", revision, nonce, cursor),
       });
       const post = async (path, value, expected = 200) => {
-        const response = await fetch(path, {
+        const response = await fetchAvailable(path, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(value),
         });
         if (response.status !== expected) throw new Error(`HTTP ${path}: ${response.status}`);
         return response.json();
+      };
+      // Capacity is a transport result. Preserve the exact signed request when
+      // retrying, including an attach whose admission may already have occurred.
+      const fetchAvailable = async (path, options) => {
+        const deadline = Date.now() + 10000;
+        for (;;) {
+          const response = await fetch(path, options);
+          if (response.status !== 503 || Date.now() >= deadline) return response;
+          await response.body?.cancel();
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
       };
       const servingRead = async (kind, operation = 0) => {
         const request = {
@@ -220,7 +233,7 @@ try {
         throw new Error("fallback changed receipt");
       const next = (await post("/reactive/v1/challenge", await read())).challenge;
       const bootstrap = await attach(next.nonce, 2, initial.cursor);
-      const response = await fetch("/reactive/v1/events", {
+      const response = await fetchAvailable("/reactive/v1/events", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

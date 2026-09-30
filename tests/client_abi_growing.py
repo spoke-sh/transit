@@ -1,4 +1,4 @@
-"""The shared raw ABI must retain v3 identities, uncertainty and exact retry."""
+"""The shared raw ABI must retain native v1 identities, uncertainty and exact retry."""
 import ctypes as c
 import hashlib
 from http.client import HTTPConnection

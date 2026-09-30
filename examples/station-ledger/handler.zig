@@ -58,7 +58,7 @@ pub const Application = struct {
                 if (frame.kind != .call and frame.kind != .cast) return error.UnexpectedLedgerMessage;
                 const table = try station.Table.open(turn, 1);
                 if (std.mem.eql(u8, frame.payload.slice(), "query")) {
-                    _ = station.Query.start(turn, table, .{}) catch |err| {
+                    _ = station.Query.start(turn, table, .{ .projection = &.{ 0, 1 } }) catch |err| {
                         var buffer: [128]u8 = undefined;
                         try turn.reply(try p.Value.init(try std.fmt.bufPrint(&buffer, "station.query.error.{s}", .{@errorName(err)})));
                     };

@@ -152,3 +152,11 @@ test {
     _ = @import("unified_test.zig");
     _ = @import("unified_sql_test.zig");
 }
+
+/// Hash a canonical source declaration produced by its owning adapter.
+pub fn sourceFingerprint(encoded: []const u8) [32]u8 {
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.query.source.v1\x00");
+    hash.update(encoded);
+    return hash.finalResult();
+}

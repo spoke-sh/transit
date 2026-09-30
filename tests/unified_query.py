@@ -1,4 +1,4 @@
-"""Actual v2 requester/source daemons, frozen signed upload and disk recovery."""
+"""Actual v1 requester/source daemons, frozen signed upload and disk recovery."""
 from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import argparse

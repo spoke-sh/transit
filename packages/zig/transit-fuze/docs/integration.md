@@ -43,13 +43,14 @@ workspace bounds. Kernel IDs retain the native counter limit; Arrow integers
 retain their full signed 64-bit range.
 
 The [incremental engine](streaming.md) uses the same pinned libraries.
-Its independent Arrow proof spans 70 rows and 16,008 text-result bytes in seven
-segments. Whole-query limits and aggregate carry cross pages; allocation/output
+Its independent Arrow proof checks the current nested representation across
+bounded pages, including 70-row text results. The proof ledger records measured
+segment counts and bytes. Whole-query limits and aggregate carry cross pages; allocation/output
 capacity remains per-step. This removes the pure engine's whole-source ceiling,
 but does not by itself qualify Station's larger durable result protocol.
 
 Metadata/schema checks cover a valid zero-body IPC batch rejected by the
 pinned reader. The guarded build-cache patch now supplies an owned empty body
 for RecordBatch/DictionaryBatch messages while retaining normal array validation.
-An empty primitive result, row-count mismatch and truncated stream are regression
-tests; this changes neither the upstream pin nor the Arrow wire format.
+Empty primitive IPC interchange and empty nested query results, row-count
+mismatch and truncated streams have regression tests; this changes neither the upstream pin nor the Arrow wire format.

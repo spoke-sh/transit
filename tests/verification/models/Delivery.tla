@@ -5,7 +5,7 @@ EXTENDS Naturals
 \* Station job to its destination, with receiver-driven credit-based flow
 \* control. This models the wire contract in
 \* packages/zig/transit-station/src/QueryDelivery.zig and
-\* contracts/STATION_QUERY_V2.md, not Zig execution; see the file header in
+\* contracts/STATION_QUERY_V1.md, not Zig execution; see the file header in
 \* both for what remains an integration premise.
 
 CONSTANTS NumSegments, Window

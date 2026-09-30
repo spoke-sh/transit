@@ -29,7 +29,7 @@ def main():
     disk.mkdir(parents=True, exist_ok=True)
     tempfile.tempdir = str(disk)  # Nix's TMPDIR may be tmpfs; measure the checkout filesystem.
     binary = str(Path(args.binary).resolve(strict=True))
-    evidence = {"version": 1, "status": "inconclusive", "profile": "v3 authority with real provider; no service/Station",
+    evidence = {"version": 1, "status": "inconclusive", "profile": "v1 authority with real provider; no service/Station",
                 "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
                 "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=root)),
                 "binary_sha256": hashlib.sha256(Path(binary).read_bytes()).hexdigest(),

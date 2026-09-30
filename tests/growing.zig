@@ -1,4 +1,4 @@
-//! Real v3 journal/page persistence. No service or Station capability claim.
+//! Real v1 journal/page persistence. No service or Station capability claim.
 const std = @import("std");
 const core = @import("transit_core");
 const adapter = @import("transit_backend_ursula");

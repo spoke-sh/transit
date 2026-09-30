@@ -3,6 +3,7 @@
 const std = @import("std");
 const p = @import("transit_client").protocol;
 const f = @import("transit_fuze");
+const m = f.Unified;
 const Turn = @import("Turn.zig");
 const Table = @import("Table.zig");
 const Frame = @import("Frame.zig");
@@ -29,8 +30,8 @@ pub fn job(turn: *Turn, identity: u64) !Job {
     if (stored.result != identity or stored.source.pid != turn.delivery.pid) return error.InvalidQueryJob;
     return stored;
 }
-pub fn progress(turn: *Turn, identity: u64) !f.Stream.Progress {
-    return f.Stream.Progress.decode(((try turn.read(key('e', identity, 0, 0))) orelse return error.MissingQueryProgress).slice());
+pub fn progress(turn: *Turn, identity: u64) !m.Stream.Progress {
+    return m.Stream.Progress.decode(((try turn.read(key('e', identity, 0, 0))) orelse return error.MissingQueryProgress).slice());
 }
 pub fn permitted(turn: *Turn, stored: Job) !bool {
     const grant = (try policy(turn, stored.destination)) orelse return false;
@@ -39,7 +40,7 @@ pub fn permitted(turn: *Turn, stored: Job) !bool {
 fn continueCapture(turn: *Turn, next: Continuation) !void {
     try turn.cast(turn.delivery.pid, try next.encode());
 }
-pub fn start(turn: *Turn, table: Table, plan: f.Stream.Plan) !Job {
+pub fn start(turn: *Turn, table: Table, plan: m.Plan) !Job {
     const before = turn.decision;
     errdefer turn.decision = before;
     for (before.mutations) |mutation| if (mutation != null) return error.QueryAfterMutation;
@@ -53,13 +54,16 @@ pub fn start(turn: *Turn, table: Table, plan: f.Stream.Plan) !Job {
     if (!std.meta.eql(current, table)) return error.TableSchemaChanged;
     const identity = turn.delivery.input.position;
     if (try turn.read(key('j', identity, 0, 0)) != null) return error.ResultAlreadyExists;
-    const bound = try plan.bind(.{ .resource = turn.view.resource, .revision = turn.view.revision, .schema = try table.schema.fingerprint() }, table.schema);
-    var encoded: [f.Stream.PlanCodec.encoded_bytes]u8 = undefined;
-    const plan_bytes = try f.Stream.PlanCodec.encode(plan, &encoded);
+    var columns: [m.max_columns]m.Column = undefined;
+    const bound = try plan.bind(try table.queryBasis(turn.view.revision), try table.querySchema(&columns));
+    // Station's atomic Table start stores one bounded plan. Wider declarations
+    // use the general query client's explicit upload/publication interface.
+    var encoded: [p.Value.max_bytes]u8 = undefined;
+    const plan_bytes = try m.Codec.encode(plan, &encoded);
     const stored: Job = .{ .result = identity, .destination = peer, .correlation = call.correlation, .table = table.id, .source = try turn.retain(), .policy_revision = grant.revision };
     try turn.write(key('j', identity, 0, 0), try stored.encode());
     try turn.write(key('p', identity, 0, 0), try p.Value.init(plan_bytes));
-    try turn.write(key('e', identity, 0, 0), try p.Value.init(&try bound.start().encode()));
+    try turn.write(key('e', identity, 0, 0), try p.Value.init(&try m.Stream.Progress.start(bound).encode()));
     var index: [8]u8 = undefined;
     std.mem.writeInt(u64, &index, identity, .little);
     try turn.write(key('i', peer, call.correlation, 0), try p.Value.init(&index));
@@ -88,15 +92,30 @@ pub fn advance(turn: *Turn, request: Continuation, workspace: []u8, cancellation
     const written: u16 = if (stage) |value| value.written else 0;
     if (request.page < previous.pages or (request.page == previous.pages and request.written < written)) return .duplicate;
     if (request.page != previous.pages or request.written != written) return error.InvalidQueryContinuation;
-    const logical = try f.Stream.PlanCodec.decode(((try turn.read(key('p', stored.result, 0, 0))) orelse return error.MissingQueryPlan).slice());
+    const encoded_plan = (try turn.read(key('p', stored.result, 0, 0))) orelse return error.MissingQueryPlan;
+    const logical = try m.Codec.decode(encoded_plan.slice());
     var source = try turn.openVersion(stored.source);
     const table = try Table.open(&source, stored.table);
-    const bound = try logical.bind(previous.basis, table.schema);
+    var columns: [m.max_columns]m.Column = undefined;
+    const bound = try logical.bind(try table.queryBasis(source.view.revision), try table.querySchema(&columns));
     try previous.validate(bound);
-    const cursor: ?Table.Cursor = if (previous.last_key) |last| .{ .source = .{ .version = stored.source }, .resource = previous.basis.resource, .revision = previous.basis.revision, .table = table.id, .schema = previous.basis.schema, .after = last } else null;
+    const cursor: ?Table.Cursor = if (stored.table_after) |last| .{ .source = .{ .version = stored.source }, .resource = previous.basis.resource, .revision = previous.basis.revision, .table = table.id, .schema = try table.schema.fingerprint(), .after = last } else null;
     const page = try table.page(&source, cursor);
     var bytes: [records.segment_bytes]u8 = undefined;
-    const candidate = try f.Stream.step(bound, previous, .{ .ordinal = previous.pages, .source = .{ .basis = page.basis, .schema = table.schema, .rows = page.rows[0..page.len] }, .end = page.next == null }, workspace, &bytes, cancellation);
+    var cells: [m.max_rows][2]m.Cell = undefined;
+    var rows: [m.max_rows]m.Row = undefined;
+    for (page.rows[0..page.len], 0..) |*row, index| {
+        cells[index] = .{ .{ .value = .{ .int64 = row.key } }, switch (row.value) {
+            .null => .null,
+            .int64 => |value| .{ .value = .{ .int64 = value } },
+            .boolean => |value| .{ .value = .{ .boolean = value } },
+            .utf8 => .{ .value = .{ .utf8 = row.value.utf8.slice() } },
+            .binary => .{ .value = .{ .binary = row.value.binary.slice() } },
+        } };
+        rows[index] = .{ .cells = &cells[index] };
+    }
+    const candidate = try m.Stream.step(bound, previous, .{ .ordinal = previous.pages, .basis = bound.basis, .rows = rows[0..page.len], .end = page.next == null }, workspace, &bytes, cancellation);
+    stored.table_after = if (page.next) |next| next.after else null;
     if (candidate.segment) |segment| {
         var next: Stage = .{ .candidate = candidate.progress, .segment = .{ .result = stored.result, .ordinal = previous.segments, .bytes = @intCast(segment.bytes.len), .rows = segment.rows, .digest = segment.digest }, .written = written };
         if (stage) |expected| if (!std.meta.eql(expected, next)) return error.QueryStageChanged;
@@ -133,6 +152,7 @@ pub fn advance(turn: *Turn, request: Continuation, workspace: []u8, cancellation
     } else {
         if (stage != null or candidate.progress.finished != null) return error.InvalidQueryStage;
         try turn.write(key('e', stored.result, 0, 0), try p.Value.init(&try candidate.progress.encode()));
+        try turn.write(key('j', stored.result, 0, 0), try stored.encode());
         try continueCapture(turn, .{ .result = stored.result, .page = candidate.progress.pages });
     }
     try turn.validate();
@@ -151,7 +171,7 @@ pub fn close(turn: *Turn, identity: u64, phase: enum { cancelled, denied }) !voi
     try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try p.Value.init(if (phase == .cancelled) "station.query.cancelled.v1" else "station.query.denied.v1") });
     try turn.validate();
 }
-pub const Captured = struct { job: Job, progress: f.Stream.Progress };
+pub const Captured = struct { job: Job, progress: m.Stream.Progress };
 pub fn captured(turn: *Turn, identity: u64) !Captured {
     const stored = try job(turn, identity);
     if (stored.phase != .captured and stored.phase != .published and stored.phase != .acknowledged) return error.IncompleteResult;

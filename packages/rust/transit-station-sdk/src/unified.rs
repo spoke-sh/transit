@@ -1,4 +1,4 @@
-//! Typed v2 callers. Shared Zig owns source validation, admission and verified pages.
+//! Typed v1 callers. Shared Zig owns source validation, admission and verified pages.
 use crate::bridge::{QueryNative, counter, digest, field, signed, unified_codec, wide};
 use crate::turn::read_version;
 use crate::{Aggregate, Comparison, DocumentReference, ReadVersion, abi};

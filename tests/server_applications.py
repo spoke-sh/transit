@@ -21,7 +21,7 @@ class Applications(Fixture):
         port = free_port()
         while port in self.config['ports'].values():
             port = free_port()
-        self.config.update(version=2, applications={'port': port, 'max_applications': 3, 'max_roles': 8})
+        self.config.update(version=1, applications={'port': port, 'max_applications': 3, 'max_roles': 8})
         self.path.write_text(json.dumps(self.config))
         self.management = None
         self.max_rss = 0
@@ -83,7 +83,14 @@ def run(cli, node, host, worker, operator):
         if operation:
             command.append(str(fixture.root / (operation + '.json')))
         command.extend(map(str, args))
-        result = subprocess.run(command, capture_output=True, text=True, timeout=40, env={'PATH': '/unavailable'})
+        deadline = time.monotonic() + 40
+        while True:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=40, env={'PATH': '/unavailable'})
+            if expect or result.returncode == 0 or result.stderr.strip() not in ('error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing') or time.monotonic() >= deadline:
+                break
+            # Keep the same recovery path and arguments. A saved uncertain send
+            # is retried byte-for-byte by the actual public example binary.
+            time.sleep(.05)
         if expect:
             assert result.returncode != 0 and expect in result.stderr, result
             return result

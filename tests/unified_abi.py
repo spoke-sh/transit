@@ -1,4 +1,4 @@
-"""Query-only native/port owners for the real signed v2 authority schedule."""
+"""Query-only native/port owners for the real signed v1 authority schedule."""
 import ctypes as c
 import json
 from pathlib import Path

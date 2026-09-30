@@ -1,4 +1,4 @@
-# Growing query capture and delivery
+# Table query capture and delivery
 
 The Zig `Query` API captures incremental Fuze results across ordinary paged
 turns. `QueryDelivery` publishes segments, validates receiver completion and
@@ -10,7 +10,7 @@ delivery and credit. The public finite KV/Table/Document client composes its
 own source and upload protocol in [transit-query](../../transit-query/README.md).
 
 Set a revisioned peer/Table policy with `Query.setPolicy`. A handler for
-an authenticated call invokes `start(turn, table, stream_plan)` after its behavior
+an authenticated call invokes `start(turn, table, plan)` after its behavior
 has already initialized. Start consumes all four mutations: job, owned plan,
 owned engine progress and peer/correlation index. It retains the committed source
 and emits a self-continuation. No source or result is an implicit lifetime owner;
@@ -20,17 +20,20 @@ Dispatch the recorded `GQC1` cast payload by decoding `Query.Continuation`
 and calling `advance(turn, continuation, workspace, cancellation)`. It handles one
 bounded step, stages its next continuation, and returns `progress`, `captured`,
 `closed` or `duplicate`. The application supplies a per-step workspace; it must
-not preserve a native stack or iterator across inputs. The framework verifies
+not preserve a native stack or iterator across inputs. `plan` is a `fuze.Unified.Plan`; all projections are explicit. The framework verifies
 self-origin, source identity, persisted plan/progress, current policy and the
 candidate segment's identity before adding staged fragments.
 
-Each step may use an 8192-byte segment buffer independently of total result size.
+The plan uses canonical `FZP1` bytes and must fit one 256-byte value at start.
+The source basis and 167-byte `FZS1` progress use the current query definition;
+the Table cursor is stored separately in the job. Each step uses a 4 MiB workspace
+and an 8192-byte nested Arrow segment buffer independently of total result size.
 At most three 221-byte fragments are staged in a turn. A separate seal verifies
 those bytes and atomically advances the source and aggregate progress with the
 segment manifest and result chain. Until then, progress still names the previous
 sealed source page. A restart recomputes only the current unsealed step from the
 retained version, verifying it against staging metadata. Global limits and
-aggregates come from `transit_fuze.Stream`; they do not reset on a source page.
+aggregates come from `transit_fuze.Unified.Stream`; they do not reset on a source page.
 
 After `captured`, `captured(turn, result_id)` returns owned job/progress metadata.
 `capturedSegment(turn, result_id, ordinal, buffer)` reads one sealed segment and
@@ -70,7 +73,7 @@ The read-only completion helpers also accept a public-client reader implementing
 `read(key)`, `waiting(correlation)` and `delivery.pid`. Every read must preserve an
 exact resource cut and check current rights; the adapter must also enforce the
 source's current query policy. [transit-query](../../transit-query/README.md)
-uses this interface so frontends share the framework's manifest/fragment checks.
+provides the general finite query client and result-publication interface.
 
 Foreign handles enable these capture/delivery actions with `query_results: true`.
 The [native query host](../../../../apps/transit-query-host/README.md) runs the

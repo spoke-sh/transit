@@ -43,8 +43,8 @@ evidence. Resource entries render as exact hex bytes after an explicit read.
 
 ## Visual design exploration
 
-The growing profile implements a bounded relief atlas and Table workspace from
-D5/D6's architecture and a focused D7 interaction, recorded in [D9](../../docs/design/board-atlas/D9.md).
+The interface provides a bounded resource atlas and an explicitly configured
+KV/Table/Document query workspace.
 Processes/Resources emphasis and overhead detail share stable selection. Resource
 entry is explicit; Canvas and Browse retain one SQL draft and identified result.
 Run compiles/submits once; switching views never runs it. Editing a completed
@@ -56,23 +56,21 @@ the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
 source, draft and result. In v1 it also stops automatic reads, including after
 follow-lease expiry; **Refresh query access** explicitly rechecks authorization.
-Both workspaces retain frozen pending requests across
+The workspace retains frozen pending requests across
 in-app route remounts for exact recovery; known denial does not invent their
 rejection. Temporary connection failures retain permitted v1 rows with their
 original source basis. A full page reload loses in-memory recovery bytes; no
-browser storage or client retention pin is created. The v1 workspace keeps its
-existing hide-on-failure behavior. See the [live-view guide](../transit-board/docs/reactive.md)
+browser storage or client retention pin is created. See the [live-view guide](../transit-board/docs/reactive.md)
 for explicit Follow/Pause, complete-result verification and finite refresh budgets.
 
 The atlas shows at most eight processes and eight authorized resources. Relief
 marks pending work qualitatively; unavailable bytes, outbox counts and age stay
-unknown. Keys include framework metadata. Only the configured query Table has
+unknown. Keys include framework metadata. Only the configured query source has
 an entry affordance for queries; all resources offer **Inspect records**, subject
 to the configured read grant. That view holds eight record identities with
 recognized exchange metadata and exact source revisions. It omits captured
 bodies and application values, uses explicit continuation, and clears on errors
-or tab hiding. Five-second refreshes recheck current authority. Auto emphasis,
-animated entry and D8 venues/growth remain open design proposals.
+or tab hiding. Five-second refreshes recheck current authority. Automatic emphasis and animated entry are unsupported.
 
 Recognized HTTP captures offer **Inspect HTTP metadata**. The selected view shows
 frozen policy revisions, budgets, trust digest, timing, omitted field counts and
@@ -126,7 +124,7 @@ Application fields/text remain opaque. Current grants are rechecked on refresh;
 hidden views and failed reads clear observations. `just transit-board::document-browser`
 exercises the real worker and embedded UI, including live read revocation.
 
-M23's growing shell, renderer routes, initial query SQL and navigation actions use
+The shell, renderer routes, initial query SQL and navigation actions use
 one shared compiled interface. See the [application guide](../transit-board/docs/application.md)
 for reserved recovery routes, exact source-contract fencing and operator scope.
 Renderer artifacts build together: route splitting caused a burst of static

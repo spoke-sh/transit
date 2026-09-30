@@ -8274,11 +8274,21 @@
                                   "type": "object",
                                   "additionalProperties": false,
                                   "x-transit-field-order": [
+                                    "kind",
                                     "resource",
                                     "revision",
+                                    "contract",
                                     "schema"
                                   ],
                                   "properties": {
+                                    "kind": {
+                                      "type": "string",
+                                      "enum": [
+                                        "kv",
+                                        "table",
+                                        "document"
+                                      ]
+                                    },
                                     "resource": {
                                       "type": "integer",
                                       "minimum": 0,
@@ -8292,6 +8302,18 @@
                                       "maximum": 9007199254740991,
                                       "x-transit-bits": 64,
                                       "x-transit-signed": false
+                                    },
+                                    "contract": {
+                                      "type": "array",
+                                      "minItems": 32,
+                                      "maxItems": 32,
+                                      "items": {
+                                        "type": "integer",
+                                        "minimum": 0,
+                                        "maximum": 255,
+                                        "x-transit-bits": 8,
+                                        "x-transit-signed": false
+                                      }
                                     },
                                     "schema": {
                                       "type": "array",
@@ -8307,8 +8329,10 @@
                                     }
                                   },
                                   "required": [
+                                    "kind",
                                     "resource",
                                     "revision",
+                                    "contract",
                                     "schema"
                                   ],
                                   "x-transit-defaults": {}

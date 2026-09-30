@@ -56,6 +56,11 @@ test "unified SQL keeps explicit null distinct and preserves ordered failure" {
     inline for (.{ m.SourceKind.kv, m.SourceKind.table, m.SourceKind.document }) |kind| {
         const basis: m.Basis = .{ .kind = kind, .resource = 1, .revision = 9, .schema = try src.schema.fingerprint(), .contract = @splat(7) };
         const bound = try plan.bind(basis, src.schema);
+        var changed = basis;
+        changed.revision += 1;
+        try t.expectError(error.SourceChanged, m.Stream.step(bound, .start(bound), .{ .basis = changed, .ordinal = 0, .rows = &rows, .end = true }, workspace, &output, &cancel));
+        const cancelled = f.execution.Cancellation.init(true);
+        try t.expectError(error.Cancelled, m.Stream.step(bound, .start(bound), .{ .basis = basis, .ordinal = 0, .rows = &rows, .end = true }, workspace, &output, &cancelled));
         const result = try m.Stream.step(bound, .start(bound), .{ .basis = basis, .ordinal = 0, .rows = &rows, .end = true }, workspace, &output, &cancel);
         try t.expectEqual(std.math.maxInt(i64), result.progress.sum.?);
         try t.expectEqual(m.Stream.Finish.limit, result.progress.finished.?);
@@ -83,7 +88,4 @@ test "unified SQL rejects unsupported semantics without broadening v1" {
     try t.expectError(error.UnknownQualifier, m.Sql.plan(a, "SELECT other.id FROM items", src));
     try t.expectError(error.UnsupportedStatement, m.Sql.plan(a, "CREATE KV items (UTF8)", src));
     try t.expectError(error.UnsupportedConstruct, m.Sql.plan(a, "SELECT * FROM items; SELECT * FROM items", src));
-    const old: f.Sql.Source = .{ .name = try f.model.Name.init("items"), .schema = .{ .names = .{ try f.model.Name.init("id"), try f.model.Name.init("value") }, .value_type = .int64 } };
-    try t.expectError(error.UnsupportedLimit, f.Sql.plan("SELECT * FROM items LIMIT 33", old));
-    _ = try f.Sql.plan("SELECT * FROM items WHERE value = NULL", old);
 }

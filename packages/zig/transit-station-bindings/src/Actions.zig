@@ -6,27 +6,6 @@ const p = s.protocol;
 const m = s.fuze.model;
 pub const Cell = union(enum) { null, int64: []const u8, boolean: bool, utf8: []const u8, binary: p.Value };
 pub const Row = struct { key: []const u8, value: Cell };
-pub const Plan = struct {
-    projection: enum { both, key, value } = .both,
-    limit: u8 = m.max_rows,
-    aggregate: enum { rows, count, sum } = .rows,
-    predicate: union(enum) { all, is_null: u8, compare: struct { column: u8, op: s.fuze.Plan.Comparison, value: Cell } } = .all,
-    pub fn native(self: Plan) !s.fuze.Plan {
-        return .{ .projection = switch (self.projection) {
-            .both => .{ 0, 1 },
-            .key => .{ 0, null },
-            .value => .{ 1, null },
-        }, .limit = self.limit, .aggregate = switch (self.aggregate) {
-            .rows => .rows,
-            .count => .count,
-            .sum => .sum,
-        }, .predicate = switch (self.predicate) {
-            .all => .all,
-            .is_null => |column| .{ .is_null = column },
-            .compare => |comparison| .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = try nativeCell(comparison.value) } },
-        } };
-    }
-};
 pub const BasicAction = union(enum) {
     put: struct { key: p.Value, value: p.Value },
     cast: struct { pid: u64, value: p.Value },
@@ -59,30 +38,31 @@ pub fn foreignCell(allocator: std.mem.Allocator, cell: m.Cell) !Cell {
 }
 /// Client-side consumption of finite IPC without exposing borrowed Arrow/native
 /// pointers to a foreign runtime. All int64 cells remain decimal strings.
-pub const ArrowCell = struct { rows: u8, columns: u8, name: []const u8, value: Cell };
+pub const ArrowValue = union(enum) { null, int64: []const u8, uint64: []const u8, boolean: bool, utf8: []const u8, binary: p.Value };
+pub const ArrowCell = struct { rows: u8, columns: u8, name: []const u8, value: ArrowValue };
 pub fn arrowCellBounded(allocator: std.mem.Allocator, bytes: []const u8, row: u32, column: u32, limit: usize) !ArrowCell {
     if (bytes.len == 0 or bytes.len > limit) return error.InvalidArrowResult;
-    var workspace: [s.fuze.execution.working_bytes]u8 = undefined;
-    var arena = std.heap.FixedBufferAllocator.init(&workspace);
-    var source = std.Io.Reader.fixed(bytes);
-    var reader = s.fuze.arrow.IpcStreamReader(*std.Io.Reader).init(arena.allocator(), &source);
-    defer reader.deinit();
-    const schema = try reader.readSchema();
-    if (schema.fields.len == 0 or schema.fields.len > 2 or column >= schema.fields.len) return error.InvalidColumn;
-    var batch = (try reader.nextRecordBatch()) orelse return error.InvalidArrowResult;
-    defer batch.deinit();
-    if (batch.numRows() > m.max_rows or row >= batch.numRows()) return error.InvalidRow;
-    var validation_workspace: [s.fuze.execution.working_bytes]u8 = undefined;
-    _ = try s.fuze.Inspect.segment(bytes, @intCast(batch.numRows()), &validation_workspace);
-    const data = batch.column(column).data();
-    const cell: m.Cell = if (data.isNull(row)) .null else switch (schema.fields[column].data_type.*) {
-        .int64 => .{ .int64 = try (s.fuze.arrow.Int64Array{ .data = data }).value(row) },
-        .bool => .{ .boolean = try (s.fuze.arrow.BooleanArray{ .data = data }).value(row) },
-        .string => .{ .utf8 = try m.Bytes.init(try (s.fuze.arrow.StringArray{ .data = data }).value(row)) },
-        .binary => .{ .binary = try m.Bytes.init(try (s.fuze.arrow.BinaryArray{ .data = data }).value(row)) },
-        else => return error.UnsupportedType,
+    const u = s.fuze.Unified;
+    var workspace: [u.Arrow.working_bytes]u8 = undefined;
+    var columns: [u.max_columns]u.Column = undefined;
+    const metadata = try u.Inspect.infer(bytes, &workspace, &columns);
+    if (column >= metadata.schema.columns.len) return error.InvalidColumn;
+    if (row >= metadata.rows) return error.InvalidRow;
+    var batch: u.Inspect.Batch = undefined;
+    try u.Inspect.decode(metadata.schema, bytes, metadata.rows, &workspace, allocator, &batch);
+    const cell: ArrowValue = switch (batch.cells[row][column]) {
+        .null => .null,
+        .value => |value| switch (value) {
+            .int64 => |number| .{ .int64 = try decimal(allocator, number) },
+            .uint64 => |number| .{ .uint64 = try decimal(allocator, number) },
+            .boolean => |boolean| .{ .boolean = boolean },
+            .utf8 => |text| .{ .utf8 = text },
+            .binary => |data| .{ .binary = try p.Value.init(data) },
+            else => return error.UnsupportedType,
+        },
+        else => return error.UnsupportedCellState,
     };
-    return .{ .rows = @intCast(batch.numRows()), .columns = @intCast(schema.fields.len), .name = try allocator.dupe(u8, schema.fields[column].name), .value = try foreignCell(allocator, cell) };
+    return .{ .rows = metadata.rows, .columns = @intCast(metadata.schema.columns.len), .name = try allocator.dupe(u8, columns[column].name.slice()), .value = cell };
 }
 pub fn hex(allocator: std.mem.Allocator, bytes: []const u8) ![]const u8 {
     const output = try allocator.alloc(u8, bytes.len * 2);

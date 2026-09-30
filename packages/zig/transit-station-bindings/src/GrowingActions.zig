@@ -25,13 +25,26 @@ fn publishedGrpcRequest(turn: *s.Turn, wire: p.Value) !void {
     if (!std.meta.eql(metadata.spec, reference.metadataSpec()) or !std.meta.eql(body.spec, reference.batchSpec())) return error.InvalidGrpcRequestReference;
 }
 pub const Plan = struct {
-    projection: @FieldType(a.Plan, "projection") = .both,
+    projection: enum { both, key, value } = .both,
     limit: ?[]const u8 = null,
-    aggregate: @FieldType(a.Plan, "aggregate") = .rows,
-    predicate: @FieldType(a.Plan, "predicate") = .all,
-    fn native(self: Plan) !s.fuze.Stream.Plan {
-        const shared = try (a.Plan{ .projection = self.projection, .aggregate = self.aggregate, .predicate = self.predicate }).native();
-        return .{ .projection = shared.projection, .aggregate = shared.aggregate, .predicate = shared.predicate, .limit = if (self.limit) |limit| try std.fmt.parseInt(u64, limit, 10) else null };
+    aggregate: s.fuze.Unified.Plan.Aggregate = .rows,
+    predicate: union(enum) { all, is_null: u8, compare: struct { column: u8, op: s.fuze.Unified.Plan.Comparison, value: a.Cell } } = .all,
+    fn native(self: *const Plan) !s.fuze.Unified.Plan {
+        return .{ .projection = switch (self.projection) {
+            .both => if (self.aggregate == .count) &.{0} else &.{ 0, 1 },
+            .key => &.{0},
+            .value => &.{1},
+        }, .aggregate = self.aggregate, .limit = if (self.limit) |limit| try std.fmt.parseInt(u64, limit, 10) else null, .predicate = switch (self.predicate) {
+            .all => .all,
+            .is_null => |column| .{ .state = .{ .column = column, .value = .null } },
+            .compare => |comparison| .{ .compare = .{ .column = comparison.column, .op = comparison.op, .value = switch (comparison.value) {
+                .null => return error.UnsupportedNullComparison,
+                .int64 => |value| .{ .int64 = try std.fmt.parseInt(i64, value, 10) },
+                .boolean => |value| .{ .boolean = value },
+                .utf8 => |value| if (value.len <= s.fuze.model.max_cell_bytes) .{ .utf8 = value } else return error.CellTooLarge,
+                .binary => if (self.predicate.compare.value.binary.len <= s.fuze.model.max_cell_bytes) .{ .binary = self.predicate.compare.value.binary.slice() } else return error.CellTooLarge,
+            } } },
+        } };
     }
 };
 pub const Manifest = struct {
@@ -41,7 +54,7 @@ pub const Manifest = struct {
     correlation: []const u8,
     table: u32,
     policy_revision: []const u8,
-    basis: s.fuze.model.Basis,
+    basis: s.fuze.Unified.Basis,
     plan: [32]u8,
     segments: []const u8,
     bytes: []const u8,

@@ -35,9 +35,15 @@ async function main() {
       rows.push(...table.toArray());
     }
     assert.equal(rows.length, 41);
-    assert.equal(rows[0].id, -(1n << 63n)); assert.equal(rows[0].value, 17n);
-    assert.equal(rows[1].value, (1n << 63n) - 1n); assert.equal(rows[2].value, (1n << 53n) + 1n);
-    assert.equal(rows[5].value, null);
+    for (const row of rows) for (const cell of [row.id, row.value]) {
+      assert.equal(cell.alternatives.length, 0);
+      assert.ok(cell.state === 1 || cell.state === 3);
+      assert.equal(cell.kind, cell.state === 1 ? 7 : 1);
+      if (cell.state === 1) assert.equal(cell.value, null);
+    }
+    assert.equal(rows[0].id.value, -(1n << 63n)); assert.equal(rows[0].value.value, 17n);
+    assert.equal(rows[1].value.value, (1n << 63n) - 1n); assert.equal(rows[2].value.value, (1n << 53n) + 1n);
+    assert.equal(rows[5].value.state, 1);
     return;
   }
   if (mode === 'codecs') {

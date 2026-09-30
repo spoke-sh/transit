@@ -1,4 +1,4 @@
-//! Public v3 load fixture. Signing, reads and turns use the production client.
+//! Public v1 load fixture. Signing, reads and turns use the production client.
 const std = @import("std");
 const client = @import("transit_client");
 const p = client.protocol;

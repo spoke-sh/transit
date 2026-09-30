@@ -1,4 +1,4 @@
-//! Public provisioning and signed client for actual v2 query daemons.
+//! Public provisioning and signed client for actual v1 query daemons.
 const std = @import("std");
 const q = @import("transit_query");
 const s = @import("transit_station");

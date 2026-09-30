@@ -19,7 +19,7 @@ module Transit
       end
     end
     QueryJob = Data.define(:result, :correlation, :source)
-    ResultManifest = Data.define(:result, :source, :destination, :correlation, :table, :policy_revision, :basis,
+    ResultManifest = Data.define(:result, :source, :destination, :correlation, :table, :policy_revision, :basis, :source_contract,
                                  :plan, :segments, :byte_count, :rows, :chain, :schema)
     class IpcSegment
       attr_reader :manifest, :ordinal, :rows, :digest
@@ -44,7 +44,7 @@ module Transit
         realm = @turn.process.realm
         ResultManifest.new(result: value.fetch('result'), source: ProcessRef.new(realm: realm, pid: value.fetch('source')),
           destination: ProcessRef.new(realm: realm, pid: value.fetch('destination')), correlation: Value.wide(value.fetch('correlation'), min: 1),
-          table: value.fetch('table'), policy_revision: Value.wide(value.fetch('policy_revision')), basis: Value.basis(value.fetch('basis'), realm),
+          table: value.fetch('table'), policy_revision: Value.wide(value.fetch('policy_revision')), basis: Value.basis(value.fetch('basis'), realm), source_contract: Value.digest(value.fetch('basis').fetch('contract')),
           plan: Value.digest(value.fetch('plan')), segments: Value.wide(value.fetch('segments')), byte_count: Value.wide(value.fetch('bytes')),
           rows: Value.wide(value.fetch('rows')), chain: Value.digest(value.fetch('chain')), schema: Value.digest(value.fetch('schema')))
       end

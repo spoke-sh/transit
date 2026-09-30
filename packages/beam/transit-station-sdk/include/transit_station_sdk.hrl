@@ -16,7 +16,7 @@
 -record(transit_query_plan, {projection = both :: both | key | value, aggregate = rows :: rows | count | sum,
                              limit = undefined :: undefined | non_neg_integer(), predicate = all :: term()}).
 -record(transit_query_job, {result :: transit_counter(), correlation :: pos_integer(), source :: #transit_read_version{}}).
--record(transit_manifest, {result, source, destination, correlation, table, policy_revision, basis, plan, segments, byte_count, rows, chain, schema}).
+-record(transit_manifest, {result, source, destination, correlation, table, policy_revision, basis, source_contract, plan, segments, byte_count, rows, chain, schema}).
 -record(transit_ipc_segment, {manifest :: #transit_manifest{}, ordinal :: non_neg_integer(), rows :: non_neg_integer(), digest :: binary(), ipc :: binary()}).
 -record(transit_frozen, {identity :: #transit_identity{}, purpose :: permit | open | commit, input :: transit_counter(), bytes :: binary()}).
 -record(transit_committed, {input :: transit_counter(), receipt :: #transit_receipt{}}).

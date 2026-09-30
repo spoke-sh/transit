@@ -89,11 +89,11 @@ requests without JavaScript parsing their full-width literals. The query route
 exposes only the [public query profile](../../../contracts/UNIFIED_QUERY_V1.md),
 not arbitrary Transit commands.
 
-The additive `/api/v1/query` route has its own generated schemas. Dynamic
+The `/api/v1/query` route has its own generated schemas. Dynamic
 row/column/path/conflict arrays are bounded to eight, and full-width counts,
 identities and scalars remain strings. Atlas identifies the configured query
 version only when its resource appears in the authorized inspection page.
-V2 query configuration and grants remain separate from the inspection identity.
+Query configuration and grants remain separate from the inspection identity.
 
 From this directory, `zig build test` checks projection boundaries and causal coverage.
 From the repository root, `just test::packages` checks the declared dependencies.

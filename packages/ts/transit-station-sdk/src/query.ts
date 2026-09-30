@@ -102,6 +102,7 @@ export interface ResultManifest {
   readonly table: number;
   readonly policyRevision: bigint;
   readonly basis: Basis;
+  readonly sourceContract: Uint8Array;
   readonly plan: Uint8Array;
   readonly segments: bigint;
   readonly byteCount: bigint;
@@ -161,6 +162,7 @@ async function complete(
     table: integer(value.table, "table"),
     policyRevision: nativeWide(value.policy_revision),
     basis,
+    sourceContract: new Uint8Array(value.basis.contract),
     plan: new Uint8Array(value.plan),
     segments: nativeWide(value.segments),
     byteCount: nativeWide(value.bytes),

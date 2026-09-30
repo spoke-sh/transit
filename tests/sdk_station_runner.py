@@ -62,7 +62,14 @@ def run(node, cli, raw_library, install, label):
             finally: native.lib.transit_operation_destroy(op)
         def read(kind):
             op = native.prepare(7, private, {'realm': 72, 'principal': 0, 'kind': kind})
-            try: return native.call(admin, op)
+            try:
+                deadline = time.monotonic() + 30
+                while True:
+                    status, response = native.exchange(admin, op)
+                    if status == 0:
+                        return response
+                    assert status in (6, 7) and time.monotonic() < deadline, (status, response)
+                    time.sleep(.05)
             finally: native.lib.transit_operation_destroy(op)
         fault = {'drop': False, 'delay': False, 'poison': False, 'commands': [], 'poisoned': False}
         class Proxy(BaseHTTPRequestHandler):
@@ -121,7 +128,8 @@ def run(node, cli, raw_library, install, label):
             cfg = {'url': url, 'realm': 72, 'principal': principal, 'pid': pid, 'generation': 2,
                 'seed_file': str(seed), 'profile': 'native_v1', 'peer': pid, 'role': role, 'resource': resource,
                 'pending': str(target / f'pending-{pid}'), 'output': str(output), 'fixtures': str(codec_fixture), 'http_fixtures': str(http_fixture), 'http_release_fixtures': str(http_release_fixture),
-                'query_results': role in ('table', 'query'), 'work_before_ms': now+lifetime_ms if finite else None}
+                'query_results': role in ('table', 'query'), 'work_before_ms': now+lifetime_ms if finite else None,
+                'settle_before_ms': now+lifetime_ms+30000 if finite else None}
             return cfg
         def config_file(cfg):
             path = target / f"config-{cfg['pid']}.json"
@@ -275,7 +283,8 @@ def run(node, cli, raw_library, install, label):
             # Independent consumer after all foreign handles have been destroyed.
             import pyarrow as pa
             segments = [Path(query_cfg['output'], f'{i}.arrow').read_bytes() for i in range(6)]
-            rows = [row for ipc in segments for row in pa.ipc.open_stream(ipc).read_all().to_pylist()]
+            from arrow import simple_rows
+            rows = [row for ipc in segments for row in simple_rows(pa.ipc.open_stream(ipc).read_all())]
             assert len(rows) == 41 and rows[0] == {'id': -(2**63), 'value': 17}
             assert rows[1]['value'] == 2**63-1 and rows[2]['value'] == 2**53+1
             assert sum(map(len, segments)) == manifest['bytes']
@@ -297,7 +306,7 @@ def run(node, cli, raw_library, install, label):
             if consumer.arrow_adapter:
                 invoke('arrow', query_cfg)
             # Expiry remains retirement, distinct from stale activation or access.
-            while time.time_ns() // 1_000_000 <= expired['work_before_ms'] + 10000:
+            while time.time_ns() // 1_000_000 <= expired['settle_before_ms'] + 10000:
                 time.sleep(0.05)
             command({'expire': expired['pid']})
             invoke('expired', expired)

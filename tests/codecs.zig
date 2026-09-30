@@ -13,12 +13,13 @@ fn requestBytes(bytes: []const u8) !void {
     const parsed = std.json.parseFromSlice(p.SignedRequest, alloc, bytes, .{ .max_value_len = p.max_entry_bytes }) catch return;
     defer parsed.deinit();
     p.validate(parsed.value.request) catch return;
-    const before = p.digest(parsed.value.request);
+    const before = try p.digest(parsed.value.request);
     const encoded = try std.json.Stringify.valueAlloc(alloc, parsed.value, .{});
     defer alloc.free(encoded);
     const again = try std.json.parseFromSlice(p.SignedRequest, alloc, encoded, .{});
     defer again.deinit();
-    try t.expectEqualSlices(u8, &before, &p.digest(again.value.request));
+    const after = try p.digest(again.value.request);
+    try t.expectEqualSlices(u8, &before, &after);
     try t.expectEqualSlices(u8, &parsed.value.signature, &again.value.signature);
 }
 fn fuzzRequest(_: void, smith: *t.Smith) !void {

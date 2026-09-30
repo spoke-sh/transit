@@ -1,4 +1,4 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{
     collections::{BTreeSet, HashMap},
     fs,
@@ -13,7 +13,7 @@ use transit_client::{
     OperationIdentity, ProcessRef, ResourceRef, Result,
 };
 use transit_sdk_examples::codecs::*;
-use transit_sdk_examples::{Counter, QueryRequester, Requester, TABLE, TOTAL, TableService};
+use transit_sdk_examples::{Counter, QueryRequester, Requester, TableService, TABLE, TOTAL};
 use transit_station_sdk::*;
 
 fn number(cfg: &Value, name: &str) -> u64 {
@@ -241,27 +241,55 @@ fn save_owned(shared: &Shared, output: &str) -> Result<()> {
     }
     #[cfg(feature = "arrow")]
     if !batches.is_empty() {
-        use arrow_array::{Array, Int64Array};
+        use arrow_array::{Array, Int64Array, ListArray, StructArray, UInt8Array};
+        fn cell(array: &dyn Array, index: usize) -> Option<i64> {
+            let cells = array.as_any().downcast_ref::<StructArray>().unwrap();
+            assert!(!cells.is_null(index));
+            let states = cells
+                .column_by_name("state")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap();
+            let kinds = cells
+                .column_by_name("kind")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap();
+            let values = cells
+                .column_by_name("value")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap();
+            let alternatives = cells
+                .column_by_name("alternatives")
+                .unwrap()
+                .as_any()
+                .downcast_ref::<ListArray>()
+                .unwrap();
+            assert_eq!(alternatives.value_length(index), 0);
+            match states.value(index) {
+                1 => {
+                    assert_eq!(kinds.value(index), 7);
+                    assert!(values.is_null(index));
+                    None
+                }
+                3 => {
+                    assert_eq!(kinds.value(index), 1);
+                    assert!(!values.is_null(index));
+                    Some(values.value(index))
+                }
+                other => panic!("Unexpected Table cell state: {other}"),
+            }
+        }
         let mut rows = Vec::new();
         for batch in batches {
-            let keys = batch
-                .column(0)
-                .as_any()
-                .downcast_ref::<Int64Array>()
-                .unwrap();
-            let values = batch
-                .column(1)
-                .as_any()
-                .downcast_ref::<Int64Array>()
-                .unwrap();
             for i in 0..batch.num_rows() {
                 rows.push((
-                    keys.value(i),
-                    if values.is_null(i) {
-                        None
-                    } else {
-                        Some(values.value(i))
-                    },
+                    cell(batch.column(0).as_ref(), i).unwrap(),
+                    cell(batch.column(1).as_ref(), i),
                 ));
             }
         }
@@ -575,31 +603,27 @@ fn codecs(cfg: &Value) -> Result<()> {
     };
     assert_eq!(released.resource, ResourceRef::new(72, 7)?);
     assert_eq!(released.exchange, u64::MAX);
-    assert!(
-        codec
-            .encode(&HttpMessage::Reply(HttpReply::Released(released)))
-            .is_err()
-    );
+    assert!(codec
+        .encode(&HttpMessage::Reply(HttpReply::Released(released)))
+        .is_err());
     assert!(decode_http_reply(72, &released_bytes[..19], None).is_err());
-    assert!(
-        prepare_http(
-            ResourceRef::new(72, 8)?,
-            1,
-            &HttpRequest {
-                method: HttpMethod::Get,
-                target: vec![HttpPiece::Literal("//other/".into())],
-                headers: vec![],
-            },
-            b"",
-            HttpRequestOptions {
-                endpoint_revision: 1,
-                reconcile_before_ms: Count::new(9000)?,
-                max_attempts: 1
-            },
-            None
-        )
-        .is_err()
-    );
+    assert!(prepare_http(
+        ResourceRef::new(72, 8)?,
+        1,
+        &HttpRequest {
+            method: HttpMethod::Get,
+            target: vec![HttpPiece::Literal("//other/".into())],
+            headers: vec![],
+        },
+        b"",
+        HttpRequestOptions {
+            endpoint_revision: 1,
+            reconcile_before_ms: Count::new(9000)?,
+            max_attempts: 1
+        },
+        None
+    )
+    .is_err());
     Ok(())
 }
 
@@ -938,8 +962,7 @@ impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
                         .kind,
                     ErrorKind::InvalidArgument
                 );
-                let call =
-                    turn.retry_grpc(self.peer, parent, &self.request)?;
+                let call = turn.retry_grpc(self.peer, parent, &self.request)?;
                 turn.state().put(&followup_correlation, &call.get())?;
                 *self.observed.lock().unwrap() = json!({"followup":false});
             }
@@ -999,8 +1022,7 @@ impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
                 };
                 assert_eq!(outcome.phase, GrpcPhase::Observed);
                 assert_eq!(outcome.status, Some(0));
-                turn.state()
-                    .put(&Key::new(b"grpc-status", U64Codec)?, &0)?;
+                turn.state().put(&Key::new(b"grpc-status", U64Codec)?, &0)?;
                 *self.observed.lock().unwrap() = json!({"observed":true});
             }
             _ => panic!("RPC input"),
@@ -1010,14 +1032,45 @@ impl Handler<GrpcMessage<Vec<u8>>> for GrpcHandler {
 }
 fn grpc_consumer(cfg: Value, mode: &str) -> Result<()> {
     let body = transit_client::internal::unhex(&path(&cfg, "body"), 16384)?;
-    let prepared = prepare_grpc(ResourceRef::new(72, number(&cfg, "resource"))?, u64::MAX,
-        &GrpcRequest { method: grpc_method(&transit_client::internal::unhex(&path(&cfg,"descriptor"),65536)?, &path(&cfg,"method"), None)?,
+    let prepared = prepare_grpc(
+        ResourceRef::new(72, number(&cfg, "resource"))?,
+        u64::MAX,
+        &GrpcRequest {
+            method: grpc_method(
+                &transit_client::internal::unhex(&path(&cfg, "descriptor"), 65536)?,
+                &path(&cfg, "method"),
+                None,
+            )?,
             metadata: vec![
-                GrpcMetadata { name: "x-tag".into(), value: GrpcMetadataValue::Literal(b"one".to_vec()) },
-                GrpcMetadata { name: "x-tag".into(), value: GrpcMetadataValue::Literal(b"two".to_vec()) },
-                GrpcMetadata { name: "x-data-bin".into(), value: GrpcMetadataValue::Literal(vec![0,255]) },
-                GrpcMetadata { name: "authorization".into(), value: GrpcMetadataValue::Secret { binding: "api".into(), version: 7 } },
-            ] }, &[&body, b""], GrpcRequestOptions { endpoint_revision: 7, reconcile_before_ms: Count::new(number(&cfg,"deadline"))?, max_attempts: 1 }, None)?;
+                GrpcMetadata {
+                    name: "x-tag".into(),
+                    value: GrpcMetadataValue::Literal(b"one".to_vec()),
+                },
+                GrpcMetadata {
+                    name: "x-tag".into(),
+                    value: GrpcMetadataValue::Literal(b"two".to_vec()),
+                },
+                GrpcMetadata {
+                    name: "x-data-bin".into(),
+                    value: GrpcMetadataValue::Literal(vec![0, 255]),
+                },
+                GrpcMetadata {
+                    name: "authorization".into(),
+                    value: GrpcMetadataValue::Secret {
+                        binding: "api".into(),
+                        version: 7,
+                    },
+                },
+            ],
+        },
+        &[&body, b""],
+        GrpcRequestOptions {
+            endpoint_revision: 7,
+            reconcile_before_ms: Count::new(number(&cfg, "deadline"))?,
+            max_attempts: 1,
+        },
+        None,
+    )?;
     let config = ServiceConfig::new(
         ClientConfig::growing(&path(&cfg, "url"))?,
         Activation::new(
@@ -1049,7 +1102,6 @@ fn grpc_consumer(cfg: Value, mode: &str) -> Result<()> {
                 exchange: outcome.exchange,
             }),
             parent,
-
         },
         GrpcReplyCodec::new(ByteCodec, 72, None)?,
         RunnerOptions {
@@ -1164,17 +1216,34 @@ struct DocumentHandler {
 }
 impl Handler<Vec<u8>> for DocumentHandler {
     fn initialize(&mut self, turn: &mut Turn<'_>) -> Result<()> {
-        turn.document(u64::MAX)?.create(1, DocumentLimits::default())
+        turn.document(u64::MAX)?
+            .create(1, DocumentLimits::default())
     }
     fn handle(&mut self, turn: &mut Turn<'_>, input: Incoming<Vec<u8>>) -> Result<()> {
-        let Incoming::Cast { value, .. } = input else { panic!("Document cast expected"); };
+        let Incoming::Cast { value, .. } = input else {
+            panic!("Document cast expected");
+        };
         let mut owner = turn.document(u64::MAX)?;
         let phase = match value.as_slice() {
             b"initialize" => None,
-            b"0" | b"1" => Some(owner.stage((value[0]-b'0') as u64+1,&self.changes[(value[0]-b'0') as usize],256)?.phase),
+            b"0" | b"1" => Some(
+                owner
+                    .stage(
+                        (value[0] - b'0') as u64 + 1,
+                        &self.changes[(value[0] - b'0') as usize],
+                        256,
+                    )?
+                    .phase,
+            ),
             b"checkpoint" => Some(owner.checkpoint(90)?.phase),
-            b"window" => { owner.merge_window(2)?; None },
-            b"retire" => { owner.retire()?; None },
+            b"window" => {
+                owner.merge_window(2)?;
+                None
+            }
+            b"retire" => {
+                owner.retire()?;
+                None
+            }
             _ => panic!("Unexpected Document tick"),
         };
         *self.phase.lock().unwrap() = phase;
@@ -1182,94 +1251,248 @@ impl Handler<Vec<u8>> for DocumentHandler {
     }
 }
 fn document_consumer(cfg: Value, mode: &str) -> Result<()> {
-    use transit_client::internal::{hex,unhex};
+    use transit_client::internal::{hex, unhex};
     let document = u64::MAX;
-    let resource = ResourceRef::new(72,number(&cfg,"resource"))?;
+    let resource = ResourceRef::new(72, number(&cfg, "resource"))?;
     if mode == "document-codecs" {
-        let fixtures: Value = serde_json::from_slice(&fs::read(path(&cfg,"document_fixtures")).map_err(io_error)?).map_err(io_error)?;
+        let fixtures: Value =
+            serde_json::from_slice(&fs::read(path(&cfg, "document_fixtures")).map_err(io_error)?)
+                .map_err(io_error)?;
         for entry in fixtures["changes"].as_array().unwrap() {
-            let bytes = unhex(entry["wire_hex"].as_str().unwrap(),4096)?;
-            let decoded = decode_document(&bytes,None)?;
-            assert_eq!(prepare_document(&decoded,None)?.data(),&bytes);
-            for len in [0,1,bytes.len()-1] { assert!(decode_document(&bytes[..len],None).is_err()); }
+            let bytes = unhex(entry["wire_hex"].as_str().unwrap(), 4096)?;
+            let decoded = decode_document(&bytes, None)?;
+            assert_eq!(prepare_document(&decoded, None)?.data(), &bytes);
+            for len in [0, 1, bytes.len() - 1] {
+                assert!(decode_document(&bytes[..len], None).is_err());
+            }
         }
-        let reference = DocumentReference::decode(72,&unhex(fixtures["reference_hex"].as_str().unwrap(),40)?,None)?;
-        assert_eq!(reference.document(),u64::MAX); assert_eq!(reference.revision(),u64::MAX);
-        assert_eq!(hex(reference.data(),40)?,fixtures["reference_hex"]);
-        let bootstrap = DocumentChange { document, epoch: 1, type_revision: 1, replica: u64::MAX, previous: 0, first: 1,
+        let reference = DocumentReference::decode(
+            72,
+            &unhex(fixtures["reference_hex"].as_str().unwrap(), 40)?,
+            None,
+        )?;
+        assert_eq!(reference.document(), u64::MAX);
+        assert_eq!(reference.revision(), u64::MAX);
+        assert_eq!(hex(reference.data(), 40)?, fixtures["reference_hex"]);
+        let bootstrap = DocumentChange {
+            document,
+            epoch: 1,
+            type_revision: 1,
+            replica: u64::MAX,
+            previous: 0,
+            first: 1,
             operations: vec![
-                DocumentOperation::Assign { object: DocumentDot::ROOT, field: "value".into(), observed: vec![], value: DocumentValue::Signed(i64::MIN) },
-                DocumentOperation::Assign { object: DocumentDot::ROOT, field: "body".into(), observed: vec![], value: DocumentValue::Text },
-                DocumentOperation::Insert { object: DocumentDot { counter: 2,replica: u64::MAX }, after: DocumentDot::ROOT, value: DocumentValue::Character('🙂') },
-            ] };
-        assert_eq!(hex(prepare_document(&bootstrap,None)?.data(),4096)?,cfg["changes"][0]);
-        report(json!({"codecs":true})); return Ok(());
+                DocumentOperation::Assign {
+                    object: DocumentDot::ROOT,
+                    field: "value".into(),
+                    observed: vec![],
+                    value: DocumentValue::Signed(i64::MIN),
+                },
+                DocumentOperation::Assign {
+                    object: DocumentDot::ROOT,
+                    field: "body".into(),
+                    observed: vec![],
+                    value: DocumentValue::Text,
+                },
+                DocumentOperation::Insert {
+                    object: DocumentDot {
+                        counter: 2,
+                        replica: u64::MAX,
+                    },
+                    after: DocumentDot::ROOT,
+                    value: DocumentValue::Character('🙂'),
+                },
+            ],
+        };
+        assert_eq!(
+            hex(prepare_document(&bootstrap, None)?.data(), 4096)?,
+            cfg["changes"][0]
+        );
+        report(json!({"codecs":true}));
+        return Ok(());
     }
-    let changes = cfg["changes"].as_array().unwrap().iter().map(|v| prepare_document(&decode_document(&unhex(v.as_str().unwrap(),4096)?,None)?,None)).collect::<Result<Vec<_>>>()?;
-    let config = ServiceConfig::new(ClientConfig::growing(&path(&cfg,"url"))?,Activation::new(ProcessRef::new(72,number(&cfg,"pid"))?,number(&cfg,"principal"),number(&cfg,"generation"),path(&cfg,"seed_file"))?);
+    let changes = cfg["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| {
+            prepare_document(
+                &decode_document(&unhex(v.as_str().unwrap(), 4096)?, None)?,
+                None,
+            )
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let config = ServiceConfig::new(
+        ClientConfig::growing(&path(&cfg, "url"))?,
+        Activation::new(
+            ProcessRef::new(72, number(&cfg, "pid"))?,
+            number(&cfg, "principal"),
+            number(&cfg, "generation"),
+            path(&cfg, "seed_file"),
+        )?,
+    );
     let phase = Arc::new(Mutex::new(None));
-    let mut runner = Runner::open(config.clone(), DocumentHandler { changes: changes.clone(),phase:phase.clone() },ByteCodec,RunnerOptions { failure: FailurePolicy::Stop,recovery: Recovery::FenceOnRestart })?;
+    let mut runner = Runner::open(
+        config.clone(),
+        DocumentHandler {
+            changes: changes.clone(),
+            phase: phase.clone(),
+        },
+        ByteCodec,
+        RunnerOptions {
+            failure: FailurePolicy::Stop,
+            recovery: Recovery::FenceOnRestart,
+        },
+    )?;
     let mut saved: Option<DocumentReference> = None;
     for line in io::stdin().lock().lines() {
         let command = line.map_err(io_error)?;
-        if command == "close" { break; }
+        if command == "close" {
+            break;
+        }
         let output = match command.as_str() {
             "one" => {
                 *phase.lock().unwrap() = None;
                 let mut committed = false;
                 for _ in 0..12 {
-                    match runner.next()? { Some(RunnerEvent::Committed { .. }) => { committed = true; break; }, Some(RunnerEvent::Progress) => {}, _ => panic!("Expected Document commit") }
+                    match runner.next()? {
+                        Some(RunnerEvent::Committed { .. }) => {
+                            committed = true;
+                            break;
+                        }
+                        Some(RunnerEvent::Progress) => {}
+                        _ => panic!("Expected Document commit"),
+                    }
                 }
                 assert!(committed);
                 let phase = *phase.lock().unwrap();
-                let name = phase.map(|v|match v { DocumentPhase::Progress => "progress", DocumentPhase::Accepted => "accepted", DocumentPhase::Duplicate => "duplicate", DocumentPhase::CheckpointComplete => "checkpoint_complete" });
+                let name = phase.map(|v| match v {
+                    DocumentPhase::Progress => "progress",
+                    DocumentPhase::Accepted => "accepted",
+                    DocumentPhase::Duplicate => "duplicate",
+                    DocumentPhase::CheckpointComplete => "checkpoint_complete",
+                });
                 json!({"event":"committed","phase":name})
-            },
+            }
             "read" => {
                 let mut reader = runner.documents()?;
-                let description = reader.describe(resource,document)?;
-                assert_eq!(description.floor,0); assert_eq!(description.merge_window,0);
+                let description = reader.describe(resource, document)?;
+                assert_eq!(description.floor, 0);
+                assert_eq!(description.merge_window, 0);
                 let reference = description.reference;
-                let value = reader.path(&reference,&["value"])?;
-                let page = reader.sequence(&reference,DocumentDot { counter: 2,replica:u64::MAX },None)?;
+                let value = reader.path(&reference, &["value"])?;
+                let page = reader.sequence(
+                    &reference,
+                    DocumentDot {
+                        counter: 2,
+                        replica: u64::MAX,
+                    },
+                    None,
+                )?;
                 assert!(page.next.is_none());
-                let text: String = page.items.iter().map(|item|match item.field.assignments[0].value { DocumentValue::Character(cp) => cp, _ => panic!("Expected Unicode scalar") }).collect();
-                assert_eq!(text,if reference.revision() == 2 { "🙂" } else { "🙂́" });
+                let text: String = page
+                    .items
+                    .iter()
+                    .map(|item| match item.field.assignments[0].value {
+                        DocumentValue::Character(cp) => cp,
+                        _ => panic!("Expected Unicode scalar"),
+                    })
+                    .collect();
+                assert_eq!(
+                    text,
+                    if reference.revision() == 2 {
+                        "🙂"
+                    } else {
+                        "🙂́"
+                    }
+                );
                 assert!(value.field.assignments[0].value == DocumentValue::Signed(i64::MIN));
-                assert_eq!(reader.path(&reference,&["missing"])?.field.status,DocumentStatus::Missing);
-                assert_eq!(hex(prepare_document(&reader.accepted_change(&reference)?,None)?.data(),4096)?,cfg["changes"][reference.revision() as usize-2]);
-                if saved.is_none() { saved = Some(reference.clone()); }
+                assert_eq!(
+                    reader.path(&reference, &["missing"])?.field.status,
+                    DocumentStatus::Missing
+                );
+                assert_eq!(
+                    hex(
+                        prepare_document(&reader.accepted_change(&reference)?, None)?.data(),
+                        4096
+                    )?,
+                    cfg["changes"][reference.revision() as usize - 2]
+                );
+                if saved.is_none() {
+                    saved = Some(reference.clone());
+                }
                 json!({"revision":reference.revision().to_string(),"items":page.items.len(),"status":if value.field.status == DocumentStatus::Scalar { "scalar" } else { assert_eq!(value.field.status,DocumentStatus::Conflict); "conflict" }})
-            },
+            }
             "old" => {
-                assert_eq!(runner.documents()?.path(saved.as_ref().unwrap(),&["value"])?.field.status,DocumentStatus::Scalar);
+                assert_eq!(
+                    runner
+                        .documents()?
+                        .path(saved.as_ref().unwrap(), &["value"])?
+                        .field
+                        .status,
+                    DocumentStatus::Scalar
+                );
                 json!({"retained":true})
-            },
+            }
             "denied" => {
-                let error = runner.documents()?.path(saved.as_ref().unwrap(),&["value"]).err().expect("Revoked Document read succeeded");
-                assert_eq!(error.kind,ErrorKind::AccessDenied); json!({"denied":true})
-            },
+                let error = runner
+                    .documents()?
+                    .path(saved.as_ref().unwrap(), &["value"])
+                    .err()
+                    .expect("Revoked Document read succeeded");
+                assert_eq!(error.kind, ErrorKind::AccessDenied);
+                json!({"denied":true})
+            }
             "resynchronize" => {
-                let v = runner.documents()?.resynchronize(resource,document,u64::MAX)?;
-                assert_eq!(v.reference.revision(),3); json!({"previous":v.previous_counter.to_string(),"clock":v.clock.to_string()})
-            },
+                let v = runner
+                    .documents()?
+                    .resynchronize(resource, document, u64::MAX)?;
+                assert_eq!(v.reference.revision(), 3);
+                json!({"previous":v.previous_counter.to_string(),"clock":v.clock.to_string()})
+            }
             "retired" => {
                 let mut reader = runner.documents()?;
-                assert!(reader.describe(resource,document)?.retired);
-                let error = reader.path(saved.as_ref().unwrap(),&["value"]).err().expect("Retired Document read succeeded");
-                assert_eq!(error.code.as_deref(),Some("DocumentRetired")); json!({"retired":true})
-            },
+                assert!(reader.describe(resource, document)?.retired);
+                let error = reader
+                    .path(saved.as_ref().unwrap(), &["value"])
+                    .err()
+                    .expect("Retired Document read succeeded");
+                assert_eq!(error.code.as_deref(), Some("DocumentRetired"));
+                json!({"retired":true})
+            }
             "async-close" => {
-                let config = config.clone(); let changes = changes.clone();
+                let config = config.clone();
+                let changes = changes.clone();
                 thread::spawn(move || {
-                    let mut other = Runner::open(config,DocumentHandler { changes,phase:Arc::new(Mutex::new(None)) },ByteCodec,RunnerOptions { failure:FailurePolicy::Stop,recovery:Recovery::FenceOnRestart }).unwrap();
-                    assert!(other.documents().unwrap().describe(resource,document).unwrap().retired);
+                    let mut other = Runner::open(
+                        config,
+                        DocumentHandler {
+                            changes,
+                            phase: Arc::new(Mutex::new(None)),
+                        },
+                        ByteCodec,
+                        RunnerOptions {
+                            failure: FailurePolicy::Stop,
+                            recovery: Recovery::FenceOnRestart,
+                        },
+                    )
+                    .unwrap();
+                    assert!(
+                        other
+                            .documents()
+                            .unwrap()
+                            .describe(resource, document)
+                            .unwrap()
+                            .retired
+                    );
                     // The reader borrows the runner: closing while it is still in
                     // use is a compiler error, qualified by the installer tests.
                     other.close().unwrap();
-                }).join().map_err(io_error)?;
+                })
+                .join()
+                .map_err(io_error)?;
                 json!({"joined":true})
-            },
+            }
             _ => panic!("Unexpected Document command"),
         };
         report(output);
@@ -1285,7 +1508,7 @@ fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let cfg: Value = serde_json::from_slice(&fs::read(&args[2])?)?;
     assert_eq!(cfg["profile"], "native_v1");
     if mode.starts_with("document-") {
-        return Ok(document_consumer(cfg,mode)?);
+        return Ok(document_consumer(cfg, mode)?);
     }
     if mode.starts_with("grpc-") {
         return Ok(grpc_consumer(cfg, mode)?);

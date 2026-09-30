@@ -7,16 +7,14 @@ the separate [historical-read fragment](../../docs/reference/sql/as-of.md).
 The reference grammar covers read-only single-Table `SELECT` and the existing
 administrative extension syntax. `TransitExtensions.g4` is the checked reference;
 generated Python/ANTLR files stay in `.cache/verification/sql`, outside production.
-The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/sql.md)
-lowers this SELECT profile to the existing `Stream.Plan`/`PlanCodec`.
-The [proof ledger](../../tests/README.md) records its qualification and limits.
-
-The additive [v1 compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
-reuses this grammar and owned AST for declared KV/Table/Document schemas. Its
-capability matrix separately defines wider limits/star projection, nested cell
-states, full-width count and unsupported null comparisons. The original Table
-compiler and corpus keep their original behavior. No grammar syntax or rewrite
-is added by this compiler.
+The implemented [Zig compiler](../../packages/zig/transit-fuze/docs/unified-sql.md)
+lowers SELECT syntax against declared KV/Table/Document schemas to the current
+`Unified.Plan` and canonical `FZP1` bytes. The shared parser owns the AST and
+cursor assistance; there is one compiler and execution definition. Its capability
+matrix covers whole-query limits, star projection, nested cell states, full-width
+count and unsupported null comparisons. Administrative reference grammar does not
+imply an executable administrative operation. The [proof ledger](../../tests/README.md)
+records independent grammar, plan and result checks.
 
 ## Reproducible reference checks
 

@@ -238,7 +238,8 @@ def run(node, cli, library, raw_library, host):
             requester.close()
             requester = None
             # IPC is an owned copy and remains valid after the native handle dies.
-            rows = [row for ipc in segments for row in pa.ipc.open_stream(ipc).read_all().to_pylist()]
+            from arrow import simple_rows
+            rows = [row for ipc in segments for row in simple_rows(pa.ipc.open_stream(ipc).read_all())]
             assert len(rows) == 41 and rows[0] == {'id': -(2**63), 'value': None}
             assert rows[1]['value'] == 2**63 - 1 and rows[2]['value'] == 9007199254740993
             api = service.api

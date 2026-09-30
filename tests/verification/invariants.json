@@ -185,7 +185,8 @@
       "claim": "Complete query bytes retain exact schema, values, nulls and source revision",
       "owner": "docs/reference/arrow.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/execute.zig"
+        "packages/zig/transit-fuze/src/UnifiedArrow.zig",
+        "packages/zig/transit-fuze/src/UnifiedInspect.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1",
       "tasks": [
@@ -197,18 +198,18 @@
         "Independent PyArrow and wide integers",
         "Missing fragments and consumer restart"
       ],
-      "limits": "Bounded synchronous results only; paged multi-batch execution remains unqualified.",
+      "limits": "Bounded synchronous nested IPC encoding/validation. Durable source authorization, capture and credit delivery have separate integration evidence.",
       "model": null,
       "qualification": "Required current-v1 scenarios; historical results do not establish this cutover. See tests/README.md for executed evidence."
     },
     {
       "id": "ARROW-02",
       "claim": "Incremental query limits and ordered aggregates span batches without silently truncating source or output",
-      "owner": "contracts/FUZE_STREAM_V1.md",
+      "owner": "contracts/UNIFIED_QUERY_V1.md",
       "implementation": [
-        "packages/zig/transit-fuze/src/Stream.zig"
+        "packages/zig/transit-fuze/src/UnifiedStream.zig"
       ],
-      "profile": "fuze-stream-v1 development",
+      "profile": "unified-query-v1",
       "tasks": [
         "test::unit",
         "test::arrow"
@@ -724,11 +725,12 @@
       "owner": "contracts/sql/README.md",
       "implementation": [
         "packages/zig/transit-fuze/src/Sql.zig",
+        "packages/zig/transit-fuze/src/UnifiedSql.zig",
         "tests/sql_driver.zig",
         "tests/sql/reference.py",
         "tests/sql/compiler.py"
       ],
-      "profile": "M12 Table SELECT / fuze-stream-v1",
+      "profile": "current SELECT / unified-query-v1",
       "tasks": [
         "test::unit",
         "test::sql"

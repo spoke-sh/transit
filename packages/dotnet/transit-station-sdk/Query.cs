@@ -53,7 +53,7 @@ public sealed record QueryPlan
 }
 public sealed record QueryJob(ulong Result, ulong Correlation, ReadVersion Source);
 public sealed record ResultManifest(ulong Result, ProcessRef Source, ProcessRef Destination, ulong Correlation, uint Table,
-    ulong PolicyRevision, Basis Basis, Bytes Plan, ulong Segments, ulong ByteCount, ulong Rows, Bytes Chain, Bytes Schema);
+    ulong PolicyRevision, Basis Basis, Bytes SourceContract, Bytes Plan, ulong Segments, ulong ByteCount, ulong Rows, Bytes Chain, Bytes Schema);
 public sealed record IpcSegment(ResultManifest Manifest, ulong Ordinal, byte Rows, Bytes Digest, Bytes Bytes)
 {
     public byte[] Ipc() => Bytes.Copy();
@@ -69,7 +69,7 @@ public sealed class ResultReader
         JsonObject value = Value.Object(turn.Raw(Value.Obj(("query_completed", Turn.Decimal(Correlation))))["manifest"]);
         ulong realm = turn.ProcessRef.Realm;
         return new ResultManifest(Value.Number(value["result"], 1), new ProcessRef(realm, Value.Number(value["source"], 1)), new ProcessRef(realm, Value.Number(value["destination"], 1)),
-            NativeValues.Wide(value["correlation"], true), checked((uint)Value.Number(value["table"], 1)), NativeValues.Wide(value["policy_revision"]), NativeValues.Basis(value["basis"], realm),
+            NativeValues.Wide(value["correlation"], true), checked((uint)Value.Number(value["table"], 1)), NativeValues.Wide(value["policy_revision"]), NativeValues.Basis(value["basis"], realm), NativeValues.Digest(Value.Object(value["basis"])["contract"]),
             NativeValues.Digest(value["plan"]), NativeValues.Wide(value["segments"]), NativeValues.Wide(value["bytes"]), NativeValues.Wide(value["rows"]), NativeValues.Digest(value["chain"]), NativeValues.Digest(value["schema"]));
     }
     public ResultManifest Manifest() => turn.Access(true, ReadManifest);

@@ -24,6 +24,7 @@ read_manifest(Turn, Correlation) ->
         destination = #transit_process{realm = Realm, pid = maps:get(<<"destination">>, Value)},
         correlation = transit_sdk_value:wide(maps:get(<<"correlation">>, Value)), table = maps:get(<<"table">>, Value),
         policy_revision = transit_sdk_value:wide(maps:get(<<"policy_revision">>, Value)), basis = transit_station_value:basis(maps:get(<<"basis">>, Value), Realm),
+        source_contract = transit_station_value:digest(maps:get(<<"contract">>, maps:get(<<"basis">>, Value))),
         plan = transit_station_value:digest(maps:get(<<"plan">>, Value)), segments = transit_sdk_value:wide(maps:get(<<"segments">>, Value)),
         byte_count = transit_sdk_value:wide(maps:get(<<"bytes">>, Value)), rows = transit_sdk_value:wide(maps:get(<<"rows">>, Value)),
         chain = transit_station_value:digest(maps:get(<<"chain">>, Value)), schema = transit_station_value:digest(maps:get(<<"schema">>, Value))}.

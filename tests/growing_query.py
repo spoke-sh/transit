@@ -58,7 +58,7 @@ def run(node, caller, *, finish_pages=64):
                         keys = [bytes.fromhex(item["key"]) for item in turn.get("mutations", []) if item]
                         publishing = any(item and item["value"] and
                                          bytes.fromhex(item["key"]).startswith(b"\x00Qj") and
-                                         len(bytes.fromhex(item["value"])) == 108 and
+                                         len(bytes.fromhex(item["value"])) == 117 and
                                          int.from_bytes(bytes.fromhex(item["value"])[106:108], "little") > 0
                                          for item in turn.get("mutations", []))
                         for name, selected in (("stage", any(key.startswith(b"\x00Qs") for key in keys)),
@@ -133,9 +133,10 @@ def run(node, caller, *, finish_pages=64):
                 chain = hashlib.sha256(b"transit.station.query.segments.v1\x00" + chain + encoded).digest()
                 with pa.ipc.open_stream(data) as reader:
                     batches = list(reader)
-                    assert reader.schema == pa.schema([pa.field("id", pa.int64(), nullable=False), pa.field("value", pa.string())])
+                    from arrow import field, simple_rows
+                    assert reader.schema == pa.schema([field("id", pa.int64()), field("value", pa.string())])
                 assert len(batches) == 1 and batches[0].num_rows == segment["rows"]
-                actual.extend(batches[0].to_pylist())
+                actual.extend(simple_rows(pa.Table.from_batches(batches)))
                 total += len(data)
             assert actual == [{"id": i, "value": None if i % 5 == 0 else chr(ord("a") + i % 26) * 220} for i in range(41)]
             assert progress["rows"] == 41 and progress["segments"] == 6
@@ -145,7 +146,7 @@ def run(node, caller, *, finish_pages=64):
             assert completed["basis"] == progress["basis"] and completed["plan"] == progress["plan"]
             assert completed["rows"] == 41 and completed["bytes"] == total
             assert completed["chain"] == job["chain"] and received["segments"] == result["segments"]
-            schema_hash = hashlib.sha256(b"transit.fuze.ipc.schema.v1\x00\x02\x02id\x01\x00\x05value\x03\x01").digest()
+            schema_hash = hashlib.sha256(b"transit.fuze.schema.v1\x00\x02\x02\x01id\x05\x05value").digest()
             assert bytes(completed["schema"]) == schema_hash
             for ordinal in range(completed["segments"]):
                 captured_data = Path(f"{manifest}.{ordinal}.arrow").read_bytes()

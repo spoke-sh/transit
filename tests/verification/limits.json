@@ -66,18 +66,18 @@
       "meaning": "Native worker stack budget exported by the shared ABI; independent of durable catalog size."
     },
     {
-      "source": "packages/zig/transit-fuze/src/model.zig",
+      "source": "packages/zig/transit-fuze/src/Unified.zig",
       "symbol": "max_rows",
-      "expression": "32",
+      "expression": "8",
       "classification": "working-set",
-      "meaning": "Rows in one Table compute batch. Paged capture and segment delivery keep retained source/result size independent of this batch."
+      "meaning": "Rows per current query page across KV, Table and Document; independent of total source/result cardinality."
     },
     {
-      "source": "packages/zig/transit-fuze/src/execute.zig",
+      "source": "packages/zig/transit-fuze/src/UnifiedArrow.zig",
       "symbol": "working_bytes",
-      "expression": "1024 * 1024",
+      "expression": "4 * 1024 * 1024",
       "classification": "working-set",
-      "meaning": "Finite compute workspace; exceeding this must not truncate results."
+      "meaning": "Current nested Arrow execution/inspection workspace; failure cannot truncate a result."
     },
     {
       "source": "packages/zig/transit-fuze/src/model.zig",
@@ -192,18 +192,18 @@
       "meaning": "Read dependencies, retains and releases per atomic turn; independent of total retained read versions."
     },
     {
-      "source": "packages/zig/transit-fuze/src/Stream.zig",
+      "source": "packages/zig/transit-fuze/src/UnifiedStream.zig",
       "symbol": "progress_bytes",
-      "expression": "143",
+      "expression": "167",
       "classification": "encoding",
       "meaning": "Owned incremental query progress format; counters and aggregate carry are independent of total retained rows."
     },
     {
-      "source": "packages/zig/transit-fuze/src/StreamPlan.zig",
-      "symbol": "encoded_bytes",
-      "expression": "241",
+      "source": "packages/zig/transit-fuze/src/UnifiedCodec.zig",
+      "symbol": "max_plan_bytes",
+      "expression": "8192",
       "classification": "encoding",
-      "meaning": "Largest compact typed plan, including a 220-byte literal; not source or result cardinality."
+      "meaning": "Current canonical FZP1 plan ceiling. Atomic Station Table starts additionally require one 256-byte native value; other clients upload plans explicitly."
     },
     {
       "source": "packages/zig/transit-station/src/QueryRecords.zig",
@@ -309,6 +309,34 @@
       "expression": "512 * 1024",
       "classification": "operation",
       "meaning": "Escaped JSON administrative request; compiler still enforces the smaller complete-program and command bounds."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Unified.zig",
+      "symbol": "max_columns",
+      "expression": "8",
+      "classification": "encoding",
+      "meaning": "Logical columns per current query page."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Unified.zig",
+      "symbol": "max_cell_bytes",
+      "expression": "4096",
+      "classification": "encoding",
+      "meaning": "Bytes per current scalar; Table storage separately bounds variable values to 220 bytes."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/Unified.zig",
+      "symbol": "max_conflicts",
+      "expression": "8",
+      "classification": "encoding",
+      "meaning": "Alternatives per conflicted current query cell; never silent conflict truncation."
+    },
+    {
+      "source": "packages/zig/transit-fuze/src/UnifiedArrow.zig",
+      "symbol": "segment_bytes",
+      "expression": "64 * 1024",
+      "classification": "operation",
+      "meaning": "General nested Arrow segment ceiling. Station Table delivery imposes its separate 8192-byte operation bound."
     }
   ],
   "identities": [
@@ -544,9 +572,9 @@
     },
     {
       "status": "segmented",
-      "meaning": "Table streaming evaluates bounded batches with retained progress and independently addressed result segments.",
-      "source": "packages/zig/transit-fuze/src/Stream.zig",
-      "anchor": "pub const progress_bytes = 143;",
+      "meaning": "KV, Table and Document queries evaluate bounded batches with retained progress and independently addressed result segments.",
+      "source": "packages/zig/transit-fuze/src/UnifiedStream.zig",
+      "anchor": "pub const progress_bytes = 167;",
       "replaces": null
     },
     {

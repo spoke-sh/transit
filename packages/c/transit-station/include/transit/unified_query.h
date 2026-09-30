@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-/* Explicit v2 profile. Input pointers are borrowed only for the synchronous
+/* Explicit v1 profile. Input pointers are borrowed only for the synchronous
  * operation. Native Zig validates semantics; these are language-owned types. */
 typedef enum transit_station_unified_type {
     TRANSIT_UNIFIED_INT64, TRANSIT_UNIFIED_UINT64, TRANSIT_UNIFIED_FLOAT64,

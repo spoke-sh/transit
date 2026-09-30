@@ -153,12 +153,12 @@ callers:
 # Linux/Docker: fill an owned ext4 image while keeping a physical control reserve.
 capacity:
     zig build capacity-proof
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof --growing
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-capacity-proof
 
 # Linux/Docker: retain growing pages/backlog through real ENOSPC and reserve use.
 growing-capacity:
     zig build growing-capacity-proof
-    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof --growing
+    nix shell --inputs-from . nixpkgs#e2fsprogs nixpkgs#util-linux nixpkgs#bash --command python3 -B tests/capacity.py zig-out/bin/transit-growing-capacity-proof
 
 # Exercise bounded discovery and retained inspection through the public client.
 inspection:
@@ -176,11 +176,11 @@ pages *args:
 pages-cold *args:
     zig build test-pages -- --cold-s3 {{args}}
 
-# Prove v3 authority publication with retained views/receipts and disk restart.
+# Prove v1 authority publication with retained views/receipts and disk restart.
 growing *args:
     zig build test-growing -- {{args}}
 
-# Exercise the explicit v3 node/client profile and lost replies on one CPU.
+# Exercise the explicit v1 node/client profile and lost replies on one CPU.
 growing-service:
     zig build test-growing-service
 
@@ -267,7 +267,7 @@ sql:
 public-query:
     zig build test-public-query
 
-# Signed v2 upload, all source adapters, nested results and disk recovery.
+# Signed v1 upload, all source adapters, nested results and disk recovery.
 unified-query *args="-Doptimize=ReleaseSafe":
     zig build test-unified-query {{args}}
 
@@ -337,7 +337,7 @@ unified-lifecycle source="kv":
 unified-expiry source="kv":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-expiry=true
 
-# Independent v2 bundle and Arrow fixtures through native and port APIs.
+# Independent v1 bundle and Arrow fixtures through native and port APIs.
 unified-codec:
     zig build test-unified-codec
 
