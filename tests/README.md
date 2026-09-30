@@ -1885,6 +1885,43 @@ documentation, with unchanged split-only runtime code. Evidence is retained in
 `.cache/ci/clean/ef2cc97dc6b0-transit-ci-dl5e5q05/`. It does not retroactively pass
 the earlier failures or qualify the subsequent sibling-merging change.
 
+### Shared immutable paths for bounded point reads
+
+`edb54a12` adds a bounded tree traversal for native `read_entries`. It retains
+caller order and current native authority checks while sharing immutable paths
+among the existing eight requested keys. Component fixtures cover absent and
+repeated keys, invalid input before I/O, every selected page-load failure,
+corruption and retained roots. The depth-32 eight-key fixture records **37 page
+loads**, compared with **264** separate lookup loads. These counts are component
+I/O evidence, not a native throughput result.
+
+All **62 core component tests**, full `just check` and the eight-seed resource
+simulation pass. The simulation records **798 traces / 15,496 events / 1598
+executions**, identical replay and all six negative controls in **437.816 s**.
+Committed-head `just ci-clean --lane core` passes all **22 tasks** in
+**1060.07 s**. Evidence is retained under
+`.cache/ci/clean/edb54a12a558-transit-ci-4bx7pg1w/`; this is one lane, not the
+complete CI suite. Subsequent history changes and parent evidence documentation
+do not change these runtime files.
+
+The cold-tier legacy-root recovery schedule at the same clean source fails in
+**1248.201 s**, after **213** additions, on `AuthorityTimeout` during the next
+application-status read. The original input **538** recovered as receipt **540**
+after node replacement, but the remaining growth and larger metadata/restart
+phases did not complete. Joined cleanup succeeds and retains the private
+fixture. This is not a full recovery-profile pass. Node diagnostics record two
+additional ten-second `AuthorityUnavailable` requests and `ReadFailed` events
+for page staging and journal tail; these observations do not establish the
+timeout's cause. Operation deadlines and resident bounds are unchanged.
+
+The runner is `f9329712…67ac8b82a`, the target node is
+`fa29956b…fdf8f`, and the other five binaries match the completed sparse-sibling
+baseline above. Source, full hashes, failed phase and retained fixture location
+are recorded in `/tmp/transit-sql-shared-point-read-cold-recovery.json`, with its
+matching `.log`. The private fixture includes credentials and must not be
+published. PRs #40 and #41 are merged; merge status does not qualify this failed
+schedule or establish a performance improvement under native cold storage.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
