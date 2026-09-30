@@ -1128,7 +1128,11 @@ compiling component mutants are detected again at committed `8e728de3`, includin
 inspection authorization and cursor revision defects after batching. The log and
 copied report are `/tmp/transit-sql-catalog-metadata-batch-mutants.log` and
 `/tmp/transit-sql-catalog-metadata-batch-mutants.json`. Committed clean validation
-remains separate.
+passes separately at `8e728de3`: `just ci-clean --lane core` completes all
+**22 tasks in 1146.58 s**, without inherited workspace build outputs. Evidence is
+`.cache/ci/clean/8e728de3a8de-transit-ci-ykvwiuy3/core.{json,meta.json}`; the log is
+`/tmp/transit-sql-catalog-metadata-batch-ci-clean.log`. This is the core lane,
+not the complete clean suite or the subsequent ABI/CLI metadata work.
 
 ### Neutral catalog metadata values
 
@@ -1141,6 +1145,12 @@ unchanged: these conversion types alone expose no new executable actions.
 The pinned-shell logs are `/tmp/transit-sql-catalog-neutral-metadata-unit.log`
 and `/tmp/transit-sql-catalog-neutral-metadata-contracts.log`. Native ABI/port,
 CLI and SDK metadata actions and installed-caller evidence remain.
+
+Committed `55f360e3` also passes `just ci-clean --lane core`: **22 tasks in
+1171.42 s**, including the seeded simulation checks. Evidence is
+`.cache/ci/clean/55f360e39e73-transit-ci-q0dn3km_/core.{json,meta.json}` and
+`/tmp/transit-sql-catalog-neutral-metadata-ci-clean.log`. It does not include
+the later signed-read batching or metadata action additions.
 
 ## SQL branch integration of seeded simulations
 
