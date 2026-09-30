@@ -53,7 +53,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     binary = str(Path(args.binary).resolve(strict=True))
-    evidence = {"version": 2, "layout": args.layout, "status": "inconclusive", "profile": "immutable page primitive; not running authority",
+    evidence = {"version": 1, "layout": args.layout, "status": "inconclusive", "profile": "immutable page primitive; not running authority",
                 "revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
                 "dirty": bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=root)),
                 "binary_sha256": hashlib.sha256(Path(binary).read_bytes()).hexdigest(),

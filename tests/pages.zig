@@ -4,8 +4,8 @@ const core = @import("transit_core");
 const adapter = @import("transit_backend_ursula");
 const p = core.pages;
 const t = std.testing;
-const Root = struct { version: u32 = 2, root: p.Reference, entries: u64 };
-const Checkpoint = struct { version: u32 = 2, position: u64 = 2, current: Root, view: Root };
+const Root = struct { version: u32 = 1, root: p.Reference, entries: u64 };
+const Checkpoint = struct { version: u32 = 1, position: u64 = 2, current: Root, view: Root };
 
 fn checkpoint(journal: adapter.Journal) !Checkpoint {
     var latest = try journal.client.send(.{ .read_snapshot = .{ .stream = journal.stream } });
@@ -17,7 +17,7 @@ fn checkpoint(journal: adapter.Journal) !Checkpoint {
     try response.head.requireSuccess();
     const parsed = try std.json.parseFromSlice(Checkpoint, journal.client.http.allocator, response.body, .{});
     defer parsed.deinit();
-    if (parsed.value.version != 2 or parsed.value.position != 2) return error.InvalidPageCheckpoint;
+    if (parsed.value.version != 1 or parsed.value.position != 2) return error.InvalidPageCheckpoint;
     return parsed.value;
 }
 
@@ -44,7 +44,7 @@ fn recorded(journal: adapter.Journal, at: u64) !Root {
     const first = lines.next() orelse return error.MissingRoot;
     const parsed = try std.json.parseFromSlice(Root, journal.client.http.allocator, first, .{});
     defer parsed.deinit();
-    if (parsed.value.version != 2) return error.UnsupportedRoot;
+    if (parsed.value.version != 1) return error.UnsupportedRoot;
     return parsed.value;
 }
 pub fn main(init: std.process.Init) !void {
