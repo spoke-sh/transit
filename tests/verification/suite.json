@@ -205,7 +205,8 @@
       "bindings::catalog-rust",
       "bindings::catalog-ruby",
       "bindings::catalog-c",
-      "bindings::catalog-java"
+      "bindings::catalog-java",
+      "bindings::catalog-dotnet"
     ]
   },
   "nested_tasks": {

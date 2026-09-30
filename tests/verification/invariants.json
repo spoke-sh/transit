@@ -1433,7 +1433,11 @@
         "packages/java/transit-station-sdk/src/io/transit/sdk/station/Bridge.java",
         "tests/JavaCatalogSdk.java",
         "tests/JavaCatalogValues.java",
-        "tests/catalog_java_host.py"
+        "tests/catalog_java_host.py",
+        "packages/dotnet/transit-station-sdk/Catalog.cs",
+        "packages/dotnet/transit-station-sdk/Internal/Bridge.cs",
+        "tests/DotnetCatalogSdk.cs",
+        "tests/DotnetCatalogValues.cs"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
@@ -1447,7 +1451,8 @@
         "test::domain-simulation",
         "test::domain-simulation-mutations",
         "bindings::catalog-c",
-        "bindings::catalog-java"
+        "bindings::catalog-java",
+        "bindings::catalog-dotnet"
       ],
       "scenarios": [
         "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
@@ -1470,11 +1475,12 @@
         "Installed Ruby catalog gems retain immutable full-width values and exact saved recovery after caller/node/store replacement; generated port validation, malformed replies, child loss and allocation failure retain uncertain commands; cancelled waiting threads preserve busy ownership and joined cleanup",
         "Seeded private-turn schedules compare all accepted receipts, definitions and pages against an independent ledger; compiling current-policy and original-receipt defects must fail executed assertions",
         "Installed C11/C++17 catalog handles retain copied full-width values and exact saved commands after native close, use cleared failure outputs and reject copying C++ owners; creation recovers after caller/node/store replacement under current policy",
-        "Installed Java catalog values and bounded futures preserve full-width original requests, uncertain submissions and current denial; actual owned-port malformed replies, loss and cancelled futures retain busy ownership and joined close"
+        "Installed Java catalog values and bounded futures preserve full-width original requests, uncertain submissions and current denial; actual owned-port malformed replies, loss and cancelled futures retain busy ownership and joined close",
+        "Installed .NET catalog NuGets preserve immutable full-width original requests, exact saved creation recovery and current denial; strict successful receipt decoding retains uncertainty; cancellation during a native HTTP read preserves busy ownership and disposal joins the worker"
       ],
-      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous, C11/C++17 blocking methods and Java futures; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, fifteen with all seven implemented SDKs (Python sync/async, TypeScript, Rust, Ruby, C, C++ and Java) and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous, C11/C++17 blocking methods, Java futures and .NET tasks; other languages have no idiomatic administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, fifteen in the executed seven-SDK schedule (Python sync/async, TypeScript, Rust, Ruby, C, C++ and Java); the focused .NET schedule creates eight and is not a native catalog growth or host power-loss proof.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python/TypeScript/Rust/Ruby and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and installed Python/TypeScript/Rust/Ruby/C/C++/Java/.NET and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }
   ]
 }

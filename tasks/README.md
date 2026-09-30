@@ -78,6 +78,9 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just bindings::catalog-node` | Build/install TypeScript packages outside the checkout; validate generated boundaries, bigint values, exact saved catalog recovery and current denial |
 | `just bindings::catalog-rust` | Build/install Rust crates outside the checkout; verify exclusive caller borrows, full-width values, malformed receipt uncertainty and saved catalog recovery |
 | `just bindings::catalog-ruby` | Build/install Ruby gems outside the checkout; verify frozen values, saved catalog recovery, malformed-child uncertainty and joined cancellation |
+| `just bindings::catalog-c` | Build/install C11/C++17 packages; verify owned values, copied-owner rejection, exact saved catalog recovery and current denial |
+| `just bindings::catalog-java` | Build/install Java JARs; verify immutable values, exact catalog recovery, uncertain replies and joined native-port cancellation |
+| `just bindings::catalog-dotnet` | Build/install .NET NuGets; verify immutable values, exact catalog recovery, strict receipt decoding and joined native ABI read cancellation |
 | `just bindings::mutation-python` | Build and install Python wheels outside the checkout; prove sync/async mutation caller replacement, exact retry and current denial through the shared native schedule |
 | `just bindings::mutation-rust` | Install Rust crates outside the checkout; verify exclusive caller borrows, full-width mutation identity and exact saved recovery |
 | `just bindings::mutation-c` | Build and install C11/C++17 consumers; prove copied buffers, saved-command lifetime, full-width namespaces and exact recovery |

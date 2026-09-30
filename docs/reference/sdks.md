@@ -41,7 +41,8 @@ Rust provides [blocking callers with exclusive borrows](../../packages/rust/tran
 Ruby provides [block-scoped synchronous callers](../../packages/ruby/transit-station/docs/CATALOG.md);
 C provides [owned handles and inline values](../../packages/c/transit-station/docs/CATALOG.md);
 C++ provides [typed values and move-only owners](../../packages/cpp/transit-station-sdk/docs/CATALOG.md);
-Java provides [immutable values and bounded futures](../../packages/java/transit-station-sdk/docs/CATALOG.md).
+Java provides [immutable values and bounded futures](../../packages/java/transit-station-sdk/docs/CATALOG.md);
+.NET provides [immutable values and bounded tasks](../../packages/dotnet/transit-station-sdk/docs/CATALOG.md).
 These support initialization, conditional policy, named Table creation and exact
 saved recovery through the shared [native catalog boundary](../../packages/zig/transit-station-bindings/docs/catalog.md),
 retaining full-width identities. Other language SDKs have no idiomatic catalog methods. The [catalog CLI](../../apps/transit-cli/docs/catalog.md) uses the same

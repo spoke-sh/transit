@@ -809,6 +809,74 @@ This is the expanded core lane and focused installed checks above, not the
 full clean suite. .NET/Erlang/Elixir catalog callers remain. The following
 commit records this evidence only.
 
+### .NET catalog caller
+
+`Transit.Station.Sdk.Catalog` exposes immutable typed records and bounded tasks
+through the existing .NET worker and generated native C ABI. Positive `ulong`
+identities retain the full uint64 range. Copied name lists and `Bytes` retain
+ownership; schema equality compares names by value so decoded original requests
+can be checked against independently reconstructed callers. Generated action and
+result schemas plus strict adapter fields validate boundaries. Shared Zig owns
+signing, current policy and exact recovery. Successful receipt decoding failure
+remains `UnknownOutcome`; explicit native rejection retains its category/code.
+
+Executed in the pinned bindings shell on development source based on `66d0a97e`:
+
+- `just bindings::catalog-dotnet` builds four NuGets and installs exact package
+  versions from an isolated local feed. The consumer compiles with warnings as
+  errors, then runs after removing its source and package cache. Package hashes
+  are retained in the native report.
+- Installed checks cover copied immutable declarations/prepared bytes, maximum
+  identities, original-request equality, noncanonical decimal strings and
+  malformed/extra-field successful receipt uncertainty. Decoder fault inputs
+  use the installed assembly through reflection; they are not forged native
+  ABI outputs or allocator-failure injection.
+- A local TCP peer blocks an actual native catalog HTTP read. A previously
+  cancelled token admits no request. Cancelling the admitted wait preserves
+  `Busy`; disposal remains pending until the peer releases the read, then joins
+  the owned worker. Post-disposal calls fail `Closed`. This tests read
+  cancellation and local ownership, not cancellation of admitted mutations.
+- The focused native catalog schedule passes in **17.031 s**, including
+  **3.035 s** installation: **1395 reads, 39 turn responses, six lost caller
+  receipts and three lost owner receipts**. The installed .NET caller recovers
+  its original creation after caller/node/store replacement and respects current
+  catalog/native disclosure denial. The native ABI, port and CLI cases also
+  pass. Eight Tables across two resources do not establish native catalog growth.
+  Bounds remain four mutations, 133-byte observed values and eight resident
+  authority pages. This timing includes installation and recovery, not a
+  cross-language latency comparison.
+- The existing `just test::table-mutation --sdk dotnet` regression passes in
+  **24.302 s**, including **2.543 s** installation, 1849 reads, 52 turn responses
+  and six lost receipts. Exact UPDATE recovery and current denial remain intact
+  through the shared bridge.
+
+The first installed fixture supplied managed numeric nodes directly to the
+wire-result decoder, which correctly rejected their differing runtime types.
+The fixture now serializes and parses JSON before decoder checks. The first
+full check also found the new task absent from the suite inventory; the task and
+invariant inventories now agree. Those attempts are failures, not proof passes.
+Logs are `/tmp/transit-sql-catalog-dotnet-build.log`,
+`/tmp/transit-sql-catalog-dotnet-native.log` (initial fixture failure),
+`/tmp/transit-sql-catalog-dotnet-native-fixed.log`,
+`/tmp/transit-sql-catalog-dotnet-mutation-regression.log`,
+`/tmp/transit-sql-catalog-dotnet-full-check.log` (inventory failure) and
+`/tmp/transit-sql-catalog-dotnet-full-check-fixed.log`. The focused report is
+copied to `/tmp/transit-sql-catalog-dotnet-native.json`; native hashes match the
+rebased report below. Installed package hashes:
+
+| NuGet | SHA-256 |
+| --- | --- |
+| `Transit.Client.0.2.0.nupkg` | `9c1c8db6507b0a76e43fd17b3504c7d44c6cad7495e3ba09dd453820f970eb2a` |
+| `Transit.Native.Client.0.2.0.nupkg` | `9b906b7103a2fe0c27612a8bdda09fd6cf84ba6d8dc0612aca1d08d9cdc6d445` |
+| `Transit.Station.Sdk.0.2.0.nupkg` | `56576b6978e2fae0a340e7e6e6dbad314c761db4411809de4676e5c18066fc5b` |
+| `Transit.Native.Station.0.2.0.nupkg` | `b034cd99a5fbefc2b0c2227fec50a100e1e06be86d5190efbaeeeb61acaafdd6` |
+
+`bindings::catalog-dotnet` owns the focused installed schedule; the regular .NET
+SDK regression also includes it. Full `just check` passes unit/generated-contract
+and CLI checks, frontend checks and the documentation build. Final direct checks
+cover 4609 links across 484 files, 56 invariants, 53 bounds and 13 SDK scenarios.
+Committed-HEAD clean validation and Erlang/Elixir catalog callers remain.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

@@ -19,6 +19,9 @@ def install(root, languages):
     root.mkdir()
     factories = []
     for language in languages:
+        if language == 'dotnet':
+            factories.append(install_dotnet(root / language))
+            continue
         if language == 'java':
             factories.append(install_java(root / language))
             continue
@@ -247,3 +250,44 @@ def install_java(target):
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
         return Consumer(['java', '-cp', classpath, 'JavaCatalogSdk', str(config)], environment, target)
     return 'java', create
+
+
+def install_dotnet(target):
+    import xml.etree.ElementTree as ET
+    target.mkdir()
+    source = target / 'source'
+    source.mkdir()
+    feed = target / 'feed'
+    feed.mkdir()
+    artifacts = {}
+    for package in ('Transit.Client', 'Transit.Native.Client', 'Transit.Station.Sdk', 'Transit.Native.Station'):
+        name = f'{package}.0.2.0.nupkg'
+        destination = feed / name
+        shutil.copy2(ROOT / '.cache/bindings/dotnet' / name, destination)
+        artifacts[name] = hashlib.sha256(destination.read_bytes()).hexdigest()
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
+    environment.update(NUGET_PACKAGES=str(target / 'packages'), DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1')
+    project = source / 'Consumer.csproj'
+    project.write_text('''<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup>
+<ItemGroup><PackageReference Include="Transit.Client" Version="[0.2.0]" /><PackageReference Include="Transit.Station.Sdk" Version="[0.2.0]" /></ItemGroup>
+</Project>''')
+    config = ET.Element('configuration')
+    sources = ET.SubElement(config, 'packageSources')
+    ET.SubElement(sources, 'clear')
+    ET.SubElement(sources, 'add', key='local-built', value=str(feed))
+    ET.ElementTree(config).write(source / 'NuGet.Config', encoding='utf-8', xml_declaration=True)
+    for name in ('DotnetCatalogSdk.cs', 'DotnetCatalogValues.cs'):
+        shutil.copy2(ROOT / 'tests' / name, source / name)
+    subprocess.run(['dotnet', 'restore', project.name, '--configfile', 'NuGet.Config'], cwd=source, env=environment, check=True)
+    app = target / 'app'
+    subprocess.run(['dotnet', 'build', project.name, '--no-restore', '-c', 'Release', '-o', str(app)], cwd=source, env=environment, check=True)
+    shutil.rmtree(source)
+    shutil.rmtree(target / 'packages')
+    subprocess.run(['dotnet', str(app / 'Consumer.dll'), 'values', str(target)], cwd=target, env=environment, check=True, timeout=45)
+    def create(url, connection, state):
+        config = target / 'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
+        return Consumer(['dotnet', str(app / 'Consumer.dll'), str(config)], environment, target)
+    return 'dotnet', create

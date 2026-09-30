@@ -169,6 +169,7 @@ dotnet-sdk-test: dotnet-build
     python3 -B tests/dotnet_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/dotnet zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language dotnet
     just test::table-mutation --sdk dotnet
+    just test::catalog --sdk dotnet
 
 # Build separate standard OTP client/Station applications, examples and native artifacts.
 beam-build: build
@@ -352,3 +353,7 @@ catalog-c: c-build
 # Installed Java catalog futures, generated port validation and owned recovery.
 catalog-java: java-build
     just test::catalog --sdk java
+
+# Installed .NET catalog tasks, generated ABI validation and joined ownership.
+catalog-dotnet: dotnet-build
+    just test::catalog --sdk dotnet
