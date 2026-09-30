@@ -99,6 +99,17 @@ final page is possible. Keep one captured view throughout iteration. Failure or
 expiry cannot silently recapture a newer version, and read failures poison the
 private proposal as point reads do.
 
+`var source = turn.committed()` borrows the same captured cut explicitly.
+Its `read` and `page` both exclude private inserts, updates and deletes, including
+when the source is borrowed after those changes. It supports `Table.open/get/page`
+with the ordinary Table codecs and cursor basis. This lets a framework composition
+check committed state while staging unrelated setup records; it never merges an
+overlay into an ordered page. `Turn.page` keeps its rejection after private writes.
+The source acquires no new view, retains no history and adds no permission.
+Keep it within the turn's lifetime. A changed source/view binding rejects, and
+point/page failures poison the original proposal. Current native read and commit
+authority still apply to the captured view.
+
 These methods expose bounded iteration; existing view lifetime and turn budgets
 still apply. The [query capture helper](queries.md) supplies owned Fuze progress
 and retained Arrow segments across handlers. A Table cursor alone does not

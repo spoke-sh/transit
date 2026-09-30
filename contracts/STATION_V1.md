@@ -82,6 +82,14 @@ the turn view or retained version, resource, revision, Table and schema. Only a
 null continuation establishes the end; an empty page can still have a continuation.
 Iteration excludes private writes and cannot silently open a newer source cut.
 
+`Turn.committed()` returns an explicit read-only borrow of the captured turn view.
+Its point reads and pages exclude all private mutations. It neither acquires a
+new view nor stages retention; it stays bound to the original view and turn
+lifetime. Read failures poison that original turn. Ordinary `Turn.page` continues
+to reject after private mutations. The explicit source allows committed-state
+checks beside unrelated private framework setup without changing the native
+read, grant, fencing or commit dependency boundary. No wire or ABI layout changes.
+
 `Turn.retain` stages a durable `{pid,input,index}` source identity in the same
 proposal as the job using it. `openVersion` supplies a read-only KV/Table source;
 `release` stages terminal release. Current grants and lifetime rules remain live,
