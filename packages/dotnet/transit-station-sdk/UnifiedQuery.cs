@@ -151,6 +151,55 @@ public static class UnifiedQuery
         }
     }
     public sealed record Description(ulong ResourceRevision,ulong PolicyRevision,Budgets Budgets,ulong? Active,int BundleBytes,int SegmentBytes,int BatchRows);
+    public enum InspectionOperator { Scan,Filter,Limit,Project,Count,Sum }
+    public abstract record InspectedPredicate { private protected InspectedPredicate() {} }
+    public sealed record InspectedAll : InspectedPredicate;
+    public sealed record InspectedState(string Column,State State) : InspectedPredicate;
+    public sealed record InspectedComparison(string Column,QueryComparison Comparison,Type Type) : InspectedPredicate;
+    public abstract record InspectionDetails { private protected InspectionDetails() {} }
+    public sealed record SourceDescription : InspectionDetails {
+        public IReadOnlyList<Column> Columns { get; }
+        public SourceDescription(IReadOnlyList<Column> columns) { Columns=Copy(columns,8); }
+    }
+    public sealed record TableListing : InspectionDetails {
+        public IReadOnlyList<string> Names { get; }
+        public TableListing(IReadOnlyList<string> names) { Names=Copy(names,1); }
+    }
+    public sealed record Explanation : InspectionDetails {
+        public IReadOnlyList<InspectionOperator> Operators { get; } public InspectedPredicate Predicate { get; }
+        public IReadOnlyList<string> Projection { get; } public ulong? Limit { get; } public QueryAggregate Aggregate { get; }
+        public IReadOnlyList<Column> Columns { get; } public Budgets Budgets { get; }
+        public Explanation(IReadOnlyList<InspectionOperator> operators,InspectedPredicate predicate,IReadOnlyList<string> projection,ulong? limit,QueryAggregate aggregate,IReadOnlyList<Column> columns,Budgets budgets) {
+            Operators=Copy(operators,4); if(Operators.Count<2) throw V.Incompatible("inspection-operators");
+            Predicate=predicate; Projection=Copy(projection,8); Limit=limit; Aggregate=aggregate; Columns=Copy(columns,8); Budgets=budgets;
+        }
+    }
+    public sealed record Inspection(string Name,ResourceRef Resource,SourceKind SourceKind,Bytes SourceDigest,Bytes SchemaDigest,ulong ResourceRevision,ulong PolicyRevision,InspectionDetails Details);
+    private static Inspection ParseInspection(JsonNode? value,ResourceRef resource) {
+        var v=V.Object(value);
+        if(V.Number(v["version"])!=1 || V.String(v["scope"])!="configured_source" || V.Number(v["resource"])!=resource.Resource) throw V.Incompatible("inspection-scope");
+        var details=V.Object(v["details"]); if(details.Count!=1) throw V.Incompatible("inspection-details");
+        IReadOnlyList<Column> Columns(JsonNode? data) => Array(data,8).Select(Column.Parse).ToArray();
+        IReadOnlyList<string> Names(JsonNode? data,int max) => Array(data,max).Select(n=>V.Text(V.String(n),32)).ToArray();
+        InspectionDetails parsed;
+        if(details.ContainsKey("description")) parsed=new SourceDescription(Columns(V.Object(details["description"])["columns"]));
+        else if(details.ContainsKey("tables")) parsed=new TableListing(Names(details["tables"],1));
+        else if(details.ContainsKey("explanation")) {
+            var plan=V.Object(details["explanation"]); var predicate=V.Object(plan["predicate"]);
+            if(predicate.Count!=1) throw V.Incompatible("inspection-predicate"); var selected=predicate.Single();
+            var data=V.Object(selected.Value);
+            InspectedPredicate p=selected.Key switch {
+                "all"=>new InspectedAll(),
+                "state"=>new InspectedState(V.Text(V.String(data["column"]),32),Variant<State>(data["value"])),
+                "compare"=>new InspectedComparison(V.Text(V.String(data["column"]),32),Variant<QueryComparison>(data["op"]),Variant<Type>(data["type"])),
+                _=>throw V.Incompatible("inspection-predicate")
+            };
+            var limits=V.Object(plan["budgets"]);
+            parsed=new Explanation(Array(plan["operators"],4).Select(Variant<InspectionOperator>).ToArray(),p,Names(plan["projection"],8),plan["limit"] is null?null:NativeValues.Wide(plan["limit"]),
+                Variant<QueryAggregate>(plan["aggregate"]),Columns(plan["columns"]),new(Positive(NativeValues.Wide(limits["pages"])),Positive(NativeValues.Wide(limits["segments"])),Positive(NativeValues.Wide(limits["result_bytes"]))));
+        } else throw V.Incompatible("inspection-details");
+        return new(V.Text(V.String(v["name"]),32),resource,Variant<SourceKind>(v["source_kind"]),NativeValues.Digest(v["contract"]),NativeValues.Digest(v["schema"]),V.Number(v["resource_revision"]),Positive(NativeValues.Wide(v["policy_revision"])),parsed);
+    }
     public enum Phase { Uploading,Sealed,Admitted,Complete,Cancelled,Denied,Rejected,Retired }
     public sealed record Status(Phase Phase,ulong Correlation,Bytes Reference,Bytes? Manifest,bool Collected);
     public enum Observed { Pending,Committed,Rejected }
@@ -182,6 +231,11 @@ public static class UnifiedQuery
         public Task<Description> DescribeAsync(Source source,CancellationToken cancellation=default) {
             if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource"); var action=V.Obj(("describe",source.Wire()));
             return worker.Invoke(b => { var v=V.Object(b.UnifiedQuery(action)["description"]); var l=V.Object(v["limits"]); var c=V.Object(v["capabilities"]); return new Description(V.Number(v["resource_revision"]),NativeValues.Wide(v["policy_revision"]),new(NativeValues.Wide(l["pages"]),NativeValues.Wide(l["segments"]),NativeValues.Wide(l["result_bytes"])),v["active"] is null?null:NativeValues.Wide(v["active"]),checked((int)V.Number(c["bundle_bytes"],1)),checked((int)V.Number(c["segment_bytes"],1)),checked((int)V.Number(c["batch_rows"],1))); },cancellation);
+        }
+        public Task<Inspection> InspectSqlAsync(Source source,string name,string sql,Budgets budgets,CancellationToken cancellation=default) {
+            if(source.Resource!=connection.Resource) throw new ArgumentException("Different query resource");
+            var action=V.Obj(("inspect",V.Obj(("scope",V.Obj(("source",source.Wire()),("name",V.Text(name,32)),("limits",budgets.Wire()))),("sql",V.Text(sql,4096)))));
+            return worker.Invoke(b=>ParseInspection(b.UnifiedQuery(action)["inspection"],connection.Resource),cancellation);
         }
         public Task<Prepared?> PrepareNextAsync(ulong ns,Bundle bundle,CancellationToken cancellation=default) {
             var action=V.Obj(("next",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("bundle",Hex(bundle.Bytes)))));

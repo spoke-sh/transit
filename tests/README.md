@@ -4841,3 +4841,15 @@ directory outside the workspace. Document setup then receives HTTP 503 from the
 cold-store bucket creation before provisioning. Document is not passed by this
 run and requires its own continuation. These fixture timings include concurrent
 host load and are not performance comparisons.
+
+### Java and .NET SQL inspection
+
+Rebuilt JAR and NuGet packages expose immutable inspection details through their
+existing bounded future/task workers. Installed consumers compile with warnings
+as errors. `zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=java,dotnet` completes KV and Table in 76.10 and 81.29 s: four
+native/port/SDK callers agree on the same metadata and predicate cases, reject
+revoked and retired disclosure, and preserve the full signed recovery schedule.
+The Java test adapter now treats an omitted cursor as no cursor, allowing the
+existing final retirement probe to reach the public SDK. Document is still
+running and is not included in this completed evidence.

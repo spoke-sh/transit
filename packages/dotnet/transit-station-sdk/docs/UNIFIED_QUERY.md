@@ -23,6 +23,16 @@ prepared token and must resolve any uncertainty. An admission receipt, an
 `ObserveAsync` disposition and a `StatusAsync` completed result are distinct.
 A null next command means inspect status.
 
+`InspectSqlAsync(source, name, sql, budgets, cancellation)` executes scoped
+`DESCRIBE name`, `SHOW TABLES` or `EXPLAIN SELECT ...` through the shared Zig
+inspection owner. `Inspection` carries source/schema digests, current
+resource/policy revisions and immutable `SourceDescription`, `TableListing` or
+`Explanation` details. Explanation includes ordered operators, typed predicate
+structure without literals, projection/output columns and explicit budgets.
+Wide values remain `ulong`. Inspection checks current access before and after
+resolution, creates no snapshot and admits no query. The listing covers only
+the configured source. Cancelling the wait retains native ownership until join.
+
 `PageAsync` reads only verified complete results, checking current source grants,
 lifecycle, segment digests and ordered coverage. It returns immutable manifest
 and schema evidence, original IPC and an optional opaque cursor. A cursor is not
