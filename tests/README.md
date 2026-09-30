@@ -694,6 +694,55 @@ signed transports or installed SDKs. Compiling catalog policy/receipt mutants
 are registered for the committed-source checker; registration alone is not a
 passed mutation proof. Separate execution results follow their completed runs.
 
+Committed `08fd00a6` also passes `just test::domain-simulation-mutations`.
+All seven compiling mutants are detected by executed assertions, including the
+new current-create-policy bypass (2.420 s) and overwritten receipt position
+(2.375 s). The baseline and original five component defects pass their expected
+checks; build failures are not counted. Evidence is
+`.cache/verification/domain-simulation-mutations/evidence.json` with per-mutant
+traces/logs, and `/tmp/transit-sql-pr33-domain-mutations.log`.
+
+The rebased resource run (`just test::resource-simulation --seeds 4`) passes
+**402 traces / 7804 events with identical replay in 216.661 s**. The shared-client
+run (`just test::scheduler-simulation --seeds 8 --steps 96`) passes **12 traces /
+1410 events in 37.499 s**. Both began on development source based on `9140972c`;
+reports retain exact binary/oracle hashes and configuration. Logs are
+`/tmp/transit-sql-pr33-simulations.log`. Resource faults use the atomic in-memory
+journal premise; the scheduler uses signed in-process transport. Neither result
+expands the documented physical-durability or host-cancellation evidence.
+
+Python, TypeScript, Rust and Ruby packages are rebuilt against the rebased
+libraries before `just test::catalog --sdk python --sdk node --sdk rust --sdk ruby`.
+The combined installed schedule passes in **48.876 s**, including **25.066 s**
+installation: **2157 reads, 51 accepted turn responses, ten lost caller receipts
+and three lost owner receipts**. Original receipts, current catalog/native denial
+and replacement after lost admission pass for all selected callers. Bounds remain
+four mutations, 133-byte values and eight resident pages; twelve Tables do not
+establish native catalog growth. This report binds `08fd00a6` with dirty status
+(the resumed C/C++ source is uncommitted and not selected). Artifact hashes and
+execution output are retained in `/tmp/transit-sql-pr33-sdk-native.json` and
+`/tmp/transit-sql-pr33-sdk-native.log`.
+
+Rebuilt native SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `node` | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| `proof` | `03074b53ddcb92a57e63a00f2e2b53093fc61efaf5b8cdca4ae3214f1464340f` |
+| `host` | `64fd1efeeb6cee7a182271439cb429fa2fc4c68d31e8a68c2e82b74bb70faa72` |
+| `port` | `67db289ec20b1e2dc94ebe918694f17be34d5c33dc1e219e8bc72a723f284643` |
+| `library.so` | `85411c09a7e8bc832050fead3fc93c5eb54eeb37966f847ff6f2f7792dc9780c` |
+| `cli` | `ec1ee54bcf1e41a345b7a52e4398fbcfa012adc530240af943677aefc2d76351` |
+
+Committed-HEAD `just ci-clean --lane core` passes **all 22 tasks at `08fd00a6`
+in 744.86 s**, including the added resource, shared-client, catalog/component and
+external fault suites. It installs locked frontend dependencies and runs from a
+fresh clone without inherited build outputs. Completion and per-task timing are
+in `.cache/ci/clean/08fd00a6d234-transit-ci-9cznago1/`; the log is
+`/tmp/transit-sql-pr33-ci-clean.log`. This qualifies the expanded core lane and
+separately recorded focused schedules, not a full clean suite or the resumed
+uncommitted C/C++ implementation. Existing incomplete proof runs remain recorded.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
