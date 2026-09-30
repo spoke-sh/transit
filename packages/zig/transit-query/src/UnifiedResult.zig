@@ -17,14 +17,8 @@ pub const Open = struct {
     manifest: r.Manifest,
     bundle: q.Bundle,
     pub fn outputSchema(self: Open, columns: *[m.max_columns]m.Column) !m.Schema {
-        if (self.bundle.plan.aggregate != .rows) {
-            columns[0] = .{ .name = try m.Name.init(@tagName(self.bundle.plan.aggregate)), .type = if (self.bundle.plan.aggregate == .count) .uint64 else .int64 };
-            return .{ .columns = columns[0..1] };
-        }
         var input: [m.max_columns]m.Column = undefined;
-        const schema = try self.bundle.source.schema(&input);
-        for (self.bundle.plan.projection, 0..) |index, offset| columns[offset] = try schema.column(index);
-        return .{ .columns = columns[0..self.bundle.plan.projection.len] };
+        return self.bundle.plan.outputSchema(try self.bundle.source.schema(&input), columns);
     }
 };
 fn checkReference(reference: Ref, expected: Expected) !void {

@@ -121,13 +121,11 @@ pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []
     var segment: ?Segment = null;
     if (bound.plan.aggregate == .rows) {
         if (count > 0 or (next.finished != null and previous.segments == 0)) {
-            for (bound.plan.projection, 0..) |column, index| columns[index] = bound.schema.columns[column];
-            segment = try encode(.{ .columns = columns[0..bound.plan.projection.len] }, selected[0..count], workspace, output);
+            segment = try encode(try bound.plan.outputSchema(bound.schema, &columns), selected[0..count], workspace, output);
         }
     } else if (next.finished != null) {
-        columns[0] = .{ .name = try m.Name.init(@tagName(bound.plan.aggregate)), .type = if (bound.plan.aggregate == .count) .uint64 else .int64 };
         const value: m.Cell = if (bound.plan.aggregate == .count) .{ .value = .{ .uint64 = next.selected } } else if (next.sum) |sum| .{ .value = .{ .int64 = sum } } else .null;
-        segment = try encode(.{ .columns = columns[0..1] }, &.{.{ .cells = &.{value} }}, workspace, output);
+        segment = try encode(try bound.plan.outputSchema(bound.schema, &columns), &.{.{ .cells = &.{value} }}, workspace, output);
     }
     if (cancellation.load(.acquire)) return error.Cancelled;
     if (segment) |part| {
