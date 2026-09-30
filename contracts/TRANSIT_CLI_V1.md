@@ -80,6 +80,24 @@ commands and are omitted from the primary command list. No alias silently change
 single-line shell into a multiline console, adopts a launcher installation or
 changes a connection's authority or installs an application. These separate commands remain supported.
 
+## Explicit catalog commands
+
+`transit catalog` composes the shared [catalog caller](DECLARATIVE_CATALOG_V1.md).
+`capabilities` and scoped `compile` are offline. `describe` reads current metadata;
+`prepare-initialize`, `prepare-create` and `prepare-policy` save signed commands
+without dispatch. `submit` alone sends the exact saved command. `observe` reads
+its input processing, `disposition` reads control/rejected-input outcomes, and
+`status` reads the original creation receipt. Admission and processing do not
+establish Table publication. Current native and catalog rights remain independent.
+
+Compilation/preparation require new private output files with file/directory sync
+and no replacement. Later calls validate typed compiled fields against their
+canonical bytes. Prepared input restores the original signed string under the
+current definition. Unknown outcomes retain the same artifact for exact retry;
+no replacement preparation, automatic dispatch or implicit provisioning occurs.
+The [catalog guide](../apps/transit-cli/docs/catalog.md) owns configuration,
+command syntax, input envelopes, numeric bounds and recovery examples.
+
 ## Explicit mutation commands
 
 `transit mutate` uses the shared [Table mutation contract](TABLE_MUTATION_V1.md).

@@ -12,6 +12,7 @@ pub const root =
     \\  console   Open an SQL console
     \\  app       Manage installed applications
     \\  mutate    Prepare, submit and observe SQL Table mutations
+    \\  catalog   Compile, prepare, submit and inspect catalog operations
     \\
     \\Options:
     \\  --help     Show this help

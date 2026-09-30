@@ -1569,12 +1569,18 @@
         "packages/zig/transit-catalog/src/Bridge.zig",
         "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
         "apps/transit-station-host/main.zig",
-        "tests/catalog_abi.py"
+        "tests/catalog_abi.py",
+        "apps/transit-cli/Catalog.zig",
+        "apps/transit-cli/CatalogOptions.zig",
+        "apps/transit-cli/RecoveryFiles.zig",
+        "tests/catalog_cli.py",
+        "tests/cli_diagnostics.py"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
         "test::unit",
-        "test::catalog"
+        "test::catalog",
+        "test::cli-diagnostics"
       ],
       "scenarios": [
         "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
@@ -1589,11 +1595,12 @@
         "Explicit committed turn source excludes private writes, preserves original read poison and rejects changed view binding; ordinary paged reads still reject after mutation",
         "Signed initialization recovery after lost admission and caller/node/store replacement; current conditional policy preparation, queued stale controls, independent target principals and self-revocation/restoration without disclosure bypass",
         "Neutral caller values match independent binary/JSON fixtures, retain full-width identities and owned fields, and reject malformed values before transport",
-        "Real catalog C ABI/port controls and creation, full-width neutral values, malformed/profile rejection, owned buffers, caller/node/store replacement after lost sends, exact original receipts and current application/native disclosure denial"
+        "Real catalog C ABI/port controls and creation, full-width neutral values, malformed/profile rejection, owned buffers, caller/node/store replacement after lost sends, exact original receipts and current application/native disclosure denial",
+        "Explicit CLI offline compilation without credentials or transport, typed/canonical artifact agreement and foreign-definition rejection before key loading, private non-replacing files, exact saved-file recovery across lost admission and caller/node/store replacement, separate outcomes and current policy/native denial"
       ],
-      "limits": "Explicit shared Zig/C ABI/native-port callers and supplied catalog host; no CLI or idiomatic SDK administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates six applied Tables across manual/host resources and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; no idiomatic SDK administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources and is not a native catalog growth or host power-loss proof.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port/CLI and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }
   ]
 }

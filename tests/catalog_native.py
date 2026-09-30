@@ -13,20 +13,22 @@ import time
 
 from storage import Fixture, free_port, wait_ready
 from catalog_abi import Native, Port, Failure, check_profiles
+from catalog_cli import Cli
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, proof, catalog_host, port_host, library):
+def run(node, proof, catalog_host, port_host, library, cli):
     started = time.monotonic()
     counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0)
     with Fixture() as fixture:
         root = fixture.root
-        for name, binary in [('node', node), ('proof', proof), ('host', catalog_host), ('port', port_host), ('library.so', library)]:
+        for name, binary in [('node', node), ('proof', proof), ('host', catalog_host), ('port', port_host), ('library.so', library), ('cli', cli)]:
             shutil.copy2(binary, root / name)
         node, proof = str(root / 'node'), str(root / 'proof')
         catalog_host = str(root / 'host')
         port_host, library = str(root / 'port'), str(root / 'library.so')
+        cli = str(root / 'cli')
         clients = []
         (root / 'caller.seed').write_text('0a' * 32)
         port = free_port()
@@ -39,7 +41,7 @@ def run(node, proof, catalog_host, port_host, library):
             resident_pages=8, request_timeout_ms=10000)))
         faults = {name: dict(lose=False, body=None, receipt=None, recovered=False) for name in ('send', 'turn')}
         faults['initialize_send'] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
-        for name in ('abi_create', 'port_create'):
+        for name in ('abi_create', 'port_create', 'cli_create'):
             faults[name] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
         for name in ('host_initialize', 'host_create'):
             faults[name] = dict(command='turn', lose=False, body=None, receipt=None, recovered=False, blocked=False)
@@ -374,17 +376,23 @@ def run(node, proof, catalog_host, port_host, library):
                               owner=host_config['writer']['pid'], principal=1234)
             check_profiles(port_host, root, proxy_url, connection)
             caller_results = []
-            for index, name in enumerate(('abi', 'port')):
-                factory = (lambda: Native(library, proxy_url, connection)) if name == 'abi' else (lambda: Port(port_host, root, proxy_url, connection))
+            for index, name in enumerate(('abi', 'port', 'cli')):
+                factory = {'abi': lambda: Native(library, proxy_url, connection),
+                           'port': lambda: Port(port_host, root, proxy_url, connection),
+                           'cli': lambda: Cli(cli, root, proxy_url, connection)}[name]
                 client = factory()
                 clients.append(client)
                 caps = client.call({'capabilities': {}})['capabilities']
                 assert caps['definition'] == definition.hex() and caps['create_table'] and caps['conditional_policy']
                 description = client.call({'describe': {}})['description']
                 assert description['configuration']['scope'] == connection['scope'] and description['policy']['revision'] == '5'
-                for invalid in ({'compile': dict(operation=maximum, object='1', table=1, sql=statement)},
-                                {'compile': dict(operation='1', object='1', table='1', sql=statement)},
-                                {'submit': '{}'}):
+                # JSON type rejection belongs to ABI/port; CLI argument/artifact
+                # types and offline rejection are covered by cli_diagnostics.py.
+                invalid_actions = [] if name == 'cli' else [
+                    {'compile': dict(operation=maximum, object='1', table=1, sql=statement)},
+                    {'compile': dict(operation='1', object='1', table='1', sql=statement)},
+                    {'submit': '{}'}]
+                for invalid in invalid_actions:
                     try:
                         client.call(invalid)
                         raise AssertionError('Catalog caller accepted malformed input')
@@ -461,8 +469,8 @@ def run(node, proof, catalog_host, port_host, library):
             report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                           dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
                           seconds=round(time.monotonic() - started, 3), resident_pages=8, counts=counts,
-                          lost_caller_receipts=4, lost_writer_receipts=3,
-                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host', 'port', 'library.so')})
+                          lost_caller_receipts=5, lost_writer_receipts=3,
+                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host', 'port', 'library.so', 'cli')})
             destination = ROOT / '.cache/verification/catalog/native.json'
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(json.dumps(report, indent=2) + '\n')

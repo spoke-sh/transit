@@ -34,6 +34,9 @@ result strings belong to the supplied allocator.
 The [catalog ABI/port](../transit-station-bindings/docs/catalog.md) composes these
 values with explicit native handle ownership and transport uncertainty.
 
+The [catalog CLI](../../../apps/transit-cli/docs/catalog.md) uses this same owner
+for offline compilation, private saved preparation, exact submission and outcomes.
+
 An application supplies an already authorized Station turn, explicit catalog
 configuration and native commit/recovery handling. Initialize in a separate turn.
 Initialization needs a page reader and permits unrelated private framework setup;

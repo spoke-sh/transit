@@ -6,8 +6,9 @@ accepts `catalog` actions. Both use the
 [neutral catalog values](../../../../contracts/DECLARATIVE_CATALOG_V1.md#neutral-caller-values),
 with generated `CatalogConfig`, `CatalogAction` and `CatalogResult` schemas.
 They compose the same Zig declaration compiler, current metadata reader and
-signed caller used by native applications. Idiomatic language SDK and CLI
-administrative methods are separate integration work.
+signed caller used by native applications and the
+[catalog CLI](../../../../apps/transit-cli/docs/catalog.md). Idiomatic language SDK
+administrative methods remain separate integration work.
 
 Creation takes ABI version one, an explicit authority URL, a 32-byte signing seed
 and JSON configuration containing `connection` and optional `timeout_ms` (default

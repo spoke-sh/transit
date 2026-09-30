@@ -8,8 +8,10 @@ authorized Station turn. Shared Zig and
 [C ABI/native-port callers](../../../packages/zig/transit-station-bindings/docs/catalog.md)
 submit to an explicit
 [`catalog` host](../../../apps/transit-query-host/README.md) or application
-integration. Query interfaces reject the statement. CLI, Board and
-idiomatic language SDKs have no administrative route for it. Neither compilation nor the
+integration. The [catalog CLI](../../../apps/transit-cli/docs/catalog.md)
+compiles, saves and explicitly submits these declarations through the same owner.
+Query interfaces reject the statement. Board and idiomatic language SDKs have no
+administrative route for it. Neither compilation nor the
 helper provisions a native resource, chooses a writer, grants access or registers
 a query source implicitly.
 

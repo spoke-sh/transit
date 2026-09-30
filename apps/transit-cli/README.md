@@ -5,7 +5,7 @@ process by default in version-1 local installations, with `--no-ui` for headless
 [server guide](docs/server.md#default-board-and-compatibility) for grants and compatibility.
 
 The `transit` executable provides the local `server`, interactive/batch `console`,
-explicit signed query shell and saved Table mutation commands. Existing `rey-cli`
+explicit signed query shell, saved Table mutation commands and catalog operations. Existing `rey-cli`
 administration commands remain separate.
 
 The [server/console contract](../../contracts/TRANSIT_CLI_V1.md) defines commands,
@@ -35,6 +35,13 @@ SQL with automatic query progress and verified results. Its `.transitrc` hierarc
 configures `.connect` and `.mode`; server `transit.yaml` settings overlay the
 installed bundle's defaults. See the linked component guides for precedence,
 limits and recovery.
+
+## Explicit catalog operations
+
+`transit catalog` compiles `CREATE TABLE` offline, saves signed initialization,
+creation and conditional policy commands, and explicitly submits and observes
+them. The [catalog guide](docs/catalog.md) defines typed inputs, private artifacts,
+current authority and exact saved recovery through the shared catalog caller.
 
 ## Explicit Table mutations
 

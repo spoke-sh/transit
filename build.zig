@@ -603,7 +603,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
         }) });
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_serving", serving.module("transit_serving"));
-        if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
+        app.root_module.addImport("transit_catalog", catalog.module("transit_catalog"));
         if (comptime std.mem.eql(u8, entry[0], "transit")) app.root_module.addImport("transit_http_server", http_server.module("transit_http_server"));
         if (comptime std.mem.eql(u8, entry[0], "transit-query-host")) query_host = app else query_shell = app;
         const install = b.addInstallArtifact(app, .{});
@@ -896,6 +896,7 @@ pub fn build(b: *std.Build) void {
     catalog_native.addArtifactArg(query_host);
     catalog_native.addArtifactArg(station_host);
     catalog_native.addArtifactArg(station_bindings.artifact("transit_station"));
+    catalog_native.addArtifactArg(query_shell);
     catalog_native.has_side_effects = true;
     catalog_native.stdio = .inherit;
     b.step("test-catalog", "Prove named Table creation, atomic visibility and signed recovery on disk").dependOn(&catalog_native.step);

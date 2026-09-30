@@ -6,7 +6,7 @@ const m = c.Model;
 const p = c.protocol;
 const Allocator = std.mem.Allocator;
 
-fn unsigned(text: []const u8) !u64 {
+pub fn unsigned(text: []const u8) !u64 {
     if (text.len == 0 or text.len > 20 or (text.len > 1 and text[0] == '0')) return error.InvalidCatalogInteger;
     for (text) |byte| if (!std.ascii.isDigit(byte)) return error.InvalidCatalogInteger;
     return std.fmt.parseInt(u64, text, 10) catch return error.InvalidCatalogInteger;
@@ -171,6 +171,12 @@ pub const Result = union(enum) {
 pub fn prepared(allocator: Allocator, bytes: []const u8) !c.Client.Prepared {
     return c.Client.Prepared.restore(allocator, bytes);
 }
+/// Offline compilation needs an explicit identity scope, never credentials or transport.
+pub fn compile(allocator: Allocator, connection: c.Client.Connection, value: @FieldType(Action, "compile")) !Compiled {
+    try connection.validate();
+    const request = try m.CreateTable.compile(connection.scope, try unsigned(value.operation), try unsigned(value.object), value.table, value.sql);
+    return .{ .request = try CreateTable.fromNative(allocator, request), .canonical = try c.Records.encode('q', request) };
+}
 pub fn apply(allocator: Allocator, client: *c.Client, action: Action) !Result {
     return switch (action) {
         .capabilities => .{ .capabilities = .{} },
@@ -178,11 +184,7 @@ pub fn apply(allocator: Allocator, client: *c.Client, action: Action) !Result {
             const value = try client.describe();
             break :blk .{ .description = .{ .configuration = try Configuration.fromNative(allocator, value.configuration), .policy = try Policy.fromNative(allocator, value.policy), .resource_revision = value.resource_revision } };
         },
-        .compile => |value| blk: {
-            try client.connection.validate();
-            const request = try m.CreateTable.compile(client.connection.scope, try unsigned(value.operation), try unsigned(value.object), value.table, value.sql);
-            break :blk .{ .compiled = .{ .request = try CreateTable.fromNative(allocator, request), .canonical = try c.Records.encode('q', request) } };
-        },
+        .compile => |value| .{ .compiled = try compile(allocator, client.connection, value) },
         .prepare_initialize => |value| .{ .prepared = try (try client.prepareInitialize(try value.native())).save(allocator) },
         .prepare_create => |value| .{ .prepared = try (try client.prepareCreate(try value.native())).save(allocator) },
         .prepare_policy => |value| .{ .prepared = try (try client.preparePolicy(try value.native())).save(allocator) },

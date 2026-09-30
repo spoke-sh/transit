@@ -349,6 +349,55 @@ The following evidence-only commit changes no production code. This is a clean
 core lane plus the focused native/port schedule above; it does not qualify
 idiomatic catalog SDKs, a catalog CLI or a complete clean suite.
 
+### Explicit catalog CLI
+
+`transit catalog` now uses the shared neutral bridge and signed caller. Offline
+compilation accepts a scope-only connection without loading a key or contacting
+an endpoint. Initialization, creation and conditional policy preparation require
+new private saved artifacts; submission restores those exact commands. Typed
+compiled fields must agree with current-definition canonical bytes. Input
+processing, control/rejection dispositions and original creation outcomes remain
+separate. The extracted private-file writer also preserves mutation CLI behavior.
+
+On development source based on `8054f127`, the expanded **`just test::catalog`
+passes in 15.439 seconds**, with **1204 reads**, **36 accepted turn responses**,
+**five lost caller receipts** and **three lost owner receipts**. The added CLI
+case uses its own 0600 output files again after caller/node/store replacement,
+recovers the exact admission receipt and original creation result, then rejects
+status disclosure after catalog inspection and native read revocation. The
+schedule exercises seven applied Tables across two resources; maximum mutations
+remain **four**, maximum fixture value **132 bytes** within the 256-byte bound,
+and the authority uses **eight resident pages**. This enlarged recovery schedule
+includes provisioning and polling; it is not a latency comparison, native catalog
+growth proof or host power-loss guarantee.
+
+The report is `.cache/verification/catalog/native.json`, with source revision,
+dirty status and frozen executable hashes. The log is
+`/tmp/transit-sql-catalog-cli-native.log`. ReleaseSafe node, proof and catalog-host
+hashes match the preceding ABI schedule. Updated caller hashes are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Native port | `4bc5ed8c56b5302379c6c597ecd55d7bfecf89c86ffb4e03c63e864edf754622` |
+| Station library | `3d668634629fe306a9628ea11b50ebd790783686a333e8e87a37980eb9083b93` |
+| CLI | `2a53d92f5383f3a3b9002531262272437fc6eaff900a1b145a9c02a6d4222572` |
+
+The real CLI diagnostics now cover **346 cases**, including JSON/YAML offline
+compilation, full-width IDs, file privacy/non-replacement, malformed and foreign
+artifacts before key loading, invalid options and offline help. This extends
+caller evidence; idiomatic catalog SDKs and native catalog growth remain.
+
+Full **`just check` passes**, including generated contracts, 346 diagnostics,
+4534 local links across 476 files, the verification inventory, frontend tests
+and the documentation build (`/tmp/transit-sql-catalog-cli-check.log`). The
+existing native/port/CLI **`just test::table-mutation` passes in 23.776 seconds**,
+including exact saved-file recovery after the writer extraction: 1664 reads,
+48 accepted turn responses, four lost caller receipts and one lost owner receipt,
+four mutations, 256-byte values and eight resident pages. Its frozen CLI/library
+hashes match this catalog run; its log is
+`/tmp/transit-sql-catalog-cli-mutation-regression.log`. These are development
+checks and focused proofs; committed-HEAD clean validation follows separately.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
