@@ -965,8 +965,17 @@ match the recorded checkpoints above/below. Final BEAM artifacts:
 
 `bindings::catalog-beam` owns the focused installed schedule; the regular BEAM
 SDK regression also includes it. All ten SDKs expose this catalog profile;
-committed-HEAD clean validation, native catalog growth/paged callers and broader
-declaration operations remain.
+native catalog growth/paged callers and broader declaration operations remain.
+
+Committed-HEAD `TMPDIR=/var/tmp nix develop --option eval-cache false .#bindings
+--command just ci-clean --lane core` passes all **22 tasks** at `3c11f9c3` in
+**1371.72 s** without inherited workspace outputs. The completion and task timing
+records are `.cache/ci/clean/3c11f9c3c3ed-transit-ci-ble3b_wo/core.meta.json`
+and `core.json`; the log is `/tmp/transit-sql-catalog-beam-ci-clean.log`.
+Concurrent workloads make this unpaired duration unsuitable for a performance
+regression claim. This is the expanded core lane, not a full clean suite. The
+following evidence-only commit records the result; signed metadata work remains
+separate from this checkpoint.
 
 ## SQL branch integration of seeded simulations
 
