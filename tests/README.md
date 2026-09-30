@@ -49,6 +49,17 @@ The raw report identifies dirty source, platform and binary. This is a local
 compiler baseline with no allocation, source I/O, authorization, publication or
 transport work. It is not a before/after speedup or end-to-end latency claim.
 
+At committed implementation `0bb8364c`, `just ci-clean --lane core` passes all
+18 tasks without inherited workspace build outputs: foundation, properties,
+simulation, codecs, tooling, packages, compute, client ABI, Station, disk storage,
+service, runtime upgrade, callers, inspection and state. Package builds take
+135.06 seconds, Station 150.09 seconds and storage 212.97 seconds, including the
+129.00-second readiness write schedule. Completion, exact revision and timings
+are retained under `.cache/ci/clean/0bb8364c2384-transit-ci-3clcw1pd/`.
+The following evidence-only commit changes no production source. This is a
+complete core-lane pass plus the focused SQL proof above, not a full clean-suite
+or administrative-execution qualification.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
@@ -225,6 +236,7 @@ core mutants were detected: omitted resource writes in 2.128 seconds and omitted
 input progress in 2.079 seconds, including bounded minimization. These in-memory observations do not
 establish actual WAL durability, physical page reclamation, full CI completion
 or hosted cost. Compiling core mutation qualification is a separate command.
+
 
 
 
