@@ -36,6 +36,46 @@ disk durability, while a successful disk run cannot exhaust all interleavings.
 A theorem about a query rewrite cannot establish the safety of every engine
 operation or enable an optimizer transformation by implication.
 
+## Simulation model and progress
+
+The [authority/delivery driver](../../tests/delivery_simulation.zig) runs the actual
+Zig engine for two producer PIDs and one destination. Eight test-only slots hold
+frozen signed requests and prepared decisions; event order controls when those
+decisions publish, retry or become stale. These slots model delayed work, not a
+production queue or a durable worker stack. The in-memory journal assumes atomic
+conditional append and distinguishes failure before acceptance from response loss
+after acceptance. Its immutable page store does not model disk faults.
+
+After each event, the driver refreshes the live engine and compares its logical
+projection with a separately recovered engine, retaining the original live cache.
+The [independent oracle](../../tests/verification/simulation.py) tracks mailbox
+progress, ownership, current permissions, signed-operation identity, route order
+and output provenance without sharing the core's page tree or route indexes.
+A disagreement in either comparison refutes correspondence for that trace.
+Replaying the same concrete events must produce identical observations.
+
+Generated traces end with an explicit progress phase. It restores worker/courier
+permissions, admits no new input, schedules every eligible producer turn, and
+resolves pending routes in order. Retired producers stay retired; their pending
+outputs receive terminal disposition. Storage is available and each selected
+operation receives a scheduling opportunity. Failure to drain refutes bounded
+progress under those assumptions. This does not establish automatic scheduler
+fairness, continuous-load progress, timer delivery or a liveness theorem.
+
+The modeled storage boundary allows fast reproducible schedules but excludes
+real transport, provider persistence and host-runtime behavior. External testing
+of compiled binaries addresses those separate obligations. TigerBeetle describes
+the same complementary motivation in its
+[Vortex account](https://tigerbeetle.com/blog/2025-02-13-a-descent-into-the-vortex/),
+while its [liveness account](https://tigerbeetle.com/blog/2023-07-06-simulation-testing-for-liveness/)
+motivates stabilizing required dependencies before expecting progress. Transit's
+finite explicit scheduler is narrower than that cluster simulation.
+
+The [harness guide](../../tests/verification/README.md#authority-and-delivery-simulation)
+owns bounds, reproduction and negative controls. The
+[simulation evidence](../../tests/README.md#authority-and-delivery-simulation)
+records executed results; no timing here establishes deployed throughput or latency.
+
 ## Reproducibility
 
 Record the source/toolchain/provider revisions, commands, environment, workload,

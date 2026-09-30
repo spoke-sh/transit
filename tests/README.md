@@ -1,5 +1,56 @@
 # Validation and milestone evidence
 
+## Authority and delivery simulation
+
+The multi-process simulator executes real signed authority/outbox transitions for
+two producer PIDs and one destination, with eight delayed-decision slots and an
+atomic in-memory journal. Its independent oracle checks every operation outcome,
+ownership/sequence/lifecycle projection, output and destination-input provenance.
+Cold recovery must match the live engine without writing pages; the live engine
+and cache persist until an explicit restart. The
+[harness guide](verification/README.md#authority-and-delivery-simulation) owns
+commands, fault assumptions, bounded progress and artifact formats.
+
+The initial development run of `just test::simulation` passed six saved cases and
+eight generated 48-step schedules: 14 traces, 749 events, each replayed identically,
+in 18.287 seconds on the shared Linux development host. The healthy suffixes add
+events beyond the requested random steps. These are test execution timings, not
+throughput or deployed latency measurements. The run used the pinned Zig
+`0.17.0-dev.2267+48abf1a34`; evidence records the binary hash and dirty source status.
+
+Initial driver bring-up exposed an optional-slot assignment that became populated
+before failed preparation completed. The minimized two-event schedule is retained
+in `failed-preparation.json`; preparation now finishes before assigning the slot.
+This was a harness defect, not a discovered Transit protocol defect.
+
+At committed source `76ad31e3`, `just test::simulation-mutations` passed its
+unmodified baseline and detected both compiling real-core mutants. Omitting the
+route-order guard minimized to seven events; corrupting delivered output provenance
+minimized to five. Mutation executions took 9.626 and 6.235 seconds respectively,
+including minimization. Artifacts are in `.cache/verification/simulation-mutations/`.
+
+The expanded development run, `just test::simulation --seeds 64 --steps 128`,
+passed 70 traces and 10,535 events with identical replay in 246.809 seconds.
+It ran alongside repository checks on the shared host; its metadata identifies
+dirty source based on `6f629aaa`, the unchanged driver later committed in
+`76ad31e3`, and the oracle hash. `just check` passed formatting, package/unit and
+contract checks, verification ownership, frontend checks and the Docusaurus
+production build. These runs do not establish clean-checkout qualification or
+new hosted CI costs.
+
+After adding runner negative controls, the ordinary simulation passed the same
+14 traces / 749 events in 18.884 seconds and rejected both deliberately undrained
+work and incomplete output. The unchanged authority/resource property suite also
+passed its 40 traces / 1,687 steps in 14.345 seconds. These development runs were
+based on `76ad31e3` with the recorded runner/documentation changes.
+
+The profile does not execute application handlers, resource mutations, an
+automatic worker/courier scheduler, clocks, HTTP or real disk. Its progress check
+restores permissions and explicitly schedules finite eligible work with available
+storage. It does not prove scheduler fairness or general liveness. The complete
+external real-binary program remains tracked by
+[issue #26](https://github.com/rupurt/rey/issues/26).
+
 ## Native v1 cutover checkpoint — 2026-09-30
 
 This checkpoint replaces the bounded native authority with the paged v1

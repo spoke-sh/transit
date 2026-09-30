@@ -4,6 +4,7 @@
     "core": [
       "check-core",
       "test::properties",
+      "test::simulation",
       "test::codecs",
       "test::dev-environment",
       "test::kubectl-transit",
@@ -127,7 +128,8 @@
       "test::server-application-capacity"
     ],
     "discovery": [
-      "test::mutations"
+      "test::mutations",
+      "test::simulation-mutations"
     ],
     "focused": [
       "test::packages",

@@ -40,6 +40,14 @@ invariants and assumptions; they are not a proof of every Zig execution or clust
 size. The selected SQL rewrite theorems are specification results with explicit
 correspondence assumptions; no optimizer rewrite is enabled by those proofs.
 
+The authority/delivery simulation runs two producer processes and one destination
+against the real core with atomic conditional append and injected acknowledgement
+loss. It preserves the live engine between events, compares its logical state
+with independent recovery and a separate oracle, and replays each trace twice.
+An explicit finite schedule checks that remaining eligible input and pending
+outputs resolve once permissions and storage are available. That result does not
+establish fairness of an automatic worker/courier scheduler or external effects.
+
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
 current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,

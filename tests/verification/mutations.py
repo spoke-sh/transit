@@ -1,4 +1,5 @@
 """Prove selected real guards are observed, using isolated committed source clones."""
+import argparse
 import json
 import os
 from pathlib import Path
@@ -34,10 +35,22 @@ MUTANTS = {
         "// Mutation: omit captured-view deadline validation.",
     ),
 }
+SIMULATION_MUTANTS = {
+    "route_order": (
+        "growing_work.zig",
+        "if (first.value != id) return error.RouteBlocked;",
+        "_ = first; // Mutation: permit a later output to bypass its route predecessor.",
+    ),
+    "delivery_origin": (
+        "growing_work.zig",
+        ".process = .{ .pid = out.source, .turn = out.turn, .output = out.id }",
+        ".process = .{ .pid = out.source, .turn = out.turn, .output = out.id + 1 }",
+    ),
+}
 
 
-def execute(checkout):
-    process = subprocess.Popen(["zig", "build", "test-properties", "--", "--seeds", "1", "--steps", "1"],
+def execute(checkout, simulation=False):
+    process = subprocess.Popen(["zig", "build", "test-simulation" if simulation else "test-properties", "--", "--seeds", "1", "--steps", "1"],
         cwd=checkout, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True)
     try:
         output, _ = process.communicate(timeout=180)
@@ -49,12 +62,15 @@ def execute(checkout):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--simulation', action='store_true', help='qualify delivery order and provenance checkers')
+    args = parser.parse_args()
     # Snapshot semantics are deliberate. Running dirty source under an old
     # revision would make the recorded experiment misleading.
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=ROOT):
         raise SystemExit("Mutation checks use committed HEAD; commit source changes first.")
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-    destination = ROOT / ".cache/verification/mutations"
+    destination = ROOT / (".cache/verification/simulation-mutations" if args.simulation else ".cache/verification/mutations")
     destination.mkdir(parents=True, exist_ok=True)
     evidence = {"version": 1, "revision": revision, "status": "inconclusive", "mutants": []}
     try:
@@ -62,29 +78,32 @@ def main():
             checkout = Path(directory) / "src"
             subprocess.run(["git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", str(ROOT), str(checkout)], check=True)
             subprocess.run(["git", "checkout", "--quiet", "--detach", revision], cwd=checkout, check=True)
-            code, output = execute(checkout)
+            code, output = execute(checkout, args.simulation)
             (destination / "baseline.log").write_text(output)
-            if code or "Transition properties passed:" not in output:
+            passed = "Delivery simulation:" if args.simulation else "Transition properties passed:"
+            if code or passed not in output:
                 raise RuntimeError("unmodified mutation baseline failed; no mutant result is qualified")
-            for name, (filename, guard, replacement) in MUTANTS.items():
+            for name, (filename, guard, replacement) in (SIMULATION_MUTANTS if args.simulation else MUTANTS).items():
                 source = checkout / CORE / filename
                 original = source.read_text()
                 assert original.count(guard) == 1, f"review changed guard: {name}"
                 source.write_text(original.replace(guard, replacement))
                 started = time.monotonic()
-                code, output = execute(checkout)
+                code, output = execute(checkout, args.simulation)
                 (destination / f"{name}.log").write_text(output)
-                detected = code != 0 and "Transition invariant failed; minimized replay at" in output
+                marker = "Simulation failed (correspondence)" if args.simulation else "Transition invariant failed; minimized replay at"
+                detected = code != 0 and marker in output
                 evidence["mutants"].append({"name": name,
                     "status": "detected" if detected else "survived" if code == 0 else "inconclusive",
                     "seconds": round(time.monotonic() - started, 3)})
                 if not detected:
                     raise RuntimeError(f"{name}: mutant survived or did not execute; inspect {destination}")
-                failure = checkout / ".cache/verification/transitions/failure.json"
+                failure = checkout / (".cache/verification/simulation/minimized.json" if args.simulation else ".cache/verification/transitions/failure.json")
                 (destination / f"{name}.json").write_bytes(failure.read_bytes())
                 source.write_text(original)
         evidence["status"] = "passed"
-        print("Targeted mutations: generation, revision, current-permission and view-deadline omissions detected by real-engine schedules.")
+        print("Delivery simulation mutations: route-order and provenance defects detected by real-engine schedules." if args.simulation else
+              "Targeted mutations: generation, revision, current-permission and view-deadline omissions detected by real-engine schedules.")
     finally:
         (destination / "evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
 

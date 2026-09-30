@@ -74,6 +74,8 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
+| `just test::simulation [--seeds N --steps N]` | Runs multi-process authority/delivery schedules, independent recovery comparisons and bounded progress with identical replay |
+| `just test::simulation-mutations` | Checks committed-source delivery-order/provenance mutants in isolated clones |
 | `just test::growing-quota` | Checks service/Station admission refusal, retained backlog and reserve exhaustion across disk restart |
 | `just test::growing-capacity` | Uses an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
