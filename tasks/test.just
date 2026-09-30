@@ -545,3 +545,7 @@ fuze-sources:
 # Real file/stdin/gzip query host, independent codecs and constrained process memory.
 file-query:
     zig build test-file-query
+
+# Independent PyArrow interpretation of all logical families and five states.
+logical-arrow:
+    zig build test-logical-arrow

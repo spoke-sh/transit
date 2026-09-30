@@ -637,6 +637,19 @@ pub fn build(b: *std.Build) void {
     file_query_test.has_side_effects = true;
     file_query_test.stdio = .inherit;
     b.step("test-file-query", "Prove captured CSV/JSONL queries, gzip, quotas and cancellation").dependOn(&file_query_test.step);
+    const logical_arrow_proof = b.addExecutable(.{ .name = "transit-logical-arrow-proof", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/fuze_logical_arrow.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+    }) });
+    const logical_arrow_test = b.addSystemCommand(&.{ "python3", "-B" });
+    logical_arrow_test.addFileArg(b.path("tests/fuze_logical_arrow.py"));
+    logical_arrow_test.addArtifactArg(query_shell);
+    logical_arrow_test.addArtifactArg(logical_arrow_proof);
+    logical_arrow_test.has_side_effects = true;
+    logical_arrow_test.stdio = .inherit;
+    b.step("test-logical-arrow", "Independently check logical type/state Arrow export").dependOn(&logical_arrow_test.step);
     const server_test = b.addSystemCommand(&.{ "python3", "-B" });
     server_test.addFileArg(b.path("tests/server.py"));
     for ([_]*std.Build.Step.Compile{ query_shell, node_artifact, query_host, board }) |artifact| server_test.addArtifactArg(artifact);

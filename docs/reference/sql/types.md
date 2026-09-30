@@ -21,7 +21,9 @@ Map entries use strictly increasing typed keys, rejecting duplicates including
 positive/negative floating zero.
 
 These are local type/codec APIs. Native query plans, catalogs, stored Tables,
-Arrow query transports and SDK queries accept the narrower profiles below.
+native Arrow query transports and SDK queries accept the narrower profiles below.
+Local file queries can export the rich values through the separately identified
+[logical Arrow profile](../../../contracts/FUZE_ARROW_V1.md).
 Recursive comparison/hash operations and general SQL casts are not enabled by a
 descriptor. Fuze's local Zig [file-source API](../../../packages/zig/transit-fuze/docs/file-sources.md)
 supplies explicit, sampled, full and raw CSV/JSONL discovery/decoding. Native

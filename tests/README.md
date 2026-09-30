@@ -9219,3 +9219,27 @@ The CLI checkpoint passes full `just check` (generated contracts, Zig/CLI units,
 independent fixtures, frontend checks/tests and documentation build). Logs are
 `/tmp/rey-fuze-cli-proof.log` and `/tmp/rey-fuze-cli-check.log`. Arrow, installed
 SDK extensions and the DuckDB performance matrix are not qualified by this run.
+
+## Logical Arrow export
+
+`just test::logical-arrow` passes **100 PyArrow 23.0.0 cases** on Linux x86_64.
+All 46 independent scalar fixtures and six source fixtures cross the real CLI
+into IPC, with Python reconstructing exact canonical values from Arrow buffers.
+Temporal validation reads integer units without Python datetime truncation;
+decimal uses widened Python Decimal precision. The separate neutral-JSON bridge
+checks binary, interval, civil timestamp, fixed arrays, maps, tagged unions,
+structs, lists and JSON across value/null/missing/type-error/conflict. Canonical
+type metadata, full-width conflict IDs, inactive variants and ownership after
+the producer exits remain intact.
+
+Independent checks include physical schema/nullability, full Arrow validation,
+batch splitting at widths 1/8 under 64 KiB segments and missing end markers on
+late failure. The Fuze package passes 66 tests, including logical IPC round trip,
+tiny workspace/output failures and the previous allocation schedules. Logs are
+`/tmp/rey-fuze-arrow-proof.log` and `/tmp/rey-fuze-logical-arrow-cli.log`. These
+prove local IPC export, not installed SDK, logical IPC import/C ownership,
+Flight expansion or comparative performance.
+
+The logical Arrow checkpoint also passes full `just check` and a rerun of all
+83 real file-query host cases; see `/tmp/rey-fuze-arrow-check.log`. Rich Arrow
+export remains inside the original output/workspace bounds.

@@ -20,6 +20,15 @@ Native unified queries carry five-state nested cells; the Flight
 gateway serves finite Table v1 with int64 types. It cannot
 silently flatten arbitrary query Documents or KV projections into that profile.
 
+Local `transit_fuze.LogicalArrow` and
+[`transit file-query --output arrow`](../../apps/transit-cli/docs/file-query.md#arrow-output)
+export the richer logical type model, including recursive cells and exact
+decimal/temporal/128-bit values. The [logical Arrow contract](../../contracts/FUZE_ARROW_V1.md)
+defines physical layouts, mandatory schema evidence, five states, ownership and
+the independent eight-row/4 MiB workspace/64 KiB segment limits. This capability
+is IPC export; logical IPC import, C data export and richer Flight/native SDK
+query admission are not implied.
+
 ## Ownership and complete results
 
 Keep the batch schema, validity and field-state representation with its buffers.

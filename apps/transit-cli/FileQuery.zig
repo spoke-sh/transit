@@ -27,6 +27,8 @@ pub const help =
     \\  --no-header              Generate CSV column names
     \\  --null-token TEXT        One unquoted CSV null token (default none)
     \\  --gzip                   All inputs use one gzip member; verify checksums
+    \\  --output json|arrow      Lossless JSON (default) or logical Arrow IPC stream
+    \\  --batch-rows N           Arrow batch rows, 1 to 8 (default 8)
     \\  --help                   Offline help; validates supplied options
     \\
     \\Use - for stdin once; -- ends options. At most 128 files. Named paths must
@@ -47,6 +49,8 @@ const Options = struct {
     path_count: usize = 0,
     null_token: [1][]const u8 = undefined,
     has_null: bool = false,
+    output: enum { json, arrow } = .json,
+    batch_rows: u8 = 8,
 };
 fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
     var result: Options = .{};
@@ -71,7 +75,7 @@ fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
             result.path_count += 1;
             continue;
         }
-        const names = [_][]const u8{ "--help", "--gzip", "--no-header", "-c", "--format", "--mode", "--schema", "--mismatch", "--sample-records", "--sample-bytes", "--max-bytes", "--max-encoded-bytes", "--max-records", "--max-record-bytes", "--max-fields", "--delimiter", "--quote", "--null-token" };
+        const names = [_][]const u8{ "--help", "--gzip", "--no-header", "-c", "--format", "--mode", "--schema", "--mismatch", "--sample-records", "--sample-bytes", "--max-bytes", "--max-encoded-bytes", "--max-records", "--max-record-bytes", "--max-fields", "--delimiter", "--quote", "--null-token", "--output", "--batch-rows" };
         const index = for (names, 0..) |name, n| {
             if (std.mem.eql(u8, name, arg)) break n;
         } else return diagnostic.invalidArgument("unexpected input");
@@ -128,12 +132,18 @@ fn parse(args: []const []const u8, diagnostic: *Diagnostic) !Options {
                 result.null_token[0] = value;
                 result.has_null = true;
             },
+            18 => result.output = std.meta.stringToEnum(@TypeOf(result.output), value) orelse return diagnostic.invalidOption("must be json or arrow"),
+            19 => {
+                if (value.len != 1 or value[0] < '1' or value[0] > '8') return diagnostic.invalidOption("must be 1 to 8");
+                result.batch_rows = value[0] - '0';
+            },
             else => unreachable,
         }
     }
     diagnostic.atArgument(null, null);
     result.source.validate() catch return diagnostic.invalidInvocation("invalid source limits or CSV dialect");
     if (result.source.format == .jsonl and (seen & ((1 << 2) | (1 << 15) | (1 << 16) | (1 << 17))) != 0) return diagnostic.invalidInvocation("CSV options require --format csv");
+    if (result.output != .arrow and seen & (1 << 19) != 0) return diagnostic.invalidInvocation("--batch-rows requires --output arrow");
     if ((result.source.mode == .explicit and result.schema == null) or (result.source.mode == .raw and result.schema != null)) return diagnostic.invalidInvocation("explicit mode requires --schema; raw mode rejects it");
     if (!result.help and (seen & (1 << 4) == 0 or result.sql == null or result.path_count == 0)) return diagnostic.invalidInvocation("--format, -c and at least one source path are required");
     return result;
@@ -206,6 +216,7 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     defer execution.deinit();
     var fields: [128]f.Types.Field = undefined;
     const schema = try compiled.plan.outputSchema(&fields);
+    if (options.output == .arrow) return arrowOutput(init, &binding, &execution, schema, options.batch_rows);
     const basis = std.fmt.bytesToHex(binding.digest, .lower);
     const plan = std.fmt.bytesToHex(execution.fingerprint, .lower);
     var evidence_records: [20]u8 = undefined;
@@ -227,4 +238,41 @@ pub fn run(init: std.process.Init, args: []const []const u8, diagnostic: *Diagno
     var scanned: [20]u8 = undefined;
     var emitted: [20]u8 = undefined;
     try emit(init, .{ .complete = .{ .binding = &basis, .plan = &plan, .scanned = try std.fmt.bufPrint(&scanned, "{d}", .{execution.scanned}), .emitted = try std.fmt.bufPrint(&emitted, "{d}", .{execution.emitted}) } });
+}
+fn arrowOutput(init: std.process.Init, binding: *const f.FileSource.Binding, execution: *f.FileQuery.Execution, schema: f.Types.Type, batch_rows: u8) !void {
+    const workspace = try init.gpa.alloc(u8, f.LogicalArrow.working_bytes);
+    defer init.gpa.free(workspace);
+    const output = try init.gpa.alloc(u8, f.LogicalArrow.segment_bytes);
+    defer init.gpa.free(output);
+    try writeOutput(try f.LogicalArrow.messages(schema, &.{}, .{ .batch = false, .end = false, .evidence = .{ .binding = binding.digest, .plan = execution.fingerprint, .records = binding.evidence.records, .sampled_bytes = binding.evidence.sampled_bytes, .complete = binding.evidence.complete } }, workspace, output));
+    var owners: [f.LogicalArrow.max_rows]f.FileSource.Row = undefined;
+    var rows: [f.LogicalArrow.max_rows]f.LogicalArrow.Row = undefined;
+    var count: usize = 0;
+    defer for (owners[0..count]) |*owner| owner.deinit();
+    while (try execution.next()) |row| {
+        owners[count] = row;
+        rows[count] = .{ .cells = row.cells };
+        count += 1;
+        if (count == batch_rows) {
+            try arrowBatch(schema, rows[0..count], workspace, output);
+            for (owners[0..count]) |*owner| owner.deinit();
+            count = 0;
+        }
+    }
+    if (count != 0) try arrowBatch(schema, rows[0..count], workspace, output);
+    if (!execution.complete) return error.IncompleteSource;
+    try Capture.check(undefined);
+    try writeOutput(try f.LogicalArrow.messages(schema, &.{}, .{ .schema = false, .batch = false }, workspace, output));
+}
+fn arrowBatch(schema: f.Types.Type, rows: []const f.LogicalArrow.Row, workspace: []u8, output: []u8) anyerror!void {
+    try Capture.check(undefined);
+    const bytes = f.LogicalArrow.messages(schema, rows, .{ .schema = false, .end = false }, workspace, output) catch |err| {
+        if ((err == error.WriteFailed or err == error.OutOfMemory) and rows.len > 1) {
+            const middle = rows.len / 2;
+            try arrowBatch(schema, rows[0..middle], workspace, output);
+            return arrowBatch(schema, rows[middle..], workspace, output);
+        }
+        return err;
+    };
+    try writeOutput(bytes);
 }

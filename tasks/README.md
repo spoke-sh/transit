@@ -125,6 +125,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::packages-build` | Compiles those test suites through each package’s own manifest; CI executes shared tests once through root unit checks |
 | `just test::fuze-types`, `just test::fuze-sources` | Independent logical type and CSV/JSONL fixtures, exact codecs, frozen discovery, budgets, allocation and denial/cancellation checks |
 | `just test::file-query` | Real CSV/JSONL file/stdin/gzip queries, independent exact results, quotas, cancellation, immutable capture and bounded process memory |
+| `just test::logical-arrow` | Independent PyArrow interpretation of rich logical types, all five states, exact metadata, bounded batches and failed prefixes |
 | `just test::compute` | Runs the pinned Arrow compute dependency’s additional tests with Fuze’s configuration |
 | `just test::dev-environment`, `just test::kubectl-transit` | Verify checkout kubeconfig isolation and the plugin CLI, query limits, origin checks and signal handling offline; included in `ci` |
 | `just test::deployments` | Renders/lints the Transit Helm chart and checks bootstrap, credential, storage and network boundaries without a cluster; included in `ci` |

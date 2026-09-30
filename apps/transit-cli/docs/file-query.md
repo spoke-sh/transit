@@ -99,7 +99,7 @@ remain enforced. Disk exhaustion fails and releases captures.
 ## Output and completion
 
 Stdout contains one JSON object per line: a header, zero or more row records,
-then one completion record. Diagnostics use stderr. The header has mandatory
+then one completion record by default (`--output json`). Diagnostics use stderr. The header has mandatory
 `definition: "transit.fuze.file-output.v1.2026-09-30"`, the output logical schema,
 hex binding/plan commitments, and discovery evidence. Evidence `complete` says
 whether discovery covered the full input; it is not query completion.
@@ -122,3 +122,18 @@ failure returns 1, and SIGINT/SIGTERM cancellation returns 130. Cancellation is
 checked while acquiring, decoding, scanning and waiting on stdin/stdout pipes.
 It closes capture descriptors and does not cancel any remote work. There is no
 automatic retry with changed bytes, hidden network fetch or retained result cache.
+
+## Arrow output
+
+`--output arrow` writes one binary Arrow IPC stream. It preserves every logical
+type and cell state through the [logical Arrow profile](../../../contracts/FUZE_ARROW_V1.md),
+including exact decimal coefficients, full-width integers, temporal units and
+recursive values. Logical schema and frozen source/plan evidence accompany the
+physical schema. Flight and native durable queries retain their own type profiles.
+
+`--batch-rows 1..8` selects the maximum rows per batch, default 8. Batches split
+when needed under the unchanged 4 MiB workspace and 64 KiB message-segment bounds.
+A single oversized row or schema fails. Each row remains owned until its batch
+is exported, so this mode retains at most eight rows. Require both successful
+exit and the explicit IPC end marker: an Arrow reader may otherwise accept an
+incomplete prefix as a stream. Cancellation/failure emits no successful end.

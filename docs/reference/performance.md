@@ -313,7 +313,10 @@ requirement. A fast read that skips these boundaries does not qualify the design
 
 ## Planned schema on demand comparisons
 
-**Status: planned; no CSV/JSONL inference implementation or comparative results.**
+**Status: comparison qualification is planned; no comparative results.**
+Local CSV/JSONL discovery, finite queries and explicit CLI capture are implemented
+with separate [correctness and memory evidence](../../tests/README.md#captured-local-file-queries).
+That evidence does not establish throughput or DuckDB parity.
 The [type-system plan](sql/types.md#planned-type-system-and-schema-discovery)
 requires useful first-query latency without losing exact types or allowing
 resident memory to grow with the input. Existing Table/KV/Document timings above
