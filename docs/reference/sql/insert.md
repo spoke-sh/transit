@@ -44,11 +44,19 @@ An application exposing the shared admission owner can use
 `transit-query.TableMutationClient` for signed preparation, saved exact retries,
 bounded upload resumption and durable status observation. The writer must expose
 that operation explicitly. The supplied query host has an opt-in
-[`table_writer` role](../../../apps/transit-query-host/README.md), requiring
+[`table_writer` role](../../../apps/transit-query-host/README.md) and a combined
+`table_query_writer` role, requiring
 authorized initialization and a separate mutation policy. Its terminal result
 commits with the rows and input progress. Reconcile the original signed send,
 observe its processed input and separate rejection, then read durable status;
 a send receipt alone does not prove rows were applied.
+
+The [combined owner](../../../contracts/TABLE_QUERY_WRITER_V1.md) serves finite
+queries and mutations over the same Table with independent policies. Its two
+durable initialization turns create metadata and then enable dispatch. A finite
+query retains its admitted source cut across later row changes; a new query
+captures a new cut. Query and mutation clients keep their separate operations
+and result types.
 
 `INSERT ... SELECT`, `DEFAULT VALUES`, `ON CONFLICT` and `RETURNING` are unsupported.
 [CREATE TABLE](create-table.md) does not provision a SQL target, and inserting

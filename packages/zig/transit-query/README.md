@@ -57,7 +57,9 @@ and marks the host ready. Each turn stays within four mutations. It cannot adopt
 an existing standalone owner. The [combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md)
 defines readiness, authenticated continuations, conditional policy changes and
 the visibility of intermediate metadata to native readers. Component tests cover
-initialization and routing; the proof ledger distinguishes native qualification.
+initialization and routing. `just test::table-query-writer` exercises both
+initialization commits through disk recovery and interleaves durable/interactive
+queries with CLI mutations; the proof ledger records the measured scope.
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit

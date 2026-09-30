@@ -5903,6 +5903,13 @@ inactive proof clones are removed to recover disk capacity; retained source and
 failure logs remain. These older language passes do not qualify the current
 publication-domain definition.
 
+After restoring disk capacity, the unchanged frozen-checkout
+`just bindings::sdk-interop` rerun passes all **ten different-language pairs**
+in **462.5 s**, including isolated consumer installation, lost receipts, worker
+restart, typed Table/query results and owned IPC. Its log is
+`/tmp/transit-sql-ten-sdk-interop-rerun.log`. This focused pass does not complete
+the failed bindings lane or qualify the current definition.
+
 ### Combined Table owner component checks
 
 `TableQueryWriter`'s independent configuration/state/control vectors and five
@@ -5920,3 +5927,47 @@ the existing standalone host still recovers; it does not yet prove the new
 combined host's two-turn or interleaved query/mutation schedule. Logs are
 `/tmp/transit-sql-combined-table-unit.log` and
 `/tmp/transit-sql-combined-table-check.log`.
+
+`just test::table-query-writer` now passes against the actual supplied host,
+disk-backed Ursula and public ABI/CLI callers. It loses each initialization
+commit's receipt, kills the worker, restarts node/storage, recovers the original
+signed commit, and requires fresh ownership while refusing activation reuse.
+The staged phase has neither initial policy; the ready phase has both. Repeated
+initialization leaves their revisions unchanged.
+
+The schedule admits a durable query, pauses its self continuation, opens an
+interactive console snapshot, then commits a CLI UPDATE using the durable
+query's **same numeric publication namespace**. Both earlier snapshots contain
+the old row; subsequent durable and interactive queries contain the new row.
+Query-policy revocation prevents old-result disclosure while separately
+authorized mutations still succeed. Mutation-policy revocation rejects new
+mutations while new queries succeed. Native read revocation finally prevents
+disclosure. Independent PyArrow decoding verifies the complete typed cell
+envelopes and values.
+
+The schedule takes **54.355 s**, including provisioning/recovery, with **5303
+reads**, **70 accepted turn responses**, two recovered initialization receipts,
+at most four mutations, 256-byte values and eight resident authority pages.
+It uses an 8 MiB hot store with disk-backed cold storage. Read counts include
+10 ms worker polling and the fixture's explicit one-output delivery scans;
+this is not a query latency or operator throughput benchmark. The log is
+`/tmp/transit-sql-combined-table-cli-leases.log`. ReleaseSafe binary SHA-256 values:
+
+| Binary | SHA-256 |
+| --- | --- |
+| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Query host | `12abd330c24290badb25df477fe5133613a726c46394e702b6525ce7d872c1a6` |
+| Proof | `f59d9965cc31aa9aeddeaf14ce3052a600a5b1fa99c3ab8bcf286075c5524380` |
+| Shared Station library | `946c36f43c9736e6905309bf21ed1374bdb858f740360c866f87b1e012753992` |
+| CLI | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
+
+Earlier attempts exposed fixture defects: its delivery scan failed to reacquire
+an expired read, its first result assertion expected flat values instead of the
+shared Arrow cell envelopes, and its command runner expected JSON from a void
+revocation command. These attempts remain failures in
+`/tmp/transit-sql-combined-table-native{,-rerun,-final}.log`; correcting them did
+not change the combined owner's implementation or relax its bounds. Full
+`just check` also passes, including frontend validation/tests and the documentation
+site build (`/tmp/transit-sql-combined-table-full-check.log`). The new native
+schedule is registered in the growth lane; it is separate from a committed-HEAD
+clean run and from the installed SDK matrix.

@@ -1498,6 +1498,33 @@
       "limits": "Explicit supplied writer host and shared Zig/native ABI/port and ten language SDK callers plus an explicit saved-file CLI; read/write composition remains. Installed SDK/CLI mutation extensions cover UPDATE recovery, with INSERT/DELETE/rollback in native cases. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
       "model": null,
       "qualification": "See tests/README.md for executed native/private-turn, supplied host, ABI/port and installed ten-language/real-CLI mutation schedules; read/write composition and post-cutover inspection requalification remain separate boundaries."
+    },
+    {
+      "id": "SQL-TABLE-OWNER-01",
+      "claim": "One Table owner gates queries and mutations on durable initialization while preserving independent policy and captured source cuts",
+      "owner": "contracts/TABLE_QUERY_WRITER_V1.md",
+      "implementation": [
+        "packages/zig/transit-query/src/TableQueryWriter.zig",
+        "packages/zig/transit-query/src/TableMutationWriter.zig",
+        "packages/zig/transit-query/src/UnifiedBehavior.zig",
+        "apps/transit-query-host/main.zig"
+      ],
+      "profile": "transit-v1/state-v1/station-v1/table-query-writer-v1",
+      "tasks": [
+        "test::unit",
+        "test::table-query-writer"
+      ],
+      "scenarios": [
+        "Independent configuration, state, initialization and policy-control bytes",
+        "Four-mutation staged/ready phases, exact configuration after owner replacement, duplicate and forged continuations",
+        "Whole-proposal rollback and sticky read poison; early ingress cannot execute query or mutation work",
+        "Lost receipts at both initialization commits, worker fencing and node/disk-store restart",
+        "Retained durable and interactive console queries before an interleaved CLI mutation and current queries afterwards; identical numeric publication namespaces remain independent",
+        "Query-policy revocation permits separately authorized mutations; mutation-policy revocation permits separately authorized queries; native read revocation prevents disclosure"
+      ],
+      "limits": "One explicitly configured Table, finite query peer and request resource. The native schedule uses public Zig-backed ABI/CLI callers, eight resident pages and explicit one-output delivery steps. It does not establish power-loss, maintained-view or all-SDK composition evidence.",
+      "model": null,
+      "qualification": "See tests/README.md#combined-table-owner-component-checks for executed evidence; native schedule results are recorded separately from in-memory tests."
     }
   ]
 }

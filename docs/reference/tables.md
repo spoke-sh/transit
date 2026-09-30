@@ -14,14 +14,22 @@ outputs. A failed proposal cannot expose half the batch.
 
 Applications can explicitly expose bounded SQL INSERT, primary-key UPDATE and
 DELETE through the [Table mutation owner](../../contracts/TABLE_MUTATION_V1.md).
-The supplied host has an explicit writer role, with shared signed Zig and
+The supplied host has explicit writer and combined query/writer roles, with shared signed Zig and
 [native ABI/port callers](../../packages/zig/transit-station-bindings/docs/table-mutations.md).
 Native admission receipts and terminal row results remain separate.
 Its shared Zig client prepares and saves signed commands, resumes immutable
 uploads and reads durable outcomes under current grants. A separate mutation
 policy controls each caller; read-query access alone cannot enable writes.
 The console, Board, Flight SQL and language SDK query routes do not admit these
-mutations yet.
+mutations. Typed mutation SDKs and the CLI's explicit `mutate` commands use the
+shared mutation owner.
+
+The [combined Table owner](../../contracts/TABLE_QUERY_WRITER_V1.md) initializes
+one empty typed Table, then atomically enables its separately configured query
+and mutation policies. Its two durable phases each fit four mutations. Query
+admission retains a source cut, so later row changes cannot alter an accepted
+finite query's results. New queries see newly captured cuts. Current query
+policy and native grants still control disclosure of retained results.
 
 Growing Table rows use the resource's ordered key/value index, with encoded
 primary keys and a separate schema descriptor. Arrow is the query interchange

@@ -886,6 +886,16 @@ pub fn build(b: *std.Build) void {
     mutation_native_test.has_side_effects = true;
     mutation_native_test.stdio = .inherit;
     b.step("test-table-mutation", "Prove Table mutation rows and results share native recovery and authority gates").dependOn(&mutation_native_test.step);
+    const combined_table_test = b.addSystemCommand(&.{ "python3", "-B" });
+    combined_table_test.addFileArg(b.path("tests/table_query_writer.py"));
+    combined_table_test.addArtifactArg(node_artifact);
+    combined_table_test.addArtifactArg(query_host);
+    combined_table_test.addArtifactArg(unified_query);
+    combined_table_test.addArtifactArg(station_bindings.artifact("transit_station"));
+    combined_table_test.addArtifactArg(query_shell);
+    combined_table_test.has_side_effects = true;
+    combined_table_test.stdio = .inherit;
+    b.step("test-table-query-writer", "Prove combined Table initialization and interleaved query/mutation recovery").dependOn(&combined_table_test.step);
     const c_proof = b.addExecutable(.{ .name = "transit-client-c-proof", .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }) });
     c_proof.root_module.addCSourceFile(.{ .file = b.path("tests/client_abi.c"), .flags = &.{ "-std=c11", "-Wall", "-Werror" } });
     c_proof.root_module.addIncludePath(b.path("packages/zig/transit-client/include"));
