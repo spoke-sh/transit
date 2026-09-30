@@ -263,9 +263,11 @@ pub const Codec = @import("ValueCodec.zig");
 pub const Values = @import("Values.zig");
 pub const Json = @import("BoundedJson.zig");
 pub const Semantics = @import("TypeSemantics.zig");
+pub const Operations = @import("TypeOps.zig");
 test {
     _ = Codec;
     _ = Values;
     _ = Json;
+    _ = Operations;
     _ = @import("types_test.zig");
 }

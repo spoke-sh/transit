@@ -72,7 +72,7 @@ test "temporal literals reject calendar ambiguity and UUID binding is exact" {
 }
 
 test "Python independent scalar oracle matches literal binding fingerprints and neutral bytes" {
-    const Case = struct { name: []const u8, kind: []const u8, literal: []const u8, type_hex: []const u8, fingerprint: []const u8, value_hex: []const u8 };
+    const Case = struct { name: []const u8, kind: []const u8, literal: []const u8, type_hex: []const u8, fingerprint: []const u8, value_hex: []const u8, logical_hash: []const u8 };
     const Fixture = struct { definition: []const u8, oracle: []const u8, cases: []Case };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/types.json"), .{});
     defer parsed.deinit();
@@ -87,6 +87,8 @@ test "Python independent scalar oracle matches literal binding fingerprints and 
         try t.expectEqualSlices(u8, &digest, &try descriptor.type.fingerprint());
         const atom = try s.bind(fixture.literal, descriptor.type);
         const cell: m.Values.Cell = .{ .value = .{ .atom = atom } };
+        _ = try std.fmt.hexToBytes(&digest, fixture.logical_hash);
+        try t.expectEqualSlices(u8, &digest, &try m.Operations.hash(.{ .name = "value", .type = descriptor.type }, cell));
         var expected: [2048]u8 = undefined;
         const expected_bytes = try std.fmt.hexToBytes(&expected, fixture.value_hex);
         var actual: [2048]u8 = undefined;

@@ -30,8 +30,18 @@ def fixtures():
     def add(name, kind, literal, payload, params=b''):
         desc = descriptor(kind, params)
         envelope = b'FVL1' + struct.pack('<H', len(desc)) + desc + b'\0\3' + payload
+        if kind.startswith(('int', 'uint')):
+            semantic = int(literal).to_bytes(16, 'little', signed=kind.startswith('int'))
+        elif kind.startswith('float'):
+            value = struct.unpack('<f' if kind == 'float32' else '<d', payload)[0]
+            semantic = struct.pack('<d', 0.0 if value == 0.0 else value)
+        elif kind == 'utf8':
+            semantic = struct.pack('<Q', len(payload) - 4) + payload[4:]
+        else:
+            semantic = payload
+        logical_hash = hashlib.sha256(b'transit.fuze.structural-hash.v1\0' + hashlib.sha256(desc).digest() + b'\0\0\3' + semantic).hexdigest()
         rows.append(dict(name=name, kind=kind, literal=literal, type_hex=desc.hex(),
-                         fingerprint=hashlib.sha256(desc).hexdigest(), value_hex=envelope.hex()))
+                         fingerprint=hashlib.sha256(desc).hexdigest(), value_hex=envelope.hex(), logical_hash=logical_hash))
     for signed in (True, False):
         for width in (8, 16, 32, 64, 128):
             kind = ('int' if signed else 'uint') + str(width)

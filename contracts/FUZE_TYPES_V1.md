@@ -99,8 +99,9 @@ logical descriptor does not enable new SQL grammar or change stored Tables.
 and decimal casts, integer/float casts with reject or nearest-even policy,
 float32/64 casts, integer/float/decimal domain promotion and conservative CSV text
 classification. Float-to-integer, binary-float/decimal, temporal casts and interval
-literal syntax reject. Recursive equality/hash/operator execution remains outside
-this local codec profile. Date literals use years 0001–9999; timestamp literals
+literal syntax reject. `Operations` supplies structural equality/hash and partial
+lexicographic ordering; these traits do not add SQL operators. Date literals use
+years 0001–9999; timestamp literals
 use `YYYY-MM-DDTHH:MM:SS[.fraction]`, with a required `Z` for UTC. Time fractions
 have at most nine digits; timestamp conversion rejects nonzero submicroseconds.
 
@@ -177,3 +178,45 @@ Type JSON input is at most 64 KiB; value JSON is at most 256 KiB, with 96 syntax
 levels and 32768 tokens before recursive logical budgets apply. Decoding owns
 all descriptor/name/value bytes. Call `deinit()` exactly once. These JSON
 bounds are transport bounds; a valid binary envelope can exceed them.
+
+## Structural operations
+
+`Operations.supports(type, trait)` reports equality or ordering support after
+descriptor validation. Equality/hash exclude JSON anywhere in the descriptor,
+including an inactive union alternative. Ordering additionally excludes maps
+and intervals. Support is a type property, not a value-dependent guess.
+
+`eql(field, left, right)` compares two cells under the same descriptor/field
+flags. Structural null equals null and missing equals missing; null and missing
+are distinct. All values/active children validate first. Any type-error/conflict
+rejects before short-circuit comparison, even when an earlier field differs.
+Struct/array/list equality follows corresponding child cells. Maps compare
+canonical typed keys and associated cells; intervals compare all components.
+Unions compare their alternative index and selected cell. This structural
+equality is separate from SQL comparisons, which skip null/missing operands.
+
+`order` requires every active cell to contain a comparable value. A null/missing
+child returns `UnorderedCell`; type-error/conflict fails independently. Structs
+compare in field order; lists/arrays compare their common prefix then length;
+unions compare alternative index then selected value. All active children are
+checked before lexicographic short-circuiting. No implicit null sort order or
+calendar-month conversion is introduced.
+
+`hash(field, cell)` validates equality support and hashes structural meaning
+without allocating a value copy. Equal cells under the same field have equal
+hashes; signed floating zero normalizes to positive zero. Exact codecs preserve
+the original sign. Root field names are excluded; descriptor field names/order,
+parameters and root nullable/optional flags remain significant.
+
+The SHA-256 input is the bytes `transit.fuze.structural-hash.v1` followed by NUL,
+the 32-byte type fingerprint, two canonical root nullable/optional bytes, then
+the structural cell. Each cell starts with its state byte; missing/null have no
+payload. Signed/unsigned integer atoms use i128/u128 little-endian values;
+decimal uses i128 coefficient; float uses its exact f64 representation after
+zero normalization (float32 is exactly widened). Boolean uses one byte;
+UTF-8/binary uses u64 length then bytes; date/time/timestamp/interval/UUID use
+their neutral fixed-width payload. Struct/list/array/map begins with u64 child
+or entry count and ordered children; map entries are key atom then value cell.
+Union begins with its u8 index and selected cell. All lengths are little-endian.
+JSON/error/conflict never enter this hash format. The mandatory type definition
+inside the fingerprint separates incompatible logical meanings.

@@ -9243,3 +9243,11 @@ Flight expansion or comparative performance.
 The logical Arrow checkpoint also passes full `just check` and a rerun of all
 83 real file-query host cases; see `/tmp/rey-fuze-arrow-check.log`. Rich Arrow
 export remains inside the original output/workspace bounds.
+
+Structural operations pass **11 focused type tests / 68 Fuze package tests**.
+The 46 independent scalar fixtures now also compare Python-computed semantic
+SHA-256 hashes, including float32 widening and signed-zero normalization.
+Recursive tests distinguish null/missing, check exact uint128 ordering, typed map
+equality and rejection of error/conflict/unsupported traits before comparison
+short-circuiting. Hashing does not change the bit-preserving neutral codecs.
+The log is `/tmp/rey-fuze-operations-test.log`.

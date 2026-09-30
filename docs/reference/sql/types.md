@@ -24,8 +24,12 @@ These are local type/codec APIs. Native query plans, catalogs, stored Tables,
 native Arrow query transports and SDK queries accept the narrower profiles below.
 Local file queries can export the rich values through the separately identified
 [logical Arrow profile](../../../contracts/FUZE_ARROW_V1.md).
-Recursive comparison/hash operations and general SQL casts are not enabled by a
-descriptor. Fuze's local Zig [file-source API](../../../packages/zig/transit-fuze/docs/file-sources.md)
+`Types.Operations` supplies validated structural equality/hash and partial
+lexicographic ordering. Structural null/missing equality remains distinct from
+SQL predicates; errors/conflicts never become ordinary values. JSON has no
+equality/hash/order trait; maps and intervals have equality/hash only. General
+SQL casts and nested comparison syntax remain unsupported. Fuze's local Zig
+[file-source API](../../../packages/zig/transit-fuze/docs/file-sources.md)
 supplies explicit, sampled, full and raw CSV/JSONL discovery/decoding. Native
 query transports do not acquire those sources. Local `FileQuery` plans and the
 file-query command can project their logical values, with exactly typed six-scalar
