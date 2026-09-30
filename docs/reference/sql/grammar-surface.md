@@ -75,8 +75,10 @@ outcomes separately, including accepted work with a lost reply.
 
 The [SDK matrix](../sdks.md#table-mutation-callers) and
 [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
-available language callers. A shared native ABI does not imply every idiomatic
-SDK exposes catalog operations.
+available language callers. All ten SDKs expose typed catalog creation, controls,
+exact saved recovery and owned lookup/definition/page values through the shared
+native implementation. These explicit catalog APIs do not enable administrative
+statements in the query console.
 
 ## Planned declarations and relational composition
 
