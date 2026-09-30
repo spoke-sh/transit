@@ -20,6 +20,7 @@ schema syntax. Planned examples are proposals, not runnable SQL.
 
 | Task | Reference |
 | --- | --- |
+| Measure declarative components and inspect TPC coverage | [Benchmarks](benchmarks.md) |
 | Compare implemented and planned grammar | [Grammar surface and semantic targets](sql/grammar-surface.md) |
 | Read rows, filter or aggregate | [SELECT](sql/select.md) |
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |

@@ -6,6 +6,28 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Declarative benchmark components
+
+The [component harness](benchmarks/README.md) measures synthetic SQL compilation,
+paged Fuze/Arrow execution, declarations and private Station mutation proposals.
+It enumerates all 151 full-workload units across TPC-C/E/H/DS as blocked.
+Component correctness never changes full-suite coverage or implies a TPC score.
+Executed in the pinned development shell, using locked frontend dependencies:
+
+- Eight report/inventory tests pass, including missing/duplicate results,
+  incompatible definitions, wrong build mode, absent timings and failure reports.
+- The 28 components pass independent SQLite/PyArrow results, declaration schema
+  checks and mutation-byte oracles. Smoke runs cover zero rows/page width one,
+  one null row, 17 rows with the maximum uint32 seed, and 257 rows/page width
+  three. Nine exact rejection probes pass; `--require-full` exits 2.
+- `just test::sql` passes its 49 public examples, 104 SELECT AST cases,
+  86 plan/Arrow cases, 24 unified results, 31 mutation cases and 182 declaration
+  cases. These remain component/grammar proofs, not complete TPC execution.
+
+Full repository checks and the committed-source measurement/clean runs are
+recorded separately when complete. Native authority, disk durability and public
+transport latency are outside this harness's measured boundary.
+
 ## Handbook grammar inventory and implementation plan
 
 The documentation-first work for issue #31 starts from PR #27's pushed

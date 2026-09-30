@@ -70,6 +70,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::unit` | Runs Zig unit/protocol tests without a service |
 | `just test::build` | Compiles application/probe entry points separately from unit tests; included in core CI |
 | `just test::sql` | Compare Zig/ANTLR/PostgreSQL ASTs, durable plan encodings and independently decoded paged Arrow results |
+| `just test::declarative-benchmark [--rows N --samples N --output PATH]` | Verify and measure synthetic declarative components; report all TPC-C/E/H/DS workload blockers; see [benchmark tooling](../tests/benchmarks/README.md) |
 | `just test::sql-benchmark [--samples N --output PATH]` | Record pure ReleaseSafe compiler and paged count/sum costs with raw samples and binary provenance |
 | `just test::table-mutation` | Prove atomic Table rows/results, frozen receipt recovery after disk restart, stale views/writers and current grants through an explicit native application, native ABI/port and saved-file CLI |
 | `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise the combined Table host's two initialization commits, lost receipts and disk recovery, retained query cuts across same-namespace mutations, and independent query/write policies; optionally use installed mutation SDKs |

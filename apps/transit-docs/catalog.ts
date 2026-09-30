@@ -170,6 +170,7 @@ export const sections: Section[] = [
       page("apps/transit-board/docs/configuration.md", "guides/board", "Configure Board"),
       reference("observability", "Logs, metrics and probes"),
       reference("performance", "Performance and improvement plan"),
+      reference("benchmarks", "Declarative benchmarks and TPC coverage"),
       page("apps/transit-node/docs/operations.md", "guides/node", "Node operations"),
       reference("storage", "Storage and recovery boundary"),
     ],

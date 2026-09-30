@@ -310,6 +310,12 @@ sql-benchmark *args:
     zig build sql-benchmark -Doptimize=safe
     python3 -B tests/sql/benchmark.py zig-out/bin/transit-sql-benchmark {{args}}
 
+# Correctness-checked component measurements and explicit full-suite blockers.
+[positional-arguments]
+declarative-benchmark *args:
+    zig build declarative-benchmark -Doptimize=ReleaseSafe
+    python3 -B tests/benchmarks/run.py zig-out/bin/transit-declarative-benchmark "$@"
+
 # Real signed query shell, growing workers, exact retry and current read rights.
 public-query:
     zig build test-public-query
