@@ -1885,6 +1885,43 @@ documentation, with unchanged split-only runtime code. Evidence is retained in
 `.cache/ci/clean/ef2cc97dc6b0-transit-ci-dl5e5q05/`. It does not retroactively pass
 the earlier failures or qualify the subsequent sibling-merging change.
 
+### Shared immutable paths for bounded point reads
+
+`edb54a12` adds a bounded tree traversal for native `read_entries`. It retains
+caller order and current native authority checks while sharing immutable paths
+among the existing eight requested keys. Component fixtures cover absent and
+repeated keys, invalid input before I/O, every selected page-load failure,
+corruption and retained roots. The depth-32 eight-key fixture records **37 page
+loads**, compared with **264** separate lookup loads. These counts are component
+I/O evidence, not a native throughput result.
+
+All **62 core component tests**, full `just check` and the eight-seed resource
+simulation pass. The simulation records **798 traces / 15,496 events / 1598
+executions**, identical replay and all six negative controls in **437.816 s**.
+Committed-head `just ci-clean --lane core` passes all **22 tasks** in
+**1060.07 s**. Evidence is retained under
+`.cache/ci/clean/edb54a12a558-transit-ci-4bx7pg1w/`; this is one lane, not the
+complete CI suite. Subsequent history changes and parent evidence documentation
+do not change these runtime files.
+
+The cold-tier legacy-root recovery schedule at the same clean source fails in
+**1248.201 s**, after **213** additions, on `AuthorityTimeout` during the next
+application-status read. The original input **538** recovered as receipt **540**
+after node replacement, but the remaining growth and larger metadata/restart
+phases did not complete. Joined cleanup succeeds and retains the private
+fixture. This is not a full recovery-profile pass. Node diagnostics record two
+additional ten-second `AuthorityUnavailable` requests and `ReadFailed` events
+for page staging and journal tail; these observations do not establish the
+timeout's cause. Operation deadlines and resident bounds are unchanged.
+
+The runner is `f9329712…67ac8b82a`, the target node is
+`fa29956b…fdf8f`, and the other five binaries match the completed sparse-sibling
+baseline above. Source, full hashes, failed phase and retained fixture location
+are recorded in `/tmp/transit-sql-shared-point-read-cold-recovery.json`, with its
+matching `.log`. The private fixture includes credentials and must not be
+published. PRs #40 and #41 are merged; merge status does not qualify this failed
+schedule or establish a performance improvement under native cold storage.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
@@ -7096,6 +7133,90 @@ the final schedule above is the qualifying result. The ordinary growth lane now
 owns `test::table-mutation`, and invariant `SQL-MUTATION-01` maps its contracts,
 implementation, SQL oracle and native proof. Native integration does not complete
 the remaining supplied-host and public caller work.
+
+### Installed mutation operation profiles
+
+`just test::table-mutation` runs seven profiles for the native ABI, port and
+real CLI. Each selected `--sdk` adds the same profiles through independently
+installed public language APIs; Python adds both synchronous and asynchronous
+callers. Build the selected packages with their `bindings::*-build` tasks first;
+`bindings::c-build` covers C/C++ and `bindings::beam-build` covers Erlang/Elixir.
+The complete selection is:
+
+```sh
+just test::table-mutation --cold --sdk python --sdk node --sdk rust --sdk ruby \
+  --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang --sdk elixir
+```
+
+The profiles cover UPDATE, DELETE of an existing row, DELETE and UPDATE of an
+absent row, INSERT with reversed column order, conflicting two-row INSERT and
+cancellation after a committed upload part. Each caller compares current rows
+with independent expectations, including NULL versus absence and rollback
+of an earlier private insert when a later key conflicts. The conflicting batch
+must leave that earlier key absent. Missing-row operations and rejected or
+cancelled operations preserve all row revisions. A successful insert shares its
+revision with the durable result.
+
+The proxy loses the begin receipt for UPDATE and the final apply/cancel receipt
+for each added profile. The caller closes and is recreated, then resubmits the
+exact saved command before selecting a successor. Repeated explicit apply and
+cancel controls preserve the original terminal outcome, input and result
+revision. All retained outcomes are checked again across physical node/store
+restart and denied after current read revocation. Per-profile intervals include
+recovery and assertions; they are functional schedule timings, not statement
+latencies or language performance rankings. The success record is emitted only
+after fixture cleanup and retains the source, dirty state, runner and binary hashes.
+
+`--cold` selects the existing owned S3 fixture with an 8 MiB hot-store limit and
+8 MiB cold cache, requires actual persisted cold chunks and records their count
+and filesystem bytes. Eight resident authority pages, four mutations and all
+operation deadlines stay unchanged. The installed profiles use one UTF-8 Table;
+wider literals and three-row bounds retain their private-turn/native proofs.
+Upload cancellation does not implement SQL transactions or undo applied rows.
+
+The initial native/port/CLI expansion passes **21 profiles** in **197.977 s**,
+with **6120 reads**, **150 turn responses** and **23 lost receipts**. That run
+cancels immediately after begin, before the subsequent partial-upload extension;
+it does not qualify that extension or the optional cold/installed-SDK schedule.
+Its log is `/tmp/transit-sql-installed-mutation-profiles-native.log`.
+
+The complete cold-storage selection above passes at clean source `207003bf`:
+**98 profiles across fourteen caller variants in 988.246 s**, including
+**42.403 s** of installed-consumer setup. It records **25,692 reads**, **582 turn
+responses**, **677 mutation-send responses** and **100 lost receipts** (99 caller
+receipts and one writer receipt). All retained outcomes survive physical
+node/store restart and current read revocation denies every selected status.
+Row/revision assertions run before that restart; the native application cases
+separately check atomic row/result recovery. Cleanup completes before the final
+success marker. The store records **604 cold objects / 71,935,123 filesystem
+bytes**, including provider metadata. Four mutations, 256-byte values and eight
+resident authority pages remain the observed maxima. The log and full report are
+`/tmp/transit-sql-installed-mutation-profiles-all.log` and
+`/tmp/transit-sql-installed-mutation-profiles-all.json`. The runner SHA-256 is
+`a18888ead65bd90e49300be94231afd82cb83e531e30954369f2cc27da719a02`;
+the report records every frozen binary digest. All ten SDK package builds and
+full `just check` also pass at this source.
+
+The separate committed-head clean growth run at `207003bf` remains **failed**:
+Arrow, pages and growing authority pass, then `test::growing-service` exceeds the
+query delivery subprocess's **180-second** deadline. That task takes **598.71 s**;
+the lane takes **792.65 s**, with its remaining **17 tasks unrun**, including the
+changed mutation schedule. The isolated checkout and lane records remain at
+`/var/tmp/transit-ci-i4cuegoj/src`; the log is
+`/tmp/transit-sql-installed-mutation-profiles-ci-clean-growth.log`.
+
+That run uses Debug binaries. The unchanged focused schedule
+`zig build test-query -Doptimize=ReleaseSafe` passes at the same source: write
+**9.986 s**, seal **7.731 s**, recover **13.546 s**, publish **1.768 s** and deliver
+**79.959 s**. It verifies **41 rows / 21,296 bytes**, exact retries, bounded Arrow
+validation, cancellation and retained acknowledgement. Its log is
+`/tmp/transit-sql-growth-query-release-safe.log`. These are separate build-profile
+observations, not a diagnosis of the Debug timeout or an engine speedup claim.
+The growing service and focused query recipes now explicitly select ReleaseSafe,
+as other installed integration proofs do. Safety checks, workload, fault
+injections, timeouts and resident limits remain unchanged; Debug remains
+available through the direct Zig commands. A new committed-head clean run is
+required to qualify the recipe change.
 
 ### Full-reference mutation command cutover
 

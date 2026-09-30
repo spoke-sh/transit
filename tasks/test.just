@@ -203,18 +203,18 @@ pages-cold *args:
 growing *args:
     zig build test-growing -- {{args}}
 
-# Exercise the explicit v1 node/client profile and lost replies on one CPU.
+# Exercise the explicit v1 node/client profile with optimized safety checks on one CPU.
 growing-service:
-    zig build test-growing-service
+    zig build test-growing-service -Doptimize=ReleaseSafe
 
 # Focus service/Station quota refusal and reserved control progress after restart.
 growing-quota:
     zig build test-growing-quota
 
-# Focus incremental Arrow capture, lost receipts and two disk recovery boundaries.
+# Focus incremental Arrow capture and disk recovery with optimized safety checks.
 [positional-arguments]
 query *args:
-    zig build test-query -- "$@"
+    zig build test-query -Doptimize=ReleaseSafe -- "$@"
 
 # Run the same growing service/fault corpus with optimized safety checks.
 growing-service-release:
