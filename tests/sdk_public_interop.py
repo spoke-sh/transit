@@ -36,7 +36,8 @@ def run(node, cli, library, artifacts, report_path=None):
                                  ('c', 'c'), ('java', 'java'), ('dotnet', 'dotnet'), ('beam', 'beam')):
             importlib.import_module(f'{language}_station_sdk').run(node, cli, library, artifacts / folder, execute=install)
         installed_at = time.monotonic()
-        fault = {'pid': None, 'lost': 0, 'reader': None, 'unavailable_reads': 0}
+        fault = {'pid': None, 'lost': 0, 'reader': None, 'unavailable_reads': 0,
+                 'drop_delivery': True, 'delivery_lost': 0}
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_): pass
             def do_POST(self):
@@ -64,6 +65,11 @@ def run(node, cli, library, artifacts, report_path=None):
                     connection.request('POST', path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
+                    if response.status == 200 and fault['drop_delivery'] and 'deliver' in command:
+                        fault['drop_delivery'] = False
+                        fault['delivery_lost'] += 1
+                        self.close_connection = True
+                        return
                     if response.status == 200 and fault['pid'] is not None and turn.get('pid') == fault['pid']:
                         fault['pid'] = None
                         fault['lost'] += 1
@@ -82,19 +88,33 @@ def run(node, cli, library, artifacts, report_path=None):
             proxy.shutdown(); proxy.server_close(); thread.join(timeout=5)
         stack.callback(close_proxy)
         native = Native(library)
-        admin = native.client(system.url, timeout_ms=5000)
+        admin = native.client(f'http://127.0.0.1:{proxy.server_port}', timeout_ms=15000)
         stack.callback(native.lib.transit_client_destroy, admin)
         seed = bytes.fromhex(system.seed.read_text().strip())
         sequence, principal, after = 0, 65536, None
+        admin_retries = 0
+        def exchange(operation):
+            nonlocal admin_retries
+            frozen = native.export(operation)
+            deadline = time.monotonic() + 30
+            while True:
+                status, result = native.exchange(admin, operation)
+                assert native.export(operation) == frozen
+                if status == 0: return result
+                assert (status in (6, 7) and result.get('err') in
+                        ('AuthorityUnavailable', 'AuthorityTimeout', 'HttpConnectionClosing')
+                        and time.monotonic() < deadline), (status, result)
+                admin_retries += 1
+                time.sleep(.1)
         def command(body):
             nonlocal sequence
             sequence += 1
             operation = native.prepare(6, seed, {'realm': 72, 'principal': 0, 'sequence': sequence, 'command': body})
-            try: return native.call(admin, operation)['position']
+            try: return exchange(operation)['position']
             finally: native.lib.transit_operation_destroy(operation)
         def read(kind):
             operation = native.prepare(7, seed, {'realm': 72, 'principal': 0, 'kind': kind})
-            try: return native.call(admin, operation)
+            try: return exchange(operation)
             finally: native.lib.transit_operation_destroy(operation)
         def provision(client, role):
             nonlocal principal
@@ -234,19 +254,21 @@ def run(node, cli, library, artifacts, report_path=None):
             timings.append({'pair': pair, 'elapsed_seconds': round(time.monotonic()-pair_started, 3)})
             print(f'Public pair {pair}: installed CLIs, restarted durable reply, lost-receipt reconciliation, typed Table/query and owned original IPC passed.', flush=True)
         assert fault['lost'] == fault['unavailable_reads'] == len(clients)
+        assert fault['delivery_lost'] == 1 and admin_retries > 0
         check('public-language-ring', {'pairs': pairs, 'reply_value': str(2**64-1), 'query_rows_per_pair': 3,
                                       'fresh_requesters': True, 'owned_ipc_after_close': not children})
         elapsed = time.monotonic()-started
         if report_path:
             sources = [Path(__file__), *[Path(__file__).with_name(f'{name}_station_sdk.py') for name in ('python', 'node', 'rust', 'ruby', 'c', 'java', 'dotnet', 'beam')]]
             report = {'version': 1, 'status': 'passed', 'recorded_at': datetime.now(timezone.utc).isoformat(),
-                      'environment': {'platform': platform.system(), 'architecture': platform.machine(), 'available_cpus': len(os.sched_getaffinity(0)), 'authority_cpus': 1, 'admin_timeout_ms': 5000},
+                      'environment': {'platform': platform.system(), 'architecture': platform.machine(), 'available_cpus': len(os.sched_getaffinity(0)), 'authority_cpus': 1, 'admin_timeout_ms': 15000},
                       'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                       'proof_sha256': {str(path.relative_to(Path(__file__).resolve().parents[1])): hashlib.sha256(path.read_bytes()).hexdigest() for path in sources},
                       'elapsed_seconds': round(elapsed, 3), 'consumer_install_seconds': round(installed_at-started, 3), 'pairs': timings,
                       'reconciled_transient_results': reconciliations,
                       'injected_lost_receipts': fault['lost'],
                       'transient_read_retries': read_retries, 'injected_unavailable_reads': fault['unavailable_reads'],
+                      'admin_exact_retries': admin_retries, 'injected_lost_delivery_receipts': fault['delivery_lost'],
                       'limits': 'Local consumer installation and ten counter/query pairs. Excludes artifact builds, CI setup/cache transfer, and other SDK failure suites. Not a hosted CI budget measurement.'}
             Path(report_path).parent.mkdir(parents=True, exist_ok=True)
             Path(report_path).write_text(json.dumps(report, indent=2) + '\n')
