@@ -75,6 +75,7 @@ finite schedules, not a complete cutover qualification or performance guarantee.
 | Native client ABI and `just bindings::native` | Passed canonical signatures, foreign/missing-definition rejection, saved-operation recovery, disk/host restart, revoked retry, scoped Station callbacks and independent decoding of six current query segments |
 | `just bindings::python-test` | Passed clean installed client/Station/example artifacts, scope/lifetime ownership, retained query segments and HTTP/gRPC capture/replay/disposal; HTTP 65.05 seconds, gRPC 68.94 seconds |
 | Installed Node and Rust SDKs | Passed raw clients, Station callbacks/recovery, current nested Arrow ownership and HTTP/gRPC capture, disposal and follow-up rejection. Node HTTP/gRPC: 76.28 / 76.20 seconds; Rust: 106.17 / 107.77 seconds |
+| Installed Ruby, C/C++, Java, .NET and BEAM SDKs | Passed raw clients, Station scope/fencing/recovery, independent decoding and retained ownership of six current nested IPC segments, and HTTP/gRPC capture/replay/disposal. HTTP/gRPC seconds: Ruby 69.62 / 69.36; C 73.06 / 76.84; C++ 79.49 / 85.10; Java 83.89 / 83.29; .NET 72.01 / 73.90; Erlang 32.27 / 30.48; Elixir 35.72 / 32.15 |
 | Unified KV and Document shell/Board/browser | Passed frozen retries, disk/worker recovery, scoped denial, complete nested results and retirement. KV: 41 rows, six segments, 170.91 seconds; Document: 12 rows, two segments, 509.39 seconds |
 | Transition properties, codecs and bounded models | Passed 40 saved/generated authority traces (1,687 steps), codec corpus/allocation failures, the authority model with negative controls, and the delivery safety model |
 | Runtime upgrade and reference workload | Passed stale controller/Actor rejection and lost-response recovery; the real Kubernetes/Substrate workload passed controller crashes, same-PID worker replacement, node/store restart, expiry, isolation and shutdown |
@@ -85,13 +86,24 @@ finite schedules, not a complete cutover qualification or performance guarantee.
 | Current Flight faults | Passed independent Arrow consumers, concurrent/control reads, one-byte HTTP/2 credit stalls, malformed framing, current ticket rights, worker/gateway/node/store restart and retirement. Sampled gateway RSS was 72,007,680 bytes |
 | Local and Compose Station launchers | Passed registry routing, calls, current Arrow exchange, three-worker recovery/upgrades, Board provenance and persistent stop/start |
 | Committed-source mutation controls | All four disabled guards—generation, resource revision, permission and view deadline—produced minimized engine counterexamples at `3ea81aaa`. Compilation failures were not counted as detections |
+| Current Station | Passed calls, two-resource turns, exact recovery, captured authorized nested Arrow, fencing and blocked-handler control; registry, supervision, late timeout closure and real-clock lifetime/reclamation survived disk restart |
+| Current public-query startup and Work Items | Injected first-read 503 responses for both query hosts recovered before readiness; full public-query retry, recovery and denial passed. Native Work Items passed 19 rows, two fresh-key fenced replacements, disk restart and exact operator/worker retries in 15.36 seconds |
+| Current Work Items browser | Passed complete pages, publication/schema changes, gateway replacement, saved upload recovery/cancellation, fresh query generation, current denial and responsive keyboard/axe checks in 93.48 seconds. Largest sampled gateway RSS was 28,954,624 bytes |
+| Reference Station and counter launchers | Passed registry/calls/current Arrow, real pod loss with same-PID fresh activation, worker upgrades, Board provenance, authority restart and persistent stop/start. Counter also passed queued work through image replacement, logical suspension/provider stop and courier recovery |
+| Immutable page proof | Current v1 roots/checkpoints, page writes, read-only recovery and trimming passed with 64 keys, 17,088 cache bytes and zero recovery writes |
+| Current SDK unified codecs | All ten installed targets passed three source encodings, six scalar types, five cell states and malformed/unsupported-version rejection. The full source execution matrix remains separate |
 
 The earlier Table, interactive, serving, reactive and installation executions
 precede the later Station-format/definition change. The rows explicitly marked
 current, the KV/Document schedules and installed-language executions use the new
 definition; earlier results are not substituted for those reruns.
-The remaining installed-language, source/browser, launcher/reference and final
-committed-HEAD checks are still in progress. No skipped schedule or earlier
+The all-language query execution matrix, mixed-language interoperation and final
+committed-HEAD clean CI remain in progress. A clean CI attempt stopped at a
+transient storage failure in Station's restart fixture; an interoperation attempt
+stopped at a worker recovery event after a storage timeout. Earlier all-language
+builds also exhausted shared temporary storage. Clean CI now assigns its own
+disk-backed temporary directory after entering Nix. These failed or interrupted
+runs are not passes. No skipped schedule or earlier
 historical result is counted as a pass for the replacement.
 
 ## M19 qualification
