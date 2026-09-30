@@ -24,7 +24,10 @@ into a complete ordinary-suite pass.
 `just ci-clean --lane core` passed all 22 tasks at `e92087ff` in 1,186.95 s.
 `just ci-clean --lane experience` passed all seven tasks at `b0462904` in
 443.77 s, including the real local Station launcher and clean Node dependency
-build. These are distinct committed revisions.
+build. The clean launchers lane passed both tasks at `4df41ba5` (57.56 s for
+artifact builds and 283.36 s for local lifecycle, replacement and cleanup).
+These are distinct committed revisions; only this final evidence update follows
+the last launcher qualification.
 
 Repository-wide qualification remains incomplete:
 
@@ -34,12 +37,16 @@ Repository-wide qualification remains incomplete:
 - At `fb912908`, 37 tasks passed before HTTP cancellation follow-up admission
   failed; 27 tasks were unrun. The corrected fixture chooses its finite
   reconciliation window before initial acceptance and checks that every follow-up
-  preserves it; production deadlines are unchanged.
+  preserves it; production deadlines are unchanged. The corrected complete HTTP
+  proof passed at `b0462904` in 492.21 s excluding compilation: sixteen remote
+  sends, eight applications, two cancellations and 1,153 cold objects.
 - The parallel `e92087ff` growth lane passed three tasks, then exceeded the
   existing 180-second query delivery deadline. No deadline was relaxed.
 - The `e92087ff` bindings lane passed native bindings and the full installed
   Python/Node SDK tasks, then its Rust Station consumer terminated with SIGSEGV
-  in `decode-block`. Eleven later tasks were unrun; the cause is unresolved.
+  in `decode-block`. Eleven later tasks were unrun. A focused full Rust
+  Station/HTTP rerun and 32 additional fresh malformed-input blocking cases
+  passed with the same implementation; the original crash remains unexplained.
 
 The earlier clean Node check failed because it checked Station before emitting
 its client's package exports. The corrected dependency ordering passed the

@@ -2581,6 +2581,57 @@
           "exit_code": 0
         }
       ]
+    },
+    "launchers": {
+      "metadata": {
+        "version": 1,
+        "revision": "4df41ba58975a5a5c393d3367935925d479ad15d",
+        "tier": "launchers",
+        "completed": true,
+        "expected_tasks": [
+          "test::build",
+          "launchers::local::test"
+        ],
+        "seconds": 340.92,
+        "run_id": null,
+        "run_attempt": null,
+        "machine": {
+          "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+          "logical_cpus": 48,
+          "affinity": [
+            1,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "runner": null,
+          "runner_arch": null
+        }
+      },
+      "tasks": [
+        {
+          "lane": "launchers",
+          "task": "test::build",
+          "seconds": 57.56,
+          "exit_code": 0
+        },
+        {
+          "lane": "launchers",
+          "task": "launchers::local::test",
+          "seconds": 283.36,
+          "exit_code": 0
+        }
+      ]
     }
   },
   "experience_dependency_failure": {
@@ -2649,7 +2700,7 @@
   "qualification": {
     "ordinary_suite_completed": false,
     "all_five_lanes_same_revision": false,
-    "note": "Core and experience passed at their recorded revisions. Other runs remain incomplete; their results must not be combined into a complete ordinary-suite pass."
+    "note": "Core, experience and launchers passed at their recorded committed revisions. Growth and bindings remain incomplete; these results must not be combined into a complete ordinary-suite pass. Only the final evidence/ledger update follows the launcher qualification."
   },
   "bindings_failure": {
     "metadata": {
@@ -2744,5 +2795,35 @@
     "source_delta": "Documentation and consolidated evidence only",
     "completed": true,
     "log_sha256": "e37a016e82f1b3895df62f5925ce64b5d8676da91ca8b19efefdc70feb955098"
+  },
+  "http_correction": {
+    "revision_at_start": "b046290453060c7d7ec9f9a633f1d5c20d775ce9",
+    "command": "nix develop --command just test::http-worker",
+    "completed": true,
+    "proof_seconds_excluding_compilation": 492.21,
+    "remote_sends": 16,
+    "remote_applications": 8,
+    "cancellation_requests": 2,
+    "cold_objects": 1153,
+    "cold_bytes": 130631200,
+    "log_sha256": "4d0a078c356ebc22be49dc941242b67414613174bb8f1fe4e6854cb4216401a1",
+    "note": "Only documentation/evidence changed during execution; follow-up deadlines remained frozen."
+  },
+  "rust_diagnostic_rerun": {
+    "revision": "e92087ffb421e67d19f06221bc6ec22e0ccb83e6",
+    "completed": true,
+    "full_station_and_http_rerun": true,
+    "additional_fresh_decode_block_cases": 32,
+    "diagnostic_only": true,
+    "note": "No production source changed. The focused diagnostic reuses the installed Rust binary with 32 fresh malformed-input processes through the shared fixture. These passing reruns do not establish the cause of the original SIGSEGV or complete the bindings lane.",
+    "logs": {
+      "transit-fault-rust-reproduce.log": "759176876e996ec50dbd526a8791855574ed5b9f78eded7a785b92256cbf0205",
+      "transit-fault-rust-decode-probe.log": "eca31c297dce39a7e9cfac8cddefb75f74e6f530f8aeaa3d173dcca1b49328ee"
+    },
+    "native_binaries": {
+      "zig-out/bin/transit-node": "dfd7284574da2b28a5de8de7eed6060e688cb6eb7a17b4e6a03f49be8389dcca",
+      "zig-out/lib/libtransit_client.so": "14754c6b36217ae1a655c916a23d534bdb33f4edb4c9932a8fc7ebf365cb0e1c",
+      "zig-out/lib/libtransit_station.so": "0a9722f35fd5b77fa00924aa93b3acfb50c0ff108b970a2d16783dc8ffd39fc9"
+    }
   }
 }
