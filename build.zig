@@ -76,6 +76,13 @@ pub fn build(b: *std.Build) void {
     sql_test.has_side_effects = true;
     sql_test.stdio = .inherit;
     b.step("test-sql", "Qualify SQL parser, plans and Arrow execution against independent references").dependOn(&sql_test.step);
+    const sql_benchmark = b.addExecutable(.{ .name = "transit-sql-benchmark", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/sql_bench.zig"),
+        .target = target,
+        .optimize = .ReleaseSafe,
+        .imports = &.{.{ .name = "transit_fuze", .module = b.dependency("transit_fuze", .{ .target = target, .optimize = .ReleaseSafe }).module("transit_fuze") }},
+    }) });
+    b.step("sql-benchmark", "Build the pure SQL performance probe").dependOn(&b.addInstallArtifact(sql_benchmark, .{}).step);
     const observations = b.dependency("transit_observability", .{ .target = target, .optimize = optimize });
     const telemetry = b.dependency("telemetry", .{ .target = target, .optimize = optimize });
     const adapter = b.dependency("transit_backend_ursula", .{ .target = target, .optimize = optimize });

@@ -4657,3 +4657,19 @@ Executed for this documentation change:
 
 These checks validate documentation and rendering. They do not rerun bundle
 builds, application installation, provider recovery or deployment qualification.
+## SQL performance iteration
+
+`just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
+five independent process samples after one warm-up. Four compile cases each run
+10,000 times; count and sum each consume 8,192 rows in eight-row pages, 100 times.
+The aggregate probe validates completion and row coverage, and sum's exact value.
+Independent Arrow correctness remains in `just test::sql`.
+
+The JSON report at `.cache/verification/sql/benchmark.json` records raw durations,
+per-case median/range, source revision, dirty state, compiler, host and executable
+SHA-256. `--samples N` and `--output PATH` select repetitions and report location.
+The compiler uses a reset 16 KiB arena; execution uses the existing 4 MiB Arrow
+workspace and 64 KiB output buffer. These are supplied budgets, not measured RSS.
+There is no timing assertion. Run controls without competing builds; compare the
+same cases and optimization mode. These measurements exclude source adapters,
+authorization, network, storage, result publication and rendering.
