@@ -11,7 +11,7 @@ export class QueryError extends Error {
 }
 export type Transport = (request: Request, signal?: AbortSignal) => Promise<Response>;
 /** One same-origin private host. A native prepared token is frozen on uncertainty;
- * retry only pre-dispatch throttling or explicit conflicts on read/preparation. */
+ * retry only pre-dispatch throttling or classified read/preparation failures. */
 export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
   if (
     !endpoint.startsWith("/") ||
@@ -92,8 +92,9 @@ export function httpTransport(endpoint: string, timeoutMs = 6000): Transport {
             ? value.err
             : "InvalidResponse";
         if (
-          response.status === 409 &&
-          (code === "QueryReadConflict" || code === "QueryExpired") &&
+          ((response.status === 409 && (code === "QueryReadConflict" || code === "QueryExpired")) ||
+            (response.status === 503 &&
+              (code === "AuthorityUnavailable" || code === "AuthorityTimeout"))) &&
           readOnly &&
           attempt < 3 &&
           !signal?.aborted

@@ -1,6 +1,6 @@
 # Transit query browser primitives
 
-Private M23 package for Board and generated applications. Request, response and
+Private package for Board and generated applications. Request, response and
 draft-budget declarations derive directly from `transit-query.Workspace`, with
 CSP-compatible generated validators. Board's OpenAPI reflection is checked against
 the same owning definitions. This package does not compile SQL or confer authority.
@@ -9,8 +9,9 @@ the same owning definitions. This package does not compile SQL or confer authori
 requests to 48 KiB and decoded replies to 1 MiB before parsing, validates response
 structure and semantic cell/budget bounds. At most three retries, 250 ms apart,
 use the identical request for pre-dispatch 429s or explicit 409 read conflicts
-(`QueryReadConflict` / Board's `QueryExpired`) on an allowlisted read/preparation
-operation. Signed `submit` never retries a conflict automatically. Denial, changed
+(`QueryReadConflict` / Board's `QueryExpired`) or classified 503 authority failures
+(`AuthorityUnavailable` / `AuthorityTimeout`) on an allowlisted read/preparation
+operation. Signed `submit` never retries a conflict or 503 automatically. Denial, changed
 contracts and unknown failures do not acquire this retry policy. Keep frozen
 prepared tokens through every uncertain submission. Choose the timeout above the host's bounded request deadline; the
 default six seconds matches Board's five-second host profile.
@@ -47,7 +48,7 @@ page, preserving value, null, missing, type error and conflict. It neither reads
 more data nor changes the result basis. Board's monochrome chart uses a fixed
 eight-row page scale and labels the query, source revision and limited coverage.
 
-M24's `AssistanceReader` consumes the native [cursor-assistance contract](../../../contracts/QUERY_ASSISTANCE_V1.md).
+`AssistanceReader` consumes the native [cursor-assistance contract](../../../contracts/QUERY_ASSISTANCE_V1.md).
 It owns one outstanding request and one coalesced edit, discards stale generations,
 and refreshes an open list every five seconds under current authority. Closing,
 hiding or disposing a view aborts its read and clears metadata. Source-contract

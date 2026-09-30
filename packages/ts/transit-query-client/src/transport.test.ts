@@ -65,8 +65,12 @@ test("structurally valid but impossible draft state is rejected", async () => {
   });
 });
 
-test("read conflict retries keep the same preparation and remain finite", async () => {
-  const conflict = () => Response.json({ err: "QueryReadConflict" }, { status: 409 });
+test.each([
+  [409, "QueryReadConflict"],
+  [503, "AuthorityUnavailable"],
+  [503, "AuthorityTimeout"],
+])("read retries retain the same preparation and remain finite (%s %s)", async (status, code) => {
+  const conflict = () => Response.json({ err: code }, { status });
   const fetcher = vi
     .fn()
     .mockImplementationOnce(conflict)
@@ -78,8 +82,11 @@ test("read conflict retries keep the same preparation and remain finite", async 
   expect(await call(request)).toEqual({ prepared: { token: "exact-token" } });
   expect(fetcher.mock.calls[0]?.[1].body).toBe(fetcher.mock.calls[1]?.[1].body);
   fetcher.mockClear().mockImplementation(conflict);
-  await expect(call(request)).rejects.toMatchObject({ code: "QueryReadConflict" });
+  await expect(call(request)).rejects.toMatchObject({ code });
   expect(fetcher).toHaveBeenCalledTimes(4);
+  fetcher.mockClear().mockImplementation(conflict);
+  await expect(call({ submit: { token: "exact-token" } })).rejects.toMatchObject({ status, code });
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
 test("signed submissions and semantic/authority conflicts never inherit read retries", async () => {
@@ -96,6 +103,7 @@ test("signed submissions and semantic/authority conflicts never inherit read ret
     [409, "QueryIdentityMismatch"],
     [403, "QueryAccessDenied"],
     [410, "QuerySourceUnavailable"],
+    [503, "Unavailable"],
   ] as const) {
     fetcher.mockClear().mockResolvedValueOnce(Response.json({ err: code }, { status }));
     await expect(
