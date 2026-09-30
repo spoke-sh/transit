@@ -9,12 +9,9 @@ const s = c.station;
 const Self = @This();
 configuration: m.Configuration,
 
-pub const Cursor = struct { scope: m.Scope, resource_revision: u64, after: c.fuze.model.Name };
-pub const Page = struct {
-    resource_revision: u64,
-    entries: [p.Growth.page_size]?m.Definition = @splat(null),
-    next: ?Cursor = null,
-};
+pub const Cursor = c.Inspection.Cursor;
+pub const Page = c.Inspection.Page;
+const validatePage = c.Inspection.validatePage;
 
 fn key(self: Self, tag: u8, id: u64, revision: u64) p.Value {
     return r.key(self.configuration.scope.catalog, tag, id, revision);
@@ -131,7 +128,7 @@ pub fn createTable(self: Self, turn: *s.Turn, request: m.CreateTable) !m.Receipt
     // Refuse adoption, including a physical Table with matching schema.
     if (try turn.read(name_key)) |value| {
         const binding = try r.decode(m.Binding, 'n', value);
-        _ = try self.resolve(turn, request.name, binding);
+        _ = try (c.Inspection{ .configuration = self.configuration, .principal = who }).resolveBinding(turn, request.name, binding);
         result.outcome = .name_conflict;
     } else if (try turn.read(self.key('d', request.object, 1))) |value| {
         const existing = try r.decode(m.Definition, 'd', value);
@@ -162,70 +159,19 @@ pub fn createTable(self: Self, turn: *s.Turn, request: m.CreateTable) !m.Receipt
     return self.record(turn, result);
 }
 
-fn readDefinition(self: Self, turn: *s.Turn, object: u64, revision: u64) !?m.Definition {
-    const bytes = (try turn.read(self.key('d', object, revision))) orelse return null;
-    const result = try r.decode(m.Definition, 'd', bytes);
-    try self.scope(result.scope);
-    if (result.object != object or result.revision != revision) return error.InvalidCatalogDefinition;
-    return result;
-}
 pub fn definition(self: Self, turn: *s.Turn, object: u64, revision: u64) !?m.Definition {
     if (object == 0 or revision == 0) return error.InvalidCatalogIdentity;
-    _ = try self.authorize(turn, false);
-    return self.readDefinition(turn, object, revision);
-}
-fn resolve(self: Self, turn: *s.Turn, name: c.fuze.model.Name, binding: m.Binding) !m.Definition {
-    try self.scope(binding.scope);
-    const result = (try self.readDefinition(turn, binding.object, binding.revision)) orelse return error.CatalogDefinitionMissing;
-    if (!std.meta.eql(result.name, name) or !std.mem.eql(u8, &binding.digest, &try result.digest())) return error.CatalogDefinitionChanged;
-    switch (result.source) {
-        .table => |table| if (!std.meta.eql((try s.Table.open(turn, table.id)).schema, table.schema)) return error.CatalogSourceChanged,
-    }
-    return result;
+    try self.owner(turn);
+    return (c.Inspection{ .configuration = self.configuration, .principal = try principal(turn) }).definition(turn, object, revision);
 }
 pub fn lookup(self: Self, turn: *s.Turn, name: c.fuze.model.Name) !?m.Definition {
-    const name_key = try r.nameKey(self.configuration.scope.catalog, name);
-    _ = try self.authorize(turn, false);
-    const value = (try turn.read(name_key)) orelse return null;
-    return try self.resolve(turn, name, try r.decode(m.Binding, 'n', value));
+    _ = try r.nameKey(self.configuration.scope.catalog, name);
+    try self.owner(turn);
+    return (c.Inspection{ .configuration = self.configuration, .principal = try principal(turn) }).lookup(turn, name);
 }
-
-/// One bounded committed metadata page. Recheck current policy on every call;
-/// a changed resource revision requires restarting, never mixed-basis results.
+/// One bounded committed metadata page. The shared reader rechecks current
+/// policy and rejects a changed resource revision before using continuation.
 pub fn list(self: Self, turn: *s.Turn, cursor: ?Cursor) !Page {
-    _ = try self.authorize(turn, false);
-    const namespace = r.prefix(self.configuration.scope.catalog, 'n');
-    const after = if (cursor) |value| blk: {
-        try self.scope(value.scope);
-        if (value.resource_revision != turn.view.revision) return error.CatalogCursorChanged;
-        break :blk try r.nameKey(value.scope.catalog, value.after);
-    } else namespace;
-    const entries = try turn.page(after);
-    try validatePage(entries, after, turn.view.revision);
-    var result: Page = .{ .resource_revision = turn.view.revision };
-    for (entries.entries, 0..) |slot, index| {
-        const entry = slot orelse break;
-        if (!std.mem.startsWith(u8, entry.key.slice(), namespace.slice())) {
-            result.next = null;
-            return result;
-        }
-        const name = try c.fuze.model.Name.init(entry.key.slice()[namespace.len..]);
-        result.entries[index] = try self.resolve(turn, name, try r.decode(m.Binding, 'n', entry.value));
-        if (entries.next != null) result.next = .{ .scope = self.configuration.scope, .resource_revision = turn.view.revision, .after = name };
-    }
-    return result;
-}
-fn validatePage(entries: s.Turn.Page, after: p.Value, revision: u64) !void {
-    var previous = after;
-    var ended = false;
-    for (entries.entries) |slot| {
-        if (slot) |entry| {
-            if (ended) return error.InvalidCatalogPage;
-            try p.Growth.validateKey(entry.key);
-            try entry.value.validate();
-            if (entry.revision > revision or std.mem.order(u8, previous.slice(), entry.key.slice()) != .lt) return error.InvalidCatalogPage;
-            previous = entry.key;
-        } else ended = true;
-    }
-    if (entries.next) |next| if (previous.eql(after) or !previous.eql(next)) return error.InvalidCatalogPage;
+    try self.owner(turn);
+    return (c.Inspection{ .configuration = self.configuration, .principal = try principal(turn) }).list(turn, cursor);
 }

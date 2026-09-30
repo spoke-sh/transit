@@ -977,6 +977,63 @@ regression claim. This is the expanded core lane, not a full clean suite. The
 following evidence-only commit records the result; signed metadata work remains
 separate from this checkpoint.
 
+### Signed catalog metadata
+
+The Zig signed caller shares `Inspection` validation with the private-turn
+catalog helper for name lookup, exact definition reads and eight-entry pages.
+Each call acquires current configuration/policy and checks the native writer;
+subsequent reads enforce the same resource revision. Current inspection rights
+precede cursor checks. Create-only conflict checks remain independent of inspect
+permission. No saved view, admission or authorization cache is introduced.
+Neutral ABI/port, CLI and language SDK metadata mappings remain separate work.
+
+On development source based on `3c11f9c3`, pinned Zig
+`0.17.0-dev.2267+48abf1a34` passes root unit/fixture checks, the small real native
+schedule and full `just check`. The native schedule takes **42.936 s** with
+1391 reads, 36 accepted turn responses, five lost caller replies and three lost
+owner replies. It checks five named definitions in the supplied host resource,
+seven applied Tables across both resources, point/list agreement and current
+catalog/native disclosure denial. Bounds remain four mutations, 132-byte observed
+values and eight resident authority pages. This small schedule is not a growth
+proof. Its report is `/tmp/transit-sql-catalog-metadata-native-fixed.json` and log
+`/tmp/transit-sql-catalog-metadata-native-fixed.log`.
+
+The native contract definition is unchanged. Binary SHA-256 identities:
+
+| Binary | SHA-256 |
+| --- | --- |
+| node | `6f27157343edbf4311ceaeba4444566c9ce91a761ce2f6b647a2e0667d393e8c` |
+| catalog proof | `19da6d30e2d6c792c285bf35bc1f3faf93f4c0ef92f6f78b82d6784ec06d5aa2` |
+| catalog host | `9545df46010fede16ed61231e508942b1b744c6285cfb0673656e3d034d6f1c6` |
+| native port | `4a31f186752ff355011f6952c59965baffd9c9efc1799347a47b24d7b219b993` |
+| native library | `34ae38b64593862311010b9d478324fc3a8103cc52a018677fcc0c46d854d398` |
+| CLI | `f66e7b11526f1e14006f6a43721f806af1f61916e360229d096ca7ae63991325` |
+
+Eight component seeds pass **40 package schedules / 1264 events** with identical
+replay in **13.719 s**, including the shared inspection code. The log and report
+are `/tmp/transit-sql-catalog-metadata-domain.log` and
+`/tmp/transit-sql-catalog-metadata-domain.json`. New inspection/cursor guard mutants
+are executable tasks but are not yet recorded as qualified at this checkpoint.
+
+The 257-additional-Table disk run fails during creation-status polling with
+`AuthorityTimeout`; the owner also reports an uncertain turn. It does not reach
+the final listing/restart checks and remains failed. The log is
+`/tmp/transit-sql-catalog-metadata-growth.log`; it does not retain an exact completed
+creation count. The fixture now retains incomplete progress, operation counts and
+metadata timings in `native.json`, including on failures. Bounds and timeouts are
+unchanged. Smaller paged growth and the larger schedule require executed evidence.
+
+The initial native metadata attempts fail converting a Zig JSON byte string as a
+Python integer array; the corrected fixture passes the small schedule. A new
+create-only unit assertion initially overflows its maximum-ID fixture; selecting
+a distinct lower operation ID fixes the test. Failed logs are
+`/tmp/transit-sql-catalog-metadata-native-initial.log`,
+`/tmp/transit-sql-catalog-metadata-native.log` and
+`/tmp/transit-sql-catalog-metadata-full-check.log`. The full rerun passes at
+`/tmp/transit-sql-catalog-metadata-full-check-fixed.log` with 4625 documentation
+links, 56 invariants, 53 classified bounds and 13 SDK scenarios. Neither fixture
+failure establishes a successful production check.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

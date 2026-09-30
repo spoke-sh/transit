@@ -5,6 +5,7 @@ pub const fuze = station.fuze;
 pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Catalog = @import("Catalog.zig");
+pub const Inspection = @import("Inspection.zig");
 pub const Client = @import("Client.zig");
 pub const Behavior = @import("Behavior.zig");
 pub const Bridge = @import("Bridge.zig");

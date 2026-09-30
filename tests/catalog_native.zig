@@ -8,6 +8,7 @@ const g = p.Growth;
 const Admin = @import("growing_support.zig").Admin(46);
 const Config = struct { definition: g.Definition, writer: Admin.Provision };
 const Frozen = struct { definition: g.Definition, signed: g.SignedRequest };
+const SavedCursor = struct { definition: g.Definition, cursor: ?c.Inspection.Cursor };
 fn owner(config: Config) c.Catalog {
     return .{ .configuration = .{ .scope = .{ .realm = 46, .resource = config.writer.resource, .catalog = std.math.maxInt(u64) }, .owner = config.writer.pid, .administrator = 1234 } };
 }
@@ -116,6 +117,16 @@ pub fn main(init: std.process.Init) !void {
     }
     var config = try load(Config, init, directory, "catalog.json");
     var caller: c.Client = .{ .transport = &wire, .connection = .{ .scope = owner(config).configuration.scope, .owner = config.writer.pid, .principal = 1234 }, .key = try key(10) };
+    if (std.mem.eql(u8, mode, "list")) {
+        var cursor: ?c.Inspection.Cursor = if (args.len > 4) (try load(SavedCursor, init, directory, "cursor.json")).cursor else null;
+        if (args.len > 4 and std.mem.eql(u8, args[4], "stale")) cursor.?.resource_revision -= 1;
+        if (args.len > 4 and std.mem.eql(u8, args[4], "foreign")) cursor.?.scope.catalog -= 1;
+        const page = try caller.list(cursor);
+        try save(init, directory, "cursor.json", SavedCursor{ .definition = g.current_definition, .cursor = page.next });
+        return print(init, page);
+    }
+    if (std.mem.eql(u8, mode, "lookup")) return print(init, try caller.lookup(try c.fuze.model.Name.init(args[4])));
+    if (std.mem.eql(u8, mode, "definition")) return print(init, try caller.definition(try std.fmt.parseInt(u64, args[4], 10), try std.fmt.parseInt(u64, args[5], 10)));
     if (std.mem.eql(u8, mode, "prepare-send") or std.mem.eql(u8, mode, "prepare-raw")) {
         if (args.len != 8) return error.Usage;
         const operation = try std.fmt.parseInt(u64, args[4], 10);

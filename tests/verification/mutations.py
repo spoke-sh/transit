@@ -68,6 +68,8 @@ MODES = {
         "provider_ready": ("transit-core/src/growing_runtime.zig", "if (binding.desired != .running or binding.phase != .ready or binding.incarnation == null) return error.ProviderNotReady;", "// Mutation: activate before provider readiness."),
         "catalog_policy": ("transit-catalog/src/Catalog.zig", "if (if (create) !rights.create else !rights.inspect) return error.CatalogDenied;", "if (if (create) false else !rights.inspect) return error.CatalogDenied; // Mutation: bypass current create policy."),
         "catalog_receipt": ("transit-catalog/src/Catalog.zig", "        return old;", "        var changed = old; changed.input = turn.delivery.input.position; return changed; // Mutation: replace original receipt position."),
+        "catalog_inspection": ("transit-catalog/src/Inspection.zig", "if (!policy.inspect) return error.CatalogDenied;", "// Mutation: disclose catalog metadata without inspection rights."),
+        "catalog_cursor": ("transit-catalog/src/Inspection.zig", "if (value.resource_revision != source.view.revision) return error.CatalogCursorChanged;", "// Mutation: mix metadata pages from different resource revisions."),
     }, "Domain simulation:", "component invariant failed", "domain-simulation.json"),
     "scheduler": ("test-scheduler-simulation", ["--seeds", "1", "--steps", "1"], "scheduler-simulation-mutations", SCHEDULER_MUTANTS,
                   "Scheduler simulation:", "Scheduler simulation failed (invariant)", "scheduler-simulation/minimized.json"),

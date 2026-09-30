@@ -1391,6 +1391,7 @@
       "owner": "contracts/DECLARATIVE_CATALOG_V1.md",
       "implementation": [
         "packages/zig/transit-catalog/src/Catalog.zig",
+        "packages/zig/transit-catalog/src/Inspection.zig",
         "packages/zig/transit-catalog/src/Model.zig",
         "packages/zig/transit-catalog/src/Records.zig",
         "packages/zig/transit-catalog/src/Client.zig",
@@ -1459,7 +1460,8 @@
         "bindings::catalog-c",
         "bindings::catalog-java",
         "bindings::catalog-dotnet",
-        "bindings::catalog-beam"
+        "bindings::catalog-beam",
+        "test::catalog-growth"
       ],
       "scenarios": [
         "Independent binary records, full-width application IDs, mandatory current definition and canonical owned schema checks",
@@ -1484,7 +1486,8 @@
         "Installed C11/C++17 catalog handles retain copied full-width values and exact saved commands after native close, use cleared failure outputs and reject copying C++ owners; creation recovers after caller/node/store replacement under current policy",
         "Installed Java catalog values and bounded futures preserve full-width original requests, uncertain submissions and current denial; actual owned-port malformed replies, loss and cancelled futures retain busy ownership and joined close",
         "Installed .NET catalog NuGets preserve immutable full-width original requests, exact saved creation recovery and current denial; strict successful receipt decoding retains uncertainty; cancellation during a native HTTP read preserves busy ownership and disposal joins the worker",
-        "Installed Erlang/Elixir catalog records and structs retain full-width values and exact recovery after caller/node/store replacement; generated native-port validation preserves uncertain commands on malformed replies or child loss; killed waiting processes preserve busy ownership and joined cleanup"
+        "Installed Erlang/Elixir catalog records and structs retain full-width values and exact recovery after caller/node/store replacement; generated native-port validation preserves uncertain commands on malformed replies or child loss; killed waiting processes preserve busy ownership and joined cleanup",
+        "Signed Zig lookup, exact definition and bounded listing share private-turn validation; changed revision/scope and current catalog/native read denial reject continuation; disk growth and restart are owned by test::catalog-growth"
       ],
       "limits": "Explicit shared Zig/C ABI/native-port/CLI callers and supplied catalog host; Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous, C11/C++17 blocking methods, Java futures, .NET tasks and Erlang/Elixir records/structs over a shared owned worker. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates seven applied Tables across manual/host resources by default, eighteen with all ten SDKs (including Python sync/async); this is not a native catalog growth or host power-loss proof.",
       "model": null,

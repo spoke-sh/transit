@@ -13,12 +13,23 @@ create/inspect policies gate publication and metadata. `lookup`, `definition`,
 `receipt` and `list` expose bounded metadata; list cursors bind resource revisions.
 Catalog cardinality is independent of resident page size.
 
+`Inspection` shares deterministic definition, binding, live-schema and page
+validation between those in-turn helpers and the signed `Client`. It reads one
+authorized resource cut and rechecks catalog inspection policy before resolving
+names or consuming continuation. Its values confer no native read authority.
+
 `Client` supplies current metadata, `prepareInitialize`, `prepareCreate`,
 `preparePolicy`, explicit signed submission,
 input observation and original-request status. Its owned `Prepared` values save
 and restore exact canonical bytes with mandatory definition checks. Submission
 does not re-sign uncertain work. Current create and inspect policies remain
 independent; admission, processing and application are separate outcomes.
+`Client.lookup`, `definition` and `list` expose current metadata without acquiring
+a view or submitting work. Lists contain at most eight ordered definitions and
+bind continuation to the exact resource revision. A changed revision requires a
+fresh listing; current native or catalog denial rejects old cursors too. These
+metadata methods currently belong to the Zig API; their native ABI, CLI and
+language SDK mappings are separate work.
 `inputDisposition` separately reads a supplied behavior's control or rejected-input
 outcome under current inspection rights, bound to the original send and input
 position. Conditional policy control requires the configured administrator,
@@ -46,7 +57,8 @@ and no preceding private mutations to refuse orphan Table rows at the captured c
 conditional administrator controls and durable input dispositions. The
 [`transit-query-host` catalog role](../../../apps/transit-query-host/README.md)
 hosts it with explicit configuration and fresh fenced ownership. Explicit catalog methods
-are available in the CLI and Python, TypeScript, Rust, Ruby, C, C++ and Java SDKs through the
+are available in the CLI and Python, TypeScript, Rust, Ruby, C, C++, Java, .NET,
+Erlang and Elixir SDKs through the
 shared caller. The query console continues to reject CREATE.
 KV/Document creation, connector declarations,
 dependency-bearing objects, replacement and removal are not implemented here.

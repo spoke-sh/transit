@@ -19,9 +19,10 @@ from catalog_cli import Cli
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, proof, catalog_host, port_host, library, cli, languages=()):
+def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth=0):
+    if growth < 0: raise ValueError('Catalog growth count must be nonnegative')
     started = time.monotonic()
-    counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0)
+    counts = dict(reads=0, caller_reads=0, turns=0, max_mutations=0, max_value_bytes=0)
     with Fixture() as fixture:
         root = fixture.root
         installation_started = time.monotonic()
@@ -70,6 +71,8 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
                     envelope = json.loads(body)
                     if self.path == '/v1/query':
                         counts['reads'] += 1
+                        if envelope['query']['principal'] == 1234:
+                            counts['caller_reads'] += 1
                     if any(f.get('blocked') and body == f['body'] for f in faults.values()):
                         self.send_response(503)
                         self.send_header('Content-Length', '2')
@@ -162,8 +165,14 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
             fixture.start()
             start()
 
+        metadata_measurements = []
         def invoke(mode, *args, error=None):
+            before = counts['caller_reads']
+            began = time.monotonic()
             result = subprocess.run([proof, proxy_url, mode, str(root), *map(str, args)], capture_output=True, text=True, timeout=60)
+            if mode in ('list', 'lookup', 'definition'):
+                metadata_measurements.append(dict(operation=mode, expected_error=error,
+                    reads=counts['caller_reads'] - before, seconds=round(time.monotonic() - began, 6)))
             if error:
                 assert result.returncode != 0 and error in result.stderr, (mode, error, result.stdout, result.stderr)
                 return None
@@ -177,6 +186,24 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
 
         maximum = 2**64 - 1
         statement = 'CREATE TABLE items (id INT64 NOT NULL,value UTF8 NULL)'
+        grown_names = []
+        growth_samples = []
+        report = dict(version=1, completed=False,
+            revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
+            dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
+            resident_pages=8, requested_growth_tables=growth, selected_sdks=list(languages),
+            sdk_install_seconds=install_seconds,
+            sdk_artifacts={language: json.loads((root / 'catalog-sdks' / language / 'artifacts.json').read_text()) for language in languages},
+            binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host', 'port', 'library.so', 'cli')})
+        destination = ROOT / '.cache/verification/catalog/native.json'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        def record(completed=False, error=None):
+            report.update(completed=completed, error=error,
+                seconds=round(time.monotonic() - started, 3), counts=counts,
+                catalog_growth_tables=len(grown_names), growth_samples=growth_samples,
+                metadata_measurements=metadata_measurements)
+            destination.write_text(json.dumps(report, indent=2) + '\n')
+        record()
         try:
             subprocess.run([node, str(config), '--initialize'], env=fixture.env, check=True, capture_output=True, timeout=30)
             start()
@@ -451,8 +478,59 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
                 assert status['outcome'] == 'applied' and status['request'] == request and status['input'] == position
                 assert client.call({'input_disposition': dict(prepared=prepared, input=position)})['disposition'] is None
                 caller_results.append((client, request, status))
+            growth_started = time.monotonic()
+            for index in range(growth):
+                growing = caller_results[0][0]
+                name = f'grow_{index:05}'
+                identity = maximum - 10000 - index
+                compiled = growing.call({'compile': dict(operation=str(identity), object=str(identity), table=1000 + index, sql=statement.replace('items', name))})['compiled']
+                command = growing.call({'prepare_create': compiled['request']})['prepared']
+                position = growing.call({'submit': command})['receipt']['position']
+                result = await_value(lambda: growing.call({'status': compiled['request']})['status'])
+                assert result['outcome'] == 'applied' and result['input'] == position
+                grown_names.append(name)
+                if (index + 1) % 16 == 0 or index + 1 == growth:
+                    growth_samples.append(dict(tables=index + 1, seconds=round(time.monotonic() - growth_started, 3), counts=counts.copy()))
+                    record()
+                if index == 8:
+                    assert invoke('list')['next'] is not None
+                if index == 9:
+                    invoke('list', 'continue', error='CatalogCursorChanged')
+            def listed():
+                page = invoke('list')
+                revision = page['resource_revision']
+                entries = []
+                while True:
+                    assert page['resource_revision'] == revision
+                    present = [entry for entry in page['entries'] if entry is not None]
+                    assert page['entries'] == present + [None] * (8 - len(present))
+                    entries.extend(present)
+                    if page['next'] is None: break
+                    invoke('list', 'stale', error='CatalogCursorChanged')
+                    invoke('list', 'foreign', error='CatalogScopeChanged')
+                    page = invoke('list', 'continue')
+                names = [entry['name']['bytes'][:entry['name']['len']] for entry in entries]
+                assert names == sorted(set(names)), names
+                for name, entry in zip(names, entries):
+                    assert invoke('lookup', name) == entry
+                    assert invoke('definition', entry['object'], entry['revision']) == entry
+                assert invoke('lookup', 'absent') is None
+                assert invoke('definition', maximum - 9999, 1) is None
+                return names
+            expected_names = sorted(['items', 'other', *grown_names, *[request['name'] for _, request, _ in caller_results]])
+            assert listed() == expected_names
+            if growth:
+                stop_worker()
+                restart()
+                assert listed() == expected_names
+                invoke('reown')
+                invoke('write-host')
+                start_worker()
             revoked = invoke('send-policy', 6, 'true', 'false')['position']
             await_value(lambda: invoke('observe-control', revoked) == 'processed')
+            invoke('list', error='CatalogDenied')
+            invoke('lookup', 'items', error='CatalogDenied')
+            invoke('definition', maximum, 1, error='CatalogDenied')
             for client, request, status in caller_results:
                 try:
                     client.call({'status': request})
@@ -464,6 +542,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
             for client, request, status in caller_results:
                 assert client.call({'status': request})['status'] == status
             invoke('revoke-reader')
+            invoke('list', error='AccessDenied')
+            invoke('lookup', 'items', error='AccessDenied')
+            invoke('definition', maximum, 1, error='AccessDenied')
             invoke('input-disposition', rejected, error='AccessDenied')
             for client, request, _ in caller_results:
                 try:
@@ -474,18 +555,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
             stop_worker()
             assert not failures and all(f['recovered'] for f in faults.values())
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256
-            report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
-                          dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
-                          seconds=round(time.monotonic() - started, 3), resident_pages=8, counts=counts,
-                          lost_caller_receipts=5 + len(installed), lost_writer_receipts=3,
-                          selected_sdks=list(languages), sdk_install_seconds=install_seconds,
-                          sdk_artifacts={language: json.loads((root / 'catalog-sdks' / language / 'artifacts.json').read_text()) for language in languages},
-                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host', 'port', 'library.so', 'cli')})
-            destination = ROOT / '.cache/verification/catalog/native.json'
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            destination.write_text(json.dumps(report, indent=2) + '\n')
-            print(json.dumps(report, indent=2))
+            report.update(lost_caller_receipts=5 + len(installed), lost_writer_receipts=3, listed_definitions=len(expected_names))
         finally:
+            failure = sys.exc_info()[1]
             cleanup_errors = []
             for client in clients:
                 try:
@@ -508,6 +580,9 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=()):
                 sys.stderr.write(worker_log.read()[-12000:])
             log.close()
             worker_log.close()
+            record(failure is None and not cleanup_errors,
+                   type(failure).__name__ if failure is not None else 'Cleanup' if cleanup_errors else None)
+            print(json.dumps({key: value for key, value in report.items() if key not in ('growth_samples', 'metadata_measurements')}, indent=2))
             if cleanup_errors:
                 raise ExceptionGroup('Catalog caller cleanup failed', cleanup_errors)
 
@@ -516,5 +591,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     for binary in ('node', 'proof', 'catalog_host', 'port_host', 'library', 'cli'): parser.add_argument(binary)
     parser.add_argument('--sdk', choices=['python', 'node', 'rust', 'ruby', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'], action='append', default=[])
+    parser.add_argument('--grow', type=int, default=0)
     args = parser.parse_args()
-    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk)
+    run(args.node, args.proof, args.catalog_host, args.port_host, args.library, args.cli, args.sdk, args.grow)

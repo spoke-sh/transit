@@ -74,6 +74,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::table-mutation` | Prove atomic Table rows/results, frozen receipt recovery after disk restart, stale views/writers and current grants through an explicit native application, native ABI/port and saved-file CLI |
 | `just test::table-query-writer [--sdk LANGUAGE ...]` | Exercise the combined Table host's two initialization commits, lost receipts and disk recovery, retained query cuts across same-namespace mutations, and independent query/write policies; optionally use installed mutation SDKs |
 | `just test::catalog [--sdk python\|node\|rust\|ruby ...]` | Prove atomic named Table creation, shared Zig/C ABI/native-port/CLI callers, supplied-host initialization/creation receipt recovery after disk restart, conditional policy/disposition outcomes, fresh ownership and current native grants |
+| `just test::catalog-growth` | Create 257 additional Tables on disk with eight resident pages; check ordered signed metadata, changed cursors, current disclosure rights and node/store restart |
 | `just bindings::catalog-python` | Build/install Python wheels outside the checkout; prove typed sync/async catalog controls, exact creation recovery and current denial, plus value/response/cancellation checks |
 | `just bindings::catalog-node` | Build/install TypeScript packages outside the checkout; validate generated boundaries, bigint values, exact saved catalog recovery and current denial |
 | `just bindings::catalog-rust` | Build/install Rust crates outside the checkout; verify exclusive caller borrows, full-width values, malformed receipt uncertainty and saved catalog recovery |
@@ -95,7 +96,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::codecs [--fuzz=1000]` | Runs bounded signed JSON/frame corpora and allocation checks; optionally explores with LLVM fuzz coverage |
 | `just test::mutations` | Uses isolated committed clones to verify detection of omitted Zig guards |
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
-| `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh and runtime contract schedules and qualify their assertions with real-code mutations |
+| `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh, runtime and catalog contract schedules and qualify their assertions with real-code mutations |
 | `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and disk Ursula; preserve histories and cleanup evidence |
 | `just test::vortex-profile sdk\|application\|query\|reactive` | Qualify installed Python/Node hosts, local installation/migration, distinct query lifetimes or browser refresh through existing owned rigs |
 | `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |

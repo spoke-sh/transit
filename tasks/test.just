@@ -296,6 +296,10 @@ table-mutation *args:
 catalog *args:
     zig build test-catalog -Doptimize=ReleaseSafe -- "$@"
 
+# Disk-backed metadata beyond resident pages, current cursors and restart.
+catalog-growth:
+    just test::catalog --grow 257
+
 # Combined Table initialization, retained reads and independently authorized writes.
 [positional-arguments]
 table-query-writer *args:

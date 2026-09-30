@@ -314,6 +314,15 @@ the supplied native reader must be authorized for its actual page reads. This
 interface returns metadata only but does not promise zero row-byte I/O during a
 boundary page scan.
 
+The signed Zig `Client.lookup(name)`, `definition(object, revision)` and
+`list(cursor)` use the same deterministic `Inspection` validator. Each call
+begins with a current configuration/policy batch and verifies the active native
+resource writer. Subsequent point/page reads require that exact current resource
+revision and current native grants. No retained view, admission or permission
+cache is created. A cursor is a local continuation value, not a bearer grant;
+catalog inspection authorization precedes continuation validation. Native
+ABI/port, CLI and language SDK metadata mappings do not yet expose these methods.
+
 Resident work holds one native page, at most eight definitions and bounded point
 reads for those definitions and Table descriptors. Durable names, definitions and
 receipts live in paged KV state with no fixed total-cardinality array. Native

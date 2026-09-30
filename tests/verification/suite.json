@@ -207,7 +207,8 @@
       "bindings::catalog-c",
       "bindings::catalog-java",
       "bindings::catalog-dotnet",
-      "bindings::catalog-beam"
+      "bindings::catalog-beam",
+      "test::catalog-growth"
     ]
   },
   "nested_tasks": {

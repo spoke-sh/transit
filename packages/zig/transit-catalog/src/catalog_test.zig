@@ -300,6 +300,13 @@ test "current catalog create and inspect policies are separate and conditional" 
     _ = try owner.createTable(&turn, try request());
     try t.expectError(error.CatalogDenied, owner.lookup(&turn, (try request()).name));
     try store.commit(turn);
+    // Name-conflict validation needs create rights, independently of inspection.
+    turn = try store.capture(18);
+    var conflict = try request();
+    conflict.operation -= 1;
+    try t.expectEqual(m.Outcome.name_conflict, (try owner.createTable(&turn, conflict)).outcome);
+    try t.expectError(error.CatalogDenied, owner.list(&turn, null));
+    try store.commit(turn);
     turn = try store.capture(17);
     try owner.setPolicy(&turn, 0, policy);
     try t.expectEqual(0, count(&turn));

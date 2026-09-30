@@ -126,6 +126,43 @@ pub fn describe(self: *Self) !Description {
     const current = try self.batch(null);
     return self.describeBatch(&current);
 }
+const MetadataReader = struct {
+    metadata: wire.ResourceReader.Batch,
+    current: wire.ResourceReader.Reader,
+    view: @FieldType(wire.ResourceReader.Reader, "view"),
+    pub fn read(self: *@This(), key: p.Value) !?p.Value {
+        // Only the configuration and policy from this operation's initial
+        // authorized batch are cached. Other reads enforce its exact cut.
+        for (self.metadata.keys) |slot| if (slot) |requested| {
+            if (requested.eql(key)) return self.metadata.read(key);
+        };
+        return self.current.read(key);
+    }
+    pub fn page(self: *@This(), after: ?p.Value) !g.Batch(g.Entry, p.Value) {
+        return self.current.page(after);
+    }
+};
+fn metadataReader(self: *Self) !MetadataReader {
+    const metadata = try self.batch(null);
+    const reader: wire.ResourceReader.Reader = .{ .client = self.resources(), .view = .{ .resource = metadata.view.resource, .revision = metadata.view.revision } };
+    return .{ .metadata = metadata, .current = reader, .view = reader.view };
+}
+/// Current-policy metadata reads create neither retained views nor admissions.
+pub fn lookup(self: *Self, name: c.fuze.model.Name) !?m.Definition {
+    var source = try self.metadataReader();
+    return (c.Inspection{ .configuration = try self.configuration(&source.metadata), .principal = self.connection.principal }).lookup(&source, name);
+}
+pub fn definition(self: *Self, object: u64, revision: u64) !?m.Definition {
+    if (object == 0 or revision == 0) return error.InvalidCatalogIdentity;
+    var source = try self.metadataReader();
+    return (c.Inspection{ .configuration = try self.configuration(&source.metadata), .principal = self.connection.principal }).definition(&source, object, revision);
+}
+/// At most eight name-ordered definitions. Each page requires current native
+/// and catalog inspection rights; a changed revision rejects continuation.
+pub fn list(self: *Self, cursor: ?c.Inspection.Cursor) !c.Inspection.Page {
+    var source = try self.metadataReader();
+    return (c.Inspection{ .configuration = try self.configuration(&source.metadata), .principal = self.connection.principal }).list(&source, cursor);
+}
 /// Prepare a new signed send after checking current create policy and exact
 /// application identity. Reusing a principal concurrently can race its sequence;
 /// never prepare again to retry an uncertain send.
