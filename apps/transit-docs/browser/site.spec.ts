@@ -21,7 +21,7 @@ test("production navigation, search, generated references and exact downloads", 
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.getByRole("link", { name: "SQL Syntax, types and query profiles" }).click();
   await expect(page.getByRole("heading", { name: "SQL reference", exact: true })).toBeVisible();
-  await expect(page.getByText("grammar-only", { exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Grammar only", exact: true }).first()).toBeVisible();
   const sidebar = page.locator(".theme-doc-sidebar-menu");
   const categories = sidebar.locator(":scope > .menu__list-item > .menu__list-item-collapsible");
   for (const name of [
@@ -38,9 +38,36 @@ test("production navigation, search, generated references and exact downloads", 
   await sidebar.getByRole("link", { name: "SELECT", exact: true }).click();
   await expect(page.getByRole("heading", { name: "SELECT", exact: true })).toBeVisible();
   await sidebar.getByRole("link", { name: "CREATE TABLE", exact: true }).click();
+  await expect(
+    page.getByText("Catalog execution and offline compilation.", { exact: true }),
+  ).toBeVisible();
+  await sidebar.getByRole("link", { name: "CREATE CONNECTION", exact: true }).click();
   await expect(page.getByText("Grammar only.", { exact: true })).toBeVisible();
+  await sidebar
+    .getByRole("link", { name: "Grammar surface: implemented and planned", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Grammar surface: implemented and planned", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("row", { name: /CREATE KV, CREATE DOCUMENT publication/ })
+      .getByRole("cell", { name: "Planned — checked grammar", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("row", { name: /Compatible empty CREATE TABLE publication/ })
+      .getByRole("cell", { name: "Implemented — execution", exact: true }),
+  ).toBeVisible();
   await sidebar.getByRole("link", { name: "Application declarations", exact: true }).click();
   await expect(page.locator("#create-interface")).toBeVisible();
+  await page.getByRole("link", { name: "Search", exact: true }).click();
+  await page.getByLabel("Words or an interface name").fill("Grammar surface");
+  await page
+    .locator(".search-results")
+    .getByRole("link", { name: "Grammar surface: implemented and planned", exact: true })
+    .click();
+  await expect(page.locator("#planned-historical-schemas-and-branches")).toBeVisible();
   await page.getByRole("link", { name: "Search", exact: true }).click();
   await page.getByLabel("Words or an interface name").fill("CREATE SINK");
   await page
@@ -169,7 +196,9 @@ test("mobile menu, readable content and dark-mode accessibility", async ({
   await mobileMenu.getByRole("link", { name: "CREATE TABLE", exact: true }).click();
   await expect(mobileMenu).not.toBeInViewport();
   await expect(page.getByRole("heading", { name: "CREATE TABLE", exact: true })).toBeVisible();
-  await expect(page.getByText("Grammar only.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Catalog execution and offline compilation.", { exact: true }),
+  ).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
