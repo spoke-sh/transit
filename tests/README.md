@@ -875,7 +875,14 @@ rebased report below. Installed package hashes:
 SDK regression also includes it. Full `just check` passes unit/generated-contract
 and CLI checks, frontend checks and the documentation build. Final direct checks
 cover 4609 links across 484 files, 56 invariants, 53 bounds and 13 SDK scenarios.
-Committed-HEAD clean validation and Erlang/Elixir catalog callers remain.
+Committed `7ec2e0e1` passes `just ci-clean --lane core`: all **22 tasks**
+complete in **758.12 s** without inherited build outputs, including the new
+simulation tasks. Evidence is under
+`.cache/ci/clean/7ec2e0e11b24-transit-ci-v67ub5ds/` (`core.json` and
+`core.meta.json`); the log is `/tmp/transit-sql-catalog-dotnet-ci-clean.log`.
+This is the expanded core lane plus the focused checks above, not the full clean
+suite. Erlang/Elixir catalog callers remain. The following commit records only
+this clean evidence.
 
 ## SQL branch integration of seeded simulations
 
