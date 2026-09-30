@@ -57,6 +57,10 @@ def run(node, host, proof, board, browser=False):
                         return json.loads(data)
                     if status == 200 and response.status == 409 and path == "/api/v1/atlas":
                         return json.loads(data)
+                    if (status == 200 and response.status == 503 and path == "/api/v1/query" and
+                            operation is not None and next(iter(operation)) == "observe" and
+                            json.loads(data).get("err") == "Unavailable"):
+                        return json.loads(data)
                     assert response.status == status, (response.status, data[:500])
                     assert response.headers["Cache-Control"] == "no-store"
                     return json.loads(data)
@@ -128,7 +132,15 @@ def run(node, host, proof, board, browser=False):
                 receipt = api({"submit": prepared})["receipt"]
                 assert api({"submit": prepared})["receipt"] == receipt
                 until = time.monotonic() + 60
-                while "pending" in (observed := api({"observe": receipt["position"]})["observation"]):
+                while True:
+                    response = api({"observe": receipt["position"]})
+                    # An unavailable receipt read says nothing new about the
+                    # frozen submission. Observe the same receipt again without
+                    # preparing or submitting another mutation.
+                    if response.get("err") != "Unavailable":
+                        observed = response["observation"]
+                        if "pending" not in observed:
+                            break
                     assert time.monotonic() < until
                     time.sleep(0.05)
                 assert "committed" in observed, observed

@@ -51,6 +51,30 @@ exceeded its existing 240-second Station write deadline, experience received
 Python Station event. Runner assertions now preserve the actual unexpected event.
 These results do not establish the complete ordinary gate.
 
+An isolated clean bindings run at `2b9faa53` passed generated contracts, native
+conformance and the complete Python, Node and Rust SDK tasks. The Rust task took
+574.66 s. The lane then stopped in Ruby when a query turn correctly returned
+`NeedsRecovery` with `AuthorityTimeout`; the fixture had assumed immediate
+commitment. Ten later tasks were unrun.
+
+The shared fixture now repeats explicitly unavailable reads and reconciles
+transient dispatch/confirmation failures through the installed host API. It
+checks that `next()` remains paused, saved bytes stay unchanged and observed
+same-identity command attempts remain byte-identical. Recovery shares the existing
+180-second progress deadline and has at most eight recovery/read steps. Other
+outcomes still fail. A deterministic unavailable read and unavailable reply after
+acceptance challenge those paths; the accepted schema input must be consumed once.
+The focused Ruby schedule passed with both faults: one unavailable read repeated
+and one accepted outcome reconciled, followed by all Table, IPC, revocation and
+lifetime checks. `just check` passed with the corrected fixtures.
+
+Board's focused query proof passed after its fixture learned to repeat only
+unavailable observations of the same receipt within the existing 60-second
+deadline. It does not prepare or submit replacement work. The isolated complete
+growing-service proof also passed without code or deadline changes: Station write
+took 71.616 s against 240 s, and query delivery took 149.820 s against 180 s.
+Earlier timing failures remain separate evidence.
+
 The expanded deterministic profiles passed on committed sources. Authority and
 resource reports identify `028e2f7b`; shared-client and component reports identify
 `2b9faa53`, whose intervening change corrects the separate state API polling fixture.
