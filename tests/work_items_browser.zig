@@ -151,7 +151,7 @@ pub fn main(init: std.process.Init) !void {
     }
     if (args.len != 4) return error.Usage;
     var caller: proof.Caller = .{ .wire = &wire, .key = try key(9), .saved = saved.data, .sequence = 0 };
-    caller.sequence = (try caller.resources().query(.{ .capabilities = {} })).principal_sequence;
+    caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
         _ = try caller.send(init.io, .{ .policy = .{ .principal = 65537, .expected = .{}, .next = .{ .revision = .{ .value = 1 }, .migrate = true } } }, null);

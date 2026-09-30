@@ -1,4 +1,5 @@
 //! Public-client provisioning shared by growing service proofs.
+const std = @import("std");
 const client = @import("transit_station").client;
 const p = client.protocol;
 const g = p.Growth;
@@ -10,10 +11,26 @@ pub fn Admin(comptime realm: u64) type {
         key: p.Ed25519.KeyPair,
         sequence: u64 = 0,
         pub fn query(self: *Self, kind: @FieldType(g.Query, "kind")) !g.Response {
-            return self.wire.query(.{ .realm = realm, .principal = 0, .kind = kind }, self.key);
+            const io = self.wire.http.io;
+            const start = std.Io.Clock.awake.now(io);
+            while (true) return self.wire.query(.{ .realm = realm, .principal = 0, .kind = kind }, self.key) catch |err| {
+                if (!client.Client.unavailable(err) or start.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() >= 10000) return err;
+                try io.sleep(.fromMilliseconds(25), .awake);
+                continue;
+            };
         }
         pub fn submit(self: *Self, command: g.Command) !u64 {
-            const receipt = try self.wire.submit(try g.sign(.{ .realm = realm, .principal = 0, .sequence = self.sequence + 1, .command = command }, self.key));
+            // An uncertain admission keeps exactly the same signed request.
+            const frozen = try g.sign(.{ .realm = realm, .principal = 0, .sequence = self.sequence + 1, .command = command }, self.key);
+            const io = self.wire.http.io;
+            const start = std.Io.Clock.awake.now(io);
+            const receipt = while (true) {
+                break self.wire.submit(frozen) catch |err| {
+                    if (!client.Client.unavailable(err) or start.durationTo(std.Io.Clock.awake.now(io)).toMilliseconds() >= 10000) return err;
+                    try io.sleep(.fromMilliseconds(25), .awake);
+                    continue;
+                };
+            };
             self.sequence += 1;
             return receipt.position;
         }

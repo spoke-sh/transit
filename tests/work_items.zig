@@ -35,27 +35,40 @@ pub const Caller = struct {
     pub fn read(self: *@This()) !s.client.ResourceReader.Reader {
         return self.resources().open(self.saved.resource);
     }
+    pub fn query(self: *@This(), kind: @FieldType(g.Query, "kind")) !g.Response {
+        const start = std.Io.Clock.awake.now(self.wire.http.io);
+        while (true) return self.resources().query(kind) catch |err| {
+            if (!s.client.Client.unavailable(err) or start.durationTo(std.Io.Clock.awake.now(self.wire.http.io)).toMilliseconds() >= 10000) return err;
+            try self.wire.http.io.sleep(.fromMilliseconds(25), .awake);
+            continue;
+        };
+    }
+    fn submit(self: *@This(), frozen: g.SignedRequest) !p.Receipt {
+        const start = std.Io.Clock.awake.now(self.wire.http.io);
+        while (true) return self.wire.submit(frozen) catch |err| {
+            if ((!s.client.Client.unavailable(err) and err != error.InvalidAuthorityResponse) or start.durationTo(std.Io.Clock.awake.now(self.wire.http.io)).toMilliseconds() >= 10000) return err;
+            try self.wire.http.io.sleep(.fromMilliseconds(25), .awake);
+            continue;
+        };
+    }
     pub fn send(self: *@This(), io: std.Io, command: W.Command, reason: ?[]const u8) !u64 {
         return self.sendPayload(io, try command.encode(), reason);
     }
     pub fn sendPayload(self: *@This(), io: std.Io, payload: p.Value, reason: ?[]const u8) !u64 {
         const frozen = try g.sign(.{ .realm = Realm, .principal = Operator, .sequence = self.sequence + 1, .command = .{ .send = .{ .pid = self.saved.pid, .value = try (s.Frame{ .kind = .cast, .payload = payload }).encode() } } }, self.key);
-        const receipt = self.wire.submit(frozen) catch |err| value: {
-            if (err != error.InvalidAuthorityResponse and !s.client.Client.unavailable(err)) return err;
-            break :value try self.wire.submit(frozen);
-        };
+        const receipt = try self.submit(frozen);
         // Retrying accepted bytes cannot admit a second input.
-        try t.expectEqual(receipt.position, (try self.wire.submit(frozen)).position);
+        try t.expectEqual(receipt.position, (try self.submit(frozen)).position);
         self.sequence += 1;
         const deadline = std.Io.Clock.boot.now(io).toMilliseconds() + 60000;
         while (true) {
-            const response = try self.resources().query(.{ .process = self.saved.pid });
+            const response = try self.query(.{ .process = self.saved.pid });
             if (response.body.process.input == null or response.body.process.input.?.position > receipt.position) break;
             if (std.Io.Clock.boot.now(io).toMilliseconds() > deadline) return error.WorkerTimeout;
             try io.sleep(.fromMilliseconds(25), .awake);
         }
-        var reader = try self.read();
-        const error_value = try reader.read(W.dispositionKey(9, Operator, receipt.position));
+        const disposition = try self.query(.{ .read_entries = .{ .resource = self.saved.resource, .keys = .{W.dispositionKey(9, Operator, receipt.position)} ++ @as([7]?p.Value, @splat(null)) } });
+        const error_value = if (disposition.body.read_entries.entries[0]) |entry| entry.value else null;
         if (reason) |expected| try t.expectEqualStrings(expected, (error_value orelse return error.MissingDisposition).slice()) else try t.expect(error_value == null);
         return receipt.position;
     }
@@ -109,7 +122,7 @@ pub fn main(init: std.process.Init) !void {
         return write(init, config_path, .{ .url = args[1], .principal = Worker, .pid = saved.pid, .generation = saved.generation, .seed_file = key_path, .activation_directory = directory, .application = owner(saved).configuration, .request_timeout_ms = @as(u32, 5000) });
     }
     var caller: Caller = .{ .wire = &wire, .key = operator_key, .saved = saved, .sequence = 0 };
-    caller.sequence = (try caller.resources().query(.{ .capabilities = {} })).principal_sequence;
+    caller.sequence = (try caller.query(.{ .capabilities = {} })).principal_sequence;
     const ledger = try owner(saved).ledger();
     if (std.mem.eql(u8, phase, "seed")) {
         _ = try caller.send(init.io, .initialize, null);
