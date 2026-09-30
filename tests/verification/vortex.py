@@ -283,8 +283,13 @@ def scenario(args, destination, record, report):
                     retry_identity = peer.last_fault_identity
                     record('pause_requested', actor='courier', pid=courier.pid)
                     os.kill(courier.pid, signal.SIGSTOP)
-                    _, status = os.waitpid(courier.pid, os.WUNTRACED)
-                    assert os.WIFSTOPPED(status)
+                    def paused():
+                        observed, status = os.waitpid(courier.pid, os.WUNTRACED | os.WNOHANG)
+                        if not observed:
+                            return False
+                        assert os.WIFSTOPPED(status), 'courier exited before pause observation'
+                        return True
+                    until(paused, 'courier pause observation')
                     record('pause_observed', actor='courier', pid=courier.pid)
                     os.kill(courier.pid, signal.SIGCONT)
                     record('resume_requested', actor='courier', pid=courier.pid)
