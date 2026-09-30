@@ -529,6 +529,12 @@ client close, cleared C failure outputs, caller replacement after receipt loss,
 exact retry and current status denial. C++ copy attempts reject during compilation.
 `bindings::mutation-c` selects the shared mutation schedule independently.
 
+`bindings::java-sdk-test` adds immutable Table mutation values and bounded futures
+over the existing generated-schema port. Its installed caller uses namespace
+`9223372036854775829`, replaces the caller after receipt loss, recovers the exact
+saved command, rejects changed request commitments and enforces current status
+denial. `bindings::mutation-java` selects that schedule independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

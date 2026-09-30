@@ -5510,3 +5510,35 @@ Elixir and CLI mutation clients remain separate implementation boundaries.
 The C/C++ tree passes full `just check`, including native contract drift, unit
 checks, the verification catalog, frontend checks and documentation build. The
 broader installed runner/connector regression is recorded separately when complete.
+
+### Installed Java Table mutation caller
+
+`just bindings::mutation-java` builds the public/native JARs with the pinned Java
+21 compiler, then compiles an external consumer using `-Xlint:all -Werror`.
+Immutable values retain full-width namespace **9223372036854775829**. The caller
+rejects a changed full request commitment, preserves owned input/getter copies,
+replaces its port/worker after receipt loss, recovers the exact admitted send,
+observes the one-row result and stops status disclosure after current native
+read revocation. Saved prepared bytes remain unchanged on success or uncertainty.
+Generated request/result schemas and the existing bounded worker remain shared.
+
+The focused schedule passes in **19.824 s**, including **0.936 s** for installed
+consumer compilation and **2.964 s** for the Java caller interval. It records
+**1628 reads**, **46 send responses**, **46 turn responses**, four lost caller
+receipts and one lost writer receipt. Four mutations, 256-byte stored values,
+eight resident authority pages and all five native artifact digests match the
+ABI/port record. The command ran on allowed CPUs 3–47. These unpaired shared-host
+measurements do not establish comparative throughput; this installed extension
+exercises UPDATE, while native cases cover INSERT/UPDATE/DELETE and rollback.
+
+The first consumer compilation stopped on missing optional Error Prone annotations
+referenced by Gson's `JsonParser` class. Using the same `Gson.fromJson` test-frame
+reader as the existing installed consumers resolves that warning without adding
+dependencies or relaxing lint. This compile-only failure is not mutation evidence.
+The ordinary Java SDK task now includes the schedule; no full Java runner/connector
+regression rerun is claimed for this additive adapter. .NET, Erlang, Elixir and
+CLI mutation callers remain outstanding.
+
+The Java increment passes full `just check`, including generated-contract drift,
+native unit/CLI checks, the verification catalog, frontend checks and the
+documentation build. Its installed consumer passes strict Java 21 compilation.

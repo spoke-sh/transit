@@ -29,3 +29,6 @@ with scoped publication and explicit Unicode scalar identities.
 
 M18 adds [typed unified queries](docs/UNIFIED_QUERY.md) with immutable nested
 Arrow values, bounded futures and explicit signed retry tokens.
+
+The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes,
+immutable requests, bounded futures and exact saved-command recovery.
