@@ -29,12 +29,16 @@ def generate():
                    binding=record('n', scope + struct.pack('<QQ', maximum, 1) + digest))
     for outcome in range(1, 5):
         records[f'receipt_{outcome}'] = record('o', request + struct.pack('<QQB', 17, 2, outcome))
+    records['policy_change'] = record('g', struct.pack('<Q', 0) + scope + struct.pack('<QQBB', 17, 1, 1, 1))
+    payload = hashlib.sha256(b'transit.catalog.input.v1\0catalog-command').digest()
+    records['disposition'] = record('e', scope + struct.pack('<BQQ', 1, 17, 2) + payload + b'\1')
     prefix = b'\0C' + struct.pack('>Q', maximum)
     keys = dict(configuration=prefix + b'c' + struct.pack('>QQ', 0, 0),
                 policy=prefix + b'p' + struct.pack('>QQ', 17, 0),
                 definition=prefix + b'd' + struct.pack('>QQ', maximum, 1),
                 binding=prefix + b'nitems',
-                receipt=prefix + b'o' + struct.pack('>QQ', 17, maximum))
+                receipt=prefix + b'o' + struct.pack('>QQ', 17, maximum),
+                disposition=prefix + b'e' + struct.pack('>QQ', 2, 0))
     return json.dumps(dict(version=1, native_definition=definition, digest=digest.hex(),
                            records={k: v.hex() for k, v in records.items()},
                            keys={k: v.hex() for k, v in keys.items()}), indent=2) + '\n'

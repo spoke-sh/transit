@@ -74,17 +74,20 @@ fn address(self: *Self, tag: u8, id: u64, revision: u64) p.Value {
     return r.key(self.connection.scope.catalog, tag, id, revision);
 }
 fn batch(self: *Self, operation: ?u64) !wire.ResourceReader.Batch {
+    const keys = [_]p.Value{
+        self.address('c', 0, 0),
+        self.address('p', self.connection.principal, 0),
+        self.address('o', self.connection.principal, operation orelse 0),
+    };
+    return self.batchKeys(keys[0..if (operation == null) @as(usize, 2) else 3]);
+}
+fn batchKeys(self: *Self, keys: []const p.Value) !wire.ResourceReader.Batch {
     try self.connection.validate();
     if (!self.batch_support) {
         _ = try self.resources().batches();
         self.batch_support = true;
     }
-    var keys = [_]p.Value{
-        self.address('c', 0, 0),
-        self.address('p', self.connection.principal, 0),
-        self.address('o', self.connection.principal, operation orelse 0),
-    };
-    const result = try (wire.ResourceReader.Batches{ .client = self.resources() }).read(self.connection.scope.resource, null, keys[0..if (operation == null) @as(usize, 2) else 3]);
+    const result = try (wire.ResourceReader.Batches{ .client = self.resources() }).read(self.connection.scope.resource, null, keys);
     if (result.resource.id != self.connection.scope.resource or result.resource.writer != self.connection.owner or result.resource.phase != .active) return error.CatalogOwnerChanged;
     return result;
 }
@@ -146,6 +149,19 @@ pub fn status(self: *Self, request: m.CreateTable) !?m.Receipt {
     const current = try self.batch(request.operation);
     if (!(try self.describeBatch(&current)).policy.inspect) return error.CatalogDenied;
     return self.receiptFrom(&current, request);
+}
+/// A supplied behavior records rejected inputs separately from application
+/// receipts. Absence is not proof of success; current inspect rights still apply.
+pub fn inputDisposition(self: *Self, prepared: Prepared, input: u64) !?m.Disposition {
+    try self.validate(prepared);
+    try m.nativeId(input);
+    const target = self.address('e', input, 0);
+    const current = try self.batchKeys(&.{ self.address('c', 0, 0), self.address('p', self.connection.principal, 0), target });
+    if (!(try self.describeBatch(&current)).policy.inspect) return error.CatalogDenied;
+    const value = (try current.read(target)) orelse return null;
+    const result = try r.decode(m.Disposition, 'e', value);
+    if (!std.meta.eql(result.scope, self.connection.scope) or result.origin != .external or result.principal != self.connection.principal or result.input != input or !std.mem.eql(u8, &result.payload, &try m.Disposition.fingerprint(prepared.signed.request.command.send.value))) return error.CatalogIdentityConflict;
+    return result;
 }
 /// Input processing is separate from application success. Supply the position
 /// from this exact send's native receipt and inspect status after processing.

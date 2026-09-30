@@ -24,16 +24,17 @@ fn count(turn: *const s.Turn) usize {
     return total;
 }
 test "catalog records agree with independent layouts and reject incompatible bytes" {
-    const Fixture = struct { version: u8, native_definition: []const u8, digest: []const u8, records: struct { configuration: []const u8, policy: []const u8, request: []const u8, definition: []const u8, binding: []const u8, receipt_1: []const u8, receipt_2: []const u8, receipt_3: []const u8, receipt_4: []const u8 }, keys: struct { configuration: []const u8, policy: []const u8, definition: []const u8, binding: []const u8, receipt: []const u8 } };
+    const Fixture = struct { version: u8, native_definition: []const u8, digest: []const u8, records: struct { configuration: []const u8, policy: []const u8, request: []const u8, definition: []const u8, binding: []const u8, receipt_1: []const u8, receipt_2: []const u8, receipt_3: []const u8, receipt_4: []const u8, policy_change: []const u8, disposition: []const u8 }, keys: struct { configuration: []const u8, policy: []const u8, definition: []const u8, binding: []const u8, receipt: []const u8, disposition: []const u8 } };
     const parsed = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/catalog-v1.json"), .{});
     defer parsed.deinit();
     const fixture = parsed.value;
     try t.expectEqualStrings(@tagName(p.Growth.current_definition), fixture.native_definition);
     const req = try request();
     const created = try m.Definition.created(req, 17, 2);
-    const values = .{ owner.configuration, m.Policy{ .scope = req.scope, .principal = 17, .revision = 1, .inspect = true, .create = true }, req, created, m.Binding{ .scope = req.scope, .object = req.object, .revision = 1, .digest = try created.digest() } };
+    const policy: m.Policy = .{ .scope = req.scope, .principal = 17, .revision = 1, .inspect = true, .create = true };
+    const values = .{ owner.configuration, policy, req, created, m.Binding{ .scope = req.scope, .object = req.object, .revision = 1, .digest = try created.digest() }, m.PolicyChange{ .expected_revision = 0, .policy = policy }, m.Disposition{ .scope = req.scope, .origin = .external, .principal = 17, .input = 2, .payload = try m.Disposition.fingerprint(try p.Value.init("catalog-command")), .outcome = .initialized } };
     var buffer: [256]u8 = undefined;
-    inline for (.{ "configuration", "policy", "request", "definition", "binding" }, .{ 'c', 'p', 'q', 'd', 'n' }, values) |name, tag, value| {
+    inline for (.{ "configuration", "policy", "request", "definition", "binding", "policy_change", "disposition" }, .{ 'c', 'p', 'q', 'd', 'n', 'g', 'e' }, values) |name, tag, value| {
         const bytes = try p.Value.init(try std.fmt.hexToBytes(&buffer, @field(fixture.records, name)));
         try t.expect(bytes.eql(try r.encode(tag, value)));
         try t.expect(std.meta.eql(value, try r.decode(@TypeOf(value), tag, bytes)));
@@ -57,8 +58,8 @@ test "catalog records agree with independent layouts and reject incompatible byt
         try t.expect(std.meta.eql(receipt, try r.decode(m.Receipt, 'o', bytes)));
     }
     try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&buffer, fixture.digest), &try created.digest());
-    const keys = .{ r.key(req.scope.catalog, 'c', 0, 0), r.key(req.scope.catalog, 'p', 17, 0), r.key(req.scope.catalog, 'd', req.object, 1), try r.nameKey(req.scope.catalog, req.name), r.key(req.scope.catalog, 'o', 17, req.operation) };
-    inline for (.{ "configuration", "policy", "definition", "binding", "receipt" }, keys) |name, key| try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&buffer, @field(fixture.keys, name)), key.slice());
+    const keys = .{ r.key(req.scope.catalog, 'c', 0, 0), r.key(req.scope.catalog, 'p', 17, 0), r.key(req.scope.catalog, 'd', req.object, 1), try r.nameKey(req.scope.catalog, req.name), r.key(req.scope.catalog, 'o', 17, req.operation), r.key(req.scope.catalog, 'e', 2, 0) };
+    inline for (.{ "configuration", "policy", "definition", "binding", "receipt", "disposition" }, keys) |name, key| try t.expectEqualSlices(u8, try std.fmt.hexToBytes(&buffer, @field(fixture.keys, name)), key.slice());
 }
 test "catalog initialization binds its owner, administrator and current definition" {
     var store: Store = .{};
@@ -104,6 +105,37 @@ test "initialization refuses orphan records without changing their authority" {
     try t.expectEqual(0, count(&turn));
     try t.expectEqual(1, store.pages);
     try t.expectEqual(1, store.state.count());
+}
+test "catalog initialization composes with unrelated framework writes and refuses private namespace adoption" {
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture(17);
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
+    try owner.initialize(&turn);
+    try t.expectEqual(3, count(&turn));
+    try t.expect(store.state.get(s.GenServer.descriptor_key) == null);
+    try store.commit(turn);
+    turn = try store.capture(17);
+    try owner.initialize(&turn);
+    try t.expectEqual(0, count(&turn));
+    try turn.write(r.key(owner.configuration.scope.catalog, 'c', 0, 0), try r.encode('c', owner.configuration));
+    const before = turn.decision;
+    try t.expectError(error.QueryAfterMutation, owner.initialize(&turn));
+    try t.expect(std.meta.eql(before, turn.decision));
+    var empty: Store = .{};
+    defer empty.deinit();
+    turn = try empty.capture(17);
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
+    try turn.put(try p.Value.init("one"), .{});
+    try turn.put(try p.Value.init("two"), .{});
+    const full = turn.decision;
+    try t.expectError(error.MutationBudgetExceeded, owner.initialize(&turn));
+    try t.expect(std.meta.eql(full, turn.decision));
+    turn = try empty.capture(17);
+    try turn.write(s.GenServer.descriptor_key, s.GenServer.descriptor);
+    empty.fail_page = true;
+    try t.expectError(error.Unavailable, owner.initialize(&turn));
+    try t.expectError(error.Unavailable, turn.validate());
 }
 test "catalog integrity checks reject changed definitions, scopes, sources and malformed pages" {
     var store: Store = .{};

@@ -80,7 +80,7 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
 | `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
-| `CREATE TABLE` | Offline compiler and explicit Zig catalog helper; no public SQL route | [Columns, types and nullability](sql/create-table.md) |
+| `CREATE TABLE` | Offline compiler, shared Zig catalog client and explicit catalog host; query transports reject | [Columns, types and nullability](sql/create-table.md) |
 | `CREATE DOCUMENT` | Offline compiler; no publication | [Document declaration](sql/create-document.md) |
 | `CREATE KV` | Offline compiler; no publication | [Typed KV declaration](sql/create-kv.md) |
 | `GRANT` | Grammar only | [Privilege declaration](sql/grant.md) |
@@ -167,7 +167,9 @@ Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
 Public query transports reject writes. Applications can explicitly integrate
 the [bounded Table mutation helper](sql/insert.md) in their fenced writer.
 `CREATE TABLE/KV/DOCUMENT` compile offline through Fuze's
-[`Declaration` API](../../contracts/STATE_DECLARATION_V1.md). Other `CREATE`
+[`Declaration` API](../../contracts/STATE_DECLARATION_V1.md). Compatible empty
+Tables can also be created through the explicit Zig catalog client/host; native
+provisioning and query/mutation policy remain separate. Other `CREATE`
 forms, `GRANT`, `REVOKE` and connector forms of `SHOW` in the
 [reference grammar](../../contracts/sql/README.md) are grammar-only.
 None executes in the console, Board query workspace or Flight SQL.

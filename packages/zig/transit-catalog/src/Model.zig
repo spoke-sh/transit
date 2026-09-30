@@ -113,6 +113,64 @@ pub const Receipt = struct {
         try nativeId(self.input);
     }
 };
+pub const PolicyChange = struct {
+    expected_revision: u64,
+    policy: Policy,
+    pub fn validate(self: PolicyChange) !void {
+        try self.policy.validate();
+        if (self.policy.revision != try std.math.add(u64, self.expected_revision, 1)) return error.InvalidCatalogPolicy;
+    }
+};
+/// Commands use the same owned definitions and current-definition record codec.
+pub const Command = union(enum) {
+    initialize: Configuration,
+    create_table: CreateTable,
+    set_policy: PolicyChange,
+    pub fn encode(self: Command) !p.Value {
+        return switch (self) {
+            .initialize => |value| c.Records.encode('c', value),
+            .create_table => |value| c.Records.encode('q', value),
+            .set_policy => |value| c.Records.encode('g', value),
+        };
+    }
+    pub fn decode(value: p.Value) !Command {
+        try value.validate();
+        if (value.len < 5) return error.InvalidCatalogCommand;
+        return switch (value.data[4]) {
+            'c' => .{ .initialize = try c.Records.decode(Configuration, 'c', value) },
+            'q' => .{ .create_table = try c.Records.decode(CreateTable, 'q', value) },
+            'g' => .{ .set_policy = try c.Records.decode(PolicyChange, 'g', value) },
+            else => error.InvalidCatalogCommand,
+        };
+    }
+    pub fn scope(self: Command) Scope {
+        return switch (self) {
+            .initialize => |value| value.scope,
+            .create_table => |value| value.scope,
+            .set_policy => |value| value.policy.scope,
+        };
+    }
+};
+pub const Disposition = struct {
+    scope: Scope,
+    origin: enum(u8) { external = 1, process = 2, effect = 3 },
+    principal: u64,
+    input: u64,
+    payload: [32]u8,
+    outcome: enum(u8) { initialized = 1, policy_applied = 2, invalid_command = 3, denied = 4, identity_conflict = 5, stale_policy = 6 },
+    pub fn validate(self: Disposition) !void {
+        try self.scope.validate();
+        try nativeId(self.input);
+        if (self.principal > p.max_counter or (self.origin != .external and self.principal != 0)) return error.InvalidCatalogDisposition;
+    }
+    pub fn fingerprint(value: p.Value) ![32]u8 {
+        try value.validate();
+        var hash = std.crypto.hash.sha2.Sha256.init(.{});
+        hash.update("transit.catalog.input.v1\x00");
+        hash.update(value.slice());
+        return hash.finalResult();
+    }
+};
 pub fn nativeId(id: u64) !void {
     if (id == 0 or id > p.max_counter) return error.InvalidCatalogIdentity;
 }

@@ -83,6 +83,11 @@ fn restored(init: std.process.Init, directory: []const u8) !c.Client.Prepared {
     const bytes = try std.Io.Dir.cwd().readFileAlloc(init.io, try std.fmt.allocPrint(a, "{s}/prepared.json", .{directory}), a, .limited(c.Client.Prepared.max_saved_bytes));
     return c.Client.Prepared.restore(a, bytes);
 }
+fn hostConfig(init: std.process.Init, url: []const u8, directory: []const u8, config: Config) !void {
+    const seed = try std.fmt.allocPrint(init.arena.allocator(), "{s}/worker.key", .{directory});
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = seed, .data = "0808080808080808080808080808080808080808080808080808080808080808" });
+    try save(init, directory, "host.json", .{ .url = url, .realm = @as(u64, 46), .principal = @as(u64, 65536), .pid = config.writer.pid, .generation = config.writer.generation, .seed_file = seed, .activation_directory = directory, .interval_ms = @as(u32, 2), .request_timeout_ms = @as(u32, 10000), .role = .{ .catalog = owner(config).configuration } });
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "public")) return print(init, (try key(7)).public_key.toBytes());
@@ -95,24 +100,26 @@ pub fn main(init: std.process.Init) !void {
     errdefer if (wire.last_rejection) |reason| std.debug.print("Authority rejection: {s}\n", .{@tagName(reason)});
     var admin: Admin = .{ .wire = &wire, .key = try key(7) };
     admin.sequence = (try admin.query(.capabilities)).principal_sequence;
-    if (std.mem.eql(u8, mode, "provision")) {
+    if (std.mem.eql(u8, mode, "provision") or std.mem.eql(u8, mode, "provision-host")) {
         const config: Config = .{ .definition = g.current_definition, .writer = try admin.provision(65536, try key(8)) };
         _ = try admin.submit(.{ .grant = .{ .subject = 1234, .public_key = (try key(10)).public_key.toBytes(), .permissions = p.permission(.inspect) | p.permission(.send) } });
         _ = try admin.submit(.{ .grant_resource = .{ .resource = config.writer.resource, .subject = 1234, .permissions = p.State.permission(.inspect) | p.State.permission(.read) } });
-        _ = try wire.submit(try send(&wire, config, try p.Value.init("catalog.initialize")));
-        _ = try (try prepare(init, &wire, config)).submit(&wire);
+        if (std.mem.eql(u8, mode, "provision")) {
+            _ = try wire.submit(try send(&wire, config, try p.Value.init("catalog.initialize")));
+            _ = try (try prepare(init, &wire, config)).submit(&wire);
+        } else try hostConfig(init, args[1], directory, config);
         try save(init, directory, "catalog.json", config);
         return print(init, config);
     }
     var config = try load(Config, init, directory, "catalog.json");
     var caller: c.Client = .{ .transport = &wire, .connection = .{ .scope = owner(config).configuration.scope, .owner = config.writer.pid, .principal = 1234 }, .key = try key(10) };
-    if (std.mem.eql(u8, mode, "prepare-send")) {
+    if (std.mem.eql(u8, mode, "prepare-send") or std.mem.eql(u8, mode, "prepare-raw")) {
         if (args.len != 8) return error.Usage;
         const operation = try std.fmt.parseInt(u64, args[4], 10);
         const object = try std.fmt.parseInt(u64, args[5], 10);
         const table = try std.fmt.parseInt(u32, args[6], 10);
         const req = try c.Model.CreateTable.compile(owner(config).configuration.scope, operation, object, table, args[7]);
-        const prepared = try caller.prepareCreate(req);
+        const prepared: c.Client.Prepared = if (std.mem.eql(u8, mode, "prepare-send")) try caller.prepareCreate(req) else .{ .version = 1, .definition = g.current_definition, .connection = caller.connection, .signed = try send(&wire, config, try c.Records.encode('q', req)) };
         try save(init, directory, "prepared.json", prepared);
         try save(init, directory, "send.json", Frozen{ .definition = g.current_definition, .signed = prepared.signed });
         return print(init, .{ .prepared = operation });
@@ -120,6 +127,36 @@ pub fn main(init: std.process.Init) !void {
     if (std.mem.eql(u8, mode, "submit-send")) return print(init, try caller.submit(try restored(init, directory)));
     if (std.mem.eql(u8, mode, "status")) return print(init, try caller.status(try request(init, directory)));
     if (std.mem.eql(u8, mode, "observe")) return print(init, try caller.observe(try restored(init, directory), try std.fmt.parseInt(u64, args[4], 10)));
+    if (std.mem.eql(u8, mode, "input-disposition")) return print(init, try caller.inputDisposition(try restored(init, directory), try std.fmt.parseInt(u64, args[4], 10)));
+    if (std.mem.eql(u8, mode, "send-initialize") or std.mem.eql(u8, mode, "send-policy")) {
+        const control: c.Model.Command = if (std.mem.eql(u8, mode, "send-initialize")) .{ .initialize = owner(config).configuration } else blk: {
+            if (args.len != 7) return error.Usage;
+            const revision = try std.fmt.parseInt(u64, args[4], 10);
+            if (revision == 0) return error.InvalidCatalogPolicy;
+            break :blk .{ .set_policy = .{ .expected_revision = revision - 1, .policy = .{ .scope = caller.connection.scope, .principal = 1234, .revision = revision, .create = std.mem.eql(u8, args[5], "true"), .inspect = std.mem.eql(u8, args[6], "true") } } };
+        };
+        const frozen: Frozen = .{ .definition = g.current_definition, .signed = try send(&wire, config, try control.encode()) };
+        try save(init, directory, "control.json", frozen);
+        return print(init, try wire.submit(frozen.signed));
+    }
+    if (std.mem.eql(u8, mode, "write-host")) {
+        try hostConfig(init, args[1], directory, config);
+        return print(init, .{ .written = true });
+    }
+    if (std.mem.eql(u8, mode, "disposition") or std.mem.eql(u8, mode, "initial-snapshot")) {
+        const input = try std.fmt.parseInt(u64, args[4], 10);
+        const resources: s.client.ResourceReader = .{ .wire = &wire, .realm = 46, .principal = 1234, .key = try key(10) };
+        const address = c.Records.key(caller.connection.scope.catalog, 'e', input, 0);
+        if (std.mem.eql(u8, mode, "disposition")) {
+            const reader = try resources.readBatch(config.writer.resource, null, &.{address});
+            return print(init, if (try reader.read(address)) |value| try c.Records.decode(c.Model.Disposition, 'e', value) else @as(?c.Model.Disposition, null));
+        }
+        const keys = [_]p.Value{ s.GenServer.descriptor_key, c.Records.key(caller.connection.scope.catalog, 'c', 0, 0), c.Records.key(caller.connection.scope.catalog, 'p', 1234, 0), address };
+        const reader = try resources.readBatch(config.writer.resource, null, &keys);
+        var entries: [4]?g.Entry = undefined;
+        for (keys, &entries) |key_address, *slot| slot.* = try reader.entry(key_address);
+        return print(init, .{ .resource_revision = reader.view.revision, .entries = entries });
+    }
     if (std.mem.eql(u8, mode, "policy")) {
         if (args.len != 7) return error.Usage;
         const policy: c.Model.Policy = .{ .scope = caller.connection.scope, .principal = 1234, .revision = try std.fmt.parseInt(u64, args[4], 10), .create = std.mem.eql(u8, args[5], "true"), .inspect = std.mem.eql(u8, args[6], "true") };

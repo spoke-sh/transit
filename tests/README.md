@@ -127,6 +127,73 @@ completion and per-task evidence are retained under
 changes no production source. This qualifies the core lane and the focused caller
 schedule above, not a full clean suite or a supplied catalog host.
 
+### Supplied catalog host and explicit committed sources
+
+The `catalog` role in the supplied `transit-query-host` now runs the shared
+catalog behavior through GenServer. Initial framework/configuration/policy/input
+disposition publication fits one four-mutation turn. Creation keeps its original
+operation receipt; policy controls and rejected inputs retain separate attributed
+dispositions. No neutral administrative ABI or CLI/language SDK route is implied.
+
+`Turn.committed()` supplies the initialization composition's explicit read-only
+captured source. A new Station component test proves private inserts, updates and
+deletes stay out of both its point reads and pages, its view binding cannot change,
+reader failures poison the original proposal, and ordinary Table/Turn pages still
+reject after private mutations. The standalone Station tests pass. Catalog
+components pass 17 tests, including independent policy-command/disposition bytes,
+three-write helper composition, four-write behavior initialization, whole-proposal
+rollback, process/effect-origin rejection, stale controls, manual-catalog adoption
+refusal and poison at every behavior point-read boundary. Those private-store
+tests do not independently establish native authority or durability.
+
+On development source based on `bea9ed2f`, the expanded **`just test::catalog`
+passes against the actual supplied host** and disk-backed Ursula. It loses the
+host's initialization and creation commit receipts separately, holds exact retries,
+kills the worker, restarts node/storage, and recovers each original signed commit
+and receipt. Independent Python bytes verify the complete four-record initial
+publication at one resource revision. Reusing the old activation rejects;
+replacement workers run under fresh ownership. Duplicate initialization leaves
+policy unchanged. A revoked create policy causes a recorded denial even for a
+raw signed input that bypasses caller preparation. A later authorized input can
+apply the same operation while the original input disposition remains unchanged.
+Current native read denial also protects the signed caller's disposition API.
+The earlier manual-owner and signed-caller schedules still run in the same proof.
+
+The schedule takes **6.712 seconds**, with **512 reads**, **18 accepted turn
+responses**, one lost caller receipt, three lost owner receipts, eight resident
+authority pages, four mutations and a 127-byte maximum fixture value. It creates
+four applied Tables across two resources. The read count includes host polling
+and proof inspection; this expanded schedule is not an equivalent-workload
+latency comparison or a native catalog growth/power-loss proof. The catalog role
+allocates neither the query host's 4 MiB Arrow workspace nor its 1 MiB source
+adapter. ReleaseSafe binary hashes are:
+
+| Binary | SHA-256 |
+| --- | --- |
+| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Catalog proof | `7a1070c7f73412109396917041bfb136c0cde0b99a6c154dc496f78194db810e` |
+| Supplied host | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
+
+The first native attempt failed in a fixture metadata read with
+`StaleStateResource`: policy publication advanced the resource between acquiring
+its revision and reading a disposition. The fixture now uses the shared atomic
+metadata-batch API, preserving stale-cut rejection. Failure and corrected logs
+are `/tmp/transit-sql-catalog-host-native.log` and
+`/tmp/transit-sql-catalog-host-native-batches.log`. Full `just check` also passes,
+including package/contract checks, frontend checks/tests and the documentation
+build (`/tmp/transit-sql-catalog-host-check.log`). The real `just test::station`
+regression also passes, covering Tables, exact retries, policy changes, captured
+Arrow replies, worker/store recovery, fencing, registry, supervision and lifetime
+(`/tmp/transit-sql-catalog-host-station.log`). Final independent SQL, documentation
+and inventory checks pass: 182 declaration cases, 31 mutation cases, 4513 local
+links across 474 files, 52 invariants, 53 classified bounds and 12 SDK scenarios
+(`/tmp/transit-sql-catalog-host-final-checks.log`). The final component run also
+passes after expanding read-failure injection across initialization, creation and
+policy controls (`/tmp/transit-sql-catalog-host-poison-final.log`).
+No existing native/ABI definition or
+stored record layout changes; commands/dispositions and the explicit source are
+additive, and existing creation requests keep their exact bytes.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned

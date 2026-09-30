@@ -27,6 +27,7 @@ durable work is noticed; interactive reads do not wait for these workers.
 | Empty Table source | `{"table_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL,"requests":RESOURCE,"limits":{"pages":1000,"segments":100,"result_bytes":1048576}}}` | The local composition initializes an empty int64 Table and its peer policy in the owning activation; defaults `table: 1`, `key_name: "id"`, `value_name: "value"`; existing metadata rejects |
 | Table mutation writer | `{"table_writer":{"resource":RESOURCE,"initializer":ADMIN,"principal":CALLER,"permissions":7,"value_type":"utf8"}}` | Existing native resource and required association; exact initializer cast creates an empty typed Table and separate mutation policy. Defaults `table: 1`, names `id`/`value`, type `int64`; permissions are explicit |
 | Table query/writer | `{"table_query_writer":{"writer":{"resource":RESOURCE,"initializer":ADMIN,"principal":CALLER,"permissions":7},"peer":REQUESTER_PID,"requests":REQUEST_RESOURCE,"allow":true,"limits":{"pages":1000,"segments":100,"result_bytes":1048576}}}` | Empty typed Table; initializer is nonzero. Required writer resource association plus optional request resource association and separate read grant; two durable initialization turns before query/mutation dispatch |
+| Catalog | `{"catalog":{"scope":{"realm":REALM,"resource":RESOURCE,"catalog":CATALOG_ID},"owner":PID,"administrator":ADMIN}}` | Existing resource and required association; realm/PID match the activation. Exact administrator initialization publishes framework/configuration/policy/disposition in one turn |
 | Unified requester | `{"unified_requester":{"principal":QUERY_PRINCIPAL,"source":SOURCE_PID}}` | Dedicated requester PID/resource; separate first `UQI1` cast, authenticating the configured principal |
 | Finite service requester | `{"finite_service":{"service":{"service":1,"administrator":ADMIN,"observer":OBSERVER},"query_principal":CALLER,"source":SOURCE_PID,"binding_revision":1}}` | Composition with current service policy/publication and one active finite query |
 | Courier | `{"courier":{"destinations":[SOURCE_PID,REQUESTER_PID]}}` | Dedicated unscoped inspect/delivery/send principal; no execution/storage credentials |
@@ -49,6 +50,18 @@ mutations become admissible only after `TableQueryWriter.phase(reader)` reports
 mutation policy command and the combined owner's `QueryPolicyChange` revise
 their respective policies independently. See the [combined contract](../../contracts/TABLE_QUERY_WRITER_V1.md)
 for exact two-turn recovery and native metadata visibility.
+
+The `catalog` role uses [transit-catalog](../../packages/zig/transit-catalog/README.md)
+and its [declarative catalog contract](../../contracts/DECLARATIVE_CATALOG_V1.md).
+Send a cast with `(Model.Command{ .initialize = configuration }).encode()` from the
+configured administrator before allowing untrusted ingress. Initialization and
+creation each fit four mutations. The signed catalog client creates compatible
+empty two-column Tables and reads original operation receipts; it does not make
+them query sources or grant mutation access implicitly. Typed `set_policy`
+controls change separate create/inspect rights with a conditional revision.
+Control outcomes and rejected inputs have input-bound dispositions. Exact
+initialization repeats preserve revoked rights; fresh workers preserve the
+immutable configuration. This role allocates no query workspace or source adapter.
 
 Each OS worker owns one activation. Query execution uses a 4 MiB Arrow
 workspace; the source adds a 1 MiB adapter arena. The

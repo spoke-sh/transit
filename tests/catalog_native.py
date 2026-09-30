@@ -16,14 +16,15 @@ from storage import Fixture, free_port, wait_ready
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, proof):
+def run(node, proof, catalog_host):
     started = time.monotonic()
     counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0)
     with Fixture() as fixture:
         root = fixture.root
-        for name, binary in [('node', node), ('proof', proof)]:
+        for name, binary in [('node', node), ('proof', proof), ('host', catalog_host)]:
             shutil.copy2(binary, root / name)
         node, proof = str(root / 'node'), str(root / 'proof')
+        catalog_host = str(root / 'host')
         port = free_port()
         url = f'http://127.0.0.1:{port}'
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
@@ -33,19 +34,32 @@ def run(node, proof):
             ursula_url=fixture.url, bucket='catalog', journal='authority', port=port,
             resident_pages=8, request_timeout_ms=10000)))
         faults = {name: dict(lose=False, body=None, receipt=None, recovered=False) for name in ('send', 'turn')}
+        for name in ('host_initialize', 'host_create'):
+            faults[name] = dict(command='turn', lose=False, body=None, receipt=None, recovered=False, blocked=False)
         failures = []
+        active = 0
+        active_lock = threading.Lock()
 
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
 
             def do_POST(self):
+                nonlocal active
+                with active_lock:
+                    active += 1
                 body = self.rfile.read(int(self.headers['Content-Length']))
                 connection = HTTPConnection('127.0.0.1', port, timeout=15)
                 try:
                     envelope = json.loads(body)
                     if self.path == '/v1/query':
                         counts['reads'] += 1
+                    if any(f.get('blocked') and body == f['body'] for f in faults.values()):
+                        self.send_response(503)
+                        self.send_header('Content-Length', '2')
+                        self.end_headers()
+                        self.wfile.write(b'{}')
+                        return
                     connection.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = connection.getresponse()
                     data = response.read()
@@ -63,19 +77,25 @@ def run(node, proof):
                             if body == fault['body']:
                                 assert data == fault['receipt'], 'Exact native retry changed its receipt'
                                 fault['recovered'] = True
-                            if fault['lose'] and name in command:
+                            if fault['lose'] and fault.get('command', name) in command:
                                 fault.update(lose=False, body=body, receipt=data)
+                                if 'blocked' in fault:
+                                    fault['blocked'] = True
                                 data = b'{"position":0}'
                     self.send_response(response.status)
                     self.send_header('Content-Type', 'application/json')
                     self.send_header('Content-Length', str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # The schedule deliberately kills an uncertain worker.
                 except BaseException as error:
                     failures.append(repr(error))
                     raise
                 finally:
                     connection.close()
+                    with active_lock:
+                        active -= 1
 
         proxy = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
         thread = threading.Thread(target=proxy.serve_forever, daemon=True)
@@ -83,6 +103,34 @@ def run(node, proof):
         proxy_url = f'http://127.0.0.1:{proxy.server_port}'
         log = (root / 'node.log').open('w+')
         authority = None
+        worker = None
+        worker_log = (root / 'worker.log').open('w+')
+
+        def stop_worker():
+            nonlocal worker
+            if worker is not None:
+                worker.kill()
+                worker.wait(timeout=10)
+                worker = None
+            deadline = time.monotonic() + 5
+            while active:
+                assert time.monotonic() < deadline, 'Proxy did not drain'
+                time.sleep(.005)
+
+        def start_worker():
+            nonlocal worker
+            worker = subprocess.Popen([catalog_host, str(root / 'host.json')], env=fixture.env,
+                                      stdout=worker_log, stderr=subprocess.STDOUT)
+
+        def await_value(fn):
+            deadline = time.monotonic() + 20
+            while True:
+                value = fn()
+                if value:
+                    return value
+                assert worker is None or worker.poll() is None, 'Catalog host exited'
+                assert time.monotonic() < deadline, 'Catalog host did not progress'
+                time.sleep(.01)
 
         def start():
             nonlocal authority
@@ -209,18 +257,93 @@ def run(node, proof):
             invoke('revoke-reader')
             invoke('snapshot', error='AccessDenied')
             invoke('status', error='AccessDenied')
+
+            # A fresh resource uses the supplied GenServer host, not the manual
+            # fixture application. Lose both initialization and creation commits.
+            host_config = invoke('provision-host')
+            initialized = invoke('send-initialize')['position']
+            assert invoke('initial-snapshot', initialized)['entries'] == [None] * 4
+            faults['host_initialize']['lose'] = True
+            start_worker()
+            await_value(lambda: faults['host_initialize']['receipt'])
+            initial = invoke('initial-snapshot', initialized)
+            assert all(initial['entries']) and len({e['revision'] for e in initial['entries']}) == 1
+            assert bytes.fromhex(initial['entries'][0]['value']) == b'station.genserver.v1'
+            expected_scope = struct.pack('<QQQ', 46, host_config['writer']['resource'], maximum)
+            assert bytes.fromhex(initial['entries'][1]['value']) == b'TCA1c' + definition + expected_scope + struct.pack('<QQ', host_config['writer']['pid'], 1234)
+            assert bytes.fromhex(initial['entries'][2]['value']) == b'TCA1p' + definition + expected_scope + struct.pack('<QQBB', 1234, 1, 1, 1)
+            control_payload = bytes.fromhex(json.loads((root / 'control.json').read_text())['signed']['request']['command']['send']['value'])
+            initial_disposition = (b'TCA1e' + definition + expected_scope + struct.pack('<BQQ', 1, 1234, initialized)
+                                   + hashlib.sha256(b'transit.catalog.input.v1\0' + control_payload).digest() + b'\1')
+            assert bytes.fromhex(initial['entries'][3]['value']) == initial_disposition
+            stop_worker()
+            restart()
+            frozen = dict(definition=definition.hex(), signed=json.loads(faults['host_initialize']['body']))
+            (root / 'commit.json').write_text(json.dumps(frozen, separators=(',', ':')))
+            faults['host_initialize']['blocked'] = False
+            assert invoke('commit') == json.loads(faults['host_initialize']['receipt'])
+            assert invoke('initial-snapshot', initialized) == initial
+            reused = subprocess.run([catalog_host, str(root / 'host.json')], env=fixture.env, capture_output=True, text=True, timeout=10)
+            assert reused.returncode != 0 and 'FreshOwnershipRequired' in reused.stderr
+            invoke('reown')
+            invoke('write-host')
+            start_worker()
+            duplicate = invoke('send-initialize')['position']
+            assert await_value(lambda: invoke('disposition', duplicate))['outcome'] == 'initialized'
+            assert invoke('initial-snapshot', initialized)['entries'][1:3] == initial['entries'][1:3]
+
+            invoke('prepare-send', maximum, maximum, 9, statement)
+            faults['host_create']['lose'] = True
+            created_input = invoke('submit-send')['position']
+            await_value(lambda: faults['host_create']['receipt'])
+            created_status = invoke('status')
+            assert created_status['outcome'] == 'applied' and created_status['input'] == created_input
+            assert invoke('input-disposition', created_input) is None
+            stop_worker()
+            restart()
+            frozen = dict(definition=definition.hex(), signed=json.loads(faults['host_create']['body']))
+            (root / 'commit.json').write_text(json.dumps(frozen, separators=(',', ':')))
+            faults['host_create']['blocked'] = False
+            assert invoke('commit') == json.loads(faults['host_create']['receipt'])
+            assert invoke('status') == created_status
+            invoke('reown')
+            invoke('write-host')
+            start_worker()
+            denied = invoke('send-policy', 2, 'false', 'true')['position']
+            assert await_value(lambda: invoke('disposition', denied))['outcome'] == 'policy_applied'
+            other = statement.replace('items', 'other')
+            invoke('prepare-send', 2, 2, 10, other, error='CatalogDenied')
+            invoke('prepare-raw', 2, 2, 10, other)
+            rejected_prepared = (root / 'prepared.json').read_bytes()
+            rejected = invoke('submit-send')['position']
+            denied_status = await_value(lambda: invoke('input-disposition', rejected))
+            assert denied_status['outcome'] == 'denied' and denied_status['input'] == rejected
+            assert invoke('status') is None and invoke('observe', rejected) == 'processed'
+            assert invoke('snapshot')['entries'] == [None] * 4
+            restored = invoke('send-policy', 3, 'true', 'true')['position']
+            assert await_value(lambda: invoke('disposition', restored))['outcome'] == 'policy_applied'
+            invoke('prepare-send', 2, 2, 10, other)
+            accepted = invoke('submit-send')['position']
+            status = await_value(lambda: invoke('status'))
+            assert status['outcome'] == 'applied' and status['input'] == accepted
+            (root / 'prepared.json').write_bytes(rejected_prepared)
+            assert invoke('input-disposition', rejected) == denied_status
+            invoke('revoke-reader')
+            invoke('input-disposition', rejected, error='AccessDenied')
+            stop_worker()
             assert not failures and all(f['recovered'] for f in faults.values())
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256
             report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                           dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
                           seconds=round(time.monotonic() - started, 3), resident_pages=8, counts=counts,
-                          lost_caller_receipts=1, lost_writer_receipts=1,
-                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof')})
+                          lost_caller_receipts=1, lost_writer_receipts=3,
+                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host')})
             destination = ROOT / '.cache/verification/catalog/native.json'
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(json.dumps(report, indent=2) + '\n')
             print(json.dumps(report, indent=2))
         finally:
+            stop_worker()
             if authority is not None:
                 authority.kill()
                 authority.wait(timeout=10)
@@ -231,7 +354,11 @@ def run(node, proof):
             log.seek(0)
             if sys.exc_info()[0]:
                 sys.stderr.write(log.read()[-12000:])
+                worker_log.flush()
+                worker_log.seek(0)
+                sys.stderr.write(worker_log.read()[-12000:])
             log.close()
+            worker_log.close()
 
 
 if __name__ == '__main__':

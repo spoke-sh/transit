@@ -18,13 +18,20 @@ input observation and original-request status. Its owned `Prepared` values save
 and restore exact canonical bytes with mandatory definition checks. Submission
 does not re-sign uncertain work. Current create and inspect policies remain
 independent; admission, processing and application are separate outcomes.
+`inputDisposition` separately reads a supplied behavior's rejected-input outcome
+under current inspection rights, bound to the original send and input position.
 
 An application supplies an already authorized Station turn, explicit catalog
 configuration and native commit/recovery handling. Initialize in a separate turn.
-Initialization and creation need a page reader and no preceding private mutations
-so they can refuse orphan catalog records or Table rows at the captured revision.
-There is no supplied catalog host or CLI/SDK administrative route. The query
-console continues to reject CREATE. KV/Document creation, connector declarations,
+Initialization needs a page reader and permits unrelated private framework setup;
+private writes in the catalog namespace reject. Creation still needs a page reader
+and no preceding private mutations to refuse orphan Table rows at the captured cut.
+`Behavior` supplies a GenServer handler/guard, with atomic initialization,
+conditional administrator controls and durable input dispositions. The
+[`transit-query-host` catalog role](../../../apps/transit-query-host/README.md)
+hosts it with explicit configuration and fresh fenced ownership. There is no
+CLI/SDK administrative route. The query console continues to reject CREATE.
+KV/Document creation, connector declarations,
 dependency-bearing objects, replacement and removal are not implemented here.
 The [catalog v1 contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) owns exact policies,
 identities, records, limits and failure behavior. The

@@ -60,6 +60,12 @@ fn authorize(self: Self, turn: *s.Turn, create: bool) !u64 {
 pub fn initialize(self: Self, turn: *s.Turn) !void {
     try self.owner(turn);
     try self.administrator(turn);
+    const start = r.prefix(self.configuration.scope.catalog, 0);
+    // Unrelated framework setup can share this commit, but private catalog
+    // writes must never hide an orphan or manufacture completed initialization.
+    for (turn.decision.mutations) |slot| if (slot) |mutation| {
+        if (std.mem.startsWith(u8, mutation.key.slice(), start.data[0..10])) return error.QueryAfterMutation;
+    };
     const config = try r.encode('c', self.configuration);
     if (try turn.read(self.key('c', 0, 0))) |value| {
         _ = try r.decode(m.Configuration, 'c', value);
@@ -69,8 +75,8 @@ pub fn initialize(self: Self, turn: *s.Turn) !void {
     }
     // A missing configuration is not permission to adopt orphan catalog state.
     // One ordered page suffices to prove this namespace empty at the captured cut.
-    const start = r.prefix(self.configuration.scope.catalog, 0);
-    const page = try turn.page(start);
+    var source = turn.committed();
+    const page = try source.page(start);
     try validatePage(page, start, turn.view.revision);
     if (page.entries[0]) |entry| {
         if (std.mem.startsWith(u8, entry.key.slice(), start.data[0..10])) return error.CatalogAlreadyPopulated;

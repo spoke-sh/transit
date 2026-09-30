@@ -1554,13 +1554,17 @@
     },
     {
       "id": "SQL-CATALOG-01",
-      "claim": "Explicit catalog Table creation keeps its descriptor, immutable definition, name binding and exact operation result in one bounded private turn",
+      "claim": "Named Table creation, catalog bootstrap and policy controls preserve bounded atomic turns, exact recovery and current authority",
       "owner": "contracts/DECLARATIVE_CATALOG_V1.md",
       "implementation": [
         "packages/zig/transit-catalog/src/Catalog.zig",
         "packages/zig/transit-catalog/src/Model.zig",
         "packages/zig/transit-catalog/src/Records.zig",
         "packages/zig/transit-catalog/src/Client.zig",
+        "packages/zig/transit-catalog/src/Behavior.zig",
+        "packages/zig/transit-station/src/Turn.zig",
+        "apps/transit-query-host/main.zig",
+        "tests/catalog_native.py",
         "tests/catalog_contract.py"
       ],
       "profile": "declarative-catalog-v1/native-v1",
@@ -1576,11 +1580,13 @@
         "257 definitions over 33 bounded metadata pages, fixed source revision, malformed pages and live Table schema validation",
         "Independent four-record bytes at one native revision; caller-send and owner-commit receipt loss with exact recovery after disk restart",
         "No-write application duplicate, terminal name conflict, conflicting native retry, stale ownership and current native write/read denial",
-        "Owned canonical signed caller restore, pre-transport scope/signature rejection, separate pending/processed status and current create/inspect policy revocation"
+        "Owned canonical signed caller restore, pre-transport scope/signature rejection, separate pending/processed status and current create/inspect policy revocation",
+        "Supplied catalog host four-write initialization, control/rejection dispositions, lost initialization/creation commits, disk restart and fresh activation enforcement",
+        "Explicit committed turn source excludes private writes, preserves original read poison and rejects changed view binding; ordinary paged reads still reject after mutation"
       ],
-      "limits": "Explicit Zig integration, signed caller and test application only; no supplied catalog host, neutral ABI or administrative CLI/SDK route. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule has two applied Tables and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit Zig integration, signed caller and supplied catalog host; no neutral administrative ABI or CLI/SDK route. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates four applied Tables across manual/host resources and is not a native catalog growth or host power-loss proof.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component and disk recovery evidence; supplied host and installed caller proofs remain."
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }
   ]
 }

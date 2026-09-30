@@ -4,8 +4,9 @@
 helper creates an empty Table and publishes its definition, name binding and
 operation receipt in one resource turn. Native authority still validates current
 grants, ownership, fencing and atomic commit. This is an explicit application
-integration API with a shared signed Zig caller; no supplied catalog host, SQL
-administrative transport, CLI or language SDK route is enabled by this contract.
+integration API with a shared signed Zig caller and an explicit `catalog` role
+in `transit-query-host`. SQL query transports, CLI and language SDKs expose no
+catalog administration route.
 
 The implementation supports the two-column Table profile. KV/Document definitions
 compile [offline](STATE_DECLARATION_V1.md) but have no catalog creation operation.
@@ -46,7 +47,9 @@ writes nothing and cannot restore revoked rights. Foreign configuration or a
 missing/foreign stored contract definition rejects.
 Before first initialization, one ordered committed page proves the catalog key
 namespace empty. Orphan catalog records reject adoption; initialization therefore
-requires a page reader and a turn with no preceding private mutations. Physical
+requires a page reader. It rejects private writes in its own catalog namespace;
+unrelated framework setup may share the turn. The explicit committed source
+excludes those private writes from the orphan check. Physical
 Tables elsewhere in the resource do not become catalog objects implicitly.
 
 `setPolicy(turn, expected_revision, policy)` is administrator-only. The target
@@ -153,6 +156,68 @@ Only protocol feature support is cached; permissions and resource revisions are
 never reused across acquisitions. No retained snapshot or implicit input is
 created by metadata or status reads.
 
+`inputDisposition(prepared, input)` reads a supplied behavior's disposition for
+that original creation send under current inspect rights. It verifies the exact
+scope, external principal, input position and complete frame fingerprint. A
+missing disposition is not a successful creation: successful creation uses its
+operation receipt instead. Preserve each send's original prepared value and
+native receipt position separately from its application operation ID.
+
+## Supplied catalog behavior and host
+
+`Behavior.interface()` and `guard()` compose the private catalog with Station's
+GenServer. The supplied `transit-query-host` `catalog` role takes the exact
+`Model.Configuration`; its realm and owner must match the host's activation and
+its resource must match the required association. Native provisioning, grants
+and ownership are explicit prerequisites. Configuration files grant no authority.
+
+Before exposing untrusted ingress, send a Station cast containing
+`Model.Command{ .initialize = configuration }`, encoded with `encode()`, from
+the configured administrator.
+Its payload is the canonical `c` configuration record. Initial publication has
+four atomic writes: Station's framework descriptor, catalog configuration,
+administrator create/inspect policy and an input-bound `initialized` disposition.
+The committed source checks the catalog namespace while excluding the private
+framework descriptor. Neither initialization nor Table creation exceeds the
+ordinary four-mutation turn. A manual catalog lacking the framework descriptor
+is not adopted by this behavior.
+
+Duplicate initialization records a disposition for the new input without
+resetting configuration or policy. Existing configuration is checked on every
+dispatch. Replacement OS workers require fresh native ownership and a fresh
+activation marker, using the same immutable catalog configuration. The host's
+startup log establishes activation only; the durable initialization disposition
+establishes catalog readiness. The catalog role allocates no Arrow workspace or
+query-source adapter.
+
+`Model.Command.create_table` carries the existing `q` request bytes used by the
+signed creation client. Success records the original four-write operation
+receipt. `Model.Command.set_policy` uses tag `g` with an expected revision and
+complete next policy. Only the configured administrator can issue controls.
+Policy publication and its `policy_applied` input disposition commit together;
+an exact duplicate needs only the disposition write. A stale expected revision
+records `stale_policy` without changing policy. These typed controls do not
+implement SQL `GRANT/REVOKE` or change native grants.
+
+After initialization, the input guard records malformed frames, incompatible
+commands, non-external origins and unauthorized controls as bounded dispositions
+before other framework dispatch. Creation denial, changed application identity
+and stale policy controls also record dispositions. Their outcomes do not replace
+or rewrite the original operation receipt. An input rejected before catalog
+acceptance does not reserve its application operation ID. A new signed input can
+retry creation after policy changes; its earlier input disposition stays intact.
+Before initialization, unexpected input stops execution without consuming it;
+initialize through trusted provisioning before admitting other callers.
+
+Infrastructure/read failures and corrupt stored state do not become successful
+or rejected application results. Read errors poison the turn; other unclassified
+errors stop the supplied host with the input unconsumed. Lost native receipts
+remain exact pending commands until reconciled. A restarted worker cannot reuse
+an old activation or regenerate an uncertain command under its previous fence.
+Dispositions have no implicit expiry. Their source classification distinguishes
+external callers from process/effect input; only external input carries a
+principal attribution. Native input history retains the complete source evidence.
+
 ## Inspection and bounded pages
 
 `receipt` reads the current principal's original operation result; `definition`
@@ -205,13 +270,19 @@ identities retain the fixed Table profile. Arrays have no host padding.
 | `d` | Definition: scope, object u64, revision u64, name, source tag u8 (`1` Table), Table ID u32, schema, principal u64, operation u64, input u64 |
 | `n` | Binding: scope, object u64, revision u64, digest 32 bytes |
 | `o` | Receipt: CreateTable body without an inner header, principal u64, input u64, outcome u8 (`1` applied, `2` name conflict, `3` object conflict, `4` Table conflict) |
+| `g` | Policy control: expected revision u64, then the Policy body without an inner header |
+| `e` | Input disposition: scope, origin u8 (`1` external, `2` process, `3` effect), principal u64 (zero for non-external input), input u64, frame digest 32 bytes, outcome u8 (`1` initialized, `2` policy applied, `3` invalid command, `4` denied, `5` identity conflict, `6` stale policy) |
 
 The definition digest is SHA-256 of UTF-8
 `transit.catalog.definition.v1` plus NUL plus the complete encoded `d` record.
 Keys are `00 43` (NUL, `C`), catalog u64 big-endian and a tag byte. Name keys
 append normalized name bytes without a length; other keys append two big-endian
 u64 fields: configuration `(0,0)`, policy `(principal,0)`, definition
-`(object,revision)`, receipt `(principal,operation)`. Records also contain their
+`(object,revision)`, receipt `(principal,operation)`, disposition `(input,0)`.
+Policy-control commands are not stored as `g` keys. The disposition digest is
+SHA-256 of UTF-8 `transit.catalog.input.v1` plus NUL plus the complete Station
+frame bytes. A policy-control payload is 87 bytes and a disposition is 111 bytes.
+Records also contain their
 scope, so copying a record across resources/catalogs cannot change its meaning.
 The maximum request is 138 bytes, definition 163 bytes and receipt 155 bytes,
 within the existing 256-byte value and Station cast bounds. A name key is at most

@@ -1,6 +1,7 @@
 const std = @import("std");
 const q = @import("transit_query");
 const serving = @import("transit_serving");
+const catalog = @import("transit_catalog");
 const telemetry = q.wire.observability.telemetry;
 const s = q.station;
 const p = q.protocol;
@@ -24,6 +25,7 @@ const Config = struct {
         table_source: q.TableSource.Configuration,
         table_writer: q.TableMutationWriter.Configuration,
         table_query_writer: q.TableQueryWriter.Configuration,
+        catalog: catalog.Model.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: [2]u64 },
     },
@@ -49,6 +51,10 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer parsed.deinit();
     var config = parsed.value;
     if (config.principal == 0 or config.principal > p.max_counter or config.realm == 0 or config.interval_ms == 0 or config.interval_ms > 60000 or config.idle_max_interval_ms > 60000 or config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidConfiguration;
+    if (config.role == .catalog) {
+        try config.role.catalog.validate();
+        if (config.role.catalog.scope.realm != config.realm or config.role.catalog.owner != config.pid) return error.CatalogOwnerChanged;
+    }
     var key = if (bootstrap) key: {
         if (config.seed_file != null or config.role == .courier) return error.InvalidBootstrapConfiguration;
         var seed: [32]u8 = undefined;
@@ -83,7 +89,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         return err;
     };
     file.close(init.io);
-    const workspace = try init.gpa.alloc(u8, q.fuze.Unified.Arrow.working_bytes);
+    const workspace = try init.gpa.alloc(u8, if (config.role == .catalog) 0 else q.fuze.Unified.Arrow.working_bytes);
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
     server.failure_policy = .stop;
@@ -110,8 +116,13 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     var table: q.TableSource = .{ .configuration = if (config.role == .table_source) config.role.table_source else undefined, .source = &unified_source };
     var table_writer: q.TableMutationWriter = .{ .configuration = if (config.role == .table_writer) config.role.table_writer else undefined };
     var combined: q.TableQueryWriter = .{ .configuration = if (config.role == .table_query_writer) config.role.table_query_writer else undefined, .source = &unified_source };
+    var declarations: catalog.Behavior = .{ .configuration = if (config.role == .catalog) config.role.catalog else undefined };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
+        .catalog => blk: {
+            server.input_guard = declarations.guard();
+            break :blk declarations.interface();
+        },
         .finite_service => blk: {
             server.input_guard = finite.guard();
             break :blk finite.interface();

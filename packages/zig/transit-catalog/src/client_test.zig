@@ -68,4 +68,5 @@ test "catalog caller rejects changed scope, identity and signatures before trans
     try t.expectError(error.CatalogScopeChanged, client.prepareCreate(request));
     try t.expectError(error.CatalogScopeChanged, client.status(request));
     try t.expectError(error.InvalidCatalogIdentity, client.observe(prepared, 0));
+    try t.expectError(error.InvalidCatalogIdentity, client.inputDisposition(prepared, 0));
 }

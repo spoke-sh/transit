@@ -6,7 +6,9 @@ pub const Model = @import("Model.zig");
 pub const Records = @import("Records.zig");
 pub const Catalog = @import("Catalog.zig");
 pub const Client = @import("Client.zig");
+pub const Behavior = @import("Behavior.zig");
 test {
     _ = @import("catalog_test.zig");
     _ = @import("client_test.zig");
+    _ = @import("behavior_test.zig");
 }
