@@ -105,7 +105,13 @@ def run(binaries):
             if index:
                 fixture.start()
             for binary in binaries:
-                subprocess.run([str(binary), fixture.url, phase], env=fixture.env, check=True, timeout=120)
+                # Readiness reclaims 65 effect/output chains and 65 process/
+                # resource pairs through durable paged transactions. Its disk
+                # schedule has a separate finite budget from the small proofs.
+                budget = 600 if binary.name == "transit-readiness-proof" else 120
+                started = time.monotonic()
+                subprocess.run([str(binary), fixture.url, phase], env=fixture.env, check=True, timeout=budget)
+                print(f"Disk {binary.name}/{phase}: {time.monotonic()-started:.2f}s", flush=True)
             # SIGKILL tests the WAL boundary, not graceful shutdown flushes.
             fixture.stop()
     print("Disk WAL survives SIGKILL; one conditional successor and bounded replay verified.")
