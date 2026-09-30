@@ -801,19 +801,30 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             failure = sys.exc_info()[1]
             metadata_release.set()
             cleanup_errors = []
-            for client in clients:
+            def cleanup(label, action):
                 try:
-                    client.close()
+                    action()
                 except BaseException as error:
-                    error.add_note(f"Catalog cleanup surface: {client_names[id(client)]}")
+                    error.add_note(f'Catalog cleanup: {label}')
                     cleanup_errors.append(error)
-            stop_worker()
-            if authority is not None:
-                authority.kill()
-                authority.wait(timeout=10)
-            proxy.shutdown()
-            proxy.server_close()
-            thread.join(timeout=10)
+            for client in clients:
+                cleanup(client_names[id(client)], client.close)
+            # A failed drain must not skip authority shutdown, final evidence or
+            # private fixture retention. Killing the authority also releases any
+            # proxy request still inside its bounded upstream wait.
+            cleanup('worker and proxy drain', stop_worker)
+            def stop_authority():
+                if authority is not None:
+                    if authority.poll() is None:
+                        authority.kill()
+                    authority.wait(timeout=10)
+            cleanup('authority', stop_authority)
+            cleanup('proxy shutdown', proxy.shutdown)
+            cleanup('proxy handlers', proxy.server_close)
+            def join_proxy():
+                thread.join(timeout=10)
+                assert not thread.is_alive(), 'Proxy thread did not join'
+            cleanup('proxy thread', join_proxy)
             report['node_errors'] = diagnostic_errors(log)
             log.flush()
             log.seek(0)
@@ -827,7 +838,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             report['storage'] = dict(cold=cold, hot_bytes_limit=(8 if cold else 64) * 1024 * 1024,
                                     cold_objects=cold_store.data_objects() if cold_store else 0,
                                     cold_file_bytes=cold_store.file_bytes() if cold_store else 0)
-            if initial_node and failure is not None:
+            def retain_fixture():
                 # Retain the private failed fixture for accepted-work diagnosis,
                 # after joining every owned process. This is not a passed proof.
                 fixture.stop()
@@ -840,6 +851,8 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                     subprocess.run(['docker', 'stop', cold_store.name], check=True,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=15)
                     shutil.move(cold_store.root, retained / 'cold-store')
+            if initial_node and (failure is not None or cleanup_errors):
+                cleanup('private fixture retention', retain_fixture)
             report['cleanup_failures'] = [str(error) + ": " + ", ".join(error.__notes__) for error in cleanup_errors]
             record(failure is None and not cleanup_errors,
                    type(failure).__name__ if failure is not None else 'Cleanup' if cleanup_errors else None)
