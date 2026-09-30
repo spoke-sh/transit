@@ -1,5 +1,28 @@
 # Validation and milestone evidence
 
+## External fault supervisor and installed hosts
+
+The [external harness](verification/README.md#external-fault-testing) runs real
+node/counter/courier binaries and disk Ursula, retaining requested/observed faults,
+public request/reply histories, independent quiescent state checks and joined
+cleanup. At dirty source based on `a59e0d9c`, four rounds passed in 7.219 seconds.
+The expanded seed-19 run passed twelve rounds in 18.711 seconds, including output
+pagination beyond the native eight-entry page. Both runs recorded cleanup success.
+An earlier expanded run exposed a fixture omission of the fixed pagination position;
+its incomplete report remains retained and is not passing evidence.
+
+At dirty source based on `157469a4`, the installed SDK profile passed Python and
+Node independent consumers. Build stages took 20.952 and 2.018 seconds; the Python
+and Node fault schedules took 3.120 and 4.023 seconds. They checked byte-identical
+uncertainty, seedless host recovery, cancellation/join/disposal and current denial,
+with exactly two accepted inputs. Per-host histories and exact wheel/tarball/native
+hashes are retained. This covers those installed Linux hosts, not all SDKs.
+
+`just check` passed during this development run. The application, query and
+browser/reactive profiles, complete committed-HEAD clean suite and hosted cost
+remain separately recorded gates. SIGKILL is not host power loss; local durations
+do not establish hosted feedback budgets or a runtime performance target.
+
 ## Stored-definition recovery correction
 
 The former `LegacyAcceptedGrowthHistory` assertion instantiated the current

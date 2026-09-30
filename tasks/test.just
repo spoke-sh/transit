@@ -486,3 +486,11 @@ domain-simulation *args:
 # Qualify each component oracle using a compiling defect in its real owner.
 domain-simulation-mutations:
     python3 -B tests/verification/mutations.py --domain
+
+# External OS/network faults over owned binaries and actual disk Ursula.
+vortex *args:
+    zig build test-vortex -- {{args}}
+
+# Installed Python/Node, local application, query or browser/reactive faults.
+vortex-profile profile:
+    python3 -B tests/verification/external_profiles.py --profile {{quote(profile)}}

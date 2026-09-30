@@ -1023,6 +1023,13 @@ pub fn build(b: *std.Build) void {
     callers.has_side_effects = true;
     callers.stdio = .inherit;
     b.step("test-callers", "Prove two independent Zig applications against one generic node").dependOn(&callers.step);
+    const vortex = b.addSystemCommand(&.{ "python3", "-B" });
+    vortex.addFileArg(b.path("tests/verification/vortex.py"));
+    for ([_]*std.Build.Step.Compile{ node_artifact, cli_artifact, example_artifacts[0], delivery_artifact }) |artifact| vortex.addArtifactArg(artifact);
+    vortex.addPassthruArgs();
+    vortex.has_side_effects = true;
+    vortex.stdio = .inherit;
+    b.step("test-vortex", "Supervise real workers/courier/node and disk Ursula through external faults").dependOn(&vortex.step);
     const capacity = b.addExecutable(.{ .name = "transit-capacity-proof", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/capacity.zig"),
         .target = target,

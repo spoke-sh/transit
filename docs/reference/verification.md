@@ -71,6 +71,21 @@ component implementations with private-turn stores and independent contract
 assertions. Seeded replay compares their event records; these stores establish
 logical publication boundaries, not disk or remote-effect durability.
 
+The external fault supervisor runs the compiled node, counter worker and courier
+against disk-backed Ursula. It injects request/reply delay and loss, interrupts
+connections, pauses the courier, and kills/restarts processes against current
+history. Public reads check resource/input/output agreement, original delivery
+provenance, current permission, stale activation and bounded eligible progress.
+Histories distinguish requested faults from observed execution and retain exact
+signed attempts and receipts for the synthetic workload. A seed selects workload
+intent; operating-system scheduling remains nondeterministic.
+
+Separate external profiles install the Python and Node SDKs outside the checkout
+and exercise lost replies, seedless recovery, host cancellation/disposal and
+revoked retry. Application, query and reactive profiles use their owning local
+integration rigs. These results apply to the executed host/placement; they do not
+expand Kubernetes, browser, TLS or other-language support implicitly.
+
 Real disk/provider and service tests exercise acknowledgement loss, WAL recovery,
 current permissions and process interruption. Deployment tests exercise
 local, Compose and reference configurations. Browser checks test actual routes,

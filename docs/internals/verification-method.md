@@ -146,6 +146,35 @@ caller/courier integration proof retains responsibility for the actual binaries.
 
 ## Reproducibility
 
+The [external supervisor](../../tests/verification/vortex.py) tests whether those
+boundaries compose in real processes. An HTTP peer records signed requests and
+actual replies while injecting loss or delay. The same accepted principal/sequence
+must have the same request digest and receipt. A killed worker may lose its local
+pending bytes; recovery reads current history before any subsequent work.
+The courier must retry the deliberately lost receipt before its next restart.
+Public observations after each bounded round check the independent cumulative
+counter, one original output per input and one destination admission per output.
+Pagination fixes one authority position; rows cannot mix successive cuts.
+
+The supervisor uses owned processes and the existing disk Ursula fixture. It
+records requested signals separately from observed stops/exits, joins its proxy
+and children, and retains history, logs, binary identities and incomplete status.
+Its four-round ordinary workload always exercises all four network fault classes;
+the bounded extended workload repeats those classes with seeded values/delays.
+Observation occurs after workers stop, so this oracle establishes quiescent
+atomic correspondence, not a linearizability proof for arbitrary concurrent reads.
+SIGKILL establishes process-crash recovery under the provider contract, not power
+loss, corrupt media or rollback restoration.
+
+The [profile runner](../../tests/verification/external_profiles.py) keeps installed
+SDK, application, query and browser/reactive experiments separate. Existing rigs
+own their public operations, assertions and cleanup; the runner records exact
+commands, deadlines, logs and stage completion. Python and Node drivers additionally
+retain signed request/reply histories and actual host-ownership observations.
+Installing their artifacts outside the repository challenges packaging assumptions
+that shared Zig simulation cannot reach. Provider adapter fixtures do not certify
+an actual Kubernetes placement. An interrupted or skipped profile remains incomplete.
+
 The [component runner](../../tests/verification/domain_simulation.py) asks a
 narrower question: do independently stated contract properties survive reordered
 edits, discarded private turns and repeated recovery boundaries in each owner?

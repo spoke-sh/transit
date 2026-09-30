@@ -8,7 +8,7 @@ import sys
 from sdk_raw_client import run as schedule
 
 
-def run(node, cli, library, artifacts):
+def run(node, cli, library, artifacts, evidence=None):
     root = Path(__file__).resolve().parents[1]
     packages = Path(artifacts).resolve()
     def install(target):
@@ -26,7 +26,7 @@ def run(node, cli, library, artifacts):
         def invoke(mode, config):
             return subprocess.check_output(['node', script, mode, config], cwd=target, env=environment, timeout=30)
         return invoke
-    schedule(node, cli, library, install, 'Node')
+    schedule(node, cli, library, install, 'Node', evidence)
 
 
 if __name__ == '__main__': run(*sys.argv[1:])

@@ -1393,6 +1393,31 @@
       "limits": "Twelve four-edit Document rounds, one bounded checkpoint, sixteen Exchange rounds, four refresh rounds and eight activations per seed; at most 64 seeds. No physical provider, connector dispatch, arbitrary edited-trace replay or automated minimization.",
       "model": null,
       "qualification": "Executed results and compiling mutation outcomes belong in tests/README.md; artifacts preserve incomplete status."
+    },
+    {
+      "id": "SIM-05",
+      "claim": "External faults preserve accepted counter work, original delivery and exact retry across current disk history; installed hosts preserve uncertainty and owned I/O",
+      "owner": "docs/reference/verification.md",
+      "implementation": [
+        "tests/verification/vortex.py",
+        "tests/verification/external_profiles.py",
+        "tests/sdk_raw_client.py"
+      ],
+      "profile": "Owned native Linux binaries with disk Ursula, plus independently selected installed-host and local service rigs",
+      "tasks": [
+        "test::vortex",
+        "test::vortex-profile"
+      ],
+      "scenarios": [
+        "Requested/observed request and response loss/delay, connection interruption, SIGKILL/restart and courier pause/resume",
+        "Quiescent resource/input/output conservation and exact original destination admission provenance",
+        "Current denial, stale activation and finite eligible progress",
+        "Installed Python/Node uncertainty, seedless recovery, cancellation/disposal and revoked retry",
+        "Separately selected application installation/migration, query lifetimes and browser/reactive ownership"
+      ],
+      "limits": "4..32 external rounds. OS timing is nondeterministic; quiescent observations are not an arbitrary concurrent-read linearizability proof. Each selected profile has its own host/provider assumptions. No hardware power-loss or Kubernetes placement claim.",
+      "model": null,
+      "qualification": "Retain each run report and history; failed/incomplete profiles do not count as executed qualification. See tests/README.md."
     }
   ]
 }

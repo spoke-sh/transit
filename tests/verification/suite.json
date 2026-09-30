@@ -8,6 +8,7 @@
       "test::resource-simulation-smoke",
       "test::scheduler-simulation",
       "test::domain-simulation",
+      "test::vortex",
       "test::codecs",
       "test::dev-environment",
       "test::kubectl-transit",
@@ -131,6 +132,7 @@
       "test::server-application-capacity"
     ],
     "discovery": [
+      "test::vortex-profile",
       "test::mutations",
       "test::simulation-mutations",
       "test::resource-simulation-mutations",
