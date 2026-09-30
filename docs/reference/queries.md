@@ -78,6 +78,24 @@ operators and errors. The [delivery contract](../../contracts/STATION_QUERY_V1.m
 [query v1 contract](../../contracts/UNIFIED_QUERY_V1.md) own wire details.
 Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
 
+## Relational boundary
+
+COUNT and checked int64 SUM aggregate the selected rows of one declared source.
+They do not provide grouping or multi-source aggregation. Each query has one
+resource cut; there is no source-vector consistency mode, JOIN or GROUP BY
+execution contract. Querying two resources separately does not establish an
+atomic shared snapshot. Current Table notifications support finite refresh,
+not a complete update/delete stream for maintaining a join.
+
+SUM checks overflow in source order, including across pages. Reordering inputs
+or combining partition totals can change whether it fails; no parallel reduction
+or optimizer rewrite is implied. Worker replacement preserves accepted query
+identity and its retained basis within the captured profile, without providing
+automatic operator repartitioning. The
+[query reasoning](../internals/query-engine.md#relational-correctness-and-data-movement)
+explains why source consistency, multiplicity, arithmetic and complete coverage
+must be specified together when extending this boundary.
+
 ## Interactive sessions
 
 Selective Table queries use the ordered primary-key index: equality reads one
