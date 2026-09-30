@@ -23,6 +23,27 @@ before failed preparation completed. The minimized two-event schedule is retaine
 in `failed-preparation.json`; preparation now finishes before assigning the slot.
 This was a harness defect, not a discovered Transit protocol defect.
 
+At committed source `76ad31e3`, `just test::simulation-mutations` passed its
+unmodified baseline and detected both compiling real-core mutants. Omitting the
+route-order guard minimized to seven events; corrupting delivered output provenance
+minimized to five. Mutation executions took 9.626 and 6.235 seconds respectively,
+including minimization. Artifacts are in `.cache/verification/simulation-mutations/`.
+
+The expanded development run, `just test::simulation --seeds 64 --steps 128`,
+passed 70 traces and 10,535 events with identical replay in 246.809 seconds.
+It ran alongside repository checks on the shared host; its metadata identifies
+dirty source based on `6f629aaa`, the unchanged driver later committed in
+`76ad31e3`, and the oracle hash. `just check` passed formatting, package/unit and
+contract checks, verification ownership, frontend checks and the Docusaurus
+production build. These runs do not establish clean-checkout qualification or
+new hosted CI costs.
+
+After adding runner negative controls, the ordinary simulation passed the same
+14 traces / 749 events in 18.884 seconds and rejected both deliberately undrained
+work and incomplete output. The unchanged authority/resource property suite also
+passed its 40 traces / 1,687 steps in 14.345 seconds. These development runs were
+based on `76ad31e3` with the recorded runner/documentation changes.
+
 The profile does not execute application handlers, resource mutations, an
 automatic worker/courier scheduler, clocks, HTTP or real disk. Its progress check
 restores permissions and explicitly schedules finite eligible work with available

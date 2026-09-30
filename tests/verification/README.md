@@ -303,6 +303,11 @@ timeouts fail without becoming minimized invariant counterexamples. The store
 and oracle retain bounded test history in memory; they do not measure production
 resident-memory independence.
 
+The runner also intentionally leaves one input undrained and requires the actual
+driver's failed progress check to fail the task's checker, even though it agrees
+with the oracle. Removing the final observation must classify the trace as
+incomplete. These negative controls are counted separately from explored events.
+
 `.cache/verification/simulation.json` records revision/dirty status, compiler,
 binary/oracle hashes, generator, trace digests, counts, outcome coverage and time.
 Each invocation marks completion false before running, preventing an interrupted

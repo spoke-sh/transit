@@ -310,7 +310,7 @@ def run(binary, trace, directory):
         if any(line.get('trace') != str(path) for line in lines):
             return dict(kind='incomplete', reason='foreign trace output'), lines
         return compare(trace, lines), lines
-    except (ValueError, KeyError, TypeError) as failure:
+    except (ValueError, KeyError, TypeError, AttributeError) as failure:
         return dict(kind='invalid_output', reason=str(failure)), []
 
 
@@ -333,7 +333,9 @@ def main():
                     dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT)),
                     binary_sha256=hashlib.sha256(args.binary.read_bytes()).hexdigest(),
                     oracle_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
-                    zig=subprocess.check_output(['zig', 'version'], text=True).strip(), generator=GENERATOR)
+                    zig=subprocess.check_output(['zig', 'version'], text=True).strip(), generator=GENERATOR,
+                    configuration=dict(seeds=args.seeds, steps=args.steps,
+                                       trace=str(args.trace) if args.trace else None))
     report_path = evidence.parent / 'simulation.json'
     # A failed or interrupted new run must not leave a previous success looking
     # like the result of this invocation.
@@ -370,8 +372,20 @@ def main():
             actions_seen.update(action['kind'] for action in trace['actions'])
             outcomes_seen.update(line['failure'] or 'success' for line in lines)
             digests.append(hashlib.sha256(json.dumps(trace, sort_keys=True).encode()).hexdigest())
-    report = dict(identity, traces=len(traces), events=events, executions=2 * len(traces),
+        # Agreement with the oracle is insufficient for progress: both sides
+        # can agree that work remains. Intentionally omit the scheduled turn
+        # and require a failing progress result from the actual driver.
+        stalled = dict(version=1, profile='delivery', actions=[dict(kind='send'),
+                       dict(kind='progress'), dict(kind='assert_drained')])
+        failure, lines = run(args.binary, stalled, directory)
+        if failure is None or failure['kind'] != 'progress':
+            raise RuntimeError(f'progress negative control did not execute: {failure}')
+        if compare(stalled, lines[:-1])['kind'] != 'incomplete':
+            raise RuntimeError('incomplete output passed the checker')
+    report = dict(identity, traces=len(traces), events=events, executions=2 * len(traces) + 1,
                   actions=dict(actions_seen), outcomes=dict(outcomes_seen), trace_sha256=digests,
+                  negative_controls=['undrained_work', 'incomplete_observation'],
+                  negative_control_events=len(stalled['actions']),
                   elapsed_seconds=round(time.monotonic() - started, 3), completed=True)
     report_path.write_text(json.dumps(report, indent=2) + '\n')
     print(f'Delivery simulation: {len(traces)} traces, {events} events, identical replay; {report["elapsed_seconds"]}s')
