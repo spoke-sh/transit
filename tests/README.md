@@ -4767,8 +4767,12 @@ exclusions, 14 extensions, 44 documentation examples and 24 independent unified
 results across three source bases and eight page widths. Rebuilt Table/KV
 runtime inspection again uses five reads, no snapshots and no durable writes;
 revocation and the existing interactive controls pass. Individual inspection
-wall times are 16.9–19.5 ms in this run. The Document fixture remains in progress
-and is not counted as passed.
+wall times are 16.9–19.5 ms in this run. The Document fixture also completes:
+12 rows, 14 native reads per inspection, no snapshots or durable writes and
+current denial without output. DESCRIBE, SHOW and EXPLAIN take 50.25, 34.98 and
+35.12 ms respectively, including console startup; sampled peak RSS is 10.3 MiB.
+The Document fixture including provisioning and existing interactive checks
+takes 299.69 s. These are single-run observations, not comparative speedup claims.
 
 `just bindings::node-check` initially fails in this fresh worktree because
 Station imports the client package's `dist` exports, which the task only
@@ -4776,3 +4780,23 @@ checked with `--noEmit`. The task now builds that direct dependency first.
 The standalone check then passes strict types, formatting/lint and all ten
 Node handler/ownership tests. This is a task-dependency correction, not a
 substitute for installed-SDK runtime qualification.
+
+### Installed SQL inspection callers
+
+Python sync/async `inspect_sql` and TypeScript `inspectSql` expose owned typed
+description, Table-list and explanation results through the shared native owner.
+Python type checking and `just bindings::node-check` pass. After rebuilding the
+installed wheels/tarballs, `zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node -Dunified-source=table` passes the disk-backed recovery
+schedule in 62.05 s: 41 rows, six segments, eight resident authority pages and
+an 8 MiB hot store. All five native/port/installed callers agree on inspection
+details, full-width limits, output types and redacted literals without query
+admission; current revocation and permanent source retirement reject disclosure.
+The existing frozen retry, worker/node/store restart and released-pin checks pass.
+
+The first run reaches retirement but fails an incomplete assertion: typed SDKs
+preserve the authority's `StateResourceExpired` code, while native results also
+carry the mapped `ResourceUnavailable` error. The assertion now accepts that
+specific retirement rejection; no production error translation is changed.
+Other language SDKs and installed KV/Document inspection are not covered by
+this run.

@@ -118,6 +118,29 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 native = Native(library, proxy_url, connection)
                 port_client = Port(port_host, root, proxy_url, connection)
                 for factory in factories: callers.extend(factory(proxy_url, connection, root, kind))
+                inspectors = (native, port_client, *(caller for caller in callers if caller.inspection))
+                scope = json.loads((root / 'shell.json').read_text())['workspace']
+                inspection_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
+                    'DESCRIBE items;', 'SHOW TABLES;', 'EXPLAIN SELECT count(*) FROM items;',
+                    "EXPLAIN SELECT value FROM items WHERE value = 'redacted-literal' LIMIT 18446744073709551615;")]
+                sends = fault['console_sends']
+                for action in inspection_requests:
+                    expected = None
+                    for owner in inspectors:
+                        value = owner.call(action)['inspection']
+                        assert value['resource'] == connection['resource'] and value['name'] == 'items'
+                        assert value['source_kind'] == kind and len(value['contract']) == len(value['schema']) == 32
+                        assert int(value['policy_revision']) > 0
+                        assert 'redacted-literal' not in json.dumps(value)
+                        if expected is None: expected = value['details']
+                        assert value['details'] == expected, (value['details'], expected)
+                        if 'tables' in expected: assert expected['tables'] == (['items'] if kind == 'table' else [])
+                        if 'explanation' in expected:
+                            plan = expected['explanation']
+                            if plan['aggregate'] == 'count': assert plan['columns'] == [{'name': 'count', 'type': 'uint64'}]
+                            else: assert plan['limit'] == str(2**64-1) and plan['operators'] == ['scan', 'filter', 'limit', 'project']
+                assert sends == fault['console_sends'], 'inspection submitted query work'
+                print(f"Unified {kind}: SQL inspection agrees across {len(inspectors)} enabled native/port/SDK callers", flush=True)
                 uploader = callers[0] if callers else native
                 try:
                     upload(uploader, root)
@@ -174,6 +197,13 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 saved = (root / "cursor.json").read_bytes()
                 invoke("revoke", direct=True)
                 invoke("page", error="AccessDenied")
+                for owner in inspectors:
+                    for action in inspection_requests:
+                        try:
+                            owner.call(action)
+                            raise AssertionError('revoked SQL inspection succeeded')
+                        except Failure as failure:
+                            assert failure.status == 4, failure
                 for owner in (native, port_client, *callers):
                     try:
                         owner.call({'page': dict(namespace='1', cursor=saved.decode())})
@@ -253,14 +283,22 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     after = versions['next']
                     position = versions['position']
                 invoke('retire-source', direct=True)
+                # Native/port expose the mapped client error; typed SDKs retain
+                # the more specific authority rejection in their public code.
+                retired_errors = ('QuerySourceUnavailable', 'ResourceUnavailable', 'Rejected', 'AccessDenied', 'StateResourceExpired')
+                for owner in inspectors:
+                    for action in inspection_requests:
+                        try:
+                            owner.call(action)
+                            raise AssertionError('retired source disclosed SQL metadata')
+                        except Failure as failure:
+                            assert failure.detail['err'] in retired_errors, failure
                 for owner in (native, port_client, *callers):
                     try:
                         owner.call({'page': {'namespace': '1', 'cursor': None}})
                         raise AssertionError('retired source disclosed a completed result')
                     except Failure as failure:
-                        # SDK error types preserve the authority's concrete
-                        # protocol rejection when the ABI also supplies it.
-                        assert failure.detail['err'] in ('QuerySourceUnavailable', 'ResourceUnavailable', 'StateResourceExpired', 'Rejected', 'AccessDenied'), failure
+                        assert failure.detail['err'] in retired_errors, failure
                 assert cold.data_objects() > 0
                 print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:

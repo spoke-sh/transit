@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class Consumer:
-    def __init__(self, command, environment, directory):
+    def __init__(self, command, environment, directory, *, inspection=False):
+        self.inspection = inspection
         self.child = subprocess.Popen(command, env=environment, cwd=directory,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         try: assert self.read() == {'ready': True}
@@ -102,8 +103,8 @@ def install(root, languages):
             config = root/'client.json'
             config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'),
                 kind=kind, bundle=str(state/'bundle.bin'), arrow_site=str(Path(pyarrow.__file__).parent.parent))))
-            first = Consumer([python, '-B', script, 'sync', config], env, root)
-            try: second = Consumer([python, '-B', script, 'async', config], env, root)
+            first = Consumer([python, '-B', script, 'sync', config], env, root, inspection=True)
+            try: second = Consumer([python, '-B', script, 'async', config], env, root, inspection=True)
             except BaseException:
                 first.close()
                 raise
@@ -128,7 +129,7 @@ def install_node(root, fixtures):
     def open_callers(url, connection, state, kind):
         config = root/'client.json'
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state/'caller.seed'), kind=kind, bundle=str(state/'bundle.bin'))))
-        return [Consumer(['node', script, 'serve', config], env, root)]
+        return [Consumer(['node', script, 'serve', config], env, root, inspection=True)]
     return open_callers
 
 

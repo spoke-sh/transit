@@ -32,6 +32,17 @@ command. A rejected observation reports the durable behavior rejection. A null
 prepared command does not prove query completion: read `status(namespace)`.
 Namespaces and budgets retain the full unsigned 64-bit range.
 
+`inspect_sql(source, name, sql, budgets)` accepts `DESCRIBE name`, `SHOW TABLES`
+and `EXPLAIN SELECT ...`. Both client variants return an `Inspection` containing
+current resource/policy revisions, declaration/schema digests and typed
+`SourceDescription`, `TableListing` or `Explanation` details. Integers use Python
+`int`; collections use tuples. An explanation preserves operator order, the
+predicate's column/state or comparison/type, output columns and explicit
+budgets, and excludes literal values. `None` is an absent input limit or an
+unfiltered plan. The name is an alias for the one supplied source, not a global
+catalog. Inspection checks current access, acquires no snapshot and submits no
+query. See the [inspection contract](../../../../contracts/SQL_INSPECTION_V1.md).
+
 If submission raises `UncertainOperation`, persist its exact `recovery` bytes.
 Reopen a client if needed and submit `q.Prepared(saved_bytes)` unchanged. Never
 parse/re-encode those signed bytes or create a fresh command to resolve the
