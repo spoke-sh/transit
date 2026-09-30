@@ -24,9 +24,10 @@ and operations remain shared references below those entry points.
 | Native protocol | [Signed operations](reference/native.md) |
 
 The SQL statement index covers the complete checked grammar, including
-administrative forms that remain grammar-only. It also indexes absent operations
-such as INSERT, UPDATE and DELETE with their current application API alternatives.
-Each statement's page explains its support boundary before giving examples.
+administrative forms that remain grammar-only, executable inspection and bounded
+Table mutations. It also indexes absent operations with their current application
+API alternatives. Each statement's page explains its supported forms and enabled
+caller interfaces before giving examples.
 
 | Topic | Public documentation |
 | --- | --- |

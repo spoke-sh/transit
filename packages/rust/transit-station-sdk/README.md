@@ -29,3 +29,6 @@ jobs, accepted references and readers with exclusive runner borrows.
 
 The [unified query guide](docs/UNIFIED_QUERY.md) covers explicit v1 sources,
 persisted commands, exclusive caller ownership and owned nested Arrow results.
+
+The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes, owned
+request references, borrowed prepared commands and exact durable recovery.

@@ -5409,6 +5409,15 @@ recovery, binary TLS, current denial and authenticated disposal/followup. Its
 final mutation rerun takes **22.589 s** with 1685 reads and unchanged send/turn/
 fault counts and native digests. No skipped case is counted as passed.
 
+The next committed-HEAD `just ci-clean`, at
+`d5f909864d11025849c76da28b1c9c48d2745b16`, also exceeded the unchanged **180 s**
+query-delivery deadline in `test::growing-service`. Core, growing authority,
+signed service/maintenance and Station recovery completed first. The failed
+service task took 452.48 s; later lanes did not run. The retained clean checkout
+is `/var/tmp/transit-ci-ljgt0r26`. This is incomplete clean evidence for the
+Python/TypeScript checkpoint, not qualification of subsequent Ruby/Rust commits.
+No timeout or authority bound was relaxed.
+
 ### Installed Ruby Table mutation caller
 
 `just bindings::mutation-ruby` rebuilds and installs the public/native gems in
@@ -5437,3 +5446,38 @@ uses the existing generated definition and action/result validation. The ordinar
 Ruby SDK task now includes the mutation schedule; this focused evidence does not
 claim that the entire Ruby runner/connector regression was rerun for this additive
 adapter. CLI and seven other typed language mutation clients remain outstanding.
+
+### Installed Rust Table mutation caller
+
+`just bindings::mutation-rust` builds the public/native crates and an external
+consumer without source-checkout artifact overrides. The installed blocking
+client uses namespace **9223372036854775826**, rejects an altered full request
+commitment, preserves the borrowed prepared command across receipt loss, replaces
+its native caller and recovers the identical admitted send. It observes the
+one-row UPDATE result, then stops disclosure after current native read revocation.
+A separate compiler check rejects overlapping mutable borrows of the client.
+The executable runs after its consumer source, vendor directory and build outputs
+are removed, so its embedded native dependency owns execution.
+
+The focused schedule passes in **30.939 s**, including **12.434 s** for external
+compilation/installation and **2.311 s** for the Rust caller interval. It records
+**1587 reads**, **46 send responses**, **46 turn responses**, four lost caller
+receipts and one lost writer receipt. Four mutations, 256-byte stored values,
+eight resident authority pages and all five native artifact digests match the
+ABI/port record. These unpaired measurements include compilation and polling;
+they do not establish comparative SDK throughput. This installed extension
+exercises UPDATE recovery; shared native cases cover INSERT/UPDATE/DELETE and
+rollback.
+
+The first installed attempt stopped at a test-only lockfile equality assertion
+before mutation execution: Cargo pruned the unused optional Arrow dependency
+graph. No registry package version or checksum changed or was added. The consumer
+now requires every retained registry identity to match the packaged lock, rejects
+an unexpected Arrow dependency and builds with `--locked --offline` after that
+check. A source development check initially lacked embedded native artifacts;
+selecting the documented local native-directory override allowed it to pass.
+Neither initial failure is counted as mutation evidence.
+
+The ordinary Rust SDK task now includes this schedule. This focused result does
+not claim a rerun of the entire Rust runner/connector regression. CLI and six
+other typed language mutation clients remain outstanding.

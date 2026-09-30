@@ -88,6 +88,7 @@ rust-sdk-test: rust-build
     zig build transit-station-grpc-worker
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
+    just test::table-mutation --sdk rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build
@@ -248,6 +249,11 @@ mutation-node: node-build
 mutation-ruby: ruby-build
     ruby -c packages/ruby/transit-station/lib/transit/station/mutations.rb
     just test::table-mutation --sdk ruby
+
+# Installed Rust mutation caller, exclusive borrows and retained exact recovery.
+mutation-rust: rust-build
+    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
+    just test::table-mutation --sdk rust
 
 # Installed Python sync/async unified query APIs, shared fixtures and exact retry.
 unified-python source="kv": python-build

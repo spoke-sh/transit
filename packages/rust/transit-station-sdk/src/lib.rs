@@ -5,6 +5,7 @@ mod bridge;
 mod document;
 mod grpc;
 mod http;
+pub mod mutations;
 mod query;
 mod runner;
 mod table;

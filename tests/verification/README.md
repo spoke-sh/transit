@@ -516,6 +516,13 @@ owned Ruby worker and native port. Its installed schedule uses namespace
 after receipt loss, recovers the original command and enforces current status
 denial. `bindings::mutation-ruby` selects that schedule independently.
 
+`bindings::rust-sdk-test` adds owned requests and exclusively borrowed mutation
+calls through the existing native worker. The installed crate consumer uses
+namespace `9223372036854775826`, rejects an altered commitment, replaces the
+caller after receipt loss, recovers the original command and enforces current
+status denial. A separate compiler check rejects overlapping mutable borrows.
+`bindings::mutation-rust` selects this schedule independently.
+
 M25 registers `test::server-applications`, `test::server-application-faults` and
 `test::server-application-capacity` with invariant `CLI-03`. Their
 [selected proof evidence](../README.md#m25-local-application-qualification) keeps

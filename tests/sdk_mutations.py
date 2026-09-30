@@ -5,6 +5,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
+import tomllib
 from sdk_unified import Consumer
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +21,9 @@ def install(root, languages):
             continue
         if language == 'ruby':
             factories.append(install_ruby(root/'ruby'))
+            continue
+        if language == 'rust':
+            factories.append(install_rust(root/'rust'))
             continue
         if language != 'python': raise ValueError('Unsupported mutation SDK proof language')
         target = root/language
@@ -74,3 +79,48 @@ def install_ruby(target):
         config.write_text(json.dumps(dict(url=url,connection=connection,seed_file=str(state/'caller.seed'))))
         return Consumer(['ruby',str(script),str(config)],environment,target)
     return 'ruby',create
+
+
+def install_rust(target):
+    target.mkdir()
+    names = ('transit-client','transit-native-client','transit-station-sdk','transit-native-station')
+    for name in names:
+        with tarfile.open(ROOT/'.cache/bindings/rust'/f'{name}-0.2.0.crate') as archive:
+            archive.extractall(target/'vendor',filter='data')
+    (target/'src').mkdir()
+    shutil.copy2(ROOT/'tests/rust_mutation_sdk.rs',target/'src/main.rs')
+    manifest = '''[package]
+name = "transit-mutation-proof"
+version = "0.1.0"
+edition = "2024"
+[dependencies]
+transit-client = "=0.2.0"
+transit-station-sdk = "=0.2.0"
+serde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }
+[patch.crates-io]
+'''+''.join(f'{name} = {{ path = "vendor/{name}-0.2.0" }}\n' for name in names)
+    (target/'Cargo.toml').write_text(manifest)
+    lock = target/'vendor/transit-station-sdk-0.2.0/Cargo.lock'
+    shutil.copy2(lock,target/'Cargo.lock')
+    environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR','LD_LIBRARY_PATH','LIBRARY_PATH')}
+    subprocess.run(['cargo','check','--offline'],cwd=target,env=environment,check=True)
+    def registry(path):
+        return {(p['name'],p['version'],p['checksum']) for p in tomllib.loads(path.read_text())['package'] if 'source' in p}
+    # This caller leaves the optional Arrow reader disabled. Cargo removes that
+    # unused graph from a consumer lock; every retained version/checksum must
+    # still come from the packaged lock, with no new registry resolution.
+    selected = registry(target/'Cargo.lock')
+    assert selected and selected <= registry(lock)
+    assert not any(name.startswith('arrow-') for name, _, _ in selected)
+    subprocess.run(['cargo','build','--locked','--offline'],cwd=target,env=environment,check=True)
+    executable = target/'consumer'
+    shutil.copy2(target/'target/debug/transit-mutation-proof',executable)
+    (target/'src/main.rs').write_text('fn overlap(client: &mut transit_station_sdk::mutations::Client) { let a = &mut *client; let b = &mut *client; a.describe().unwrap(); b.describe().unwrap(); } fn main() {}')
+    rejected = subprocess.run(['cargo','check','--locked','--offline'],cwd=target,env=environment,capture_output=True,text=True)
+    assert rejected.returncode and 'cannot borrow `*client` as mutable more than once' in rejected.stderr
+    shutil.rmtree(target/'vendor'); shutil.rmtree(target/'target'); shutil.rmtree(target/'src')
+    def create(url,connection,state):
+        config = target/'client.json'
+        config.write_text(json.dumps(dict(url=url,connection=connection,seed_file=str(state/'caller.seed'))))
+        return Consumer([str(executable),str(config)],environment,target)
+    return 'rust',create
