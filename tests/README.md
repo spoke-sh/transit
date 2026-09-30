@@ -6796,12 +6796,31 @@ kind bases and eight page widths, plus nine explicit failure cases. Mutation and
 declaration fixtures also pass unchanged. The log is
 `/tmp/transit-sql-source-aliases-sql.log`. These are compiler/engine proofs;
 installed native/port/ten-SDK inspection and SQL-shell recovery checks are
-separate and remain pending, as does committed-head clean qualification.
+separate.
 
-Full `just check` passes on this source tree. The first installed proof attempt
+Full `just check` passes on the initial source tree and again at rebased
+`512ebcb4`, including the completion correction. The latter log is
+`/tmp/transit-sql-source-aliases-rebased-check.log`. The first installed attempt
 stops before provisioning because this fresh worktree has no built Python wheel;
-no caller case ran. Package artifacts must be built locally before the rerun.
-The failed log is `/tmp/transit-sql-source-aliases-installed.log`.
+no caller case ran. The failed log is
+`/tmp/transit-sql-source-aliases-installed.log`. All standalone Zig and ten SDK
+package builds subsequently pass. The installed run passes KV and Table in
+**386.41 s / 374.20 s**, including inspection agreement across thirteen
+native/port/SDK callers and SQL-shell admission, exact retry, source/requester/
+node/store recovery, current denial, retained rows and joined cleanup. Document
+qualification is still running. The log is
+`/tmp/transit-sql-source-aliases-installed-built.log`; its frozen binaries precede
+the rebase and completion-only correction, and these two source passes do not
+establish a complete three-source run.
+
+Committed-head `just ci-clean --lane core --work-root /var/tmp` passes all
+**22 tasks in 1309.02 s** at `34b0b96f`. The report is
+`.cache/ci/clean/34b0b96f175e-transit-ci-ocwpgt5q/core.meta.json`; the log is
+`/tmp/transit-sql-source-aliases-ci-clean-core.log`. Rebase onto merged #44 at
+`b8b224ce` preserves all three original commits unchanged. Clean growth at
+rebased `512ebcb4` is running with #44's catalog read reduction and the corrected
+snapshot fixture; the earlier failed growth attempts remain failed. Its log is
+`/tmp/transit-sql-source-aliases-ci-clean-growth.log`.
 
 The declarative benchmark adds an aliased selected-count component beside its
 unaliased equivalent; all **29 components** and nine rejection probes pass with
