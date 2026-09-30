@@ -1456,6 +1456,36 @@ logs are `/tmp/transit-sql-catalog-java-metadata-build.log` and
 `/tmp/transit-sql-catalog-java-metadata-native-fixed.log`. This focused result does
 not qualify .NET/Erlang/Elixir metadata or establish a latency comparison.
 
+### .NET catalog metadata
+
+.NET adds immutable definitions, Table sources, copied read-only page collections
+and mandatory original cursors through the existing bounded-task worker. Installed
+value checks cover full-width identities, retained immutable values, twelve
+malformed-page cases, requested identity, repeated/changed continuation cuts,
+empty final pages and absence. Existing actual native HTTP read cancellation,
+pre-admission cancellation and disposal/join checks remain in the schedule.
+
+The first installed attempt terminates with an unhandled `IncompatibleNative`
+exception in its new value fixture: locally constructed `JsonValue<int>` counters
+are not parsed neutral JSON numbers. Round-tripping the fixture through JSON
+establishes the intended boundary. No production decoder is relaxed. The initial
+failure is retained at `/tmp/transit-sql-catalog-dotnet-metadata-native.log`.
+
+Rebuilt installed packages pass `just test::catalog --sdk dotnet --grow 17` in
+**61.955 s**, including **4.816 s** installation. They agree with Zig/ABI/port/CLI
+on **23 definitions over three pages**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. The creation/control schedule retains six lost caller replies and three
+lost owner replies. Counts are 5003 reads, 2629 caller reads and 56 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. All seven
+successful .NET listings cost four signed reads with negotiated batch support.
+
+Source is development based on `5dce22fa`; native binary hashes are unchanged.
+Report/package hashes are `/tmp/transit-sql-catalog-dotnet-metadata-native.json`;
+logs are `/tmp/transit-sql-catalog-dotnet-metadata-build.log` and
+`/tmp/transit-sql-catalog-dotnet-metadata-native-fixed.log`. This focused result
+does not qualify Erlang/Elixir metadata or establish a latency comparison.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

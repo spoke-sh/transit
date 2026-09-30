@@ -49,6 +49,28 @@ joins active work and native cleanup. Tasks and managed fields are not durable
 recovery storage. Created Tables do not automatically become query sources or
 mutation writers.
 
+## Metadata
+
+`LookupAsync(name)` returns a nullable `Definition` for an exact case-sensitive
+ASCII name of one to sixteen bytes. `DefinitionAsync(objectId, revision)` reads
+an immutable definition by positive uint64 identities. Absence is `null`;
+malformed records and current denial are errors. Definitions own scope, original
+name, Table/schema and creation attribution.
+
+`ListAsync()` starts an ordered page; `ListAsync(page.Next)` continues only when
+`Next` is nonnull. `Page.Entries` is a copied read-only collection of at most eight
+values; an empty final page is possible. Retain every original `Cursor` field,
+including its mandatory matching contract definition, scope, resource revision
+and last name. A changed revision returns a native conflict; restart the listing
+and keep results from different revisions separate. Passing null starts a new
+listing, including after an exhausted page.
+
+These readers submit no command or snapshot and check current catalog inspection
+and native rights on each call, including continuation. Response validation checks
+requested identity, page order/scope and continuation cut. Their optional
+cancellation token follows the existing worker admission, cancellation and joined
+disposal rules. Reading metadata does not make a Table a query source.
+
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 policies, atomic publication, supported schemas and bounds. The
 [proof ledger](../../../../tests/README.md) records installed recovery,

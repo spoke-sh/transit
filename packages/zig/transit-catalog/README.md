@@ -30,7 +30,7 @@ bind continuation to the exact resource revision. A changed revision requires a
 fresh listing; current native or catalog denial rejects old cursors too. These
 metadata methods also use the shared neutral native ABI/port and explicit CLI;
 Python sync/async, TypeScript promise, Rust blocking, Ruby synchronous, C/C++
-owned-value and Java future methods also expose metadata. Other language SDK metadata methods remain separate work.
+owned-value, Java future and .NET task methods also expose metadata. Other language SDK metadata methods remain separate work.
 Signed pages fetch definitions and Table descriptors in two bounded batches at
 the same revision, rechecking current native grants on each. The dependent batch
 is replaced after each layer; it is not retained across calls.

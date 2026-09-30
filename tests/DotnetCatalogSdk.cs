@@ -39,11 +39,23 @@ static class Program
     }
     internal static JsonObject Json(C.CreateTable v) => Obj(("scope", Json(v.Scope)), ("operation", Decimal(v.Operation)), ("object", Decimal(v.ObjectId)), ("table", v.Table), ("name", v.Name),
         ("schema", Obj(("names", new JsonArray(v.Schema.Names.Select(n => (JsonNode?)JsonValue.Create(n)).ToArray())), ("value_type", Name(v.Schema.ValueType)))));
+    static C.Cursor Cursor(JsonNode v) => new(Text(v, "definition"), Scope(v["scope"]!), Number(v, "resource_revision"), Text(v, "after"));
+    static JsonObject Json(C.Cursor v) => Obj(("definition", v.Definition), ("scope", Json(v.Scope)), ("resource_revision", v.ResourceRevision), ("after", v.After));
+    static JsonObject Json(C.Definition v) => Obj(("scope", Json(v.Scope)), ("object", Decimal(v.ObjectId)), ("revision", Decimal(v.Revision)), ("name", v.Name),
+        ("source", Obj(("table", Obj(("id", v.Source.Table), ("schema", Obj(("names", new JsonArray(v.Source.Schema.Names.Select(n => (JsonNode?)JsonValue.Create(n)).ToArray())), ("value_type", Name(v.Source.Schema.ValueType)))))))),
+        ("principal", v.Principal), ("operation", Decimal(v.Operation)), ("input", v.Input));
+    static JsonObject Json(C.Page v) {
+        JsonArray entries = new(v.Entries.Select(d => (JsonNode?)Json(d)).ToArray()); while (entries.Count < 8) entries.Add((JsonNode?)null);
+        return Obj(("resource_revision", v.ResourceRevision), ("entries", entries), ("next", v.Next is null ? null : Json(v.Next)));
+    }
     static async Task<JsonObject> Call(C.Client client, JsonObject action) {
         var entry = action.Single(); var value = entry.Value!;
         switch (entry.Key) {
             case "capabilities": { var v = await client.CapabilitiesAsync(); return Obj(("capabilities", Obj(("version", v.Version), ("definition", v.Definition), ("initialize", v.Initialize), ("create_table", v.CreateTable), ("conditional_policy", v.ConditionalPolicy), ("current_metadata", v.CurrentMetadata), ("max_saved_bytes", v.MaxSavedBytes), ("table_columns", v.TableColumns)))); }
             case "describe": { var v = await client.DescribeAsync(); return Obj(("description", Obj(("configuration", Json(v.Configuration)), ("policy", Json(v.Policy)), ("resource_revision", v.ResourceRevision)))); }
+            case "lookup": { var v = await client.LookupAsync(value.GetValue<string>()); return Obj(("definition", v is null ? null : Json(v))); }
+            case "definition": { var v = await client.DefinitionAsync(Wide(value, "object"), Wide(value, "revision")); return Obj(("definition", v is null ? null : Json(v))); }
+            case "list": return Obj(("page", Json(await client.ListAsync(value is null ? null : Cursor(value)))));
             case "compile": { var v = await client.CompileSqlAsync(Text(value, "sql"), Wide(value, "operation"), Wide(value, "object"), checked((uint)Number(value, "table"))); return Obj(("compiled", Obj(("request", Json(v.Request)), ("canonical", Hex(v.Canonical))))); }
             case "prepare_initialize": return Obj(("prepared", Saved(await client.PrepareInitializeAsync(Configuration(value)))));
             case "prepare_create": return Obj(("prepared", Saved(await client.PrepareCreateAsync(Request(value)))));

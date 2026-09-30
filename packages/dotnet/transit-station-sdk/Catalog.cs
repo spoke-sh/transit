@@ -13,6 +13,12 @@ public static class Catalog
 {
     private static ulong Positive(ulong value) => value == 0 ? throw new ArgumentException("Expected positive catalog identity") : value;
     private static string Identifier(string value) => V.Text(value, 16).Length == 0 ? throw new ArgumentException("Empty catalog name") : value;
+    private static string MetadataName(string value) {
+        Identifier(value);
+        static bool Letter(char c) => c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or '_';
+        if (!Letter(value[0]) || value.Any(c => !Letter(c) && c is not (>= '0' and <= '9'))) throw new ArgumentException("Expected ASCII catalog name");
+        return value;
+    }
     private static string Name<T>(T value) where T : struct, Enum {
         if (!Enum.IsDefined(value)) throw new ArgumentException("Invalid catalog variant");
         return string.Concat(value.ToString().Select((c, i) => (i > 0 && char.IsUpper(c) ? "_" : "") + char.ToLowerInvariant(c)));
@@ -125,6 +131,60 @@ public static class Catalog
     }
     public sealed record Capabilities(byte Version, string Definition, bool Initialize, bool CreateTable, bool ConditionalPolicy, bool CurrentMetadata, ushort MaxSavedBytes, byte TableColumns);
     public sealed record Description(Configuration Configuration, Policy Policy, ulong ResourceRevision);
+    public sealed record TableSource {
+        public uint Table { get; }
+        public Schema Schema { get; }
+        public TableSource(uint table, Schema schema) {
+            ArgumentNullException.ThrowIfNull(schema);
+            if (table == 0 || schema.Names[0] == schema.Names[1]) throw new ArgumentException("Invalid catalog Table source");
+            foreach (string name in schema.Names) MetadataName(name);
+            Table = table; Schema = schema;
+        }
+    }
+    public sealed record Definition {
+        public Scope Scope { get; }
+        public ulong ObjectId { get; }
+        public ulong Revision { get; }
+        public string Name { get; }
+        public TableSource Source { get; }
+        public ulong Principal { get; }
+        public ulong Operation { get; }
+        public ulong Input { get; }
+        public Definition(Scope scope, ulong objectId, ulong revision, string name, TableSource source, ulong principal, ulong operation, ulong input) {
+            ArgumentNullException.ThrowIfNull(scope); ArgumentNullException.ThrowIfNull(source);
+            Scope = scope; ObjectId = Positive(objectId); Revision = Positive(revision); Name = MetadataName(name); Source = source;
+            Principal = V.Counter(principal, 0); Operation = Positive(operation); Input = V.Counter(input);
+        }
+    }
+    /// <summary>Persist all original fields; compatibility definition is mandatory.</summary>
+    public sealed record Cursor {
+        public string Definition { get; }
+        public Scope Scope { get; }
+        public ulong ResourceRevision { get; }
+        public string After { get; }
+        public Cursor(string definition, Scope scope, ulong resourceRevision, string after) {
+            if (definition != StationApi.Definition) throw new ArgumentException("Foreign catalog cursor definition");
+            ArgumentNullException.ThrowIfNull(scope); Definition = definition; Scope = scope;
+            ResourceRevision = V.Counter(resourceRevision); After = MetadataName(after);
+        }
+        internal JsonObject Wire() => V.Obj(("definition", Definition), ("scope", Scope.Wire()), ("resource_revision", ResourceRevision), ("after", After));
+    }
+    public sealed record Page {
+        public ulong ResourceRevision { get; }
+        public IReadOnlyList<Definition> Entries { get; }
+        public Cursor? Next { get; }
+        public Page(ulong resourceRevision, IReadOnlyList<Definition> entries, Cursor? next) {
+            ArgumentNullException.ThrowIfNull(entries); ResourceRevision = V.Counter(resourceRevision);
+            if (entries.Count > 8 || entries.Any(e => e is null)) throw new ArgumentException("Expected at most eight definitions");
+            var owned = entries.ToArray();
+            for (int i = 1; i < owned.Length; i++)
+                if (owned[i-1].Scope != owned[i].Scope || string.CompareOrdinal(owned[i-1].Name, owned[i].Name) >= 0) throw new ArgumentException("Expected ordered definitions in one scope");
+            if (next is not null && (owned.Length == 0 || next.Scope != owned[^1].Scope || next.After != owned[^1].Name || next.ResourceRevision != resourceRevision)) throw new ArgumentException("Cursor differs from catalog page");
+            Entries = Array.AsReadOnly(owned); Next = next;
+        }
+        public bool Equals(Page? other) => other is not null && ResourceRevision == other.ResourceRevision && Next == other.Next && Entries.SequenceEqual(other.Entries);
+        public override int GetHashCode() { HashCode hash = new(); hash.Add(ResourceRevision); hash.Add(Next); foreach (var entry in Entries) hash.Add(entry); return hash.ToHashCode(); }
+    }
     public sealed record Receipt(CreateTable Request, ulong Principal, ulong Input, Outcome Outcome);
     public sealed record Disposition(Scope Scope, Origin Origin, ulong Principal, ulong Input, Bytes Payload, DispositionOutcome Outcome);
     private static Scope ParseScope(JsonNode? value) {
@@ -144,6 +204,41 @@ public static class Catalog
         if (schema["names"] is not JsonArray { Count: 2 } names) throw V.Incompatible("catalog-columns");
         return new(ParseScope(v["scope"]), NativeValues.Wide(v["operation"], true), NativeValues.Wide(v["object"], true), checked((uint)V.Number(v["table"], 1)), V.String(v["name"]), new Schema(names.Select(n => V.String(n)).ToArray(), Variant<Type>(schema["value_type"])));
     }
+    private static T Metadata<T>(Func<T> decode) {
+        try { return decode(); }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or OverflowException) { throw V.Incompatible("catalog-metadata"); }
+    }
+    private static Definition? ParseDefinition(JsonNode? value) {
+        if (value is null) return null;
+        var v = Fields(value, "scope", "object", "revision", "name", "source", "principal", "operation", "input");
+        var table = Fields(Fields(v["source"], "table")["table"], "id", "schema"); var schema = Fields(table["schema"], "names", "value_type");
+        if (schema["names"] is not JsonArray { Count: 2 } names) throw V.Incompatible("catalog-columns");
+        TableSource source = new(checked((uint)V.Number(table["id"], 1)), new Schema(names.Select(n => V.String(n)).ToArray(), Variant<Type>(schema["value_type"])));
+        return new(ParseScope(v["scope"]), NativeValues.Wide(v["object"], true), NativeValues.Wide(v["revision"], true), V.String(v["name"]), source, V.Number(v["principal"]), NativeValues.Wide(v["operation"], true), V.Number(v["input"], 1));
+    }
+    internal static Definition? Resolved(JsonNode? value, Scope scope, string? name, ulong? objectId, ulong? revision) => Metadata(() => {
+        var found = ParseDefinition(value);
+        if (found is not null && (found.Scope != scope || (name is not null && found.Name != name) || (objectId is not null && found.ObjectId != objectId) || (revision is not null && found.Revision != revision))) throw V.Incompatible("catalog-request-identity");
+        return found;
+    });
+    private static Cursor? ParseCursor(JsonNode? value) {
+        if (value is null) return null;
+        var v = Fields(value, "definition", "scope", "resource_revision", "after");
+        return new(V.String(v["definition"]), ParseScope(v["scope"]), V.Number(v["resource_revision"], 1), V.String(v["after"]));
+    }
+    internal static Page ParsePage(JsonNode? value, Scope scope, Cursor? previous) => Metadata(() => {
+        var v = Fields(value, "resource_revision", "entries", "next");
+        if (v["entries"] is not JsonArray { Count: 8 } slots) throw V.Incompatible("catalog-page-slots");
+        List<Definition> entries = []; bool ended = false;
+        foreach (var slot in slots) {
+            var entry = ParseDefinition(slot);
+            if (entry is null) ended = true;
+            else { if (ended || entry.Scope != scope) throw V.Incompatible("catalog-page-scope"); entries.Add(entry); }
+        }
+        Page page = new(V.Number(v["resource_revision"], 1), entries, ParseCursor(v["next"]));
+        if (previous is not null && (page.ResourceRevision != previous.ResourceRevision || (entries.Count > 0 && string.CompareOrdinal(entries[0].Name, previous.After) <= 0))) throw V.Incompatible("catalog-continuation");
+        return page;
+    });
     internal static Capabilities ParseCapabilities(JsonNode? value) {
         var v = Fields(value, "version", "definition", "initialize", "create_table", "conditional_policy", "current_metadata", "max_saved_bytes", "table_columns");
         if (V.Number(v["version"], 1) != 1 || V.String(v["definition"]) != StationApi.Definition || V.Number(v["max_saved_bytes"], 1) != 8192 || V.Number(v["table_columns"], 1) != 2) throw V.Incompatible("catalog-capabilities");
@@ -173,6 +268,18 @@ public static class Catalog
             var v = Fields(Result(b.Catalog(V.Obj(("describe", V.Obj()))), "description"), "configuration", "policy", "resource_revision");
             return new Description(ParseConfiguration(v["configuration"]), ParsePolicy(v["policy"]), V.Number(v["resource_revision"]));
         }, cancellation);
+        public Task<Definition?> LookupAsync(string name, CancellationToken cancellation = default) {
+            string requested = MetadataName(name); var action = V.Obj(("lookup", requested));
+            return worker.Invoke(b => Resolved(Result(b.Catalog(action), "definition"), Connection.Scope, requested, null, null), cancellation);
+        }
+        public Task<Definition?> DefinitionAsync(ulong objectId, ulong revision, CancellationToken cancellation = default) {
+            var action = V.Obj(("definition", V.Obj(("object", Turn.Decimal(Positive(objectId))), ("revision", Turn.Decimal(Positive(revision))))));
+            return worker.Invoke(b => Resolved(Result(b.Catalog(action), "definition"), Connection.Scope, null, objectId, revision), cancellation);
+        }
+        public Task<Page> ListAsync(Cursor? cursor = null, CancellationToken cancellation = default) {
+            var action = V.Obj(("list", cursor?.Wire()));
+            return worker.Invoke(b => ParsePage(Result(b.Catalog(action), "page"), Connection.Scope, cursor), cancellation);
+        }
         public Task<Compiled> CompileSqlAsync(string sql, ulong operation, ulong objectId, uint table, CancellationToken cancellation = default) {
             if (V.Text(sql, 4096).Length == 0 || table == 0) throw new ArgumentException("Invalid catalog compilation");
             var action = V.Obj(("compile", V.Obj(("sql", sql), ("operation", Turn.Decimal(Positive(operation))), ("object", Turn.Decimal(Positive(objectId))), ("table", table))));

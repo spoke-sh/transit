@@ -22,8 +22,60 @@ internal static class CatalogValues
         try { await action(); } catch (TransitException error) { Check(error.Kind == kind); return; }
         throw new Exception("Expected catalog task failure");
     }
+    static JsonObject MetadataDefinition() => JsonNode.Parse("""
+        {"scope":{"realm":46,"resource":7,"catalog":"18446744073709551615"},
+         "object":"18446744073709551615","revision":"18446744073709551615","name":"items",
+         "source":{"table":{"id":4294967295,"schema":{"names":["id","value"],"value_type":"utf8"}}},
+         "principal":17,"operation":"18446744073709551615","input":9}
+        """)!.AsObject();
+    static JsonObject MetadataPage() {
+        string definition = (string)typeof(C).Assembly.GetType("Transit.Station.Sdk.Internal.NativeApi")!.GetField("Definition", BindingFlags.NonPublic | BindingFlags.Static)!.GetRawConstantValue()!;
+        JsonArray entries = new(MetadataDefinition()); while (entries.Count < 8) entries.Add((JsonNode?)null);
+        return JsonNode.Parse(Program.Obj(("resource_revision", 9), ("entries", entries), ("next", Program.Obj(("definition", definition), ("scope", MetadataDefinition()["scope"]!.DeepClone()), ("resource_revision", 9), ("after", "items")))).ToJsonString())!.AsObject();
+    }
+    static void MetadataValues(C.Scope scope) {
+        var wire = MetadataDefinition(); var definition = (C.Definition)Decode("Resolved", wire, scope, "items", null, null)!;
+        Check(definition.ObjectId == ulong.MaxValue && definition.Revision == ulong.MaxValue && definition.Operation == ulong.MaxValue && definition.Source.Table == uint.MaxValue);
+        wire["name"] = "changed"; wire["source"]!["table"]!["schema"]!["names"]![0] = "changed";
+        Check(definition.Name == "items" && definition.Source.Schema.Names[0] == "id");
+        Check(Decode("Resolved", null, scope, null, ulong.MaxValue, ulong.MaxValue) is null);
+        Check((C.Definition)Decode("Resolved", MetadataDefinition(), scope, null, ulong.MaxValue, ulong.MaxValue)! == definition);
+        foreach (object?[] args in new object?[][] {
+            [MetadataDefinition(), scope, "wrong", null, null], [MetadataDefinition(), scope, null, 1ul, ulong.MaxValue],
+            [MetadataDefinition(), scope, null, ulong.MaxValue, 1ul], [MetadataDefinition(), new C.Scope(scope.Resource, 1), null, null, null] })
+            Check(Reject<TransitException>(() => Decode("Resolved", args)).Kind == ErrorKind.IncompatibleNative);
+        var original = MetadataPage(); var page = (C.Page)Decode("ParsePage", original, scope, null)!; original["entries"]![0] = null;
+        Check(page.Entries.Count == 1 && page.Entries[0] == definition);
+        Reject<NotSupportedException>(() => ((IList<C.Definition>)page.Entries).Clear());
+        List<C.Definition> input = [definition]; C.Page copy = new(9, input, page.Next); input.Clear(); Check(copy == page && copy.GetHashCode() == page.GetHashCode());
+        for (int index = 0; index < 12; index++) {
+            var malformed = MetadataPage(); var entries = malformed["entries"]!.AsArray(); var next = malformed["next"]!;
+            switch (index) {
+                case 0: entries.RemoveAt(7); break;
+                case 1: entries[1] = entries[0]!.DeepClone(); entries[0] = null; break;
+                case 2: entries[1] = entries[0]!.DeepClone(); break;
+                case 3: entries[0]!["scope"]!["catalog"] = "1"; break;
+                case 4: next.AsObject().Remove("definition"); break;
+                case 5: next["definition"] = new string('0', 64); break;
+                case 6: next["after"] = "wrong"; break;
+                case 7: next["resource_revision"] = 10; break;
+                case 8: entries[0]!["object"] = ulong.MaxValue; break;
+                case 9: entries[0]!["name"] = "bad-name"; break;
+                case 10: malformed["extra"] = true; break;
+                case 11: entries[0]!["source"]!["table"]!["schema"]!["names"]![1] = "id"; break;
+            }
+            Check(Reject<TransitException>(() => Decode("ParsePage", malformed, scope, null)).Kind == ErrorKind.IncompatibleNative);
+        }
+        Check(Reject<TransitException>(() => Decode("ParsePage", MetadataPage(), scope, page.Next)).Kind == ErrorKind.IncompatibleNative);
+        C.Cursor previous = new(page.Next!.Definition, scope, 8, "a");
+        Check(Reject<TransitException>(() => Decode("ParsePage", MetadataPage(), scope, previous)).Kind == ErrorKind.IncompatibleNative);
+        var empty = MetadataPage(); empty["entries"]![0] = null; empty["next"] = null;
+        Check(((C.Page)Decode("ParsePage", empty, scope, page.Next)!).Entries.Count == 0);
+        Reject<ArgumentException>(() => new C.Cursor(new string('0', 64), scope, 9, "items"));
+    }
     internal static async Task Run(string root) {
         C.Scope scope = new(new ResourceRef(46, 7), ulong.MaxValue);
+        MetadataValues(scope);
         Reject<ArgumentException>(() => new C.Scope(scope.Resource, 0));
         Reject<ArgumentException>(() => new C.Connection(new ProcessRef(47, 3), scope));
         foreach (byte[] bytes in new[] { Array.Empty<byte>(), new byte[8193], new byte[] {255} }) Reject<ArgumentException>(() => new C.Prepared(new Bytes(bytes)));
@@ -67,6 +119,6 @@ internal static class CatalogValues
         } finally { peer.Dispose(); await (closing ?? client.DisposeAsync().AsTask()).WaitAsync(TimeSpan.FromSeconds(15)); }
         Check(!thread.IsAlive); await Expect(ErrorKind.Closed, () => client.CapabilitiesAsync());
         File.Delete(seed);
-        Console.WriteLine(".NET catalog immutable values, uncertain receipt decoding and native read cancellation/join passed.");
+        Console.WriteLine(".NET catalog metadata, immutable values, uncertain receipt decoding and native read cancellation/join passed.");
     }
 }
