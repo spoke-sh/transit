@@ -22,7 +22,7 @@ struct Config {
     bool queries;
     explicit Config(char **a) : mode(a[1]), url(a[2]), seed(a[7]), role(a[9]), pending(a[11]), output(a[12]), fixtures(a[13]), wrong(a[15]),
         realm(std::stoull(a[3])), principal(std::stoull(a[4])), pid(std::stoull(a[5])), generation(std::stoull(a[6])), peer(std::stoull(a[8])), resource(std::stoull(a[10])), queries(std::string(a[14]) == "1") {}
-    ServiceConfig service() const { auto client = ClientConfig::growing(url); client.timeout(3000); ServiceConfig value(client, ProcessRef(realm, pid), principal, generation, seed); value.query_results(queries); return value; }
+    ServiceConfig service() const { auto client = ClientConfig::growing(url); ServiceConfig value(client, ProcessRef(realm, pid), principal, generation, seed); value.query_results(queries); return value; }
 };
 static Bytes read_file(const std::string &path) {
     std::ifstream file(path, std::ios::binary); assert(file); return Bytes{std::istreambuf_iterator<char>(file), {}};
