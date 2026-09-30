@@ -91,19 +91,22 @@ finite schedules, not a complete cutover qualification or performance guarantee.
 | Current Work Items browser | Passed complete pages, publication/schema changes, gateway replacement, saved upload recovery/cancellation, fresh query generation, current denial and responsive keyboard/axe checks in 93.48 seconds. Largest sampled gateway RSS was 28,954,624 bytes |
 | Reference Station and counter launchers | Passed registry/calls/current Arrow, real pod loss with same-PID fresh activation, worker upgrades, Board provenance, authority restart and persistent stop/start. Counter also passed queued work through image replacement, logical suspension/provider stop and courier recovery |
 | Immutable page proof | Current v1 roots/checkpoints, page writes, read-only recovery and trimming passed with 64 keys, 17,088 cache bytes and zero recovery writes |
-| Current SDK unified codecs | All ten installed targets passed three source encodings, six scalar types, five cell states and malformed/unsupported-version rejection. The full source execution matrix remains separate |
+| Current SDK unified matrix | All ten installed targets passed KV, Table and Document codecs and complete source schedules: frozen upload retry, worker/node/store recovery, current prefix denial and retired-source refusal. KV: 41 rows / six segments / 13,584 bytes / 231.00 seconds; Table: 41 / six / 13,584 / 248.59 seconds; Document: 12 / two / 9,880 / 1,742.66 seconds. These runs used disk-backed temporary storage and eight/eight/64 resident authority pages |
+| Current core service/caller follow-up | Passed signed service recovery, background expiry/checkpointing, effect uncertainty without replay dispatch, runtime upgrade fencing, runnable counter/byte-log examples, inspection and state APIs |
+| Physical-disk phase measurements | Standalone readiness write/recover/checkpoint/trim recovery passed in 348.45 / 6.88 / 5.48 / 4.97 seconds. Kernel write/recover/checkpoint/trim recovery passed in 27.47 / 79.40 / 1.87 / 3.32 seconds. The shared-store schedule exceeded its previous 120-second phase budget; each phase now has a finite 600-second test limit and prints its actual cost |
 
 The earlier Table, interactive, serving, reactive and installation executions
 precede the later Station-format/definition change. The rows explicitly marked
 current, the KV/Document schedules and installed-language executions use the new
 definition; earlier results are not substituted for those reruns.
-The all-language query execution matrix, mixed-language interoperation and final
-committed-HEAD clean CI remain in progress. A clean CI attempt stopped at a
-transient storage failure in Station's restart fixture; an interoperation attempt
-stopped at a worker recovery event after a storage timeout. Earlier all-language
-builds also exhausted shared temporary storage. Clean CI now assigns its own
-disk-backed temporary directory after entering Nix. These failed or interrupted
-runs are not passes. No skipped schedule or earlier
+Mixed-language interoperation and final committed-HEAD clean CI remain in
+progress. Earlier clean CI attempts stopped at transient Station storage errors
+and storage phase time limits. Interoperation attempts stopped at recoverable
+dispatch/read failures; the driver now uses explicit ready checks, saved-request
+reconciliation and bounded read retries, with injected faults for each language.
+Earlier all-language builds also exhausted shared temporary storage. Clean CI
+now assigns its own disk-backed temporary directory after entering Nix. These
+failed or interrupted runs are not passes. No skipped schedule or earlier
 historical result is counted as a pass for the replacement.
 
 ## M19 qualification
