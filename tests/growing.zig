@@ -102,7 +102,9 @@ fn incompatibleHistory(journal: *Journal, page_store: *adapter.PackedPageStore, 
         }
         var before = try incompatible.store.journal.read(0);
         defer before.deinit();
-        try t.expectError(if (index == 0) error.InvalidEnumTag else error.MissingField, Engine.open(&incompatible, page_store, genesis));
+        const expected_error = if (index == 0) error.InvalidEnumTag else error.MissingField;
+        try t.expectError(expected_error, incompatible.store.read(0));
+        try t.expectError(expected_error, Engine.open(&incompatible, page_store, genesis));
         try t.expectEqual(@as(u64, 1), try incompatible.tail());
         var after = try incompatible.store.journal.read(0);
         defer after.deinit();
@@ -341,6 +343,10 @@ pub fn main(init: std.process.Init) !void {
     var wrong = genesis;
     wrong.realm += 1;
     try t.expectError(error.WrongProtocolRealm, Engine.open(&journal, &page_store, wrong));
+    if (!checkpoint and !trimmed) {
+        var reopened: adapter.Store = .{ .journal = journal.store.journal };
+        try t.expect(std.meta.eql((try reopened.read(0)).?, (try journal.store.read(0)).?));
+    }
     try incompatibleHistory(&journal, &page_store, genesis, writing);
     // Remove page storage only in the disposable fixture, after all
     // restart assertions. Missing required content must not become empty state.

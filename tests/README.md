@@ -5129,3 +5129,25 @@ The isolated checkout and failure evidence remain at
 `/var/tmp/transit-ci-rb8z_6yk`. A replacement current-owner definition-rejection
 proof and new committed-HEAD validation are tracked separately; the failed run
 is not a clean pass.
+
+### Consolidated storage definition rejection
+
+`just test::growing` passes after replacing the obsolete legacy-adapter assertion.
+A fresh current adapter reads valid genesis history. Separate disk-backed fixture
+journals with a missing or foreign head definition reject through both `Store.read`
+and `Engine.open`, before and after provider restart. Their tails and stored bytes
+remain unchanged. The first replacement compared append-input ordering to Ursula's
+canonical JSON and failed; the corrected proof captures the stored bytes before
+rejection and compares them after, preserving the intended no-rewrite assertion.
+
+The final write/recover/checkpoint/trim-recover phases take **115.883 / 3.918 /
+6.575 / 3.734 s** with one resident page, 64 rows and 1011 catalog records before
+the checkpoint. All existing root, mailbox, captured-view, grant, exact-receipt,
+trim and missing-page checks remain. This focused pass does not turn the earlier
+incomplete clean-CI run into a pass.
+
+On the replacement definition, `just test::client-abi` and `just bindings::native`
+also pass canonical signing, missing/foreign-definition refusal, seedless exact
+recovery after host/store restart, current revocation, poisoned-read controls,
+shared local codecs and six independently decoded query segments. Installed
+language/browser cutover schedules and complete committed-HEAD CI remain separate.
