@@ -11,7 +11,8 @@ submit to an explicit
 integration. The [catalog CLI](../../../apps/transit-cli/docs/catalog.md)
 compiles, saves and explicitly submits these declarations through the same owner.
 Python exposes [typed sync/async catalog methods](../../../packages/python/transit-station/docs/catalog.md);
-TypeScript exposes [typed promise methods](../../../packages/ts/transit-station-sdk/docs/catalog.md).
+TypeScript exposes [typed promise methods](../../../packages/ts/transit-station-sdk/docs/catalog.md);
+Rust exposes [typed blocking methods](../../../packages/rust/transit-station-sdk/docs/CATALOG.md).
 Query interfaces reject the statement. Board and other language SDKs have no
 administrative route for it. Neither compilation nor the
 helper provisions a native resource, chooses a writer, grants access or registers

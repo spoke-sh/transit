@@ -91,6 +91,7 @@ rust-sdk-test: rust-build
     python3 -B tests/rust_station_sdk.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so .cache/bindings/rust zig-out/bin/transit-station-http-worker
     python3 -B tests/sdk_grpc_runner.py zig-out/bin/transit-node zig-out/bin/rey-cli zig-out/lib/libtransit_client.so zig-out/bin/transit-station-grpc-worker .cache/bindings --language rust
     just test::table-mutation --sdk rust
+    just test::catalog --sdk rust
 
 # Build independent Ruby gems; native executables remain separate dependencies.
 ruby-build: build
@@ -329,3 +330,8 @@ catalog-python: python-build
 # Installed TypeScript catalog caller with generated runtime checks and saved recovery.
 catalog-node: node-build node-check
     just test::catalog --sdk node
+
+# Installed Rust catalog caller with exclusive borrows and saved recovery.
+catalog-rust: rust-build
+    cargo fmt --manifest-path packages/rust/transit-station-sdk/Cargo.toml --check
+    just test::catalog --sdk rust

@@ -7,8 +7,9 @@ grants, ownership, fencing and atomic commit. This is an explicit application
 integration API with shared Zig/C ABI/native-port callers and an explicit
 `catalog` role in `transit-query-host`. The explicit
 [catalog CLI](../apps/transit-cli/docs/catalog.md) composes the same caller.
-Python exposes [typed sync/async catalog callers](../packages/python/transit-station/docs/catalog.md)
-and TypeScript exposes [typed promise methods](../packages/ts/transit-station-sdk/docs/catalog.md).
+Python exposes [typed sync/async catalog callers](../packages/python/transit-station/docs/catalog.md),
+TypeScript exposes [typed promise methods](../packages/ts/transit-station-sdk/docs/catalog.md),
+and Rust exposes [typed blocking methods](../packages/rust/transit-station-sdk/docs/CATALOG.md).
 SQL query transports and other language SDKs expose no catalog administration route.
 
 The implementation supports the two-column Table profile. KV/Document definitions

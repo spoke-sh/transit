@@ -201,7 +201,8 @@
       "transit-docs::browser",
       "test::resource-simulation",
       "bindings::catalog-python",
-      "bindings::catalog-node"
+      "bindings::catalog-node",
+      "bindings::catalog-rust"
     ]
   },
   "nested_tasks": {

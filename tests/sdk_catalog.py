@@ -6,6 +6,8 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
+import tomllib
 from sdk_unified import Consumer
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +19,9 @@ def install(root, languages):
     for language in languages:
         if language == 'node':
             factories.append(install_node(root / language))
+            continue
+        if language == 'rust':
+            factories.append(install_rust(root / language))
             continue
         if language != 'python': raise ValueError('Unsupported catalog SDK proof language')
         target = root / language
@@ -72,3 +77,45 @@ def install_node(target):
         config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
         return Consumer(['node', str(script), str(config)], environment, target)
     return 'node', create
+
+
+def install_rust(target):
+    target.mkdir()
+    artifacts = {}
+    names = ('transit-client', 'transit-native-client', 'transit-station-sdk', 'transit-native-station')
+    for name in names:
+        filename = f'{name}-0.2.0.crate'
+        path = target / filename
+        shutil.copy2(ROOT / '.cache/bindings/rust' / filename, path)
+        artifacts[filename] = hashlib.sha256(path.read_bytes()).hexdigest()
+        with tarfile.open(path) as archive: archive.extractall(target / 'vendor', filter='data')
+    (target / 'artifacts.json').write_text(json.dumps(artifacts))
+    (target / 'src').mkdir()
+    shutil.copy2(ROOT / 'tests/rust_catalog_sdk.rs', target / 'src/main.rs')
+    manifest = '[package]\nname = "transit-catalog-proof"\nversion = "0.1.0"\nedition = "2024"\n[dependencies]\ntransit-client = "=0.2.0"\ntransit-station-sdk = "=0.2.0"\nserde_json = { version = "=1.0.145", features = ["arbitrary_precision"] }\n[patch.crates-io]\n'
+    manifest += ''.join(f'{name} = {{ path = "vendor/{name}-0.2.0" }}\n' for name in names)
+    (target / 'Cargo.toml').write_text(manifest)
+    lock = target / 'vendor/transit-station-sdk-0.2.0/Cargo.lock'
+    shutil.copy2(lock, target / 'Cargo.lock')
+    environment = {k:v for k,v in os.environ.items() if k not in ('TRANSIT_LIBRARY_DIR', 'LD_LIBRARY_PATH', 'LIBRARY_PATH')}
+    subprocess.run(['cargo', 'test', '--offline', '-p', 'transit-station-sdk', '--lib'], cwd=target, env=environment, check=True)
+    def registry(path):
+        return {(p['name'], p['version'], p['checksum']) for p in tomllib.loads(path.read_text())['package'] if 'source' in p}
+    selected = registry(target / 'Cargo.lock')
+    assert selected and selected <= registry(lock)
+    assert not any(name.startswith('arrow-') for name, _, _ in selected)
+    subprocess.run(['cargo', 'build', '--locked', '--offline'], cwd=target, env=environment, check=True)
+    executable = target / 'consumer'
+    shutil.copy2(target / 'target/debug/transit-catalog-proof', executable)
+    (target / 'src/main.rs').write_text('fn overlap(client: &mut transit_station_sdk::catalog::Client) { let a = &mut *client; let b = &mut *client; a.describe().unwrap(); b.describe().unwrap(); } fn main() {}')
+    rejected = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=target, env=environment, capture_output=True, text=True)
+    assert rejected.returncode and 'cannot borrow `*client` as mutable more than once' in rejected.stderr
+    (target / 'src/main.rs').write_text('fn reused(client: transit_station_sdk::catalog::Client) { client.close().unwrap(); client.close().unwrap(); } fn main() {}')
+    rejected = subprocess.run(['cargo', 'check', '--locked', '--offline'], cwd=target, env=environment, capture_output=True, text=True)
+    assert rejected.returncode and 'use of moved value: `client`' in rejected.stderr
+    shutil.rmtree(target / 'vendor'); shutil.rmtree(target / 'target'); shutil.rmtree(target / 'src')
+    def create(url, connection, state):
+        config = target / 'client.json'
+        config.write_text(json.dumps(dict(url=url, connection=connection, seed_file=str(state / 'caller.seed'))))
+        return Consumer([str(executable), str(config)], environment, target)
+    return 'rust', create

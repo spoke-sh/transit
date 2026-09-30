@@ -32,3 +32,6 @@ persisted commands, exclusive caller ownership and owned nested Arrow results.
 
 The [Table mutation guide](docs/MUTATIONS.md) covers explicit SQL writes, owned
 request references, borrowed prepared commands and exact durable recovery.
+
+The [catalog guide](docs/CATALOG.md) covers typed initialization, conditional
+policy, named Table creation and owned saved-command recovery.

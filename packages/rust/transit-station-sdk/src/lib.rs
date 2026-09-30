@@ -2,6 +2,7 @@
 #[rustfmt::skip]
 mod abi;
 mod bridge;
+pub mod catalog;
 mod document;
 mod grpc;
 mod http;

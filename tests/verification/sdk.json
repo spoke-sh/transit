@@ -401,7 +401,8 @@
         "original_request_preserved": true,
         "revoked_status_denied": true,
         "uncertain_response_retains_prepared": true,
-        "cancelled_await_keeps_owner": true
+        "cancelled_await_keeps_owner": true,
+        "exclusive_rust_borrows": true
       },
       "proofs": [
         {
@@ -423,9 +424,24 @@
           "task": "bindings::catalog-node",
           "source": "packages/ts/transit-station-sdk/src/catalog.test.ts",
           "anchor": "unconfirmed catalog response retains exact prepared text"
+        },
+        {
+          "task": "bindings::catalog-rust",
+          "source": "tests/catalog_native.py",
+          "anchor": "admitted == json.loads(fault['receipt'])"
+        },
+        {
+          "task": "bindings::catalog-rust",
+          "source": "packages/rust/transit-station-sdk/src/catalog.rs",
+          "anchor": "fn malformed_success_keeps_admission_uncertain()"
+        },
+        {
+          "task": "bindings::catalog-rust",
+          "source": "tests/sdk_catalog.py",
+          "anchor": "use of moved value: `client`"
         }
       ],
-      "limits": "Python sync/async and TypeScript callers. Actual disk recovery uses the shared catalog host. Python cancelled-await and malformed native-response cases use injected blocking/reply adapters; TypeScript malformed responses use a real owned port with an injected host. Ten applied Tables over two resources do not establish native growth, host power-loss recovery or the other eight SDKs."
+      "limits": "Python sync/async, TypeScript and Rust callers. Actual disk recovery uses the shared catalog host. Python cancelled-await and malformed native-response cases use injected blocking/reply adapters; TypeScript malformed responses use a real owned port with an injected host; Rust malformed receipts exercise the response parser and an injected admitted-worker panic preserves uncertainty. Eleven applied Tables over two resources do not establish native growth, host power-loss recovery or the other seven SDKs."
     }
   ]
 }

@@ -800,3 +800,92 @@ impl Drop for MutationNative {
         unsafe { (self.local.api.station_table_mutation_destroy)(self.pointer) };
     }
 }
+
+pub(crate) struct CatalogNative {
+    local: Local,
+    pointer: *mut abi::station_catalog_client,
+}
+impl CatalogNative {
+    pub fn open(
+        config: &transit_client::ClientConfig,
+        credential: &transit_client::Credential,
+        connection: &crate::catalog::Connection,
+    ) -> Result<Self> {
+        let (url, timeout, directory) = settings(config);
+        let local = Local::open(directory)?;
+        let key = credential_seed(credential)?;
+        let bytes = serde_json::to_vec(
+            &json!({"connection":connection.wire(credential.principal()),"timeout_ms":timeout}),
+        )
+        .map_err(|_| Error::new(ErrorKind::InvalidArgument, "catalog-config"))?;
+        let mut pointer = ptr::null_mut();
+        let status = unsafe {
+            (local.api.station_catalog_create)(
+                abi::ABI_VERSION,
+                url.as_ptr(),
+                url.len(),
+                key.pointer(),
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut pointer,
+            )
+        };
+        if status != 0 {
+            return Err(native_error(status, None, "open-catalog"));
+        }
+        if pointer.is_null() {
+            return Err(Error::new(ErrorKind::IncompatibleNative, "open-catalog"));
+        }
+        let mut out = Self { local, pointer };
+        let caps = out.call(json!({"capabilities":{}}))?;
+        let caps = field(&caps, "capabilities")?;
+        if caps["version"] != 1
+            || caps["definition"] != abi::ABI_DEFINITION
+            || caps["table_columns"] != 2
+            || caps["max_saved_bytes"] != 8192
+            || [
+                "initialize",
+                "create_table",
+                "conditional_policy",
+                "current_metadata",
+            ]
+            .iter()
+            .any(|name| caps[name] != true)
+        {
+            return Err(Error::new(
+                ErrorKind::UnsupportedCapability,
+                "catalog-capabilities",
+            ));
+        }
+        Ok(out)
+    }
+    pub fn call(&mut self, action: Value) -> Result<Value> {
+        let mutation = action.get("submit").is_some();
+        let bytes = serde_json::to_vec(&action)
+            .map_err(|_| Error::new(ErrorKind::InvalidArgument, "catalog-action"))?;
+        if bytes.len() > MAX_BODY {
+            return Err(Error::new(
+                ErrorKind::InvalidArgument,
+                "catalog-action-bound",
+            ));
+        }
+        let mut buffer = Buffer {
+            api: &self.local.api,
+            pointer: ptr::null_mut(),
+        };
+        let status = unsafe {
+            (self.local.api.station_catalog_call)(
+                self.pointer,
+                bytes.as_ptr(),
+                bytes.len(),
+                &mut buffer.pointer,
+            )
+        };
+        buffer.result(status, "catalog-action", mutation)
+    }
+}
+impl Drop for CatalogNative {
+    fn drop(&mut self) {
+        unsafe { (self.local.api.station_catalog_destroy)(self.pointer) };
+    }
+}

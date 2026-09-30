@@ -527,6 +527,69 @@ the log is `/tmp/transit-sql-catalog-node-ci-clean.log`. This qualifies the core
 lane plus the focused TypeScript/Python schedule, not a full clean suite or
 the remaining catalog SDKs. The following commit records evidence only.
 
+### Rust catalog caller
+
+The public `transit_station_sdk::catalog::Client` uses the shared generated ABI
+on one owned blocking worker. Typed declarations and controls own full-width
+`u64` identities and their strings; prepared commands are borrowed unchanged by
+submission. Response adapters check exact field sets, canonical decimal IDs,
+bounds and original-request status matching. A malformed success receipt or
+failure of an admitted worker job remains `UnknownOutcome`; definite native
+rejections keep their category, status and code. Shared Zig retains signing,
+policy, publication and recovery semantics. No definition or native binary
+changes in this increment.
+
+Executed on development source based on `c904ae08` in the pinned bindings shell:
+
+- Full **`just check` passes**, including generated contracts, 346 CLI diagnostic
+  cases, 4558 local links across 479 files, 52 invariants, 53 classified bounds,
+  13 SDK scenarios, frontend checks and documentation build. The log is
+  `/tmp/transit-sql-catalog-rust-full-check.log`.
+- Rust formatting and verification inventory checks pass. Three component
+  tests pass both in source and from the installed crate: owned maximum-width
+  values/strict decoding, malformed successful receipt uncertainty, and an
+  injected worker panic after admission that preserves recovery. Definite
+  errors remain unchanged. An initial source invocation without embedded native
+  artifacts failed in native-package build scripts; the documented `TRANSIT_LIBRARY_DIR`
+  development override passes. Installed tests remove that override and use
+  the packaged libraries.
+- Final **`just test::catalog --sdk python --sdk node --sdk rust` passes in
+  46.173 s**, including 20.142 s isolated installation. The Rust consumer builds
+  from copied, hashed crates outside the checkout with pinned registry checksums
+  and no Arrow dependency. Compiler rejection checks prevent overlapping
+  mutable caller borrows and reuse after consuming `close`. Extracted sources
+  and build outputs are removed before running the packaged native consumer.
+- The shared disk schedule exercises Rust initialization, conditional policy,
+  full-width creation and exact saved-command recovery after lost admission and
+  caller/node/store replacement. Original outcomes match independent records;
+  current catalog and native denial still hide them. Python sync/async and
+  TypeScript repeat the same schedule. It records **1994 reads, 48 accepted turn
+  responses, nine lost caller replies and three lost owner replies**, with at
+  most four mutations, 133-byte values and eight resident authority pages.
+  Eleven applied Tables across two resources do not establish native catalog
+  growth or host power-loss recovery. The interval includes provisioning,
+  compilation and recovery; it is not an SDK latency comparison.
+
+Final Rust crate SHA-256 values:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `transit-station-sdk` | `cdfb35189dc89b59893380339d3f0efd05708ddee04444812c156d05252ee600` |
+| `transit-native-station` | `8c26d46b678cc8714e6444b84052ac502a54a03c2d552d5bd819f6a42f8cb34d` |
+| `transit-client` | `5f546a83afe1eba98b7c8504d4fca550ccb383a4c2bfa4df0affd2bd3399a57f` |
+| `transit-native-client` | `6d83bab01c95822a9daf8db22bf59c46a88e55c31a56b1560a69792e55275c42` |
+
+All six executables/libraries, four Python wheels and four TypeScript tarballs
+match the preceding TypeScript schedule. Packaged Rust sources, README and catalog
+guide match the working files. Logs are
+`/tmp/transit-sql-catalog-rust-worker-native.log`,
+`/tmp/transit-sql-catalog-rust-worker-test.log` and
+`/tmp/transit-sql-catalog-rust-final-format.log`; the initial source artifact failure
+is retained in `/tmp/transit-sql-catalog-rust-components.log`.
+`bindings::catalog-rust` and regular `bindings::rust-sdk-test` include installed
+catalog recovery. These are development and focused passes; committed-HEAD
+clean validation and the other seven catalog SDKs remain.
+
 ## Offline state declaration compiler
 
 The additive Fuze `Declaration` API parses, validates and formats owned
