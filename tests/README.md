@@ -49,8 +49,35 @@ A separate fresh clone of `95d0107797551fbf6e4c7d0a47c72aa0e26830c1` builds
 all component oracles with 257 rows, three-row pages, one sample/execution and
 50 compilations/proposals. The copied report is
 `.cache/verification/benchmarks/clean-smoke.json` with `dirty: false`.
-Broader committed-HEAD clean-lane outcomes are recorded in the draft PR after
+Broader committed-HEAD clean-lane outcomes are recorded in PR #38 after
 those runs; they do not expand the benchmark's execution boundary.
+
+After rebasing onto `main` at `4c22b426058c7299af62a8cba03ab5925336ba44`,
+the default measurement repeats at clean source
+`bc9476ba7c9613df625a28e9277bf10e568e0f6c`. The
+[second raw report](benchmarks/results/2026-09-30-main.json) retains five samples,
+all 52 timed phases and the same 28 passing components/nine rejection probes.
+The executable, fixture, manifest, harness, driver and lock hashes match the
+earlier report, as do independently decoded query outputs. The new SDK catalog
+metadata readers do not change the measured Fuze/Station implementation or
+remove any full-workload blocker. Both reports preserve their original source
+identity; the public summary uses this repeat without claiming a speedup.
+Log: `/tmp/transit-benchmark-rebased-measurement.log`.
+
+The rebased executable also passes zero-row/one-row-page, one-null-row,
+maximum-uint32-seed and 257-row/three-row-page cases; `--require-full` writes a
+component-success/full-workloads-blocked report and exits 2. These focused
+runs use one sample/execution and 50 compilations/proposals; documentation/report
+updates are present in the working tree and their reports record `dirty: true`.
+Log: `/tmp/transit-benchmark-rebased-edges.log`.
+
+With these report/documentation updates, `just transit-board::install`, full
+`just check` and `just test::sql` pass in the pinned shell. This includes all
+eight report tests, 399 CLI diagnostics, generated contracts, frontend checks,
+the production handbook and the same SQL case counts listed above. Log:
+`/tmp/transit-benchmark-rebased-check.log`. Committed-HEAD clean-lane outcomes
+remain separately recorded in PR #38; earlier clean runs do not qualify
+the rebased source by inheritance.
 
 ## Handbook grammar inventory and implementation plan
 

@@ -86,8 +86,9 @@ Fuze does not make those execution paths equally fast or equally capable.
 
 ## Recorded component measurements
 
-A local run on 2026-09-30 at clean source `8446688a` passes all 28 components.
-The [complete raw report](../../tests/benchmarks/results/2026-09-30.json) retains
+A local run on 2026-09-30 at clean source `bc9476ba`, including
+`main` at `4c22b426`, passes all 28 components.
+The [complete raw report](../../tests/benchmarks/results/2026-09-30-main.json) retains
 all 52 timed phases, five samples, output cells and segment digests, provenance
 and full-workload blockers. It uses the default 8192 rows, seed 42, eight-row
 pages, ten executions and 2000 compilations/proposals per sample. The executable
@@ -95,31 +96,36 @@ uses Zig `0.17.0-dev.2267+48abf1a34` in ReleaseSafe (`safe` in compiler metadata
 
 | Family | SELECT component | Median execution per iteration (ms) |
 | --- | --- | ---: |
-| TPC-C | Stock quantity point filter | 0.944 |
-| TPC-C | Low-stock count | 0.937 |
-| TPC-C | Quantity sum | 0.866 |
-| TPC-E | Trade quantity point filter | 0.961 |
-| TPC-E | Filtered quantity sum | 0.945 |
+| TPC-C | Stock quantity point filter | 0.965 |
+| TPC-C | Low-stock count | 0.954 |
+| TPC-C | Quantity sum | 0.885 |
+| TPC-E | Trade quantity point filter | 0.969 |
+| TPC-E | Filtered quantity sum | 0.962 |
 | TPC-E | Limited projection | 0.033 |
-| TPC-H | Line-item quantity sum | 0.860 |
-| TPC-H | Filtered count | 0.948 |
+| TPC-H | Line-item quantity sum | 0.893 |
+| TPC-H | Filtered count | 0.962 |
 | TPC-H | Limited-input sum | 0.011 |
-| TPC-DS | Inventory quantity sum | 0.878 |
-| TPC-DS | Null count | 0.871 |
+| TPC-DS | Inventory quantity sum | 0.892 |
+| TPC-DS | Null count | 0.886 |
 | TPC-DS | Limited projection | 0.016 |
 
 Across the 28 compilation components, per-component medians range from
-0.363 to 1.077 microseconds. The twelve private mutation-proposal components
-range from 1.927 to 5.503 microseconds. These are ranges of component medians,
+0.369 to 1.095 microseconds. The twelve private mutation-proposal components
+range from 1.957 to 5.629 microseconds. These are ranges of component medians,
 not request percentiles. Min/max sample values and individual phases remain in
 the report. Limited queries consume fewer rows than full scans.
 
 The host is Linux x86_64 with an AMD Ryzen Threadripper 3960X, 48 logical CPUs
-and an initial one-minute load average of 8.25. The run uses the reported CPU
+and an initial one-minute load average of 13.95. The run uses the reported CPU
 affinity without an exclusive CPU or controlled background load. Other activity
 on this shared host can affect timings. This is an unpaired observation, not a
 speedup claim. Fuze uses a 4 MiB Arrow workspace, a 64 KiB output buffer and at
 most eight generated rows; those budgets are not measured process RSS.
+
+The [earlier report](../../tests/benchmarks/results/2026-09-30.json) retains its
+original `8446688a` source identity. The two runs have identical binary and
+fixture hashes and verified query outputs. Their timing differences are
+shared-host observations, not evidence of a code performance change.
 
 ## Intended declarative surface and blockers
 
@@ -133,11 +139,20 @@ Benchmark coverage follows its exact contracts and does not enable new syntax.
 | INSERT, UPDATE, DELETE                                      | Compilation and private proposals measured; literal bounded writes cannot substitute for full transactions or refresh functions         | [Mutation contract](../../contracts/TABLE_MUTATION_V1.md)                                                              |
 | Joins, grouping, ordering and subqueries                    | Planned; full relational workloads blocked                                                                                              | [Planned composition](sql/grammar-surface.md#planned-declarations-and-relational-composition)                          |
 | Decimal/date operations, arithmetic and compound predicates | Planned; quantities here do not implement monetary/date expressions                                                                     | [Expressions](sql/expressions.md)                                                                                      |
+| CSV/JSONL, schema discovery and nested types | Planned and unmeasured; the synthetic int64 fixture does not implement file reading, inference or nested values | [Types and discovery](sql/types.md#planned-type-system-and-schema-discovery), [comparison plan](performance.md#planned-schema-on-demand-comparisons) |
 | BEGIN/COMMIT/ROLLBACK, parameters and bulk operations       | Planned; no multi-statement transaction session or general data loading                                                                 | [Other SQL operations](sql.md#other-sql-operations)                                                                    |
 | KV, Document, graph and foreign relations                   | Native KV/Document query profiles exist but are not measured here; graph/foreign relations remain planned                               | [Source contracts](queries.md), [multi-model targets](sql/grammar-surface.md#planned-standards-and-data-model-surface) |
 | Views, subscriptions, dataflows and recorded effects        | No component result establishes maintained execution or external effects; complete TPC suites do not cover this entire intended surface | [Streaming](sql/streaming.md)                                                                                          |
 | Historical schemas, snapshots and branches                  | Planned and unmeasured; a synthetic fixed basis does not implement historical binding                                                   | [Historical targets](sql/grammar-surface.md#planned-historical-schemas-and-branches)                                   |
 | CLI, SDKs, Board and Flight                                 | Existing caller profiles retain separate permissions and transport limits; all are unmeasured by this harness                           | [Caller APIs](callers.md), [SDKs](sdks.md), [Flight](flight.md)                                                        |
+
+Explicit catalog APIs support named Table publication, controls and exact saved
+recovery, plus typed lookup, definition reads and bounded listings in all ten
+[language SDKs](sdks.md#catalog-callers). The
+[catalog CLI](../../apps/transit-cli/docs/catalog.md) shares the Zig owner.
+These implemented publication and metadata paths remain unmeasured here;
+compiling a declaration does not measure their admission, authorization, commit
+or transport costs.
 
 A native resource transaction is not a cross-resource transaction. Running
 separate supported statements does not reproduce a standard transaction's
