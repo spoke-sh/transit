@@ -5883,7 +5883,40 @@ saved recovery. The full source schedules take **212.76 / 177.37 s**, each with
 41 rows, six IPC segments and eight resident authority pages. Two Board instances
 use **42582016 / 40566784 bytes RSS** in the respective samples. The Table draft
 budget schedule takes **17.25 s**. The log is
-`/tmp/transit-sql-publication-domains-ingress-rerun.log`; Document ingress is
-still running at this checkpoint. The first invocation failed before execution
+`/tmp/transit-sql-publication-domains-ingress-rerun.log`. Document ingress also
+passes: **12 rows / 2 segments / 9880 bytes**, 64 resident pages, **501.78 s**
+including provisioning, and **45400064 bytes** for the two-Board RSS sample.
+Its independent browser checks cover SQL inspection, exact uncertain retry,
+current denial and provenance. The first invocation failed before execution
 on a missing cached Nix shell derivation. Disabling the Nix evaluation cache
 recreates the pinned shell; no toolchain or lockfile changes are involved.
+
+The older clean bindings lane at `f6698e0c` finishes the individual Java,
+.NET and BEAM suites in **506.37 / 480.87 / 1173.37 s**. All selected language
+suites pass at that earlier definition. Cross-language `bindings::sdk-interop`
+then fails after **298.97 s**: MinIO returns HTTP 507 `XMinioStorageFull`, Ursula
+cannot stage pages and the exact delivery retry reaches its existing deadline
+with `AuthorityUnavailable`. This is a failed lane; later tasks did not run.
+The checkout and evidence remain at `/var/tmp/transit-ci-aupu5a9d` and
+`/tmp/transit-sql-ten-sdk-ci-clean.log`. Only ignored compiler caches in other
+inactive proof clones are removed to recover disk capacity; retained source and
+failure logs remain. These older language passes do not qualify the current
+publication-domain definition.
+
+### Combined Table owner component checks
+
+`TableQueryWriter`'s independent configuration/state/control vectors and five
+component schedules pass with the pinned compiler. They model four-mutation
+initialization phases, replacement of the in-memory owner, duplicate and forged
+continuations, early ingress, independent policy revisions, whole-proposal
+rollback and poisoned reads. These in-memory tests are not native durability
+evidence. `just check-core` passes with the supplied `table_query_writer` role.
+
+The existing `just test::table-mutation` native/port/CLI schedule also passes
+after extracting the shared two-write declaration helper: **19.287 s**, **1661
+reads**, **48 turns**, four lost caller receipts plus one lost writer receipt,
+eight resident authority pages, four mutations and 256-byte values. This proves
+the existing standalone host still recovers; it does not yet prove the new
+combined host's two-turn or interleaved query/mutation schedule. Logs are
+`/tmp/transit-sql-combined-table-unit.log` and
+`/tmp/transit-sql-combined-table-check.log`.

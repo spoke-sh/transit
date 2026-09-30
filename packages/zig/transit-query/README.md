@@ -48,7 +48,16 @@ keeps full-width namespaces out of JSON numbers. The
 [native ABI/port caller](../transit-station-bindings/docs/table-mutations.md)
 exposes these actions through an explicit profile.
 [Typed SDK callers](../../../docs/reference/sdks.md#table-mutation-callers) use the same owner;
-CLI and other language mutation APIs remain unsupported.
+The CLI's explicit `mutate` commands use the same bridge and saved-command rules.
+
+`TableQueryWriter` composes the query source and mutation writer for one typed
+Table. Its guarded two-turn initializer freezes the complete configuration,
+creates metadata, then atomically installs independent query/mutation policies
+and marks the host ready. Each turn stays within four mutations. It cannot adopt
+an existing standalone owner. The [combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md)
+defines readiness, authenticated continuations, conditional policy changes and
+the visibility of intermediate metadata to native readers. Component tests cover
+initialization and routing; the proof ledger distinguishes native qualification.
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit

@@ -23,6 +23,7 @@ const Config = struct {
         unified_source: struct { peer: u64, initializer: u64 },
         table_source: q.TableSource.Configuration,
         table_writer: q.TableMutationWriter.Configuration,
+        table_query_writer: q.TableQueryWriter.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: [2]u64 },
     },
@@ -86,17 +87,19 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     defer init.gpa.free(workspace);
     const cancellation = q.fuze.execution.Cancellation.init(false);
     server.failure_policy = .stop;
-    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source or config.role == .table_source) q.UnifiedBehavior.adapter_bytes else 0);
+    const adapter = try init.gpa.alloc(u8, if (config.role == .unified_source or config.role == .table_source or config.role == .table_query_writer) q.UnifiedBehavior.adapter_bytes else 0);
     defer init.gpa.free(adapter);
     var unified_source: q.UnifiedBehavior.Source = .{
         .peer = switch (config.role) {
             .unified_source => |value| value.peer,
             .table_source => |value| value.peer,
+            .table_query_writer => |value| value.peer,
             else => 0,
         },
         .initializer = switch (config.role) {
             .unified_source => |value| value.initializer,
             .table_source => |value| value.initializer,
+            .table_query_writer => |value| value.writer.initializer,
             else => 0,
         },
         .resources = .{ .wire = &wire, .realm = config.realm, .principal = config.principal, .key = key },
@@ -106,6 +109,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     };
     var table: q.TableSource = .{ .configuration = if (config.role == .table_source) config.role.table_source else undefined, .source = &unified_source };
     var table_writer: q.TableMutationWriter = .{ .configuration = if (config.role == .table_writer) config.role.table_writer else undefined };
+    var combined: q.TableQueryWriter = .{ .configuration = if (config.role == .table_query_writer) config.role.table_query_writer else undefined, .source = &unified_source };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
         .finite_service => blk: {
@@ -118,6 +122,11 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             _ = try table_writer.configuration.target();
             server.input_guard = table_writer.guard();
             break :blk table_writer.interface();
+        },
+        .table_query_writer => blk: {
+            _ = try combined.configuration.definition();
+            server.input_guard = combined.guard();
+            break :blk combined.interface();
         },
         .unified_requester => |*requester| requester.interface(),
         .courier => unreachable,

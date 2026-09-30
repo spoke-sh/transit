@@ -141,13 +141,22 @@ fn initializer(self: *Self, turn: *s.Turn, frame: s.Frame) !bool {
 fn initialize(raw: ?*anyopaque, turn: *s.Turn) !void {
     const self: *Self = @ptrCast(@alignCast(raw.?));
     if (!try self.initializer(turn, try s.Frame.decode(turn.delivery.input.value))) return error.UninitializedMutationWriter;
+    const before = turn.decision;
+    errdefer turn.decision = before;
+    const target = try self.declare(turn);
+    try a.setPolicy(turn, 0, .{ .principal = self.configuration.principal, .table = target.id, .revision = 1, .declaration = try r.declaration(target), .permissions = self.configuration.permissions });
+}
+/// Two-write declaration for an explicitly authorized composition. The caller
+/// owns initialization admission and must install policy before exposing writes.
+/// The standalone writer adds its policy in the same initialization turn.
+pub fn declare(self: *Self, turn: *s.Turn) !s.Table {
     if (try self.check(turn)) return error.MutationWriterAlreadyInitialized;
     const before = turn.decision;
     errdefer turn.decision = before;
     const target = try self.configuration.target();
     _ = try s.Table.create(turn, target.id, target.schema);
-    try a.setPolicy(turn, 0, .{ .principal = self.configuration.principal, .table = target.id, .revision = 1, .declaration = try r.declaration(target), .permissions = self.configuration.permissions });
     try turn.write(r.key('w', 0, 0), try self.configuration.encode());
+    return target;
 }
 fn rejectInput(raw: ?*anyopaque, turn: *s.Turn) !bool {
     const self: *Self = @ptrCast(@alignCast(raw.?));

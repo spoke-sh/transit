@@ -382,6 +382,10 @@ incomplete_upload=10, source_changed=11 and stale_policy=12. Missing, truncated,
 trailing or invalid fields reject. The role does not install a query peer or
 execute query calls; client/CLI/SDK read-query routes retain their own profiles.
 
+The separate [combined Table owner](TABLE_QUERY_WRITER_V1.md) installs this
+mutation handler alongside a finite query source through a bounded two-turn
+initializer. It preserves the same mutation caller, status and policy contracts.
+
 ## Neutral caller values
 
 `TableMutationBridge` owns language-neutral actions and results above the signed

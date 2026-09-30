@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT/'packages/zig/transit-query/src/fixtures/table-mutation-v1.json'
 RECORDS = FIXTURE.with_name('table-mutation-records-v1.json')
 WRITER = FIXTURE.with_name('table-mutation-writer-v1.json')
+COMBINED = FIXTURE.with_name('table-query-writer-v1.json')
 
 
 def generate():
@@ -71,17 +72,29 @@ def writer_records(encoded_records):
     return json.dumps(dict(version=1,configuration=configuration.hex(),initialize=initialize.hex(),policy_change=policy.hex(),frame=frame.hex(),dispositions=dispositions),indent=2)+'\n'
 
 
+def combined_records(encoded_writer, encoded_records):
+    writer = bytes.fromhex(json.loads(encoded_writer)['configuration'])
+    declaration = bytes.fromhex(json.loads(encoded_records)['declaration'])
+    configuration = b'TQC1'+bytes([len(writer)])+writer+struct.pack('<QQBQQQ',9,8,1,1000,100,1048576)
+    identity = struct.pack('<Q',7)+hashlib.sha256(b'transit.table.query.writer.v1\0'+configuration).digest()
+    policy = b'UQA1'+struct.pack('<QQQ',9,8,2)+declaration+b'\0'+struct.pack('<QQQ',1000,100,1048576)
+    return json.dumps(dict(version=1,configuration=configuration.hex(),initialize=(b'TQI1'+identity).hex(),continuation=(b'TQR1'+identity).hex(),staged=(b'TQW1\1'+configuration).hex(),ready=(b'TQW1\2'+configuration).hex(),policy_change=(b'TQG1'+struct.pack('<QQ',7,1)+policy).hex()),indent=2)+'\n'
+
+
 if __name__ == '__main__':
     expected = generate()
     expected_records = records(expected)
     expected_writer = writer_records(expected_records)
+    expected_combined = combined_records(expected_writer, expected_records)
     if sys.argv[1:] == ['--write']:
         FIXTURE.write_text(expected)
         RECORDS.write_text(expected_records)
         WRITER.write_text(expected_writer)
+        COMBINED.write_text(expected_combined)
     else:
         assert not sys.argv[1:]
         assert FIXTURE.read_text() == expected, 'Regenerate the reviewed Table mutation request fixtures'
         assert RECORDS.read_text() == expected_records, 'Regenerate the reviewed Table mutation record fixtures'
         assert WRITER.read_text() == expected_writer, 'Regenerate the reviewed Table writer fixtures'
-        print('Table mutations: five definition-bound requests, policy, five statuses, six commands and writer configuration/controls/dispositions agree with independent bytes.')
+        assert COMBINED.read_text() == expected_combined, 'Regenerate the reviewed combined Table writer fixtures'
+        print('Table mutations: requests, policies, statuses, commands, writer dispositions and combined query/writer initialization agree with independent bytes.')
