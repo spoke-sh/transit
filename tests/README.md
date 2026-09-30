@@ -7345,7 +7345,8 @@ The SQL branch rebases through main `f481f2b9`, including `c50ee96a`'s standards
 multi-model and historical-schema analysis. Runtime, fixtures, generated contracts
 and SDK source remain byte-for-byte unchanged by this rebase. The conflicts were
 the roadmap index and the independently added M38: main's standards/branching M38
-is preserved, and the SQL continuation becomes M39. Original author and committer
+is preserved, and the SQL continuation becomes M39 at that checkpoint (now
+[M40](../docs/roadmap/M40.md) after inserting the type-system prerequisite). Original author and committer
 dates are preserved by `git rebase --committer-date-is-author-date`.
 
 The committed clean run at pre-rebase Rust checkpoint `0b680b71` did not finish.
