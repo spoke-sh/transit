@@ -216,12 +216,21 @@ pub fn Catalog(comptime Store: type) type {
         }
         pub fn mutate(self: *Self, mutations: []const pages.Mutation) !void {
             if (mutations.len > pages.mutation_batch) return error.PageMutationBudget;
+            var addresses: [pages.mutation_batch]pages.Key = undefined;
+            for (mutations, 0..) |mutation, i| {
+                try validateKey(&mutation.key);
+                if (mutation.value) |value| try value.validate();
+                for (mutations[0..i]) |previous| if (std.mem.eql(u8, previous.key.slice(), mutation.key.slice())) return error.DuplicatePageMutation;
+                addresses[i] = mutation.key;
+            }
+            // Count against one immutable cut before staging. Share paths for
+            // this bounded batch, just as native point reads do; retain no
+            // observations across candidates or authority changes.
+            const previous = try self.tree.getMany(self.snapshot.root, addresses[0..mutations.len]);
             var added: u64 = 0;
             var removed: u64 = 0;
             for (mutations, 0..) |mutation, i| {
-                try validateKey(&mutation.key);
-                for (mutations[0..i]) |previous| if (std.mem.eql(u8, previous.key.slice(), mutation.key.slice())) return error.DuplicatePageMutation;
-                const exists = try self.tree.get(self.snapshot.root, mutation.key) != null;
+                const exists = previous[i] != null;
                 if (mutation.value != null and !exists) added += 1;
                 if (mutation.value == null and exists) removed += 1;
             }

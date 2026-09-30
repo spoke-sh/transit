@@ -1922,6 +1922,36 @@ matching `.log`. The private fixture includes credentials and must not be
 published. PRs #40 and #41 are merged; merge status does not qualify this failed
 schedule or establish a performance improvement under native cold storage.
 
+### Shared reads for catalog mutation counts
+
+The `perf/sql-catalog-mutation-reads` continuation starts from merged #41 at
+`d5541301` in its own `rey-sql-catalog-mutation-reads` worktree. Catalog mutation
+counting now uses the existing bounded `Tree.getMany` before staging the new
+candidate. It validates all keys, values and duplicate keys before page I/O,
+reads the original immutable cut, and updates the root and count together only
+after successful staging. The eight-key bound and current v1 formats are unchanged.
+
+The standalone core suite passes **64 tests**. An eight-operation fixture over
+64 existing records mixes inserts, replacement, deletes and no-ops in unsorted
+caller order. It records **45 page loads** with separate existence reads versus
+**23** with shared traversal, including the same subsequent tree mutation in
+both counts. Both produce the same immutable candidate root. Independent expected
+values check all 130 addresses in the selected range and the retained old cut;
+the new count is 65. Every observed read failure and staging failure/lost
+acknowledgement preserves the original candidate root and count. Corrupt pages
+reject; empty/no-op batches do not stage; malformed and oversized batches reject
+before reads or writes. The log is
+`/tmp/transit-sql-catalog-mutation-batch-unit-final.log`.
+
+This is component I/O evidence, not a native latency improvement. The earlier
+shared-point-read cold recovery failure remains open: a status observation times
+out after 213 additions, while the original accepted turn has recovered. Its
+retained node log shows the final read spending almost ten seconds waiting
+behind an `open_view` write that also reaches its deadline. The batching change
+reduces demonstrated repeated work; it does not by itself diagnose that provider
+stall or qualify the full native recovery schedule. Full checks, resource-fault
+simulation and native/committed-head clean evidence are recorded separately.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded
