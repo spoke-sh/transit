@@ -64,8 +64,10 @@ Retained roots survive without copying resources into memory or retaining a
 worker activation. Page garbage collection remains outside this proof.
 Competing publication after revocation, failure before append and lost response
 after real append are explicit schedules. SIGKILL separates write, recover,
-checkpoint and trim/recover phases. Missing required page storage and incompatible
-history parsing fail; temporary clock samples are deterministic test inputs.
+checkpoint and trim/recover phases. Every phase rejects retained histories with
+missing or foreign contract definitions before page access, preserving their
+original bytes and the current authority. Missing required page storage also
+fails; temporary clock samples are deterministic test inputs.
 
 Artifacts `.cache/verification/growing-<hot|s3>-<rows>-<cache>.json` record revision,
 dirty state, binary hash, cache/data/catalog sizes, page requests, elapsed time,
