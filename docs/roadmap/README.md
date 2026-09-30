@@ -45,6 +45,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M35](M35.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
 | [M36](M36.md) | SQL language completeness and declarative dataflows | Proposed; scoped inspection, bounded Table mutations, typed declarations, maintained queries and recorded effect bindings |
 | [M37](M37.md) | Simulation and external fault verification | In progress; authority/delivery simulation first, broader deterministic and Vortex-style real-binary testing planned |
+| [M38](M38.md) | Standards, multi-model dataflows and schema branching | Proposed; standards ledger, graph/foreign relations, historical catalogs, isolated branches and reviewed merges |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -110,6 +111,12 @@ qualifies finite relational semantics and maintained Table revisions before
 topologies. [M36](M36.md) composes those operators through named declarations,
 subscriptions and separately activated effects. Fuze remains Zig throughout;
 SQL or RPC transport never replaces durable authority.
+
+[M38](M38.md) adds standards qualification and selected multi-model profiles to
+that foundation, then historical schemas, isolated branches and reviewed merges.
+Its contract and proof slices are tracked in [issue #31](https://github.com/rupurt/rey/issues/31).
+It reuses M34–M36's operators and lifecycle contracts without expanding their
+recorded implementation claims.
 
 M19–M21 separately qualify the serving foundation, reactive API contracts and
 their interface consumers. Completed milestone scope and proof remain unchanged;
