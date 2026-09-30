@@ -44,7 +44,13 @@ reports the exact scope and shared-host limits. Measurement log:
 `/tmp/transit-benchmark-measurement.log`. These are unpaired component timings;
 all 151 complete-workload units remain blocked. Native authority, disk durability
 and public transport latency are outside this harness's measured boundary.
-Committed-HEAD clean validation is recorded in the draft PR after its run.
+A separate fresh clone of `95d0107797551fbf6e4c7d0a47c72aa0e26830c1` builds
+`transit-declarative-benchmark` without inherited workspace outputs and passes
+all component oracles with 257 rows, three-row pages, one sample/execution and
+50 compilations/proposals. The copied report is
+`.cache/verification/benchmarks/clean-smoke.json` with `dirty: false`.
+Broader committed-HEAD clean-lane outcomes are recorded in the draft PR after
+those runs; they do not expand the benchmark's execution boundary.
 
 ## Handbook grammar inventory and implementation plan
 

@@ -98,7 +98,7 @@ uses Zig `0.17.0-dev.2267+48abf1a34` in ReleaseSafe (`safe` in compiler metadata
 | TPC-C | Stock quantity point filter | 0.944 |
 | TPC-C | Low-stock count | 0.937 |
 | TPC-C | Quantity sum | 0.866 |
-| TPC-E | Trade quantity point filter | 0.960 |
+| TPC-E | Trade quantity point filter | 0.961 |
 | TPC-E | Filtered quantity sum | 0.945 |
 | TPC-E | Limited projection | 0.033 |
 | TPC-H | Line-item quantity sum | 0.860 |
