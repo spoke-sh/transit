@@ -4936,3 +4936,24 @@ conflict when recovering a completed creation. Other conflicts and authorization
 failures still reject. Three fresh pinned MinIO fixtures pass readiness, a second
 creation of the same owned bucket and cleanup. This qualifies setup only; the
 interrupted query/browser runs are not passing evidence.
+
+### Worksheet SQL inspection
+
+The worksheet adds explicit Inspect SQL submission and a separate metadata/plan
+region, bound to the inspected draft and observed source/policy revisions. The
+real Board API rejects unsupported catalogs and malformed explicit numeric
+literals with 400 `UnsupportedQuery`; these errors formerly fell through to 503.
+The fixture now preserves and retries the exact frozen submission body after a
+503, still requiring the original receipt and its current disclosure checks.
+
+`just transit-board::check` and the broader `just check` pass. The real Table
+API/Chromium run (`zig build test-unified-query -Doptimize=ReleaseSafe
+-Dunified-source=table -Dunified-board=true -Dunified-browser=true`) passes in
+524.40 s. It verifies DESCRIBE, SHOW TABLES and EXPLAIN without query admission,
+operator/output-column presentation, stale-draft labeling, failed-inspection
+clearing and current revocation clearing. Existing uncertain submission, cross-
+instance retry, finite Live draft recovery and worker/node/store recovery pass.
+Two Board result readers peak at 41,209,856 combined RSS bytes in the API probe;
+that measurement excludes Chromium. The run uses 41 rows, six segments, eight
+resident authority pages and an 8 MiB hot store. These are whole-fixture costs,
+not comparative inspection latency. KV/Document browser coverage remains open.

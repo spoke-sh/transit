@@ -50,6 +50,13 @@ entry is explicit; Canvas and Browse retain one SQL draft and identified result.
 Run compiles/submits once; switching views never runs it. Editing a completed
 query preserves its result with a visible draft-changed label.
 
+**Inspect SQL** sends explicit `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT`
+statements through the shared query owner. Metadata and proposed plans appear
+separately from verified data results, with current source/policy revisions,
+output types, ordered operators and full-width limits. Inspection admits no
+query work. Editing marks earlier metadata; hiding the view, changed observed
+revisions, denied access and failed inspection clear it.
+
 One verified result segment is resident at a time, with exact int64 strings,
 nulls and binary labels. Five-second current-policy observations continue while
 the resource interior is hidden by Neighborhood. Browser tab hiding clears

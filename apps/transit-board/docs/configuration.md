@@ -166,6 +166,11 @@ the configured visible query resource. Schemas bound result rows, columns and
 conflict alternatives to eight; the client validates full-width numbers and
 nested cell types. Arbitrary upstream URLs and native commands are not accepted.
 
+**Inspect SQL** executes `DESCRIBE`, `SHOW TABLES` and `EXPLAIN SELECT` against
+the configured source without admission or snapshots. Its separate metadata
+view shows current source/policy evidence and proposed plan/output types;
+current denial, changed observations and hiding clear that view.
+
 Run explicitly compiles SQL and starts one finite upload. Browser polling may
 advance that authorized upload only after observing its previous input commit;
 an uncertain signed submission requires **Retry exact submission**. Editing or
