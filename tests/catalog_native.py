@@ -12,19 +12,23 @@ import threading
 import time
 
 from storage import Fixture, free_port, wait_ready
+from catalog_abi import Native, Port, Failure, check_profiles
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run(node, proof, catalog_host):
+def run(node, proof, catalog_host, port_host, library):
     started = time.monotonic()
     counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0)
     with Fixture() as fixture:
         root = fixture.root
-        for name, binary in [('node', node), ('proof', proof), ('host', catalog_host)]:
+        for name, binary in [('node', node), ('proof', proof), ('host', catalog_host), ('port', port_host), ('library.so', library)]:
             shutil.copy2(binary, root / name)
         node, proof = str(root / 'node'), str(root / 'proof')
         catalog_host = str(root / 'host')
+        port_host, library = str(root / 'port'), str(root / 'library.so')
+        clients = []
+        (root / 'caller.seed').write_text('0a' * 32)
         port = free_port()
         url = f'http://127.0.0.1:{port}'
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
@@ -35,6 +39,8 @@ def run(node, proof, catalog_host):
             resident_pages=8, request_timeout_ms=10000)))
         faults = {name: dict(lose=False, body=None, receipt=None, recovered=False) for name in ('send', 'turn')}
         faults['initialize_send'] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
+        for name in ('abi_create', 'port_create'):
+            faults[name] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
         for name in ('host_initialize', 'host_create'):
             faults[name] = dict(command='turn', lose=False, body=None, receipt=None, recovered=False, blocked=False)
         failures = []
@@ -364,21 +370,110 @@ def run(node, proof, catalog_host):
             duplicate = invoke('send-policy', 5, 'true', 'true')['position']
             assert await_value(lambda: invoke('control-disposition', duplicate))['outcome'] == 'policy_applied'
             invoke('send-policy', 4, 'false', 'false', error='CatalogPolicyConflict')
+            connection = dict(scope=dict(realm=46, resource=host_config['writer']['resource'], catalog=str(maximum)),
+                              owner=host_config['writer']['pid'], principal=1234)
+            check_profiles(port_host, root, proxy_url, connection)
+            caller_results = []
+            for index, name in enumerate(('abi', 'port')):
+                factory = (lambda: Native(library, proxy_url, connection)) if name == 'abi' else (lambda: Port(port_host, root, proxy_url, connection))
+                client = factory()
+                clients.append(client)
+                caps = client.call({'capabilities': {}})['capabilities']
+                assert caps['definition'] == definition.hex() and caps['create_table'] and caps['conditional_policy']
+                description = client.call({'describe': {}})['description']
+                assert description['configuration']['scope'] == connection['scope'] and description['policy']['revision'] == '5'
+                for invalid in ({'compile': dict(operation=maximum, object='1', table=1, sql=statement)},
+                                {'compile': dict(operation='1', object='1', table='1', sql=statement)},
+                                {'submit': '{}'}):
+                    try:
+                        client.call(invalid)
+                        raise AssertionError('Catalog caller accepted malformed input')
+                    except Failure as error:
+                        assert error.status == 1, error
+                control = client.call({'prepare_initialize': dict(scope=connection['scope'], owner=connection['owner'], administrator=1234)})['prepared']
+                position = client.call({'submit': control})['receipt']['position']
+                assert await_value(lambda: client.call({'input_disposition': dict(prepared=control, input=position)})['disposition'])['outcome'] == 'initialized'
+                control = client.call({'prepare_policy': dict(expected_revision='0', policy=dict(scope=connection['scope'], principal=6000 + index, revision='1', inspect=True, create=False))})['prepared']
+                position = client.call({'submit': control})['receipt']['position']
+                assert await_value(lambda: client.call({'input_disposition': dict(prepared=control, input=position)})['disposition'])['outcome'] == 'policy_applied'
+                sql_name = name + '_items'
+                identity = maximum - 100 - index
+                table_id = 30 + index
+                compiled = client.call({'compile': dict(operation=str(identity), object=str(identity), table=table_id, sql=statement.replace('items', sql_name))})['compiled']
+                request = compiled['request']
+                schema = b'TBL1\3\2id\5value'
+                expected = (b'TCA1q' + definition + expected_scope + struct.pack('<QQI', identity, identity, table_id)
+                            + bytes([len(sql_name)]) + sql_name.encode() + bytes([len(schema)]) + schema)
+                assert compiled['canonical'] == expected.hex() and request['operation'] == str(identity)
+                prepared = client.call({'prepare_create': request})['prepared']
+                saved = root / f'{name}-prepared.json'
+                saved.write_text(prepared)
+                fault = faults[name + '_create']
+                fault['lose'] = True
+                try:
+                    client.call({'submit': prepared})
+                    raise AssertionError('Lost catalog receipt was reported as success')
+                except Failure as error:
+                    assert error.status == 6, error
+                if name == 'port':
+                    client.crash()
+                else:
+                    client.close()
+                stop_worker()
+                restart()
+                client = factory()
+                clients.append(client)
+                prepared = saved.read_text()
+                admitted = client.call({'submit': prepared})['receipt']
+                assert admitted == json.loads(fault['receipt']) and fault['recovered']
+                invoke('reown')
+                invoke('write-host')
+                start_worker()
+                position = admitted['position']
+                await_value(lambda: client.call({'observe': dict(prepared=prepared, input=position)})['observation'] == 'processed')
+                status = client.call({'status': request})['status']
+                assert status['outcome'] == 'applied' and status['request'] == request and status['input'] == position
+                assert client.call({'input_disposition': dict(prepared=prepared, input=position)})['disposition'] is None
+                caller_results.append((client, request, status))
+            revoked = invoke('send-policy', 6, 'true', 'false')['position']
+            await_value(lambda: invoke('observe-control', revoked) == 'processed')
+            for client, request, status in caller_results:
+                try:
+                    client.call({'status': request})
+                    raise AssertionError('Revoked catalog inspection disclosed an earlier result')
+                except Failure as error:
+                    assert error.status == 4 and error.detail['err'] == 'CatalogDenied', error
+            restored = invoke('send-policy', 7, 'true', 'true')['position']
+            await_value(lambda: invoke('observe-control', restored) == 'processed')
+            for client, request, status in caller_results:
+                assert client.call({'status': request})['status'] == status
             invoke('revoke-reader')
             invoke('input-disposition', rejected, error='AccessDenied')
+            for client, request, _ in caller_results:
+                try:
+                    client.call({'status': request})
+                    raise AssertionError('Revoked native reads disclosed an earlier result')
+                except Failure as error:
+                    assert error.status == 4, error
             stop_worker()
             assert not failures and all(f['recovered'] for f in faults.values())
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256
             report = dict(version=1, revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                           dirty=bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True)),
                           seconds=round(time.monotonic() - started, 3), resident_pages=8, counts=counts,
-                          lost_caller_receipts=2, lost_writer_receipts=3,
-                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host')})
+                          lost_caller_receipts=4, lost_writer_receipts=3,
+                          binaries={name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in ('node', 'proof', 'host', 'port', 'library.so')})
             destination = ROOT / '.cache/verification/catalog/native.json'
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_text(json.dumps(report, indent=2) + '\n')
             print(json.dumps(report, indent=2))
         finally:
+            cleanup_errors = []
+            for client in clients:
+                try:
+                    client.close()
+                except BaseException as error:
+                    cleanup_errors.append(error)
             stop_worker()
             if authority is not None:
                 authority.kill()
@@ -395,6 +490,8 @@ def run(node, proof, catalog_host):
                 sys.stderr.write(worker_log.read()[-12000:])
             log.close()
             worker_log.close()
+            if cleanup_errors:
+                raise ExceptionGroup('Catalog caller cleanup failed', cleanup_errors)
 
 
 if __name__ == '__main__':

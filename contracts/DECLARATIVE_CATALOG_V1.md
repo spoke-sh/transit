@@ -4,9 +4,9 @@
 helper creates an empty Table and publishes its definition, name binding and
 operation receipt in one resource turn. Native authority still validates current
 grants, ownership, fencing and atomic commit. This is an explicit application
-integration API with a shared signed Zig caller and an explicit `catalog` role
-in `transit-query-host`. SQL query transports, CLI and language SDKs expose no
-catalog administration route.
+integration API with shared Zig/C ABI/native-port callers and an explicit
+`catalog` role in `transit-query-host`. SQL query transports, CLI and idiomatic
+language SDKs expose no catalog administration route.
 
 The implementation supports the two-column Table profile. KV/Document definitions
 compile [offline](STATE_DECLARATION_V1.md) but have no catalog creation operation.
@@ -219,8 +219,10 @@ All native conversion validates the existing owning model. Decoded native values
 own their bounded fields; returned strings belong to the supplied result
 allocator. The shared protocol JSON codec checks reflected wire shapes. The
 bridge performs no independent signing, authorization or recovery transition and
-creates no host task or resource. Native transport and idiomatic language routes
-are separate integration steps.
+creates no host task or resource. The
+[catalog caller ABI and native port](../packages/zig/transit-station-bindings/docs/catalog.md)
+expose these values through explicit handles, owned result buffers and exact
+uncertain-dispatch recovery. Idiomatic language routes remain separate.
 
 ## Supplied catalog behavior and host
 

@@ -6,6 +6,15 @@ internal sealed class NativeApi {
     internal const string Definition = "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5";
     internal const int MinimumStackBytes = 8388608;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_catalog_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
+    internal readonly station_catalog_createDelegate station_catalog_create;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate void station_catalog_destroyDelegate(IntPtr arg0);
+    internal readonly station_catalog_destroyDelegate station_catalog_destroy;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate uint station_catalog_callDelegate(IntPtr arg0, [In] byte[] arg1, nuint arg2, out IntPtr arg3);
+    internal readonly station_catalog_callDelegate station_catalog_call;
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     internal delegate uint station_table_mutation_createDelegate(uint arg0, [In] byte[] arg1, nuint arg2, [In] byte[] arg3, [In] byte[] arg4, nuint arg5, out IntPtr arg6);
     internal readonly station_table_mutation_createDelegate station_table_mutation_create;
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -102,6 +111,9 @@ internal sealed class NativeApi {
     internal delegate void station_buffer_destroyDelegate(IntPtr arg0);
     internal readonly station_buffer_destroyDelegate station_buffer_destroy;
     internal NativeApi(IntPtr library) {
+        station_catalog_create = Marshal.GetDelegateForFunctionPointer<station_catalog_createDelegate>(NativeLibrary.GetExport(library, "station_catalog_create"));
+        station_catalog_destroy = Marshal.GetDelegateForFunctionPointer<station_catalog_destroyDelegate>(NativeLibrary.GetExport(library, "station_catalog_destroy"));
+        station_catalog_call = Marshal.GetDelegateForFunctionPointer<station_catalog_callDelegate>(NativeLibrary.GetExport(library, "station_catalog_call"));
         station_table_mutation_create = Marshal.GetDelegateForFunctionPointer<station_table_mutation_createDelegate>(NativeLibrary.GetExport(library, "station_table_mutation_create"));
         station_table_mutation_destroy = Marshal.GetDelegateForFunctionPointer<station_table_mutation_destroyDelegate>(NativeLibrary.GetExport(library, "station_table_mutation_destroy"));
         station_table_mutation_call = Marshal.GetDelegateForFunctionPointer<station_table_mutation_callDelegate>(NativeLibrary.GetExport(library, "station_table_mutation_call"));

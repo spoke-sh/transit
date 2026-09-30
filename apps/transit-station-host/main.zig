@@ -30,10 +30,21 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     const parsed = try std.json.parseFromSlice(host.Config, init.gpa, config_bytes, .{});
     defer parsed.deinit();
     const config = parsed.value;
-    if (config.local_codec) {
-        if (config.url != null or config.growing_server != null or config.query_client != null or config.mutation_client != null or config.seed_file != null) return error.ConflictingHostProfiles;
-    } else if (config.url == null) return error.MissingAuthorityEndpoint;
-    if ((config.query_client != null and (config.growing_server != null or config.mutation_client != null)) or (config.mutation_client != null and config.growing_server != null)) return error.ConflictingHostProfiles;
+    try config.validateProfiles();
+    var catalog_client: ?*abi.catalog_client.Client = null;
+    defer abi.Api.station_catalog_destroy(catalog_client);
+    if (config.catalog_client) |options| {
+        // This new profile enforces its reflected schema at both JSON inputs.
+        const checked = try s.protocol.Json.parseFromSlice(host.Config, init.gpa, config_bytes);
+        defer checked.deinit();
+        var seed = try readSeed(init, config.seed_file orelse return error.MissingSeedFile);
+        defer std.crypto.secureZero(u8, &seed);
+        const json = try s.protocol.Json.valueAlloc(init.gpa, options);
+        defer init.gpa.free(json);
+        const url = config.url.?;
+        if (abi.Api.station_catalog_create(1, url.ptr, url.len, &seed, json.ptr, json.len, &catalog_client) != .ok) return error.InvalidHostConfiguration;
+        abi.catalog_client.observe(catalog_client.?, diagnostics);
+    }
     var query_client: ?*abi.query_client.Client = null;
     defer abi.Api.station_unified_query_destroy(query_client);
     if (config.query_client) |options| {
@@ -81,7 +92,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
     while (try input.interface.takeDelimiter('\n')) |line| {
         var arena = std.heap.ArenaAllocator.init(init.gpa);
         defer arena.deinit();
-        const request = std.json.parseFromSlice(host.Request, arena.allocator(), line, .{}) catch |err| {
+        const request = (if (catalog_client != null) s.protocol.Json.parseFromSlice(host.Request, arena.allocator(), line) else std.json.parseFromSlice(host.Request, arena.allocator(), line, .{})) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
             continue;
         };
@@ -93,17 +104,19 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
             query_client = null;
             abi.Api.station_table_mutation_destroy(mutation_client);
             mutation_client = null;
+            abi.Api.station_catalog_destroy(catalog_client);
+            catalog_client = null;
             raw.Api.transit_client_destroy(client);
             client = null;
             try respond(&output.interface, 0, "{\"closed\":true}");
             return;
         }
-        process(init, growing, query_client, mutation_client, client, request.value, arena.allocator(), &output.interface) catch |err| {
+        process(init, growing, query_client, mutation_client, catalog_client, client, request.value, arena.allocator(), &output.interface) catch |err| {
             try respond(&output.interface, 1, try std.json.Stringify.valueAlloc(arena.allocator(), .{ .err = @errorName(err) }, .{}));
         };
     }
 }
-fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, mutation_client: ?*abi.mutation_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: ?*abi.query_client.Client, mutation_client: ?*abi.mutation_client.Client, catalog_client: ?*abi.catalog_client.Client, client: ?*raw.Client, request: host.Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     var buffer: ?*abi.Buffer = null;
     defer abi.Api.station_buffer_destroy(buffer);
     const status: abi.Status = switch (request) {
@@ -134,6 +147,10 @@ fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: 
         .table_mutation => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
             break :blk if (mutation_client) |pointer| abi.Api.station_table_mutation_call(pointer, json.ptr, json.len, &buffer) else .not_ready;
+        },
+        .catalog => |action| blk: {
+            const json = try s.protocol.Json.valueAlloc(allocator, action);
+            break :blk if (catalog_client) |pointer| abi.Api.station_catalog_call(pointer, json.ptr, json.len, &buffer) else .not_ready;
         },
         .document_codec => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});

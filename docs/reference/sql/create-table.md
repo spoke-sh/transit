@@ -1,13 +1,15 @@
 # CREATE TABLE
 
-**Zig catalog execution and offline compilation.** Fuze's `Declaration.compile`
+**Catalog execution and offline compilation.** Fuze's `Declaration.compile`
 validates this statement as a typed definition and formats it for review. The
 [catalog helper](../../../packages/zig/transit-catalog/README.md) can create a
 compatible empty Table and publish its named definition in an application's
-authorized Station turn. The shared Zig client submits to an explicit
+authorized Station turn. Shared Zig and
+[C ABI/native-port callers](../../../packages/zig/transit-station-bindings/docs/catalog.md)
+submit to an explicit
 [`catalog` host](../../../apps/transit-query-host/README.md) or application
 integration. Query interfaces reject the statement. CLI, Board and
-language SDKs have no administrative route for it. Neither compilation nor the
+idiomatic language SDKs have no administrative route for it. Neither compilation nor the
 helper provisions a native resource, chooses a writer, grants access or registers
 a query source implicitly.
 

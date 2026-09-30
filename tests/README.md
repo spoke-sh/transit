@@ -254,6 +254,14 @@ node and host hashes match the supplied-host entry above. This development resul
 does not extend that earlier clean checkpoint or qualify neutral administrative
 bindings, CLI/SDK routes or general SQL grants.
 
+At committed `98ddd4cb`, **`just ci-clean --lane core` passes all 18 tasks**
+for signed administrative controls in **702.27 seconds**. Independent package
+builds take 140.97 seconds, Station 149.08 seconds and disk storage 211.88 seconds.
+Completion and per-task evidence are retained under
+`.cache/ci/clean/98ddd4cbad77-transit-ci-cjfwraqj/`; the log is
+`/tmp/transit-sql-catalog-controls-ci-clean.log`. This qualifies that committed
+control caller and core lane, not the subsequent neutral bridge or native ABI.
+
 ### Neutral catalog caller values
 
 The shared `Bridge.Action`/`Result` now covers offline creation compilation,
@@ -272,6 +280,68 @@ commands before transport. The local compile/capabilities cases use no transport
 The generated fixture owner is `tests/catalog_contract.py`; component output is
 `/tmp/transit-sql-catalog-bridge-components.log`. Native ABI/port and idiomatic
 language reachability are not established by these component tests.
+
+### Catalog C ABI and native port
+
+The additive `station_catalog_create/call/destroy` exports and `catalog_client`
+port profile use the neutral bridge and shared signed client. Catalog calls
+validate local recovery before dispatch and preserve `uncertain` after a valid
+submission has begun. One operation per handle, bounded I/O, joined destruction,
+key wiping and independently owned result buffers follow the existing binding
+contract. Three new generated schemas and the optional catalog host profile are
+propagated to every generated language resource. Comparing parsed ABI contracts
+with the preceding revision shows no existing export-signature, status, definition
+or existing schema change outside additive `HostConfig`/`HostRequest` fields.
+
+On development source based on `d7b99144`, standalone binding tests pass **12
+tests**, including the new catalog output-ownership, overlap, malformed recovery,
+signature rejection and uncertain transport case. Full **`just check` passes**,
+including contract generation/drift, native units, frontend checks/tests and the
+production documentation build. `just bindings::node-check` passes its strict
+TypeScript checks and 17 tests. Logs are
+`/tmp/transit-sql-catalog-abi-components.log`,
+`/tmp/transit-sql-catalog-abi-generate.log`,
+`/tmp/transit-sql-catalog-abi-check.log` and
+`/tmp/transit-sql-catalog-abi-node-check.log`.
+
+The expanded **`just test::catalog` passes in 13.799 seconds**, with **1075
+reads**, **33 accepted turn responses**, four lost caller receipts and three lost
+owner receipts. Both a real C ABI handle and native-port child compile the same
+independently encoded creation record, apply typed initialization/policy controls,
+recover an unchanged saved send after caller/node/store replacement and preserve
+the original creation outcome. The port is killed during uncertainty. Mixed
+profiles, catalog calls on a query profile, numeric full-width IDs and quoted
+native numbers reject. Current application inspection and native-read revocation
+each hide earlier outcomes through both transports. Explicit port shutdown joins
+cleanup. Earlier manual/shared-Zig and supplied-host cases remain in the schedule.
+
+This run creates six Tables across two resources with eight resident authority
+pages, four mutations and a 132-byte maximum fixture value. Its expanded work and
+polling count do not establish an equivalent-workload speedup, catalog growth or
+power-loss guarantee. The report remains `.cache/verification/catalog/native.json`;
+the log is `/tmp/transit-sql-catalog-abi-native.log`. ReleaseSafe binary hashes:
+
+| Binary | SHA-256 |
+| --- | --- |
+| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Catalog proof | `3d7ac8adf5b9a0d4d782b40c48bfbd3d26529f3c6bf882595cca550dfa3c798e` |
+| Catalog host | `85aab2f0bd50c9e37f2cca4367dbb5fa028137a962ddd96526554fdbaf4a1c0d` |
+| Native port | `37b44139c09058e863d63c07a3cc78aa7edb803fb48b4ed2eafe384a8df68091` |
+| Station ABI | `98c76da16161abae1ab0fb1f91a9d2613f720b6acabb8e81c729fc9b3c7585f1` |
+
+`just bindings::native` also passes the existing native/port local-codec,
+gated-control, scoped-page, capture, exact host/disk recovery, current-policy,
+Arrow query and materialization schedules
+(`/tmp/transit-sql-catalog-abi-regression.log`). All eight language-package build
+recipes pass, covering Python, TypeScript, Rust, Ruby, C/C++, Java, .NET and
+Erlang/Elixir against the regenerated resources
+(`/tmp/transit-sql-catalog-abi-sdk-builds.log`). These are package builds, not
+installed catalog SDK qualification. Final docs/inventory/format checks pass
+4521 local links across 475 files, 52 invariants, 53 classified bounds and 12 SDK
+scenarios (`/tmp/transit-sql-catalog-abi-final-checks.log`).
+
+These development checks do not qualify idiomatic catalog SDKs, a catalog CLI or
+the previous committed clean checkpoint's extension to this ABI.
 
 ## Offline state declaration compiler
 

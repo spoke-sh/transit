@@ -1566,7 +1566,10 @@
         "apps/transit-query-host/main.zig",
         "tests/catalog_native.py",
         "tests/catalog_contract.py",
-        "packages/zig/transit-catalog/src/Bridge.zig"
+        "packages/zig/transit-catalog/src/Bridge.zig",
+        "packages/zig/transit-station-bindings/src/CatalogAbi.zig",
+        "apps/transit-station-host/main.zig",
+        "tests/catalog_abi.py"
       ],
       "profile": "declarative-catalog-v1/native-v1",
       "tasks": [
@@ -1585,11 +1588,12 @@
         "Supplied catalog host four-write initialization, control/rejection dispositions, lost initialization/creation commits, disk restart and fresh activation enforcement",
         "Explicit committed turn source excludes private writes, preserves original read poison and rejects changed view binding; ordinary paged reads still reject after mutation",
         "Signed initialization recovery after lost admission and caller/node/store replacement; current conditional policy preparation, queued stale controls, independent target principals and self-revocation/restoration without disclosure bypass",
-        "Neutral caller values match independent binary/JSON fixtures, retain full-width identities and owned fields, and reject malformed values before transport"
+        "Neutral caller values match independent binary/JSON fixtures, retain full-width identities and owned fields, and reject malformed values before transport",
+        "Real catalog C ABI/port controls and creation, full-width neutral values, malformed/profile rejection, owned buffers, caller/node/store replacement after lost sends, exact original receipts and current application/native disclosure denial"
       ],
-      "limits": "Explicit Zig integration, signed caller and supplied catalog host; no neutral administrative ABI or CLI/SDK route. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates four applied Tables across manual/host resources and is not a native catalog growth or host power-loss proof.",
+      "limits": "Explicit shared Zig/C ABI/native-port callers and supplied catalog host; no CLI or idiomatic SDK administrative methods. At most eight metadata entries and four mutations; Table schema remains two columns. Native page scans may cross the name prefix, but those values are not decoded or returned. The growth schedule uses a dynamic-map component store; the disk schedule creates six applied Tables across manual/host resources and is not a native catalog growth or host power-loss proof.",
       "model": null,
-      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
+      "qualification": "See tests/README.md#conditional-declarative-catalog for executed component, caller/ABI/port and supplied-host disk recovery evidence; installed administrative caller and native catalog growth proofs remain."
     }
   ]
 }

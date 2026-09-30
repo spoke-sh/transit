@@ -6,8 +6,12 @@ pub const MINIMUM_STACK_BYTES: usize = 8388608;
 #[repr(C)] pub struct station_growing_server { _private: [u8; 0] }
 #[repr(C)] pub struct station_query_client { _private: [u8; 0] }
 #[repr(C)] pub struct station_mutation_client { _private: [u8; 0] }
+#[repr(C)] pub struct station_catalog_client { _private: [u8; 0] }
 #[repr(C)] pub struct station_buffer { _private: [u8; 0] }
 pub struct Api {
+    pub station_catalog_create: unsafe extern "C" fn(u32, *const u8, usize, *const u8, *const u8, usize, *mut *mut station_catalog_client) -> u32,
+    pub station_catalog_destroy: unsafe extern "C" fn(*mut station_catalog_client) -> (),
+    pub station_catalog_call: unsafe extern "C" fn(*mut station_catalog_client, *const u8, usize, *mut *mut station_buffer) -> u32,
     pub station_table_mutation_create: unsafe extern "C" fn(u32, *const u8, usize, *const u8, *const u8, usize, *mut *mut station_mutation_client) -> u32,
     pub station_table_mutation_destroy: unsafe extern "C" fn(*mut station_mutation_client) -> (),
     pub station_table_mutation_call: unsafe extern "C" fn(*mut station_mutation_client, *const u8, usize, *mut *mut station_buffer) -> u32,
@@ -45,6 +49,9 @@ pub struct Api {
 impl Api {
     pub unsafe fn load(library: libloading::Library) -> Result<Self, libloading::Error> {
         Ok(Self {
+            station_catalog_create: *unsafe { library.get(b"station_catalog_create\0")? },
+            station_catalog_destroy: *unsafe { library.get(b"station_catalog_destroy\0")? },
+            station_catalog_call: *unsafe { library.get(b"station_catalog_call\0")? },
             station_table_mutation_create: *unsafe { library.get(b"station_table_mutation_create\0")? },
             station_table_mutation_destroy: *unsafe { library.get(b"station_table_mutation_destroy\0")? },
             station_table_mutation_call: *unsafe { library.get(b"station_table_mutation_call\0")? },

@@ -31,6 +31,8 @@ identities retain their safe-integer bounds. Offline compilation returns both
 typed fields and canonical request bytes. Prepared commands stay opaque and all
 remote operations delegate to `Client`. Native conversions own their fields;
 result strings belong to the supplied allocator.
+The [catalog ABI/port](../transit-station-bindings/docs/catalog.md) composes these
+values with explicit native handle ownership and transport uncertainty.
 
 An application supplies an already authorized Station turn, explicit catalog
 configuration and native commit/recovery handling. Initialize in a separate turn.
@@ -41,7 +43,7 @@ and no preceding private mutations to refuse orphan Table rows at the captured c
 conditional administrator controls and durable input dispositions. The
 [`transit-query-host` catalog role](../../../apps/transit-query-host/README.md)
 hosts it with explicit configuration and fresh fenced ownership. There is no
-CLI/SDK administrative route. The query console continues to reject CREATE.
+CLI or idiomatic SDK administrative method. The query console continues to reject CREATE.
 KV/Document creation, connector declarations,
 dependency-bearing objects, replacement and removal are not implemented here.
 The [catalog v1 contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) owns exact policies,
