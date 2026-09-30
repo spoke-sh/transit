@@ -14,6 +14,11 @@ module Transit
           raise ArgumentError, 'Empty catalog name' if result.empty?
           result
         end
+        def catalog_name(value)
+          result = name(value)
+          raise ArgumentError, 'Expected an ASCII catalog name' unless /\A[A-Za-z_][A-Za-z_0-9]*\z/.match?(result)
+          result
+        end
         def object(value, fields)
           raise IncompatibleNative, 'Invalid catalog response fields' unless value.is_a?(Hash) && value.keys.sort == fields.sort
           value
@@ -45,6 +50,48 @@ module Transit
           CreateTable.new(scope: scope(v.fetch('scope')), operation: Value.wide(v.fetch('operation'), min: 1),
             object: Value.wide(v.fetch('object'), min: 1), table: v.fetch('table'), name: v.fetch('name'),
             schema: Schema.new(names: schema.fetch('names'), value_type: kind))
+        end
+        def definition(value)
+          return nil if value.nil?
+          v = object(value, %w[scope object revision name source principal operation input])
+          table = object(object(v.fetch('source'), %w[table]).fetch('table'), %w[id schema])
+          schema = object(table.fetch('schema'), %w[names value_type])
+          s = Schema.new(names: schema.fetch('names'), value_type: enum(schema.fetch('value_type'), %w[int64 boolean utf8 binary]))
+          s.names.each { |name| catalog_name(name) }
+          raise IncompatibleNative, 'Duplicate column name' unless s.names.uniq.length == 2
+          Definition.new(scope: scope(v.fetch('scope')), object: Value.wide(v.fetch('object'), min: 1),
+            revision: Value.wide(v.fetch('revision'), min: 1), name: v.fetch('name'), source: TableSource.new(table: table.fetch('id'), schema: s),
+            principal: v.fetch('principal'), operation: Value.wide(v.fetch('operation'), min: 1), input: v.fetch('input'))
+        end
+        def resolved(value, scope, name: nil, object: nil, revision: nil)
+          result = definition(value)
+          if result && (result.scope != scope || (name && result.name != name) || (object && result.object != object) || (revision && result.revision != revision))
+            raise IncompatibleNative, 'Definition differs from requested identity'
+          end
+          result
+        end
+        def cursor(value)
+          return nil if value.nil?
+          v = object(value, %w[definition scope resource_revision after])
+          Cursor.new(definition: v.fetch('definition'), scope: scope(v.fetch('scope')), resource_revision: v.fetch('resource_revision'), after: v.fetch('after'))
+        end
+        def page(value, scope, previous)
+          v = object(value, %w[resource_revision entries next]); slots = v.fetch('entries')
+          raise IncompatibleNative, 'Expected eight optional definition slots' unless slots.is_a?(Array) && slots.length == 8
+          ended = false; entries = []
+          slots.each do |slot|
+            entry = definition(slot)
+            if entry.nil? then ended = true
+            else
+              raise IncompatibleNative, 'Page has a hole or foreign scope' if ended || entry.scope != scope
+              entries << entry
+            end
+          end
+          result = Page.new(resource_revision: v.fetch('resource_revision'), entries: entries, next: cursor(v.fetch('next')))
+          if previous && (result.resource_revision != previous.resource_revision || (result.entries.first && result.entries.first.name <= previous.after))
+            raise IncompatibleNative, 'Response does not continue the requested page'
+          end
+          result
         end
       end
       private_constant :Values
@@ -130,6 +177,45 @@ module Transit
       Capabilities = Data.define(:version, :definition, :initialize_catalog, :create_table, :conditional_policy, :current_metadata,
         :max_saved_bytes, :table_columns)
       Description = Data.define(:configuration, :policy, :resource_revision)
+      TableSource = Data.define(:table, :schema) do
+        def initialize(table:, schema:)
+          super(table: Internal.integer(table, max: (1 << 32)-1), schema: Values.typed(schema, Schema))
+        end
+      end
+      Definition = Data.define(:scope, :object, :revision, :name, :source, :principal, :operation, :input) do
+        def initialize(scope:, object:, revision:, name:, source:, principal:, operation:, input:)
+          super(scope: Values.typed(scope, Scope), object: Internal.integer(object, max: U64_MAX), revision: Internal.integer(revision, max: U64_MAX),
+            name: Values.catalog_name(name), source: Values.typed(source, TableSource), principal: Internal.integer(principal, min: 0),
+            operation: Internal.integer(operation, max: U64_MAX), input: Internal.integer(input))
+        end
+      end
+      Cursor = Data.define(:definition, :scope, :resource_revision, :after) do
+        def initialize(definition:, scope:, resource_revision:, after:)
+          raise IncompatibleNative, 'Foreign catalog cursor definition' unless definition == Internal::CONTRACT.fetch('definition')
+          super(definition: Internal.text(definition, 64).freeze, scope: Values.typed(scope, Scope),
+            resource_revision: Internal.integer(resource_revision), after: Values.catalog_name(after))
+        end
+        def wire = { 'definition' => definition, 'scope' => scope.wire, 'resource_revision' => resource_revision, 'after' => after }
+      end
+      Page = Data.define(:resource_revision, :entries, :next) do
+        def initialize(resource_revision:, entries:, next:)
+          revision = Internal.integer(resource_revision)
+          unless entries.is_a?(Array) && entries.length <= 8 && entries.all? { |entry| entry.is_a?(Definition) }
+            raise ArgumentError, 'Expected at most eight definitions'
+          end
+          entries.each_cons(2) do |previous, entry|
+            raise ArgumentError, 'Expected ordered definitions in one scope' unless previous.scope == entry.scope && previous.name < entry.name
+          end
+          continuation = binding.local_variable_get(:next)
+          if continuation
+            Values.typed(continuation, Cursor); last = entries.last
+            unless last && continuation.scope == last.scope && continuation.after == last.name && continuation.resource_revision == revision
+              raise ArgumentError, 'Continuation does not match the page'
+            end
+          end
+          super(resource_revision: revision, entries: entries.dup.freeze, next: continuation)
+        end
+      end
       Receipt = Data.define(:request, :principal, :input, :outcome)
       Disposition = Data.define(:scope, :origin, :principal, :input, :payload, :outcome)
       class Client
@@ -182,6 +268,21 @@ module Transit
           Description.new(configuration: Values.configuration(v.fetch('configuration')), policy: Values.policy(v.fetch('policy')),
             resource_revision: Internal.integer(v.fetch('resource_revision'), min: 0))
         end
+        def lookup(name)
+          name = Values.catalog_name(name)
+          value = read({ 'lookup' => name }, 'definition')
+          decode_metadata { Values.resolved(value, connection.scope, name: name) }
+        end
+        def definition(object, revision)
+          action = { 'definition' => { 'object' => Internal.integer(object, max: U64_MAX).to_s, 'revision' => Internal.integer(revision, max: U64_MAX).to_s } }
+          value = read(action, 'definition')
+          decode_metadata { Values.resolved(value, connection.scope, object: object, revision: revision) }
+        end
+        def list(cursor = nil)
+          continuation = cursor && Values.typed(cursor, Cursor).wire
+          value = read({ 'list' => continuation }, 'page')
+          decode_metadata { Values.page(value, connection.scope, cursor) }
+        end
         def compile_sql(sql, operation, object, table)
           text = Internal.text(sql, 4096)
           raise ArgumentError, 'Empty catalog SQL' if text.empty?
@@ -228,6 +329,11 @@ module Transit
         end
         def close = @worker.close
         private
+        def decode_metadata
+          yield
+        rescue ArgumentError, TypeError, KeyError
+          raise IncompatibleNative, 'Invalid catalog metadata response'
+        end
         def call(action) = @worker.call { |bridge| bridge.catalog(action) }
         def read(action, tag) = Values.result(call(action), tag)
         def prepare(name, value) = Prepared.new(data: read({ name => value }, 'prepared'))

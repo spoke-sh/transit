@@ -32,6 +32,15 @@ def request_json(v)
     schema: { names: v.schema.names, value_type: v.schema.value_type } }
 end
 def prepared(v) = M::Prepared.new(data: v)
+def cursor(v)
+  v && M::Cursor.new(definition: v.fetch('definition'), scope: scope(v.fetch('scope')), resource_revision: v.fetch('resource_revision'), after: v.fetch('after'))
+end
+def cursor_json(v) = v && { definition: v.definition, scope: scope_json(v.scope), resource_revision: v.resource_revision, after: v.after }
+def definition_json(v)
+  v && { scope: scope_json(v.scope), object: v.object.to_s, revision: v.revision.to_s, name: v.name,
+    source: { table: { id: v.source.table, schema: { names: v.source.schema.names, value_type: v.source.schema.value_type } } },
+    principal: v.principal, operation: v.operation.to_s, input: v.input }
+end
 def call(client, action)
   name, v = action.first
   case name
@@ -43,6 +52,11 @@ def call(client, action)
   when 'describe'
     r = client.describe
     { description: { configuration: configuration_json(r.configuration), policy: policy_json(r.policy), resource_revision: r.resource_revision } }
+  when 'lookup' then { definition: definition_json(client.lookup(v)) }
+  when 'definition' then { definition: definition_json(client.definition(Integer(v.fetch('object'), 10), Integer(v.fetch('revision'), 10))) }
+  when 'list'
+    r = client.list(cursor(v))
+    { page: { resource_revision: r.resource_revision, entries: r.entries.map { |entry| definition_json(entry) } + [nil] * (8-r.entries.length), next: cursor_json(r.next) } }
   when 'compile'
     r = client.compile_sql(v.fetch('sql'), Integer(v.fetch('operation'), 10), Integer(v.fetch('object'), 10), v.fetch('table'))
     { compiled: { request: request_json(r.request), canonical: r.canonical.unpack1('H*') } }

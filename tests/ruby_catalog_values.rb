@@ -46,6 +46,7 @@ def owner(reply)
   client
 end
 reply = Reply.new; client = owner(reply)
+client.instance_variable_set(:@connection, M::Connection.new(owner: Transit::ProcessRef.new(realm: 46, pid: 3), scope: scope))
 begin
   [NoMemoryError.new('injected result allocation'), nil, {}, {'receipt'=>{'position'=>0}}, {'receipt'=>{'position'=>'1'}}, {'receipt'=>{'position'=>1.5}},
    {'receipt'=>{'position'=>1},'extra'=>true}, {'receipt'=>{'position'=>1,'extra'=>true}}].each do |value|
@@ -65,6 +66,51 @@ begin
     reply.response['status']['request']['object'] = bad
     rejects(Transit::IncompatibleNative, ArgumentError) { client.status(request) }
   end
+  metadata = { 'scope' => scope.wire, 'object' => ((1 << 64)-1).to_s, 'revision' => ((1 << 64)-1).to_s, 'name' => 'items',
+    'source' => { 'table' => { 'id' => (1 << 32)-1, 'schema' => schema.wire } }, 'principal' => 17, 'operation' => ((1 << 64)-1).to_s, 'input' => 2 }
+  token = { 'definition' => I::CONTRACT.fetch('definition'), 'scope' => scope.wire, 'resource_revision' => 3, 'after' => 'items' }
+  page = { 'resource_revision' => 3, 'entries' => [metadata] + [nil] * 7, 'next' => token }
+  copy = ->(value) { JSON.parse(JSON.generate(value)) }
+  reply.response = { 'page' => copy.call(page) }
+  retained = client.list
+  raise 'Lost definition width' unless retained.entries.first.object == (1 << 64)-1 && retained.entries.first.revision == (1 << 64)-1
+  raise 'Lost Table width' unless retained.entries.first.source.table == (1 << 32)-1
+  reply.response['page']['entries'][0]['source']['table']['schema']['names'][0].clear
+  raise 'Borrowed metadata names' unless retained.entries.first.source.schema.names == %w[id value]
+  raise 'Mutable metadata page' unless retained.frozen? && retained.entries.frozen? && retained.next.after.frozen?
+  entries = retained.entries.dup
+  public_page = M::Page.new(resource_revision: 3, entries: entries, next: retained.next)
+  entries.clear
+  raise 'Borrowed page entries' unless public_page.entries == retained.entries
+  reply.response = { 'definition' => copy.call(metadata) }
+  raise 'Wrong name lookup' unless client.lookup('items') == retained.entries.first
+  raise 'Wrong exact lookup' unless client.definition((1 << 64)-1, (1 << 64)-1) == retained.entries.first
+  rejects(Transit::IncompatibleNative) { client.lookup('other') }
+  rejects(Transit::IncompatibleNative) { client.definition(1, 1) }
+  %i[hole order scope cut next_name missing_definition foreign_definition numeric_object unknown_source].each do |defect|
+    bad = copy.call(page)
+    case defect
+    when :hole then bad['entries'][1], bad['entries'][0] = bad['entries'][0], nil
+    when :order then bad['entries'][1] = copy.call(metadata)
+    when :scope then bad['entries'][0]['scope']['catalog'] = '1'
+    when :cut then bad['next']['resource_revision'] += 1
+    when :next_name then bad['next']['after'] = 'other'
+    when :missing_definition then bad['next'].delete('definition')
+    when :foreign_definition then bad['next']['definition'] = '0' * 64
+    when :numeric_object then bad['entries'][0]['object'] = (1 << 64)-1
+    when :unknown_source then bad['entries'][0]['source'] = { 'document' => {} }
+    end
+    reply.response = { 'page' => bad }
+    rejects(Transit::IncompatibleNative) { client.list }
+  end
+  reply.response = { 'page' => copy.call(page) }
+  rejects(Transit::IncompatibleNative) { client.list(retained.next) }
+  reply.response = { 'page' => { 'resource_revision' => 4, 'entries' => [nil] * 8, 'next' => nil } }
+  rejects(Transit::IncompatibleNative) { client.list(retained.next) }
+  reply.response['page']['resource_revision'] = 3
+  raise 'Missing empty terminal page' unless client.list(retained.next).entries.empty?
+  reply.response = { 'definition' => nil }
+  raise 'Missing definition was not absent' unless client.lookup('absent').nil? && client.definition(1, 1).nil?
 ensure
   client.close
 end
@@ -114,4 +160,4 @@ ensure
   pending.kill; pending.join
   client.close
 end
-puts 'Ruby catalog values, uncertain receipts and joined cancellation passed.'
+puts 'Ruby catalog values, owned full-width definitions/pages, strict continuations, uncertain receipts and joined cancellation passed.'

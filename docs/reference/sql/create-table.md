@@ -80,7 +80,7 @@ receipt establishes admission; publication requires an applied catalog receipt.
 Zig, native ABI/port and explicit CLI callers support name lookup, exact definition reads and lists of at
 most eight catalog definitions. Continuation binds the resource revision and
 rechecks current rights; a changed revision requires a fresh listing. These
-metadata methods also have Python sync/async, TypeScript promise and Rust blocking
+metadata methods also have Python sync/async, TypeScript promise, Rust blocking and Ruby synchronous
 mappings; other language mappings remain separate.
 The supplied catalog host requires explicit native provisioning, initialization
 and grants. It does not enable the query console or infer query/mutation policy.

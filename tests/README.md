@@ -1364,6 +1364,32 @@ the documentation build, at
 clean core lane, not a full clean suite or evidence for the seven remaining
 language metadata APIs. The following evidence-only commit records these results.
 
+### Ruby catalog metadata
+
+Ruby adds frozen definitions, Table sources, owned dense page arrays and mandatory
+original cursors through the existing synchronous worker. Syntax checks pass at
+`/tmp/transit-sql-catalog-ruby-metadata-syntax.log`. Installed value checks cover
+full-width identity, copied/frozen strings and collections, nine malformed pages,
+request identity, continuation cuts, empty final pages and absence. Existing
+owned-port malformed/lost responses and cancelled waiting-thread cleanup remain
+in the schedule.
+
+Rebuilt installed gems pass `just test::catalog --sdk ruby --grow 17` in
+**62.700 s**, including **4.971 s** installation. Ruby agrees with Zig/ABI/port/CLI
+on **23 definitions over three pages**, point reads and absence before/after
+disk-backed node/store restart. Stale cursors and current catalog/native denial
+reject. The creation/control schedule retains six lost caller replies and three
+lost owner replies. Counts are 4987 reads, 2638 caller reads and 56 turn responses;
+bounds remain four mutations, 133-byte values and eight resident pages. Native
+binary hashes remain those of the ABI/CLI metadata checkpoint.
+
+The report/package hashes and log are
+`/tmp/transit-sql-catalog-ruby-metadata-native.json` and
+`/tmp/transit-sql-catalog-ruby-metadata-native.log`, from development source based
+on `a65c4285`. Empty-final-page validation here is a value test, not an observed
+final native page. This focused run does not qualify the six remaining metadata
+SDKs or establish a latency comparison.
+
 ## SQL branch integration of seeded simulations
 
 The SQL branch rebases onto `a53d6262` (merged PR #33), preserving the expanded

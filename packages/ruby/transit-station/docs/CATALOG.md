@@ -82,3 +82,24 @@ sequence coordinator. Keep recovery text independently of host threads.
 The [catalog contract](../../../../contracts/DECLARATIVE_CATALOG_V1.md) owns
 atomic publication and authority. The [proof ledger](../../../../tests/README.md)
 records installed-gem recovery, malformed-child and cancelled-wait checks.
+
+## Definition reads and pages
+
+`lookup(name)` returns a frozen `Definition` or `nil` after exact-name binding
+and live Table schema checks. `definition(object, revision)` takes full-width
+positive integers and reads immutable metadata without requiring the current
+Table to match. A definition owns its scope, object/revision/name, `TableSource`
+(physical `table` and schema) and original principal/operation/input attribution.
+
+`list` returns a frozen `Page`: `resource_revision`, a dense frozen array of at
+most eight ordered `entries`, and optional `next`. Continue with `list(page.next)`
+only when the cursor exists; an empty final page is possible. Restore `Cursor`
+with all original keyword fields: `definition:`, `scope:`, `resource_revision:`
+and `after:`. Missing or foreign definitions reject; compatibility never defaults.
+
+Each call checks current catalog inspection policy and native grants. A cursor
+confers no authority and retains no snapshot. Changed scope/revision returns a
+conflict; discard the partial result before beginning a fresh listing. Generated
+schemas and response decoders check requested identity, page shape/order/scope
+and continuation. Malformed metadata raises `IncompatibleNative`. Reads submit
+no command and perform no automatic retry. Returned values outlive the caller.
