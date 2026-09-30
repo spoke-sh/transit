@@ -5242,3 +5242,33 @@ requires Station/runtime support plus batching, retained versions and rotation.
 The pre-rebase supplied-writer tree passes full `just check`, independent mutation
 bytes, documentation and the verification catalog. Rebased committed-HEAD clean
 qualification is a separate run; no unexecuted lane is reported as passed.
+
+### Neutral Table mutation caller
+
+The post-rebase supplied-host schedule passes at `8314f17b` in **12.407 s** with
+1008 reads, the same node/proof/host digests as the preceding host run and unchanged
+native bounds. Full clean CI at that committed revision is tracked separately.
+
+`TableMutationBridge` adds owned neutral actions and results above the shared Zig
+caller. Package tests match all six independently encoded commands, five request
+variants and five stored phases. They preserve full-width namespaces, safe-counter
+policy revision bounds, owned cells/strings and rejection before transport of
+changed references, malformed saved commands and truncated references. An initial
+test incorrectly gave policy revision the full u64 namespace range; the corrected
+case uses its existing native safe-counter bound rather than widening the contract.
+
+The real native proof now drives the supplied host through serialized neutral
+compile/prepare/next/submit/observe/rejection/status actions. Compiled bytes and
+opaque prepared text survive caller recreation and host replacement; premature
+apply preserves upload status, terminal cancellation preserves the original result,
+and current read revocation stops neutral status lookup. All earlier atomicity,
+caller-send/writer-commit receipt loss, disk restart and fencing schedules remain.
+The pass takes **12.347 s**, with **1063 reads**, **31 mutation-send responses**,
+**34 turn responses**, two lost receipts, four mutations maximum and eight resident
+authority pages. Its proof SHA256 is
+`5c4d0ce1f6edea1c8faba49a8688012f75afea3e6eac10504e162cfcf7ef6e58`;
+node and host digests remain those in the supplied-writer record. Extra metadata,
+status and terminal-cancellation observations make this a different workload,
+not a paired performance improvement. Package tests, independent wire fixtures
+and documentation checks pass. Native ABI/port and installed SDK/CLI exposure
+remain separate integration work.

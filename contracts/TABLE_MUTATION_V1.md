@@ -379,3 +379,41 @@ not_found=5, not_active=6, upload_closed=7, not_sealed=8, invalid_part=9,
 incomplete_upload=10, source_changed=11 and stale_policy=12. Missing, truncated,
 trailing or invalid fields reject. The role does not install a query peer or
 execute query calls; client/CLI/SDK read-query routes retain their own profiles.
+
+## Neutral caller values
+
+`TableMutationBridge` owns language-neutral actions and results above the signed
+Zig client. Its returned strings and schema names belong to the supplied result
+allocator; decoded requests own their cells and names independently of input
+bytes. Native ABI/port exports and idiomatic CLI/language adapters have separate
+integration boundaries. A local bridge value does not establish a write route,
+current grants or a running compatible writer.
+
+Native realm/principal/PID/resource/input/revision counters and Table IDs use
+validated JSON numbers within their native bounds. Namespace IDs use canonical
+unsigned decimal strings, preserving all 64 bits. Policy revisions also use
+decimal strings but retain their native safe-counter bound. Request bytes,
+publication references, declaration digests and command parts use hex strings;
+outputs use lowercase. SQL retains the compiler's int64/null/bool/UTF-8/binary
+rules. No mutation value passes through a JavaScript floating-point number.
+
+| Action | Result and boundary |
+| --- | --- |
+| `capabilities` | Local bounded mutation support; does not read or authorize a writer |
+| `describe` | Current Table names/type, resource revision, policy revision/declaration/mask and active namespace |
+| `compile {name, sql, namespace}` | Current-policy checked canonical `request` hex and complete `reference` hex; does not admit work |
+| `next {request, reference}` | Optional opaque prepared string for one command; recomputes the request commitment and rejects changed references before reading staging state |
+| `prepare` | Explicit begin/part/seal/apply/cancel with full reference; returns one opaque prepared string |
+| `submit` | Original opaque string only; returns a native receipt, preserving explicit uncertainty and exact retry |
+| `observe {prepared, input}` | Pending/processed progress for the original admitted input |
+| `rejection {prepared, input}` | Optional separate writer disposition after processing |
+| `status` | Original full reference; reads durable status under current native grants, even after mutation-policy revocation; returns null when absent |
+
+Begin includes Table ID and decimal policy revision. Parts include ordinal,
+second-half flag and bounded hex bytes. Seal/apply/cancel carry the full reference.
+Compilation binds the caller's explicitly configured resource, writer and Table.
+Persist both compiled fields unchanged before staging. A null `prepared` result
+means terminal staging state; inspect status to distinguish application, rejection
+and cancellation. It does not imply success. Reconcile and inspect the preceding
+prepared input before requesting a successor. Saved signed strings remain opaque:
+language adapters must not parse/re-encode, replace, or re-sign them after timeout.

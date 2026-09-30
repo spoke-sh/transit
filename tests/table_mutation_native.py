@@ -245,33 +245,52 @@ def run(node, proof, host):
             invoke('restore-policy')
             invoke('reown')
             start_writer()
-            statement = "INSERT INTO items (id,value) VALUES(2,'host')"
-            first = invoke('host-step',6,statement)
-            assert not first['complete']
-            processed(first['input'])
-            snapshot(6,'uploading',[('replacement',),None,(None,)])
+            def mutation(action, **kwargs):
+                return invoke('bridge',json.dumps(action),**kwargs)
+            def submit(prepared):
+                # Opaque signed text survives host replacement and is never
+                # parsed/re-encoded by this foreign adapter.
+                (root/'bridge-prepared.txt').write_text(prepared)
+                receipt = mutation({'submit':(root/'bridge-prepared.txt').read_text()})['receipt']
+                processed(receipt['position'])
+                observation = dict(prepared=prepared,input=receipt['position'])
+                assert mutation({'observe':observation}) == {'observation':'processed'}
+                return mutation({'rejection':observation})['rejection']
+            assert mutation({'capabilities':{}})['capabilities']['max_rows'] == 3
+            description = mutation({'describe':{}})['description']
+            assert description['permissions'] == 7 and description['value_type'] == 'utf8'
+            compiled = mutation({'compile':dict(name='items',sql="INSERT INTO items (id,value) VALUES(2,'host')",namespace='6')})['compiled']
+            (root/'bridge-compiled.json').write_text(json.dumps(compiled))
+            first = mutation({'next':compiled})['prepared']
+            assert first is not None and submit(first) is None
+            current = mutation({'status':compiled['reference']})['status']
+            assert current['phase'] == 'uploading' and current['affected_rows'] == 0
             writer.kill(); writer.wait(timeout=10); writer = None
             invoke('reown')
             start_writer()
+            compiled = json.loads((root/'bridge-compiled.json').read_text())
             # A valid but premature apply is acknowledged with a disposition,
             # leaving upload state intact and subsequent accepted work runnable.
-            receipt = invoke('enqueue-apply',6)
-            processed(receipt['position'])
-            assert invoke('rejection',receipt['position']) == {'observation':'processed','rejection':'not_sealed'}
-            snapshot(6,'uploading',[('replacement',),None,(None,)])
+            premature = mutation({'prepare':{'apply':compiled['reference']}})['prepared']
+            assert submit(premature) == 'not_sealed'
+            assert mutation({'status':compiled['reference']})['status'] == current
             for _ in range(16):
-                step = invoke('host-step',6,statement)
-                if step['complete']:
-                    assert step['status']['phase'] == 'applied'
-                    break
-                processed(step['input'])
-                assert invoke('rejection',step['input']) == {'observation':'processed','rejection':None}
+                prepared = mutation({'next':compiled})['prepared']
+                if prepared is None: break
+                assert submit(prepared) is None
             else: raise AssertionError('Supplied writer exceeded bounded upload steps')
+            status = mutation({'status':compiled['reference']})['status']
+            assert status['phase'] == 'applied' and status['affected_rows'] == 1
+            assert status['reference'] == compiled['reference'] and status['reason'] == 'none'
+            cancelled = mutation({'prepare':{'cancel':compiled['reference']}})['prepared']
+            assert submit(cancelled) is None
+            assert mutation({'status':compiled['reference']})['status'] == status
             snapshot(6,'applied',[('replacement',),('host',),(None,)],1)
             duplicate_host = subprocess.run([host,str(root/'writer.json')],env=fixture.env,capture_output=True,text=True,timeout=15)
             assert duplicate_host.returncode != 0 and 'FreshOwnershipRequired' in duplicate_host.stderr
             writer.kill(); writer.wait(timeout=10); writer = None
             invoke('revoke-reader')
+            mutation({'status':compiled['reference']},error='AccessDenied')
             invoke('inspect',1,error='AccessDenied')
             assert counts['max_mutations'] == 4
             print(json.dumps({'proof':'Table mutation native admission','elapsed_seconds':round(time.monotonic()-started,3),

@@ -27,6 +27,7 @@ test {
     _ = @import("table_mutation_admission_test.zig");
     _ = @import("table_mutation_client_test.zig");
     _ = @import("table_mutation_writer_test.zig");
+    _ = @import("table_mutation_bridge_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -46,3 +47,5 @@ pub const TableMutationWriter = @import("TableMutationWriter.zig");
 pub const testing = if (@import("builtin").is_test) struct {
     pub const Store = @import("source_store_test.zig");
 } else struct {};
+
+pub const TableMutationBridge = @import("TableMutationBridge.zig");

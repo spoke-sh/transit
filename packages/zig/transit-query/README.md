@@ -41,7 +41,11 @@ The [caller contract](../../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller)
 defines these APIs and the required current grants. `TableMutationWriter`
 composes guarded initialization, policy changes and durable rejected-input
 dispositions for the explicit host role. CLI/SDK query routes still require
-mutation integration.
+mutation integration. `TableMutationBridge` supplies owned neutral actions/results
+over the same caller, including exact compiled-reference validation and opaque
+saved commands. Its [neutral value contract](../../../contracts/TABLE_MUTATION_V1.md#neutral-caller-values)
+keeps full-width namespaces out of JSON numbers; ABI/port exports remain a
+separate integration step.
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit

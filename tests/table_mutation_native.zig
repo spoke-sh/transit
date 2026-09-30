@@ -117,7 +117,16 @@ pub fn main(init: std.process.Init) !void {
         return print(init, config);
     }
     var config = try load(Config, init, directory, "mutation.json");
-    if (std.mem.eql(u8, mode, "stage") or std.mem.eql(u8, mode, "prepare-upload") or std.mem.eql(u8, mode, "host-step")) {
+    if (std.mem.eql(u8, mode, "bridge")) {
+        if (args.len != 5) return error.Usage;
+        const action = try std.json.parseFromSlice(q.TableMutationBridge.Action, init.gpa, args[4], .{});
+        defer action.deinit();
+        var arena = std.heap.ArenaAllocator.init(init.gpa);
+        defer arena.deinit();
+        var caller = try mutationClient(&wire, config);
+        return print(init, try q.TableMutationBridge.apply(arena.allocator(), &caller, action.value));
+    }
+    if (std.mem.eql(u8, mode, "stage") or std.mem.eql(u8, mode, "prepare-upload")) {
         if (args.len != 6) return error.Usage;
         const namespace = try std.fmt.parseInt(u64, args[4], 10);
         var caller = try mutationClient(&wire, config);
@@ -126,17 +135,15 @@ pub fn main(init: std.process.Init) !void {
         try saveReference(init, directory, ref);
         for (0..16) |_| {
             const prepared = (try caller.prepareNext(namespace, request)) orelse {
-                if (std.mem.eql(u8, mode, "host-step")) return print(init, .{ .complete = true, .status = (try caller.status(ref)).? });
                 return error.UnexpectedTerminalMutation;
             };
             const frame = try s.Frame.decode(prepared.signed.request.command.send.value);
             const command = try r.Command.decode(&frame.payload);
-            if (command == .apply and !std.mem.eql(u8, mode, "host-step")) return print(init, .{ .staged = namespace });
+            if (command == .apply) return print(init, .{ .staged = namespace });
             try savePrepared(init, directory, prepared);
             if (std.mem.eql(u8, mode, "prepare-upload")) return print(init, .{ .prepared = namespace });
             const recovered = try restorePrepared(init, directory);
             const receipt = try caller.submit(recovered);
-            if (std.mem.eql(u8, mode, "host-step")) return print(init, .{ .complete = false, .input = receipt.position });
             try t.expectEqual(.pending, try caller.observe(recovered, receipt.position));
             var worker = try makeServer(&wire, config);
             try drive(init.io, &worker, config, false);

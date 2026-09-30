@@ -1429,7 +1429,8 @@
         "packages/zig/transit-query/src/TableMutationClient.zig",
         "packages/zig/transit-station/src/TableMutation.zig",
         "packages/zig/transit-query/src/TableMutationWriter.zig",
-        "apps/transit-query-host/main.zig"
+        "apps/transit-query-host/main.zig",
+        "packages/zig/transit-query/src/TableMutationBridge.zig"
       ],
       "profile": "transit-v1/state-v1/station-v1/table-mutation-v1",
       "tasks": [
@@ -1444,7 +1445,8 @@
         "Native rows/result/input visibility, exact accepted-but-lost commit recovery after node/store restart, changed retry refusal",
         "Stale captured revision, fenced writer, current resource write/read grants and application-policy revocation",
         "Explicit supplied writer configuration and authorized initialization",
-        "Fresh-fenced host restart during upload and retained input rejection without replacing request status"
+        "Fresh-fenced host restart during upload and retained input rejection without replacing request status",
+        "Owned neutral request/reference and opaque signed actions through the real writer, with current status denial"
       ],
       "limits": "Explicit supplied writer host and shared Zig caller; CLI/language SDK mutation routes remain. At most three row keys plus one status key per final turn. Native proof has eight resident authority pages; this schedule does not establish host power-loss or whole-catalog growth guarantees.",
       "model": null,
