@@ -9128,3 +9128,25 @@ and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is i
 `/tmp/transit-local-writes-final.log`. These are working-tree executions, not
 clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
 installed SDK matrices were not run for this cutover.
+## Fuze logical type foundation
+
+The local `Types` profile has nine passing focused Zig tests, including 46
+independently generated Python stdlib scalar cases for exact integer widths,
+decimal coefficients, IEEE floats, Gregorian dates, timestamps and UUIDs.
+`just test::fuze-types` checks fixture drift and executes descriptor/value
+truncation, incompatible definitions, recursive budgets, escaped duplicate JSON
+keys and exhaustive allocator-failure cleanup schedules. This is local
+codec/conversion evidence, not CSV/JSONL execution, installed SDK/Arrow extension,
+durable file recovery or comparative performance evidence. The original
+six-scalar Fuze package suite passed before recursive codec additions; final-tree
+package and repository checks are recorded separately when executed.
+
+The type-foundation tree passes full `just check` on Linux x86_64 with the pinned
+Zig 0.17 shell and locked frontend dependencies: generated native/application/ABI
+contracts, unit/CLI checks, independent fixtures, frontend validation/tests and
+Docusaurus build. The initial contract commit `cb86170a` separately passes
+`just ci-clean --lane core` in a fresh checkout, including disk Ursula,
+service/client/caller/inspection/state proofs. This clean result applies to that
+contract-only commit, not subsequent type or reader implementation. One focused
+shell entry failed due to a missing cached Nix derivation; retrying with
+`--option eval-cache false` resolved the environment failure without changing pins.

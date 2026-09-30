@@ -4,6 +4,7 @@ pub const arrow = @import("zarrow");
 pub const compute = @import("zarrow_compute");
 pub const model = @import("model.zig");
 pub const execution = @import("execute.zig");
+pub const Types = @import("Types.zig");
 pub const Unified = @import("Unified.zig");
 pub const Sql = @import("Sql.zig");
 pub const SqlDiagnostic = @import("SqlDiagnostic.zig");
@@ -13,6 +14,7 @@ pub const Declaration = @import("Declaration.zig");
 test {
     _ = SqlInput;
     _ = SqlDiagnostic;
+    _ = Types;
     _ = Unified;
     _ = @import("sql_test.zig");
     _ = @import("stream_test.zig");

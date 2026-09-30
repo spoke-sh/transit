@@ -531,3 +531,8 @@ vortex *args:
 # Installed Python/Node, local application, query or browser/reactive faults.
 vortex-profile profile:
     python3 -B tests/verification/external_profiles.py --profile {{quote(profile)}}
+
+# Independent logical type fixtures, allocation failures and exact codecs.
+fuze-types:
+    python3 -B tests/fuze_types.py
+    zig test packages/zig/transit-fuze/src/Types.zig

@@ -28,7 +28,7 @@ invalid parameters, duplicate field names and trailing bytes reject.
 | UUID | Exactly 16 bytes, canonical textual spelling 8-4-4-4-12 hexadecimal |
 | Struct | Ordered named fields, each with type, nullable and optional flags |
 | List / fixed array | One element type and nullability; arrays have a positive declared length |
-| Map | Ordered entries with non-null scalar keys, unique under typed equality |
+| Map | Entries in strictly increasing typed key order; non-null scalar keys |
 | Tagged union | Ordered named alternatives; one tag and one typed cell |
 | JSON | Valid UTF-8 JSON preserving numeric lexemes; duplicate object keys reject |
 
@@ -53,7 +53,8 @@ finite floats compare numerically, so signed zeros are equal and hash identicall
 Decimal coefficients compare at their declared scale without binary floating point.
 UTF-8/binary/UUID use unsigned byte order. Structs, lists and arrays compare
 lexicographically in declaration/element order when every child is comparable.
-Maps and JSON have structural equality without a general ordering. Intervals use
+Maps have structural equality without a general ordering. Raw JSON equality,
+hashing and ordering are not admitted; extraction requires a declared type. Intervals use
 component equality without converting calendar months into elapsed days. Conflict
 and type error never silently participate as ordinary values or nulls.
 
@@ -90,3 +91,50 @@ UTF-8 and binary. Stored Tables, SQL literals, Flight and foreign SDK operations
 retain their independently documented profiles until their owning codecs and
 proofs admit an extension. Unsupported types reject before execution. Adding a
 logical descriptor does not enable new SQL grammar or change stored Tables.
+
+## Implemented local API and encoding
+
+`transit_fuze.Types` implements descriptors, validation, fingerprints and canonical
+`FTY1` encoding. `Semantics` implements scalar validation/binding, checked integer
+and decimal casts, integer/float casts with reject or nearest-even policy,
+float32/64 casts, integer/float/decimal domain promotion and conservative CSV text
+classification. Float-to-integer, binary-float/decimal, temporal casts and interval
+literal syntax reject. Recursive equality/hash/operator execution remains outside
+this local codec profile. Date literals use years 0001–9999; timestamp literals
+use `YYYY-MM-DDTHH:MM:SS[.fraction]`, with a required `Z` for UTC. Time fractions
+have at most nine digits; timestamp conversion rejects nonzero submicroseconds.
+
+`Values.Cell` validates nested states and canonical sorted maps. `Codec` encodes
+and owns decoded values. `Json.parse` retains numeric lexemes and rejects malformed
+JSON and duplicate decoded object keys. It accepts caller-owned allocation;
+`Json.validate` uses a bounded 1 MiB scratch buffer. Neither performs I/O.
+
+`FTY1` is magic, u8 definition-string length, UTF-8 definition, then one recursive
+descriptor. The current definition is `transit.fuze.types.v1.2026-09-30`. Tags
+1–27 are int64, uint64, float64, boolean, UTF-8, binary, int8, int16, int32,
+int128, uint8, uint16, uint32, uint128, float32, decimal, date, time, timestamp,
+interval, UUID, struct, list, array, map, tagged union and JSON. Scalars have no
+parameters except decimal (u8 precision/scale) and timestamp (0 civil, 1 UTC).
+Struct/union is u8 field count followed by each u8-length UTF-8 name, flags
+(bit 0 nullable, bit 1 optional) and child descriptor. Lists encode a canonical
+boolean nullable byte then child type; arrays prepend u32 length. Maps encode
+key type then the value's nullable byte/type. Integers are little-endian.
+
+`FVL1` is magic, u16 `FTY1` length and bytes, root flags, then one typed cell.
+Cell states are 0 missing, 1 null, 2 type-error plus actual type tag, 3 value,
+4 conflict. Conflict is u8 count and ordered alternatives, each u64 counter,
+u64 replica and state 1/2/3 with its corresponding payload. Scalar integers use
+their exact width; floats use IEEE bits; decimal uses signed i128 coefficient;
+boolean is exactly 0/1; UTF-8/binary/JSON use u32 byte length; date/time/timestamp
+use i32/u64/i64; interval uses i32 months, i32 days and i64 nanoseconds; UUID is
+16 bytes. Structs encode cells in declaration order; lists/arrays encode u32
+count then cells. Maps encode u32 count then key atom/value cell pairs. Unions
+encode u8 alternative index and its cell. Trailing bytes always reject.
+
+Default descriptor limits are 16 levels, 256 nodes, 4096 total name bytes,
+255 bytes per name/fields per struct, and 16 KiB encoded descriptor. Value limits
+are 16 levels, 65536 visited children and 1 MiB variable bytes; envelopes are at
+most 2 MiB. Raw JSON separately limits a value to 64 KiB, 16 levels, 4096 syntax
+tokens and 256 fields per object. Conflict count remains 2–8. These bound one
+value/schema operation, not total source cardinality. Callers may supply stricter
+validation budgets. Encoding and decoding enforce the default wire bounds.

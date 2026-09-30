@@ -7,6 +7,23 @@ The [planned type system and schema discovery](#planned-type-system-and-schema-d
 below describe work that is not implemented; the scalar and cell-state sections
 describe current behavior.
 
+## Logical descriptor API
+
+Fuze's Zig `Types` API supplies bounded descriptors for signed/unsigned integers
+through 128 bits, finite float32/64, decimal128, boolean, UTF-8/binary, date, time,
+civil/UTC timestamp, interval, UUID and recursive struct/list/array/map/union/JSON.
+It supplies descriptor fingerprints, checked scalar literal binding, selected
+explicit numeric casts, lossless domain promotion and an owned neutral value
+codec. JSON parsing preserves numeric lexemes and rejects duplicate decoded keys.
+Map entries use strictly increasing typed keys, rejecting duplicates including
+positive/negative floating zero.
+
+These are local type/codec APIs. SQL, native query plans, catalogs, stored Tables,
+Arrow query transports and SDK queries accept the narrower profiles below.
+Recursive comparison/hash operations, general SQL casts and file-source execution
+are not enabled by a descriptor. See the [type contract](../../../contracts/FUZE_TYPES_V1.md)
+for precise admitted conversions, temporal representations and resident bounds.
+
 ## Scalar types
 
 | Query v1 type | Read a declared column | SQL comparison literal | Offline declaration token |
@@ -69,7 +86,8 @@ by native query v1 does not imply support through every SQL transport. See
 
 ## Planned type system and schema discovery
 
-**Status: planned, not implemented.** The objective is a comprehensive shared
+**Status: source discovery and query-surface expansion are planned.** The local
+logical descriptor and codec APIs above implement the type foundation. The objective is a comprehensive shared
 type system that also makes ad hoc CSV and JSONL queries useful without requiring
 an import or a complete handwritten schema first. Schema on demand means
 deriving a bounded, explicit interpretation when opening a source. It does not
