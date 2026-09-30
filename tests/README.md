@@ -18,6 +18,14 @@ uncertainty, seedless host recovery, cancellation/join/disposal and current deni
 with exactly two accepted inputs. Per-host histories and exact wheel/tarball/native
 hashes are retained. This covers those installed Linux hosts, not all SDKs.
 
+The local application fault scenario initially stopped on a transient
+`AuthorityUnavailable` during an ordinary public operation. Its driver now uses
+the same bounded, byte-preserving recovery-file retry as the owning application
+proof; intentionally faulted calls still return immediately for explicit checks.
+The rerun passed dropped spawn, worker rotation, migration send/turn and activation
+send replies in 21.551 seconds, including current revocation and management bounds.
+Provider-upgrade qualification remains a separate stage in that profile.
+
 `just check` passed during this development run. The application, query and
 browser/reactive profiles, complete committed-HEAD clean suite and hosted cost
 remain separately recorded gates. SIGKILL is not host power loss; local durations

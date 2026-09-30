@@ -205,7 +205,16 @@ def run(cli, node_binary, host, worker, operator):
         argv = [operator, str(fixture.root / (caller + '.json')), mode]
         if operation:
             argv.append(str(fixture.root / (operation + '.json')))
-        result = subprocess.run([*argv, *map(str, args)], capture_output=True, text=True, timeout=40)
+        command = [*argv, *map(str, args)]
+        deadline = time.monotonic() + 40
+        while True:
+            result = subprocess.run(command, capture_output=True, text=True, timeout=max(1, deadline-time.monotonic()))
+            if fail or result.returncode == 0 or result.stderr.strip() not in (
+                    'error: AuthorityUnavailable', 'error: AuthorityTimeout', 'error: HttpConnectionClosing') or time.monotonic() >= deadline:
+                break
+            # As in server_applications, retry through the same public recovery
+            # file. Never prepare a new operation to hide an uncertain result.
+            time.sleep(.05)
         if fail:
             assert result.returncode != 0, result
             return result
