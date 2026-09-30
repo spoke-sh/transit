@@ -4,6 +4,8 @@ The [SQL reference](../sql.md) distinguishes executable queries from
 grammar-only statements. The checked syntax owner is
 [TransitExtensions.g4](../../../contracts/sql/TransitExtensions.g4).
 [Application declarations](application.md) have their own grammar and bounds.
+See [data types and cell states](types.md) for type coverage and
+[functions and operators](expressions.md) for expression support.
 
 ## Reading the syntax
 

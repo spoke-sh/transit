@@ -6,12 +6,37 @@ a source or change its declaration. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and
 publish bounded Arrow result segments. See [query execution](queries.md).
 
+## Find an operation
+
+| Task | Reference |
+| --- | --- |
+| Read rows, filter or aggregate | [SELECT](sql/select.md) |
+| Understand names and literal syntax | [Syntax](sql/syntax.md) |
+| Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
+| Find a function or operator | [Functions and operators](sql/expressions.md) |
+| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md): unsupported in SQL; application APIs are available |
+| Inspect definitions | [DESCRIBE](sql/describe.md), [SHOW](sql/show.md): grammar only; use console metadata commands |
+| Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
+| Define an application interface | [Application declarations](sql/application.md) |
+
+## Support and execution
+
 This reference covers every statement in the
 [SQL grammar](../../contracts/sql/TransitExtensions.g4), its separate historical-read
 fragment, and the [application declaration grammar](../../contracts/application/Application.g4).
 Syntax recognition, query compilation and administrative publication are separate
-capabilities. Administrative SQL extensions are **grammar-only**; their examples
-describe syntax and do not execute in the query console.
+capabilities. Each operation has an explicit support boundary:
+
+| Status | Meaning |
+| --- | --- |
+| Executable | The stated interface compiles and executes the documented subset |
+| Grammar only | The reference parser recognizes the form; query interfaces do not execute it |
+| Separate compiler | Application definitions compile offline and use explicit publication operations |
+| Unsupported | The form has no accepted SQL grammar or execution contract |
+
+Administrative SQL extensions are **grammar-only**; their examples describe
+syntax and do not execute in the query console. Unsupported command entries
+explain the current alternatives without defining new syntax.
 
 The console, CLI and Board use the same query v1 source and plan contract.
 Flight SQL uses its configured Table subset and adapts results to primitive
@@ -38,6 +63,9 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | Statement | Support | Reference |
 | --- | --- | --- |
 | `SELECT` | Executable finite read in the profiles above | [Projection, filtering, limits and aggregates](sql/select.md) |
+| `INSERT` | Unsupported; absent from grammar and runtime | [Row insertion and current application APIs](sql/insert.md) |
+| `UPDATE` | Unsupported; absent from grammar and runtime | [State changes and commit boundaries](sql/update.md) |
+| `DELETE` | Unsupported; absent from grammar and runtime | [Row removal and retained history](sql/delete.md) |
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
 | `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
@@ -51,9 +79,26 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | `FOR SYSTEM_TIME AS OF` | Separate grammar fragment; not part of `SELECT` | [Revision selection](sql/as-of.md) |
 | `CREATE INTERFACE`, `THEME`, `SCREEN`, `BINDING`, `ACTION` | Separate application compiler; publication is explicit | [Application declarations](sql/application.md) |
 
+### Other SQL operations
+
+| Operation | Current boundary |
+| --- | --- |
+| `EXPLAIN`, `DESCRIBE SELECT` | No SQL plan or query-result schema inspection |
+| `ALTER`, `DROP`, `TRUNCATE` | No SQL object replacement, retirement or bulk deletion |
+| `BEGIN`, `COMMIT`, `ROLLBACK` | No SQL transaction session; application turns retain their own atomic boundary |
+| `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
+| `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | No named SQL view or maintained-query definition |
+| `SUBSCRIBE`, streaming windows, event-time watermarks | No continuous SQL contract; see [streaming and effects](sql/streaming.md) |
+| `PREPARE`, `EXECUTE`, parameters | No SQL prepared-statement or parameter-binding grammar |
+
+These forms are absent from the checked grammar. Native operations, transport
+metadata and console dot commands do not establish equivalent SQL support.
+
 ## Query examples
 
-Given an authorized source named `items` with `id` and `value` int64 columns:
+Configure an authorized [query source](../../apps/transit-cli/docs/unified-query.md)
+before submitting SQL. The examples use `items`, with int64 `id` and nullable
+int64 `value` columns. SQL does not create this source:
 
 ```sql
 SELECT * FROM items;
@@ -77,7 +122,9 @@ subqueries, outer predicates and nested derived tables are unsupported.
 ## Names, literals and comparisons
 
 The [syntax reference](sql/syntax.md) describes lexical rules and option lists;
-[SELECT](sql/select.md) describes type-specific comparisons and failures.
+[data types](sql/types.md) distinguishes scalar types and cell states, and
+[functions and operators](sql/expressions.md) lists available expressions.
+[SELECT](sql/select.md) describes clause behavior and failures.
 
 Unquoted ASCII names fold to lowercase. Double-quoted names preserve case but
 must satisfy Fuze's identifier rules. A column qualifier must match the declared

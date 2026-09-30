@@ -42,5 +42,8 @@ Use [source configuration](../../../apps/transit-cli/docs/unified-query.md) for
 the supported KV/Table/Document path and [connectors](../connectors.md) for
 recorded remote observations. Neither interface enables this SQL declaration.
 
+See [streaming and effects](streaming.md) for the distinction between captured
+observations, retained state and continuous query processing.
+
 Source: [`createSource`](../../../contracts/sql/TransitExtensions.g4). See also
 [CREATE CONNECTION](create-connection.md) and [syntax](syntax.md).

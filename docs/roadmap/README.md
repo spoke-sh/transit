@@ -42,6 +42,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M32](M32.md) | Public Internals and scientific documentation | Complete: nine scientific accounts, separate roadmap/design/history owners, source checks and root/prefixed browser proofs |
 | [M33](M33.md) | Publication | Planned; tagged GitHub releases across Nix, installer, Homebrew, Docker/OCI, Helm and inventoried library/SDK artifacts |
 | [M34](M34.md) | Clustered execution and portability | Planned; growing runtime prerequisites and explicit authority/placement qualification |
+| [M35](M35.md) | SQL language completeness and declarative dataflows | Proposed; scoped inspection, bounded Table mutations, typed declarations, maintained queries and recorded effect bindings |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource

@@ -3,6 +3,10 @@
 `SELECT` executes a finite read against one explicitly declared KV, Table or
 accepted Document projection. Names and types come from that declaration. SQL neither creates the
 source nor grants access to it.
+For scalar types and retained cell states, see [data types](types.md).
+The [function and operator index](expressions.md) lists the complete expression
+subset. [INSERT](insert.md), [UPDATE](update.md) and [DELETE](delete.md) are
+unsupported; query permission does not authorize mutations.
 
 ## Syntax
 

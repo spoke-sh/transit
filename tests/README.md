@@ -4299,3 +4299,23 @@ checks and the production documentation build. Later edits only explain measured
 behavior, compatibility and remaining scope; `just transit-docs::check` passes
 again for those edits. No push is performed, so the pre-push `just ci-clean` gate
 is not run.
+
+## SQL reference operation coverage
+
+The SQL reference now indexes unsupported INSERT/UPDATE/DELETE operations and
+separates types, functions/operators and streaming/effect boundaries. The
+[M35 gap inventory](../docs/roadmap/M35.md) records proposed contracts and proof
+gates; it does not establish executable mutation or continuous SQL support.
+
+Working-tree validation with the pinned Nix development shell:
+
+- `just check` passes, including native/contract/unit checks, 174 CLI diagnostic
+  cases, frontend checks and the production documentation build. The site runs
+  six ownership/content checks and validates its published links and anchors.
+- `just test::sql-grammar` passes: 37 public SQL examples parse, all statement
+  rules and the historical fragment are covered, 103 SELECT ASTs agree with
+  libpg_query, 17 syntax exclusions and 13 administrative examples pass, and
+  ANTLR reports zero diagnostics. This establishes syntax coverage only.
+
+No grammar, compiler or runtime behavior changes in this revision. These checks
+do not qualify any proposed mutation, maintained-query or effect-binding profile.

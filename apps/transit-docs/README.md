@@ -35,7 +35,10 @@ accounts, the overview, standard and template. All sections share the same site 
 The [SQL reference](../../docs/reference/sql.md) indexes every statement in the
 checked query/extension grammar, its historical-read fragment and the separate
 application declaration language. Statement pages live in `docs/reference/sql/`
-and distinguish executable queries, offline definitions and grammar-only syntax.
+and distinguish executable queries, offline definitions, grammar-only syntax and
+absent operations. Types, functions/operators and streaming/effect boundaries
+have dedicated pages. Unsupported command entries remain searchable alongside
+implemented statements and explain the available application API alternatives.
 
 Every page in `docs/guides/`, `docs/reference/` and `docs/internals/` must appear
 in the catalog. Usage guides and references explain current capabilities;
