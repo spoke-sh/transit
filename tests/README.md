@@ -5201,3 +5201,33 @@ takes **55.584 / 16.132 s**; the retained query publishes 41 rows / 21296 bytes
 through write/seal/recover/publish/deliver phases. This is a focused pass; later
 clean-CI lanes did not run. The failed checkout remains at
 `/var/tmp/transit-ci-zzrnm6qv`.
+
+### Supplied Table mutation writer
+
+The explicit `table_writer` host role composes the same mutation admission owner
+and requires an authorized initializer, an immutable stored configuration and
+separate per-principal policy. Independent bytes cover configuration, initializer
+commitment, policy changes and all twelve input rejection reasons. Package tests
+cover the four-slot initialization boundary, changed configuration/resource,
+unauthorized/stale policy changes, namespace conflicts, rollback, poisoned reads
+and corrupt status. Rejected inputs have a retained disposition and do not
+replace a request's terminal result.
+
+`just test::table-mutation` passes in **12.481 s** using the actual supplied host,
+including termination during upload, fresh fenced ownership, premature-apply
+rejection, continued upload/application and activation-marker reuse refusal.
+The caller reads a processed input's reference-bound rejection separately from
+its mutation result. The first run exposed a missing fixture activation directory;
+creating that owned directory fixes startup without changing host recovery gates.
+All earlier caller-send and writer-commit receipt-loss/restart, atomicity,
+conflicting retry, current grant/policy and duplicate-result schedules remain.
+
+The expanded schedule records **1010 reads**, **30 successful mutation-send
+responses** and **33 successful turn responses**, including retries. Bounds stay
+at four mutations, 256-byte values and eight resident authority pages. The node
+SHA256 is `a511cb9f1f8996f93a94cdb795fece1d8cbdbb46bf2663e2fa2b034947362835`,
+the proof SHA256 is `af0313622dc0bd760d7684b42899e3fca22ae27ac109216358edfcc29e1294b7`,
+and the host SHA256 is `2e620499a4df9b472cc8f52b90e8a9e0855cff8b062430e14515a1f1a0a9b0fe`.
+These totals add host polling and rejection/recovery work; they are not a paired
+performance comparison. CLI/language SDK mutation entry points and a combined
+query-source/writer host remain outstanding.

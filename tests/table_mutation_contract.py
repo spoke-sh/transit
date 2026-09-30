@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT/'packages/zig/transit-query/src/fixtures/table-mutation-v1.json'
 RECORDS = FIXTURE.with_name('table-mutation-records-v1.json')
+WRITER = FIXTURE.with_name('table-mutation-writer-v1.json')
 
 
 def generate():
@@ -58,14 +59,29 @@ def records(requests):
     return json.dumps(dict(version=1,declaration=declaration.hex(),reference=reference.hex(),policy=policy.hex(),statuses=statuses,commands=[value.hex() for value in commands]),indent=2)+'\n'
 
 
+def writer_records(encoded_records):
+    values = json.loads(encoded_records)
+    schema = b'TBL1\1\2id\5value'
+    configuration = b'TMW1'+struct.pack('<QQQI',7,17,10,9)+bytes([len(schema)])+schema+b'\7'
+    initialize = b'TMI1'+struct.pack('<Q',7)+hashlib.sha256(b'transit.table.mutation.writer.v1\0'+configuration).digest()
+    policy = b'TMG1'+struct.pack('<QQ',7,3)+bytes.fromhex(values['policy'])
+    frame = b'STN1\1'+bytes(8)+b'TMX1'+bytes.fromhex(values['reference'])
+    payload = hashlib.sha256(b'transit.table.mutation.input.v1\0'+frame).digest()
+    dispositions = [dict(reason=reason,wire_hex=(b'TME1'+struct.pack('<QQ',10,123)+payload+bytes([reason])).hex()) for reason in range(1,13)]
+    return json.dumps(dict(version=1,configuration=configuration.hex(),initialize=initialize.hex(),policy_change=policy.hex(),frame=frame.hex(),dispositions=dispositions),indent=2)+'\n'
+
+
 if __name__ == '__main__':
     expected = generate()
     expected_records = records(expected)
+    expected_writer = writer_records(expected_records)
     if sys.argv[1:] == ['--write']:
         FIXTURE.write_text(expected)
         RECORDS.write_text(expected_records)
+        WRITER.write_text(expected_writer)
     else:
         assert not sys.argv[1:]
         assert FIXTURE.read_text() == expected, 'Regenerate the reviewed Table mutation request fixtures'
         assert RECORDS.read_text() == expected_records, 'Regenerate the reviewed Table mutation record fixtures'
-        print('Table mutations: five definition-bound requests, policy, five statuses and six commands agree with independent bytes.')
+        assert WRITER.read_text() == expected_writer, 'Regenerate the reviewed Table writer fixtures'
+        print('Table mutations: five definition-bound requests, policy, five statuses, six commands and writer configuration/controls/dispositions agree with independent bytes.')

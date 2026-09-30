@@ -27,8 +27,8 @@ terminal result with the row proposal in one private Station turn. Applications
 retain the full immutable publication reference in every staged or control command;
 the owner rejects changed resource, length or digest even for terminal results.
 Applications must install its policy through their authorized configuration path and opt into
-its external-cast dispatch; the supplied query hosts and public query clients
-still reject writes. No read permission implicitly enables mutation dispatch.
+its external-cast dispatch. The query host offers an explicit `table_writer`
+role; read-query roles and public query clients still reject writes. No read permission implicitly enables mutation dispatch.
 See the [mutation contract](../../../contracts/TABLE_MUTATION_V1.md).
 
 `TableMutationClient` supplies the shared Zig caller for applications that expose
@@ -38,8 +38,10 @@ It retains full request identity across caller and writer recovery. Preparing th
 next step requires reconciling the preceding exact command first; a native send
 receipt is admission, and only a terminal mutation status establishes the result.
 The [caller contract](../../../contracts/TABLE_MUTATION_V1.md#signed-zig-caller)
-defines these APIs and the required current grants. Supplied hosts and CLI/SDK
-query routes still require explicit mutation integration.
+defines these APIs and the required current grants. `TableMutationWriter`
+composes guarded initialization, policy changes and durable rejected-input
+dispositions for the explicit host role. CLI/SDK query routes still require
+mutation integration.
 
 `zig build test` checks the package independently. The real host and shell proof
 is `just test::unified-query`; `just test::table-mutation` exercises an explicit

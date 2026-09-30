@@ -22,6 +22,7 @@ const Config = struct {
         finite_service: serving.FiniteService.Configuration,
         unified_source: struct { peer: u64, initializer: u64 },
         table_source: q.TableSource.Configuration,
+        table_writer: q.TableMutationWriter.Configuration,
         unified_requester: q.UnifiedBehavior.Requester,
         courier: struct { destinations: [2]u64 },
     },
@@ -104,6 +105,7 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         .cancellation = &cancellation,
     };
     var table: q.TableSource = .{ .configuration = if (config.role == .table_source) config.role.table_source else undefined, .source = &unified_source };
+    var table_writer: q.TableMutationWriter = .{ .configuration = if (config.role == .table_writer) config.role.table_writer else undefined };
     var finite: serving.FiniteService = .{ .configuration = if (config.role == .finite_service) config.role.finite_service else undefined };
     const handler = switch (config.role) {
         .finite_service => blk: {
@@ -112,6 +114,11 @@ fn run(init: std.process.Init, diagnostics: *telemetry.Runtime) !void {
         },
         .unified_source => unified_source.interface(),
         .table_source => table.interface(),
+        .table_writer => blk: {
+            _ = try table_writer.configuration.target();
+            server.input_guard = table_writer.guard();
+            break :blk table_writer.interface();
+        },
         .unified_requester => |*requester| requester.interface(),
         .courier => unreachable,
     };

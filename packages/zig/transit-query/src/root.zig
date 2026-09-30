@@ -26,6 +26,7 @@ test {
     _ = @import("table_mutation_request_test.zig");
     _ = @import("table_mutation_admission_test.zig");
     _ = @import("table_mutation_client_test.zig");
+    _ = @import("table_mutation_writer_test.zig");
     @import("std").testing.refAllDecls(@This());
 }
 
@@ -39,6 +40,7 @@ pub const TableMutationRequest = @import("TableMutationRequest.zig");
 pub const TableMutationRecords = @import("TableMutationRecords.zig");
 pub const TableMutationAdmission = @import("TableMutationAdmission.zig");
 pub const TableMutationClient = @import("TableMutationClient.zig");
+pub const TableMutationWriter = @import("TableMutationWriter.zig");
 
 /// Test-only reference transactions; never a production authority or backend.
 pub const testing = if (@import("builtin").is_test) struct {

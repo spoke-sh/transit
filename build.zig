@@ -878,6 +878,7 @@ pub fn build(b: *std.Build) void {
     mutation_native_test.addFileArg(b.path("tests/table_mutation_native.py"));
     mutation_native_test.addArtifactArg(node_artifact);
     mutation_native_test.addArtifactArg(mutation_proof);
+    mutation_native_test.addArtifactArg(query_host);
     mutation_native_test.has_side_effects = true;
     mutation_native_test.stdio = .inherit;
     b.step("test-table-mutation", "Prove Table mutation rows and results share native recovery and authority gates").dependOn(&mutation_native_test.step);

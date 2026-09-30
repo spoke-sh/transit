@@ -13,14 +13,14 @@ import time
 from storage import Fixture, free_port, wait_ready
 
 
-def run(node, proof):
+def run(node, proof, host):
     started = time.monotonic()
     with Fixture() as fixture:
         root = fixture.root
         # Keep a matched build through worker/node/store restarts.
-        for name, original in [('node', node), ('proof', proof)]:
+        for name, original in [('node', node), ('proof', proof), ('host', host)]:
             shutil.copy2(original, root/name)
-        node, proof = str(root/'node'), str(root/'proof')
+        node, proof, host = str(root/'node'), str(root/'proof'), str(root/'host')
         public = json.loads(subprocess.check_output([proof, 'public'], timeout=10))
         port = free_port()
         url = f'http://127.0.0.1:{port}'
@@ -89,6 +89,8 @@ def run(node, proof):
         thread.start()
         proxy_url = f'http://127.0.0.1:{proxy.server_port}'
         authority = None
+        writer = None
+        writer_logs = []
         log = (root/'node.log').open('w+')
         def start():
             nonlocal authority
@@ -111,6 +113,37 @@ def run(node, proof):
             assert actual == [None if value is None else ('row',value[0]) for value in values], (actual,values)
             if affected is not None: assert result['affected_rows'] == affected, result
             return result
+        def start_writer():
+            nonlocal writer
+            current = json.loads((root/'mutation.json').read_text())['writer']
+            seed = root/'writer.seed'
+            seed.write_text('08'*32)
+            seed.chmod(0o600)
+            (root/'activations').mkdir(exist_ok=True)
+            host_config = dict(url=proxy_url,realm=46,principal=65536,seed_file=str(seed),
+                pid=current['pid'],generation=current['generation'],activation_directory=str(root/'activations'),
+                interval_ms=10,request_timeout_ms=10000,
+                role={'table_writer':dict(resource=current['resource'],initializer=0,principal=1234,
+                    permissions=7,value_type='utf8')})
+            (root/'writer.json').write_text(json.dumps(host_config))
+            output = (root/f"writer-{current['generation']}.log").open('w+')
+            writer_logs.append(output)
+            writer = subprocess.Popen([host,str(root/'writer.json')],env=fixture.env,stdout=output,stderr=output)
+            deadline = time.monotonic()+15
+            while time.monotonic()<deadline:
+                records = Path(output.name).read_text()
+                assert writer.poll() is None, records[-5000:]
+                if 'service.ready' in records: return
+                time.sleep(0.02)
+            raise TimeoutError('Supplied mutation writer did not become ready')
+        def processed(position):
+            deadline = time.monotonic()+15
+            while time.monotonic()<deadline:
+                assert writer.poll() is None, 'Supplied writer exited during admitted work'
+                current = invoke('progress')
+                if current['pending'] is None or current['pending']>position: return
+                time.sleep(0.02)
+            raise TimeoutError('Supplied mutation writer did not process its admitted input')
         try:
             subprocess.run([node,str(config),'--initialize'],env=fixture.env,check=True,capture_output=True,timeout=30)
             start()
@@ -207,18 +240,57 @@ def run(node, proof):
             invoke('cancel',5)
             repeated = snapshot(5,'rejected',[('replacement',),None,(None,)],0)
             assert repeated['input'] == denied['input'] and repeated['result_revision'] == denied['result_revision']
+            # Actual supplied host, with an explicit role, saved configuration,
+            # fresh fencing on restart and retained activation markers.
+            invoke('restore-policy')
+            invoke('reown')
+            start_writer()
+            statement = "INSERT INTO items (id,value) VALUES(2,'host')"
+            first = invoke('host-step',6,statement)
+            assert not first['complete']
+            processed(first['input'])
+            snapshot(6,'uploading',[('replacement',),None,(None,)])
+            writer.kill(); writer.wait(timeout=10); writer = None
+            invoke('reown')
+            start_writer()
+            # A valid but premature apply is acknowledged with a disposition,
+            # leaving upload state intact and subsequent accepted work runnable.
+            receipt = invoke('enqueue-apply',6)
+            processed(receipt['position'])
+            assert invoke('rejection',receipt['position']) == {'observation':'processed','rejection':'not_sealed'}
+            snapshot(6,'uploading',[('replacement',),None,(None,)])
+            for _ in range(16):
+                step = invoke('host-step',6,statement)
+                if step['complete']:
+                    assert step['status']['phase'] == 'applied'
+                    break
+                processed(step['input'])
+                assert invoke('rejection',step['input']) == {'observation':'processed','rejection':None}
+            else: raise AssertionError('Supplied writer exceeded bounded upload steps')
+            snapshot(6,'applied',[('replacement',),('host',),(None,)],1)
+            duplicate_host = subprocess.run([host,str(root/'writer.json')],env=fixture.env,capture_output=True,text=True,timeout=15)
+            assert duplicate_host.returncode != 0 and 'FreshOwnershipRequired' in duplicate_host.stderr
+            writer.kill(); writer.wait(timeout=10); writer = None
             invoke('revoke-reader')
             invoke('inspect',1,error='AccessDenied')
             assert counts['max_mutations'] == 4
             print(json.dumps({'proof':'Table mutation native admission','elapsed_seconds':round(time.monotonic()-started,3),
                 **counts,'resident_authority_pages':8,'lost_receipts':2,
                 'node_sha256':hashlib.sha256(Path(node).read_bytes()).hexdigest(),
-                'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest()}),flush=True)
+                'proof_sha256':hashlib.sha256(Path(proof).read_bytes()).hexdigest(),
+                'host_sha256':hashlib.sha256(Path(host).read_bytes()).hexdigest()}),flush=True)
             print('Table mutation native: shared client preparation/observation/resumption, exact caller-send and writer-commit lost-receipt disk recovery, atomic rows/result/input, conflicting retry, duplicate outcome, batch rollback, fenced writer and current native/application grants passed.',flush=True)
+            print('Supplied Table writer: explicit configuration, fresh-fenced restart during upload, recorded input rejection, continued application, exact status and activation reuse refusal passed.',flush=True)
         except BaseException:
             log.flush(); log.seek(0); sys.stderr.write(log.read()[-5000:])
+            for output in writer_logs:
+                sys.stderr.write(Path(output.name).read_text()[-5000:])
             raise
         finally:
+            if writer is not None:
+                if writer.poll() is None: writer.kill()
+                writer.wait(timeout=10)
+            for output in writer_logs: output.close()
             if authority is not None:
                 if authority.poll() is None: authority.kill()
                 authority.wait(timeout=10)

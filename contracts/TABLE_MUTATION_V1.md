@@ -21,8 +21,8 @@ or reopen each other's authority history.
 
 `transit-query.TableMutationAdmission` supplies an explicitly composed private-turn
 admission owner. It stages these requests, checks a separate writer policy and
-proposes the terminal result atomically with the rows. The supplied query hosts
-do not dispatch its commands. An integrating application uses Station's frozen
+proposes the terminal result atomically with the rows. The query host exposes it only through an explicit `table_writer` role.
+Read-query source/requester roles do not dispatch its commands. An integrating application uses Station's frozen
 native commit and current authority gates; installed-client write routes remain
 separate from this composition API.
 
@@ -282,6 +282,7 @@ distinct. The shared client does not discover a writer or provision these grants
 | `Prepared.save(allocator)` / `restore(allocator, bytes)` | Canonical owned saved operation, bounded to 8192 input bytes on restore |
 | `submit(prepared)` | Validates target and signature, then submits the exact original native request; performs no new metadata read, signing or implicit retry |
 | `observe(prepared, receipt.position)` | `pending` or `processed` input progress for that admitted send, never a fabricated row result |
+| `rejection(prepared, receipt.position)` | Optional recorded input rejection, checked against the original principal, payload and input; separate from terminal request status |
 | `status(original_reference)` | Optional durable status bound to the original reference, principal and Table; current native read rights apply |
 | `prepareNext(namespace, request)` | One next begin/part/seal/apply command from committed staging state, or null for an existing terminal result |
 
@@ -297,7 +298,7 @@ stored immutable request determine the operation the writer may apply.
 On uncertain submission, keep and resubmit the exact `Prepared` object or its
 saved bytes. Do not prepare a new sequence, recompile the SQL, change its target
 or choose an upload successor. After reconciling the native receipt, observe its
-input as processed before preparing the next step. Callers serialize commands
+input as processed and check its input rejection before preparing the next step. Callers serialize commands
 for a principal; separate handles may race for the native sequence and receive a
 conflict. No automatic re-signing resolves that conflict. A send receipt proves
 mailbox admission, while the terminal status records application, rejection or
@@ -319,3 +320,62 @@ so the writer can record denial or cancellation. Terminal observations retain
 their original input/result identity; cancellation cannot undo applied rows.
 Unavailable reads, writer changes, conflicting references and malformed staging
 records propagate without inventing a result or submitting a replacement.
+
+## Explicit writer host
+
+The query host's `table_writer` role installs `TableMutationWriter` and its
+input guard together. Configuration names an existing resource, initializer
+principal, initial caller principal, Table ID, column names, value type and
+initial permission mask. Resource and caller are positive native identities;
+the initializer may explicitly be root (0). Table defaults to 1, names to `id`
+and `value`, and type to int64. Permissions are required (bits 1/2/4 above).
+The resource must be the worker's required state association and have the current
+writer/grants. Configuration does not create the native resource or mint rights.
+
+Before exposing caller ingress, deliver the exact `initializeCommand()` cast
+from the configured initializer. One native turn writes the empty Table schema,
+initial revision-one policy, immutable writer configuration and Station behavior
+descriptor: four mutations total. Existing Table metadata rejects. Uninitialized
+foreign input cannot initialize the writer. Exact repeated initialization is a
+no-op. Every later input compares the current resource and stored configuration;
+changing the configuration file or association cannot silently adopt other data.
+Initial policy settings in this immutable configuration remain distinct from
+later observed policy revisions.
+
+`PolicyChange` is a separate administrative cast, accepted only from the
+configured initializer. It carries the exact resource, expected previous policy
+revision and full next policy. Its Table must match the configured Table; its
+principal can name an additional caller. Schema fingerprint, monotonic revision
+and zero-mask revocation use the same admission policy owner. It does not change
+native grants. Native input progress and the policy update share one turn.
+
+After initialization the guard rejects malformed frames, process/effect origins,
+unsupported commands and unauthorized administration before Station's other
+frame handlers can interpret them. Known command conflicts record a bounded
+input disposition and consume that input, leaving the original request status
+intact. This lets a caller observe a premature apply, busy upload or stale policy
+without stopping later valid work. Unavailable/poisoned reads, stored corruption,
+broken publication integrity and changed writer configuration propagate; they
+never become fabricated command rejections. The host preserves its existing
+fenced activation, exact pending commit and transient-read recovery rules.
+
+Input dispositions use key `TableMutationRecords.key('e', input, 0)`. They retain
+the originating external principal (0 for non-external rejected input), original
+input position, a domain-separated hash of the complete delivered Station frame
+and a reason. They are not terminal mutation outcomes or row counts. The shared
+client checks principal/input/payload before returning `rejection`. Current read
+grants apply. Dispositions, configurations and policy history have no automatic
+expiry; retained cardinality is independent of resident memory.
+
+| Record or cast | Contiguous little-endian encoding |
+| --- | --- |
+| Writer configuration `TMW1`, at most 73 bytes; key `('w',0,0)` | resource u64, initializer u64, initial caller u64, Table u32, descriptor length u8, shared `TBL1` descriptor, initial permissions u8 |
+| Initialize `TMI1`, 44 bytes | resource u64, SHA-256 of `transit.table.mutation.writer.v1` + NUL + complete configuration bytes |
+| Policy change `TMG1`, 77 bytes | resource u64, expected revision u64, complete 57-byte `TML1` policy |
+| Input disposition `TME1`, 53 bytes | principal u64, input u64, SHA-256 of `transit.table.mutation.input.v1` + NUL + complete frame bytes, reason u8 |
+
+Disposition reasons are invalid_command=1, denied=2, identity_conflict=3, busy=4,
+not_found=5, not_active=6, upload_closed=7, not_sealed=8, invalid_part=9,
+incomplete_upload=10, source_changed=11 and stale_policy=12. Missing, truncated,
+trailing or invalid fields reject. The role does not install a query peer or
+execute query calls; client/CLI/SDK read-query routes retain their own profiles.
