@@ -7,7 +7,8 @@ not a new kernel effect or a permission carried by a reference.
 ## Ownership and identity
 
 An exchange is `(resource:u64, id:u64)`, with a nonzero application-assigned ID.
-It owns that publication namespace exclusively. A fenced exchange writer owns
+It owns that namespace exclusively in the exchange publication domain (6).
+A fenced exchange writer owns
 the resource; the caller PID/input and optional parent exchange are immutable
 lineage. The executor has its own current dispatch/observation grants. A caller
 must have an explicit resource grant to read the capture. Associations and

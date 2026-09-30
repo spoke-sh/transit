@@ -19,7 +19,7 @@ pub fn append(turn: *Turn, reference: Ref, scratch: p.Value, part: Part) !void {
     const offset: usize = if (part.second) part_bytes else 0;
     if (offset >= length or part.bytes.len != @min(part_bytes, length - offset)) return error.InvalidPublicationPart;
     if (part.ordinal < descriptor.written) {
-        const existing = (try turn.read(Pub.key(reference.namespace, 'c', reference.record, part.ordinal))) orelse return error.MissingPublicationChunk;
+        const existing = (try turn.read(Pub.key(reference.domain, reference.namespace, 'c', reference.record, part.ordinal))) orelse return error.MissingPublicationChunk;
         if (existing.len != length or !std.mem.eql(u8, existing.slice()[offset..][0..part.bytes.len], part.bytes)) return error.PublicationPartConflict;
         return;
     }

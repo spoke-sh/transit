@@ -33,7 +33,7 @@ const Store = struct {
     }
     fn create(self: *Store, policy: Pub.Limits) !Pub {
         var turn = try self.capture();
-        const pubn = try Pub.create(&turn, std.math.maxInt(u64), policy);
+        const pubn = try Pub.create(&turn, .application, std.math.maxInt(u64), policy);
         try self.commit(turn);
         return pubn;
     }
@@ -111,9 +111,9 @@ test "strict layout, full-width keys, fixed independent digest fixtures and empt
         _ = try std.fmt.hexToBytes(&expected, fixture.digest);
         try t.expectEqualSlices(u8, &expected, &spec.digest);
     }
-    const key = Pub.key(std.math.maxInt(u64), 'c', std.math.maxInt(u64), std.math.maxInt(u32));
-    try t.expectEqual(@as(u16, 23), key.len);
-    try t.expectEqual(@as(u64, std.math.maxInt(u64)), std.mem.readInt(u64, key.data[2..10], .big));
+    const key = Pub.key(.application, std.math.maxInt(u64), 'c', std.math.maxInt(u64), std.math.maxInt(u32));
+    try t.expectEqual(@as(u16, 27), key.len);
+    try t.expectEqual(@as(u64, std.math.maxInt(u64)), std.mem.readInt(u64, key.data[6..14], .big));
     var store: Store = .{};
     defer store.deinit();
     const pubn = try store.create(limits);
@@ -132,8 +132,8 @@ test "strict layout, full-width keys, fixed independent digest fixtures and empt
     }
     try t.expectError(error.InvalidPublicationIdentity, pubn.begin(&turn, 0, spec));
     try t.expectError(error.InvalidPublicationFormat, Pub.Digest.of(0, "hello"));
-    try t.expectError(error.InvalidPublicationLimits, Pub.create(&turn, 3, .{ .record_bytes = 20, .staging_bytes = 10, .staging_records = 1 }));
-    try t.expectError(error.PublicationLimitsChanged, Pub.create(&turn, pubn.namespace, .{ .record_bytes = 1, .staging_bytes = 1, .staging_records = 1 }));
+    try t.expectError(error.InvalidPublicationLimits, Pub.create(&turn, .application, 3, .{ .record_bytes = 20, .staging_bytes = 10, .staging_records = 1 }));
+    try t.expectError(error.PublicationLimitsChanged, Pub.create(&turn, .application, pubn.namespace, .{ .record_bytes = 1, .staging_bytes = 1, .staging_records = 1 }));
 }
 
 test "staging reserves declared bytes and slots until publish or completed explicit abandonment" {
@@ -259,7 +259,7 @@ test "stream prefixes are provisional, reject corrupt/missing data and mixed sou
     var wrong = first.next.?;
     wrong.basis.revision += 1;
     try t.expectError(error.StalePublicationCursor, pubn.read(&turn, wrong));
-    const location = Pub.key(pubn.namespace, 'c', 1, 1);
+    const location = Pub.key(pubn.domain, pubn.namespace, 'c', 1, 1);
     const old = store.state.get(location).?;
     _ = store.state.remove(location);
     try t.expectError(error.MissingPublicationChunk, pubn.read(&turn, first.next.?));
@@ -300,7 +300,7 @@ test "bounded cleanup retains permanent identities and a captured historical roo
     turn = try store.capture();
     try t.expect(try pubn.collect(&turn, 1));
     try t.expectError(error.PublicationClosed, pubn.begin(&turn, 1, spec));
-    try t.expect(store.state.get(Pub.key(pubn.namespace, 'c', 1, 0)) == null);
+    try t.expect(store.state.get(Pub.key(pubn.domain, pubn.namespace, 'c', 1, 0)) == null);
     var captured = try historical.capture();
     try verify(pubn, &captured, 1, &bytes);
 }
@@ -314,7 +314,7 @@ test "paired upload keeps partial publication separate from admission and reject
         .{ .id = 1, .bytes = "metadata", .spec = try Pub.Digest.of(2, "metadata") },
         .{ .id = 2, .bytes = &body, .spec = try Pub.Digest.of(2, &body) },
     };
-    const input: Upload.Input = .{ .namespace = std.math.maxInt(u64), .identity_key = try p.Value.init("upload"), .identity = try p.Value.init("bound-metadata-and-body-v1"), .limits = limits, .records = &records };
+    const input: Upload.Input = .{ .domain = .application, .namespace = std.math.maxInt(u64), .identity_key = try p.Value.init("upload"), .identity = try p.Value.init("bound-metadata-and-body-v1"), .limits = limits, .records = &records };
     var steps: usize = 0;
     while (steps < 20) : (steps += 1) {
         var turn = try store.capture();
@@ -329,7 +329,7 @@ test "paired upload keeps partial publication separate from admission and reject
     }
     try t.expect(steps > 2 and steps < 20);
     var turn = try store.capture();
-    const publication: Pub = .{ .resource = 7, .namespace = input.namespace };
+    const publication: Pub = .{ .domain = .application, .resource = 7, .namespace = input.namespace };
     try verify(publication, &turn, 1, "metadata");
     try verify(publication, &turn, 2, &body);
     var changed = input;
@@ -359,6 +359,7 @@ test "upload initialization failure restores an already populated private decisi
     try fill(&turn, 3);
     const before = turn.decision;
     try t.expectError(error.MutationBudgetExceeded, Upload.step(&turn, .{
+        .domain = .application,
         .namespace = 1,
         .identity_key = try p.Value.init("upload"),
         .identity = try p.Value.init("frozen"),
@@ -388,7 +389,7 @@ test "publication references verify finite bodies across current cuts and deny b
     const pubn = try store.create(limits);
     var body: [657]u8 = undefined;
     for (&body, 0..) |*byte, i| byte.* = @truncate(i * 19);
-    const reference: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 17, .spec = try store.stage(pubn, 17, &body) };
+    const reference: Ref = .{ .domain = .application, .resource = 7, .namespace = pubn.namespace, .record = 17, .spec = try store.stage(pubn, 17, &body) };
     try publish(&store, pubn, 17);
     const encoded = try reference.encode();
     try t.expectEqualDeep(reference, try Ref.decode(encoded));
@@ -407,7 +408,7 @@ test "publication references verify finite bodies across current cuts and deny b
     var wrong = reference;
     wrong.spec.digest[0] ^= 1;
     try t.expectError(error.PublicationReferenceChanged, wrong.read(&source, &output));
-    const chunk = Pub.key(pubn.namespace, 'c', 17, 1);
+    const chunk = Pub.key(pubn.domain, pubn.namespace, 'c', 17, 1);
     const original = store.state.get(chunk).?;
     var corrupt = original;
     corrupt.data[1] ^= 1;
@@ -418,7 +419,7 @@ test "publication references verify finite bodies across current cuts and deny b
     _ = try pubn.retire(&turn, 17);
     try store.commit(turn);
     try t.expectError(error.PublicationNotPublished, reference.read(&source, &output));
-    const empty: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 18, .spec = try store.stage(pubn, 18, "") };
+    const empty: Ref = .{ .domain = .application, .resource = 7, .namespace = pubn.namespace, .record = 18, .spec = try store.stage(pubn, 18, "") };
     try publish(&store, pubn, 18);
     source = .{ .store = &store, .deny_at = 2 };
     try t.expectError(error.AccessDenied, empty.read(&source, &.{}));
@@ -463,7 +464,7 @@ test "batched immutable reads preserve point-read commitments, current denial an
     const pubn = try store.create(limits);
     var body: [4097]u8 = undefined;
     for (&body, 0..) |*byte, i| byte.* = @truncate(i * 19);
-    const reference: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 17, .spec = try store.stage(pubn, 17, &body) };
+    const reference: Ref = .{ .domain = .application, .resource = 7, .namespace = pubn.namespace, .record = 17, .spec = try store.stage(pubn, 17, &body) };
     try publish(&store, pubn, 17);
     var source: BatchedReferenceSource = .{ .base = .{ .store = &store } };
     var output: [body.len]u8 = undefined;
@@ -478,7 +479,7 @@ test "batched immutable reads preserve point-read commitments, current denial an
     try t.expectEqualSlices(u8, &body, try reference.read(&source, &output));
     try t.expectEqual(@as(usize, 18), source.base.opens); // unchanged older-host path
     source = .{ .base = .{ .store = &store } };
-    const chunk = Pub.key(pubn.namespace, 'c', 17, 8);
+    const chunk = Pub.key(pubn.domain, pubn.namespace, 'c', 17, 8);
     const original = store.state.get(chunk).?;
     _ = store.state.remove(chunk);
     try t.expectError(error.MissingPublicationChunk, reference.read(&source, &output));
@@ -494,8 +495,69 @@ test "batched immutable reads preserve point-read commitments, current denial an
     _ = try pubn.retire(&turn, 17);
     try store.commit(turn);
     try t.expectError(error.PublicationNotPublished, reference.read(&source, &output));
-    const empty: Ref = .{ .resource = 7, .namespace = pubn.namespace, .record = 18, .spec = try store.stage(pubn, 18, "") };
+    const empty: Ref = .{ .domain = .application, .resource = 7, .namespace = pubn.namespace, .record = 18, .spec = try store.stage(pubn, 18, "") };
     try publish(&store, pubn, 18);
     source = .{ .base = .{ .store = &store, .deny_at = 2 } };
     try t.expectError(error.AccessDenied, empty.read(&source, &.{}));
+}
+
+test "domains isolate equal full-width identities, budgets, cleanup and cursors" {
+    const Ref = @import("PublicationReference.zig");
+    var store: Store = .{};
+    defer store.deinit();
+    var turn = try store.capture();
+    const mutations = try Pub.create(&turn, .table_mutation, std.math.maxInt(u64), .{ .record_bytes = 5, .staging_bytes = 5, .staging_records = 1 });
+    const results = try Pub.create(&turn, .query_result, std.math.maxInt(u64), .{ .record_bytes = 6, .staging_bytes = 6, .staging_records = 1 });
+    try store.commit(turn);
+    const mutation_spec = try store.stage(mutations, 1, "write");
+    _ = try store.stage(results, 1, "result");
+    try publish(&store, results, 1);
+    turn = try store.capture();
+    try t.expectEqual(@as(u64, 5), (try mutations.budget(&turn)).bytes);
+    try t.expectEqual(@as(u64, 0), (try results.budget(&turn)).bytes);
+    try t.expectError(error.PublicationQuotaExceeded, mutations.begin(&turn, 2, try Pub.Digest.of(7, "x")));
+    try publish(&store, mutations, 1);
+    turn = try store.capture();
+    const cursor = try mutations.open(&turn, 1);
+    try t.expectError(error.StalePublicationCursor, results.read(&turn, cursor));
+    try verify(mutations, &turn, 1, "write");
+    try verify(results, &turn, 1, "result");
+    _ = try mutations.retire(&turn, 1);
+    try store.commit(turn);
+    turn = try store.capture();
+    try t.expect(try mutations.collect(&turn, 1));
+    try store.commit(turn);
+    turn = try store.capture();
+    try verify(results, &turn, 1, "result");
+    try t.expectError(error.PublicationClosed, mutations.begin(&turn, 1, mutation_spec));
+    try t.expectError(error.InvalidPublicationIdentity, Pub.create(&turn, @fromBackingInt(0), 1, limits));
+    const reference: Ref = .{ .resource = 7, .domain = .table_mutation, .namespace = mutations.namespace, .record = 1, .spec = mutation_spec };
+    var encoded = try reference.encode();
+    try t.expectEqual(@as(u16, 72), encoded.len);
+    try t.expectEqualSlices(u8, &.{ 4, 0, 0, 0 }, encoded.data[12..16]);
+    try t.expectEqualSlices(u8, &.{ 0, 0, 0, 4 }, Pub.key(.table_mutation, 1, 'r', 1, 0).data[2..6]);
+    var old: [68]u8 = undefined;
+    @memcpy(old[0..12], encoded.data[0..12]);
+    @memcpy(old[12..], encoded.data[16..72]);
+    try t.expectError(error.InvalidPublicationReference, Ref.decode(try p.Value.init(&old)));
+    @memset(encoded.data[12..16], 0);
+    try t.expectError(error.InvalidPublicationReference, Ref.decode(encoded));
+}
+
+test "upload identity rejects changing domains or namespaces before staging" {
+    const Upload = @import("PublicationUpload.zig");
+    var store: Store = .{};
+    defer store.deinit();
+    const records = [_]Upload.Record{.{ .id = 1, .bytes = "body", .spec = try Pub.Digest.of(7, "body") }};
+    var input: Upload.Input = .{ .domain = .application, .namespace = 1, .identity_key = try p.Value.init("owner"), .identity = try p.Value.init("frozen"), .limits = limits, .records = &records };
+    var turn = try store.capture();
+    try t.expect(!try Upload.step(&turn, input));
+    try store.commit(turn);
+    turn = try store.capture();
+    input.domain = .query_result;
+    try t.expectError(error.PublicationUploadIdentityConflict, Upload.step(&turn, input));
+    input.domain = .application;
+    input.namespace = 2;
+    try t.expectError(error.PublicationUploadIdentityConflict, Upload.step(&turn, input));
+    for (turn.decision.mutations) |slot| try t.expectEqual(null, slot);
 }

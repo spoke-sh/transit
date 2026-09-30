@@ -15,7 +15,7 @@ import contract from "./contract.json" with { type: "json" };
 
 const connection = new Connection(new ProcessRef(1, 2), new ResourceRef(1, 3), 4);
 test("mutation values own mutable input and protect saved text", () => {
-  const bytes = new Uint8Array(68).fill(7);
+  const bytes = new Uint8Array(72).fill(7);
   const ref = new Reference(bytes);
   const value = new Compiled(bytes, ref);
   bytes.fill(0);
@@ -44,11 +44,11 @@ for (const response of [
   });
 }
 test("runtime schema rejects a foreign mutation phase", async () => {
-  const reference = new Reference(new Uint8Array(68));
+  const reference = new Reference(new Uint8Array(72));
   await withHost(
     {
       status: {
-        reference: "00".repeat(68),
+        reference: "00".repeat(72),
         principal: 9,
         table: 4,
         declaration: "00".repeat(32),

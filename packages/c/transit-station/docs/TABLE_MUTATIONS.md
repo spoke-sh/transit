@@ -11,7 +11,7 @@ and local mutation capabilities. Server operations check current authority.
 operation permissions and the optional active namespace. `compile_sql` takes
 a name of at most 16 bytes, SQL of at most 4096 bytes and a positive full-width
 `uint64_t` namespace. It returns an owned canonical request (at most 799 bytes)
-and its complete 68-byte reference. Persist both unchanged before upload.
+and its complete 72-byte reference. Persist both unchanged before upload.
 The [shared contract](../../../../contracts/TABLE_MUTATION_V1.md) defines the
 three-row limit, scalar types, atomic application and conflict behavior.
 

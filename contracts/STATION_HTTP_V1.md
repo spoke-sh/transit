@@ -40,7 +40,8 @@ An already-authorized send may still be in flight after policy changes or closur
 
 `RequestRecord.prepare` validates the request and computes two Publication specs.
 The caller publishes metadata as record 1 and the body as record 2 in its own
-namespace, both in format 1, before sending a Station `call` carrying `HTQ1`.
+namespace in the application publication domain (1), both in format 1, before
+sending a Station `call` carrying `HTQ1`.
 Empty bodies still have a published empty record. Metadata is at most 8,192 bytes;
 the finite request body is at most 65,536 bytes. The reference is a commitment,
 not permission to read either resource. Each chunk read rechecks current grants,
@@ -51,7 +52,9 @@ no access and do not make the connector's execution lifetime depend on the calle
 
 `RequestRecord.stage` is the optional shared uploader. Its namespace marker is
 `00 48` followed by the namespace as eight big-endian bytes; its value is the
-exact HTQ1 reference. The first step atomically reserves a new Publication
+48-byte [SPU1 marker](STATION_PUBLICATION_V1.md#definition-compatibility), binding
+the application domain, namespace and SHA-256 of the exact HTQ1 reference.
+The first step atomically reserves a new Publication
 namespace and freezes that marker. Preexisting generic namespaces reject. Each
 subsequent call validates the complete source commitments and advances at most
 one begin, 256-byte append or publish step. Changed identity and retired records

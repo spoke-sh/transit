@@ -47,17 +47,17 @@ impl Connection {
 }
 /// Complete request commitment; validation and authority remain native operations.
 #[derive(Clone, Eq, PartialEq)]
-pub struct Reference([u8; 68]);
+pub struct Reference([u8; 72]);
 impl Reference {
-    pub fn from_data(data: [u8; 68]) -> Self {
+    pub fn from_data(data: [u8; 72]) -> Self {
         Self(data)
     }
-    pub fn data(&self) -> &[u8; 68] {
+    pub fn data(&self) -> &[u8; 72] {
         &self.0
     }
     fn parse(value: &Value) -> Result<Self> {
         Ok(Self(
-            unhex(string(value, "mutation-reference")?, 68)?
+            unhex(string(value, "mutation-reference")?, 72)?
                 .try_into()
                 .map_err(|_| malformed())?,
         ))
@@ -334,11 +334,11 @@ impl Client {
         )
     }
     pub fn prepare_next(&mut self, compiled: &Compiled) -> Result<Option<Prepared>> {
-        let result = self.call(json!({"next":{"request":hex(compiled.request(),799)?,"reference":hex(compiled.reference().data(),68)?}}))?;
+        let result = self.call(json!({"next":{"request":hex(compiled.request(),799)?,"reference":hex(compiled.reference().data(),72)?}}))?;
         prepared(field(&result, "prepared")?)
     }
     fn control(&mut self, kind: &str, reference: &Reference) -> Result<Prepared> {
-        let result = self.call(json!({"prepare":{kind:hex(reference.data(),68)?}}))?;
+        let result = self.call(json!({"prepare":{kind:hex(reference.data(),72)?}}))?;
         prepared(field(&result, "prepared")?)?.ok_or_else(malformed)
     }
     pub fn prepare_apply(&mut self, reference: &Reference) -> Result<Prepared> {
@@ -379,7 +379,7 @@ impl Client {
         }
     }
     pub fn status(&mut self, reference: &Reference) -> Result<Option<Status>> {
-        let result = self.call(json!({"status":hex(reference.data(),68)?}))?;
+        let result = self.call(json!({"status":hex(reference.data(),72)?}))?;
         let v = field(&result, "status")?;
         if v.is_null() {
             return Ok(None);

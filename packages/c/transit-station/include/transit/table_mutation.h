@@ -11,7 +11,7 @@ typedef struct transit_station_table_mutation_connection {
     transit_sdk_resource resource;
     uint32_t table;
 } transit_station_table_mutation_connection;
-typedef struct transit_station_table_mutation_reference { uint8_t bytes[68]; } transit_station_table_mutation_reference;
+typedef struct transit_station_table_mutation_reference { uint8_t bytes[72]; } transit_station_table_mutation_reference;
 typedef struct transit_station_table_mutation_client transit_station_table_mutation_client;
 typedef struct transit_station_table_mutation_compiled transit_station_table_mutation_compiled;
 typedef struct transit_station_table_mutation_prepared transit_station_table_mutation_prepared;

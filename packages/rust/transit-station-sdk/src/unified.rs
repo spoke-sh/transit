@@ -766,7 +766,7 @@ impl Page {
             requester: ProcessRef::new(realm, number(field(m, "requester")?, "requester", false)?)?,
             correlation: wide(field(m, "correlation")?)?,
             policy_revision: wide(field(m, "policy_revision")?)?,
-            request: unhex(string(field(m, "request")?, "request")?, 68)?,
+            request: unhex(string(field(m, "request")?, "request")?, 72)?,
             source_kind: SourceKind::parse(field(basis, "kind")?)?,
             resource: ResourceRef::new(
                 realm,
@@ -946,11 +946,11 @@ impl Client {
         Ok(Some(Status {
             phase: Phase::parse(field(v, "phase")?)?,
             correlation: wide(field(v, "correlation")?)?,
-            reference: unhex(string(field(v, "reference")?, "reference")?, 68)?,
+            reference: unhex(string(field(v, "reference")?, "reference")?, 72)?,
             manifest: if v["manifest"].is_null() {
                 None
             } else {
-                Some(unhex(string(field(v, "manifest")?, "manifest")?, 68)?)
+                Some(unhex(string(field(v, "manifest")?, "manifest")?, 72)?)
             },
             collected: boolean(field(v, "collected")?, "collected")?,
         }))

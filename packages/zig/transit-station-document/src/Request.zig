@@ -47,7 +47,7 @@ pub const Reference = struct {
         return out;
     }
     pub fn publication(self: Reference) Pub {
-        return .{ .resource = self.resource, .namespace = self.namespace };
+        return .{ .domain = .application, .resource = self.resource, .namespace = self.namespace };
     }
     fn matches(self: Reference, change: m.Change, bytes: []const u8) !void {
         try self.validate();
@@ -74,6 +74,7 @@ pub fn stage(turn: *s.Turn, reference: Reference, change: m.Change) !bool {
     try reference.matches(change, bytes);
     if (reference.resource != turn.view.resource) return error.InvalidDocumentRequest;
     return s.PublicationUpload.step(turn, .{
+        .domain = .application,
         .namespace = reference.namespace,
         .identity_key = key(reference.namespace),
         .identity = try reference.encode(),

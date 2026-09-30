@@ -44,7 +44,7 @@ public static class Mutations
     }
     public sealed record Reference {
         public Bytes Bytes { get; }
-        public Reference(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if (bytes.Length != 68) throw new ArgumentException("Expected complete mutation reference"); Bytes = bytes; }
+        public Reference(Bytes bytes) { ArgumentNullException.ThrowIfNull(bytes); if (bytes.Length != 72) throw new ArgumentException("Expected complete mutation reference"); Bytes = bytes; }
     }
     public sealed record Compiled {
         public Bytes Request { get; }
@@ -96,7 +96,7 @@ public static class Mutations
         }
         public Task<Compiled> CompileSqlAsync(string name, string sql, ulong namespaceId, CancellationToken cancellation = default) {
             var action = V.Obj(("compile", V.Obj(("name", V.Text(name, 16)), ("sql", V.Text(sql, 4096)), ("namespace", Turn.Decimal(Positive(namespaceId))))));
-            return worker.Invoke(b => { var v = V.Object(b.TableMutation(action)["compiled"]); return new Compiled(new Bytes(V.Unhex(v["request"], 799)), new Reference(Fixed(v["reference"], 68))); }, cancellation);
+            return worker.Invoke(b => { var v = V.Object(b.TableMutation(action)["compiled"]); return new Compiled(new Bytes(V.Unhex(v["request"], 799)), new Reference(Fixed(v["reference"], 72))); }, cancellation);
         }
         public Task<Prepared?> PrepareNextAsync(Compiled compiled, CancellationToken cancellation = default) {
             var action = V.Obj(("next", V.Obj(("request", Hex(compiled.Request)), ("reference", Hex(compiled.Reference.Bytes)))));
@@ -126,7 +126,7 @@ public static class Mutations
             var action = V.Obj(("status", Hex(reference.Bytes)));
             return worker.Invoke(b => {
                 var result = Field(b.TableMutation(action), "status"); if (result is null) return null; var v = V.Object(result);
-                Reference actual = new(Fixed(v["reference"], 68));
+                Reference actual = new(Fixed(v["reference"], 72));
                 if (actual != reference || V.Number(v["table"], 1) != Connection.Table) throw V.Incompatible("mutation-status-target");
                 ulong affected = V.Number(v["affected_rows"]); if (affected > 3) throw V.Incompatible("mutation-row-count");
                 return new Status(actual, V.Number(v["principal"], 1), Connection.Table, Fixed(v["declaration"], 32), V.Counter(NativeValues.Wide(v["policy_revision"], true)), Variant<Phase>(v["phase"]), (byte)affected, Variant<Reason>(v["reason"]), V.Number(v["input"]));

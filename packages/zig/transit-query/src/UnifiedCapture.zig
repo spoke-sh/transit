@@ -67,8 +67,8 @@ pub fn start(turn: *Turn, reference: Ref, source: anytype, allocator: std.mem.Al
     const bound = try bundle.plan.bind(try q.UnifiedSource.basis(bundle.source, turn.view.revision), try bundle.source.schema(&columns));
     var stored: r.Job = .{ .id = turn.delivery.input.position, .destination = peer, .correlation = frame.correlation, .policy_revision = grant.revision, .source = try turn.retain(), .request = reference, .continuation = turn.delivery.input.position };
     const publication = stored.publication(turn.view.resource);
-    if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(publication.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
-    _ = try Pub.create(turn, publication.namespace, .{ .record_bytes = m.Arrow.segment_bytes, .staging_bytes = m.Arrow.segment_bytes, .staging_records = 1 });
+    if (try turn.read(r.key('j', stored.id, 0)) != null or try turn.read(Pub.key(publication.domain, publication.namespace, 'b', 0, 0)) != null) return error.QueryNamespaceInUse;
+    _ = try Pub.create(turn, .query_result, publication.namespace, .{ .record_bytes = m.Arrow.segment_bytes, .staging_bytes = m.Arrow.segment_bytes, .staging_records = 1 });
     try turn.write(r.key('c', stored.id, 0), try (r.Checkpoint{ .progress = m.Stream.Progress.start(bound) }).encode());
     try turn.write(r.key('i', peer, frame.correlation), q.UnifiedRecords.identityValue(stored.id));
     try schedule(turn, &stored);
@@ -128,7 +128,7 @@ pub fn advance(turn: *Turn, continuation: r.Continuation, source: anytype, alloc
     if (candidate.segment) |segment| {
         progress.bytes = try std.math.add(u64, previous.bytes, segment.bytes.len);
         if (candidate.progress.segments > bundle.limits.segments or progress.bytes > bundle.limits.result_bytes) return error.QueryBudgetExceeded;
-        const metadata: r.Segment = .{ .ordinal = previous.progress.segments, .row_start = previous.progress.rows, .rows = segment.rows, .reference = .{ .resource = turn.view.resource, .namespace = publication.namespace, .record = previous.progress.segments + 1, .spec = try Pub.Digest.of(r.arrow_format, segment.bytes) }, .arrow_digest = segment.digest };
+        const metadata: r.Segment = .{ .ordinal = previous.progress.segments, .row_start = previous.progress.rows, .rows = segment.rows, .reference = .{ .domain = .query_result, .resource = turn.view.resource, .namespace = publication.namespace, .record = previous.progress.segments + 1, .spec = try Pub.Digest.of(r.arrow_format, segment.bytes) }, .arrow_digest = segment.digest };
         const encoded = try metadata.encode();
         const address = r.key('s', stored.id, metadata.ordinal);
         if (try turn.read(address)) |old| {
@@ -189,7 +189,7 @@ fn publishManifest(turn: *Turn, stored: *r.Job, progress: r.Checkpoint) !void {
     _ = try publication.publish(turn, r.manifest_record);
     stored.* = complete;
     try turn.write(r.key('j', stored.id, 0), try stored.encode());
-    const reference: Ref = .{ .resource = turn.view.resource, .namespace = publication.namespace, .record = r.manifest_record, .spec = spec };
+    const reference: Ref = .{ .domain = .query_result, .resource = turn.view.resource, .namespace = publication.namespace, .record = r.manifest_record, .spec = spec };
     try turn.send(stored.destination, .{ .kind = .reply, .correlation = stored.correlation, .payload = try reference.encode() });
 }
 /// Close in a fresh proposal before a failed read poisons the turn. This releases

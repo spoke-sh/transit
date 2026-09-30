@@ -129,13 +129,13 @@ typedef enum transit_station_unified_phase {
 } transit_station_unified_phase;
 typedef struct transit_station_unified_status {
     bool found; transit_station_unified_phase phase; uint64_t correlation;
-    uint8_t reference[68], manifest[68]; bool has_manifest, collected;
+    uint8_t reference[72], manifest[72]; bool has_manifest, collected;
 } transit_station_unified_status;
 transit_sdk_error transit_station_unified_status_read(transit_station_unified_client *, uint64_t namespace_id, transit_station_unified_status *out);
 typedef enum transit_station_unified_finished { TRANSIT_UNIFIED_SOURCE_END, TRANSIT_UNIFIED_LIMIT } transit_station_unified_finished;
 typedef struct transit_station_unified_manifest {
     uint64_t job; transit_station_read_version source; transit_sdk_process requester;
-    uint64_t correlation, policy_revision; uint8_t request[68];
+    uint64_t correlation, policy_revision; uint8_t request[72];
     transit_station_unified_source_kind source_kind; transit_sdk_resource resource; uint64_t revision;
     uint8_t source_digest[32], schema_digest[32], plan_digest[32];
     uint64_t pages, scanned, selected, segments, rows, byte_count;

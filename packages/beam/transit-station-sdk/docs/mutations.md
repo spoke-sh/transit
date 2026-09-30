@@ -17,7 +17,7 @@ resource/schema/policy, immutable names, allowed operation atoms and optional
 active namespace. `compile_sql(Client, Name, Sql, Namespace)` takes a positive
 uint64 namespace and returns `{ok, #transit_mutation_compiled{request, reference}}`.
 Compilation does not reserve rows or establish admission. Persist both the
-request and complete 68-byte `#transit_mutation_reference{bytes}` before upload.
+request and complete 72-byte `#transit_mutation_reference{bytes}` before upload.
 
 `prepare_next(Client, Compiled)` returns a `#transit_mutation_prepared{bytes}` or
 `undefined` inside `{ok, Value}`. Persist its bytes before `submit(Client, Prepared)`.

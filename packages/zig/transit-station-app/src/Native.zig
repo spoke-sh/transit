@@ -75,7 +75,7 @@ fn keys(scope: Scope, principal: u64, selected: @FieldType(Selection, "state")) 
         result[used] = root.Records.key(scope.application, 'e', principal, selected.input);
         used += 1;
     }
-    if (selected.record.value != 0) result[used] = root.station.Publication.key(scope.namespace.value, 'r', selected.record.value, 0);
+    if (selected.record.value != 0) result[used] = root.station.Publication.key(.application_definition, scope.namespace.value, 'r', selected.record.value, 0);
     return result;
 }
 fn query(scope: Scope, principal: u64, selection: Selection) !g.Query {
@@ -119,7 +119,7 @@ pub fn read(wire: *client.Client, scope: Scope, signed: SignedRead) !Observation
                 const operation = receipt.?;
                 if (operation.proposal.record.value != selected.record.value) return error.InvalidApplicationSelection;
                 if (operation.owns_record) {
-                    const descriptor = try root.station.Publication.Descriptor.decode((try batch.read(root.station.Publication.key(scope.namespace.value, 'r', selected.record.value, 0))) orelse return error.MissingPublicationChunk);
+                    const descriptor = try root.station.Publication.Descriptor.decode((try batch.read(root.station.Publication.key(.application_definition, scope.namespace.value, 'r', selected.record.value, 0))) orelse return error.MissingPublicationChunk);
                     if (!std.meta.eql(descriptor.spec, operation.proposal.spec)) return error.ApplicationPublicationChanged;
                     result.upload = .{ .written = descriptor.written, .collected = descriptor.collected, .reserved = descriptor.reserved, .first_half = try batch.read(root.Records.key(scope.application, 'x', signed.prepared.principal, selected.operation.value)) != null, .state = descriptor.state };
                 }

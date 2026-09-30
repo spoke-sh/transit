@@ -32,8 +32,9 @@ kernel's potentially-in-flight semantics after revocation or closure.
 
 ## Caller publication
 
-The caller owns a Publication namespace with two records: metadata ID 1 and batch
-ID 2. Both must be sealed before admission. Their digests use protocol format 2;
+The caller owns a namespace in the application publication domain (1) with two
+records: metadata ID 1 and batch ID 2. Both must be sealed before admission.
+Their digests use protocol format 2;
 HTTP retains format 1. A new namespace cannot adopt an occupied publication or
 change its frozen reference. Publication advances at most one bounded step per
 turn and checks the same content commitments on each resume.

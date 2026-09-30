@@ -217,7 +217,7 @@ public static class UnifiedQuery
     }
     private static Manifest ParseManifest(JsonNode? value,ulong realm) {
         var v=V.Object(value); var b=V.Object(v["basis"]);
-        return new(V.Number(v["job"],1),NativeValues.ReadVersion(v["source"]),new(realm,V.Number(v["requester"],1)),NativeValues.Wide(v["correlation"]),NativeValues.Wide(v["policy_revision"]),Fixed(v["request"],68),
+        return new(V.Number(v["job"],1),NativeValues.ReadVersion(v["source"]),new(realm,V.Number(v["requester"],1)),NativeValues.Wide(v["correlation"]),NativeValues.Wide(v["policy_revision"]),Fixed(v["request"],72),
             Variant<SourceKind>(b["kind"]),new(realm,V.Number(b["resource"],1)),V.Number(b["revision"]),NativeValues.Digest(b["contract"]),NativeValues.Digest(b["schema"]),NativeValues.Digest(v["plan"]),
             NativeValues.Wide(v["pages"]),NativeValues.Wide(v["scanned"]),NativeValues.Wide(v["selected"]),NativeValues.Wide(v["segments"]),NativeValues.Wide(v["rows"]),NativeValues.Wide(v["bytes"]),v["sum"] is null?null:NativeValues.Signed(v["sum"]),Variant<Finished>(v["finished"]),NativeValues.Digest(v["chain"]));
     }
@@ -255,7 +255,7 @@ public static class UnifiedQuery
         }
         public Task<Status?> StatusAsync(ulong ns,CancellationToken cancellation=default) {
             var action=V.Obj(("status",Turn.Decimal(Positive(ns))));
-            return worker.Invoke(b => { var v=b.UnifiedQuery(action)["status"]; return v is null?null:new Status(Variant<Phase>(v["phase"]),NativeValues.Wide(v["correlation"]),Fixed(v["reference"],68),v["manifest"] is null?null:Fixed(v["manifest"],68),V.Boolean(v["collected"])); },cancellation);
+            return worker.Invoke(b => { var v=b.UnifiedQuery(action)["status"]; return v is null?null:new Status(Variant<Phase>(v["phase"]),NativeValues.Wide(v["correlation"]),Fixed(v["reference"],72),v["manifest"] is null?null:Fixed(v["manifest"],72),V.Boolean(v["collected"])); },cancellation);
         }
         public Task<Page> PageAsync(ulong ns,Cursor? cursor=null,CancellationToken cancellation=default) {
             var action=V.Obj(("page",V.Obj(("namespace",Turn.Decimal(Positive(ns))),("cursor",cursor?.Opaque))));

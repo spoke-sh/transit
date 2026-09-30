@@ -116,11 +116,11 @@ pub fn decode(bytes: []const u8) !Self {
 }
 pub fn reference(self: Self, namespace: u64) !q.station.PublicationReference {
     var bytes: [max_bytes]u8 = undefined;
-    const ref: q.station.PublicationReference = .{ .resource = self.resource, .namespace = namespace, .record = 1, .spec = try q.station.Publication.Digest.of(format, try self.encode(&bytes)) };
+    const ref: q.station.PublicationReference = .{ .domain = .table_mutation, .resource = self.resource, .namespace = namespace, .record = 1, .spec = try q.station.Publication.Digest.of(format, try self.encode(&bytes)) };
     try checkReference(ref);
     return ref;
 }
 pub fn checkReference(ref: q.station.PublicationReference) !void {
     try ref.validate();
-    if (ref.record != 1 or ref.spec.format != format or ref.spec.length == 0 or ref.spec.length > max_bytes) return error.InvalidTableMutationRequest;
+    if (ref.domain != .table_mutation or ref.record != 1 or ref.spec.format != format or ref.spec.length == 0 or ref.spec.length > max_bytes) return error.InvalidTableMutationRequest;
 }

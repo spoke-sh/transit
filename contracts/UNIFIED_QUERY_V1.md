@@ -102,7 +102,7 @@ u16 plan length, then u64 maximum input pages, segments and result bytes. Intege
 are little-endian. Canonical `UQS1` source and `FZP1` plan bytes follow. Its total
 budget is 16 KiB; each component retains its own smaller bound. All three work
 budgets are positive and must fit the current durable source policy. The bundle
-is record 1, format `0x31425155`, referenced by Station's 68-byte `SPF1` encoding.
+uses the query-request publication domain, record 1, format `0x31425155`, referenced by Station's 72-byte `SPF1` encoding.
 Neither truncation nor trailing bytes is canonical.
 
 The source's revisioned `UQA1` policy binds the authenticated requester PID,
@@ -118,7 +118,7 @@ submit / `UQK1` cancel / `UQG1` collect / `UQR1` retire, each followed by a u64
 namespace. All integers are little-endian. The part payload is at most 145 bytes;
 begin is 72 and namespace operations are 12, below the unchanged 243-byte limit.
 `UQU1` upload state contains its `SPF1`, phase byte, u64 original correlation,
-optional-manifest flag/reference and collected flag (83 or 151 bytes). Phases
+optional-manifest flag/reference and collected flag (87 or 159 bytes). Phases
 1–8 mean uploading, sealed, admitted, complete, cancelled, denied, rejected and
 retired. Boolean flags are exactly zero or one. Full u64 namespaces never pass
 through a floating-point number.
@@ -143,14 +143,15 @@ on capture completion or explicit closure. Cancelled/failed staging is reclaimed
 in bounded steps; publication ledgers preserve permanent identity facts.
 
 The source job's result namespace is `2^63 | source_input_position`, reserved by
-the host in that resource; an occupied namespace rejects admission. Segment
-ordinal `n` uses record `n + 1`, format `0x31415155`; the final manifest uses
+the host in that resource; an occupied namespace rejects admission.
+The query-result publication domain separates its budgets and records from
+request uploads and mutations in the same resource. Segment ordinal `n` uses record `n + 1`, format `0x31415155`; the final manifest uses
 record `2^64 - 1`, format `0x314d5155`. `UQJ1` binds the original route, request
 reference, policy revision and retained version. The `UQC1` checkpoint contains
 the `FZS1` engine progress, source-specific cursor, total bytes and ordered segment
 chain in at most 246 bytes. It fits the unchanged 256-byte KV value.
 
-`UQS1` segment metadata (in the separate result-record context) is 121 bytes:
+`UQS1` segment metadata (in the separate result-record context) is 125 bytes:
 magic, u64 ordinal, u64 first row, u8 row count, `SPF1` reference and raw Arrow
 SHA-256. The chain starts at SHA-256 of `transit.query.result.v1` followed by a
 zero byte; each step hashes the preceding digest followed by canonical metadata.

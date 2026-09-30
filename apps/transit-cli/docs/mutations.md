@@ -106,7 +106,7 @@ or automatic retry loop. One writer admits one active upload at a time.
 The compiled artifact is a JSON `compiled` envelope containing hexadecimal
 request and reference bytes. The prepared artifact is a JSON `prepared` envelope
 containing an opaque canonical saved string, or null. Preserve that string
-exactly. The native request is at most 799 bytes, its reference is 68 bytes and
+exactly. The native request is at most 799 bytes, its reference is 72 bytes and
 the saved command is at most 8192 bytes. Compiled input envelopes are bounded
 to 4096 bytes and prepared envelopes to 65536 bytes. Malformed local artifacts
 reject before loading the key or contacting authority.

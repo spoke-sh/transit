@@ -7,7 +7,7 @@ static Bytes decoded(const char *text) {
     const auto value=unhex(text);Bytes out(value.data,value.data+value.size);free((void *)value.data);return out;
 }
 static m::Reference reference(const char *text) {
-    const auto bytes=decoded(text);assert(bytes.size()==68);m::Reference out{};std::copy(bytes.begin(),bytes.end(),out.begin());return out;
+    const auto bytes=decoded(text);assert(bytes.size()==72);m::Reference out{};std::copy(bytes.begin(),bytes.end(),out.begin());return out;
 }
 static std::string decoded_text(const char *text) { const auto value=decoded(text);return {value.begin(),value.end()}; }
 int main(int argc,char **argv) {

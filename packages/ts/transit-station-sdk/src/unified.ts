@@ -585,7 +585,7 @@ function page(value: WirePage, realm: number): Page {
     requester: new ProcessRef(realm, m.requester),
     correlation: nativeWide(m.correlation),
     policyRevision: nativeWide(m.policy_revision),
-    request: unhex(m.request, 68),
+    request: unhex(m.request, 72),
     sourceKind: m.basis.kind,
     resource: new ResourceRef(realm, m.basis.resource),
     revision: integer(m.basis.revision, "revision", 0),
@@ -764,8 +764,8 @@ export class Client {
       : Object.freeze({
           phase: v.phase,
           correlation: nativeWide(v.correlation),
-          reference: unhex(v.reference, 68),
-          manifest: v.manifest === null ? undefined : unhex(v.manifest, 68),
+          reference: unhex(v.reference, 72),
+          manifest: v.manifest === null ? undefined : unhex(v.manifest, 72),
           collected: v.collected,
         });
   }

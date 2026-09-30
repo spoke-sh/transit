@@ -3,7 +3,7 @@
 #include <transit/table_mutation.h>
 
 namespace transit::sdk::station::mutations {
-using Reference = std::array<uint8_t, 68>;
+using Reference = std::array<uint8_t, 72>;
 enum class Permission : uint8_t { Insert = 1, Update = 2, Delete = 4 };
 struct Permissions {
     uint8_t bits;
@@ -46,7 +46,7 @@ public:
     }
     Reference reference() const {
         transit_sdk_bytes data{}; transit_station_table_mutation_reference ref{}; Reference result{};
-        check(transit_station_table_mutation_compiled_get(value_.get(), &data, &ref)); std::copy_n(ref.bytes, 68, result.begin()); return result;
+        check(transit_station_table_mutation_compiled_get(value_.get(), &data, &ref)); std::copy_n(ref.bytes, 72, result.begin()); return result;
     }
     const transit_station_table_mutation_compiled *native() const { return value_.get(); }
 };
@@ -110,7 +110,7 @@ public:
         transit_station_table_mutation_status out{}; check(transit_station_table_mutation_status_read(value_.get(), detail::native(reference), &out));
         if (!out.found) return {};
         Status result{{}, out.principal, out.table, {}, out.policy_revision, static_cast<Phase>(out.phase), out.affected_rows, static_cast<Reason>(out.reason), out.input};
-        std::copy_n(out.reference.bytes, 68, result.reference.begin()); std::copy_n(out.declaration, 32, result.declaration.begin()); return result;
+        std::copy_n(out.reference.bytes, 72, result.reference.begin()); std::copy_n(out.declaration, 32, result.declaration.begin()); return result;
     }
     void close() { check(transit_station_table_mutation_close(value_.get())); }
 };

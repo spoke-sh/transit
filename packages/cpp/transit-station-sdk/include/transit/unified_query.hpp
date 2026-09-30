@@ -190,7 +190,7 @@ struct Inspection {
 };
 using Manifest = transit_station_unified_manifest;
 enum class Phase { Uploading, Sealed, Admitted, Complete, Cancelled, Denied, Rejected, Retired };
-struct Status { Phase phase; uint64_t correlation; std::array<uint8_t, 68> reference; std::optional<std::array<uint8_t, 68>> manifest; bool collected; };
+struct Status { Phase phase; uint64_t correlation; std::array<uint8_t, 72> reference; std::optional<std::array<uint8_t, 72>> manifest; bool collected; };
 enum class Observed { Pending, Committed, Rejected };
 struct Observation { Observed state; std::string reason; };
 enum class Control { Cancel, Retire, Collect };
@@ -249,8 +249,8 @@ public:
         transit_station_unified_status out{}; check(transit_station_unified_status_read(value_.get(), ns, &out));
         if (!out.found) return {};
         Status result{static_cast<Phase>(out.phase), out.correlation, {}, {}, out.collected};
-        std::copy_n(out.reference, 68, result.reference.begin());
-        if (out.has_manifest) { result.manifest.emplace(); std::copy_n(out.manifest, 68, result.manifest->begin()); }
+        std::copy_n(out.reference, 72, result.reference.begin());
+        if (out.has_manifest) { result.manifest.emplace(); std::copy_n(out.manifest, 72, result.manifest->begin()); }
         return result;
     }
     Page page(uint64_t ns, const Cursor *cursor = nullptr) {

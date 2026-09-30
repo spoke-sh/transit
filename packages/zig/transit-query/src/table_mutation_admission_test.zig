@@ -200,7 +200,7 @@ test "only the authenticated principal may stage; busy and immutable namespace c
     try t.expectError(error.MutationIdentityConflict, admission.dispatch(&turn));
     try t.expectEqual(.cancelled, (try execute(&store, .{ .cancel = try reference(&store, 8) })).phase);
     turn = try store.capture();
-    _ = try s.Publication.create(&turn, 9, .{ .record_bytes = 1, .staging_bytes = 1, .staging_records = 1 });
+    _ = try s.Publication.create(&turn, .table_mutation, 9, .{ .record_bytes = 1, .staging_bytes = 1, .staging_records = 1 });
     try store.commit(turn);
     turn = try input(&store, 10, .{ .begin = .{ .reference = try request.reference(9), .table = 1, .policy_revision = 1 } });
     try t.expectError(error.MutationNamespaceInUse, admission.dispatch(&turn));
@@ -409,14 +409,14 @@ test "invalid definition bytes are rejected but corrupt published chunks remain 
     var buffer: [Request.max_bytes]u8 = undefined;
     const length = (try request.encode(&buffer)).len;
     buffer[4] ^= 1; // Foreign definition, still a valid immutable publication.
-    const ref: s.PublicationReference = .{ .resource = table.resource, .namespace = 1, .record = 1, .spec = try s.Publication.Digest.of(Request.format, buffer[0..length]) };
+    const ref: s.PublicationReference = .{ .domain = .table_mutation, .resource = table.resource, .namespace = 1, .record = 1, .spec = try s.Publication.Digest.of(Request.format, buffer[0..length]) };
     _ = try execute(&store, .{ .begin = .{ .reference = ref, .table = 1, .policy_revision = 1 } });
     try parts(&store, ref, buffer[0..length]);
     _ = try execute(&store, .{ .seal = try reference(&store, 1) });
     try t.expectEqual(.invalid_request, (try execute(&store, .{ .apply = try reference(&store, 1) })).reason);
     try prepare(&store, request, 2);
     // Model storage corruption after publication, not caller-controlled bytes.
-    const key = s.Publication.key(2, 'c', 1, 0);
+    const key = s.Publication.key(.table_mutation, 2, 'c', 1, 0);
     var broken = store.state.get(key).?;
     broken.data[0] ^= 1;
     try store.state.put(t.allocator, key, broken);

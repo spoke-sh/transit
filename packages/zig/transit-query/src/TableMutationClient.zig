@@ -219,7 +219,7 @@ pub fn prepareNext(self: *Self, namespace: u64, request: Request) !?Prepared {
     try request.validate();
     if (request.realm != self.connection.realm or request.writer != self.connection.writer or request.resource != self.connection.resource or request.table != self.connection.table) return error.MutationIdentityConflict;
     const ref = try request.reference(namespace);
-    const current = try self.batch(&.{ r.key('u', namespace, 0), s.Publication.key(namespace, 'r', ref.record, 0), r.key('h', namespace, 0), s.Table.descriptorKey(self.connection.table), r.key('p', self.connection.principal, self.connection.table), r.key('a', 0, 0) });
+    const current = try self.batch(&.{ r.key('u', namespace, 0), s.Publication.key(.table_mutation, namespace, 'r', ref.record, 0), r.key('h', namespace, 0), s.Table.descriptorKey(self.connection.table), r.key('p', self.connection.principal, self.connection.table), r.key('a', 0, 0) });
     const stored = (try self.statusFrom(&current, ref)) orelse {
         const description = try self.grant(&current);
         if (!std.meta.eql(description.table.schema, request.plan.schema)) return error.MutationSourceChanged;

@@ -101,7 +101,7 @@ pub const Result = union(enum) {
     status: ?Status,
 };
 pub fn reference(alloc: Allocator, text: []const u8) !Ref {
-    const result = try Ref.decode(try p.Value.init(try c.unhex(alloc, text, 68)));
+    const result = try Ref.decode(try p.Value.init(try c.unhex(alloc, text, Ref.encoded_bytes)));
     try Request.checkReference(result);
     return result;
 }

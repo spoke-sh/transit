@@ -9,7 +9,7 @@
       "tag": "growing_command",
       "body": "request",
       "domain": "transit.request.v1\u0000",
-      "canonical": "{\"version\":1,\"definition\":\"b17eab6aefacb9013afbbcfebf9eededea9f57dcd8be304bab4a18e5d41cd016\",\"realm\":72,\"principal\":65536,\"sequence\":1,\"command\":{\"send\":{\"pid\":9007199254740991,\"value\":\"00ff\"}}}",
+      "canonical": "{\"version\":1,\"definition\":\"2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5\",\"realm\":72,\"principal\":65536,\"sequence\":1,\"command\":{\"send\":{\"pid\":9007199254740991,\"value\":\"00ff\"}}}",
       "signature": [
         65,
         48,
@@ -84,7 +84,7 @@
       "tag": "growing_query",
       "body": "query",
       "domain": "transit.query.v1\u0000",
-      "canonical": "{\"version\":1,\"definition\":\"b17eab6aefacb9013afbbcfebf9eededea9f57dcd8be304bab4a18e5d41cd016\",\"realm\":72,\"principal\":65536,\"kind\":{\"process\":9007199254740991}}",
+      "canonical": "{\"version\":1,\"definition\":\"2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5\",\"realm\":72,\"principal\":65536,\"kind\":{\"process\":9007199254740991}}",
       "signature": [
         115,
         81,

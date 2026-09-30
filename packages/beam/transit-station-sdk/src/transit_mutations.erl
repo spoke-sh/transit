@@ -19,7 +19,7 @@ table(V) -> transit_sdk_value:integer(V,1,4294967295).
 wide(V) -> positive(transit_sdk_value:wide(V)).
 fixed(B,N) -> transit_sdk_value:bytes(B,N),true=byte_size(B)=:=N,B.
 decoded(V,N) -> fixed(transit_sdk_value:unhex(V,N),N).
-reference(#transit_mutation_reference{bytes=B}) -> transit_sdk_value:hex(fixed(B,68)).
+reference(#transit_mutation_reference{bytes=B}) -> transit_sdk_value:hex(fixed(B,72)).
 saved(#transit_mutation_prepared{bytes=B}) -> true=byte_size(B)>0,transit_sdk_value:text(B,8192).
 prepared(null) -> undefined;
 prepared(V) -> P=#transit_mutation_prepared{bytes=transit_sdk_value:text(V,8192)},saved(P),P.
@@ -77,7 +77,7 @@ operation(B,_,{compile,Name,Sql,Namespace}) ->
         <<"name">>=>transit_sdk_value:text(Name,16),<<"sql">>=>transit_sdk_value:text(Sql,4096),
         <<"namespace">>=>integer_to_binary(positive(Namespace))}}),
     Bytes=transit_sdk_value:unhex(Request,799),true=byte_size(Bytes)>0,
-    #transit_mutation_compiled{request=Bytes,reference=#transit_mutation_reference{bytes=decoded(Reference,68)}};
+    #transit_mutation_compiled{request=Bytes,reference=#transit_mutation_reference{bytes=decoded(Reference,72)}};
 operation(B,_,{next,#transit_mutation_compiled{request=Bytes,reference=Reference}}) ->
     true=byte_size(Bytes)>0,
     #{<<"prepared">>:=V}=request(B,#{<<"next">>=>#{<<"request">>=>transit_sdk_value:hex(transit_sdk_value:bytes(Bytes,799)),
@@ -99,7 +99,7 @@ operation(B,_,{rejection,Prepared,Input}) ->
 operation(B,#transit_mutation_connection{table=Table},{status,Reference}) ->
     #{<<"status">>:=V}=request(B,#{<<"status">>=>reference(Reference)}),
     optional(V,fun(X)->
-        Reference=#transit_mutation_reference{bytes=decoded(maps:get(<<"reference">>,X),68)},
+        Reference=#transit_mutation_reference{bytes=decoded(maps:get(<<"reference">>,X),72)},
         Table=table(maps:get(<<"table">>,X)),
         #transit_mutation_status{reference=Reference,principal=counter(maps:get(<<"principal">>,X)),table=Table,
             declaration=decoded(maps:get(<<"declaration">>,X),32),policy_revision=counter(wide(maps:get(<<"policy_revision">>,X))),

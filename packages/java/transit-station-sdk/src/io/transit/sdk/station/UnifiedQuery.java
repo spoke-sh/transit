@@ -211,7 +211,7 @@ public final class UnifiedQuery {
     private static Bytes fixed(JsonElement v,int size) { Bytes out=encoded(v,size); if(out.size()!=size)throw incompatible("query-reference"); return out; }
     private static Manifest manifest(JsonElement value,long realm) {
         JsonObject v=object(value), b=object(v.get("basis"));
-        return new Manifest(number(v.get("job"),1),NativeValues.version(v.get("source")),new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),68),
+        return new Manifest(number(v.get("job"),1),NativeValues.version(v.get("source")),new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),72),
             SourceKind.valueOf(string(b.get("kind")).toUpperCase(Locale.ROOT)),new ResourceRef(realm,number(b.get("resource"),1)),number(b.get("revision"),0),NativeValues.digest(b.get("contract")),NativeValues.digest(b.get("schema")),NativeValues.digest(v.get("plan")),
             wide(v.get("pages")),wide(v.get("scanned")),wide(v.get("selected")),wide(v.get("segments")),wide(v.get("rows")),wide(v.get("bytes")),v.get("sum").isJsonNull()?Optional.empty():Optional.of(NativeValues.signed(v.get("sum"))),Finished.valueOf(string(v.get("finished")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("chain")));
     }
@@ -255,7 +255,7 @@ public final class UnifiedQuery {
         }
         public CompletableFuture<Optional<Status>> status(BigInteger namespace) {
             JsonObject action=obj("status",positive(namespace).toString());
-            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),68),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),68)),bool(v.get("collected")))); });
+            return worker.submit(b -> { JsonElement result=b.unifiedQuery(action,false).get("status"); if(result.isJsonNull())return Optional.empty(); JsonObject v=object(result); return Optional.of(new Status(Phase.valueOf(string(v.get("phase")).toUpperCase(Locale.ROOT)),wide(v.get("correlation")),fixed(v.get("reference"),72),v.get("manifest").isJsonNull()?Optional.empty():Optional.of(fixed(v.get("manifest"),72)),bool(v.get("collected")))); });
         }
         public CompletableFuture<Page> page(BigInteger namespace,Optional<Cursor> cursor) {
             JsonObject action=obj("page",obj("namespace",positive(namespace).toString(),"cursor",cursor.map(Cursor::opaque).orElse(null)));

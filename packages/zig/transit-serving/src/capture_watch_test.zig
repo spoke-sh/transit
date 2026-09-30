@@ -41,7 +41,7 @@ fn upload(store: *Store, bundle: q.Bundle) !s.PublicationReference {
     const reference = try bundle.reference(store.resource, 1);
     for (0..100) |_| {
         var turn = try store.capture();
-        if (try s.PublicationUpload.step(&turn, .{ .namespace = reference.namespace, .identity_key = q.UnifiedRecords.key('u', 1, 0), .identity = try reference.encode(), .limits = .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = reference.spec, .bytes = body }} })) return reference;
+        if (try s.PublicationUpload.step(&turn, .{ .domain = .query_request, .namespace = reference.namespace, .identity_key = q.UnifiedRecords.key('u', 1, 0), .identity = try reference.encode(), .limits = .{ .record_bytes = q.Bundle.max_bytes, .staging_bytes = q.Bundle.max_bytes, .staging_records = 1 }, .records = &.{.{ .id = 1, .spec = reference.spec, .bytes = body }} })) return reference;
         try store.commit(turn);
     }
     return error.UploadIncomplete;

@@ -39,7 +39,7 @@ public final class Mutations {
         }
     }
     public record Reference(Bytes bytes) {
-        public Reference { Objects.requireNonNull(bytes);if(bytes.size()!=68)throw new IllegalArgumentException("Expected full mutation reference"); }
+        public Reference { Objects.requireNonNull(bytes);if(bytes.size()!=72)throw new IllegalArgumentException("Expected full mutation reference"); }
     }
     public record Compiled(Bytes request,Reference reference) {
         public Compiled { Objects.requireNonNull(request);Objects.requireNonNull(reference);if(request.size()==0 || request.size()>799)throw new IllegalArgumentException("Mutation request exceeds its bound"); }
@@ -100,7 +100,7 @@ public final class Mutations {
         }
         public CompletableFuture<Compiled> compileSql(String name,String sql,BigInteger namespace) {
             JsonObject action=obj("compile",obj("name",text(name,16),"sql",text(sql,4096),"namespace",positive(namespace).toString()));
-            return worker.submit(b -> {JsonObject v=object(b.tableMutation(action).get("compiled"));return new Compiled(new Bytes(unhex(v.get("request"),799)),new Reference(fixed(v.get("reference"),68)));});
+            return worker.submit(b -> {JsonObject v=object(b.tableMutation(action).get("compiled"));return new Compiled(new Bytes(unhex(v.get("request"),799)),new Reference(fixed(v.get("reference"),72)));});
         }
         public CompletableFuture<Optional<Prepared>> prepareNext(Compiled compiled) {
             JsonObject action=obj("next",obj("request",hex(compiled.request()),"reference",hex(compiled.reference().bytes())));
@@ -130,7 +130,7 @@ public final class Mutations {
             JsonObject action=obj("status",hex(reference.bytes()));
             return worker.submit(b -> {
                 JsonElement result=b.tableMutation(action).get("status");if(result.isJsonNull())return Optional.empty();JsonObject v=object(result);
-                Reference actual=new Reference(fixed(v.get("reference"),68));
+                Reference actual=new Reference(fixed(v.get("reference"),72));
                 if(!actual.equals(reference) || number(v.get("table"),1)!=connection.table())throw incompatible("mutation-status-target");
                 long affected=number(v.get("affected_rows"),0);if(affected>3)throw incompatible("mutation-row-count");
                 return Optional.of(new Status(actual,number(v.get("principal"),1),connection.table(),fixed(v.get("declaration"),32),revision(v.get("policy_revision")),variant(Phase.class,v.get("phase")),(int)affected,variant(Reason.class,v.get("reason")),number(v.get("input"),0)));

@@ -14,7 +14,7 @@ SaveCompiled(compiled.Request.Copy(), compiled.Reference.Bytes.Copy());
 var next = await client.PrepareNextAsync(compiled);
 ```
 
-The application supplies a positive `ulong` namespace. Requests, complete 68-byte
+The application supplies a positive `ulong` namespace. Requests, complete 72-byte
 references and saved commands own immutable `Bytes`; construction and `Copy()`
 copy arrays. Returned column-name lists are read-only. `DescribeAsync` reports
 the current resource/schema/policy and optional active namespace under current

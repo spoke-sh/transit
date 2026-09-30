@@ -36,8 +36,8 @@ export class Connection {
 export class Reference {
   readonly #data: Uint8Array;
   constructor(data: Uint8Array) {
-    this.#data = owned(data, 68);
-    if (this.#data.length !== 68) throw new TypeError("Mutation reference requires 68 bytes");
+    this.#data = owned(data, 72);
+    if (this.#data.length !== 72) throw new TypeError("Mutation reference requires 72 bytes");
     Object.freeze(this);
   }
   get data(): Uint8Array {
@@ -137,7 +137,7 @@ function positive(value: bigint): string {
 }
 function reference(value: Reference): string {
   if (!(value instanceof Reference)) throw new TypeError("Expected mutation reference");
-  return hex(value.data, 68);
+  return hex(value.data, 72);
 }
 function saved(value: Prepared): string {
   if (!(value instanceof Prepared)) throw new TypeError("Expected saved mutation command");
@@ -229,7 +229,7 @@ export class Client {
     if (!("compiled" in value)) throw new IncompatibleNative("Expected compiled mutation");
     return new Compiled(
       unhex(value.compiled.request, 799),
-      new Reference(unhex(value.compiled.reference, 68)),
+      new Reference(unhex(value.compiled.reference, 72)),
     );
   }
   async prepareNext(compiled: Compiled): Promise<Prepared | undefined> {
@@ -290,7 +290,7 @@ export class Client {
     if (v.reference !== reference(ref) || v.table !== this.connection.table)
       throw new IncompatibleNative("Status does not match the mutation reference");
     return Object.freeze({
-      reference: new Reference(unhex(v.reference, 68)),
+      reference: new Reference(unhex(v.reference, 72)),
       principal: integer(v.principal, "principal"),
       table: v.table,
       declaration: digest(v.declaration),

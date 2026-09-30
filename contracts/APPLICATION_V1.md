@@ -33,7 +33,8 @@ Canonical SQL preserves semantic values, not comments or source formatting.
 
 ## Publication and migration
 
-Interface bodies use immutable publication. A Station owner records one
+Interface bodies use immutable publication in the application-definition domain
+(7). A Station owner records one
 conditional active revision plus the exact immutable body/digest. It validates
 body and compatibility before visibility. Conflicting base revisions fail;
 repeating the same accepted identity/digest recovers its disposition. A changed

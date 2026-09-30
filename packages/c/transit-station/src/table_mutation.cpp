@@ -13,7 +13,7 @@ size_t variant(const std::string &value, const char *const *names, size_t count)
     for (size_t i=0; i<count; ++i) if (value==names[i]) return i;
     fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"mutation-variant");
 }
-std::string reference_wire(const Reference &v) { return quote(hex(Bytes(v.bytes,v.bytes+68))); }
+std::string reference_wire(const Reference &v) { return quote(hex(Bytes(v.bytes,v.bytes+72))); }
 void fixed(const Raw &r,const Bytes &v,const std::string &path,uint8_t *out,size_t count) {
     const auto data=unhex(r.field(v,path,true),count);
     if (data.size()!=count) fail(TRANSIT_SDK_INCOMPATIBLE_NATIVE,"mutation-reference-width");
@@ -109,7 +109,7 @@ transit_sdk_error transit_station_table_mutation_describe(transit_station_table_
 transit_sdk_error transit_station_table_mutation_compile_sql(transit_station_table_mutation_client *client,const char *name,const char *sql,uint64_t ns,transit_station_table_mutation_compiled **out) {
     Uninterruptible guard;if(out)*out=nullptr;return run(client,[&](NativeMutation &n){
         require(ns && out,"mutation-compile");const auto v=n.call("{\"compile\":{\"name\":"+quote(text(name,16))+",\"sql\":"+quote(text(sql,4096))+",\"namespace\":"+quote(decimal(ns))+"}}");
-        auto result=std::make_unique<transit_station_table_mutation_compiled>();result->bytes=unhex(n.local.raw.field(v,"compiled/request",true),799);require(!result->bytes.empty(),"mutation-request");fixed(n.local.raw,v,"compiled/reference",result->reference.bytes,68);*out=result.release();
+        auto result=std::make_unique<transit_station_table_mutation_compiled>();result->bytes=unhex(n.local.raw.field(v,"compiled/request",true),799);require(!result->bytes.empty(),"mutation-request");fixed(n.local.raw,v,"compiled/reference",result->reference.bytes,72);*out=result.release();
     });
 }
 transit_sdk_error transit_station_table_mutation_prepare_next(transit_station_table_mutation_client *client,const transit_station_table_mutation_compiled *compiled,transit_station_table_mutation_prepared **out) {
@@ -131,7 +131,7 @@ transit_sdk_error transit_station_table_mutation_input_rejection(transit_station
 }
 transit_sdk_error transit_station_table_mutation_status_read(transit_station_table_mutation_client *client,Reference reference,transit_station_table_mutation_status *out) {
     Uninterruptible guard;if(out)*out={};return run(client,[&](NativeMutation &n){require(out,"mutation-status");const auto v=n.call("{\"status\":"+reference_wire(reference)+"}");const auto &r=n.local.raw;if(r.field(v,"status")=="null")return;
-        transit_station_table_mutation_status result{};result.found=true;fixed(r,v,"status/reference",result.reference.bytes,68);require(std::equal(reference.bytes,reference.bytes+68,result.reference.bytes),"mutation-status-reference");
+        transit_station_table_mutation_status result{};result.found=true;fixed(r,v,"status/reference",result.reference.bytes,72);require(std::equal(reference.bytes,reference.bytes+72,result.reference.bytes),"mutation-status-reference");
         result.table=client->connection.table;require(r.number(v,"status/table")==result.table,"mutation-status-table");result.principal=r.number(v,"status/principal");fixed(r,v,"status/declaration",result.declaration,32);result.policy_revision=revision(r,v,"status/policy_revision");
         const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};result.phase=static_cast<transit_station_table_mutation_phase>(variant(r.field(v,"status/phase",true),phases,5));
         const auto affected=r.number(v,"status/affected_rows",true);require(affected<=3,"mutation-row-count");result.affected_rows=static_cast<uint8_t>(affected);

@@ -42,7 +42,7 @@ def records(requests):
     for ordinal,offset in enumerate(range(0,len(data),256)):
         chunk = data[offset:offset+256]
         chain = hashlib.sha256(b'\1'+chain+struct.pack('<IH',ordinal,len(chunk))+chunk).digest()
-    reference = b'SPF1'+struct.pack('<QQQII',7,99,1,format_id,len(data))+chain
+    reference = b'SPF1'+struct.pack('<QIQQII',7,4,99,1,format_id,len(data))+chain
     descriptor = b'TBL1\1\2id\5value'
     declaration = hashlib.sha256(b'transit.query.source.v1\0UQS1'+struct.pack('<QBI',7,2,9)+bytes([len(descriptor)])+descriptor).digest()
     policy = b'TML1'+struct.pack('<QIQ',10,9,4)+declaration+b'\7'

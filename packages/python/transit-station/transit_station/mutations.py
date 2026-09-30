@@ -32,8 +32,8 @@ class Connection:
 class Reference:
     data: bytes = field(repr=False)
     def __post_init__(self) -> None:
-        object.__setattr__(self, 'data', owned_bytes(self.data, 68))
-        if len(self.data) != 68: raise ValueError('Mutation reference requires 68 bytes')
+        object.__setattr__(self, 'data', owned_bytes(self.data, 72))
+        if len(self.data) != 72: raise ValueError('Mutation reference requires 72 bytes')
 
 
 @dataclass(frozen=True, slots=True)

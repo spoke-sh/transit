@@ -15,8 +15,8 @@ test "neutral mutation values retain independent bytes, wide identities and owne
     const ref = try b.reference(alloc, ref_text);
     const commands: [6]b.Command = .{
         .{ .begin = .{ .reference = ref_text, .table = 9, .policy_revision = "4" } },
-        .{ .part = .{ .reference = ref_text, .ordinal = 0, .second = false, .bytes = object.get("commands").?.array.items[1].string[77 * 2 ..] } },
-        .{ .part = .{ .reference = ref_text, .ordinal = 0, .second = true, .bytes = object.get("commands").?.array.items[2].string[77 * 2 ..] } },
+        .{ .part = .{ .reference = ref_text, .ordinal = 0, .second = false, .bytes = object.get("commands").?.array.items[1].string[81 * 2 ..] } },
+        .{ .part = .{ .reference = ref_text, .ordinal = 0, .second = true, .bytes = object.get("commands").?.array.items[2].string[81 * 2 ..] } },
         .{ .seal = ref_text },
         .{ .apply = ref_text },
         .{ .cancel = ref_text },
@@ -43,7 +43,7 @@ test "neutral mutation values retain independent bytes, wide identities and owne
         }
     }
     for (object.get("statuses").?.array.items) |case| {
-        var native = try r.Status.decode(try q.protocol.Value.init(try c.unhex(alloc, case.object.get("wire_hex").?.string, 135)));
+        var native = try r.Status.decode(try q.protocol.Value.init(try c.unhex(alloc, case.object.get("wire_hex").?.string, 139)));
         native.policy_revision = q.protocol.max_counter;
         const value = try b.Status.fromNative(alloc, native);
         try t.expectEqualStrings("9007199254740991", value.policy_revision);
@@ -77,4 +77,19 @@ test "neutral mutation rejects changed references and malformed recovery before 
     for (0..compiled.reference.len) |len| {
         if (b.reference(alloc, compiled.reference[0..len])) |_| return error.AcceptedTruncatedReference else |_| {}
     }
+}
+
+test "typed query and mutation references reject other publication domains" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+    const records = try std.json.parseFromSlice(std.json.Value, alloc, @embedFile("fixtures/table-mutation-records-v1.json"), .{});
+    var ref = try b.reference(alloc, records.value.object.get("reference").?.string);
+    ref.domain = .query_request;
+    try t.expectError(error.InvalidTableMutationRequest, q.TableMutationRequest.checkReference(ref));
+    ref.spec.format = q.Bundle.format;
+    ref.spec.length = 32;
+    try q.Bundle.checkReference(ref);
+    ref.domain = .table_mutation;
+    try t.expectError(error.InvalidQueryBundle, q.Bundle.checkReference(ref));
 }

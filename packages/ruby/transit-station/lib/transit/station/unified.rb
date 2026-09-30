@@ -240,7 +240,7 @@ module Transit
           raise IncompatibleNative, 'Unfinished result manifest' if m.fetch('finished').nil?
           manifest = Manifest.new(job: m.fetch('job'), source: Value.version(m.fetch('source')), requester: ProcessRef.new(realm: realm, pid: m.fetch('requester')),
             correlation: Value.wide(m.fetch('correlation')), policy_revision: Value.wide(m.fetch('policy_revision')),
-            request: Internal.unhex(m.fetch('request'), 68).freeze, source_kind: basis.fetch('kind').to_sym,
+            request: Internal.unhex(m.fetch('request'), 72).freeze, source_kind: basis.fetch('kind').to_sym,
             resource: ResourceRef.new(realm: realm, resource: basis.fetch('resource')), revision: basis.fetch('revision'),
             source_digest: Value.digest(basis.fetch('contract')), schema_digest: Value.digest(basis.fetch('schema')), plan_digest: Value.digest(m.fetch('plan')),
             pages: Value.wide(m.fetch('pages')), scanned: Value.wide(m.fetch('scanned')), selected: Value.wide(m.fetch('selected')),
@@ -327,8 +327,8 @@ module Transit
           value = call({ 'status' => Internal.integer(namespace, max: U64_MAX).to_s }).fetch('status')
           return nil if value.nil?
           Status.new(phase: value.fetch('phase').to_sym, correlation: Value.wide(value.fetch('correlation')),
-            reference: Internal.unhex(value.fetch('reference'), 68).freeze,
-            manifest: value.fetch('manifest').nil? ? nil : Internal.unhex(value.fetch('manifest'), 68).freeze, collected: value.fetch('collected'))
+            reference: Internal.unhex(value.fetch('reference'), 72).freeze,
+            manifest: value.fetch('manifest').nil? ? nil : Internal.unhex(value.fetch('manifest'), 72).freeze, collected: value.fetch('collected'))
         end
         def page(namespace, cursor = nil)
           raise ArgumentError, 'Expected Cursor' unless cursor.nil? || cursor.is_a?(Cursor)

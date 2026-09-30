@@ -857,7 +857,10 @@
       "claim": "Large immutable records have one final visibility decision, bounded staging and resumable terminal cleanup",
       "owner": "contracts/STATION_PUBLICATION_V1.md",
       "implementation": [
-        "packages/zig/transit-station/src/Publication.zig"
+        "packages/zig/transit-station/src/Publication.zig",
+        "packages/zig/transit-station/src/PublicationReference.zig",
+        "packages/zig/transit-station/src/PublicationUpload.zig",
+        "packages/zig/transit-station/src/ImmutableIndex.zig"
       ],
       "profile": "transit-v1/station-publication-v1",
       "tasks": [
@@ -866,6 +869,9 @@
       ],
       "scenarios": [
         "Independent commitment fixtures and malformed descriptors",
+        "Same full-width namespace and record in distinct domains preserve independent content, quota, cursors and cleanup",
+        "Required nonzero domain, rejection of prior reference length, and upload-marker retargeting refusal",
+        "Cached immutable index nodes cannot hide missing content in another publication domain",
         "Quota reservation, conflicting identity and private rollback",
         "Worker SIGKILL before and after publication; node/store restart with one resident page",
         "Lost append/publication/cleanup receipts and exact retry",
@@ -1471,6 +1477,7 @@
       "scenarios": [
         "Independent typed request/policy/status/command bytes and complete-input SQL rejection",
         "Interrupted halves, namespace conflict, principal/policy fencing, rollback and sticky read poison",
+        "Mutation and query references reject each other's publication domain before resource reads",
         "Shared signed client preparation/resumption, canonical saved definitions, target/signature rejection and exact caller-send receipt recovery after restart",
         "Native rows/result/input visibility, exact accepted-but-lost commit recovery after node/store restart, changed retry refusal",
         "Stale captured revision, fenced writer, current resource write/read grants and application-policy revocation",

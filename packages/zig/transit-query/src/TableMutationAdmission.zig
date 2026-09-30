@@ -74,8 +74,8 @@ fn begin(turn: *Turn, principal: u64, value: r.Begin) !r.Status {
         const previous = (try status(turn, namespace)) orelse return error.InvalidMutationRecord;
         if (!previous.terminal()) return error.MutationBusy;
     }
-    if (try turn.read(Pub.key(value.reference.namespace, 'b', 0, 0)) != null) return error.MutationNamespaceInUse;
-    const publication = try Pub.create(turn, value.reference.namespace, .{ .record_bytes = Request.max_bytes, .staging_bytes = Request.max_bytes, .staging_records = 1 });
+    if (try turn.read(Pub.key(value.reference.domain, value.reference.namespace, 'b', 0, 0)) != null) return error.MutationNamespaceInUse;
+    const publication = try Pub.create(turn, .table_mutation, value.reference.namespace, .{ .record_bytes = Request.max_bytes, .staging_bytes = Request.max_bytes, .staging_records = 1 });
     _ = try publication.begin(turn, value.reference.record, value.reference.spec);
     try store(turn, current);
     try turn.write(r.key('a', 0, 0), q.UnifiedRecords.identityValue(value.reference.namespace));

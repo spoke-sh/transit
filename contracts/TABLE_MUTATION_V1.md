@@ -150,7 +150,9 @@ alias and original text are not retained in this normalized typed request.
 `reference(namespace)` produces the existing immutable publication reference,
 with the target resource, record 1 and format `0x31524d54` (`TMR1`). Its digest
 binds the complete encoded request using Station's publication commitment.
-`checkReference` validates the record, format and byte budget. Publication
+`checkReference` validates the Table-mutation publication domain, record, format
+and byte budget. The domain isolates uploads from query result budgets and
+records even when their full-width namespace IDs match. Publication
 reference validation alone does not prove that the bytes decode or that their
 target matches the current writer. An admitting owner must validate both, check
 current command authorization and record the result at the row-commit boundary.
@@ -237,7 +239,7 @@ existing domain. All integers below are little-endian and fields are contiguous.
 | Record | Fields after four-byte magic |
 | --- | --- |
 | Policy `TML1`, 57 bytes | principal u64, Table u32, revision u64, declaration 32 bytes, permissions u8 |
-| Status `TMS1`, 135 bytes | existing `SPF1` reference 68 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64 |
+| Status `TMS1`, 139 bytes | existing `SPF1` reference 72 bytes, principal u64, Table u32, declaration 32 bytes, policy revision u64, phase u8, affected rows u8, reason u8, terminal input u64 |
 
 Phases are uploading=1, sealed=2, applied=3, rejected=4, cancelled=5. Reasons are
 none=0, row_exists=1, source_changed=2, invalid_request=3, denied=4, budget=5.

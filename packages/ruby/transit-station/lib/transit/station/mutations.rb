@@ -18,8 +18,8 @@ module Transit
       end
       Reference = Data.define(:data) do
         def initialize(data:)
-          value = Internal.bytes(data, 68).freeze
-          raise ArgumentError, 'Mutation reference requires 68 bytes' unless value.bytesize == 68
+          value = Internal.bytes(data, 72).freeze
+          raise ArgumentError, 'Mutation reference requires 72 bytes' unless value.bytesize == 72
           super(data: value)
         end
         def inspect = '#<Transit::Station::Mutations::Reference>'
@@ -118,7 +118,7 @@ module Transit
         def compile_sql(name, sql, namespace)
           result = call({ 'compile' => { 'name' => Internal.text(name, 16), 'sql' => Internal.text(sql, 4096),
             'namespace' => Internal.integer(namespace, max: U64_MAX).to_s } }).fetch('compiled')
-          Compiled.new(request: Internal.unhex(result.fetch('request'), 799), reference: Reference.new(data: Internal.unhex(result.fetch('reference'), 68)))
+          Compiled.new(request: Internal.unhex(result.fetch('request'), 799), reference: Reference.new(data: Internal.unhex(result.fetch('reference'), 72)))
         end
         def prepare_next(compiled)
           raise ArgumentError, 'Expected compiled mutation' unless compiled.is_a?(Compiled)
@@ -149,7 +149,7 @@ module Transit
           unless v.fetch('reference') == encoded && v.fetch('table') == connection.table
             raise IncompatibleNative, 'Status differs from the mutation reference'
           end
-          Status.new(reference: Reference.new(data: Internal.unhex(v.fetch('reference'), 68)), principal: Internal.integer(v.fetch('principal')),
+          Status.new(reference: Reference.new(data: Internal.unhex(v.fetch('reference'), 72)), principal: Internal.integer(v.fetch('principal')),
             table: connection.table, declaration: Values.digest(v.fetch('declaration')), policy_revision: Values.revision(v.fetch('policy_revision')),
             phase: v.fetch('phase').to_sym, affected_rows: Internal.integer(v.fetch('affected_rows'), min: 0, max: 3),
             reason: v.fetch('reason').to_sym, input: Internal.integer(v.fetch('input'), min: 0))

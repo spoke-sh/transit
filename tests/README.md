@@ -1,5 +1,11 @@
 # Validation and milestone evidence
 
+Evidence is scoped to each recorded revision or definition. “Current” in an
+earlier entry refers to that entry's source, not automatically to HEAD. The latest
+[publication-domain cutover](#publication-domains-and-coordinated-caller-cutover)
+records its reruns and remaining qualification separately; earlier consolidation
+results do not qualify the changed stored layout by inheritance.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
@@ -176,6 +182,7 @@ core mutants were detected: omitted resource writes in 2.128 seconds and omitted
 input progress in 2.079 seconds, including bounded minimization. These in-memory observations do not
 establish actual WAL durability, physical page reclamation, full CI completion
 or hosted cost. Compiling core mutation qualification is a separate command.
+
 
 ## Authority and delivery simulation
 
@@ -5695,3 +5702,145 @@ counts, bounds and artifact digests. Caller intervals are **1.575 / 1.800 /
 The CLI increment passes full `just check`, including generated-contract drift,
 native unit/CLI checks, the verification catalog, frontend checks and the
 documentation build. The log is `/tmp/transit-sql-cli-mutation-check.log`.
+
+### CLI checkpoint clean validation
+
+Committed `42325495` ran `just ci-clean --lane core`. Foundation checks,
+properties, simulation, independent package builds, ABI, Station and disk
+storage recovery passed. The service proof failed at its first worker Table
+turn after an accepted view: HTTP 503 `AuthorityUnavailable` replaced the
+expected success (`tests/service.py:146`). Later core tasks did not run. No
+deadline or authority bound was relaxed. The checkout remains at
+`/var/tmp/transit-ci-66hrmfd0/src`; the log is
+`/tmp/transit-sql-cli-ci-clean.log`. A separate `just test::service` in that
+unchanged frozen checkout passes, including scoped revocation, worker fencing,
+disk recovery, retirement/trim and uncertain dispatch closure/replay. Its log is
+`/tmp/transit-sql-cli-frozen-service.log`. This focused pass does not complete
+the failed clean lane.
+
+### Publication domains and coordinated caller cutover
+
+The current native definition is
+`2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5`.
+Publication keys include a required domain; SPF1 references are 72 bytes.
+This separates query results from mutation requests with the same full-width
+namespace and record ID. Native SDK publication actions and caller-staged
+HTTP/RPC/Document bodies use the application domain. Generated definitions,
+neutral resources, signing fixtures and all ten SDK reference validators change
+together. Earlier proof entries retain their original definition and evidence.
+
+Full `just check` passes, including contract drift, independent wire fixtures,
+237 CLI diagnostics, frontend checks and the documentation build. After adding
+the index-cache isolation regression, `just test::unit` passes again. Unit
+schedules cover independent budgets/content/cleanup/cursors at equal full-width
+IDs, missing/old-length references, upload-marker retargeting, typed domain
+rejection before resource reads and a cached node that cannot conceal a missing
+chunk in another domain. Logs are
+`/tmp/transit-sql-publication-domains-check.log` and
+`/tmp/transit-sql-publication-domains-unit-final.log`.
+
+`just test::publication` passes with a 64 KiB record and 41 additional retained
+records, four killed workers, exact append/publication/cleanup retries and
+one-page recovery. Stage/seal/publish/cleanup/finish intervals are
+**33.816 / 2.926 / 20.478 / 14.006 / 87.795 s**. It records **2447 reads** and
+**309 turns**, at most four mutations and 256-byte values. The record's logical
+key/value size is **72579 bytes**, with **59 bytes** per domain/namespace
+budget. The first attempt exposed an outdated fault-injector key offset, now
+corrected. The next attempt failed on an expired-view read with HTTP 503
+`DeadlineUncertain` surfaced as `AuthorityUnavailable`, instead of the expected
+`StateViewExpired` rejection. An unchanged rerun passed all phases; this is
+not a deadline reliability guarantee. Logs are
+`/tmp/transit-sql-publication-domains-native.log` and
+`/tmp/transit-sql-publication-domains-native-rerun.log`.
+
+All SDK package builds pass. `just test::table-mutation --sdk python --sdk node
+--sdk rust --sdk ruby --sdk c --sdk cpp --sdk java --sdk dotnet --sdk erlang
+--sdk elixir` passes native/port/CLI and every installed language caller,
+including both Python schedules. The native case still covers INSERT/UPDATE/
+DELETE and rollback; installed extensions cover UPDATE recovery. It completes
+in **78.473 s**, with **3859 reads**, **103 send responses**, **92 turn responses**,
+15 lost caller receipts and one lost writer receipt. Four mutations, 256-byte
+values and eight resident pages remain the bounds. SDK installation takes
+**29.975 s**. Caller intervals range from **1.654 s** (native) to **3.841 s**
+(Node); these expanded, unpaired intervals do not establish comparative
+throughput. The log is `/tmp/transit-sql-publication-domains-mutations.log`.
+The proof freezes and hashes its ReleaseSafe artifacts before the schedule:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Node | `5329fb4df7e1435d79bb3145e43330011f1cbdd6e44165d380a46ca51bd36f26` |
+| Mutation proof | `0c78c1dbf03eec1f793f6dfb89ed9bd53b719e1cca3efcc4a93ce505c1a4f264` |
+| Supplied host | `dcc9d8410d9e42d896c54561b589353079a177c7fdf37f2976a4827481e9ebef` |
+| Native port | `e27d4229e22812c09e74bfcec9224231cee323d7d596f04ea1d44e7752551196` |
+| Shared library | `946c36f43c9736e6905309bf21ed1374bdb858f740360c866f87b1e012753992` |
+| CLI | `34f72173cd1b2338e2756f7c1040852a055999c6e272f0540c72e044da9c5e28` |
+
+The domain prerequisite does not enable a combined query/writer host. Separate
+read/write policies, bounded initialization and interleaved snapshot/mutation
+proofs remain M36 work. Query and other owner recovery qualifications are
+recorded separately from the mutation schedule; it does not prove them.
+
+`just test::build` compiles all application and integration entry points with the
+required domains, including HTTP request readers and the application proof.
+`just test::application` passes signed publication, exact append/final receipt
+recovery, three worker kills, disk restart with one resident page and current
+policy/resource denial. Its stage/seal/publish/finish intervals are **0.956 /
+1.058 / 0.507 / 0.817 s**, with **195 reads** and **20 turns**, at most four
+mutations and 256-byte values. The independent fault selector now checks the
+application-definition domain and the new record offset. Logs are
+`/tmp/transit-sql-publication-domains-build.log` and
+`/tmp/transit-sql-publication-domains-owners-final.log`.
+
+`just test::reactive-refresh` passes in **70.95 s**, including two shared-principal
+views, one active admission, exact lost follow receipt, worker replacement,
+full-width identities and entry-read denial while metadata remains readable.
+An initial run timed out because the independent UQU1 decoder still selected
+the old phase offset; the corrected decoder selects the phase after the 72-byte
+reference. The successful log is
+`/tmp/transit-sql-publication-domains-refresh-document.log`.
+
+The separate clean bindings run at pre-cutover `f6698e0c` has passed Python,
+Node, Rust, Ruby and C/C++ complete SDK regression tasks in **594.61 / 714.73 /
+795.18 / 467.73 / 1018.21 s**, respectively. It continues with Java and later
+tasks in `/var/tmp/transit-ci-aupu5a9d/src`. These completed tasks qualify that
+frozen definition only; neither the unfinished lane nor these earlier runtime
+artifacts qualify the publication-domain cutover. The log is
+`/tmp/transit-sql-ten-sdk-ci-clean.log`.
+
+`just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir` passes all
+three source schedules on the new definition. Each agrees on SQL inspection
+across thirteen enabled native/port/SDK caller variants, retries the frozen
+upload, restarts both workers, node and disk store after segment staging, reads
+verified results, enforces prefix revocation and checks released source pins.
+Each installed SDK also runs independent Arrow/schema/cell-state codec cases.
+
+| Source | Rows / segments / IPC bytes | Resident pages | Schedule seconds |
+| --- | --- | --- | --- |
+| KV | 41 / 6 / 13584 | 8 | 139.07 |
+| Table | 41 / 6 / 13584 | 8 | 147.78 |
+| Document | 12 / 2 / 9880 | 64 | 431.70 |
+
+The source intervals include isolated SDK installation and provisioning; they
+are not query-latency or cross-source performance comparisons. Every schedule
+uses an 8 MiB hot-store budget with persisted cold objects. The log is
+`/tmp/transit-sql-publication-domains-query.log`. Shell/Board/browser options
+were not selected by this run.
+
+`just test::http-worker` passes disk recovery, exact native retry, credential-free
+replay, cleanup, explicit/public followups and disposal, caller termination,
+name rebinding and partial-capture loss: **16 sends**, **8 remote applications**,
+**2 cancellation requests**, **526.93 s** excluding compilation. Its 8 MiB hot
+store leaves **1087 cold objects / 129751880 object-store bytes**. The log is
+`/tmp/transit-sql-publication-domains-http.log`. Final `just check-core` also
+passes after the owner and test-adapter corrections; its log is
+`/tmp/transit-sql-publication-domains-core-final.log`.
+
+`just test::document` passes staged index, acceptance, checkpoint and terminal
+cleanup recovery, with exact lost receipts at all four boundaries. Its independent
+fault selector uses the Document publication domain and new key offsets.
+Stage/accept/checkpoint/finish take **6.394 / 56.199 / 89.802 / 209.724 s**;
+the final phase recovers with one resident authority page. It records **8984
+reads**, **361 turns**, three killed workers, at most four mutations and 256-byte
+values. The 8 MiB hot store leaves **460 cold objects / 43721160 bytes**. The
+log is `/tmp/transit-sql-publication-domains-refresh-document.log`.

@@ -22,7 +22,7 @@ Column-name lists and permission sets are immutable. `describe()` reports the
 current resource/schema/policy and optional active namespace under current read
 permission. Compilation does not reserve rows or establish admission.
 
-Persist both `Compiled.request()` and its complete 68-byte `Reference` before
+Persist both `Compiled.request()` and its complete 72-byte `Reference` before
 upload. `prepareNext` returns an optional `Prepared` for one stage. Persist
 `prepared.bytes().copy()` before `submit(prepared)`. If the future reports
 `TransitException.Kind.UNKNOWN_OUTCOME`, reconstruct `Prepared` from those exact

@@ -108,7 +108,7 @@ fn observe(source: client.ResourceReader, scope: app.Native.Scope, selection: ap
 }
 fn descriptor(source: client.ResourceReader, resource: u64) !s.Publication.Descriptor {
     var reader = try source.open(resource);
-    return (s.Publication{ .resource = resource, .namespace = 19 }).inspect(&reader, 100);
+    return (s.Publication{ .domain = .application_definition, .resource = resource, .namespace = 19 }).inspect(&reader, 100);
 }
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());

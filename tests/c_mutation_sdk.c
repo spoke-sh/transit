@@ -2,8 +2,8 @@
 #include <transit/table_mutation.h>
 #include "mutation_sdk_io.h"
 static transit_station_table_mutation_reference reference(const char *text) {
-    transit_sdk_bytes bytes=unhex(text);assert(bytes.size==68);transit_station_table_mutation_reference out;
-    memcpy(out.bytes,bytes.data,68);free((void *)bytes.data);return out;
+    transit_sdk_bytes bytes=unhex(text);assert(bytes.size==72);transit_station_table_mutation_reference out;
+    memcpy(out.bytes,bytes.data,72);free((void *)bytes.data);return out;
 }
 int main(int argc,char **argv) {
     assert(argc==8);setvbuf(stdout,NULL,_IOLBF,0);
@@ -24,7 +24,7 @@ int main(int argc,char **argv) {
         } else if(!strcmp(command,"compile")) {
             transit_sdk_bytes name=unhex(first),sql=unhex(second);transit_station_table_mutation_compiled *out=NULL;
             error=transit_station_table_mutation_compile_sql(client,(const char *)name.data,(const char *)sql.data,strtoull(third,NULL,10),&out);free((void *)name.data);free((void *)sql.data);
-            if(!error.kind){transit_sdk_bytes request;transit_station_table_mutation_reference ref;checked(transit_station_table_mutation_compiled_get(out,&request,&ref));printf("{\"status\":0,\"value\":{\"compiled\":{\"request\":\"");print_hex(request);printf("\",\"reference\":\"");print_hex((transit_sdk_bytes){ref.bytes,68});puts("\"}}}");}
+            if(!error.kind){transit_sdk_bytes request;transit_station_table_mutation_reference ref;checked(transit_station_table_mutation_compiled_get(out,&request,&ref));printf("{\"status\":0,\"value\":{\"compiled\":{\"request\":\"");print_hex(request);printf("\",\"reference\":\"");print_hex((transit_sdk_bytes){ref.bytes,72});puts("\"}}}");}
             transit_station_table_mutation_compiled_destroy(out);
         } else if(!strcmp(command,"next")) {
             transit_sdk_bytes request=unhex(first);transit_station_table_mutation_compiled *compiled=NULL;
@@ -57,7 +57,7 @@ int main(int argc,char **argv) {
         } else {
             assert(!strcmp(command,"status"));transit_station_table_mutation_status out;memset(&out,0xa5,sizeof(out));
             error=transit_station_table_mutation_status_read(client,reference(first),&out);
-            if(!error.kind){const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};printf("{\"status\":0,\"value\":{\"status\":");if(out.found){printf("{\"reference\":\"");print_hex((transit_sdk_bytes){out.reference.bytes,68});printf("\",\"phase\":\"%s\",\"affected_rows\":%u,\"reason\":\"%s\",\"input\":%llu}",phases[out.phase],out.affected_rows,reasons[out.reason],(unsigned long long)out.input);}else printf("null");puts("}}");}
+            if(!error.kind){const char *phases[]={"uploading","sealed","applied","rejected","cancelled"};const char *reasons[]={"none","row_exists","source_changed","invalid_request","denied","budget"};printf("{\"status\":0,\"value\":{\"status\":");if(out.found){printf("{\"reference\":\"");print_hex((transit_sdk_bytes){out.reference.bytes,72});printf("\",\"phase\":\"%s\",\"affected_rows\":%u,\"reason\":\"%s\",\"input\":%llu}",phases[out.phase],out.affected_rows,reasons[out.reason],(unsigned long long)out.input);}else printf("null");puts("}}");}
             else assert(!out.found && out.table==0 && out.reference.bytes[0]==0);
         }
         if(error.kind)emit_error(error);

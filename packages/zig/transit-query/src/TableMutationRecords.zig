@@ -101,7 +101,7 @@ pub const Status = struct {
     }
     pub fn encode(self: Status) !p.Value {
         try self.validate();
-        var bytes: [135]u8 = undefined;
+        var bytes: [139]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll("TMS1");
         try writer.writeAll((try self.reference.encode()).slice());

@@ -477,7 +477,7 @@ def _page(v: dict[str, Any], realm: int) -> Page:
     original = data['source']
     manifest = Manifest(integer(data['job'], 'job'), ReadVersion(original['pid'], original['input'], original['index']),
         ProcessRef(realm, data['requester']), _wide(int(data['correlation']), 'correlation'), _wide(int(data['policy_revision']), 'policy revision'),
-        owned_bytes(bytes.fromhex(data['request']), 68), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
+        owned_bytes(bytes.fromhex(data['request']), 72), basis['kind'], ResourceRef(realm, basis['resource']), integer(basis['revision'], 'revision', minimum=0),
         bytes(basis['contract']), bytes(basis['schema']), bytes(data['plan']),
         _wide(int(data['pages']), 'pages'), _wide(int(data['scanned']), 'scanned'), _wide(int(data['selected']), 'selected'),
         _wide(int(data['segments']), 'segments'), _wide(int(data['rows']), 'rows'), _wide(int(data['bytes']), 'bytes'),
@@ -560,8 +560,8 @@ class Client:
     def status(self, namespace: int) -> Status | None:
         value = self._call({'status': str(_wide(namespace, 'namespace', 1))})['status']
         if value is None: return None
-        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 68),
-            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 68), value['collected'])
+        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 72),
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'])
 
     def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
         return _page(self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),
@@ -626,8 +626,8 @@ class AsyncClient:
     async def status(self, namespace: int) -> Status | None:
         value = (await self._call({'status': str(_wide(namespace, 'namespace', 1))}))['status']
         if value is None: return None
-        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 68),
-            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 68), value['collected'])
+        return Status(Phase(value['phase']), _wide(int(value['correlation']), 'correlation'), owned_bytes(bytes.fromhex(value['reference']), 72),
+            None if value['manifest'] is None else owned_bytes(bytes.fromhex(value['manifest']), 72), value['collected'])
 
     async def page(self, namespace: int, cursor: Cursor | None = None) -> Page:
         return _page((await self._call({'page': {'namespace': str(_wide(namespace, 'namespace', 1)),
