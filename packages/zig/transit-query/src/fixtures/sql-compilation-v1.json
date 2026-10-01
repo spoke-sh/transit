@@ -1,0 +1,519 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "int64",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "kv": {
+                "prefix": "646174612f",
+                "key": {
+                  "type": "int64"
+                },
+                "value": {
+                  "type": "int64"
+                }
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
+        "parameters": [
+          {
+            "int64": "-9223372036854775808"
+          },
+          {
+            "uint64": "18446744073709551615"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "chosen"
+        ],
+        "limit": "18446744073709551615",
+        "predicate": {
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "int64": "-9223372036854775808"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = -9223372036854775808 LIMIT 18446744073709551615"
+    },
+    {
+      "name": "uint64",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "kv": {
+                "prefix": "646174612f",
+                "key": {
+                  "type": "int64"
+                },
+                "value": {
+                  "type": "uint64"
+                }
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
+        "parameters": [
+          {
+            "uint64": "18446744073709551615"
+          },
+          {
+            "uint64": "18446744073709551615"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "chosen"
+        ],
+        "limit": "18446744073709551615",
+        "predicate": {
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "uint64": "18446744073709551615"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '18446744073709551615'::uint64 LIMIT 18446744073709551615"
+    },
+    {
+      "name": "float64",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "kv": {
+                "prefix": "646174612f",
+                "key": {
+                  "type": "int64"
+                },
+                "value": {
+                  "type": "float64"
+                }
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
+        "parameters": [
+          {
+            "float_bits": "0000000000000080"
+          },
+          {
+            "uint64": "18446744073709551615"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "chosen"
+        ],
+        "limit": "18446744073709551615",
+        "predicate": {
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "float_bits": "0000000000000080"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '-0.0'::float64 LIMIT 18446744073709551615"
+    },
+    {
+      "name": "boolean",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "kv": {
+                "prefix": "646174612f",
+                "key": {
+                  "type": "int64"
+                },
+                "value": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
+        "parameters": [
+          {
+            "boolean": true
+          },
+          {
+            "uint64": "18446744073709551615"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "chosen"
+        ],
+        "limit": "18446744073709551615",
+        "predicate": {
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "boolean": true
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = TRUE LIMIT 18446744073709551615"
+    },
+    {
+      "name": "utf8",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "kv": {
+                "prefix": "646174612f",
+                "key": {
+                  "type": "int64"
+                },
+                "value": {
+                  "type": "utf8"
+                }
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
+        "parameters": [
+          {
+            "utf8": "'; DROP TABLE items; -- $2"
+          },
+          {
+            "uint64": "18446744073709551615"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "chosen"
+        ],
+        "limit": "18446744073709551615",
+        "predicate": {
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "utf8": "'; DROP TABLE items; -- $2"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '''; DROP TABLE items; -- $2' LIMIT 18446744073709551615"
+    },
+    {
+      "name": "binary",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "kv": {
+                "prefix": "646174612f",
+                "key": {
+                  "type": "int64"
+                },
+                "value": {
+                  "type": "binary"
+                }
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value AS chosen FROM items WHERE value = $1 LIMIT $2",
+        "parameters": [
+          {
+            "binary": "0001275cff"
+          },
+          {
+            "uint64": "18446744073709551615"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "chosen"
+        ],
+        "limit": "18446744073709551615",
+        "predicate": {
+          "compare": {
+            "column": 1,
+            "op": "eq",
+            "value": {
+              "binary": "0001275cff"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value AS chosen FROM items WHERE value = '\\x0001275cff'::bytea LIMIT 18446744073709551615"
+    },
+    {
+      "name": "ordinary",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "table": {
+                "id": 9,
+                "names": [
+                  "id",
+                  "value"
+                ],
+                "value_type": "int64"
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value FROM items LIMIT 2",
+        "parameters": null
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "limit": "2"
+      },
+      "literal_sql": "SELECT value FROM items LIMIT 2"
+    },
+    {
+      "name": "empty",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "table": {
+                "id": 9,
+                "names": [
+                  "id",
+                  "value"
+                ],
+                "value_type": "int64"
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value FROM items LIMIT 2",
+        "parameters": []
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "limit": "2"
+      },
+      "literal_sql": "SELECT value FROM items LIMIT 2"
+    },
+    {
+      "name": "aggregate",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "table": {
+                "id": 9,
+                "names": [
+                  "id",
+                  "value"
+                ],
+                "value_type": "int64"
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT count(chosen.amount) AS present FROM (SELECT value AS amount FROM items WHERE id > $2 LIMIT $1) AS chosen",
+        "parameters": [
+          {
+            "uint64": "2"
+          },
+          {
+            "int64": "9007199254740993"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          1
+        ],
+        "output_names": [
+          "present"
+        ],
+        "limit": "2",
+        "aggregate": "count_values",
+        "predicate": {
+          "compare": {
+            "column": 0,
+            "op": "gt",
+            "value": {
+              "int64": "9007199254740993"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT count(chosen.amount) AS present FROM (SELECT value AS amount FROM items WHERE id > 9007199254740993 LIMIT 2) AS chosen"
+    },
+    {
+      "name": "document",
+      "request": {
+        "scope": {
+          "name": "items",
+          "source": {
+            "resource": 7,
+            "source": {
+              "document": {
+                "reference": {
+                  "resource": 7,
+                  "document": "13",
+                  "epoch": "3",
+                  "type_revision": 1,
+                  "revision": "42"
+                },
+                "projections": [
+                  {
+                    "column": {
+                      "name": "value",
+                      "type": "utf8"
+                    },
+                    "path": [
+                      "body"
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "limits": {
+            "pages": "30",
+            "segments": "40",
+            "result_bytes": "8192"
+          }
+        },
+        "sql": "SELECT value FROM items WHERE value = $1",
+        "parameters": [
+          {
+            "utf8": "owned"
+          }
+        ]
+      },
+      "plan": {
+        "projection": [
+          0
+        ],
+        "predicate": {
+          "compare": {
+            "column": 0,
+            "op": "eq",
+            "value": {
+              "utf8": "owned"
+            }
+          }
+        }
+      },
+      "literal_sql": "SELECT value FROM items WHERE value = 'owned'"
+    }
+  ]
+}

@@ -34,7 +34,19 @@ recheck current permission before returning; binding also rechecks execution
 budgets. They return local owned values and do not submit work. See the
 [query caller API](../../../packages/zig/transit-query/docs/unified-client.md#typed-query-templates).
 
-Ordinary SQL submission, CLI/SDK parameter APIs, named `PREPARE`/`EXECUTE`, file
-parameters and saved templates are unsupported. See the
+The shared native query action `compile` accepts a source scope, SQL and an
+optional ordered `parameters` array. `Workspace.compile` accepts the same array
+with its configured source. Both return an owned ordinary bundle after checking
+current source permission and budgets before and after compilation. Values use
+the existing neutral scalar representation: decimal strings for full-width
+integers, little-endian hexadecimal float bits, hexadecimal binary and UTF-8
+text. The local `sql_capabilities` operation advertises parameter support and
+its grammar bounds.
+Compilation does not submit the bundle or retain source data. See the
+[native caller boundary](../../../packages/zig/transit-station-bindings/docs/unified-query.md#signed-caller-ownership).
+
+Ordinary SQL submission without explicit bindings, language convenience parameter
+APIs, CLI parameter arguments, named `PREPARE`/`EXECUTE`, file parameters and saved
+templates are unsupported. See the
 [compiler API](../../../packages/zig/transit-fuze/docs/unified-sql.md#typed-templates)
 and [exact parameter contract](../../../contracts/SQL_PARAMETERS_V1.md).

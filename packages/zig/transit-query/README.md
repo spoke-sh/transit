@@ -99,7 +99,10 @@ definition, including resource, decoders, paths and accepted Document revision.
 their work; binding also checks current budgets. Each bound owner contains an
 independent ordinary `Bundle`. Release it separately from the template. The
 [caller guide](docs/unified-client.md#typed-query-templates) describes identity,
-ownership and retry; CLI/SDK parameter operations remain unsupported.
+ownership and retry. `SqlCompilation` adds one-shot neutral compilation through
+`Bridge.compile` and `Workspace.compile`; both use the same typing, current
+access and budget checks. CLI arguments and language convenience parameter APIs
+have separate integration scope.
 
 `Bundle.fromSql` compiles the [SQL profile](../transit-fuze/docs/unified-sql.md)
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`

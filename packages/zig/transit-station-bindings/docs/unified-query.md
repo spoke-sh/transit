@@ -82,6 +82,20 @@ It never returns a prepared token or query result. The
 [SQL inspection contract](../../../../contracts/SQL_INSPECTION_V1.md) defines the
 one-source scope, current access checks and exact metadata bounds.
 
+`compile` accepts the same explicit `scope`, a finite SELECT `sql` string and
+optional `parameters`. A parameter array uses typed `$n` template syntax; an
+omitted/null array uses ordinary SQL. Scalars use the shared representations
+above, with exact inferred types and no substitution into SQL text. The
+`compiled` result owns canonical bundle hex, source/plan/limits and exact
+source/schema fingerprints. Current source permission and budgets are checked
+before and after compilation; no snapshot, upload or admission is created.
+The separate local `sql_capabilities` action advertises `parameters: true` and
+the statement/parameter bounds; existing capability responses are unchanged. The
+[parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md#neutral-compilation-operation)
+defines validation, ownership and compatibility. The returned bundle can be
+passed to `next`; retain those exact bundle and prepared-command bytes across
+uncertainty instead of compiling or binding again.
+
 After uncertain dispatch, retain and resubmit the **identical prepared string**,
 including after replacing the native owner. Never parse/re-encode it or prepare
 a new command to resolve the old attempt. Local invalid-envelope failures occur

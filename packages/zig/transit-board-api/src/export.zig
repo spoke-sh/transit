@@ -89,7 +89,7 @@ pub fn main(init: std.process.Init) !void {
     try out.beginObject();
     inline for (.{ "Response", "StateResponse", "Capabilities", "Error", "AtlasResponse", "ParticipationResponse", "RecordsResponse", "HttpResponse", "GrpcResponse", "DocumentResponse", "UnifiedQueryRequest", "UnifiedQueryResponse" }, .{ api.Response, api.StateResponse, api.Capabilities, api.Error, api.AtlasResponse, api.ParticipationResponse, api.RecordsResponse, api.HttpResponse, api.GrpcResponse, api.DocumentResponse, api.UnifiedQueryRequest, api.UnifiedQueryResponse }) |name, T| {
         try out.objectField(name);
-        try s.write(T, &out, if (T == api.UnifiedQueryRequest or T == api.UnifiedQueryResponse) api.unified_query_schema_options else .{ .output = true, .safe_integers = true, .text_max_length = 256 });
+        try s.write(T, &out, if (T == api.UnifiedQueryRequest) api.unified_query_request_schema_options else if (T == api.UnifiedQueryResponse) api.unified_query_schema_options else .{ .output = true, .safe_integers = true, .text_max_length = 256 });
     }
     try out.endObject();
     try out.endObject();

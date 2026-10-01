@@ -22,6 +22,7 @@ pub const SourceDefinition = @import("SourceDefinition.zig");
 test {
     _ = @import("source_test.zig");
     _ = @import("sql_template_test.zig");
+    _ = @import("sql_compilation_test.zig");
     _ = @import("unified_capture_test.zig");
     _ = @import("unified_upload_test.zig");
     _ = @import("unified_records_test.zig");
@@ -40,6 +41,7 @@ pub const Workspace = @import("Workspace.zig");
 pub const Editor = @import("Editor.zig");
 pub const Assistance = @import("Assistance.zig");
 pub const SqlInspection = @import("SqlInspection.zig");
+pub const SqlCompilation = @import("SqlCompilation.zig");
 pub const TableMutationRequest = @import("TableMutationRequest.zig");
 pub const TableMutationRecords = @import("TableMutationRecords.zig");
 pub const TableMutationAdmission = @import("TableMutationAdmission.zig");
