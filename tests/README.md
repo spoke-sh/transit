@@ -2556,6 +2556,32 @@ hosted validation; these controls do not qualify a complete lane or cost budget.
 
 ## Qualification checkpoint — 2026-10-01
 
+At frozen committed `88fc1d0d`, [clean experience and browser](verification/results/m37-clean-browser-2026-10-01.json)
+pass all seven tasks in each lane. Full `just check` passes in 228.407 seconds;
+experience takes 521.652 seconds and browser takes 2,580.391 seconds, including
+clean setup. The original Station reply arrives in **59.7616 seconds** under its
+unchanged 60-second cap, before cleanup restarts the courier. This narrow pass
+does not diagnose earlier progress failures. The browser lane includes complete
+HTTP/RPC crash-recovery proofs, reactive transport, live-view verification and
+lifecycle checks. Core, growth, launchers and bindings at this revision remain
+unrun; earlier source results do not fill those gaps.
+
+The [completed continuation run](verification/results/m37-hosted-continuation-2026-10-01.json)
+`36809340716` records **61 ordinary passes, one failure, two interrupted tasks
+and ten unrun tasks** out of 74 at synthetic merge `7e0d6a69`. The separate browser
+tier has one pass, one failure and five unrun tasks. The failures are the upload
+marker comparison and cleared-result redisplay corrected below; launchers reaches
+its job cap and the next push cancels bindings during its C SDK task. Completed
+bindings tasks come from retained job logs because no final artifact is uploaded.
+This incomplete run takes **76m40s** feedback and **223m21s** aggregate job time,
+restoring **4,947,520,314 bytes** with mixed/missing cache hits. It does not qualify
+a cost budget.
+
+The next [ordinary and discovery runs](verification/results/m37-hosted-refusals-2026-10-01.json)
+at `88fc1d0d` are refused before any job executes. GitHub reports an account
+payment/spending restriction. Both runs contain zero test results; neither
+supplies passing or failing proof evidence.
+
 The [cost-inventory control](verification/results/m37-ci-cost-inventory-2026-10-01.json)
 exposes a reporting error: a synthetic successful core-only run with known warm
 caches meets the old collector's full-suite budget check. The corrected collector
