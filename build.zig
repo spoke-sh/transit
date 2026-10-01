@@ -663,6 +663,12 @@ pub fn build(b: *std.Build) void {
     diagnostics_test.has_side_effects = true;
     diagnostics_test.stdio = .inherit;
     b.step("test-cli-diagnostics", "Check CLI failure coordinates, next steps and output privacy").dependOn(&diagnostics_test.step);
+    const history_test = b.addSystemCommand(&.{ "python3", "-B" });
+    history_test.addFileArg(b.path("tests/console_history.py"));
+    history_test.addArtifactArg(query_shell);
+    history_test.has_side_effects = true;
+    history_test.stdio = .inherit;
+    b.step("test-console-history", "Check real terminal history search and persistence").dependOn(&history_test.step);
     const file_query_test = b.addSystemCommand(&.{ "python3", "-B" });
     file_query_test.addFileArg(b.path("tests/fuze_file_query.py"));
     file_query_test.addArtifactArg(query_shell);

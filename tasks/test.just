@@ -352,6 +352,10 @@ serving-growth:
 unified-ingress source="table":
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-shell=true -Dunified-board=true -Dunified-browser=true
 
+# Real terminal history search, persistence and file failure behavior, offline.
+console-history:
+    zig build test-console-history
+
 # Actual versioned console on disk-backed native query workers.
 console source="table":
     nix develop .#serving --command zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-source={{source}} -Dunified-console=true -Dunified-console-tls=true

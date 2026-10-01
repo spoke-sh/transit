@@ -72,6 +72,7 @@ check-core:
     just contract::check
     just test::unit
     just test::cli-diagnostics
+    just test::console-history
     python3 -B tests/docs.py
     git diff --check
 

@@ -61,7 +61,13 @@ def check(binary, path, root, kind, invoke, fault):
         # A subsequent local command acknowledges completion without native I/O.
         terminal.send('.show\r')
         assert read_show(terminal)['format'] == 'json'
-        terminal.expect('\rtransit> ')
+        # Neither the previous SELECT's queued prompt nor the .show transcript
+        # acknowledges that .show has returned to the editor. Wait for an empty
+        # prompt after that command's echo before injecting an idle Ctrl-C.
+        marker = b'transit> .show\r\n'
+        terminal.expect(marker.decode())
+        terminal.screen = terminal.screen[terminal.screen.index(marker) + len(marker):]
+        terminal.expect('\rtransit> \r')
 
     try:
         # No upload exists yet: Ctrl-C must not cancel the previous saved query.

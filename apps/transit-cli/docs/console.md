@@ -325,9 +325,36 @@ inspect the current setting. Interactive connection changes
 retain the current mode and timing preference.
 
 The Linux terminal supports Left/Right, Home/End (also Ctrl-A/Ctrl-E), Backspace,
-Delete, Ctrl-U, eight-entry SQL history with Up/Down, and Ctrl-C draft clearing.
-Dot commands and recovery arguments never enter history. No history is written
-to disk. The horizontally scrolling, highlighted draft renders newline, Unicode
+Delete, Ctrl-U, command history with Up/Down, and Ctrl-C draft clearing.
+Ctrl-R opens reverse history search. Type a case-sensitive substring to find the
+newest matching SQL statement or dot command; Ctrl-R again finds an older match.
+Backspace edits the search. Enter or Tab returns a match to the editable prompt;
+press Enter again to submit it. Escape or Ctrl-G restores the original draft,
+and Ctrl-C clears the draft and search. A search with no match shows `(no match)`.
+Up/Down also recalls older/newer commands and restores the draft when moving
+past the newest entry.
+
+Interactive submissions, including dot commands and commands that fail, are
+appended immediately to `$HOME/.transit_history`. The console creates the file
+with owner-only permissions (`0600`) and preserves multiline SQL and Unicode as
+one JSON string per line. History is shared across connections and console
+restarts. Concurrent consoles append under a short file lock without replacing
+each other's entries. Blank input, unsubmitted drafts, startup files and batch
+input do not enter history. The file contains command text and arguments, not
+query results or signed recovery records; recalling a command does not retry
+accepted work. Use `.resume` for exact saved recovery.
+
+History is not automatically truncated. Reads scan bounded blocks on disk, so
+older entries remain searchable without loading the whole file into memory.
+Malformed, oversized, control-bearing or incomplete records are skipped without
+rewriting the file. If the home directory or writable regular history file is
+unavailable, or an append fails (including a busy lock), the console warns on
+stderr and keeps the most recent eight session commands in memory. Appends wait
+up to 250 ms for another console's lock. Symlinks are
+not followed. Remove or edit the file while consoles are closed to clear saved
+history.
+
+The horizontally scrolling, highlighted draft renders newline, Unicode
 and control bytes as visible escapes; the underlying SQL remains unchanged.
 The display responds to terminal resize and restores the original terminal
 attributes on normal and handled-signal exit.
@@ -336,9 +363,10 @@ Ctrl-Space opens shared [cursor assistance](../../../contracts/QUERY_ASSISTANCE_
 Up/Down chooses a candidate, Tab/Enter accepts it, Escape dismisses it and Ctrl-Z
 undoes the acceptance. Acceptance rechecks current metadata. Input queued while
 a metadata read waits discards the older response. An idle result expires after
-five seconds. Observed denial clears draft, undo, history, completion and result
-cursor; frozen recovery intent remains separate. Previous terminal output was
-already disclosed and cannot be recalled.
+five seconds. Observed denial clears draft, undo, recall/search history, completion
+and result cursor for that connection; frozen recovery intent remains separate.
+Previously saved local history and terminal output remain on the user's machine.
+History grants no access; every submitted command checks current authorization.
 
 Ctrl-C during SQL stops result presentation, reports cancellation on stderr and
 returns to an empty prompt where another query can run. Remaining statements in
@@ -445,8 +473,10 @@ binding changes. Previously emitted output cannot be recalled after revocation.
 
 One session retains one 16 KiB bundle, one signed request and one result cursor.
 SQL and TTY drafts are at most 4096 UTF-8 bytes; script input is streamed.
-Dot command lines are limited to 64 KiB. TTY history holds at most eight
-4096-byte statements and one undo draft. Completion retains at most eight
+Dot command lines are limited to 64 KiB in batch input. TTY history scans one
+4096-byte command at a time, with a 24 KiB encoded-record buffer and a 4 KiB read
+buffer. The editor retains eight session commands for file-failure fallback,
+one undo draft, one recall draft and one search term. Completion retains at most eight
 candidates, one current read and one result. Each result page uses a fixed 1 MiB
 presentation buffer released after writing. There is no background query queue.
 

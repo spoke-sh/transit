@@ -6055,6 +6055,47 @@ only fixture command construction. The failed run is retained at
 `/var/tmp/transit-ci-92t7owi1` and remains incomplete. Final qualification must
 execute every ordinary lane at one corrected committed revision.
 
+## Console command history
+
+`just test::console-history` passes against the real executable in a controlling
+Linux PTY with an isolated home directory. It checks SQL and dot-command history
+across restarts, incremental Ctrl-R search and older matches, explicit acceptance
+before execution, Up/Down draft restoration, Escape/Ctrl-G/Ctrl-C, Unicode,
+multiline search/paste and narrow terminal resize. An idle listener asserts that
+editing, recall and the deliberately invalid commands send no native requests.
+
+The file checks cover `0600` permissions, more than eight retained commands,
+concurrent console appends and recall, brief lock contention and bounded busy-lock
+fallback, malformed/oversized/control-bearing/torn records, and unavailable homes,
+directories and symlinks. Batch input leaves the history file untouched. The
+fixture uses bounded records; it does not establish search latency for arbitrarily
+large files or host power-loss durability. The test is included in `just check`.
+Logs: `/tmp/transit-history-final-focused.log` and
+`/tmp/transit-history-focused.log` (ReleaseSafe). Full `just check` also passes,
+including 422 CLI diagnostic cases, generated contracts, frontend checks and the
+production documentation build (`/tmp/transit-history-final-check.log`).
+
+The first Table integration attempt passed terminal completion, denial/history
+clearing and recovery checks, then stopped during the final idle-Ctrl-C scenario
+with exit 130. Its prompt matcher could accept the `.show` transcript or the
+previous query's queued prompt. The fixture now requires an empty prompt after
+the `.show` echo before sending the idle interrupt. That failed attempt is not
+counted as a passing console proof; its log is `/tmp/transit-history-console.log`.
+
+The corrected pre-rebase `just test::console table` run passes in **253.60 s**,
+including **219.99 s** of console checks. It retains the disk-backed 41-row,
+six-segment query/recovery fixture, current denial and editor clearing, exact
+uncertain upload/cancellation retry, repeated interrupts, discarded pasted tails,
+result-prefix/completion races, prompt reuse and batch exit 130. Explicit private
+CA reads pass, while system-trust and hostname mismatches reject. Log:
+`/tmp/transit-history-final-console.log`. These results do not claim host power-loss
+durability or additional query source/placement coverage.
+
+After rebasing onto `e82c8430`, full `just check` passes again, including the real
+history PTY fixture, all 422 CLI diagnostics, generated contracts, frontend tests
+and the production handbook build (`/tmp/transit-history-rebased-check.log`).
+No clean-checkout CI or additional placement proof was run for this change.
+
 ## M24 console qualification
 
 `just test::console table` passes the actual versioned command against forty-one

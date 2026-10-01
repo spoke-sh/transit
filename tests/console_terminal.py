@@ -10,6 +10,7 @@ import struct
 import subprocess
 import termios
 import time
+import tempfile
 from unified_shell import Shell
 from console_settings import read_show
 
@@ -17,7 +18,9 @@ ANSI = re.compile(rb'\x1b\[[0-?]*[ -/]*[@-~]')
 
 
 class Terminal(Shell):
-    def __init__(self, binary, config=None, format='json', shared_output=False, cwd=None):
+    def __init__(self, binary, config=None, format='json', shared_output=False, cwd=None, home=None):
+        self.history_home = tempfile.TemporaryDirectory(prefix='transit-terminal-home-') if home is None else None
+        environment = os.environ | {'HOME': str(home) if home is not None else self.history_home.name}
         self.master, self.slave = pty.openpty()
         self.resize(80)
         self.original = termios.tcgetattr(self.slave)
@@ -27,7 +30,7 @@ class Terminal(Shell):
             fcntl.ioctl(0, termios.TIOCSCTTY, 0)
 
         self.process = subprocess.Popen([binary, 'console', '--no-rc', *(['--config', str(config)] if config is not None else []), '--format', format],
-                                        stdin=self.slave, stdout=self.slave if shared_output else subprocess.PIPE, stderr=self.slave, preexec_fn=child, cwd=cwd)
+                                        stdin=self.slave, stdout=self.slave if shared_output else subprocess.PIPE, stderr=self.slave, preexec_fn=child, cwd=cwd, env=environment)
         self.buffer = b''
         self.screen = b''
         self.expect('transit> ')
@@ -95,6 +98,7 @@ class Terminal(Shell):
                 self.process.wait(timeout=10)
             if self.process.stdout is not None: self.process.stdout.close()
             os.close(self.master); os.close(self.slave)
+            if self.history_home is not None: self.history_home.cleanup()
 
 
 def check(binary, path, root, kind, invoke, fault):

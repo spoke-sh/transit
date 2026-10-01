@@ -261,8 +261,17 @@ stdin stream semicolon-delimited statements and dot command lines. A complete
 final statement runs at EOF; an unclosed literal/comment fails. `-c` and `-f`
 are mutually exclusive and do not read stdin. Batch execution stops on the first
 error. Dot commands start an empty input statement; slash commands are rejected.
-TTY editing supports movement, deletion, bounded in-memory history, completion
-accept/dismiss/undo, resize and Ctrl-C draft clearing. History is not persisted.
+TTY editing supports movement, deletion, Up/Down recall, Ctrl-R reverse substring
+history search, completion accept/dismiss/undo, resize and Ctrl-C draft clearing.
+Search acceptance returns the match to the editor; submitting requires another
+Enter. SQL and dot-command submissions append to `$HOME/.transit_history` as
+newline-delimited JSON strings with owner-only file permissions. Batch and startup
+input are excluded. Bounded disk scans preserve multiline text and do not cap
+retained entry count; malformed or incomplete records are skipped. File failures
+warn and fall back to eight session commands. History contains editable text,
+not execution identity or recovery authority. The
+[console guide](../apps/transit-cli/docs/console.md#input-commands-and-results)
+defines search keys, local-file handling and limits.
 
 The console exposes `.help`, `.info`, `.tables`, `.sources`, `.schema`, `.status`,
 `.resume [ID]`, `.cancel`, `.mode table|json`, `.timing on|off`, `.show`, `.connect PATH` and `.quit`.
@@ -338,8 +347,9 @@ survive an interactive connection change.
 
 Admission and verified completion remain distinct. Source-binding changes cannot
 remove inspection or exact recovery for original work. Current denial clears
-protected metadata, editor history and result cursors; previously emitted terminal
-bytes cannot be recalled. Recovery preserves accepted identity through errors.
+protected metadata, editor recall/search history and result cursors for that
+connection; already saved local command history and emitted terminal bytes remain
+on the user's machine. Recovery preserves accepted identity through errors.
 
 ## Shared incomplete-input assistance
 
