@@ -6,6 +6,7 @@ const m = f.Unified;
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len == 2 and std.mem.eql(u8, args[1], "--count-values")) return countValues(init);
+    if (args.len == 2 and std.mem.eql(u8, args[1], "--parameters")) return parameters(init);
     if (args.len != 1) return error.Usage;
     const columns = [_]m.Column{
         .{ .name = try m.Name.init("id"), .type = .int64 },
@@ -91,6 +92,57 @@ pub fn main(init: std.process.Init) !void {
         const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
         try std.json.Stringify.value(.{ .phase = "aggregate", .case = case, .iterations = 100, .rows_per_iteration = 8192, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
+    }
+    try stdout.interface.flush();
+}
+
+/// Measure preparation and repeated binding separately from ordinary literal
+/// compilation. Every equivalent plan's bytes are checked before timing.
+fn parameters(init: std.process.Init) !void {
+    const values = [_]m.Scalar{ .{ .int64 = -1 }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = true }, .{ .utf8 = "it's 東京" }, .{ .binary = "\x00\xff" } };
+    const literals = [_][]const u8{ "-1", "'18446744073709551615'::uint64", "'-0.0'::float64", "TRUE", "'it''s 東京'", "'\\x00ff'::bytea" };
+    const sql = "SELECT value AS chosen FROM items WHERE value >= $1 LIMIT $2";
+    var buffer: [4096]u8 = undefined;
+    var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    var memory: [16384]u8 = undefined;
+    var allocator = std.heap.FixedBufferAllocator.init(&memory);
+    const iterations = 10000;
+    for (values, literals) |value, literal| {
+        const columns = [_]m.Column{.{ .name = try .init("value"), .type = std.meta.activeTag(value) }};
+        const source: m.Sql.Source = .{ .name = try .init("items"), .schema = .{ .columns = &columns } };
+        const ordinary = try std.fmt.allocPrint(init.arena.allocator(), "SELECT value AS chosen FROM items WHERE value >= {s} LIMIT 1024", .{literal});
+        var prepared = try f.Prepared.init(init.gpa, sql, source);
+        defer prepared.deinit();
+        var bound = try prepared.bind(init.gpa, source, &.{ value, .{ .uint64 = 1024 } });
+        defer bound.deinit();
+        allocator.reset();
+        const expected = try m.Sql.plan(allocator.allocator(), ordinary, source);
+        var expected_bytes: [m.Codec.max_plan_bytes]u8 = undefined;
+        var actual_bytes: [m.Codec.max_plan_bytes]u8 = undefined;
+        const canonical = try m.Codec.encode(expected, &expected_bytes);
+        if (!std.mem.eql(u8, canonical, try m.Codec.encode(bound.plan, &actual_bytes))) return error.IncorrectParameterPlan;
+        var digest: [32]u8 = undefined;
+        std.crypto.hash.sha2.Sha256.hash(canonical, &digest, .{});
+        inline for (.{ "literal_compile", "template_prepare", "template_bind" }) |phase| {
+            const start = std.Io.Clock.awake.now(init.io);
+            for (0..iterations) |_| {
+                allocator.reset();
+                if (comptime std.mem.eql(u8, phase, "literal_compile")) {
+                    std.mem.doNotOptimizeAway(try m.Sql.plan(allocator.allocator(), ordinary, source));
+                } else if (comptime std.mem.eql(u8, phase, "template_prepare")) {
+                    var template = try f.Prepared.init(allocator.allocator(), sql, source);
+                    std.mem.doNotOptimizeAway(template.prototype);
+                    template.deinit();
+                } else {
+                    var binding = try prepared.bind(allocator.allocator(), source, &.{ value, .{ .uint64 = 1024 } });
+                    std.mem.doNotOptimizeAway(binding.plan);
+                    binding.deinit();
+                }
+            }
+            const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+            try std.json.Stringify.value(.{ .phase = phase, .case = @tagName(value), .iterations = iterations, .elapsed_ns = elapsed, .plan_sha256 = digest }, .{}, &stdout.interface);
+            try stdout.interface.writeByte('\n');
+        }
     }
     try stdout.interface.flush();
 }

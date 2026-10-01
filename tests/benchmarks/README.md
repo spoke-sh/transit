@@ -81,6 +81,15 @@ driver/source-diff/binary hashes and a 300-second per-probe timeout. Candidate
 and control samples must have identical workload metadata; old probes cannot
 serve as controls for a profile they do not implement.
 
+`--profile parameters` records literal compilation, template preparation and
+repeated typed binding as separate phases across all six native scalar types.
+Each bound plan must have the exact canonical bytes of its equivalent literal
+query before measurement. Preparation is outside the binding interval, and both
+template/bound owners are released. The existing thirteen-case default remains
+the unchanged-workload control. This profile measures pure Fuze costs only;
+complete source-definition checks, authorization, transport and admission are
+outside it. It does not imply that preparing once is beneficial for one query.
+
 Every SELECT uses the production SQL compiler, FZP1 encode/decode and bound
 `Unified.Stream`. The source is a synthetic two-column Table basis with eight
 or fewer resident rows, not a native Table adapter. Fixture row generation,

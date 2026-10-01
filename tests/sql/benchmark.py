@@ -18,8 +18,8 @@ def main():
     parser.add_argument('--control', type=Path, help='Frozen ReleaseSafe probe to alternate with the candidate')
     parser.add_argument('--control-revision', help='Source revision of the frozen control')
     parser.add_argument('--cpu', type=int, help='Pin both frozen probes to one available CPU')
-    parser.add_argument('--profile', choices=('baseline', 'count-values'), default='baseline',
-                        help='Keep unchanged-operation controls separate from new value-count costs')
+    parser.add_argument('--profile', choices=('baseline', 'count-values', 'parameters'), default='baseline',
+                        help='Separate unchanged controls, value counts, and prepare/bind component costs')
     args = parser.parse_args()
     if not 1 <= args.samples <= 100:
         parser.error('--samples must be between 1 and 100')
@@ -29,7 +29,7 @@ def main():
         parser.error('--cpu must name an available affinity CPU')
     pin = None if args.cpu is None else lambda: os.sched_setaffinity(0, {args.cpu})
     binary = args.binary.resolve()
-    profile_args = ['--count-values'] if args.profile == 'count-values' else []
+    profile_args = ['--' + args.profile] if args.profile != 'baseline' else []
     # One unrecorded warm-up, followed by independent processes with identical work.
     subprocess.run([binary, *profile_args], check=True, capture_output=True, text=True, timeout=300, preexec_fn=pin)
     samples = []
