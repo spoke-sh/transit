@@ -11865,3 +11865,17 @@ cold-store fixture retention remain integrated. Post-rebase validation is record
 in the PR and issue handoff separately from these earlier results. Unfinished
 SDK convenience methods are preserved in the separate `feat/sql-parameter-sdk`
 worktree and are not part of #66's submitted shared-compilation scope.
+
+The first post-rebase Board proof fails to build: main's new exhaustive
+read-retry switch lacks `sql_capabilities`. Classifying this local read-only
+operation explicitly resolves the integration error without a fallback arm.
+The real HTTP fixture also injects two native capacity refusals during parameter
+compilation, disables the fixture's outer retry and requires the identical bundle
+with no command-sequence allocation. This uses main's existing attempt/deadline
+bounds. The failed build is retained in
+`/var/tmp/transit-sql-parameter-callers-rebase-recovery.log`; subsequent executions
+are separate evidence.
+The first injection control incorrectly selected `resource`; compilation uses
+the shared `read_entries` batch operation. The fixture rejected the unreached
+fault instead of reporting a pass. The corrected control targets `read_entries`;
+the failed run remains in the corresponding `rebase-recovery-fixed.log`.

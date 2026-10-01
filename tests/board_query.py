@@ -315,8 +315,12 @@ def run(node, host, proof, board, browser=False):
             compiled = api({"compile": {"sql": "SELECT value FROM items WHERE value = 9007199254740994 LIMIT 1"}})["compiled"]
             parameter_request = {"sql": "SELECT value FROM items WHERE value = $1 LIMIT $2",
                                  "parameters": [{"int64": "9007199254740994"}, {"uint64": "1"}]}
-            parameterized = api({"compile": parameter_request})["compiled"]
+            before = admin("next-sequence").stdout
+            capacity.arm('/v1/query', 'read_entries', 2)
+            parameterized = api({"compile": parameter_request}, retry=False)["compiled"]
+            capacity.finish()
             assert parameterized == compiled, 'parameter binding changed the canonical query'
+            assert admin("next-sequence").stdout == before, 'compilation recovery allocated a command sequence'
             before = admin("next-sequence").stdout
             for parameters in ([], [{"utf8": "wrong"}, {"uint64": "1"}]):
                 assert api({"compile": parameter_request | {"parameters": parameters}}, status=400) == {"err": "UnsupportedQuery"}

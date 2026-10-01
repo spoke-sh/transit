@@ -16,7 +16,7 @@ pub fn unifiedQuery(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig
     // a token does not dispatch it; an uncertain submit still needs exact,
     // explicit recovery by the caller.
     const read_only = switch (request) {
-        .describe, .suggest, .assist, .compile, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
+        .describe, .sql_capabilities, .suggest, .assist, .compile, .inspect, .next, .next_draft, .draft_open, .draft_close, .draft_status, .observe, .status, .page, .prepare_control => true,
         .submit => false,
     };
     var attempt: u2 = 0;
