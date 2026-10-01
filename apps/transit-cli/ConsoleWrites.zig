@@ -40,6 +40,7 @@ record: Record,
 mutation: ?q.TableMutationClient,
 catalog: ?c.Client,
 failed: bool = false,
+read_deadline: ?i64 = null,
 
 pub fn validateConfig(config: Config, connection: q.UnifiedClient.Connection) !void {
     if (config.recovery_file.len == 0 or (config.table == null and config.catalog == null)) return error.InvalidWriteConfiguration;
@@ -162,19 +163,21 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
     if (self.unresolved() or console.session.pending != null or console.session.input != null or (console.session.namespace != null and !console.session.complete)) return error.UnresolvedSubmission;
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
     defer timing.report();
+    self.read_deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
+    defer self.read_deadline = null;
     timing.enter(.prepare);
     const operation: Operation = switch (route) {
         .mutation => mutation: {
             const writer = if (self.mutation) |*client| client else return error.ConsoleWriterRequired;
-            const description = try writer.describe();
+            const description = try self.readOnly(q.TableMutationClient.describe, .{writer});
             timing.enter(.compile);
             const request = q.TableMutationRequest.fromSql(writer.connection.realm, writer.connection.writer, description.table, self.record.name.?, text) catch |err| return console.sqlFailure(text, err);
             if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
             timing.enter(.prepare);
             const namespace = try identity(self.io);
             // A collision is a conflict, never adoption of somebody else's work.
-            if (try writer.status(try request.reference(namespace)) != null) return error.MutationIdentityConflict;
-            const pending = (try writer.prepareNext(namespace, request)) orelse return error.MutationIdentityConflict;
+            if (try self.readOnly(q.TableMutationClient.status, .{ writer, try request.reference(namespace) }) != null) return error.MutationIdentityConflict;
+            const pending = (try self.readOnly(q.TableMutationClient.prepareNext, .{ writer, namespace, request })) orelse return error.MutationIdentityConflict;
             break :mutation .{ .mutation = .{ .namespace = namespace, .request = request, .pending = pending, .input = null } };
         },
         .declaration => creation: {
@@ -182,7 +185,7 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
             timing.enter(.compile);
             const request = c.Model.CreateTable.compile(catalog.connection.scope, try identity(self.io), try identity(self.io), @intCast((try identity(self.io) % std.math.maxInt(u32)) + 1), text) catch |err| return console.sqlFailure(text, err);
             timing.enter(.prepare);
-            const pending = try catalog.prepareCreate(request);
+            const pending = try self.readOnly(c.Client.prepareCreate, .{ catalog, request });
             break :creation .{ .creation = .{ .request = request, .pending = pending, .input = null } };
         },
         else => unreachable,
@@ -199,14 +202,64 @@ fn check(self: *Self, deadline: i64) !void {
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     if (std.Io.Clock.boot.now(self.io).toMilliseconds() >= deadline) return error.WriteWaitTimedOut;
 }
+// Only current reads/local preparation belong here, never submit, persistence
+// or rendering. An acknowledged input can be observed again without replaying it.
+fn readOnly(self: *Self, comptime read: anytype, args: std.meta.ArgsTuple(@TypeOf(read))) anyerror!@typeInfo(@typeInfo(@TypeOf(read)).@"fn".return_type.?).error_union.payload {
+    while (true) {
+        if (self.read_deadline) |deadline| try self.check(deadline);
+        return @call(.auto, read, args) catch |err| {
+            if (self.read_deadline == null or !q.wire.Client.unavailable(err)) return err;
+            try self.io.sleep(.fromMilliseconds(50), .awake);
+            continue;
+        };
+    }
+}
+test "write observation retries only unavailable reads within its original deadline" {
+    const Probe = struct {
+        calls: usize = 0,
+        failure: anyerror = error.AuthorityUnavailable,
+        fn read(self: *@This()) anyerror!u8 {
+            self.calls += 1;
+            if (self.calls == 1) return self.failure;
+            return 42;
+        }
+    };
+    var self: Self = .{
+        .io = std.testing.io,
+        .allocator = std.testing.allocator,
+        .path = "",
+        .lock = undefined,
+        .record = undefined,
+        .mutation = null,
+        .catalog = null,
+        .read_deadline = std.math.maxInt(i64),
+    };
+    var probe: Probe = .{};
+    try std.testing.expectEqual(@as(u8, 42), try self.readOnly(Probe.read, .{&probe}));
+    try std.testing.expectEqual(@as(usize, 2), probe.calls);
+    for ([_]anyerror{ error.AccessDenied, error.InvalidAuthorityResponse, error.Conflict }) |failure| {
+        probe = .{ .failure = failure };
+        try std.testing.expectError(failure, self.readOnly(Probe.read, .{&probe}));
+        try std.testing.expectEqual(@as(usize, 1), probe.calls);
+    }
+    self.read_deadline = 0;
+    probe = .{};
+    try std.testing.expectError(error.WriteWaitTimedOut, self.readOnly(Probe.read, .{&probe}));
+    try std.testing.expectEqual(@as(usize, 0), probe.calls);
+    self.read_deadline = null;
+    try std.testing.expectError(error.AuthorityUnavailable, self.readOnly(Probe.read, .{&probe}));
+    try std.testing.expectEqual(@as(usize, 1), probe.calls);
+}
 pub fn recover(self: *Self, console: *Console) !void {
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
     defer timing.report();
     try self.advance(console, &timing);
 }
 fn advance(self: *Self, console: *Console, timing: *Timing) !void {
-    const deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
+    const deadline = self.read_deadline orelse std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
     if (self.record.operation == null) return error.NoSavedWrite;
+    self.read_deadline = deadline;
+    defer self.read_deadline = null;
     while (true) {
         try self.check(deadline);
         switch (self.record.operation.?) {
@@ -219,15 +272,15 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                         try self.saveTimed(timing);
                     }
                     timing.enter(.wait);
-                    if (try writer.observe(pending, value.input.?) == .pending) {
+                    if (try self.readOnly(q.TableMutationClient.observe, .{ writer, pending, value.input.? }) == .pending) {
                         try self.io.sleep(.fromMilliseconds(50), .awake);
                         continue;
                     }
                     timing.enter(.fetch);
-                    if (try writer.rejection(pending, value.input.?)) |_| {
+                    if (try self.readOnly(q.TableMutationClient.rejection, .{ writer, pending, value.input.? })) |_| {
                         // Keep the frozen command and input for current-authorized
                         // inspection of the rejection on subsequent .status.
-                        const current = try writer.status(try value.request.reference(value.namespace));
+                        const current = try self.readOnly(q.TableMutationClient.status, .{ writer, try value.request.reference(value.namespace) });
                         // An input rejection is not a terminal mutation. Keep an
                         // active upload recoverable, including explicit cancel.
                         if (current == null or current.?.terminal() or !self.record.cancelling) {
@@ -248,13 +301,13 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                 // on every intermediate upload command.
                 value.pending = if (self.record.cancelling) cancel: {
                     timing.enter(.fetch);
-                    const outcome = try writer.status(reference);
+                    const outcome = try self.readOnly(q.TableMutationClient.status, .{ writer, reference });
                     timing.enter(.prepare);
-                    break :cancel if (outcome != null and outcome.?.terminal()) null else try writer.prepare(.{ .cancel = reference });
-                } else try writer.prepareNext(value.namespace, value.request);
+                    break :cancel if (outcome != null and outcome.?.terminal()) null else try self.readOnly(q.TableMutationClient.prepare, .{ writer, .{ .cancel = reference } });
+                } else try self.readOnly(q.TableMutationClient.prepareNext, .{ writer, value.namespace, value.request });
                 if (value.pending == null) {
                     timing.enter(.fetch);
-                    const outcome = (try writer.status(reference)) orelse return error.InvalidConsoleRecovery;
+                    const outcome = (try self.readOnly(q.TableMutationClient.status, .{ writer, reference })) orelse return error.InvalidConsoleRecovery;
                     if (!outcome.terminal()) return error.InvalidConsoleRecovery;
                     self.record.complete = true;
                     try self.saveTimed(timing);
@@ -272,13 +325,13 @@ fn advance(self: *Self, console: *Console, timing: *Timing) !void {
                     try self.saveTimed(timing);
                 }
                 timing.enter(.wait);
-                if (try catalog.observe(value.pending, value.input.?) == .pending) {
+                if (try self.readOnly(c.Client.observe, .{ catalog, value.pending, value.input.? }) == .pending) {
                     try self.io.sleep(.fromMilliseconds(50), .awake);
                     continue;
                 }
                 timing.enter(.fetch);
-                const disposition = try catalog.inputDisposition(value.pending, value.input.?);
-                const receipt = if (disposition == null) try catalog.status(value.request) else null;
+                const disposition = try self.readOnly(c.Client.inputDisposition, .{ catalog, value.pending, value.input.? });
+                const receipt = if (disposition == null) try self.readOnly(c.Client.status, .{ catalog, value.request }) else null;
                 if (receipt == null and disposition == null) return error.CatalogOutcomeMissing;
                 self.record.complete = true;
                 try self.saveTimed(timing);
@@ -324,8 +377,8 @@ fn statusInto(self: *Self, console: *Console) !bool {
     switch (operation) {
         .mutation => |value| {
             const writer = &self.mutation.?;
-            const status_value = try writer.status(try value.request.reference(value.namespace));
-            const rejection = if (value.input != null and value.pending != null) try writer.rejection(value.pending.?, value.input.?) else null;
+            const status_value = try self.readOnly(q.TableMutationClient.status, .{ writer, try value.request.reference(value.namespace) });
+            const rejection = if (value.input != null and value.pending != null) try self.readOnly(q.TableMutationClient.rejection, .{ writer, value.pending.?, value.input.? }) else null;
             const phase = if (rejection != null) "input_rejected" else if (status_value) |status_value_| @tagName(status_value_.phase) else "unconfirmed";
             const reason = if (rejection) |reason| @tagName(reason) else if (status_value) |s| @tagName(s.reason) else "none";
             const affected = if (rejection != null) null else if (status_value) |s| if (s.phase == .applied) @as(?u8, s.affected_rows) else null else null;
@@ -337,8 +390,8 @@ fn statusInto(self: *Self, console: *Console) !bool {
         },
         .creation => |value| {
             const catalog = &self.catalog.?;
-            const disposition = if (value.input) |input| try catalog.inputDisposition(value.pending, input) else null;
-            const receipt = if (disposition == null) try catalog.status(value.request) else null;
+            const disposition = if (value.input) |input| try self.readOnly(c.Client.inputDisposition, .{ catalog, value.pending, input }) else null;
+            const receipt = if (disposition == null) try self.readOnly(c.Client.status, .{ catalog, value.request }) else null;
             const phase = if (disposition) |d| @tagName(d.outcome) else if (receipt) |r| @tagName(r.outcome) else "unconfirmed";
             if (console.session.format == .json) {
                 var id: [20]u8 = undefined;

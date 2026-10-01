@@ -192,6 +192,14 @@ processed input and its rejection before advancing an upload, and prints affecte
 rows only after the writer's terminal applied result. JSON uses `mutation` or
 `creation` envelopes; full-width operation identities are decimal strings.
 
+Preparing and observing a write retries temporarily unavailable reads after
+50 ms. Retries share one five-minute wait deadline without resetting it;
+in-flight reads retain the configured per-request timeout. Each read checks
+current authority; denial, malformed responses and conflicts stop immediately.
+Submission itself is attempted once. A failed send preserves its exact prepared
+identity for explicit recovery, and a read retry never resends that mutation.
+The standalone `.status` command performs one observation attempt.
+
 Opening the console never resubmits saved work. `.status` observes under current
 rights; `.resume` reconciles the original signed request and continues its saved
 operation. Ctrl-C stops waiting, preserves the operation and discards the remaining

@@ -283,7 +283,9 @@ The fixture uses a persistent console. `--client` selects the separately compile
 `transit-mutation-latency-client` public Zig consumer. That control checkpoints
 exact prepared requests and receipts and emits terminal outcomes, but does not
 perform console rendering or maintain the console's full recovery record; its
-local persistence costs therefore differ. Neither caller automatically retries
+local persistence costs therefore differ. The direct control stops on any failed
+request; the console retries unavailable observations during its bounded write
+wait. Neither caller automatically retries
 an uncertain send. Terminal outcome and row visibility, rather than admission
 acknowledgement, define completion.
 
