@@ -84,11 +84,10 @@ The [type](../../contracts/FUZE_TYPES_V1.md) and
 [source](../../contracts/FUZE_SOURCE_V1.md) contracts define the exact model;
 [FileSource](../../packages/zig/transit-fuze/src/FileSource.zig) and
 [FileQuery](../../packages/zig/transit-fuze/src/FileQuery.zig) implement it.
-Reproduce the independent numeric/framing/schema/ownership checks with
-`just test::fuze-types`, `just test::fuze-sources`, `just test::file-query` and
-`just test::logical-arrow` in the pinned shell. The
-[proof ledger](../../tests/README.md#fuze-bounded-file-sources) records results and
-scope. These schedules cover source replacement, denial/cancellation, allocation
+Reproduce the independent numeric/framing/schema/ownership checks with the
+pinned-toolchain commands in the
+[proof ledger](../../tests/README.md#fuze-bounded-file-sources), which records
+results and scope. These schedules cover source replacement, denial/cancellation, allocation
 failure and failed-prefix completion; they do not prove every parser input or
 durable crash recovery. Broader native/Flight/Table admission remains separately
 specified in the [capability matrix](../reference/sql/types.md#surface-capability-matrix).
