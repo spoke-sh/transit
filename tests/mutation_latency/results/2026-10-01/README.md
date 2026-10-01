@@ -22,6 +22,11 @@ intermediate candidates are deliberate controls, not builds of that runner HEAD.
 | [candidate-poll20-instrumented](candidate-poll20-instrumented.json.gz) | failed | 17 | `b49e55cc711f969cd3cad13cb7c9bd5c4324e27699872757e2bcb00a1c0f6e97` |
 | [client-history-readers](client-history-readers.json.gz) | complete | 14 | `668d93832c2c1cb77a58a036c4b2ed2c9aa5e7fc0285d0d85bdc50a99f839215` |
 | [followup-poll20](followup-poll20.json.gz) | failed | 77 | `edef8c3075dc628087bd9a6222f5bed6ec77a9bd56b9072b76ca5224faeabefb` |
+| [qualification-poll20](qualification-poll20.json.gz) | failed | 34 | `68881a28c28d86dbc95fbc39a5652618293c79b9e844c6736075ea3e9fb4d29f` |
+| [qualification-adaptive-idle](qualification-adaptive-idle.json.gz) | complete | 140 | `25cf2980d69e9d4dbc37aff188de069f8e9f7c680e05f42372869364b7076543` |
+| [qualification-default](qualification-default.json.gz) | complete | 140 | `fa076129c469f6447fd211861b2857f8086b554d8bfdeb2529e492d6cebe7f89` |
+| [qualification-counts](qualification-counts.json.gz) | complete | 21 | `38291ad1b8a9e449e952a1f1f56abd0b67df5e58e1688d0632377f60bccb2fd2` |
+| [qualification-client](qualification-client.json.gz) | failed | 14 | `8bf9ab7f3967fd8f26cfd52b24b4d5de567dac833f1080c5feffe06caf7292c0` |
 
 ## Scope and interpretation
 
@@ -47,6 +52,23 @@ intermediate candidates are deliberate controls, not builds of that runner HEAD.
 - `client-history-readers` completes two repetitions through the direct public
   Zig caller with 12 retained rows, six additional retained updates, one concurrent
   reader and 64 resident pages. Its checkpoint costs differ from the console.
+- The `qualification-*` controls all use frozen `3d6ba315` binaries, after #61's
+  bounded console read retries. `qualification-adaptive-idle` completes 20
+  repetitions with 64 cache pages and 1.5-second gaps. `qualification-default`
+  completes 20 repetitions with the default eight-page cache, adaptive workers
+  and no artificial gaps. Each has 20 samples per case and empirical p95;
+  neither establishes p99 or a controlled cache-only comparison.
+- `qualification-poll20` fails after 34 cases during the next three-row INSERT's
+  submission: 2,003 ms in send, no receipt, and the exact prepared identity
+  retained. Retrying observations cannot repair an uncertain send automatically.
+- `qualification-counts` completes 21 instrumented cases with defaults. Native
+  counters include actual `HttpCapacity` refusals while the console completes;
+  counters cover background work too, and proxies add overhead.
+- `qualification-client` uses the same row/history/reader controls as the earlier
+  direct-caller run. It completes 14 measured cases, then fails on a cleanup
+  observation after receipt, retaining input 119 and its pending identity. Its
+  single-attempt read policy differs from the console. No completed distribution
+  is claimed for this failed workload.
 
 All runs share a busy development host. Instrumented proxies create fresh
 upstream connections and add work; compare counts and ordinary latency controls
@@ -61,3 +83,25 @@ Reproduce through `just test::mutation-latency` in the pinned Nix environment;
 see the proof ledger for exact commands. Failures preserve the original prepared
 identity and owned fixture. Do not repeat SQL as a new operation to recover an
 uncertain accepted write.
+
+## Focused query storage controls
+
+These raw logs preserve the pinned `just test::query` proof, including failures.
+The runner at `38e5a328` additionally emits fixed native attempt counts for each
+phase. All runs use one CPU, six segments, 41 rows/21,296 bytes and the same
+180-second phase deadline. Explicit temporary-directory placement selects the
+host's ext4 mount; ordinary development-shell placement was verified as tmpfs.
+
+| Run | Source | Filesystem | Delivery | Compressed SHA-256 |
+| --- | --- | --- | --- | --- |
+| [query-ext4-3d0](query-ext4-3d0.log.gz) | `3d0d7819` | ext4 | timeout at 180 s | `b6908abb376a420998f17e9c0e65040373005531b3d08a9a27d8b562028ff4af` |
+| [query-tmpfs-3d0](query-tmpfs-3d0.log.gz) | `3d0d7819` | tmpfs | 33.41 s | `204477b5976cf47d0d166e4c55fb43d992620ac26d9355e469fdba2799b8cbbb` |
+| [query-ext4-3d6](query-ext4-3d6.log.gz) | `3d6ba315` | ext4 | 112.82 s | `f4e4ee5fc3d3e92b93848da61a05adb106881d573be2be9054ba32a19e0686cd` |
+| [query-ext4-batched](query-ext4-batched.log.gz) | `38e5a328` | ext4 | 56.32 s | `b806de56fda982d3a705774edf36157c0ff469ece28f65e25eda6e4ab4dab807` |
+
+The `3d6ba315` control includes the other changes merged before fragment batching.
+Its 112.82-second ext4 delivery and the batched 56.32-second delivery are single
+shared-host observations, not percentiles or a controlled speedup guarantee. The
+older `3d0d7819` ext4 timeout cannot be attributed solely to fragment batching's
+absence. Fixture paths describe local observations; successful fixtures are
+cleaned up and failed query fixtures emit diagnostics before cleanup.
