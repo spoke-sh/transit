@@ -95,6 +95,14 @@ def config(fixture, mode, rows, batch_rows, projected, query='all'):
     elif query == 'count':
         sql = 'SELECT count(*) FROM input'
         output_rows, result_sum = 1, rows
+    elif query == 'count-values':
+        if mode == 'raw': raise ValueError('Value-count measurements require a typed input schema')
+        column = fixture['fields'][1]['name']
+        sql = f'SELECT count({column}) FROM input'
+        output_rows = 1
+        # Sparse rows omit multiples of three and null multiples of five.
+        # Count top-level values once, including nested lists and structures.
+        result_sum = rows - (rows + 2)//3 - (rows + 4)//5 + (rows + 14)//15 if fixture['shape'] == 'sparse' else rows
     elif query == 'sum':
         sql = 'SELECT sum(id) FROM input'
         output_rows = 1
@@ -234,13 +242,13 @@ def main():
     parser.add_argument('--engines', nargs='+', choices=('transit', 'duckdb'), default=['transit', 'duckdb'])
     parser.add_argument('--batch-rows', type=int, choices=(1, 8), default=8)
     parser.add_argument('--project-id', action='store_true')
-    parser.add_argument('--query', choices=('all', 'filter', 'compound', 'count', 'sum'), default='all')
+    parser.add_argument('--query', choices=('all', 'filter', 'compound', 'count', 'count-values', 'sum'), default='all')
     parser.add_argument('--timeout', type=int, default=300)
     args = parser.parse_args()
     if not 1 <= args.rows <= 100_000_000 or not 1 <= args.repetitions <= 20 or not 1 <= args.timeout <= 3600:
         parser.error('Invalid workload budget')
-    if (args.project_id and args.query != 'all') or (args.query in ('filter', 'compound', 'sum') and 'raw' in args.modes):
-        parser.error('Projection selects the all query; filter/sum require typed modes')
+    if (args.project_id and args.query != 'all') or (args.query in ('filter', 'compound', 'sum', 'count-values') and 'raw' in args.modes):
+        parser.error('Projection selects the all query; filter/compound/sum/count-values require typed modes')
     args.binary = args.binary.resolve(); args.output = args.output.resolve()
     report = dict(definition=DEFINITION, status='running', completed=False, samples=[], summary=[], fixtures=[])
     def save():
