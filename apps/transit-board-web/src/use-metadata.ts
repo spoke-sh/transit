@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { message } from "./state";
+import { retryInspectionRead } from "./inspection-read";
 export function useMetadata<T>(
   resource: number,
   exchange: string,
@@ -16,13 +17,21 @@ export function useMetadata<T>(
       if (disposed || busy || document.hidden) return;
       busy = true;
       try {
-        const next = await load(resource, exchange, abort.signal);
+        const next = await retryInspectionRead(
+          () => load(resource, exchange, abort.signal),
+          abort.signal,
+          () => !document.hidden,
+          (cause) => {
+            setPage(null);
+            setError(message(cause));
+          },
+        );
         if (!disposed && !document.hidden) {
           setPage(next);
           setError("");
         }
       } catch (cause) {
-        if (!disposed) {
+        if (!disposed && !document.hidden) {
           setPage(null);
           setError(message(cause));
         }

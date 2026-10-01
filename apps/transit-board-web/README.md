@@ -82,6 +82,13 @@ recognized exchange metadata and exact source revisions. It omits captured
 bodies and application values, uses explicit continuation, and clears on errors
 or tab hiding. Five-second refreshes recheck current authority. Automatic emphasis and animated entry are unsupported.
 
+Records and selected metadata reads retry an explicit rate-limit response at
+most three times, 250 ms apart, so they can recover between shared five-second
+polls. Retries keep the same resource and continuation, stop on hiding or disposal,
+clear displayed data before waiting, and do not retry denial, stale history or
+unclassified failures. They do not
+change the host's read limit or confer access to previously displayed data.
+
 Recognized HTTP captures offer **Inspect HTTP metadata**. The selected view shows
 frozen policy revisions, budgets, trust digest, timing, omitted field counts and
 committed member references. Body values, raw routing fields and credentials are

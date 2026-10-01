@@ -13,6 +13,25 @@ test("captured HTTP evidence is inspection-only and clears after read revocation
     if (request.method() !== "GET") writes.push(request.url());
   });
   const resource = process.env.BOARD_HTTP_RESOURCE!;
+  // Equal observation timers can repeatedly collide at the shared read throttle.
+  // Keep the original five-second assertions and require bounded read recovery.
+  const throttled = new Map([
+    [`/api/v1/resources/${resource}/records`, 0],
+    [`/api/v1/resources/${resource}/http/1`, 0],
+  ]);
+  for (const path of throttled.keys()) {
+    await page.route(`**${path}`, async (route) => {
+      const count = throttled.get(path)!;
+      if (count < 2) {
+        throttled.set(path, count + 1);
+        await route.fulfill({
+          status: 429,
+          contentType: "application/json",
+          body: JSON.stringify({ err: "RateLimited" }),
+        });
+      } else await route.continue();
+    });
+  }
   const admin = (mode: string) =>
     execFileSync(process.env.BOARD_HTTP_PROOF!, [
       process.env.BOARD_HTTP_AUTHORITY!,
@@ -49,6 +68,7 @@ test("captured HTTP evidence is inspection-only and clears after read revocation
     records.getByRole("heading", { name: "Exchange 1 · complete", exact: true }),
   ).toBeVisible();
   expect(writes).toEqual([]);
+  expect([...throttled.values()]).toEqual([2, 2]);
   expect(errors).toEqual([]);
   expect(await context.cookies()).toEqual([]);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
