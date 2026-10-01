@@ -21,6 +21,7 @@ the durable genesis fingerprint. An old history is an error, not an empty realm.
 | `listen`, `port` | IPv4 address and port; default loopback:8080 |
 | `resident_pages` | Decoded page cache slots, default 16, configurable 0–1024; not retained cardinality |
 | `request_timeout_ms` | Whole-request deadline, default 2000 ms, range 1–60000 |
+| `request_metrics` | Optional bounded `x-transit-work` response diagnostics, default false |
 | `accept_trace_parent` | Internal diagnostic context acceptance, default false |
 | `maintenance` | Configuration for the separate `--maintain` process, below |
 
@@ -154,3 +155,18 @@ retained outputs, unresolved authorized attempts and independent-state survival.
 The [client guide](../../../packages/zig/transit-client/docs/growing.md) explains
 the native API. Changes to the shared listener or client transport require
 the corresponding service and recovery proofs.
+
+## Per-request measurement
+
+With `request_metrics: true`, native JSON responses that acquire authority access
+include an unsigned `x-transit-work` JSON header. It contains lock wait and work
+nanoseconds, decoded cache hits/misses, staged pages/bytes, and provider request,
+transport failure, elapsed-time, append payload byte and response byte counters.
+Provider time is contained in work time; these durations must not be added.
+Append payload bytes exclude HTTP/framing and non-append operation bodies.
+Counters cover this process's completed attempt, not maintenance in another
+process, durable outcomes, caller persistence or response transport time.
+Missing headers mean missing measurement, not zero work. Counters do not depend
+on sampled logs and retain no payloads, credentials or principal labels. Encoding
+failure omits diagnostics without changing the authority response. Metrics are
+opt-in to keep the default response and instrumentation work unchanged.

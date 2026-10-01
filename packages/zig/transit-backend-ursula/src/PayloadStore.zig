@@ -40,7 +40,7 @@ fn createPayloadOnceImpl(self: *Store, value: g.Payload, body: []const u8) !void
     if (value.phase != .creating) return error.PayloadPhase;
     try validatePayload(value, body);
     var name: [45]u8 = undefined;
-    var response = try self.journal.client.send(.{ .create_stream = .{
+    var response = try self.journal.send(.{ .create_stream = .{
         .stream = self.payloadStream(value.id, &name),
         .options = .{ .body = body, .closed = true },
     } });
@@ -74,11 +74,11 @@ fn verifyPayloadImpl(self: *Store, value: g.Payload) !void {
     if (value.phase != .creating and value.phase != .ready) return error.PayloadUnavailable;
     var name: [45]u8 = undefined;
     const stream = self.payloadStream(value.id, &name);
-    var head = try self.journal.client.send(.{ .head = .{ .stream = stream } });
+    var head = try self.journal.send(.{ .head = .{ .stream = stream } });
     defer head.deinit();
     try head.head.requireSuccess();
     if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
-    var body = try self.journal.client.send(.{ .read = .{ .stream = stream, .options = .{ .max_bytes = core.protocol.max_payload_bytes + 1 } } });
+    var body = try self.journal.send(.{ .read = .{ .stream = stream, .options = .{ .max_bytes = core.protocol.max_payload_bytes + 1 } } });
     defer body.deinit();
     try body.head.requireSuccess();
     if (!((try body.head.metadata()).up_to_date orelse false)) return error.PayloadIntegrity;
@@ -104,15 +104,15 @@ fn reclaimPayloadImpl(self: *Store, value: g.Payload) !void {
     if (value.phase != .retiring or !value.allow_delete or value.retired_at == null) return error.PayloadPhase;
     var name: [45]u8 = undefined;
     const stream = self.payloadStream(value.id, &name);
-    var head = try self.journal.client.send(.{ .head = .{ .stream = stream } });
+    var head = try self.journal.send(.{ .head = .{ .stream = stream } });
     defer head.deinit();
     if (head.head.status == .not_found) return;
     try head.head.requireSuccess();
     if (!((try head.head.metadata()).closed orelse false)) return error.PayloadNotClosed;
-    var response = try self.journal.client.send(.{ .delete_stream = stream });
+    var response = try self.journal.send(.{ .delete_stream = stream });
     defer response.deinit();
     if (response.head.status != .not_found) try response.head.requireSuccess();
-    var verify = try self.journal.client.send(.{ .head = .{ .stream = stream } });
+    var verify = try self.journal.send(.{ .head = .{ .stream = stream } });
     defer verify.deinit();
     if (verify.head.status != .not_found) return error.DeletionUnconfirmed;
 }
