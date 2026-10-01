@@ -111,3 +111,35 @@ extreme-integer, malformed/outlier and cancellation cases have independent
 correctness fixtures; these timing shapes do not cover every such value. Native
 KV/Table/Document persistence and recovery remain separate from ephemeral file
 capture. See the [proof ledger](../../../README.md) for those scopes.
+
+## Withdrawn metadata experiments
+
+After committing these budgets at `5052c59e`, `19d3ba7d` removed one repeated
+validation traversal. Its [36-sample isolated run](experiments/validation-pass.json.gz)
+passed result checks and observed lower wide-query CPU. `f509cdfb` additionally
+cached at most 128 header-to-column indices and guarded binding replacement.
+
+Two complete 792-sample matrix runs, paired six-type runs and four-mode cgroup
+proofs passed their result/completion checks. They failed the unchanged numeric
+gates: [first run](experiments/first/archived-gates.json),
+[complete repeat](experiments/repeat/archived-gates.json). Each directory retains
+all raw reports, including passed cases. Original gate-report hashes refer to
+uncompressed input JSON; archived gate reports hash the compressed artifacts.
+
+The first run failed 12 phase-wall limits and one discovery-CPU limit; the repeat
+failed seven capture/discovery timing limits in different cases. Allocation,
+source-read counts/bytes, live memory, executable RSS, scan/query timing,
+specialized-path and cgroup gates passed. For example, the first wide/filter
+cold capture had 89.756 ms median wall time versus a 5.241 ms baseline, while
+individual capture CPU remained 3.823–5.761 ms versus 3.960–5.510 ms. Shared-host
+I/O pressure was observed. This supports an interference hypothesis; it does not
+prove an isolated cause for every CPU or elapsed-time difference.
+
+Both optional changes were withdrawn in `cffa7b56`; their timing failures were
+not waived and the budgets were not raised. The
+[implementation comparison](experiments/restored-implementation.json) verifies
+that implementation, generated contracts, build and toolchain paths match the
+accepted baseline. The type/source/CLI/Arrow/SDK features remain. The delivered
+runtime therefore uses the measured baseline, with no optimization or speedup
+claim. Further optimization needs complete matching evidence under these budgets
+or an explicitly reviewed new measurement profile established beforehand.

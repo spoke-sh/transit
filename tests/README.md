@@ -9319,3 +9319,14 @@ report distinguishes this failure from successful correctness checks. Investigat
 shows large wall/CPU separation in cold acquisition with unchanged bytes and
 similar acquisition CPU; a complete unchanged rerun is required. These observations
 are not a passed performance gate or final committed-HEAD clean qualification.
+
+
+A complete unchanged repeat also fails seven capture/discovery timing limits in
+different cases. Both optional metadata changes are withdrawn at `cffa7b56`;
+none of these failures is waived and no budget is raised. The
+[experiment archive](fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+retains every raw run and both failed gate reports. A source comparison verifies
+that all implementation/generated-contract/build/toolchain paths again match
+accepted baseline `5052c59e`. The delivered feature uses that measured baseline;
+it makes no qualified optimization or DuckDB-parity claim. Final clean checks
+remain a separate requirement.

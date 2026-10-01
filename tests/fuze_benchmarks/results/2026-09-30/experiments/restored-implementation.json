@@ -1,0 +1,18 @@
+{
+  "baseline_revision": "5052c59e4bc57086064ffadce798161bd3769df9",
+  "restored_revision": "cffa7b56f263ddd840752f3e42ad8847a0c845d1",
+  "equal_paths": [
+    "packages",
+    "apps",
+    "contracts",
+    "api",
+    "build.zig",
+    "flake.nix",
+    "flake.lock",
+    "nix",
+    "justfile",
+    "tasks"
+  ],
+  "result": "All implementation, generated contracts, build and toolchain paths are identical; subsequent changes are documentation and evidence.",
+  "checked_command": "git diff --exit-code 5052c59e -- packages apps contracts api build.zig flake.nix flake.lock nix justfile tasks"
+}

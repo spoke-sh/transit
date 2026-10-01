@@ -376,13 +376,21 @@ hashes, failures and reproduction commands live with the
 [baseline artifacts](../../tests/fuze_benchmarks/results/2026-09-30/README.md).
 Incomplete or changed-workload evidence cannot pass the checker.
 
-CSV scans cache a bounded header-to-column map per file and bind it to the frozen
-schema/options/content commitment. Descriptor validation occurs once within each
-metadata check; current host checks remain independent. Full-row conversion and
-EOF verification still apply after projection, predicates or LIMIT. Delaying or
-skipping unused conversions would hide errors under this contract and is not an
-admitted optimization. No retained result cache, cross-query inference cache or
-implicit refetch is introduced.
+CSV scans retain bounded header/schema metadata and validate the current binding
+before rows and completion. Full-row conversion and EOF verification apply after
+projection, predicates or LIMIT. Delaying or skipping unused conversions would
+hide errors under this contract and is not admitted. There is no retained result
+cache, cross-query inference cache or implicit refetch.
+
+Two optional metadata optimizations were evaluated after the baseline: avoiding
+one repeated descriptor-validation traversal and caching header-to-column indices.
+Their full result, allocation, I/O-count, memory and six-type checks passed, but
+two complete repetitions failed different capture/discovery timing limits. Both
+optimizations were withdrawn without changing the budgets. The current runtime
+matches the accepted baseline implementation. The
+[experiment record](../../tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+retains both failures and the observed shared-host interference; it establishes
+no qualified optimization benefit or isolated cause for every timing change.
 
 Independent [source, CLI and Arrow proofs](../../tests/README.md#fuze-bounded-file-sources)
 cover extreme values, malformed/outlier input, changed content, denial,
