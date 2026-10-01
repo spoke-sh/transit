@@ -11318,9 +11318,32 @@ for the file-profile/evidence changes passes in
 actual signed SQL shell's existing frozen-bundle/original-command recovery
 schedule. It checks the renamed derived input, named uint64 result and manifest
 counters, including Document missing values, through shell exit/restart and
-permanent retirement/collection. The all-source native/port/shell command is
-running in `/var/tmp/transit-count-column-shell-recovery.log`; these new shell
-assertions are not yet qualified by the completed SDK schedules above.
+permanent retirement/collection. The all-source native/port/shell command
+**fails**, exit 1, in `/var/tmp/transit-count-column-shell-recovery.log`.
+KV completes the shell assertions in **287.10 s**. Table completes ordinary
+row recovery and native/port partial-count recovery, denial, cancellation and
+zero LIMIT, then fails in shell completion polling with `KeyError: status`.
+That expression discards the actual response body; worker tails include
+`AuthorityTimeout`, but they do not establish the shell error or its cause.
+Document is unrun. [Bounded failure evidence](verification/results/count-values-shell-recovery-2026-10-01.json)
+retains the completed scope and exact proof hashes. A diagnostic assertion now
+preserves the status response without accepting errors, repeating failed reads
+or increasing the existing 300-second deadline.
+
+Clean experience at committed `2130f367` **fails after five passing tasks in
+208.01 s**. `transit-board::query-test` receives HTTP 503 `Unavailable` when
+retrying the exact prepared upload after its original receipt; the final Station
+task is unrun. The response does not establish a rejected or duplicated mutation,
+and the retained process tails do not identify its upstream cause.
+[Exact metadata and task inventory](verification/results/count-values-clean-experience-2026-10-01.json)
+are verified against the committed suite. Checkout:
+`/var/tmp/transit-ci-en_y0mfh/src`; log:
+`/var/tmp/transit-count-column-clean-experience.log`.
+An unchanged focused `just transit-board::query-test` rerun in that checkout
+passes, exit 0; log `/var/tmp/transit-count-clean-board-query-focused.log`.
+The focused pass does not complete the failed lane or explain its HTTP 503.
+Full `just check` passes for the diagnostic and failure-evidence changes, exit 0;
+log `/var/tmp/transit-count-failure-diagnostics-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
 [M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
