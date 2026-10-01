@@ -210,6 +210,7 @@ pub const Console = struct {
         if (text.len == 0) return true;
         if (std.mem.eql(u8, text, ".quit")) return false;
         self.query_interrupted = false;
+        self.diagnostic.sql = null;
         defer {
             self.query_running = false;
             self.active_query = null;
@@ -243,7 +244,7 @@ pub const Console = struct {
     }
     fn perform(self: *Console, text: []const u8) !void {
         const execution = @import("Execute.zig");
-        if (!isMeta(text) and try q.fuze.Sql.parseInspection(text) == null) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
+        if (!isMeta(text) and (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) == null) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
         if (self.interactive and (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) return error.NoQuery;
         if (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ")) {
             const id: ?u64 = if (text.len == 7) null else try q.Values.unsigned(std.mem.trim(u8, text[8..], " \t"));
@@ -263,7 +264,7 @@ pub const Console = struct {
         if (isMeta(text)) {
             try self.dispatch(text, arena.allocator());
         } else {
-            const result = (try q.Workspace.apply(arena.allocator(), self.client, self.config, .{ .inspect = .{ .sql = text } })).inspection;
+            const result = (q.Workspace.apply(arena.allocator(), self.client, self.config, .{ .inspect = .{ .sql = text } }) catch |err| return self.sqlFailure(text, err)).inspection;
             if (self.session.format == .json) try self.json(.{ .inspection = result }) else try self.inspection(result);
         }
         if (Signals.interrupted()) return error.ConsoleInterrupted;
@@ -294,9 +295,13 @@ pub const Console = struct {
             },
         }
     }
+    pub fn sqlFailure(self: *Console, text: []const u8, err: anyerror) anyerror {
+        self.diagnostic.sql = q.fuze.SqlDiagnostic.query(text, err, true);
+        return err;
+    }
     fn queryFailure(self: *Console, err: anyerror) anyerror {
         self.had_error = true;
-        if (err == error.InvalidTimingCommand) return err;
+        if (err == error.InvalidTimingCommand or self.diagnostic.sql != null) return err;
         if (denied(err)) {
             self.access_lost = true;
             self.session.cursor = null;
@@ -385,12 +390,12 @@ pub const Console = struct {
             length += 1;
             const text = std.mem.trimStart(u8, buffer[0..length], " \t\r\n");
             const meta = isMeta(text);
-            if (!meta and text.len > q.fuze.Sql.max_statement_bytes) return error.StatementTooLarge;
-            if ((meta and byte == '\n') or (!meta and byte == ';' and try sql_input.terminator(text) != null)) {
+            if (!meta and text.len > q.fuze.Sql.max_statement_bytes) return self.sqlFailure(text, error.StatementTooLarge);
+            if ((meta and byte == '\n') or (!meta and byte == ';' and (sql_input.terminator(text) catch |err| return self.sqlFailure(text, err)) != null)) {
                 const more = try self.execute(text);
                 length = 0;
                 if (!more) break;
-            } else if (byte == '\n' and !meta and !try sql_input.significant(text)) {
+            } else if (byte == '\n' and !meta and !(sql_input.significant(text) catch |err| return self.sqlFailure(text, err))) {
                 var scan = try sql_input.Scan.init(text);
                 var closed = true;
                 while (try scan.next()) |token| if (!token.closed) {
@@ -401,8 +406,8 @@ pub const Console = struct {
         }
         const rest = std.mem.trim(u8, buffer[0..length], " \t\r\n");
         if (!isMeta(rest)) {
-            var scan = try sql_input.Scan.init(rest);
-            while (try scan.next()) |token| if (!token.closed) return error.IncompleteSqlStatement;
+            var scan = sql_input.Scan.init(rest) catch |err| return self.sqlFailure(rest, err);
+            while (scan.next() catch |err| return self.sqlFailure(rest, err)) |token| if (!token.closed) return self.sqlFailure(rest, error.InvalidSqlSyntax);
         }
         if (isMeta(rest)) {
             _ = try self.execute(rest);

@@ -48,6 +48,28 @@ capabilities. Each operation has an explicit support boundary:
 | Zig integration | An application explicitly invokes a typed helper inside its authorized Station turn |
 | Unsupported | The form has no accepted SQL grammar or execution contract |
 
+The SQL spelling does not select an execution owner. Console SELECT statements
+compile in Fuze and run through authorized query snapshots; Flight adapts its
+finite query client. Table mutations instead use the separately configured writer
+and its saved-command/result protocol. The local native gateway carries signed
+operations, not a general SQL session with implicit write routing.
+
+### Diagnosing rejected SQL
+
+The console and Flight query adapter distinguish parse errors, unsupported
+constructs, reference-grammar-only families, and syntax supported through a
+different interface. Recognizing a grammar-only family does not validate the
+submitted statement or establish execution support. Valid syntax can still fail
+source binding, type checks, budgets or current authorization.
+
+Console parse errors include statement-relative line and byte-column coordinates,
+a caret and correction guidance. Context is bounded; literals, quoted identifiers
+and comments are masked, and control bytes are escaped. Flight returns a compact
+message with coordinates where available and a next step, without SQL excerpts.
+Syntax/binding failures use INVALID_ARGUMENT; unavailable syntax or interfaces
+use UNIMPLEMENTED. The [console guide](../../apps/transit-cli/docs/console.md#sql-errors)
+shows the display and explains how compile failures differ from uncertain work.
+
 State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
 catalog callers and the explicit [catalog CLI](../../apps/transit-cli/docs/catalog.md)
 also create and publish named two-column Tables. General SQL administrative

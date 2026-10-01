@@ -278,6 +278,38 @@ at most 64 active snapshots, eight per principal. Tokens do not survive authorit
 restart. The `query` and `query` shells retain their explicit cancellation and
 recovery protocols. Cancellation cannot undo completed work or a disclosed prefix.
 
+## SQL errors
+
+SQL errors explain the failed stage and the supported next step. For example:
+
+```text
+transit> SELECT;
+error: SQL parse error [syntax] (InvalidSqlSyntax) at line 1, column 7: expected an identifier
+  SELECT;
+        ^--- error here
+```
+
+The following guidance points to the supported SQL reference. Coordinates count
+UTF-8 bytes within the submitted statement, starting at one; script coordinates
+are relative to each statement, not the whole file. The caret follows the escaped
+display. At most 120 source bytes around the failure are shown. Literal values,
+quoted identifiers and comments are masked, including unfinished tokens. These
+excerpts appear in local stderr diagnostics, not telemetry or result stdout.
+
+The categories distinguish syntax errors, unsupported constructs, exceeded
+bounds, source/type binding failures, grammar-only families and operations
+unavailable on the query interface. Grammar-family recognition alone does not
+validate the submitted syntax. `INSERT`, `UPDATE` and `DELETE` use an explicitly
+authorized Table writer through [mutation commands](mutations.md); the console
+does not route them to a writer. INSERT also requires explicit column names.
+Table definitions use the separate [catalog commands](catalog.md).
+
+Failed compilation creates no query identity, acquires no query snapshot and
+sends no mutation. Inspection and durable compilation can read current authorized
+metadata. Runtime failures can follow admission or partial output; follow their
+recovery guidance and retain the original saved identity. A syntax correction is
+not a reason to replace unresolved durable work with a new request.
+
 ## Exact recovery and bounds
 
 The recovery behavior below applies to `execution: durable`. Interactive queries

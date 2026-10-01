@@ -112,6 +112,16 @@ def check(binary, path, root, kind, invoke, fault):
             assert settings['format'] == mode and settings['format_source'] == '.mode'
         assert fault['console_sends'] == sends, 'settings inspection sent a native mutation'
         assert (root/'console-recovery.json').read_bytes() == saved
+        for statement, message in (
+            ('SELECT;', 'line 1, column 7'),
+            ('INSERT INTO items (id, value) VALUES (1, 100);', 'transit mutate --help'),
+        ):
+            terminal.send(statement+'\r')
+            terminal.expect(message)
+            terminal.expect('^--- error here')
+            terminal.expect('transit> ')
+            assert not select.select([terminal.process.stdout], [], [], .1)[0], 'SQL error leaked to result stdout'
+        assert fault['console_sends'] == sends and (root/'console-recovery.json').read_bytes() == saved
         terminal.send('SE')
         terminal.expect('transit> SE')
         started = time.monotonic()

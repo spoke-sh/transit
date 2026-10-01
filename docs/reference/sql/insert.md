@@ -1,5 +1,9 @@
 # INSERT
 
+**Run INSERT through an explicitly configured Table mutation writer. The console
+and Flight SQL query interfaces are read-only.** A successful `SELECT` from
+`items` does not configure a writer or authorize changes to that Table.
+
 Bounded literal inserts are available through the shared Zig mutation client,
 [native ABI/port caller](../../../packages/zig/transit-station-bindings/docs/table-mutations.md),
 [typed SDK mutation clients](../sdks.md#table-mutation-callers) and
@@ -20,6 +24,14 @@ three rows. The primary key is a non-null int64. The value is a nullable int64,
 boolean, UTF-8 or binary literal matching the Table descriptor; text/binary values
 are at most 220 bytes. There are no implicit conversions or omitted/default
 columns. Repeated keys within the statement reject before application.
+
+`INSERT INTO items VALUES (1, 100)` omits the required column list and is outside
+this syntax. `INSERT INTO items (id, value) VALUES (1, 100)` has supported mutation
+syntax, but submitting it in the console reports that its query interface is
+read-only. Run `transit mutate --help` and follow the
+[saved-command workflow](../../../apps/transit-cli/docs/mutations.md) with your
+writer connection. Compilation, submission and observing the applied result are
+separate steps; query credentials do not implicitly supply write authority.
 
 ## Application and result
 
