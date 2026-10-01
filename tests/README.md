@@ -11330,6 +11330,35 @@ retains the completed scope and exact proof hashes. A diagnostic assertion now
 preserves the status response without accepting errors, repeating failed reads
 or increasing the existing 300-second deadline.
 
+The diagnostic-only Table rerun **passes in 223.92 s**, exit 0; log
+`/var/tmp/transit-count-column-shell-table-diagnostic.log`. It covers native/port
+partial-count recovery and the actual shell's exact restart/retry, named uint64
+result, manifest counters, current denial and retirement/collection. The existing
+eight resident pages and 8 MiB hot store retain 166 cold objects / 18,368,277 bytes.
+[Source-qualified Table evidence](verification/results/count-values-shell-table-recovery-2026-10-01.json)
+does not explain the earlier status failure. Document shell recovery separately
+**passes at `cdb1bc49` in 1328.60 s**, exit 0, including provisioning in 1023.26 s.
+The native/port/actual-shell schedule preserves partial 8/10 through replacement,
+checks denial/cancellation and missing values (ten selected/count zero), and
+completes original-bundle/request recovery, named output and retirement/collection.
+Its existing 64 resident pages and 8 MiB hot store retain 1094 cold objects /
+124,201,701 bytes. [Document shell evidence](verification/results/count-values-shell-document-recovery-2026-10-01.json)
+and `/var/tmp/transit-count-column-shell-document-recovery.log` retain this
+separate pass; installed SDK consumers were not enabled in that run.
+
+The default console's separate snapshot path also **passes** explicit COUNT
+cases in the real local-server proof: empty zero, one value among two nullable
+rows, unchanged row count two, null-only zero, renamed derived input and LIMIT
+zero. Each result has a named uint64 column and independent completed snapshot.
+The full server lifecycle completes in **50.56 s**, exit 0; log
+`/var/tmp/transit-count-column-interactive-server-runtime-env.log`. The command
+uses the pinned bindings shell with only `TRANSIT_SQL_TOOLS` and
+`TRANSIT_GSON_JAR` removed from the runtime environment. Its first attempt failed
+before these assertions because automatic server configuration rejected the
+tool-only setting `TRANSIT_SQL_TOOLS`; log
+`/var/tmp/transit-count-column-interactive-server.log`, retained fixture
+`/var/tmp/transit-server-proof-c70z6cd8`. No product setting or deadline changes.
+
 Clean experience at committed `2130f367` **fails after five passing tasks in
 208.01 s**. `transit-board::query-test` receives HTTP 503 `Unavailable` when
 retrying the exact prepared upload after its original receipt; the final Station
@@ -11344,6 +11373,27 @@ passes, exit 0; log `/var/tmp/transit-count-clean-board-query-focused.log`.
 The focused pass does not complete the failed lane or explain its HTTP 503.
 Full `just check` passes for the diagnostic and failure-evidence changes, exit 0;
 log `/var/tmp/transit-count-failure-diagnostics-check.log`.
+
+The fresh clean experience lane at `cdb1bc49` **fails after six passing tasks
+in 514.46 s**, including a passing Board query task. The final Station launcher
+task fails its unchanged 60-second Arrow-reply deadline after courier readiness
+replacement. Its later lifecycle checks are unrun. Worker logs record HTTP 503
+`HttpCapacity` and `AuthorityUnavailable`; the cause is not established.
+[Completed task inventory and bounded observations](verification/results/count-values-experience-station-2026-10-01.json)
+retain this failure separately from the earlier Board failure. Checkout:
+`/var/tmp/transit-ci-mc2kg8kf/src`; fixture:
+`.cache/launchers/local/station-886ef1`; log:
+`/var/tmp/transit-count-diagnostics-clean-experience-retry.log`.
+
+Clean launchers at `cdb1bc49` **passes both tasks in 322.54 s**.
+[Completed metadata and task results](verification/results/count-values-clean-launchers-2026-10-01.json)
+match the committed suite. The proof includes local persistence, exact retries,
+same-PID replacement, fencing, missing-store refusal and foreground shutdown.
+Log: `/var/tmp/transit-count-diagnostics-clean-launchers.log`; retained results:
+`.cache/ci/clean/cdb1bc49777e-transit-ci-x77143dn`. The successful runner removes
+its temporary checkout. This lane does not complete experience or bindings.
+Full `just check` passes for the interactive-console proof and qualification
+evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
 
 Remaining CLI qualification, compiler timing failures and clean lanes stay in the
 [M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
@@ -11378,7 +11428,7 @@ new counter's serialization cost. Logs: `/var/tmp/transit-count-performance.log`
 both commands exit 0. File costs, native acquisition/publication, recovery and
 remaining clean lanes retain their separate gates.
 
-### File COUNT costs and rejected parser experiment
+### File COUNT costs and rejected compiler experiments
 
 The [file-control archive](benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
 retains **3888 correct results** across projection, filter, COUNT(*) and SUM;
@@ -11415,3 +11465,15 @@ retains 1098 native case measurements, 486 file process results, the exact patch
 drivers, assembly and control provenance. These diagnostics use CPU 2 while the
 original matrices use CPU 1; shared-host variation and the original failures
 remain explicit. No published production implementation changes.
+
+A separate experiment moves the unchanged file compiler into a private function
+that cannot be inlined. Fuze units and all **540 paired process results** pass,
+but ten of thirty compiler gates fail: maxima **3.7779** against pre-COUNT and
+**3.8324** against unmodified COUNT. All thirty pipeline gates pass. The smaller
+caller body does not justify the compiler costs; this patch is **rejected and
+restored**. The [boundary experiment archive](benchmarks/results/2026-10-01-rejected-count-compile-boundary.json.gz)
+retains the exact patch, source/binary identities, driver bytes, assembly and
+six completed comparisons. They use CPU 1, nine alternating pairs, verified
+input-cache conditioning and unchanged limits on the shared host. Changing a
+call boundary changes where work is incurred; these timings do not prove why
+the explicit-schema cases regress.

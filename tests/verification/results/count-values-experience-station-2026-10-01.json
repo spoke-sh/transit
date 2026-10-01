@@ -1,0 +1,317 @@
+{
+  "version": 1,
+  "source_revision": "cdb1bc49777e9fc550836a6835119dc240def0e8",
+  "command": "just ci-clean --lane experience --work-root /var/tmp",
+  "exit_code": 1,
+  "metadata": {
+    "version": 1,
+    "revision": "cdb1bc49777e9fc550836a6835119dc240def0e8",
+    "tier": "experience",
+    "completed": false,
+    "expected_tasks": [
+      "transit-board::check",
+      "transit-docs::check",
+      "bindings::node-check",
+      "test::observability",
+      "transit-board::test",
+      "transit-board::query-test",
+      "launchers::local::test-station"
+    ],
+    "seconds": 514.46,
+    "run_id": null,
+    "run_attempt": null,
+    "machine": {
+      "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+      "logical_cpus": 48,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "runner": null,
+      "runner_arch": null
+    }
+  },
+  "results": [
+    {
+      "lane": "experience",
+      "task": "transit-board::check",
+      "seconds": 66.07,
+      "exit_code": 0
+    },
+    {
+      "lane": "experience",
+      "task": "transit-docs::check",
+      "seconds": 61.11,
+      "exit_code": 0
+    },
+    {
+      "lane": "experience",
+      "task": "bindings::node-check",
+      "seconds": 6.31,
+      "exit_code": 0
+    },
+    {
+      "lane": "experience",
+      "task": "test::observability",
+      "seconds": 13.89,
+      "exit_code": 0
+    },
+    {
+      "lane": "experience",
+      "task": "transit-board::test",
+      "seconds": 15.64,
+      "exit_code": 0
+    },
+    {
+      "lane": "experience",
+      "task": "transit-board::query-test",
+      "seconds": 93.26,
+      "exit_code": 0
+    },
+    {
+      "lane": "experience",
+      "task": "launchers::local::test-station",
+      "seconds": 258.17,
+      "exit_code": 1
+    }
+  ],
+  "unrun": [],
+  "failure": {
+    "task": "launchers::local::test-station",
+    "stage": "Arrow reply after courier readiness outage/replacement",
+    "assertion": "Arrow reply did not complete",
+    "deadline_seconds": 60,
+    "probe": "tests/station_launchers.py:107",
+    "cause": "not established",
+    "retained_fixture": "/var/tmp/transit-ci-mc2kg8kf/src/.cache/launchers/local/station-886ef1"
+  },
+  "log": {
+    "path": "/var/tmp/transit-count-diagnostics-clean-experience-retry.log",
+    "sha256": "d1193fdffe23fb76155a960f13cd6080f15482509abe9d332af4942341c9262c"
+  },
+  "observations": {
+    "delivery": {
+      "log_sha256": "7eb2dbd1e3dbfb5f5a38065a09d7e0011b09d7bc9c30cc895e262aed38a6a803",
+      "error_counts": {
+        "HttpCapacity": 88,
+        "AuthorityUnavailable": 642
+      },
+      "first_event_by_error": {
+        "HttpCapacity": {
+          "schema_version": 1,
+          "service_name": "transit-delivery",
+          "service_instance_id": "e4906f36545b67e98387d79a55aca577",
+          "time_unix_ms": 1790855675028,
+          "scope": "client",
+          "duration_ns": 827411,
+          "trace_id": "948a24102da83d384c381ed835c5f71d",
+          "span_id": "ab08ec04fca3c87d",
+          "parent_span_id": "be0ad1fd76450720",
+          "event": {
+            "name": "transit.client.request",
+            "operation": "delivery",
+            "level": "warn",
+            "outcome": "failed",
+            "error_type": "HttpCapacity",
+            "route": "/v1/query",
+            "method": "POST",
+            "status": 503,
+            "protocol_outcome": "none"
+          }
+        },
+        "AuthorityUnavailable": {
+          "schema_version": 1,
+          "service_name": "transit-delivery",
+          "service_instance_id": "e4906f36545b67e98387d79a55aca577",
+          "time_unix_ms": 1790855675028,
+          "scope": "maintenance",
+          "duration_ns": 1028759,
+          "trace_id": "948a24102da83d384c381ed835c5f71d",
+          "span_id": "be0ad1fd76450720",
+          "event": {
+            "name": "transit.delivery.step",
+            "operation": "deliver",
+            "level": "warn",
+            "outcome": "failed",
+            "error_type": "AuthorityUnavailable",
+            "protocol_outcome": "none",
+            "realm": 1695886997
+          }
+        }
+      }
+    },
+    "requester": {
+      "log_sha256": "42c2ed022c0178510c6563ea275b866cbcb0091f923b720a3c9965df5200f583",
+      "error_counts": {
+        "HttpCapacity": 98,
+        "AuthorityUnavailable": 98
+      },
+      "first_event_by_error": {
+        "HttpCapacity": {
+          "schema_version": 1,
+          "service_name": "example-station-ledger",
+          "service_instance_id": "d4e9587d44367e74af8c2cb997a29fcc",
+          "time_unix_ms": 1790855672993,
+          "scope": "client",
+          "duration_ns": 446549,
+          "trace_id": "8c80258dc204bb27aab0cd27ac037082",
+          "span_id": "f47dc8573e641f8d",
+          "event": {
+            "name": "transit.client.request",
+            "operation": "entries",
+            "level": "warn",
+            "outcome": "failed",
+            "error_type": "HttpCapacity",
+            "route": "/v1/query",
+            "method": "POST",
+            "status": 503,
+            "protocol_outcome": "none"
+          }
+        },
+        "AuthorityUnavailable": {
+          "schema_version": 1,
+          "service_name": "example-station-ledger",
+          "service_instance_id": "d4e9587d44367e74af8c2cb997a29fcc",
+          "time_unix_ms": 1790855672993,
+          "scope": "service",
+          "event": {
+            "name": "station.retry",
+            "level": "warn",
+            "outcome": "failed",
+            "error_type": "AuthorityUnavailable",
+            "protocol_outcome": "none"
+          }
+        }
+      }
+    },
+    "ledger": {
+      "log_sha256": "fcdd1f28245cc1dbe00274a12871d329e64da222b30cb3847dff1788b7836c3e",
+      "error_counts": {
+        "HttpCapacity": 64,
+        "AuthorityUnavailable": 64
+      },
+      "first_event_by_error": {
+        "HttpCapacity": {
+          "schema_version": 1,
+          "service_name": "example-station-ledger",
+          "service_instance_id": "7cb03b941df55e8997b9133588a9754a",
+          "time_unix_ms": 1790855670252,
+          "scope": "client",
+          "duration_ns": 430178,
+          "trace_id": "48ceb2e4d4bdcb7fd12981a56d33cb66",
+          "span_id": "f504d267493c100d",
+          "event": {
+            "name": "transit.client.request",
+            "operation": "entries",
+            "level": "warn",
+            "outcome": "failed",
+            "error_type": "HttpCapacity",
+            "route": "/v1/query",
+            "method": "POST",
+            "status": 503,
+            "protocol_outcome": "none"
+          }
+        },
+        "AuthorityUnavailable": {
+          "schema_version": 1,
+          "service_name": "example-station-ledger",
+          "service_instance_id": "7cb03b941df55e8997b9133588a9754a",
+          "time_unix_ms": 1790855670252,
+          "scope": "service",
+          "event": {
+            "name": "station.retry",
+            "level": "warn",
+            "outcome": "failed",
+            "error_type": "AuthorityUnavailable",
+            "protocol_outcome": "none"
+          }
+        }
+      }
+    },
+    "node": {
+      "log_sha256": "63efd1da467fb5b5425ed18602dbf4f5e5722d90923b9ce87df6c185141e7395",
+      "error_counts": {
+        "StaleStateResource": 9
+      },
+      "first_event_by_error": {
+        "StaleStateResource": {
+          "schema_version": 1,
+          "service_name": "transit-node",
+          "service_instance_id": "3fee82baa79e40b49fcbbcbc8a53ecbc",
+          "time_unix_ms": 1790855678352,
+          "scope": "server",
+          "duration_ns": 256258669,
+          "trace_id": "db4e78e6e51b65478cf08ddd5283f6bd",
+          "span_id": "e7c3b9670ed78e35",
+          "parent_span_id": "a466f9a784bd0e34",
+          "event": {
+            "name": "transit.http.request",
+            "level": "warn",
+            "outcome": "rejected",
+            "error_type": "StaleStateResource",
+            "route": "/v1/query",
+            "method": "POST",
+            "status": 422,
+            "response_written": true,
+            "protocol_outcome": "rejected",
+            "wait_ns": 252566518,
+            "work_ns": 3626717,
+            "cache_hits": 14,
+            "cache_misses": 10
+          }
+        }
+      }
+    }
+  },
+  "limits": [
+    "Six tasks pass, including Board query; Station does not complete its first query and later lifecycle assertions are unrun.",
+    "Courier readiness replacement returns before the Arrow wait fails. Several worker logs record HTTP 503 HttpCapacity/AuthorityUnavailable; this does not establish the cause or every upstream response.",
+    "The earlier experience failure at 2130f367 is separate and remains failed. No deadline, resident bound or runtime code changed."
+  ]
+}

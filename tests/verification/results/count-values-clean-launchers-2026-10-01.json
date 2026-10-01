@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "metadata": {
+    "version": 1,
+    "revision": "cdb1bc49777e9fc550836a6835119dc240def0e8",
+    "tier": "launchers",
+    "completed": true,
+    "expected_tasks": [
+      "test::build",
+      "launchers::local::test"
+    ],
+    "seconds": 322.54,
+    "run_id": null,
+    "run_attempt": null,
+    "machine": {
+      "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+      "logical_cpus": 48,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "runner": null,
+      "runner_arch": null
+    }
+  },
+  "results": [
+    {
+      "lane": "launchers",
+      "task": "test::build",
+      "seconds": 27.66,
+      "exit_code": 0
+    },
+    {
+      "lane": "launchers",
+      "task": "launchers::local::test",
+      "seconds": 294.87,
+      "exit_code": 0
+    }
+  ],
+  "log": {
+    "path": "/var/tmp/transit-count-diagnostics-clean-launchers.log",
+    "sha256": "5f4e4f2da6a1a3ce63fbd2d580cb560b1e6643646b2b4296881582c65e033511"
+  }
+}

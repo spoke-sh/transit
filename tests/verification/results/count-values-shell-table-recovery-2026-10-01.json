@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "source_runtime": "029b21a0b8dd4faf217324d79170e7d71f6d157b",
+  "proof_revision": "426f57317ba923da345e3d88170a520cacd7d7fd",
+  "exit_code": 0,
+  "command": "just test::unified-counts -Doptimize=ReleaseSafe -Dunified-source=table -Dunified-shell=true",
+  "log": {
+    "path": "/var/tmp/transit-count-column-shell-table-diagnostic.log",
+    "sha256": "9c64595ea8f09d2ea0e75dfda30b2e8bec0167579ac6bcd63e04e1350ab522af"
+  },
+  "seconds": 223.92,
+  "resident_pages": 8,
+  "hot_store_bytes": 8388608,
+  "cold_objects": 166,
+  "cold_bytes": 18368277,
+  "callers": [
+    "native",
+    "port",
+    "actual signed SQL shell"
+  ],
+  "limit": "Diagnostic-only change; does not explain the prior failure or qualify installed SDKs."
+}
