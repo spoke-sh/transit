@@ -302,6 +302,8 @@ def run(node, host, proof, board, browser=False):
             api({"status": "not-an-id"}, status=400)
             description = api({"describe": {}})["description"]
             assert description["source"]["source"]["source"]["table"]["value_type"] == "int64"
+            sql_caps = api({"sql_capabilities": {}})["sql_capabilities"]
+            assert sql_caps["version"] == 1 and sql_caps["parameters"] and sql_caps["statement_bytes"] == 4096
             before = admin("next-sequence").stdout
             api({"compile": {"sql": "DELETE FROM items"}}, status=400)
             assert admin("next-sequence").stdout == before, "invalid SQL admitted a command"
@@ -311,6 +313,16 @@ def run(node, host, proof, board, browser=False):
             invalid = {"version": 1, "signed": {"request": {"version": 1, "realm": 45, "principal": 1234, "sequence": 99, "command": {"checkpoint": {}}}, "signature": [0] * 64}}
             api({"submit": {"token": json.dumps(invalid)}}, status=400)
             compiled = api({"compile": {"sql": "SELECT value FROM items WHERE value = 9007199254740994 LIMIT 1"}})["compiled"]
+            parameter_request = {"sql": "SELECT value FROM items WHERE value = $1 LIMIT $2",
+                                 "parameters": [{"int64": "9007199254740994"}, {"uint64": "1"}]}
+            parameterized = api({"compile": parameter_request})["compiled"]
+            assert parameterized == compiled, 'parameter binding changed the canonical query'
+            before = admin("next-sequence").stdout
+            for parameters in ([], [{"utf8": "wrong"}, {"uint64": "1"}]):
+                assert api({"compile": parameter_request | {"parameters": parameters}}, status=400) == {"err": "UnsupportedQuery"}
+            assert api({"compile": {"sql": "SELECT value FROM items LIMIT $0", "parameters": []}}, status=400) == {"err": "UnsupportedQuery"}
+            assert admin("next-sequence").stdout == before, 'parameter compilation allocated a command sequence'
+            compiled = parameterized
             assert "9007199254740994" in json.dumps(compiled["plan"])
             prepared = api({"next": {"namespace": "1", "bundle": compiled["bundle"]}})["prepared"]
             malformed = json.loads(prepared["token"])
@@ -382,6 +394,7 @@ def run(node, host, proof, board, browser=False):
             subprocess.run(["node", "tests/board_query_client.mjs"], input=json.dumps(values).encode(), check=True, timeout=15)
             admin("revoke")
             api({"compile": {"sql": "SELECT * FROM items"}}, status=403)
+            api({"compile": parameter_request}, status=403)
             api({"page": {"namespace": "1"}}, status=403)
             admin("restore")
             # A paused source cannot expose an incomplete result. Cancellation is
