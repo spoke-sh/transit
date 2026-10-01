@@ -16,9 +16,15 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     if (ast.selection == .rows and ast.output_alias != null) return error.InvalidOutputNames;
     const source_qualifier = if (ast.source_alias) |alias| try ownedName(alias) else source.name;
     var input: [m.max_columns]u8 = undefined;
-    const input_plan = try projection(if (ast.input) |value| value.projection else @splat(null), source_qualifier, source.schema, &input);
     var input_columns: [m.max_columns]m.Column = undefined;
-    const input_schema = try input_plan.outputSchema(source.schema, &input_columns);
+    var input_schema = source.schema;
+    // Only a derived input introduces a projected scope. Direct queries already
+    // have a validated source schema and use its column indices unchanged.
+    const input_plan: ?m.Plan = if (ast.input) |value| blk: {
+        const inner = try projection(value.projection, source_qualifier, source.schema, &input);
+        input_schema = try inner.outputSchema(source.schema, &input_columns);
+        break :blk inner;
+    } else null;
     const qualifier = if (ast.input) |value| try ownedName(value.alias) else source_qualifier;
     var selected: [m.max_columns]u8 = undefined;
     var result: m.Plan = switch (ast.selection) {
@@ -26,12 +32,12 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
         .count => blk: {
             // Count consumes rows; a single validated input column carries the
             // required plan shape without inspecting its value or state.
-            selected[0] = input_plan.projection[0];
+            selected[0] = if (input_plan) |inner| inner.projection[0] else 0;
             break :blk .{ .projection = selected[0..1], .aggregate = .count };
         },
         .sum => |column| blk: {
             const index = try resolve(column, qualifier, input_schema);
-            selected[0] = input_plan.projection[index];
+            selected[0] = if (input_plan) |inner| inner.projection[index] else index;
             break :blk .{ .projection = selected[0..1], .aggregate = .sum };
         },
     };

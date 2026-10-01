@@ -7382,6 +7382,45 @@ not overwrite it. Logs are
 `/tmp/transit-sql-output-aliases-benchmark-build.log` and
 `/tmp/transit-sql-output-aliases-benchmark-oracles-fixed.log`.
 
+### Direct-query compilation measurement
+
+Direct queries now use the already validated source schema instead of building
+and validating an identity input projection. Derived inputs still build and
+validate their projected scope; all plans retain final validation. Fuze's
+standalone tests and `just test::sql` pass, including 105 independently encoded
+plans and 44 paged result cases. Logs are
+`/tmp/transit-sql-output-aliases-compile-optimization-unit.log` and
+`/tmp/transit-sql-output-aliases-compile-optimization-check.log`.
+
+The [paired raw report](benchmarks/results/2026-10-01-output-aliases.json)
+records control/candidate order **A B B A A B**, five samples per run, one warm-up,
+8192 rows in eight-row pages, ten executions and 2000 compilations per sample.
+Both frozen binaries pass all 33 components and nine rejection probes in each
+run, with identical verified output cells and Arrow segment hashes. The report
+retains raw durations, fixture/harness/compiler/binary identities, source plus
+the exact candidate patch, host load and result evidence. The control is runtime
+source `7e6e2905` (unchanged from `4e9a8bca`); the candidate adds only the recorded
+compiler change.
+
+Medians across the three per-build run medians, in microseconds:
+
+| Compilation component | Control | Candidate |
+| --- | ---: | ---: |
+| Selected count | 1.073 | 0.725 |
+| Selected count with output name | 1.172 | 0.828 |
+| Row projection | 1.527 | 1.188 |
+| Renamed row projection | 1.747 | 1.412 |
+| Named sum over derived input | 1.841 | 1.723 |
+
+The direct named cases show about 19–29% less compilation time in these samples.
+Execution timings overlap; no execution speedup is established. The derived
+path retains its validation work, so its small observed difference is not
+attributed to a removed operation. This shared host also runs installed recovery;
+the measurements do not establish isolated-host, native, transport or storage
+latency. The installed recovery run uses frozen pre-optimization binaries and
+does not independently qualify the later compiler change. Full checks and
+committed-HEAD clean lanes remain separate gates.
+
 ### Finite SQL probe
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
