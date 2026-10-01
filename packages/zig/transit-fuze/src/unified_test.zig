@@ -105,6 +105,75 @@ test "independent canonical query fixtures bind exact schema and plan digests" {
     }
 }
 
+test "independent output names survive canonical plans and preserve source identity" {
+    const Fixture = struct {
+        version: u8,
+        definition: []const u8,
+        cases: []const struct {
+            name: []const u8,
+            projection: []const u8,
+            output_names: []const ?[]const u8,
+            aggregate: m.Plan.Aggregate,
+            encoded: []const u8,
+            columns: []const []const u8,
+        },
+    };
+    const fixture = try std.json.parseFromSlice(Fixture, t.allocator, @embedFile("fixtures/output-names-v1.json"), .{});
+    defer fixture.deinit();
+    try t.expectEqual(1, fixture.value.version);
+    var definition: [32]u8 = undefined;
+    _ = try std.fmt.hexToBytes(&definition, fixture.value.definition);
+    try t.expectEqualSlices(u8, &definition, &m.Codec.definition);
+    const input: m.Schema = .{ .columns = &.{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .utf8 },
+    } };
+    const original = try input.fingerprint();
+    for (fixture.value.cases) |case| {
+        var plan: m.Plan = .{ .projection = case.projection, .aggregate = case.aggregate };
+        for (case.output_names, 0..) |alias, index| if (alias) |name| {
+            plan.output_names[index] = try m.Name.init(name);
+        };
+        var expected: [m.Codec.max_plan_bytes]u8 = undefined;
+        var encoded: [m.Codec.max_plan_bytes]u8 = undefined;
+        const wire = try std.fmt.hexToBytes(&expected, case.encoded);
+        try t.expectEqualSlices(u8, wire, try m.Codec.encode(plan, &encoded));
+        const restored = try m.Codec.decode(wire);
+        try t.expectEqualDeep(plan.output_names, restored.output_names);
+        var output: [m.max_columns]m.Column = undefined;
+        const result = try restored.outputSchema(input, &output);
+        try t.expectEqual(case.columns.len, result.columns.len);
+        for (case.columns, result.columns) |name, column| try t.expectEqualStrings(name, column.name.slice());
+        try t.expectEqualSlices(u8, &original, &try input.fingerprint());
+        const cut: m.Basis = .{ .kind = .table, .resource = 7, .revision = 9, .contract = @splat(3), .schema = original };
+        const bound = try restored.bind(cut, input);
+        try t.expectEqualDeep(cut, bound.basis);
+        if (case.output_names[0]) |name| {
+            // Output names are owned even though projection/literal bytes borrow.
+            expected[4 + definition.len + 2 + case.projection.len + 1] = 'z';
+            try t.expectEqualStrings(name, restored.output_names[0].?.slice());
+        }
+        encoded[4] ^= 1;
+        try t.expectError(error.UnsupportedPlanDefinition, m.Codec.decode(encoded[0..wire.len]));
+    }
+    try t.expectError(error.UnsupportedPlanDefinition, m.Codec.decode("FZP1\x00\x02\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"));
+}
+
+test "output names reject collisions hidden slots and malformed owned values" {
+    var plan: m.Plan = .{ .projection = &.{ 0, 1 } };
+    plan.output_names[0] = try m.Name.init("value");
+    try t.expectError(error.DuplicateColumn, plan.validate(schema));
+    plan.output_names[0] = try m.Name.init("renamed");
+    plan.output_names[2] = try m.Name.init("hidden");
+    try t.expectError(error.InvalidOutputNames, plan.validate(schema));
+    plan.output_names[2] = null;
+    plan.output_names[0].?.len = 33;
+    try t.expectError(error.InvalidColumnName, plan.validate(schema));
+    plan.output_names[0] = try m.Name.init("renamed");
+    plan.output_names[0].?.bytes[31] = 'x';
+    try t.expectError(error.InvalidColumnName, plan.validate(schema));
+}
+
 test "nested Arrow preserves typed states and releases fixed workspace" {
     const f = @import("root.zig");
     const alternatives = [_]m.Alternative{

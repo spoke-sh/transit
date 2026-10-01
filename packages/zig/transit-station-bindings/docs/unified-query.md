@@ -22,6 +22,12 @@ Keep all non-counter 64-bit quantities as decimal strings. Float values use
 Projection indices are numeric arrays. Returned conflicts include their original
 ordered assignment IDs and distinguish null from a typed value or type error.
 
+Plans accept `output_names` as null for all defaults or an array matching the
+projection width. Each position is null or an ASCII identifier of at most 32
+bytes. Named output positions may repeat an input index when resulting names
+are distinct. Decoding preserves owned names and null slots, so preparing a
+decoded bundle retains its exact bytes and immutable Publication identity.
+
 The complete JSON input is at most 256 KiB. The native implementation additionally
 enforces the 16 KiB bundle, 8-column/8-row page, 4 KiB scalar and 64 KiB Arrow
 segment bounds. Arrow parsing uses a 4 MiB fixed workspace. All returned arrays,

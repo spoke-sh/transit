@@ -87,7 +87,8 @@ Arrow int64 columns.
 | --- | --- |
 | Sources | One declared KV, Table or accepted Document projection |
 | `SELECT *` | All one to eight declared columns |
-| Explicit projection | One to eight distinct column names in the requested order |
+| Explicit projection | One to eight output positions in the requested order; result names must be distinct |
+| Output aliases | Explicit `AS name` on columns, `COUNT(*)` and `SUM(column)`; distinct names permit repeated inputs |
 | Predicate | One comparison or exact cell-state test |
 | Ordering | Defined source order |
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |
@@ -193,7 +194,7 @@ line comments and nested block comments are accepted. Additional statements and
 trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
-Joins, sorting, grouping, arithmetic, compound predicates, output aliases,
+Joins, sorting, grouping, arithmetic, compound predicates,
 `COUNT(column)`, general casts and continuous queries are unsupported.
 Public query transports reject writes. Applications can explicitly integrate
 the [bounded Table mutation helper](sql/insert.md) in their fenced writer.

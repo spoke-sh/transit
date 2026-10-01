@@ -13,31 +13,39 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     if (!sameName(ast.source, source.name)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
-    const source_qualifier = if (ast.source_alias) |alias| try m.Name.init(alias.slice()) else source.name;
+    if (ast.selection == .rows and ast.output_alias != null) return error.InvalidOutputNames;
+    const source_qualifier = if (ast.source_alias) |alias| try ownedName(alias) else source.name;
     var input: [m.max_columns]u8 = undefined;
-    const input_projection = try projection(if (ast.input) |value| value.projection else @splat(null), source_qualifier, source.schema, &input);
-    const qualifier = if (ast.input) |value| try m.Name.init(value.alias.slice()) else source_qualifier;
+    var input_columns: [m.max_columns]m.Column = undefined;
+    var input_schema = source.schema;
+    // Only a derived input introduces a projected scope. Direct queries already
+    // have a validated source schema and use its column indices unchanged.
+    const input_plan: ?m.Plan = if (ast.input) |value| blk: {
+        const inner = try projection(value.projection, source_qualifier, source.schema, &input);
+        input_schema = try inner.outputSchema(source.schema, &input_columns);
+        break :blk inner;
+    } else null;
+    const qualifier = if (ast.input) |value| try ownedName(value.alias) else source_qualifier;
     var selected: [m.max_columns]u8 = undefined;
-    var aggregate: m.Plan.Aggregate = .rows;
-    const projected = switch (ast.selection) {
+    var result: m.Plan = switch (ast.selection) {
         .rows => |value| try projection(value, qualifier, source.schema, &selected),
         .count => blk: {
-            aggregate = .count;
             // Count consumes rows; a single validated input column carries the
             // required plan shape without inspecting its value or state.
-            selected[0] = input_projection[0];
-            break :blk selected[0..1];
+            selected[0] = if (input_plan) |inner| inner.projection[0] else 0;
+            break :blk .{ .projection = selected[0..1], .aggregate = .count };
         },
         .sum => |column| blk: {
-            aggregate = .sum;
-            selected[0] = try resolve(column, qualifier, source.schema);
-            if (std.mem.indexOfScalar(u8, input_projection, selected[0]) == null) return error.UnknownColumn;
-            break :blk selected[0..1];
+            const index = try resolve(column, qualifier, input_schema);
+            selected[0] = if (input_plan) |inner| inner.projection[index] else index;
+            break :blk .{ .projection = selected[0..1], .aggregate = .sum };
         },
     };
-    const owned_projection = try allocator.dupe(u8, projected);
+    if (ast.output_alias) |alias| result.output_names[0] = try ownedName(alias);
+    const owned_projection = try allocator.dupe(u8, result.projection);
     errdefer allocator.free(owned_projection);
-    var result: m.Plan = .{ .projection = owned_projection, .aggregate = aggregate, .limit = if (ast.input) |value| value.limit else ast.limit };
+    result.projection = owned_projection;
+    result.limit = if (ast.input) |value| value.limit else ast.limit;
     result.predicate = switch (ast.predicate) {
         .all => .all,
         .state => |state| .{ .state = .{ .column = try resolve(state.column, source_qualifier, source.schema), .value = state.value } },
@@ -64,30 +72,37 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
 fn sameName(a: anytype, b: anytype) bool {
     return std.mem.eql(u8, a.slice(), b.slice());
 }
+fn ownedName(name: f.model.Name) !m.Name {
+    if (name.len > name.bytes.len or !std.meta.eql(name, try f.model.Name.init(name.slice()))) return error.InvalidColumnName;
+    return m.Name.init(name.slice());
+}
 fn resolve(column: sql.Column, qualifier: m.Name, schema: m.Schema) !u8 {
     if (column.qualifier) |name| if (!sameName(name, qualifier)) return error.UnknownQualifier;
     for (schema.columns, 0..) |item, index| if (sameName(item.name, column.name)) return @intCast(index);
     return error.UnknownColumn;
 }
-fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output: *[m.max_columns]u8) ![]const u8 {
+fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output: *[m.max_columns]u8) !m.Plan {
     if (value[0] == null) {
         for (value[1..]) |column| if (column != null) return error.InvalidProjection;
         for (0..schema.columns.len) |i| output[i] = @intCast(i);
-        return output[0..schema.columns.len];
+        return .{ .projection = output[0..schema.columns.len] };
     }
     var count: usize = 0;
+    var names: [m.max_columns]?m.Name = @splat(null);
     for (value) |column| {
         if (column) |selected| {
-            const index = try resolve(selected, qualifier, schema);
-            if (std.mem.indexOfScalar(u8, output[0..count], index) != null) return error.DuplicateProjection;
+            const index = try resolve(selected.column, qualifier, schema);
             output[count] = index;
+            if (selected.alias) |alias| names[count] = try ownedName(alias);
             count += 1;
         } else {
             for (value[count..]) |remaining| if (remaining != null) return error.InvalidProjection;
             break;
         }
     }
-    return output[0..count];
+    const result: m.Plan = .{ .projection = output[0..count], .output_names = names };
+    try result.validate(schema);
+    return result;
 }
 fn scalar(allocator: std.mem.Allocator, literal: sql.Literal) !m.Scalar {
     switch (literal) {

@@ -54,7 +54,8 @@ The [component manifest](../../tests/benchmarks/manifest.json) owns the exact SQ
 Each family has seven base components: three SELECTs, one two-column declaration
 and literal INSERT, UPDATE and DELETE. An additional selected-count fixture uses
 an explicit source alias over identical data and predicate, recording the cost
-of that spelling separately. The 29 components exercise the same public
+of that spelling separately. Four output-name fixtures cover count, derived sum,
+row projection and repeated inputs with distinct names. The 33 components exercise the same public
 package implementation used by declarative callers. They do not establish
 transport-specific latency or execute a complete business transaction.
 

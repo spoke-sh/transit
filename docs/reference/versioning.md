@@ -100,6 +100,15 @@ initialization. The current shared definition rejects earlier query-only local
 installation records and history. Recover those installations with their matching
 build; enabling the new local default does not convert or reset retained state.
 
+Finite query plans carry a mandatory plan-definition identifier and optional
+owned output names. Their `FZP1` layout and fingerprints differ from earlier
+plans without those fields. The shared native definition covers this stored
+framework change. Old standalone plans, saved requests and authority heads
+reject; recover accepted work using its matching build before a cutover.
+The current native definition covers both the combined local Table writer and
+owned output names across callers. Builds carrying only one of these changes
+are incompatible with the combined definition.
+
 Publication identity includes its domain, namespace and record ID. Domain-aware
 keys and 72-byte references replace the prior layouts under the current shared
 definition. Native SDK publication actions use the application domain; typed

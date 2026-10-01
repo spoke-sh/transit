@@ -23,6 +23,8 @@ def codecs(config):
         scalar = q.Scalar(q.Type.UINT64, 2**64-1) if index == 0 else q.Scalar(q.Type.UTF8, 'x'*512)
         bundle = q.Bundle.prepare(source, q.Plan((1, 0), q.Compare(1, Comparison.NE, scalar), 2**64-1), q.Budgets(1000, 500, 1048576))
         assert bundle.data.hex() == fixtures[index]['wire_hex']
+        named = q.Bundle.prepare(source, q.Plan((1, 0), q.Compare(1, Comparison.NE, scalar), 2**64-1, output_names=('Result', None)), q.Budgets(1000, 500, 1048576))
+        assert named.data.hex() == fixtures[index]['named_wire_hex']
     for source in (q.KVSource(resource, b'', q.Decoder(q.Type.BINARY, 2), q.Decoder(q.Type.UTF8)),
                    q.TableSource(resource, 9, ('id', 'label'), q.Type.UINT64)):
         try: q.Bundle.prepare(source, q.Plan((0,)), q.Budgets(1, 1, 1))
@@ -63,7 +65,8 @@ def source(config):
             q.Projection(q.Column('replica', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_REPLICA),
             q.Projection(q.Column('optional', q.Type.UTF8), ('optional',))), ('items',))
     plan = q.Plan((0, 1, 2, 3) if config['kind'] == 'document' else (1,),
-        q.Compare(0 if config['kind'] == 'document' else 1, Comparison.NE, q.Scalar(q.Type.UTF8, 'x'*512)))
+        q.Compare(0 if config['kind'] == 'document' else 1, Comparison.NE, q.Scalar(q.Type.UTF8, 'x'*512)),
+        output_names=('Result', None, None, None) if config['kind'] == 'document' else ('Result',))
     bundle = q.Bundle.prepare(value, plan, q.Budgets(1000, 100, 1048576))
     assert bundle.data == Path(config['bundle']).read_bytes()
     return value

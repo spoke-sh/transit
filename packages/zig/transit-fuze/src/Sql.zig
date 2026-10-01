@@ -11,8 +11,9 @@ pub const max_comment_depth = 16;
 pub const max_literal_bytes = 2 + 2 * m.max_cell_bytes;
 
 pub const Column = struct { qualifier: ?m.Name = null, name: m.Name };
+pub const ProjectionItem = struct { column: Column, alias: ?m.Name = null };
 /// All null means star. Explicit names form a contiguous bounded prefix.
-pub const Projection = [f.Unified.max_columns]?Column;
+pub const Projection = [f.Unified.max_columns]?ProjectionItem;
 pub const Selection = union(enum) { rows: Projection, count, sum: Column };
 pub const Text = struct {
     bytes: [max_literal_bytes]u8 = @splat(0),
@@ -32,6 +33,7 @@ pub const Ast = struct {
     source: m.Name,
     source_alias: ?m.Name = null,
     selection: Selection,
+    output_alias: ?m.Name = null,
     predicate: Predicate = .all,
     limit: ?u64 = null,
     input: ?Input = null,
@@ -193,6 +195,7 @@ fn statement(parser: *Parser) !Ast {
     if (!parser.word("SELECT")) return error.UnsupportedStatement;
     try parser.advance();
     const selection = try parser.selection();
+    const output_alias = if (selection == .rows) null else try parser.outputAlias();
     if (parser.assistance) |h| h.aggregate = selection != .rows;
     try parser.requireWord("FROM");
     const derived = if (selection == .rows and parser.token.tag == .cursor) false else try parser.take(.left);
@@ -202,7 +205,7 @@ fn statement(parser: *Parser) !Ast {
         try parser.requireWord("SELECT");
         const projected = try parser.projection();
         try parser.requireWord("FROM");
-        var ast: Ast = .{ .source = try parser.name(), .selection = selection };
+        var ast: Ast = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
         if (parser.assistance) |h| h.source = ast.source;
         ast.source_alias = try parser.sourceAlias();
         ast.predicate = try parser.predicate();
@@ -216,7 +219,7 @@ fn statement(parser: *Parser) !Ast {
         try parser.end();
         return ast;
     }
-    var ast: Ast = .{ .source = try parser.name(), .selection = selection };
+    var ast: Ast = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
     if (parser.assistance) |h| h.source = ast.source;
     ast.source_alias = try parser.sourceAlias();
     ast.predicate = try parser.predicate();
@@ -403,14 +406,17 @@ const Parser = struct {
         return result;
     }
     fn sourceAlias(self: *Parser) !?m.Name {
+        const alias = try self.outputAlias();
+        if (self.assistance) |h| h.source_alias = alias;
+        return alias;
+    }
+    fn outputAlias(self: *Parser) !?m.Name {
         if (!self.word("AS")) return null;
         try self.advance();
         const previous = self.name_role;
         self.name_role = .alias;
         defer self.name_role = previous;
-        const alias = try self.name();
-        if (self.assistance) |h| h.source_alias = alias;
-        return alias;
+        return try self.name();
     }
     fn column(self: *Parser) !Column {
         const previous = self.name_role;
@@ -429,7 +435,8 @@ const Parser = struct {
         var result: Projection = @splat(null);
         if (try self.take(.star)) return result;
         for (&result, 0..) |*column_value, index| {
-            column_value.* = try self.column();
+            const column_ref = try self.column();
+            column_value.* = .{ .column = column_ref, .alias = try self.outputAlias() };
             if (index + 1 == result.len) {
                 if (self.token.tag == .comma) return error.InvalidProjection;
                 return result;

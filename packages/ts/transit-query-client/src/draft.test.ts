@@ -18,7 +18,14 @@ const compiled: Extract<Response, { compiled: unknown }>["compiled"] = {
   limits,
   contract,
   schema: Array(32).fill(2),
-  plan: { version: 1, projection: [1], limit: "1", aggregate: "rows", predicate: { all: {} } },
+  plan: {
+    version: 1,
+    projection: [1],
+    output_names: null,
+    limit: "1",
+    aggregate: "rows",
+    predicate: { all: {} },
+  },
 };
 const page: ResultPage = {
   cells: [[{ value: { int64: "7" } }]],

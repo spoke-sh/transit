@@ -5,7 +5,8 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-pub const Definition = enum { ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e };
+/// SHA-256 of transit.native.v1.local-writer.sql-output-name-callers.2026-09-30.
+pub const Definition = enum { @"1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2" };
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -573,6 +574,21 @@ test "native responses require the current contract definition even with a v1 la
     try t.expectError(error.MissingField, std.json.parseFromSlice(Response, t.allocator, missing, .{}));
     const foreign = "{\"version\":1,\"definition\":\"previous-v1-definition\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, foreign, .{}));
+    const retired = "{\"version\":1,\"definition\":\"2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
+    try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, retired, .{}));
+    const incomplete_output_names = "{\"version\":1,\"definition\":\"34f920f3044133818431378d99c1db55f7c714e43c6966acb71197b0a4d69090\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
+    try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, incomplete_output_names, .{}));
+    inline for (.{
+        // Local combined writer before output-name support.
+        "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e",
+        // Output-name callers before local combined-writer integration.
+        "00177e103bcb1a8208abd6958d79c9f3f471caf62d4a0c87957072356fd28214",
+        // Integrated plans before the neutral caller layout cutover.
+        "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0",
+    }) |definition| {
+        const previous = "{\"version\":1,\"definition\":\"" ++ definition ++ "\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
+        try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, previous, .{}));
+    }
 }
 
 test "leased snapshot responses reject wrong tokens, cuts and malformed coverage" {
@@ -736,8 +752,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("034675aa9cc956aa75eedabc2f66e139617f0f2b6ea6126c26633f51b641f0fa", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("450ef7466e190ca4735ff3279c9b5940dd8b6dc63b10b6e1032bc1161441a0bf", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("05cec2791a50c31eb2e4585a5cdae882839a0252b84f989a42f12ae3a3b484b6", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("e382ec843b8dbffbf0ef37e07620ffbf94e4ca8d811deb33ddb7f0dd6650b25b", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

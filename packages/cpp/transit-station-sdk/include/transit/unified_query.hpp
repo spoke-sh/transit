@@ -28,6 +28,7 @@ struct Plan {
     std::variant<All, IsState, Compare> predicate;
     Aggregate aggregate = Aggregate::Rows;
     std::optional<uint64_t> limit;
+    std::optional<std::vector<std::optional<std::string>>> output_names;
 };
 struct Budgets { uint64_t pages, segments, result_bytes; };
 namespace detail {
@@ -100,6 +101,10 @@ struct SourceView {
 inline transit_station_unified_plan plan(const Plan &v) {
     transit_station_unified_plan out{};
     out.projection = v.projection.data(); out.projection_count = v.projection.size();
+    if(v.output_names){
+        if(v.output_names->size()!=v.projection.size() || v.output_names->size()>8)throw failure(TRANSIT_SDK_INVALID_ARGUMENT,"query-output-names");
+        for(size_t i=0;i<v.output_names->size();++i)if((*v.output_names)[i])out.output_names[i]=(*v.output_names)[i]->c_str();
+    }
     out.aggregate = static_cast<transit_station_aggregate>(v.aggregate);
     out.has_limit = v.limit.has_value(); out.limit = v.limit.value_or(0);
     std::visit([&](const auto &p) {

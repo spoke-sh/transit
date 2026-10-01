@@ -17,8 +17,10 @@ selectStatement
     ;
 sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
-aggregateSelection: COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN;
-projection: STAR | columnReference (COMMA columnReference)*;
+aggregateSelection: (COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN) outputAlias?;
+projection: STAR | projectionItem (COMMA projectionItem)*;
+projectionItem: columnReference outputAlias?;
+outputAlias: AS identifier;
 columnReference: identifier (DOT identifier)?;
 whereClause: WHERE predicate;
 predicate: columnReference (IS cellState | comparison literal);

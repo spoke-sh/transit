@@ -15,7 +15,14 @@ fn writeColumn(out: anytype, column: *const sql.Column) !void {
 fn writeProjection(out: anytype, projection: *const sql.Projection) !void {
     if (projection[0] == null) return out.write(null);
     try out.beginArray();
-    for (projection) |*column| if (column.*) |*value| try writeColumn(out, value);
+    for (projection) |*column| if (column.*) |*value| {
+        try out.beginObject();
+        try out.objectField("column");
+        try writeColumn(out, &value.column);
+        try out.objectField("alias");
+        try out.write(if (value.alias) |*name| name.slice() else @as(?[]const u8, null));
+        try out.endObject();
+    };
     try out.endArray();
 }
 const AstView = struct {
@@ -27,6 +34,8 @@ const AstView = struct {
         try out.write(ast.source.slice());
         try out.objectField("source_alias");
         try out.write(if (ast.source_alias) |*name| name.slice() else @as(?[]const u8, null));
+        try out.objectField("output_alias");
+        try out.write(if (ast.output_alias) |*name| name.slice() else @as(?[]const u8, null));
         try out.objectField("selection");
         try out.beginObject();
         try out.objectField("kind");

@@ -5,6 +5,68 @@ const t = std.testing;
 fn source(columns: []const m.Column) !m.Sql.Source {
     return .{ .name = try m.Name.init("items"), .schema = .{ .columns = columns } };
 }
+test "output aliases own names and resolve derived input names without changing source scope" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const columns = [_]m.Column{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .int64 },
+    };
+    const src = try source(&columns);
+    var text = "SELECT x.value AS id, x.value AS other FROM items AS x WHERE id > 0".*;
+    const plan = try m.Sql.plan(a, &text, src);
+    @memset(&text, 0);
+    try t.expectEqualSlices(u8, &.{ 1, 1 }, plan.projection);
+    try t.expectEqual(@as(u8, 0), plan.predicate.compare.column);
+    var output: [m.max_columns]m.Column = undefined;
+    const schema = try plan.outputSchema(src.schema, &output);
+    try t.expectEqualStrings("id", schema.columns[0].name.slice());
+    try t.expectEqualStrings("other", schema.columns[1].name.slice());
+    try t.expectEqualStrings("value", src.schema.columns[1].name.slice());
+    const rows = try m.Sql.plan(a, "SELECT count(*) AS Rows FROM items", src);
+    try t.expectEqualStrings("rows", (try rows.outputSchema(src.schema, &output)).columns[0].name.slice());
+    const sum = try m.Sql.plan(a, "SELECT sum(chosen.id) AS \"Total\" FROM (SELECT x.value AS id, x.id AS value FROM items AS x WHERE x.id > 0 LIMIT 2) AS chosen", src);
+    try t.expectEqualSlices(u8, &.{1}, sum.projection);
+    try t.expectEqualStrings("Total", (try sum.outputSchema(src.schema, &output)).columns[0].name.slice());
+    const direct = try m.Sql.plan(a, "SELECT sum(chosen.value) AS \"Total\" FROM (SELECT value FROM items WHERE id > 0 LIMIT 2) AS chosen", src);
+    var actual: [m.Codec.max_plan_bytes]u8 = undefined;
+    var expected: [m.Codec.max_plan_bytes]u8 = undefined;
+    try t.expectEqualSlices(u8, try m.Codec.encode(direct, &expected), try m.Codec.encode(sum, &actual));
+    const basis: m.Basis = .{ .kind = .table, .resource = 1, .revision = 9, .schema = try src.schema.fingerprint(), .contract = @splat(7) };
+    try t.expectEqualDeep(basis, (try plan.bind(basis, src.schema)).basis);
+    for ([_][]const u8{
+        "SELECT id AS key, value AS key FROM items",
+        "SELECT id AS value, value FROM items",
+        "SELECT count(*) FROM (SELECT id AS key, value AS key FROM items) AS chosen",
+    }) |sql| try t.expectError(error.DuplicateColumn, m.Sql.plan(a, sql, src));
+    try t.expectError(error.DuplicateProjection, m.Sql.plan(a, "SELECT id AS key, id AS key FROM items", src));
+    for ([_][]const u8{
+        "SELECT id AS key FROM items WHERE key > 0",
+        "SELECT sum(chosen.id) FROM (SELECT id AS key FROM items) AS chosen",
+        "SELECT sum(key) FROM (SELECT id AS \"Key\" FROM items) AS chosen",
+        "SELECT sum(value) AS total FROM items WHERE total > 0",
+    }) |sql| try t.expectError(error.UnknownColumn, m.Sql.plan(a, sql, src));
+}
+test "externally supplied SQL output names must have canonical owned bytes" {
+    var arena = std.heap.ArenaAllocator.init(t.allocator);
+    defer arena.deinit();
+    const columns = [_]m.Column{.{ .name = try m.Name.init("id"), .type = .int64 }};
+    const src = try source(&columns);
+    const valid = try f.Sql.parse("SELECT id AS key FROM items");
+    var ast = valid;
+    ast.selection.rows[0].?.alias.?.bytes[15] = 1;
+    try t.expectError(error.InvalidColumnName, m.Sql.compile(arena.allocator(), ast, src));
+    ast = valid;
+    ast.selection.rows[0].?.alias.?.len = 17;
+    try t.expectError(error.InvalidColumnName, m.Sql.compile(arena.allocator(), ast, src));
+    ast = valid;
+    ast.output_alias = try f.model.Name.init("invalid");
+    try t.expectError(error.InvalidOutputNames, m.Sql.compile(arena.allocator(), ast, src));
+    ast = try f.Sql.parse("SELECT count(*) AS total FROM items");
+    ast.output_alias.?.bytes[15] = 1;
+    try t.expectError(error.InvalidColumnName, m.Sql.compile(arena.allocator(), ast, src));
+}
 test "source aliases preserve canonical plans and keep relation scopes separate" {
     var arena = std.heap.ArenaAllocator.init(t.allocator);
     defer arena.deinit();

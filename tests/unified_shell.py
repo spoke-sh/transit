@@ -56,7 +56,12 @@ def check(binary, root, kind, invoke, expected, fault):
         assert shell.call('.status')['status'] is None
         assert shell.call('SELECT items.value FROM items AS chosen')['err'] == 'UnknownQualifier'
         assert shell.call('.status')['status'] is None
-        sql = 'SELECT * FROM items AS chosen LIMIT 33' if kind == 'document' else 'SELECT chosen.value FROM items AS chosen LIMIT 33'
+        columns = [{'name': 'Result', 'type': 'utf8'}]
+        if kind == 'document':
+            columns += [{'name': name, 'type': 'uint64' if name != 'optional' else 'utf8'} for name in ('counter', 'replica', 'optional')]
+        assert first['columns'] == columns
+        sql = ('SELECT chosen.value AS "Result", counter, replica, optional FROM items AS chosen LIMIT 33'
+               if kind == 'document' else 'SELECT chosen.value AS "Result" FROM items AS chosen LIMIT 33')
         fault['lost'], fault['retry'] = None, False
         assert 'receipt' in shell.call(sql)
         progress = shell.read()
@@ -85,6 +90,7 @@ def check(binary, root, kind, invoke, expected, fault):
         while True:
             page = shell.call('.next')
             assert page['manifest']['basis']['kind'] == kind
+            assert page['columns'] == columns
             rows.extend(page['cells'])
             if page['complete_coverage']: break
         assert len(rows) == min(33, len(expected))
@@ -102,6 +108,6 @@ def check(binary, root, kind, invoke, expected, fault):
         assert progress['status']['collected'], progress
         assert shell.call('.new 2')['err'] == 'QueryUploadIdentityConflict'
         print(f'Unified {kind} SQL shell: truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial, '
-              'owned nested rows, complete coverage and permanent retirement/collection passed.', flush=True)
+              'named output schemas, owned nested rows, complete coverage and permanent retirement/collection passed.', flush=True)
     finally:
         if shell.process.poll() is None: shell.close()

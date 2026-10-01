@@ -53,6 +53,8 @@ typedef struct transit_station_unified_plan {
     transit_station_unified_predicate_kind predicate;
     uint8_t column; transit_station_unified_state state;
     transit_station_comparison comparison; transit_station_unified_scalar value;
+    /* Null names retain defaults; slots beyond projection_count must be null. */
+    const char *output_names[8];
 } transit_station_unified_plan;
 typedef struct transit_station_unified_budgets { uint64_t pages, segments, result_bytes; } transit_station_unified_budgets;
 typedef struct transit_station_unified_bundle transit_station_unified_bundle;

@@ -33,6 +33,25 @@ use separate generated, runtime-validated [query](../../packages/ts/transit-quer
 [application](../../packages/ts/transit-application/README.md) packages; the Node
 native client is not a browser credential adapter.
 
+## Finite query output names
+
+All ten language SDKs expose optional names by output position in their finite
+query plans. Python, Ruby, Rust, Erlang, Elixir and C++ use `output_names`;
+TypeScript and Java use `outputNames`; .NET accepts `outputNames` and exposes
+`OutputNames`. An omitted vector retains defaults. A supplied vector matches
+the projection width and uses the language's optional/null value for an
+unrenamed position. C uses eight nullable `output_names` pointers in its plan;
+slots beyond `projection_count` remain null and strings are borrowed only for
+the synchronous call.
+
+Names are ASCII identifiers of at most 32 bytes. Resulting names must be distinct;
+distinct names allow projecting an input column more than once. Names preserve
+cell types/states, source identity and authority requirements, and participate
+in canonical bundle identity. The shared Zig compiler uses the same model for
+SQL `AS` names, with SQL's 16-byte identifier bound. See the
+[query contract](../../contracts/UNIFIED_QUERY_V1.md#public-surfaces-and-qualification)
+and [neutral codecs](../../packages/zig/transit-station-bindings/docs/unified-query.md).
+
 ## Catalog callers
 
 Python provides [synchronous and asynchronous catalog callers](../../packages/python/transit-station/docs/catalog.md);

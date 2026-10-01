@@ -7,10 +7,14 @@ functions. It has no general scalar expression evaluator. Use
 
 ## Column expressions
 
-`*` selects all declared columns. A named projection contains one to eight distinct
-columns, optionally qualified by the declared source name. Literals cannot be
-selected as result expressions. Arithmetic, concatenation, `CASE`, output
-aliases and scalar function calls are unsupported.
+`*` selects all declared columns. A named projection contains one to eight output
+positions, optionally qualified by the declared source name or its explicit
+source alias. `column AS name` names an output position; repeated inputs require
+distinct result names. `COUNT(*) AS name` and `SUM(column) AS name` name aggregate
+results. Output names do not enter `WHERE` scope. See
+[projection and alias rules](select.md#project-rows) for case, collision and
+derived-input behavior. Literals cannot be selected as result expressions.
+Arithmetic, concatenation, `CASE` and scalar function calls are unsupported.
 
 ## Predicate operators
 

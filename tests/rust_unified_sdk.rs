@@ -1,10 +1,10 @@
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::{
     fs,
     io::{self, BufRead, Write},
 };
 use transit_client::{ClientConfig, Credential, ProcessRef, ResourceRef};
-use transit_station_sdk::{Aggregate, Comparison, DocumentReference, unified as q};
+use transit_station_sdk::{unified as q, Aggregate, Comparison, DocumentReference};
 type AnyResult<T> = Result<T, Box<dyn std::error::Error>>;
 fn hex(v: &[u8]) -> String {
     v.iter().map(|b| format!("{b:02x}")).collect()
@@ -93,6 +93,7 @@ fn codecs(config: &Value) -> AnyResult<()> {
     let fixtures: Value = serde_json::from_slice(&fs::read(text(config, "bundles"))?)?;
     for (index, source) in sources.iter().enumerate() {
         let plan = q::Plan {
+            output_names: None,
             projection: vec![1, 0],
             predicate: q::Predicate::Compare {
                 column: 1,
@@ -117,6 +118,19 @@ fn codecs(config: &Value) -> AnyResult<()> {
             None,
         )?;
         assert_eq!(hex(bundle.data()), text(&fixtures[index], "wire_hex"));
+        let mut named = plan.clone();
+        named.output_names = Some(vec![Some("Result".into()), None]);
+        let bundle = q::Bundle::prepare(
+            source,
+            &named,
+            q::Budgets {
+                pages: 1000,
+                segments: 500,
+                result_bytes: 1048576,
+            },
+            None,
+        )?;
+        assert_eq!(hex(bundle.data()), text(&fixtures[index], "named_wire_hex"));
     }
     let invalid = q::Source::KV {
         resource,
@@ -127,24 +141,23 @@ fn codecs(config: &Value) -> AnyResult<()> {
         },
         value: q::Decoder::v1(q::Type::Utf8),
     };
-    assert!(
-        q::Bundle::prepare(
-            &invalid,
-            &q::Plan {
-                projection: vec![0],
-                predicate: q::Predicate::All,
-                limit: None,
-                aggregate: Aggregate::Rows
-            },
-            q::Budgets {
-                pages: 1,
-                segments: 1,
-                result_bytes: 1
-            },
-            None
-        )
-        .is_err()
-    );
+    assert!(q::Bundle::prepare(
+        &invalid,
+        &q::Plan {
+            output_names: None,
+            projection: vec![0],
+            predicate: q::Predicate::All,
+            limit: None,
+            aggregate: Aggregate::Rows
+        },
+        q::Budgets {
+            pages: 1,
+            segments: 1,
+            result_bytes: 1
+        },
+        None
+    )
+    .is_err());
     let columns = [
         ("int64", q::Type::Int64),
         ("uint64", q::Type::Uint64),
@@ -163,11 +176,9 @@ fn codecs(config: &Value) -> AnyResult<()> {
     assert_eq!(rows.len(), 5);
     assert!(rows[0].iter().all(|v| matches!(v, q::Cell::Missing)));
     assert!(rows[1].iter().all(|v| matches!(v, q::Cell::Null)));
-    assert!(
-        rows[2]
-            .iter()
-            .all(|v| matches!(v,q::Cell::TypeError(k) if k=="map"))
-    );
+    assert!(rows[2]
+        .iter()
+        .all(|v| matches!(v,q::Cell::TypeError(k) if k=="map")));
     let expected = [
         q::Scalar::Int64(i64::MIN),
         q::Scalar::Uint64(u64::MAX),
@@ -206,23 +217,44 @@ fn codecs(config: &Value) -> AnyResult<()> {
 }
 fn inspection(value: q::Inspection) -> Value {
     fn columns(values: Vec<q::Column>) -> Value {
-        json!(values.into_iter().map(|v| json!({"name":v.name,"type":format!("{:?}",v.value_type).to_lowercase()})).collect::<Vec<_>>())
+        json!(values
+            .into_iter()
+            .map(|v| json!({"name":v.name,"type":format!("{:?}",v.value_type).to_lowercase()}))
+            .collect::<Vec<_>>())
     }
     let details = match value.details {
-        q::InspectionDetails::Description { columns: values } => json!({"description":{"columns":columns(values)}}),
+        q::InspectionDetails::Description { columns: values } => {
+            json!({"description":{"columns":columns(values)}})
+        }
         q::InspectionDetails::Tables { names } => json!({"tables":names}),
-        q::InspectionDetails::Explanation { operators, predicate, projection, limit, aggregate, columns: values, budgets } => {
+        q::InspectionDetails::Explanation {
+            operators,
+            predicate,
+            projection,
+            limit,
+            aggregate,
+            columns: values,
+            budgets,
+        } => {
             let predicate = match predicate {
                 q::InspectedPredicate::All => json!({"all":{}}),
-                q::InspectedPredicate::State { column, state } => json!({"state":{"column":column,"value":match state {
-                    q::State::TypeError => "type_error".to_owned(), _ => format!("{state:?}").to_lowercase(),
-                }}}),
-                q::InspectedPredicate::Compare { column, comparison, value_type } => json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}}),
+                q::InspectedPredicate::State { column, state } => {
+                    json!({"state":{"column":column,"value":match state {
+                        q::State::TypeError => "type_error".to_owned(), _ => format!("{state:?}").to_lowercase(),
+                    }}})
+                }
+                q::InspectedPredicate::Compare {
+                    column,
+                    comparison,
+                    value_type,
+                } => {
+                    json!({"compare":{"column":column,"op":format!("{comparison:?}").to_lowercase(),"type":format!("{value_type:?}").to_lowercase()}})
+                }
             };
             json!({"explanation":{"operators":operators.iter().map(|v|format!("{v:?}").to_lowercase()).collect::<Vec<_>>(),
                 "predicate":predicate,"projection":projection,"limit":limit.map(|v|v.to_string()),"aggregate":format!("{aggregate:?}").to_lowercase(),
                 "columns":columns(values),"budgets":{"pages":budgets.pages.to_string(),"segments":budgets.segments.to_string(),"result_bytes":budgets.result_bytes.to_string()}}})
-        },
+        }
     };
     json!({"inspection":{"version":1,"scope":"configured_source","name":value.name,"resource":value.resource.resource(),
         "source_kind":format!("{:?}",value.source_kind).to_lowercase(),"contract":value.source_digest,"schema":value.schema_digest,
@@ -289,6 +321,11 @@ fn serve(config: &Value) -> AnyResult<()> {
         },
     };
     let plan = q::Plan {
+        output_names: Some(if kind == "document" {
+            vec![Some("Result".into()), None, None, None]
+        } else {
+            vec![Some("Result".into())]
+        }),
         projection: if kind == "document" {
             vec![0, 1, 2, 3]
         } else {
@@ -334,10 +371,16 @@ fn serve(config: &Value) -> AnyResult<()> {
             Ok(if let Some(v) = action.get("inspect") {
                 let scope = &v["scope"];
                 let limits = &scope["limits"];
-                let value = client.inspect_sql(&source, text(scope, "name"), text(v, "sql"), q::Budgets {
-                    pages: text(limits, "pages").parse().unwrap(), segments: text(limits, "segments").parse().unwrap(),
-                    result_bytes: text(limits, "result_bytes").parse().unwrap(),
-                })?;
+                let value = client.inspect_sql(
+                    &source,
+                    text(scope, "name"),
+                    text(v, "sql"),
+                    q::Budgets {
+                        pages: text(limits, "pages").parse().unwrap(),
+                        segments: text(limits, "segments").parse().unwrap(),
+                        result_bytes: text(limits, "result_bytes").parse().unwrap(),
+                    },
+                )?;
                 assert_eq!(value.resource, resource);
                 inspection(value)
             } else if let Some(v) = action.get("next") {

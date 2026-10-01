@@ -19,6 +19,9 @@ def codecs(config)
       Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
     check(bundle.data.unpack1('H*') == fixtures[index].fetch('wire_hex'))
     check(bundle.data.frozen?)
+    named = Q::Bundle.prepare(source, Q::Plan.new(projection: [1, 0], output_names: ['Result', nil], predicate: Q::Compare.new(column: 1, comparison: :ne, value: scalar), limit: (1 << 64)-1),
+      Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
+    check(named.data.unpack1('H*') == fixtures[index].fetch('named_wire_hex'))
   end
   begin
     Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 2), value: Q::Decoder.new(type: :utf8)),
@@ -62,7 +65,7 @@ def serve(config)
     Q::Projection.new(column: Q::Column.new(name: 'optional', type: :utf8), path: ['optional'])])
   end
   doc = config.fetch('kind') == 'document'
-  bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], predicate:
+  bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], output_names: doc ? ['Result', nil, nil, nil] : ['Result'], predicate:
     Q::Compare.new(column: doc ? 0 : 1, comparison: :ne, value: Q::Scalar.new(type: :utf8, value: 'x'*512))), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
   check(bundle.data == File.binread(config.fetch('bundle')))
   cfg = Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000)

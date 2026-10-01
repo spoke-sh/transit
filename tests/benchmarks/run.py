@@ -55,7 +55,12 @@ def load_manifest():
     for name in ('components', 'probes'):
         ids = [case['id'] for case in data[name]]
         require(len(ids) == len(set(ids)), f'duplicate {name}')
-    require(len(data['components']) == 29 and len(data['probes']) == 9, 'component/probe inventory changed; review coverage')
+    require(len(data['components']) == 33 and len(data['probes']) == 9, 'component/probe inventory changed; review coverage')
+    for case in data['components']:
+        if case['kind'] == 'select':
+            types = case.get('output_types')
+            require(isinstance(types, list) and 1 <= len(types) <= 8
+                    and all(t in ('int64', 'uint64') for t in types), 'missing or invalid independent output types')
     for suite in expected:
         require({case['kind'] for case in data['components'] if case['suite'] == suite} == {'select', 'declaration', 'mutation'}, f'missing component layer: {suite}')
     return data
@@ -141,7 +146,8 @@ def verify(records, data, config, directory):
                 cursor = oracle.execute(case['sql'])
                 expected = cursor.fetchall()  # Each component emits at most eight rows.
                 require(len(expected) <= 8, 'unbounded oracle result')
-                names = [col[0].lower().split('(')[0] for col in cursor.description]
+                names = [col[0].lower().split('(')[0] if '(' in col[0] else col[0] for col in cursor.description]
+                require(len(names) == len(case['output_types']), 'independent output type width mismatch')
                 combined = []
                 segment_hashes = []
                 require(result['finished'] in ('source_end', 'limit') and result['segments'] > 0, 'incomplete query')
@@ -152,10 +158,10 @@ def verify(records, data, config, directory):
                     require(table.column_names == names, f"schema mismatch: {case['id']}")
                     for row in table.to_pylist():
                         cells = []
-                        for name in names:
+                        for name, expected_type in zip(names, case['output_types'], strict=True):
                             cell = row[name]
                             require(cell['alternatives'] == [], 'unexpected conflict alternatives')
-                            kind = 2 if name == 'count' else 1
+                            kind = 2 if expected_type == 'uint64' else 1
                             require((cell['state'], cell['kind']) == ((1, 7) if cell['value'] is None else (3, kind)), 'wrong cell type/state')
                             cells.append(cell['value'])
                         combined.append(tuple(cells))
@@ -231,7 +237,7 @@ def main():
                       repetitions=dict(samples=args.samples, iterations=args.iterations, compile_iterations=args.compile_iterations))
         config = dict(rows=args.rows, page_rows=args.page_rows, seed=args.seed, iterations=args.iterations,
                       compile_iterations=args.compile_iterations,
-                      cases=[{k: v for k, v in case.items() if k != 'suite'} for case in data['components']], probes=[{k: v for k, v in probe.items() if k != 'expected_error'} for probe in data['probes']])
+                      cases=[{k: v for k, v in case.items() if k not in ('suite', 'output_types')} for case in data['components']], probes=[{k: v for k, v in probe.items() if k != 'expected_error'} for probe in data['probes']])
         with tempfile.TemporaryDirectory(prefix='components-', dir=output.parent) as temp:
             directory = Path(temp)
             # Verification plus a full unrecorded warm-up precede the samples.

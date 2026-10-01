@@ -10,6 +10,8 @@ FIXTURE = ROOT / 'packages/zig/transit-fuze/src/fixtures/unified.json'
 UPLOADS = ROOT / 'packages/zig/transit-query/src/fixtures/uploads.json'
 BUNDLES = ROOT / 'packages/zig/transit-query/src/fixtures/bundles.json'
 SOURCES = ROOT / 'packages/zig/transit-query/src/fixtures/sources.json'
+OUTPUT_NAMES = ROOT / 'packages/zig/transit-fuze/src/fixtures/output-names-v1.json'
+PLAN_DEFINITION = hashlib.sha256(b'transit.fuze.plan.v1.output-names.2026-09-30').digest()
 
 
 def generate():
@@ -25,12 +27,31 @@ def generate():
     cases = []
     for name, tag, literal in variants:
         # rows, two ordered columns, explicit full-width limit, comparison ne.
-        wire = b'FZP1\0\2\1\0\1' + struct.pack('<Q', 2**64-1) + bytes((2, 1, 1, tag)) + literal
+        wire = b'FZP1' + PLAN_DEFINITION + b'\0\2\1\0\0\0\1' + struct.pack('<Q', 2**64-1) + bytes((2, 1, 1, tag)) + literal
         cases.append(dict(name=name, type=tag, wire_hex=wire.hex(), digest=hashlib.sha256(b'transit.fuze.plan.v1\0'+wire).hexdigest()))
     columns = [('key', 2), ('value', 5)]
     schema = b'transit.fuze.schema.v1\0' + bytes((len(columns),))
     for name, tag in columns: schema += bytes((len(name), tag)) + name.encode()
     return json.dumps(dict(plans=cases, schema=hashlib.sha256(schema).hexdigest()), ensure_ascii=False, indent=2)+'\n'
+
+
+def output_names():
+    cases = []
+    for label, projection, aliases, aggregate, columns in [
+        ('renamed-row', [1, 0], ['amount', None], 0, ['amount', 'id']),
+        ('repeated-input', [0, 0], ['left_id', 'right_id'], 0, ['left_id', 'right_id']),
+        ('renamed-count', [0], ['total'], 1, ['total']),
+        ('renamed-sum', [0], ['Total'], 2, ['Total']),
+        ('unchanged-row', [0, 1], [None, None], 0, ['id', 'value']),
+    ]:
+        wire = b'FZP1' + PLAN_DEFINITION + bytes([aggregate, len(projection), *projection])
+        for alias in aliases:
+            raw = alias.encode() if alias is not None else b''
+            wire += bytes([len(raw)]) + raw
+        wire += b'\0' + struct.pack('<Q', 0) + b'\0'
+        cases.append(dict(name=label, projection=projection, output_names=aliases,
+                          aggregate=['rows', 'count', 'sum'][aggregate], encoded=wire.hex(), columns=columns))
+    return json.dumps(dict(version=1, definition=PLAN_DEFINITION.hex(), cases=cases), indent=2)+'\n'
 
 
 def sources():
@@ -58,13 +79,17 @@ def bundles():
         selected = 'unsigned-max' if definition['kind'] == 'kv' else 'larger-plan'
         plan = bytes.fromhex(next(p['wire_hex'] for p in plans if p['name'] == selected))
         bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
+        # Independent FZP1 layout: two projections then two optional names.
+        assert plan[36:42] == bytes([0, 2, 1, 0, 0, 0])
+        named_plan = plan[:40] + bytes([6]) + b'Result' + bytes([0]) + plan[42:]
+        named_bundle = b'UQB1' + struct.pack('<HH', len(source), len(named_plan)) + limits + source + named_plan
         initial = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()
         digest = initial
         for index, offset in enumerate(range(0, len(bundle), 256)):
             part = bundle[offset:offset+256]
             digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
         ref = b'SPF1' + struct.pack('<QIQQII', 8, 2, 2**64-1, 1, 0x31425155, len(bundle)) + digest
-        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex()))
+        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex(), named_wire_hex=named_bundle.hex()))
     return json.dumps(result, indent=2)+'\n'
 
 
@@ -88,6 +113,7 @@ if __name__ == '__main__':
         SOURCES.write_text(sources())
         BUNDLES.write_text(bundles())
         UPLOADS.write_text(uploads())
-    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads():
+        OUTPUT_NAMES.write_text(output_names())
+    elif sys.argv[1:] or FIXTURE.read_text() != generate() or SOURCES.read_text() != sources() or BUNDLES.read_text() != bundles() or UPLOADS.read_text() != uploads() or OUTPUT_NAMES.read_text() != output_names():
         raise SystemExit('Unified query fixtures differ; review and regenerate explicitly')
     print('Unified query fixtures: independent schemas, source definitions and full-width/larger FZP1 plans passed.')

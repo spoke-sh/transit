@@ -18,16 +18,61 @@ const response = (details: unknown) => ({
   },
 });
 afterEach(() => vi.unstubAllGlobals());
+test("compiled metadata preserves output names and rejects malformed name vectors", () => {
+  const compiled = {
+    bundle: "00",
+    source: fixture.scope.source,
+    limits: fixture.scope.limits,
+    contract: Array(32).fill(7),
+    schema: Array(32).fill(8),
+    plan: {
+      version: 1,
+      projection: [1, 0],
+      output_names: ["Result", null],
+      limit: null,
+      aggregate: "rows",
+      predicate: { all: {} },
+    },
+  };
+  expect(validateUnifiedQuery({ compiled })).toBe(true);
+  for (const names of [null, [null, null], ["__proto__", "constructor"]])
+    expect(
+      validateUnifiedQuery({
+        compiled: { ...compiled, plan: { ...compiled.plan, output_names: names } },
+      }),
+    ).toBe(true);
+  for (const names of [
+    [],
+    ["Result"],
+    ["same", "same"],
+    ["", null],
+    ["bad name", null],
+    ["a".repeat(33), null],
+  ])
+    expect(
+      validateUnifiedQuery({
+        compiled: { ...compiled, plan: { ...compiled.plan, output_names: names } },
+      }),
+    ).toBe(false);
+});
 test("native inspection fixtures retain full-width metadata and enforce plan semantics", () => {
   for (const item of fixture.cases) expect(validateUnifiedQuery(response(item.details))).toBe(true);
   const plan = fixture.cases[2]!.details.explanation!;
   for (const invalid of [
     { ...plan, operators: ["scan", "limit", "filter", "project"] },
     { ...plan, limit: "18446744073709551616" },
-    { ...plan, projection: ["value", "value"] },
+    { ...plan, columns: [plan.columns[0], plan.columns[0]] },
+    { ...plan, projection: ["value"] },
+    { ...plan, projection: ["value", "invalid name"] },
     { ...plan, budgets: { ...plan.budgets, pages: "0" } },
   ])
     expect(validateUnifiedQuery(response({ explanation: invalid }))).toBe(false);
+  const count = fixture.cases[6]!.details.explanation!;
+  expect(
+    validateUnifiedQuery(
+      response({ explanation: { ...count, columns: [{ name: "rows", type: "int64" }] } }),
+    ),
+  ).toBe(false);
   expect(validateUnifiedQuery(response({ tables: ["foreign"] }))).toBe(false);
   expect(validateUnifiedQuery(response({ tables: [] }))).toBe(false);
 });

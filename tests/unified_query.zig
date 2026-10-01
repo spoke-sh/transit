@@ -27,7 +27,9 @@ fn definition(kind: Kind, resource: u64) !q.SourceDefinition {
 }
 fn bundle(config: Config) !q.Bundle {
     const selected: u8 = if (config.kind == .document) 0 else 1;
-    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .projection = if (config.kind == .document) &.{ 0, 1, 2, 3 } else &.{1}, .predicate = .{ .compare = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } } } }, .limits = budgets };
+    var names: [q.fuze.Unified.max_columns]?q.fuze.Unified.Name = @splat(null);
+    names[0] = try .init("Result");
+    return .{ .source = try definition(config.kind, config.connection.resource), .plan = .{ .output_names = names, .projection = if (config.kind == .document) &.{ 0, 1, 2, 3 } else &.{1}, .predicate = .{ .compare = .{ .column = selected, .op = .ne, .value = .{ .utf8 = &@as([512]u8, @splat('x')) } } } }, .limits = budgets };
 }
 fn value(index: usize, buffer: []u8, padding: usize) ![]const u8 {
     const bytes: [128]u8 = @splat('x');
