@@ -70,8 +70,9 @@ seed files remain only in the disposable fixture and are never copied to artifac
 
 The profile runner retains commands, logs, source/compiler identity and per-stage
 completion in `.cache/verification/external/`. The four selected external profiles
-keep a 900-second stage cap. Discovery has a 3,600-second cap per stage, including
-the measured exhaustive resource sweep; the tasks retain their own fault,
+keep a 900-second stage cap. Discovery has a 3,600-second cap per stage. Its
+resource command samples fault points with four seeds; it does not request
+`--exhaustive`. The tasks retain their own fault,
 progress and mutation limits. A failed stage stops the campaign and leaves the
 overall report incomplete.
 SDK histories record actual signed attempts, receipts and host-ownership checks.
