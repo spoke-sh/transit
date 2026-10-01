@@ -47,6 +47,7 @@ export const sections: Section[] = [
       reference("sql/types", "Data types and cell states"),
       reference("sql/expressions", "Functions and operators"),
       reference("sql/select", "SELECT"),
+      reference("sql/parameters", "Typed query parameters"),
       reference("sql/insert", "INSERT"),
       reference("sql/update", "UPDATE"),
       reference("sql/delete", "DELETE"),

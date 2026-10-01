@@ -65,6 +65,13 @@ bytes establishes a full file or installed-caller performance pass. Logs:
 `/var/tmp/transit-sql-parameters-costs.log` and
 `/var/tmp/transit-sql-parameters-unchanged-control.log`.
 
+Full `just check` at `731bf348` passes native/unit/generated-contract, CLI and
+Board checks, then fails the handbook navigation inventory because the new
+parameter reference is absent from `catalog.ts` (six of seven content tests
+pass). Adding its SQL navigation entry corrects that omission. The failed run
+remains recorded at `/var/tmp/transit-sql-parameters-check.log`; the final
+full-check and committed-HEAD clean results are tracked separately in the PR.
+
 ## Declarative benchmark components
 
 The [component harness](benchmarks/README.md) measures synthetic SQL compilation,
