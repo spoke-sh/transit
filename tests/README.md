@@ -9509,3 +9509,40 @@ caller failure preserves `client-pending.json` with exact prepared bytes; a
 console failure preserves its ordinary recovery file. The runner does not resume
 or reset failed work. These are finite closed-loop experiments, not saturation,
 open-loop throughput or cold operating-system cache tests.
+
+### Transport and observation follow-up
+
+[Archived diagnostic reports](mutation_latency/results/2026-10-01/README.md)
+retain the original JSON, binary hashes, failed samples and controls. The early
+adaptive-worker control completes 21 cases; the direct-caller control completes
+14 cases with 12 rows, six additional retained updates and one reader. Neither
+has enough samples per case to establish p95. Both older fixed-20-ms polling
+controls fail with connection closure; faster polling is not a qualified fix.
+
+At `3d0d7819`, after the closing-response fix in
+[PR #59](https://github.com/rupurt/rey/pull/59), the ordinary fixed-20-ms control
+completes 77 cases before an unavailable observation stops the next INSERT
+233 ms after starting it. Admission succeeded. The preserved request must be
+recovered explicitly; the run is failed and still has fewer than 20 samples per
+case. The report does not identify which unavailable condition occurred.
+
+The console now retries unavailable preparation/observation reads inside its
+original wait deadline. The fault schedule in
+[server_write_observation.py](server_write_observation.py), included in
+`just test::server`, injects one preflight and three post-admission `HttpCapacity`
+responses. The statement succeeds with exactly one submitted command and an
+independently verified row. A separate accepted command loses its reply: the
+console stops without resending, keeps the unresolved request, and explicit
+`.resume` uses identical signed bytes and produces the expected row. The focused
+real-console schedule passes with candidate CLI `43f14b71` and frozen node/host
+binaries from `3d0d7819`; the pre-change CLI fails the same schedule on its first
+unavailable read. This is fault recovery evidence, not a latency comparison.
+`zig build test-cli-lifecycle` also passes and now actually includes the console
+retry/deadline and gateway diagnostic unit tests.
+
+Earlier full `just check`, native Table mutation recovery and local-server proofs
+passed. Clean qualification at `313fe1c3` stopped in the growing-service
+query-delivery phase after its existing 180-second deadline; it is not passed.
+A focused `just test::query` rerun at `3d0d7819` passes with delivery in 35.52 s.
+That rerun does not establish the cause of the earlier timeout. Full clean
+qualification of this follow-up remains pending.
