@@ -16,6 +16,11 @@ ENV = {key: value for key, value in os.environ.items() if not key.startswith('TR
 CASES = 0
 ISOLATED = tempfile.TemporaryDirectory(prefix='transit-cli-environment-')
 ENV['HOME'] = ISOLATED.name
+# Dependency absence is a controlled fixture, independent of developer tools.
+NO_TOOLS = Path(ISOLATED.name) / 'no-tools'
+NO_TOOLS.mkdir()
+ISOLATED_CLI = NO_TOOLS / 'transit'
+shutil.copy2(CLI, ISOLATED_CLI)
 
 
 def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=None, binary=None):
@@ -44,7 +49,8 @@ def invoke(args, expected=2, contains=(), env=None, data=b'', stderr=None, cwd=N
 
 
 for command in ('server', 'serve'):
-    invoke([command], contains=('cannot find minio beside transit or on PATH',))
+    invoke([command], contains=('cannot find minio beside transit or on PATH',),
+           env=ENV | {'PATH': str(NO_TOOLS)}, binary=str(ISOLATED_CLI))
     for value in ([], ['--initialize'], ['']):
         invoke([command, '--config', *value], stderr='error: --config requires a file path\n')
     invoke([command, '--config', 'one', '--config', 'two'], stderr='error: --config can only be specified once\n')
@@ -262,7 +268,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
         path.write_text(text)
         invoke(['server', '--config', path], contains=(explanation, 'server.json'))
     path.write_text('{}')
-    invoke(['server', '--config', path], contains=('cannot find minio beside transit or on PATH',))
+    invoke(['server', '--config', path], contains=('cannot find minio beside transit or on PATH',),
+           env=ENV | {'PATH': str(NO_TOOLS)}, binary=str(ISOLATED_CLI))
     path.write_text('{\n  "version": !\n}')
     invoke(['server', '--config', path], contains=('server.json":2:14',))
     path.write_bytes(b' ' * 65537)
@@ -321,7 +328,8 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['console', '--config', path], contains=('seed_file', 'file not found', 'signing credential'))
     invoke(['console'], contains=('seed_file',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
-    invoke(['server'], contains=('cannot find minio beside transit or on PATH',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
+    invoke(['server'], contains=('cannot find minio beside transit or on PATH',),
+           env=dict(ENV, PATH=str(NO_TOOLS), TRANSIT_CONSOLE_CONFIG=str(path)), binary=str(ISOLATED_CLI))
     # The executable's physical directory precedes PATH, independent of cwd.
     adjacent, search = root/'bin', root/'search'
     adjacent.mkdir(); search.mkdir()

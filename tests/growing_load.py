@@ -18,7 +18,7 @@ import subprocess
 import threading
 import time
 import tempfile
-from cold_storage import ColdStore, IMAGE
+from cold_storage import ColdStore
 from pages import metrics, sample_process
 from storage import Fixture, free_port, wait_ready
 
@@ -171,7 +171,7 @@ def main():
                 assert request(prepared['denied'], time.monotonic())['status'] == 403
                 evidence['wal_file_bytes'] = sum(p.stat().st_size for p in (fixture.root / 'wal').rglob('*') if p.is_file())
                 if cold:
-                    evidence.update(cold_image=IMAGE, cold_file_bytes=cold.file_bytes(), cold_data_objects=cold.data_objects())
+                    evidence.update(cold_provider=cold.identity, cold_file_bytes=cold.file_bytes(), cold_data_objects=cold.data_objects())
                     assert evidence['cold_data_objects'] > 0
             except subprocess.CalledProcessError as error:
                 raise RuntimeError((error.stderr or '')[-12000:]) from error

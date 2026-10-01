@@ -100,7 +100,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::scheduler-simulation`, `just test::scheduler-simulation-mutations` | Schedule shared Session/courier calls with request/reply loss, ownership, trusted time and mutation controls |
 | `just test::domain-simulation`, `just test::domain-simulation-mutations` | Replay bounded Document, Exchange, refresh, runtime and catalog contract schedules and qualify their assertions with real-code mutations |
 | `just test::vortex [--seed N --rounds N]` | Inject external network/process faults into owned node, worker, courier and disk Ursula; preserve histories and cleanup evidence |
-| `just test::vortex-profile sdk\|application\|query\|reactive` | Qualify installed Python/Node hosts, local installation/migration, distinct query lifetimes or browser refresh through existing owned rigs |
+| `just test::vortex-profile sdk\|application\|query\|reactive\|discovery` | Qualify selected external hosts/lifecycles, or run the separate expanded discovery campaign with retained stage outcomes and finite limits |
 | `just test::resource-simulation-smoke`, `just test::resource-simulation [--seeds N --exhaustive]` | Replay saved page faults or enumerate numbered staging/read/publication/trim interruptions with an independent resource oracle |
 | `just test::resource-simulation-mutations` | Detect omitted resource writes and input progress in isolated committed core mutants |
 | `just test::properties [--seeds N --steps N]` | Runs saved and generated authority schedules; failures retain a minimized replay trace |
@@ -109,10 +109,10 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::growing-quota` | Checks service/Station admission refusal, retained backlog and reserve exhaustion across disk restart |
 | `just test::growing-capacity` | Uses an owned Docker/ext4 fixture to qualify growing pages, ENOSPC, physical reserve release and control/recovery progress |
 | `just test::pages [--keys N --cache N --layout packed\|closed]` | Checks immutable page roots through disk restart and checkpoint/trim with a bounded cache; records measurements |
-| `just test::pages-cold [--keys N --cache N]` | Linux/Docker: repeats the page proof with an owned persistent S3-compatible cold store and measures both providers |
+| `just test::pages-cold [--keys N --cache N]` | Linux x86_64: repeats the page proof with pinned native MinIO and measures both providers |
 | `just test::growing [--rows N --cold-s3]` | Proves v1 growing-authority atomic publication, retained reads/receipts and restart/checkpoint/trim against disk Ursula; service integration remains separate |
 | `just test::growing-load` | Measures independently offered public v1 requests, queueing, revocation latency, exact retries, state drain and restart |
-| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and an owned Docker cold store; retains each sample |
+| `just test::scale [--repeat N]` | Runs the declared repeated growth/load matrix with disk Ursula and pinned native MinIO; retains each sample |
 | `just test::growing-service` | Qualifies the explicit v1 node/client profile, bounded state access and uncertain reply recovery on one CPU using ReleaseSafe binaries |
 | `just test::query [--finish-pages N]` | Focuses query capture, sealing, publication and partial-consumption recovery using ReleaseSafe binaries; included in the growing service proof |
 | `just test::growing-station` | Focuses growing Station calls, retained Table sources and recovery; also included in the full growing service proof |

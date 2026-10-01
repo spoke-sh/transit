@@ -5,24 +5,31 @@ import hmac
 import os
 from pathlib import Path
 import secrets
+import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
 import urllib.error
-import uuid
 import xml.etree.ElementTree as ET
 from storage import free_port
 
 
-IMAGE = "quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e"
+def minio_binary():
+    """The pinned shell and local bundle share nix/minio.nix's source build."""
+    path = shutil.which('minio')
+    if path is None:
+        raise RuntimeError('Pinned MinIO is required; enter the Linux x86_64 Nix development shell')
+    return Path(path).resolve()
 
 
 class ColdStore:
     def __init__(self):
-        self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-")
-        self.root = Path(self.directory.name)
-        self.name = "transit-cold-proof-" + uuid.uuid4().hex[:12]
+        # Cleanup is explicit so an unjoined child retains its owned disk state.
+        self.directory = tempfile.TemporaryDirectory(prefix="transit-cold-proof-", delete=False)
+        self.root = Path(self.directory.name) / 'data'
+        self.root.mkdir(mode=0o700)
         self.access = "transit-proof"
         self.secret = secrets.token_hex(24)
         self.bucket = "transit-proof"
@@ -30,21 +37,31 @@ class ColdStore:
         self.url = f"http://127.0.0.1:{self.port}"
         self.http = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         self.pid = None
+        self.process = None
+        self.log = None
+        self.identity = None
 
     def __enter__(self):
         try:
-            subprocess.run([
-                "docker", "run", "--detach", "--rm", "--name", self.name,
-                "--user", f"{os.getuid()}:{os.getgid()}",
-                "--publish", f"127.0.0.1:{self.port}:9000",
-                "--mount", f"type=bind,source={self.root},target=/data",
-                "--env", "MINIO_ROOT_USER",
-                "--env", "MINIO_ROOT_PASSWORD",
-                IMAGE, "server", "/data", "--address", ":9000", "--console-address", ":9001",
-            ], env={**os.environ, "MINIO_ROOT_USER": self.access, "MINIO_ROOT_PASSWORD": self.secret},
-                check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=120)
+            self.log = (Path(self.directory.name) / 'minio.log').open('w+b')
+            binary = minio_binary()
+            with binary.open('rb') as artifact:
+                digest = hashlib.file_digest(artifact, 'sha256').hexdigest()
+            self.identity = {'kind': 'native', 'binary': str(binary), 'sha256': digest}
+            # A fresh native process owns only this disk directory and loopback
+            # listener. No ambient MinIO/cloud configuration is inherited.
+            env = {key: value for key, value in os.environ.items()
+                   if not key.startswith(('MINIO_', 'AWS_'))}
+            env.update(MINIO_ROOT_USER=self.access, MINIO_ROOT_PASSWORD=self.secret, MINIO_BROWSER='off')
+            self.process = subprocess.Popen([
+                binary, 'server', str(self.root), '--address', f'127.0.0.1:{self.port}',
+                '--console-address', '127.0.0.1:0',
+            ], env=env, cwd=self.root, stdout=self.log, stderr=subprocess.STDOUT)
+            self.pid = self.process.pid
             deadline = time.monotonic() + 30
             while True:
+                if self.process.poll() is not None:
+                    raise RuntimeError(f'Owned cold store exited before readiness: {self.process.returncode}')
                 try:
                     with self.http.open(self.url + "/minio/health/ready", timeout=0.5) as response:
                         if response.status == 200:
@@ -54,12 +71,10 @@ class ColdStore:
                 if time.monotonic() >= deadline:
                     raise TimeoutError("Owned cold-store readiness deadline")
                 time.sleep(0.05)
-            self.pid = int(subprocess.check_output(
-                ["docker", "inspect", "--format", "{{.State.Pid}}", self.name], text=True, timeout=10))
             self.create_bucket(deadline)
             return self
         except BaseException:
-            self.__exit__(None, None, None)
+            self.__exit__(*sys.exc_info())
             raise
 
     def create_bucket(self, deadline):
@@ -156,9 +171,27 @@ hot_size_low = "4MiB"
         # Ursula chunk objects, not merely MinIO's bucket/startup metadata.
         return sum(1 for _ in (self.root / self.bucket).glob("**/chunks/*/xl.meta"))
 
-    def __exit__(self, *_):
+    def __exit__(self, exc_type, *_):
         try:
-            subprocess.run(["docker", "rm", "--force", self.name], check=False,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=15)
+            if self.process is not None:
+                if self.process.poll() is None:
+                    self.process.terminate()
+                try:
+                    self.process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self.process.kill()
+                    self.process.wait(timeout=10)
         finally:
-            self.directory.cleanup()
+            try:
+                if self.log is not None:
+                    if exc_type:
+                        self.log.flush()
+                        self.log.seek(0, os.SEEK_END)
+                        self.log.seek(max(0, self.log.tell() - 8192))
+                        tail = self.log.read(8192).decode(errors='replace').replace(self.secret, '<redacted>')
+                        sys.stderr.write(tail[-4000:])
+                    self.log.close()
+            finally:
+                if self.process is not None and self.process.poll() is None:
+                    raise RuntimeError(f'Cold-store cleanup did not join PID {self.pid}; retained {self.directory.name}')
+                self.directory.cleanup()

@@ -127,11 +127,12 @@ provider memory, metadata, request amplification or recovery costs.
 The ordinary proof deliberately disables Ursula cold storage and uses inline
 snapshots. It establishes disk-WAL correctness; its retained payloads remain in
 the provider's hot tier. A bounded Transit cache does not bound that provider
-memory. `just test::pages-cold` is an explicit Linux/Docker qualification using
-an owned loopback MinIO container, pinned by digest in
+memory. `just test::pages-cold` is an explicit Linux x86_64 qualification using
+an owned loopback MinIO process, built from pinned source in
+[minio.nix](../../../../nix/minio.nix) and managed by
 [cold_storage.py](../../../../tests/cold_storage.py). It uses synthetic temporary
 credentials and a temporary disk directory, with no cloud account. Failure is
-inconclusive; missing Docker is not a skipped success.
+inconclusive; a missing provider executable is not a skipped success.
 
 This profile configures Ursula's S3 cold tier with 256 KiB flushes, an 8 MiB
 per-group hot budget, an 8 MiB read cache and S3 snapshots. The evidence records
