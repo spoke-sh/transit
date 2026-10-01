@@ -88,11 +88,19 @@ fn bytes(turn: anytype, correlation: u64, manifest: r.Segment, output: []u8) ![]
     if (output.len < manifest.bytes) return error.ResultBufferTooSmall;
     var offset: usize = 0;
     while (offset < manifest.bytes) {
-        const value = (try turn.read(r.key('d', correlation, manifest.ordinal, @intCast(offset / r.fragment_bytes)))) orelse return error.IncompleteResultSegment;
-        const end = @min(offset + r.fragment_bytes, manifest.bytes);
-        if (value.len != end - offset) return error.InvalidResultFragment;
-        @memcpy(output[offset..end], value.slice());
-        offset = end;
+        var keys: [p.Growth.page_size]p.Value = undefined;
+        const count = @min(keys.len, std.math.divCeil(usize, manifest.bytes - offset, r.fragment_bytes) catch unreachable);
+        for (keys[0..count], 0..) |*entry, index| entry.* = r.key('d', correlation, manifest.ordinal, @intCast(offset / r.fragment_bytes + index));
+        // Public read-only adapters need only read/waiting/delivery. Native
+        // turns can batch the same captured keys without widening that API.
+        if (comptime @TypeOf(turn) == *Turn) try turn.prefetch(keys[0..count]);
+        for (keys[0..count]) |entry| {
+            const value = (try turn.read(entry)) orelse return error.IncompleteResultSegment;
+            const end = @min(offset + r.fragment_bytes, manifest.bytes);
+            if (value.len != end - offset) return error.InvalidResultFragment;
+            @memcpy(output[offset..end], value.slice());
+            offset = end;
+        }
     }
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(output[0..manifest.bytes], &digest, .{});

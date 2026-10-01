@@ -317,6 +317,15 @@ Worker polling remains a control to evaluate after reducing work. A faster
 poll alone can increase authority contention and does not establish a scheduling
 improvement.
 
+Record the backing filesystem when comparing storage latency. A file-backed WAL
+inside a temporary directory can reside on tmpfs; that run does not measure
+physical-disk write cost. Place fixtures on the filesystem being measured and
+verify the actual mount on the host. The
+[physical-storage query controls](../../tests/README.md#physical-storage-query-follow-up)
+record the executed placements and reproduction commands.
+Process/provider restart checks establish their stated recovery boundaries;
+filesystem placement alone does not establish power-loss durability.
+
 TPC components answer different questions. The local compiler/proposal cases
 exclude durable admission, owner processing, provider I/O and caller checkpoints;
 they cannot diagnose multi-second single-row writes. The

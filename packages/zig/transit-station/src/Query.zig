@@ -194,11 +194,17 @@ fn readSegment(turn: *Turn, manifest: Segment, output: []u8) ![]const u8 {
     if (output.len < manifest.bytes) return error.ResultBufferTooSmall;
     var offset: usize = 0;
     while (offset < manifest.bytes) {
-        const fragment = (try turn.read(key('f', manifest.result, manifest.ordinal, @intCast(offset / records.fragment_bytes)))) orelse return error.MissingResultFragment;
-        const end = @min(offset + records.fragment_bytes, manifest.bytes);
-        if (fragment.len != end - offset) return error.InvalidResultFragment;
-        @memcpy(output[offset..end], fragment.slice());
-        offset = end;
+        var keys: [p.Growth.page_size]p.Value = undefined;
+        const count = @min(keys.len, std.math.divCeil(usize, manifest.bytes - offset, records.fragment_bytes) catch unreachable);
+        for (keys[0..count], 0..) |*entry, index| entry.* = key('f', manifest.result, manifest.ordinal, @intCast(offset / records.fragment_bytes + index));
+        try turn.prefetch(keys[0..count]);
+        for (keys[0..count]) |entry| {
+            const fragment = (try turn.read(entry)) orelse return error.MissingResultFragment;
+            const end = @min(offset + records.fragment_bytes, manifest.bytes);
+            if (fragment.len != end - offset) return error.InvalidResultFragment;
+            @memcpy(output[offset..end], fragment.slice());
+            offset = end;
+        }
     }
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(output[0..manifest.bytes], &digest, .{});

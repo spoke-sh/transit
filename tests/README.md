@@ -10353,6 +10353,89 @@ A focused `just test::query` rerun at `3d0d7819` passes with delivery in 35.52 s
 That rerun does not establish the cause of the earlier timeout. Full clean
 qualification of this follow-up remains pending.
 
+### Completed console controls after observation retries
+
+Frozen ReleaseSafe binaries at `3d6ba315` complete two 20-repetition console
+controls on owned ext4 fixtures. Each has 140 measured cases, independent row
+checks and verified final cardinality. Times exclude preparation of retained
+history and the requested idle gaps. The default control has eight resident pages
+and adaptive workers; the idle control has 64 pages and a 1.5-second gap before
+each measured statement. They vary two controls and are not a cache-only comparison.
+
+| Case | Default p50 / p95 (ms) | Idle, 64 pages p50 / p95 (ms) |
+| --- | ---: | ---: |
+| INSERT one row | 933 / 1,232 | 1,679 / 2,533 |
+| UPDATE one row | 926 / 1,398 | 1,558 / 2,220 |
+| UPDATE same value | 919 / 1,837 | 1,604 / 2,002 |
+| UPDATE absent key | 897 / 2,249 | 1,568 / 4,154 |
+| DELETE one row | 980 / 1,677 | 1,681 / 2,967 |
+| DELETE absent key | 898 / 1,116 | 1,652 / 2,760 |
+| INSERT three rows | 955 / 2,419 | 1,698 / 2,276 |
+
+These are empirical nearest-rank percentiles from 20 samples per case on a shared
+host. They are neither an SLO nor a paired speedup against the earlier failed
+baseline. The [raw reports](mutation_latency/results/2026-10-01/README.md) retain
+all samples, controls and executable hashes. No p99 is established.
+
+The same build's fixed-20-ms/idle/cache-64 control fails after 34 cases. Its next
+three-row INSERT spends 2,003 ms in submission and returns unavailable without a
+receipt; the exact pending identity remains at the reported fixture path. No
+automatic resend is attempted. The direct caller with 12 rows, six retained
+updates and one reader completes 14 measured cases, then stops during cleanup
+on an unavailable observation with input 119 already recorded. Its read policy
+is single-attempt, and the run remains failed.
+
+The default instrumented control completes 21 cases. Ten `HttpCapacity` refusals
+occur across native traffic during those measurements; the counters include
+background workers and do not attribute every refusal to the console. Initial
+cases retain about 57–60 provider POSTs per statement. Provider work dominates
+the reported authority work; their durations overlap and must not be summed as
+separate elapsed phases. One idle second records seven native requests, versus
+145 in the earlier fixed-20-ms instrumented control. This evidence does not
+justify changing adaptive worker defaults to faster fixed polling.
+
+At `3d6ba315`, full `just check` passes, including 422 CLI diagnostic cases, and
+`just test::server` passes in 59.56 s with the new fault schedule. Its clean run
+was interrupted to retire the merged worktree; it is incomplete, not passed.
+The earlier clean run at `3d0d7819` repeats the 180-second query-delivery timeout.
+
+### Physical-storage query follow-up
+
+The combined and focused query schedules each create fresh state and constrain
+execution to one CPU. Inspection found a placement difference: the successful
+focused `3d0d7819` control used `/tmp` on tmpfs, while clean CI uses ext4 under
+`/var/tmp`. An isolated ext4 rerun at the same revision also times out in delivery
+after 180 seconds; a subsequent tmpfs control passes delivery in 33.41 s.
+Shared-host interference remains uncontrolled, but accumulated fixture history
+is not the explanation: the schedules use independent stores.
+
+Station now batches up to eight captured/received fragment reads per native
+request. At `38e5a328`, package units verify identical bytes/manifests with fewer
+reader calls, missing/corrupt fragment rejection and sticky unavailable/denied
+batch failures. The focused ext4 proof passes without changing its deadline:
+write 6.93 s, seal 2.77 s, recovery 10.05 s, publication 1.12 s, delivery 56.32 s.
+Delivery records 1,849 native queries (146 batched reads) and 467 command
+attempts. It verifies 41 rows/21,296 bytes, lost replies, disk-provider restart,
+cancellation, complete segment/chain validation and retained acknowledgement.
+An ext4 control at merged `3d6ba315`, including the other intervening changes but
+without fragment batching, completes delivery in 112.82 s. These are single
+shared-host observations, not a percentile comparison or a guaranteed speedup.
+The entire difference from the earlier `3d0d7819` timeout cannot be attributed to
+fragment batching. [Raw query logs](mutation_latency/results/2026-10-01/README.md#focused-query-storage-controls)
+retain the phases and failures. Focused results alone do not establish complete
+clean qualification.
+
+Match clean CI's physical placement explicitly, after checking the host's mount:
+
+```sh
+mkdir -p /var/tmp/transit-query-proof
+nix develop --command env TMPDIR=/var/tmp/transit-query-proof just test::query
+```
+
+The query runner reports each completed or failed phase's elapsed time and fixed
+native attempt counts, including on timeout. Attempts are transport observations,
+not counts of distinct durable effects.
+
 ## Boolean integration with native admission and Fuze validation
 
 At `014e4f6d`, the Boolean branch is rebased onto main `e82c8430`, retaining

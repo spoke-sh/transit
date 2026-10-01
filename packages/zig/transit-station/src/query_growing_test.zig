@@ -20,17 +20,33 @@ const Store = struct {
     input: u64 = 100,
     source_reads: usize = 0,
     unavailable: bool = false,
+    batch_reads: bool = false,
+    point_calls: usize = 0,
+    batch_calls: usize = 0,
+    batch_failure: ?anyerror = null,
     fn deinit(self: *Store) void {
         self.state.deinit(t.allocator);
         self.source.deinit(t.allocator);
     }
     fn turn(self: *Store, frame: Frame, peer: u64) !Turn {
         self.input += 1;
-        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .version = metadata, .version_entries = entries });
+        return Turn.init(.{ .realm = 1, .principal = 65536, .pid = self.pid, .generation = 3, .sequence = self.input, .revision = self.revision, .input = .{ .position = self.input, .ordinal = self.input, .value = try frame.encode(), .origin = .{ .process = .{ .pid = peer, .turn = self.input - 1, .output = 0 } } }, .permit = null, .needs_permit = false }, .{ .id = self.input + 1000, .pid = self.pid, .principal = 65536, .generation = 3, .input = self.input, .process_revision = self.revision, .resource = self.resource, .revision = self.revision, .deadline_ms = 10_000 }, .{ .context = self, .read = read, .many = many, .cache_reads = self.batch_reads, .version = metadata, .version_entries = entries });
     }
     fn read(raw: *anyopaque, _: p.Growth.View, key: p.Value) !?p.Value {
         const self: *Store = @ptrCast(@alignCast(raw));
+        self.point_calls += 1;
         return self.state.get(key);
+    }
+    fn many(raw: *anyopaque, view: p.Growth.View, keys: [p.Growth.page_size]?p.Value) ![p.Growth.page_size]?p.Growth.Entry {
+        const self: *Store = @ptrCast(@alignCast(raw));
+        self.batch_calls += 1;
+        if (self.batch_failure) |err| return err;
+        try t.expectEqual(self.revision, view.revision);
+        var result: [p.Growth.page_size]?p.Growth.Entry = @splat(null);
+        for (keys, 0..) |slot, index| if (slot) |key| {
+            if (self.state.get(key)) |value| result[index] = .{ .key = key, .value = value, .revision = self.revision };
+        };
+        return result;
     }
     fn metadata(raw: *anyopaque, id: p.Growth.ReadVersionId) !p.Growth.ReadVersion {
         const self: *Store = @ptrCast(@alignCast(raw));
@@ -104,6 +120,45 @@ fn advance(store: *Store, continuation: q.Continuation, workspace: []u8, cancel:
     return .{ .turn = turn, .result = result };
 }
 
+fn batchedSegment(store: *Store, comptime read: anytype, identity: u64, tag: u8, missing: anyerror) !void {
+    var expected: [r.segment_bytes]u8 = undefined;
+    var actual: [r.segment_bytes]u8 = undefined;
+    var plain = try store.turn(.{ .kind = .cast }, store.pid);
+    store.point_calls = 0;
+    const before = try read(&plain, identity, 0, &expected);
+    const separate_calls = store.point_calls;
+    store.batch_reads = true;
+    defer store.batch_reads = false;
+    var batched = try store.turn(.{ .kind = .cast }, store.pid);
+    store.point_calls = 0;
+    store.batch_calls = 0;
+    const after = try read(&batched, identity, 0, &actual);
+    try t.expect(std.meta.eql(before.manifest, after.manifest));
+    try t.expectEqualSlices(u8, before.bytes, after.bytes);
+    try t.expect(store.batch_calls > 0 and store.point_calls + store.batch_calls < separate_calls);
+
+    const first = r.key(tag, identity, 0, 0);
+    const retained = store.state.get(first).?;
+    _ = store.state.remove(first);
+    batched = try store.turn(.{ .kind = .cast }, store.pid);
+    try t.expectError(missing, read(&batched, identity, 0, &actual));
+    var changed = retained;
+    changed.data[0] ^= 1;
+    try store.state.put(t.allocator, first, changed);
+    batched = try store.turn(.{ .kind = .cast }, store.pid);
+    try t.expectError(error.InvalidResultDigest, read(&batched, identity, 0, &actual));
+    try store.state.put(t.allocator, first, retained);
+
+    for ([_]anyerror{ error.AuthorityUnavailable, error.AccessDenied }) |failure| {
+        store.batch_failure = failure;
+        batched = try store.turn(.{ .kind = .cast }, store.pid);
+        try t.expectError(failure, read(&batched, identity, 0, &actual));
+        store.batch_failure = null;
+        try t.expectError(failure, batched.read(first));
+        try t.expectError(failure, batched.validate());
+    }
+}
+
 test "growing capture seals bounded segments across fresh turns and keeps complete evidence without source access" {
     var store: Store = .{};
     defer store.deinit();
@@ -171,6 +226,7 @@ test "growing capture seals bounded segments across fresh turns and keeps comple
     try t.expectEqual(result.progress.rows, rows);
     try t.expectEqual(result.job.bytes, bytes);
     try t.expectEqualSlices(u8, &chain, &result.job.chain);
+    try batchedSegment(&store, q.capturedSegment, job.result, 'f', error.MissingResultFragment);
     var duplicate_call = try store.turn(.{ .kind = .call, .correlation = job.correlation }, 8);
     try t.expectError(error.CorrelationAlreadyUsed, q.start(&duplicate_call, table, .{ .projection = &.{ 0, 1 } }));
     try t.expectError(error.InvalidQueryOrdinal, q.capturedSegment(&inspect, job.result, result.progress.segments, &buffer));
@@ -328,6 +384,7 @@ test "growing result delivery preserves bounded progress through fresh handlers 
     }
     try t.expectEqual(result.rows, rows);
     try t.expectEqualSlices(u8, &result.chain, &chain);
+    try batchedSegment(&receiver, q.completedSegment, correlation, 'd', error.IncompleteResultSegment);
     try t.expect(producer.state.count() > 32 and receiver.state.count() > 32);
     var late = try receiver.turn(completion.?, 2);
     try t.expect(try q.dispatch(&late, completion.?, context));
