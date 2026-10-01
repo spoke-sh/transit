@@ -7,7 +7,9 @@ pub const WaitPhase = enum(u8) { waiting = 1, replied = 2, timed_out = 3, cancel
 pub const Page = p.Growth.Batch(p.Growth.Entry, p.Value);
 pub const Reader = struct {
     context: *anyopaque,
+    cache_reads: bool = false,
     read: *const fn (*anyopaque, p.Growth.View, p.Value) anyerror!?p.Value,
+    many: ?*const fn (*anyopaque, View, [p.Growth.page_size]?p.Value) anyerror![p.Growth.page_size]?p.Growth.Entry = null,
     page: ?*const fn (*anyopaque, p.Growth.View, ?p.Value) anyerror!Page = null,
     version: ?*const fn (*anyopaque, p.Growth.ReadVersionId) anyerror!p.Growth.ReadVersion = null,
     version_entries: ?*const fn (*anyopaque, p.Growth.ReadVersion, ?p.Value, ?p.Value) anyerror!Page = null,
@@ -23,6 +25,10 @@ reader: Reader,
 read_error: ?anyerror = null,
 decision: Decision,
 resource_deadline_ms: ?u64 = null,
+// Fixed resident bound, scoped to this exact captured view. Absence is cached too.
+read_cache: [p.Growth.page_size]?struct { key: p.Value, value: ?p.Value } = @splat(null),
+cache_view: ?View = null,
+cache_next: usize = 0,
 
 /// A read-only borrow of this turn's captured committed cut. Point reads and
 /// pages both exclude private writes, without acquiring/retaining a new view.
@@ -176,11 +182,56 @@ pub fn read(self: *Turn, key: p.Value) !?p.Value {
     for (self.decision.mutations) |slot| if (slot) |mutation| if (mutation.key.eql(key)) return mutation.value;
     return self.readCommitted(key);
 }
-fn readCommitted(self: *Turn, key: p.Value) !?p.Value {
-    return self.reader.read(self.reader.context, self.view, key) catch |err| {
+/// Prefetch only missing committed keys, bounded by one protocol page. Errors
+/// poison the entire proposal. Private writes retain read-your-writes precedence.
+pub fn prefetch(self: *Turn, keys: []const p.Value) !void {
+    if (self.read_error) |err| return err;
+    if (keys.len > p.Growth.page_size) return error.MutationBudgetExceeded;
+    const many = self.reader.many orelse return;
+    if (!self.reader.cache_reads) return;
+    self.checkCache();
+    var requested: [p.Growth.page_size]?p.Value = @splat(null);
+    var count: usize = 0;
+    outer: for (keys) |key| {
+        try p.State.key(key);
+        for (self.read_cache) |slot| if (slot) |entry| if (entry.key.eql(key)) continue :outer;
+        for (requested[0..count]) |slot| if (slot.?.eql(key)) continue :outer;
+        requested[count] = key;
+        count += 1;
+    }
+    if (count == 0) return;
+    const entries = many(self.reader.context, self.view, requested) catch |err| {
         self.read_error = err;
         return err;
     };
+    for (requested[0..count], entries[0..count]) |key, entry| self.seedRead(key.?, if (entry) |value| value.value else null);
+}
+fn checkCache(self: *Turn) void {
+    if (self.cache_view == null or !std.meta.eql(self.cache_view.?, self.view)) {
+        self.read_cache = @splat(null);
+        self.cache_next = 0;
+        self.cache_view = self.view;
+    }
+}
+/// Seed only a read already validated against this exact captured view.
+pub fn seedRead(self: *Turn, key: p.Value, value: ?p.Value) void {
+    if (!self.reader.cache_reads) return;
+    self.checkCache();
+    self.read_cache[self.cache_next] = .{ .key = key, .value = value };
+    self.cache_next = (self.cache_next + 1) % self.read_cache.len;
+}
+fn readCommitted(self: *Turn, key: p.Value) !?p.Value {
+    if (self.read_error) |err| return err;
+    if (self.reader.cache_reads) {
+        self.checkCache();
+        for (self.read_cache) |slot| if (slot) |entry| if (entry.key.eql(key)) return entry.value;
+    }
+    const value = self.reader.read(self.reader.context, self.view, key) catch |err| {
+        self.read_error = err;
+        return err;
+    };
+    self.seedRead(key, value);
+    return value;
 }
 pub fn put(self: *Turn, key: p.Value, value: p.Value) !void {
     try userKey(key);
@@ -338,4 +389,30 @@ test "finite waits cannot outlive the process or required state" {
     try std.testing.expectError(error.InvalidWaitLifetime, turn.callWithTimer(8, .{}, 151, 3));
     try std.testing.expectError(error.InvalidTimerObserver, turn.callWithTimer(8, .{}, 100, 0));
     _ = try turn.callWithTimer(8, .{}, 150, 3);
+}
+
+test "captured cache preserves private precedence, absence, poison and view boundaries" {
+    var source: @import("TestStore.zig") = .{};
+    var turn = try source.turn(.{});
+    turn.reader.cache_reads = true;
+    const key = try p.Value.init("a");
+    try std.testing.expectEqual(null, try turn.read(key));
+    try std.testing.expectEqual(null, try turn.read(key));
+    try std.testing.expectEqual(1, source.reads);
+    try turn.put(key, p.Value.integer(7));
+    try std.testing.expectEqual(7, try (try turn.read(key)).?.asInteger());
+    var committed_source = turn.committed();
+    try std.testing.expectEqual(null, try committed_source.read(key));
+    source.fail = true;
+    try std.testing.expectError(error.Unavailable, turn.read(try p.Value.init("b")));
+    try std.testing.expectError(error.Unavailable, turn.read(key));
+    try std.testing.expectError(error.Unavailable, turn.validate());
+    source.fail = false;
+    var next = try source.turn(.{});
+    next.reader.cache_reads = true;
+    _ = try next.read(key);
+    try std.testing.expectEqual(3, source.reads);
+    next.view.revision += 1;
+    _ = try next.read(key);
+    try std.testing.expectEqual(4, source.reads);
 }

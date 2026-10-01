@@ -1,6 +1,7 @@
 //! Console composition of the existing signed write clients. Persist before
 //! sending; admission, processed input and terminal outcome remain distinct.
 const std = @import("std");
+const Timing = @import("Timing.zig");
 const q = @import("transit_query");
 const c = @import("transit_catalog");
 const Console = @import("Console.zig").Console;
@@ -93,6 +94,7 @@ pub fn open(init: std.process.Init, path: []const u8, config: Config, client: *q
                 const frame = try q.station.Frame.decode(pending.signed.request.command.send.value);
                 const command = try q.TableMutationRecords.Command.decode(&frame.payload);
                 const saved_reference = switch (command) {
+                    .execute => |v| try v.request.reference(v.namespace),
                     .begin => |v| v.reference,
                     .part => |v| v.reference,
                     .seal, .apply, .cancel => |v| v,
@@ -145,6 +147,12 @@ fn save(self: *Self) !void {
     try file.replace(self.io);
     if (std.c.fsync(parent.handle) != 0) return error.ConsoleRecoverySyncFailed;
 }
+fn saveTimed(self: *Self, timing: *Timing) !void {
+    const previous = timing.phase;
+    timing.enter(.persist);
+    defer timing.enter(previous);
+    try self.save();
+}
 fn identity(io: std.Io) !u64 {
     var bytes: [8]u8 = undefined;
     try io.randomSecure(&bytes);
@@ -154,11 +162,15 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
     if (self.unresolved() or console.session.pending != null or console.session.input != null or (console.session.namespace != null and !console.session.complete)) return error.UnresolvedSubmission;
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
     defer timing.report();
-    timing.enter(.compile);
+    timing.enter(.prepare);
     const operation: Operation = switch (route) {
         .mutation => mutation: {
             const writer = if (self.mutation) |*client| client else return error.ConsoleWriterRequired;
-            const request = writer.compileSql(self.record.name.?, text) catch |err| return console.sqlFailure(text, err);
+            const description = try writer.describe();
+            timing.enter(.compile);
+            const request = q.TableMutationRequest.fromSql(writer.connection.realm, writer.connection.writer, description.table, self.record.name.?, text) catch |err| return console.sqlFailure(text, err);
+            if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
+            timing.enter(.prepare);
             const namespace = try identity(self.io);
             // A collision is a conflict, never adoption of somebody else's work.
             if (try writer.status(try request.reference(namespace)) != null) return error.MutationIdentityConflict;
@@ -167,7 +179,9 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
         },
         .declaration => creation: {
             const catalog = if (self.catalog) |*client| client else return error.ConsoleCatalogRequired;
+            timing.enter(.compile);
             const request = c.Model.CreateTable.compile(catalog.connection.scope, try identity(self.io), try identity(self.io), @intCast((try identity(self.io) % std.math.maxInt(u32)) + 1), text) catch |err| return console.sqlFailure(text, err);
+            timing.enter(.prepare);
             const pending = try catalog.prepareCreate(request);
             break :creation .{ .creation = .{ .request = request, .pending = pending, .input = null } };
         },
@@ -177,10 +191,8 @@ pub fn start(self: *Self, console: *Console, text: []const u8, route: q.fuze.Sql
     self.record.operation = operation;
     self.record.complete = false;
     self.record.cancelling = false;
-    timing.enter(.persist);
-    try self.save();
-    timing.enter(.submit);
-    try self.advance(console);
+    try self.saveTimed(&timing);
+    try self.advance(console, &timing);
 }
 fn check(self: *Self, deadline: i64) !void {
     if (self.failed) return error.ConsoleRecoveryWriteFailed;
@@ -190,10 +202,9 @@ fn check(self: *Self, deadline: i64) !void {
 pub fn recover(self: *Self, console: *Console) !void {
     var timing = @import("Timing.zig").start(console.init, console.preferences.timing);
     defer timing.report();
-    timing.enter(.submit);
-    try self.advance(console);
+    try self.advance(console, &timing);
 }
-fn advance(self: *Self, console: *Console) !void {
+fn advance(self: *Self, console: *Console, timing: *Timing) !void {
     const deadline = std.Io.Clock.boot.now(self.io).toMilliseconds() + 300000;
     if (self.record.operation == null) return error.NoSavedWrite;
     while (true) {
@@ -203,13 +214,16 @@ fn advance(self: *Self, console: *Console) !void {
                 const writer = &self.mutation.?;
                 if (value.pending) |pending| {
                     if (value.input == null) {
+                        timing.enter(.submit);
                         value.input = (try writer.submit(pending)).position;
-                        try self.save();
+                        try self.saveTimed(timing);
                     }
+                    timing.enter(.wait);
                     if (try writer.observe(pending, value.input.?) == .pending) {
                         try self.io.sleep(.fromMilliseconds(50), .awake);
                         continue;
                     }
+                    timing.enter(.fetch);
                     if (try writer.rejection(pending, value.input.?)) |_| {
                         // Keep the frozen command and input for current-authorized
                         // inspection of the rejection on subsequent .status.
@@ -218,42 +232,57 @@ fn advance(self: *Self, console: *Console) !void {
                         // active upload recoverable, including explicit cancel.
                         if (current == null or current.?.terminal() or !self.record.cancelling) {
                             self.record.complete = current == null or current.?.terminal();
-                            try self.save();
-                            _ = try self.status(console);
+                            try self.saveTimed(timing);
+                            _ = try self.statusTimed(console, timing);
                             return error.MutationInputRejected;
                         }
                     }
                     value.pending = null;
                     value.input = null;
-                    try self.save();
+                    try self.saveTimed(timing);
                 }
                 const reference = try value.request.reference(value.namespace);
-                if (try writer.status(reference)) |outcome| if (outcome.terminal()) {
+                timing.enter(.prepare);
+                // prepareNext already batches the full terminal status with the
+                // metadata needed for a successor. Avoid a separate status read
+                // on every intermediate upload command.
+                value.pending = if (self.record.cancelling) cancel: {
+                    timing.enter(.fetch);
+                    const outcome = try writer.status(reference);
+                    timing.enter(.prepare);
+                    break :cancel if (outcome != null and outcome.?.terminal()) null else try writer.prepare(.{ .cancel = reference });
+                } else try writer.prepareNext(value.namespace, value.request);
+                if (value.pending == null) {
+                    timing.enter(.fetch);
+                    const outcome = (try writer.status(reference)) orelse return error.InvalidConsoleRecovery;
+                    if (!outcome.terminal()) return error.InvalidConsoleRecovery;
                     self.record.complete = true;
-                    try self.save();
-                    _ = try self.status(console);
+                    try self.saveTimed(timing);
+                    _ = try self.statusTimed(console, timing);
                     if (outcome.phase == .rejected) return error.MutationRejected;
                     return;
-                };
-                value.pending = if (self.record.cancelling) try writer.prepare(.{ .cancel = reference }) else (try writer.prepareNext(value.namespace, value.request)) orelse continue;
-                try self.save();
+                }
+                try self.saveTimed(timing);
             },
             .creation => |*value| {
                 const catalog = &self.catalog.?;
                 if (value.input == null) {
+                    timing.enter(.submit);
                     value.input = (try catalog.submit(value.pending)).position;
-                    try self.save();
+                    try self.saveTimed(timing);
                 }
+                timing.enter(.wait);
                 if (try catalog.observe(value.pending, value.input.?) == .pending) {
                     try self.io.sleep(.fromMilliseconds(50), .awake);
                     continue;
                 }
+                timing.enter(.fetch);
                 const disposition = try catalog.inputDisposition(value.pending, value.input.?);
                 const receipt = if (disposition == null) try catalog.status(value.request) else null;
                 if (receipt == null and disposition == null) return error.CatalogOutcomeMissing;
                 self.record.complete = true;
-                try self.save();
-                _ = try self.status(console);
+                try self.saveTimed(timing);
+                _ = try self.statusTimed(console, timing);
                 if (disposition != null or receipt.?.outcome != .applied) return error.CatalogCreateRejected;
                 return;
             },
@@ -269,12 +298,17 @@ pub fn cancel(self: *Self, console: *Console) !void {
 }
 /// Observation only. Opening a console and .status never retry signed work.
 pub fn status(self: *Self, console: *Console) !bool {
+    return self.statusTimed(console, null);
+}
+fn statusTimed(self: *Self, console: *Console, timing: ?*Timing) !bool {
+    if (timing) |clock| clock.enter(.fetch);
     var buffer: [4096]u8 = undefined;
     var out: std.Io.Writer = .fixed(&buffer);
     const destination = console.out;
     console.out = &out;
     defer console.out = destination;
     const found = try self.statusInto(console);
+    if (timing) |clock| clock.enter(.render);
     try @import("Output.zig").write(console.init, destination, out.buffered());
     return found;
 }

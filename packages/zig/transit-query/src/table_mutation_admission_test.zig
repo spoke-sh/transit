@@ -426,3 +426,53 @@ test "invalid definition bytes are rejected but corrupt published chunks remain 
     try t.expectEqual(.sealed, (try admission.status(&turn, 2)).?.phase);
     try t.expectEqual(null, try row(&store, table, 1));
 }
+
+test "inline mutation atomically commits three rows and outcome; replay and cancel preserve it" {
+    var store: Store = .{};
+    defer store.deinit();
+    const table = try setup(&store);
+    const request = try sql(&store, table, "INSERT INTO items (id,value) VALUES(1,'a'),(2,'b'),(3,'c')");
+    const command: r.Command = .{ .execute = .{ .namespace = 400, .policy_revision = 1, .request = request } };
+    var turn = try input(&store, 10, command);
+    const outcome = try admission.dispatch(&turn);
+    try t.expectEqual(.applied, outcome.phase);
+    try t.expectEqual(3, outcome.affected_rows);
+    try t.expectEqual(4, mutations(turn));
+    try t.expectEqual(null, try row(&store, table, 1));
+    try store.commit(turn);
+    var recovered = try store.clone();
+    defer recovered.deinit();
+    turn = try input(&recovered, 10, command);
+    try t.expect(std.meta.eql(outcome, try admission.dispatch(&turn)));
+    try t.expectEqual(0, mutations(turn));
+    try t.expectEqual(null, try admission.active(&turn));
+    try t.expect(std.meta.eql(outcome, try execute(&recovered, .{ .cancel = outcome.reference })));
+    turn = try input(&recovered, 11, command);
+    try t.expectError(error.MutationPrincipalMismatch, admission.dispatch(&turn));
+    var changed = command;
+    changed.execute.request.plan = (try sql(&store, table, "DELETE FROM items WHERE id=1")).plan;
+    turn = try input(&recovered, 10, changed);
+    try t.expectError(error.MutationIdentityConflict, admission.dispatch(&turn));
+    try t.expectEqualStrings("a", (try row(&recovered, table, 1)).?.value.utf8.slice());
+}
+
+test "inline denial, duplicate rollback, no-op counts and upload exclusion" {
+    var store: Store = .{};
+    defer store.deinit();
+    const table = try setup(&store);
+    const inserted = try execute(&store, .{ .execute = .{ .namespace = 1, .policy_revision = 1, .request = try sql(&store, table, "INSERT INTO items (id,value) VALUES(2,'old')") } });
+    try t.expectEqual(.applied, inserted.phase);
+    const duplicate = try execute(&store, .{ .execute = .{ .namespace = 2, .policy_revision = 1, .request = try sql(&store, table, "INSERT INTO items (id,value) VALUES(1,'new'),(2,'duplicate')") } });
+    try t.expectEqual(.row_exists, duplicate.reason);
+    try t.expectEqual(null, try row(&store, table, 1));
+    const absent = try execute(&store, .{ .execute = .{ .namespace = 3, .policy_revision = 1, .request = try sql(&store, table, "DELETE FROM items WHERE id=99") } });
+    try t.expectEqual(0, absent.affected_rows);
+    const stale = try execute(&store, .{ .execute = .{ .namespace = 4, .policy_revision = 2, .request = try sql(&store, table, "DELETE FROM items WHERE id=2") } });
+    try t.expectEqual(.denied, stale.reason);
+    try t.expectEqualStrings("old", (try row(&store, table, 2)).?.value.utf8.slice());
+    const request = try sql(&store, table, "DELETE FROM items WHERE id=2");
+    _ = try execute(&store, .{ .begin = .{ .reference = try request.reference(5), .table = 1, .policy_revision = 1 } });
+    var blocked = try input(&store, 10, .{ .execute = .{ .namespace = 6, .policy_revision = 1, .request = request } });
+    try t.expectError(error.MutationBusy, admission.dispatch(&blocked));
+    try t.expectEqual(0, mutations(blocked));
+}

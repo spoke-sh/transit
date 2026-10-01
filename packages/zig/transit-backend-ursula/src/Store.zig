@@ -34,7 +34,7 @@ pub fn read(self: *Self, at: u64) !?growing.Entry {
 
 fn fetch(self: *Self, at: u64) !?growing.Entry {
     // Recovery needs one published head, not a catalog-sized replay buffer.
-    var response = try self.journal.client.send(.{ .read = .{
+    var response = try self.journal.send(.{ .read = .{
         .stream = self.journal.stream,
         .options = .{ .position = .{ .record = at }, .max_records = 1 },
     } });
@@ -83,14 +83,14 @@ fn head(entry: growing.Entry) growing.Head {
 }
 
 pub fn loadCheckpoint(self: *Self) !?Checkpoint {
-    var latest = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
+    var latest = try self.journal.send(.{ .read_snapshot = .{ .stream = self.journal.stream } });
     defer latest.deinit();
     if (latest.head.status == .not_found) return null;
     if (latest.head.status != .temporary_redirect) return error.InvalidSnapshotResponse;
     // The configured stream and opaque offset are authoritative, never a
     // provider-controlled Location URL to which credentials could be forwarded.
     const offset = (try latest.head.metadata()).snapshot_offset orelse return error.MissingSnapshotOffset;
-    var response = try self.journal.client.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
+    var response = try self.journal.send(.{ .read_snapshot = .{ .stream = self.journal.stream, .offset = offset } });
     defer response.deinit();
     try response.head.requireSuccess();
     if (response.body.len > adapter.max_record_bytes) return error.RecordTooLarge;
@@ -133,21 +133,21 @@ fn maintainImpl(self: *Self, authorized: growing.Head) !void {
         var bytes: [adapter.max_record_bytes]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         std.json.Stringify.value(Checkpoint{ .entry = current }, .{}, &writer) catch return error.RecordTooLarge;
-        var published = try self.journal.client.send(.{ .publish_snapshot = .{ .stream = self.journal.stream, .at = .{ .record = tail_position }, .body = writer.buffered(), .content_type = "application/json" } });
+        var published = try self.journal.send(.{ .publish_snapshot = .{ .stream = self.journal.stream, .at = .{ .record = tail_position }, .body = writer.buffered(), .content_type = "application/json" } });
         defer published.deinit();
         try published.head.requireSuccess();
         const saved = head((try self.loadCheckpoint() orelse return error.MissingCheckpoint).entry);
         if (saved.position < tail_position or saved.position > try self.tail() or saved.history_floor < authorized.history_floor or
             !std.mem.eql(u8, &saved.genesis, &current_head.genesis)) return error.StaleCheckpoint;
     }
-    var metadata = try self.journal.client.send(.{ .head = .{ .stream = self.journal.stream } });
+    var metadata = try self.journal.send(.{ .head = .{ .stream = self.journal.stream } });
     defer metadata.deinit();
     try metadata.head.requireSuccess();
     if (((try metadata.head.metadata()).record_first orelse return error.MissingRecordCoordinate) >= authorized.history_floor) {
         self.cached = null;
         return;
     }
-    var trimmed = try self.journal.client.send(.{ .advance_retention = .{ .stream = self.journal.stream, .at = .{ .record = authorized.history_floor } } });
+    var trimmed = try self.journal.send(.{ .advance_retention = .{ .stream = self.journal.stream, .at = .{ .record = authorized.history_floor } } });
     defer trimmed.deinit();
     try trimmed.head.requireSuccess();
     self.cached = null;

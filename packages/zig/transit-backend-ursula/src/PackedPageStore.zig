@@ -115,7 +115,7 @@ fn fetch(self: *Self, ref: pages.Reference, position: u64) !pages.Page {
     // Record and byte limits are mutually exclusive upstream. One record plus
     // the borrowed client's response ceiling bounds transport allocation; the
     // page codec independently enforces its smaller encoded-size contract.
-    var response = try self.authority.client.send(.{ .read = .{ .stream = self.journal().stream, .options = .{ .position = .{ .record = position }, .max_records = 1 } } });
+    var response = try self.authority.send(.{ .read = .{ .stream = self.journal().stream, .options = .{ .position = .{ .record = position }, .max_records = 1 } } });
     defer response.deinit();
     if (response.head.status == .not_found or response.head.status == .gone) return error.PageUnavailable;
     try response.head.requireSuccess();
@@ -145,7 +145,7 @@ fn append(self: *Self, ref: pages.Reference, page: *const pages.Page) !pages.Ref
     const body = try page.encode(&bytes);
     self.requests +|= 1;
     self.create_payload_bytes_attempted +|= body.len;
-    var response = try self.authority.client.send(.{ .append = .{
+    var response = try self.authority.send(.{ .append = .{
         .stream = self.journal().stream,
         .body = body,
         .options = .{ .content_type = "application/json" },
@@ -188,7 +188,7 @@ pub fn stageMany(self: *Self, batch: []const pages.Page, output: []pages.Referen
 }
 fn appendMany(self: *Self, frames: []const []const u8, references: []pages.Reference) !void {
     self.requests +|= 1;
-    var response = try self.authority.client.send(.{ .append_batch = .{
+    var response = try self.authority.send(.{ .append_batch = .{
         .stream = self.journal().stream,
         .frames = frames,
         .content_type = "application/json",

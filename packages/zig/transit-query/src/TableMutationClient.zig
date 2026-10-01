@@ -62,8 +62,9 @@ pub const Prepared = struct {
 /// a terminal Status describes whether rows were applied, rejected or cancelled.
 pub const Observation = enum { pending, processed };
 
-fn reference(command: r.Command) Ref {
+fn reference(command: r.Command) !Ref {
     return switch (command) {
+        .execute => |value| try value.request.reference(value.namespace),
         .begin => |value| value.reference,
         .part => |value| value.reference,
         .seal, .apply, .cancel => |value| value,
@@ -78,9 +79,13 @@ fn checkedReference(prepared: Prepared) !Ref {
     const frame = try s.Frame.decode(request.command.send.value);
     if (frame.kind != .cast) return error.InvalidMutationPrepared;
     const command = try r.Command.decode(&frame.payload);
-    const ref = reference(command);
+    const ref = try reference(command);
     const target = prepared.connection;
     if (request.realm != target.realm or request.principal != target.principal or request.command.send.pid != target.writer or ref.resource != target.resource) return error.MutationIdentityConflict;
+    if (command == .execute) {
+        const value = command.execute.request;
+        if (value.realm != target.realm or value.writer != target.writer or value.resource != target.resource or value.table != target.table) return error.MutationIdentityConflict;
+    }
     if (command == .begin and command.begin.table != target.table) return error.MutationIdentityConflict;
     return ref;
 }
@@ -153,8 +158,14 @@ fn sign(self: *Self, command: r.Command) !Prepared {
 /// silently re-signing an uncertain operation.
 pub fn prepare(self: *Self, command: r.Command) !Prepared {
     _ = try command.encode();
-    try self.checkReference(reference(command));
-    if (command == .begin) {
+    try self.checkReference(try reference(command));
+    if (command == .execute) {
+        const value = command.execute;
+        const next = (try self.prepareNext(value.namespace, value.request)) orelse return error.MutationUploadClosed;
+        const frame = try s.Frame.decode(next.signed.request.command.send.value);
+        if (!(try command.encode()).eql(frame.payload)) return error.MutationIdentityConflict;
+        return next;
+    } else if (command == .begin) {
         const current = try self.describe();
         if (command.begin.table != self.connection.table) return error.MutationIdentityConflict;
         if (current.policy.revision != command.begin.policy_revision) return error.StaleMutationPolicy;
@@ -162,7 +173,7 @@ pub fn prepare(self: *Self, command: r.Command) !Prepared {
         if (try self.status(command.begin.reference)) |existing| {
             if (existing.policy_revision != command.begin.policy_revision) return error.MutationIdentityConflict;
         }
-    } else _ = (try self.status(reference(command))) orelse return error.MutationNotFound;
+    } else _ = (try self.status(try reference(command))) orelse return error.MutationNotFound;
     // Apply/cancel remain preparable after policy revocation so the owner can
     // record denial or cancellation. Preparation does not promise acceptance.
     return self.sign(command);
@@ -225,6 +236,7 @@ pub fn prepareNext(self: *Self, namespace: u64, request: Request) !?Prepared {
         if (!std.meta.eql(description.table.schema, request.plan.schema)) return error.MutationSourceChanged;
         if (!description.policy.permits(request.plan.operation)) return error.MutationDenied;
         try self.available(description.active, namespace);
+        if (ref.spec.length <= r.inline_bytes) return try self.sign(.{ .execute = .{ .namespace = namespace, .policy_revision = description.policy.revision, .request = request } });
         return try self.sign(.{ .begin = .{ .reference = ref, .table = request.table, .policy_revision = description.policy.revision } });
     };
     if (stored.terminal()) return null;

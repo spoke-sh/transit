@@ -40,13 +40,13 @@ def run(env, tls):
     active_key = (b'\0sv1L' + struct.pack('<QQ', 0, 0)).hex()
     until = time.monotonic() + 20
     while True:
-        entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
+        entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, view=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
         if entry and bytes.fromhex(entry['value']) == b'SV1L' + bytes(64): break
         assert time.monotonic() < until, 'observer failed to reclaim abandoned session slots'
         time.sleep(.25)
     session_keys = [(b'\0sv1S' + struct.pack('>QQ', principal, session)).hex()
                     for principal in (65536, 65537) for session in (1, 2)]
-    history = env['query'](34, {'read_entries': dict(resource=requests, revision=None, keys=session_keys + [None] * 4)})['body']['read_entries']['entries']
+    history = env['query'](34, {'read_entries': dict(resource=requests, revision=None, view=None, keys=session_keys + [None] * 4)})['body']['read_entries']['entries']
     assert all(entry and bytes.fromhex(entry['value'])[76] == 3 for entry in history[:4]), history
     print('Observer reclaimed four abandoned sessions without deleting history.', flush=True)
     counter_host = f'127.0.0.1:{tls[env["gateway_ports"][1]].port}'
@@ -105,7 +105,7 @@ def run(env, tls):
     sessions_before = None
 
     def active_sessions():
-        entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
+        entry = env['query'](34, {'read_entries': dict(resource=requests, revision=None, view=None, keys=[active_key] + [None] * 7)})['body']['read_entries']['entries'][0]
         return bytes.fromhex(entry['value'])
     try:
         until = time.monotonic() + 900

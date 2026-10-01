@@ -52,6 +52,8 @@ class Probe:
                     labels.append('principal:' + str(envelope['principal']) + ':' + classified)
                 connection = HTTPConnection(endpoint.hostname, endpoint.port, timeout=60)
                 started = time.monotonic_ns()
+                with owner.lock:
+                    owner.counts['attempts'] += 1
                 try:
                     headers = {key: val for key, val in self.headers.items()
                                if key.lower() not in ('host', 'connection', 'content-length')}
@@ -65,6 +67,25 @@ class Probe:
                             owner.counts[label] += length if label == 'request_bytes' else 1
                         elapsed = time.monotonic_ns() - started
                         owner.counts['elapsed_ns'] += elapsed
+                        owner.counts[self.command + ':elapsed_ns'] += elapsed
+                        # Optional native diagnostics describe this completed
+                        # attempt, independently of rate-limited event logs.
+                        metrics = response.getheader('x-transit-work')
+                        if native and metrics is not None:
+                            values = json.loads(metrics)
+                            for field in ('wait_ns', 'work_ns', 'cache_hits', 'cache_misses',
+                                          'staged_pages', 'staged_bytes'):
+                                amount = values[field]
+                                if not isinstance(amount, int) or amount < 0:
+                                    raise ValueError('invalid work counter')
+                                owner.counts['work:' + field] += amount
+                            for field in ('requests', 'failures', 'elapsed_ns',
+                                          'request_payload_bytes', 'response_bytes'):
+                                amount = values['provider'][field]
+                                if not isinstance(amount, int) or amount < 0:
+                                    raise ValueError('invalid provider counter')
+                                owner.counts['work:provider:' + field] += amount
+                            owner.counts['work:responses'] += 1
                         if native and self.path in ('/v1/query', '/v1/command'):
                             owner.counts[classified + ':elapsed_ns'] += elapsed
                             owner.counts['principal:' + str(envelope['principal']) + ':' + classified + ':elapsed_ns'] += elapsed
@@ -81,6 +102,10 @@ class Probe:
                 except (BrokenPipeError, ConnectionResetError):
                     with owner.lock:
                         owner.counts['disconnected'] += 1
+                except OSError:
+                    with owner.lock:
+                        owner.counts['transport_failures'] += 1
+                    self.send_error(503)
                 finally:
                     connection.close()
 

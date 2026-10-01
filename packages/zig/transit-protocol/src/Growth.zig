@@ -5,8 +5,8 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-/// SHA-256 of transit.native.v1.local-writer.sql-output-name-callers.2026-09-30.
-pub const Definition = enum { @"1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2" };
+/// SHA-256 of transit.native.v1.inline-table-mutation.captured-read-batch.2026-09-30.
+pub const Definition = enum { @"8629e1618a4f97ac07d5b4b454249a8d1b18eab9e969a9876345844ef4fa57fe" };
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -230,7 +230,7 @@ pub const Query = struct {
         read_versions: struct { pid: Id, after: ?ReadVersionId = null, position: ?Id = null },
         identity: void,
         read_access: Id,
-        read_entries: struct { resource: Id, revision: ?u64 = null, keys: [page_size]?p.Value },
+        read_entries: struct { resource: Id, revision: ?u64 = null, view: ?Id = null, keys: [page_size]?p.Value },
         open_snapshot: struct { resource: Id, nonce: [16]u8 },
         snapshot_entries: struct { id: SnapshotId, key: ?p.Value = null, after: ?p.Value = null },
         close_snapshot: SnapshotId,
@@ -298,7 +298,7 @@ pub const Response = struct {
         read_versions: Batch(ReadVersion, ReadVersionId),
         identity: Identity,
         read_access: Resource,
-        read_entries: struct { resource: Resource, entries: [page_size]?Entry },
+        read_entries: struct { resource: Resource, view: ?View = null, entries: [page_size]?Entry },
         open_snapshot: Snapshot,
         snapshot_entries: struct { snapshot: Snapshot, page: Batch(Entry, p.Value) },
         close_snapshot: SnapshotId,
@@ -388,6 +388,7 @@ pub fn validateQuery(query: Query) !void {
         .close_snapshot => |id| if (id.serial == 0) return error.InvalidRead,
         .association => |c| try validateKey(c.name),
         .read_entries => |c| {
+            if (c.view == 0) return error.InvalidRead;
             if (c.resource == 0 or c.keys[0] == null) return error.InvalidRead;
             var ended = false;
             for (c.keys, 0..) |slot, i| {
@@ -471,6 +472,10 @@ pub fn validateResponse(response: Response, query: Query) !void {
         .read_access => |id| if (response.body.read_access.id != id or response.body.read_access.phase != .active) return error.InvalidRead,
         .read_entries => |q| {
             const value = response.body.read_entries;
+            if (q.view) |id| {
+                const view = value.view orelse return error.InvalidRead;
+                if (view.id != id or view.resource != q.resource or view.revision != value.resource.revision or view.closed_at != null) return error.InvalidRead;
+            } else if (value.view != null) return error.InvalidRead;
             if (value.resource.id != q.resource or value.resource.phase != .active) return error.InvalidRead;
             if (q.revision) |revision| if (value.resource.revision != revision) return error.InvalidRead;
             for (value.entries, q.keys) |slot, key| if (slot) |entry| {
@@ -752,8 +757,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("05cec2791a50c31eb2e4585a5cdae882839a0252b84f989a42f12ae3a3b484b6", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("e382ec843b8dbffbf0ef37e07620ffbf94e4ca8d811deb33ddb7f0dd6650b25b", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("b434d396553a8fa41a1293bf82ff650e3104c7ca92c5f4833b9acfe4ecf1f4de", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("ba778e0087ef61d8d6476a6e083c89ba307ddc28d5e2201ebe67598d732b256e", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

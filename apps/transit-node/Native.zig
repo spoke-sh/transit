@@ -20,6 +20,7 @@ const Config = struct {
     request_timeout_ms: u32 = 2000,
     resident_pages: u16 = 16,
     accept_trace_parent: bool = false,
+    request_metrics: bool = false,
     maintenance: ?Maintenance.Config = null,
 };
 
@@ -30,7 +31,8 @@ pub fn run(init: std.process.Init, bytes: []const u8, mode: anytype, diagnostics
     if (config.request_timeout_ms == 0 or config.request_timeout_ms > 60000) return error.InvalidTimeout;
     var client = try adapter.ursula.Client.init(init.gpa, init.io, .{ .base_url = config.ursula_url, .max_response_bytes = 256 * 1024 });
     defer client.deinit();
-    var journal: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal }, .observer = diagnostics } };
+    var metrics: adapter.Metrics = .{};
+    var journal: adapter.Store = .{ .journal = .{ .client = &client, .stream = .{ .bucket = config.bucket, .name = config.journal }, .observer = diagnostics, .metrics = if (config.request_metrics) &metrics else null } };
     var pages = try adapter.PackedPageStore.init(init.gpa, journal.journal, config.resident_pages);
     defer pages.deinit();
     if (mode.initialize or mode.bootstrap) {
@@ -76,6 +78,20 @@ const Server = struct {
     work_started: ?std.Io.Clock.Timestamp = null,
     cache_hits: u64 = 0,
     cache_misses: u64 = 0,
+    before_metrics: adapter.Metrics = .{},
+    before_pages: u64 = 0,
+    before_bytes: u64 = 0,
+    metrics: ?Work = null,
+
+    const Work = struct {
+        wait_ns: u64,
+        work_ns: u64,
+        cache_hits: u64,
+        cache_misses: u64,
+        staged_pages: u64,
+        staged_bytes: u64,
+        provider: adapter.Metrics,
+    };
 
     fn acquire(self: *Server) !void {
         const waiting = std.Io.Clock.Timestamp.now(self.io, .awake);
@@ -85,6 +101,11 @@ const Server = struct {
         self.work_started = .now(self.io, .awake);
         self.cache_hits = self.engine.page_store.hits;
         self.cache_misses = self.engine.page_store.misses;
+        if (self.engine.journal.journal.metrics) |metrics| {
+            self.before_metrics = metrics.*;
+            self.before_pages = self.engine.page_store.created;
+            self.before_bytes = self.engine.page_store.create_payload_bytes_attempted;
+        }
         self.engine.journal.journal.parent_context = self.observation.span.context;
         self.engine.page_store.authority.parent_context = self.observation.span.context;
     }
@@ -93,6 +114,20 @@ const Server = struct {
         self.observation.work_ns = @intCast(@max(0, self.work_started.?.durationTo(.now(self.io, .awake)).raw.toNanoseconds()));
         self.observation.cache_hits = self.engine.page_store.hits - self.cache_hits;
         self.observation.cache_misses = self.engine.page_store.misses - self.cache_misses;
+        if (self.engine.journal.journal.metrics) |metrics| {
+            var delta: adapter.Metrics = undefined;
+            inline for (@typeInfo(adapter.Metrics).@"struct".field_names) |field|
+                @field(delta, field) = @field(metrics.*, field) - @field(self.before_metrics, field);
+            self.metrics = .{
+                .wait_ns = self.observation.wait_ns orelse 0,
+                .work_ns = self.observation.work_ns.?,
+                .cache_hits = self.observation.cache_hits.?,
+                .cache_misses = self.observation.cache_misses.?,
+                .staged_pages = self.engine.page_store.created - self.before_pages,
+                .staged_bytes = self.engine.page_store.create_payload_bytes_attempted - self.before_bytes,
+                .provider = delta,
+            };
+        }
         self.engine.journal.journal.parent_context = null;
         self.engine.page_store.authority.parent_context = null;
         self.locked = false;
@@ -108,7 +143,19 @@ const Server = struct {
             self.observation.error_type = @tagName(value.err);
             self.observation.protocol_outcome = if (status == .service_unavailable) .uncertain else .rejected;
         }
-        try request.respond(bytes, .{ .status = status, .keep_alive = true, .extra_headers = &.{.{ .name = "content-type", .value = "application/json" }} });
+        var metric_buffer: [512]u8 = undefined;
+        var metric_writer: std.Io.Writer = .fixed(&metric_buffer);
+        var headers: [2]std.http.Header = undefined;
+        headers[0] = .{ .name = "content-type", .value = "application/json" };
+        var count: usize = 1;
+        if (self.metrics) |metrics| {
+            // Diagnostics are optional and never change the authority result.
+            if (std.json.Stringify.value(metrics, .{}, &metric_writer)) |_| {
+                headers[1] = .{ .name = "x-transit-work", .value = metric_writer.buffered() };
+                count += 1;
+            } else |_| {}
+        }
+        try request.respond(bytes, .{ .status = status, .keep_alive = true, .extra_headers = headers[0..count] });
         self.observation.written = true;
     }
     fn failure(self: *Server, request: *std.http.Server.Request, err: anyerror) !void {

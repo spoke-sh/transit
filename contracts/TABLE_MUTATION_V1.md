@@ -181,6 +181,24 @@ zero. An exact repeated policy returns unchanged. The current Table declaration
 must match. Native current authorization, resource ownership and fencing remain
 separate requirements at commit and observation.
 
+Canonical requests of at most 223 bytes support direct `execute` admission in a
+single cast. The command binds the namespace, expected policy revision and full
+canonical request; its complete immutable reference is derived from those bytes.
+The owner checks the authenticated principal, destination, existing namespace,
+active upload, current policy and declaration in its captured view. At most three
+rows and the full terminal status commit together. No upload or active-pointer
+record is created. Repeating an exact terminal identity preserves its original
+result; conflicting principal, request or policy identity rejects. Revoked or
+stale policy produces a terminal denied outcome without row writes. An active
+large-request upload excludes direct admission. Native fencing and current
+commit authorization remain unchanged.
+
+The caller selects direct admission by encoded size. Larger requests use the
+bounded publication sequence below; both belong to the same current definition.
+An uncertain direct send must reconcile its exact signed request. Cancellation
+cannot replace that send or undo an applied outcome; after reconciliation it
+reports the existing terminal outcome.
+
 One active upload per owning resource is represented by a durable namespace
 pointer. Begin binds the immutable request reference, originating principal,
 Table, current declaration and expected policy revision. The namespace cannot
@@ -254,14 +272,15 @@ or inconsistent fields reject; stored values never receive compatibility default
 
 | Cast payload magic | Following fields |
 | --- | --- |
+| Execute `TME1` | Namespace u64, expected policy revision u64, canonical `TMR1` bytes (at most 223) |
 | Begin `TMB1` | `SPF1` reference, Table u32, expected policy revision u64 |
 | Part `TMP1` | `SPF1` reference, chunk ordinal u32, second-half flag u8 (0 or 1), 1–128 payload bytes |
 | Seal `TMZ1` | `SPF1` reference |
 | Apply `TMX1` | `SPF1` reference |
 | Cancel `TMK1` | `SPF1` reference |
 
-The largest payload is a 205-byte part; seal/apply/cancel occupy 72 bytes. They
-fit an ordinary Station frame without changing its bound. Namespace-only command
+Execute occupies at most 243 payload bytes and fits the existing Station frame
+bound. Publication commands retain their existing bounded encodings. Namespace-only command
 payloads reject; no decoder substitutes a current reference for missing fields.
 The contextual publication owner
 checks each part's exact required length. Decode borrows part bytes from the
@@ -289,7 +308,7 @@ distinct. The shared client does not discover a writer or provision these grants
 | `observe(prepared, receipt.position)` | `pending` or `processed` input progress for that admitted send, never a fabricated row result |
 | `rejection(prepared, receipt.position)` | Optional recorded input rejection, checked against the original principal, payload and input; separate from terminal request status |
 | `status(original_reference)` | Optional durable status bound to the original reference, principal and Table; current native read rights apply |
-| `prepareNext(namespace, request)` | One next begin/part/seal/apply command from committed staging state, or null for an existing terminal result |
+| `prepareNext(namespace, request)` | One direct execute or next begin/part/seal/apply command from committed state, or null for an existing terminal result |
 
 The saved envelope has required `version` (1), current `definition`, `connection`
 and `signed` fields. All connection identities and nested native fields retain

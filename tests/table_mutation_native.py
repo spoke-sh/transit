@@ -280,7 +280,8 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
             assert description['permissions'] == 7 and description['value_type'] == 'utf8'
             compiled = mutation({'compile':dict(name='items',sql="INSERT INTO items (id,value) VALUES(2,'host')",namespace='6')})['compiled']
             (root/'bridge-compiled.json').write_text(json.dumps(compiled))
-            first = mutation({'next':compiled})['prepared']
+            # Exercise explicit staging independently of automatic direct admission.
+            first = mutation({'prepare': {'begin': {'reference': compiled['reference'], 'table': 1, 'policy_revision': description['policy_revision']}}})['prepared']
             assert first is not None and submit(first) is None
             current = mutation({'status':compiled['reference']})['status']
             assert current['phase'] == 'uploading' and current['affected_rows'] == 0
@@ -356,7 +357,8 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                     premature = owner.call({'prepare':{'apply':operation['reference']}})['prepared']
                     premature_receipt = owner.call({'submit':premature})['receipt']
                     processed(premature_receipt['position'])
-                    assert owner.call({'rejection':dict(prepared=premature,input=premature_receipt['position'])}) == {'rejection':'not_sealed'}
+                    assert owner.call({'rejection':dict(prepared=premature,input=premature_receipt['position'])}) == {'rejection':None}
+                    assert owner.call({'status':operation['reference']})['status']['phase'] == 'applied'
                 for _ in range(16):
                     processed(receipt['position'])
                     observation = dict(prepared=token,input=receipt['position'])
@@ -388,7 +390,7 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                     ('update_missing', "UPDATE items SET value='absent' WHERE id=2", 'applied', 'none', 0, None),
                     ('insert', f"INSERT INTO items (value,id) VALUES('{label}',2)", 'applied', 'none', 1, (label,)),
                     ('insert_conflict', "INSERT INTO items (id,value) VALUES(0,'rollback'),(2,'conflict')", 'rejected', 'row_exists', 0, (label,)),
-                    ('cancel_upload', "INSERT INTO items (id,value) VALUES(0,'cancelled')", 'cancelled', 'none', 0, (label,)),
+                    ('cancel_upload', "INSERT INTO items (id,value) VALUES(0,'" + 'cancelled'*24 + "')", 'cancelled', 'none', 0, (label,)),
                 ]
                 for profile_index,(profile,sql,phase,reason,affected,value) in enumerate(profiles):
                     profile_started = time.monotonic()
@@ -412,10 +414,11 @@ def run(node, proof, host, port_host, library, cli, *, sdks=(), cold=False):
                         if cancel_now:
                             prepared = owner.call({'prepare':{'cancel':request['reference']}})['prepared']
                         saved.write_text(prepared)
-                        # Lose the APPLY admission receipt (or CANCEL during
+                        # Lose direct/APPLY admission receipt (or CANCEL during
                         # upload), then recreate the caller. Never select a
                         # successor or re-sign before reconciling this send.
-                        lose = not recovered and (cancel_now if profile == 'cancel_upload' else current_phase == 'sealed')
+                        direct = len(bytes.fromhex(request['request'])) <= 223
+                        lose = not recovered and (cancel_now if profile == 'cancel_upload' else (current_phase is None if direct else current_phase == 'sealed'))
                         if lose:
                             send_fault.update(lose=True,recovered=False)
                             try: owner.call({'submit':prepared})
