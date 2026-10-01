@@ -161,6 +161,13 @@ Its body limit is 49152 bytes. `Origin` must equal `public_origin` and
 Retain an uncertain submission's frozen token for exact retry. A read conflict
 permits a read retry; it does not authorize a new query.
 
+Board retries a native `HttpCapacity` refusal at most three times for query
+reads and token preparation, waiting 500 ms, one second and two seconds within
+the original request deadline. Each attempt repeats the same workspace request
+and checks current authority again; failed candidate pages are never disclosed.
+Signed submission, denial and other failures do not enter this retry. An
+exhausted capacity refusal remains `503 Unavailable`.
+
 The generated OpenAPI describes one v1 request/response model. Atlas advertises
 the configured visible query resource. Schemas bound result rows, columns and
 conflict alternatives to eight; the client validates full-width numbers and

@@ -65,11 +65,81 @@ class UnavailableQueryReplies:
         assert not self.thread.is_alive()
 
 
+class QueryCapacityRefusals:
+    """Refuse selected native calls from Board without forwarding them."""
+    def __init__(self, port, principal):
+        self.lock = threading.Lock()
+        self.selection, self.remaining, self.attempts = None, 0, 0
+        self.errors = []
+        owner = self
+        class Proxy(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers['Content-Length']))
+                signed = json.loads(body)
+                call = signed.get('query', signed.get('request', {}))
+                operation = call.get('kind', call.get('command'))
+                if isinstance(operation, dict): operation = next(iter(operation))
+                selected = (self.path, operation)
+                refusal = None
+                with owner.lock:
+                    if call.get('principal') == principal and selected == owner.selection:
+                        owner.attempts += 1
+                        if owner.remaining:
+                            owner.remaining -= 1
+                            refusal = owner.refusal
+                connection = None
+                try:
+                    if refusal:
+                        status, code = refusal
+                        data = json.dumps({'err': code}).encode()
+                    else:
+                        connection = HTTPConnection('127.0.0.1', port, timeout=10)
+                        headers = {'Content-Type': 'application/json'}
+                        if self.headers.get('traceparent'): headers['traceparent'] = self.headers['traceparent']
+                        connection.request('POST', self.path, body, headers)
+                        response = connection.getresponse()
+                        data, status = response.read(), response.status
+                    self.send_response(status)
+                    self.send_header('Content-Length', str(len(data)))
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    self.wfile.write(data)
+                except Exception as error:
+                    owner.errors.append(type(error).__name__)
+                    raise
+                finally:
+                    if connection: connection.close()
+        self.server = ThreadingHTTPServer(('127.0.0.1', 0), Proxy)
+        self.url = f'http://127.0.0.1:{self.server.server_address[1]}'
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def arm(self, path, operation, count, code='HttpCapacity', status=503):
+        with self.lock:
+            assert self.remaining == 0
+            self.selection, self.remaining, self.attempts = (path, operation), count, 0
+            self.refusal = status, code
+
+    def finish(self, *, attempts=None):
+        with self.lock:
+            assert self.remaining == 0, 'Expected capacity refusal was not reached'
+            if attempts is not None: assert self.attempts == attempts, self.attempts
+            self.selection = None
+        assert not self.errors, self.errors
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=5)
+        assert not self.thread.is_alive()
+
+
 def run(node, host, proof, board, browser=False):
     node, host, proof, board = (str(Path(path).resolve()) for path in (node, host, proof, board))
     with Fixture() as fixture:
         processes, logs = [], []
-        faults = None
+        faults = capacity = None
         def start(name, command):
             log = (fixture.root / f"{name}.log").open("w+")
             logs.append(log)
@@ -92,15 +162,16 @@ def run(node, host, proof, board, browser=False):
             admin("provision")
             workers = {name: start(name, [host, str(fixture.root / f"{name}.json")]) for name in ("source", "requester", "courier")}
             caller = json.loads((fixture.root / "cli.json").read_text())
+            capacity = QueryCapacityRefusals(port, caller['connection']['principal'])
             board_port = free_port()
             origin = f"http://127.0.0.1:{board_port}"
-            options = {"upstream": url, "realm": 45, "principal": 55, "profile": "native_v1", "seed_file": str(fixture.root / "inspector.seed"), "public_origin": origin, "port": board_port, "request_timeout_ms": 5000, "upstream_timeout_ms": 1500, "query": {"seed_file": caller["seed_file"], "connection": caller["connection"], "workspace": caller["workspace"]}}
+            options = {"upstream": capacity.url, "realm": 45, "principal": 55, "profile": "native_v1", "seed_file": str(fixture.root / "inspector.seed"), "public_origin": origin, "port": board_port, "request_timeout_ms": 5000, "upstream_timeout_ms": 1500, "query": {"seed_file": caller["seed_file"], "connection": caller["connection"], "workspace": caller["workspace"]}}
             config = fixture.root / "board.json"
             config.write_text(json.dumps(options))
             serving = start("board", [board, str(config)])
             wait_ready(fixture.http, serving, origin + "/health")
             faults = UnavailableQueryReplies(board_port)
-            def request(path, operation=None, *, status=200, headers=None, deadline=None):
+            def request(path, operation=None, *, status=200, headers=None, deadline=None, retry=True):
                 body = None if operation is None else json.dumps(operation).encode()
                 supplied = {"Origin": origin, "Content-Type": "application/json"} | (headers or {})
                 endpoint = faults.url if path == "/api/v1/query" else origin
@@ -112,6 +183,7 @@ def run(node, host, proof, board, browser=False):
                 recovering = path == "/api/v1/query" and status == 200 and kind in ("next", "submit")
                 if recovering and deadline is None: deadline = time.monotonic() + 10
                 attempts = (12 if path.split("?", 1)[0] == "/api/v1/atlas" else 8) if reading or recovering else 1
+                if not retry: attempts = 1
                 for attempt in range(attempts):
                     time.sleep(0.12)
                     remaining = 10 if deadline is None else deadline - time.monotonic()
@@ -217,7 +289,7 @@ def run(node, host, proof, board, browser=False):
                     if prepared is None: return
                     settle(prepared, deadline=until)
                     assert time.monotonic() < until
-            settle(prepared)
+            initial_receipt = settle(prepared)
             upload("1", compiled["bundle"])
             deadline = time.monotonic() + 120
             while True:
@@ -230,6 +302,27 @@ def run(node, host, proof, board, browser=False):
             assert page["cells"] == [[{"value": {"int64": "9007199254740994"}}]]
             assert page["evidence"]["manifest"]["rows"] == "1" and page["evidence"]["next"] is None
             assert page["evidence"]["manifest"]["basis"]["contract"] == compiled["contract"]
+            # One Board HTTP request must recover the classified read refusal.
+            # The fixture's outer observation retry is disabled for each control.
+            print('Board query capacity: recovering two native refusals in one page request', flush=True)
+            capacity.arm('/v1/query', 'resource', 2)
+            recovered = api({"page": {"namespace": "1"}}, retry=False)["page"]
+            capacity.finish()
+            assert recovered == page
+            capacity.arm('/v1/query', 'resource', 4)
+            api({"page": {"namespace": "1"}}, status=503, retry=False)
+            capacity.finish(attempts=4)
+            for code, native_status, board_status in [('AccessDenied', 403, 403), ('AuthorityUnavailable', 503, 503)]:
+                capacity.arm('/v1/query', 'resource', 1, code, native_status)
+                api({"page": {"namespace": "1"}}, status=board_status, retry=False)
+                capacity.finish(attempts=1)
+            # A signed submission never enters the adapter's read retry. Its
+            # explicit exact recovery still returns the original accepted receipt.
+            capacity.arm('/v1/command', 'send', 1)
+            api({"submit": prepared}, status=503, retry=False)
+            capacity.finish(attempts=1)
+            assert api({"submit": prepared})["receipt"] == initial_receipt
+            print('Board query capacity: bounded native read recovery, exhaustion, denial, unknown failure and explicit exact submission recovery passed', flush=True)
             # Validate actual public responses using the generated JS boundary.
             values = {"description": description, "compiled": compiled, "prepared": prepared, "page": page}
             wire_fixture = Path(".cache/verification/native-v1-query-wire.json")
@@ -290,6 +383,7 @@ def run(node, host, proof, board, browser=False):
         finally:
             try:
                 if faults is not None: faults.close()
+                if capacity is not None: capacity.close()
             finally:
                 for process in reversed(processes):
                     if process.poll() is None: process.kill()
