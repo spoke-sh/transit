@@ -7,6 +7,7 @@ import sys
 import json
 import unittest
 import run
+import budgets
 
 
 class Evidence(unittest.TestCase):
@@ -64,6 +65,54 @@ class Evidence(unittest.TestCase):
             self.assertEqual(report['status'], 'failed')
             self.assertFalse(report['completed'])
             self.assertEqual(report['summary'], [])
+
+    def matrix(self):
+        records = self.records()
+        for r in records[:-1]:
+            r.update(first_batch_ns=None, allocations=2, allocated_bytes=64,
+                source_bytes_read=100, source_read_calls=1, peak_live_bytes=128)
+        return dict(definition=run.DEFINITION, completed=True, status='passed', dirty=False,
+            parameters=dict(shapes=['narrow'], modes=['explicit'], caches=['warm_input'], engines=['transit'], repetitions=3, rows=3),
+            fixtures=[], toolchain={}, filesystem='ext2/ext3',
+            machine=dict(selected_cpu=0, platform='Linux', cpuinfo='model name: test'),
+            harness={'tests/fuze_benchmarks/'+name:'fixed' for name in budgets.DRIVERS},
+            comparator={k:'fixed' for k in ('duckdb', 'build', 'pyarrow', 'module_sha256')}, allocation_probe=dict(sha256='fixed'),
+            samples=[dict(shape='narrow', mode='explicit', cache='warm_input', engine='transit', repetition=i,
+                exit_code=0, image_peak_rss_kib=4096, input_pages=[], config=dict(expected_rows=3, expected_id_sum=3, expected_result_sum=3),
+                records=copy.deepcopy(records)) for i in range(3)])
+
+    def test_numeric_gate_rejects_regressions_and_changed_evidence(self):
+        report = self.matrix(); limits = budgets.numeric_limits(report)
+        self.assertEqual(budgets.check_matrix(report, limits), [])
+        for metric, value in [('cpu_ns', 1_000_000), ('elapsed_ns', 1_000_000), ('allocations', 3),
+                ('allocated_bytes', 65), ('source_bytes_read', 101), ('peak_live_bytes', 10000)]:
+            changed = copy.deepcopy(report)
+            for s in changed['samples']: s['records'][0][metric] = value
+            self.assertTrue(budgets.check_matrix(changed, limits), metric)
+        changed = copy.deepcopy(report); changed['samples'][0]['image_peak_rss_kib'] = 100000
+        self.assertTrue(budgets.check_matrix(changed, limits))
+        for change in ('failed', 'incomplete', 'dirty', 'missing', 'duplicate', 'result', 'cpu', 'driver', 'fixture'):
+            changed = copy.deepcopy(report)
+            if change == 'failed': changed['status'] = 'failed'
+            elif change == 'incomplete': changed['completed'] = False
+            elif change == 'dirty': changed['dirty'] = True
+            elif change == 'missing': changed['samples'].pop()
+            elif change == 'duplicate': changed['samples'].append(copy.deepcopy(changed['samples'][0]))
+            elif change == 'result': changed['samples'][0]['records'][-1]['result_sum'] = 999
+            elif change == 'cpu': changed['machine']['selected_cpu'] = 1
+            elif change == 'driver': changed['harness']['tests/fuze_benchmarks/main.zig'] = 'other'
+            else: changed['fixtures'] = ['other']
+            with self.subTest(change=change), self.assertRaises(ValueError): budgets.check_matrix(changed, limits)
+
+    def test_failed_gate_replaces_previous_success(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)/'result.json'; output.write_text('{"status":"passed"}')
+            result = subprocess.run([sys.executable, str(Path(budgets.__file__)), 'check', temporary,
+                str(Path(temporary)/'missing.json'), '--output', str(output)], capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            report = json.loads(output.read_text())
+            self.assertEqual(report['status'], 'failed')
+            self.assertFalse(report['completed'])
 
 
 if __name__ == '__main__': unittest.main()
