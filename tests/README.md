@@ -2500,6 +2500,24 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Exact caller rejection recovery — 2026-10-01
+
+Clean core at `5c76d03e` passes 19 tasks, then the caller probe expects
+`AccessDenied` but receives `AuthorityUnavailable` after a node page-stage read
+failure. A transient transport outcome does not establish the required denial.
+The [rejection record](verification/results/m37-caller-rejections-2026-10-01.json)
+preserves that failure and a controlled reproduction: the proxy replaces one
+actual denial with a classified 503, and the original probe fails.
+
+The corrected probe makes at most three attempts with the identical signed
+operation, retrying only `AuthorityUnavailable` and `AuthorityTimeout`. The
+existing 20-second outer limit still applies. The real caller schedule passes
+four injected rejection recoveries across two principals and two generations;
+the proxy compares signed bytes on each retry. Exact denial/rejection, unchanged
+state/revision, stale activation and lost/malformed accepted receipts remain
+required. Acceptance, other errors and exhausted retries still fail. This does
+not diagnose the underlying provider delay or qualify the unfinished core lane.
+
 ## Exchange example upload markers — 2026-10-01
 
 Both runnable HTTP and RPC examples reproduce `ChangedCallConfiguration` on

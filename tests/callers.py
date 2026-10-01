@@ -43,6 +43,8 @@ def run(node, cli, counter, byte_log, probe, delivery):
         verified_retries = set()
         malformed_views = set()
         malformed_receipts = set()
+        rejection_attempts = {}
+        rejection_retries = set()
         class Proxy(BaseHTTPRequestHandler):
             def log_message(self, *_):
                 pass
@@ -66,6 +68,15 @@ def run(node, cli, counter, byte_log, probe, delivery):
                     connection.request("POST", self.path, body, {"Content-Type": "application/json"})
                     response = connection.getresponse()
                     data = response.read()
+                    status = response.status
+                    if status == 403 and request.get("command", {}).get("turn", {}).get("effect") is not None:
+                        identity = (principal, request["sequence"])
+                        if identity not in rejection_attempts:
+                            rejection_attempts[identity] = body
+                            status, data = 503, b'{"err":"AuthorityUnavailable"}'
+                        else:
+                            assert body == rejection_attempts[identity], "Rejection retry changed signed bytes"
+                            rejection_retries.add(identity)
                     if response.status == 200 and any(kind in request.get("command", {}) for kind in ("turn", "deliver")):
                         if principal not in dropped:
                             dropped[principal] = (body, data, request["sequence"])
@@ -79,7 +90,7 @@ def run(node, cli, counter, byte_log, probe, delivery):
                                 self.unavailable()
                                 return
                             verified_retries.add(principal)
-                    self.send_response(response.status)
+                    self.send_response(status)
                     self.send_header("Content-Length", str(len(data)))
                     self.end_headers()
                     self.wfile.write(data)
@@ -193,6 +204,8 @@ def run(node, cli, counter, byte_log, probe, delivery):
                 call(index)
                 check(index, "verify")
             # No application reducer is present during either restart/recovery.
+            assert len(rejection_attempts) == len(rejection_retries) == 4
+            assert {principal for principal, _ in rejection_retries} == {1, 2}
             authority.kill()
             authority.wait(timeout=10)
             authority = start()
