@@ -1,0 +1,16 @@
+{
+  "completed": true,
+  "status": "passed",
+  "violations": [],
+  "budgets_sha256": "63365fed72acde73e8ce3e17194a2d9ddc6fb9a3b6ddc4c1a289309c6ac9bf5d",
+  "reports": {
+    "baseline": "1ac019350f5f8940235265c60b9b2d5b8d9d849b245cd31adb16dd1b3a69571c",
+    "projection-baseline": "f40cd42a6ccf4f628a14c2ef466e24ce6fcb48afdd176d4cd0713d6cb744cea3",
+    "batch1-baseline": "17467ef7f744e0cedabc1b9113cca34c15926c1ad507d077e81281ccd59410c8",
+    "filter-baseline": "555d695288914be2d5d6773b90cd6270f0606d5b1e79c290979cf353683ce754",
+    "count-baseline": "163055c20f2b800f621a89c74318b95200d0a7b0e91a7c05cf5b36f074d5e812",
+    "sum-baseline": "b4eaba0f1e57b6fdddde6a7d8b473169d25f69a30c6dfc69766b65f916c25ada",
+    "six-baseline": "2b28fcb10e5ff7aeeafd53ebfd28ec70751d4607a7d278eb786176b066464824",
+    "large-baseline": "588559587e4441f22ed81f99793b3a75c90df372cb49410843de2045392111bd"
+  }
+}
