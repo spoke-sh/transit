@@ -10201,3 +10201,52 @@ query-delivery phase after its existing 180-second deadline; it is not passed.
 A focused `just test::query` rerun at `3d0d7819` passes with delivery in 35.52 s.
 That rerun does not establish the cause of the earlier timeout. Full clean
 qualification of this follow-up remains pending.
+
+### Boolean integration with native admission and Fuze validation
+
+At `014e4f6d`, the Boolean branch is rebased onto main `e82c8430`, retaining
+#54's validated canonical encoder and unnamed-output schema validation,
+#57's inline Table admission and captured read selectors, and #58/#59's transport
+and qualification changes. The current native definition is
+`23c4c85312d089e41826bb76da6ffa2b6a009fc49bd8655bcb813524f2f401e7`.
+Generated contracts and independent Python/OpenSSL signing fixtures cover the
+combined definition. Both prior component-only definitions explicitly reject.
+The existing Boolean FZP1 layout and its separate identifier remain unchanged.
+
+Full `just check`, `just test::sql`, `just test::unified-codec`,
+`just test::file-query` and `just bindings::node-check` pass at that committed
+source, exit 0. This includes 151 ASTs, 122 plans/Arrow cases, 56 results across
+three sources/eight page widths, 57 documentation examples, 88 native/port codec
+cases, 95 real file-query cases and all 39 Node tests. Log:
+`/tmp/transit-sql-boolean-main-e82-check.log`. The generated native-schema diff
+against main changes only the definition; captured-read fields remain present.
+
+The [integration measurements](benchmarks/results/2026-10-01-boolean-main-integration.json)
+retain clean source/binary/driver/lock identities, alternating raw samples and
+the exact frozen-budget comparison. Nine paired six-type samples against main
+`e82c8430` return the same results with candidate medians 0.8–8.3% higher.
+A separate nine-pair run uses the original control binary with its verified
+`5ba8f349` SHA-256 prefix and unchanged 15% budget. Its int64, uint64, UTF-8 and
+binary predicate cases exceed that budget at 17.8%, 16.5%, 20.2% and 18.6%; the
+**specialized performance gate fails**. A report's successful execution status
+means samples/results completed, not that its numeric budget passed.
+Seven paired compiler samples against current main show four SELECT medians
+76–98% higher and existing paged aggregates 4.2–5.5% higher. These replace neither
+the earlier source-qualified measurements nor any frozen limit. Shared-host
+load, compound throughput, installed callers and native I/O remain separate.
+
+The pre-rebase clean core at `1bd979b5` was intentionally interrupted after new
+main changes landed. It is incomplete, with `completed: false`, 269.85 seconds
+and checkout `/var/tmp/transit-ci-3_i52gm9`; log:
+`/tmp/transit-sql-boolean-sql-clean-core.log`. It does not qualify the integration.
+The second instrumented service run at `051c766a` passes and retains its owned
+fixtures under `/var/tmp/transit-sql-service-diagnostic-8jwnky5h/tmp`; it does not
+reproduce or explain the original clean-service failure. Private stores and keys
+remain outside Git. The earlier failed clean result remains failed.
+
+A new committed-HEAD clean core run at `014e4f6d` is in progress when this record
+is written, at `/var/tmp/transit-ci-o6sevl3q`, log
+`/tmp/transit-sql-boolean-main-e82-clean-core.log`. Only its terminal completion
+metadata can establish a lane pass. PR #52 and issue #37 track that outcome,
+remaining clean lanes, typed SDK constructors/inspection and installed recovery.
+The draft remains blocked on those gates and the measured performance failures.

@@ -109,6 +109,9 @@ The current native definition covers both the combined local Table writer and
 owned output names across callers and bounded Boolean programs in saved plans.
 Earlier plans and builds without the current program definition are incompatible;
 accepted work requires its matching build for recovery.
+The same current definition includes direct small Table mutation admission and
+captured batch-read selectors. Builds containing only those native changes or
+only Boolean programs also reject; the combined contract has its own identifier.
 
 Publication identity includes its domain, namespace and record ID. Domain-aware
 keys and 72-byte references replace the prior layouts under the current shared
