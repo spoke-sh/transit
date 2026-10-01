@@ -241,16 +241,32 @@ def run(cli, node, host):
             time.sleep(1.2)
             again = shell.call('SELECT COUNT(*) FROM items;')
             assert again['session'] != page['session'] and again['complete_coverage']
+            values = shell.call('SELECT COUNT(value) AS present FROM items;')
+            assert values['session'] != again['session'] and values['complete_coverage'], values
+            assert values['columns'] == [{'name': 'present', 'type': 'uint64'}], values
+            assert values['cells'] == [[{'value': {'uint64': '0'}}]], values
             shell.close()
         finally:
             if shell.process.poll() is None:
                 shell.process.kill(); shell.process.wait(timeout=10)
-        print("Transit server independent console: verified empty Table COUNT result", flush=True)
+        print("Transit server independent console: verified empty Table row/value counts and independent snapshots", flush=True)
         results = fixture.console('INSERT INTO items (id, value) VALUES (1, 100), (2, NULL);\n'
+                                  'SELECT COUNT(value) AS present FROM items;\n'
+                                  'SELECT COUNT(*) AS present FROM items;\n'
+                                  'SELECT COUNT(value) AS present FROM items WHERE value IS NULL;\n'
+                                  'SELECT COUNT(chosen.amount) AS present FROM (SELECT value AS amount FROM items WHERE id = 2 LIMIT 1) AS chosen;\n'
+                                  'SELECT COUNT(chosen.amount) AS present FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;\n'
                                   'UPDATE items SET value = 101 WHERE id = 1;\n'
                                   'DELETE FROM items WHERE id = 2;\nSELECT value FROM items WHERE id = 1;\n')
-        assert [row['mutation']['affected_rows'] for row in results[:3]] == [2, 1, 1], results
+        assert [row['mutation']['affected_rows'] for row in results if 'mutation' in row] == [2, 1, 1], results
+        assert len(results) == 9, results
+        for page, count in zip(results[1:6], ('1', '2', '0', '0', '0'), strict=True):
+            assert page['profile'] == 'interactive_v1' and page['complete_coverage'] and page['rows'] == '1', page
+            assert page['columns'] == [{'name': 'present', 'type': 'uint64'}], page
+            assert page['cells'] == [[{'value': {'uint64': count}}]], page
+        assert len({json.dumps(page['session'], sort_keys=True) for page in results[1:6]}) == 5, results
         assert results[-1]['cells'][0][0]['value']['int64'] == '101', results
+        print("Transit server independent console: nullable value/row counts, aliases and derived LIMIT/zero counts passed", flush=True)
         recovery = fixture.installation / 'console-writes.json'
         assert recovery.stat().st_mode & 0o777 == 0o600
         # Explicit read-only connections retain their configured scope.
