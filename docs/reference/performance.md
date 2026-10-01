@@ -446,6 +446,16 @@ scanning retain the measured baseline's metadata algorithm. The
 retains both failures and the observed shared-host interference; it establishes
 no qualified optimization benefit or isolated cause for every timing change.
 
+After native output-name support changed the plan profile, the specialized
+six-type control detected a separate validation regression. Native binding now
+avoids rebuilding an unchanged output schema and repeating shape validation
+within one canonical encoding. Complete source/plan checks and alias collision
+checks remain. A subsequent nine-pair measurement at `a99a9c59` records ratios
+1.0003–1.1219 against the original control, within the unchanged 1.15 budget.
+The [post-merge record](../../tests/fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+retains the failed trials and passing result. This evidence covers native
+six-type execution; it does not remeasure file or DuckDB performance.
+
 Independent [source, CLI and Arrow proofs](../../tests/README.md#fuze-bounded-file-sources)
 cover extreme values, malformed/outlier input, changed content, denial,
 cancellation and ownership. Those correctness schedules are separate from the

@@ -9378,6 +9378,17 @@ retains the complete raw repetitions and scoped failed gate. This is a detected
 regression, not final performance qualification. Final clean lanes and the
 installed-owner rerun remain outstanding under issue #53.
 
+Native plan validation at `a99a9c59` avoids rebuilding an output schema when
+validated unique source names and projections already determine it. Aliased
+outputs retain their combined collision check. Binding also uses the same
+private canonical encoder after complete plan/basis validation, avoiding a
+second shape traversal; public encoding independently validates its inputs.
+Wire bytes, definitions, fingerprints, page/source checks and cancellation are
+unchanged. Fuze package tests and the complete independent SQL proof pass after
+both changes. The final paired six-type control passes every unchanged 1.15
+budget with ratios 1.0003–1.1219. Raw measurements, exact hashes and both prior
+failed trials remain in the linked evidence. Final clean lanes are still pending.
+
 
 ## Durable Table mutation latency
 

@@ -178,3 +178,15 @@ failed gate. No samples are dropped and no budget is changed. An earlier startup
 attempt took no samples because the original worktree had been removed; the
 control was recovered from its detached build, verified against the original
 SHA-256 and copied into the follow-up worktree before this measurement.
+
+Revision `a99a9c59` also shares a private canonical encoder within the complete
+binding validation. `Plan.bind` still validates the source schema, projection,
+output-name shape/collisions, literal types and source basis before hashing;
+standalone `Codec.encode` independently checks caller-supplied shapes. Current
+wire bytes, definitions and plan fingerprints are unchanged. Fuze package and
+independent SQL proofs pass. Its
+[paired measurement](post-merge/six-bound-codec.json.gz) passes the unchanged
+[scoped gate](post-merge/six-bound-codec-gates.json): all eight ratios are
+1.0003–1.1219, below 1.15. This qualifies this native six-type regression control,
+not the file matrix, large-input comparison, hosted latency or a DuckDB speedup.
+The earlier failed samples and gate reports remain above.
