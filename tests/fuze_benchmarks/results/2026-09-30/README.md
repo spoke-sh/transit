@@ -166,3 +166,15 @@ driver, lock and CPU identity checked against the frozen `budgets.json` before
 applying its `six.max_ratio`. No numeric budget is changed. A `perf record`
 diagnostic attempt was denied by the host's `perf_event_paranoid=4`; no kernel
 setting was changed and no sampled CPU profile is claimed.
+
+Revision `7aa743ca` avoids reconstructing unchanged output schemas during native
+plan validation. Fuze package tests and the independent SQL proof pass. Its
+[first paired measurement](post-merge/six-validation.json.gz) still
+[fails](post-merge/six-validation-gates.json) the Boolean case at 1.4662.
+Raw control timings varied substantially during this run (for example, the
+Boolean control spans 12.45–35.23 ms versus 12.54–12.77 ms before the change),
+so the ratio alone does not isolate the implementation cost. This run remains a
+failed gate. No samples are dropped and no budget is changed. An earlier startup
+attempt took no samples because the original worktree had been removed; the
+control was recovered from its detached build, verified against the original
+SHA-256 and copied into the follow-up worktree before this measurement.
