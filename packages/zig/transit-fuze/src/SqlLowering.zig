@@ -61,11 +61,6 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
     const source_name = ast.source_alias orelse ast.source;
     const source_qualifier = source_name.slice();
     const input_projection: ?Projection = if (ast.input) |*value| try project(&value.projection, source_qualifier, columns, input) else null;
-    var input_names: [128][]const u8 = undefined;
-    const input_columns = if (input_projection) |*projected| blk: {
-        for (0..projected.columns.len) |i| input_names[i] = projected.name(i, columns);
-        break :blk input_names[0..projected.columns.len];
-    } else columns;
     const qualifier_name = if (ast.input) |value| value.alias else source_name;
     const qualifier = qualifier_name.slice();
     var aggregate: finite.Aggregate = .rows;
@@ -80,8 +75,10 @@ pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u
         .sum => |column| blk: {
             aggregate = .sum;
             if (output.len == 0) return error.InvalidProjection;
-            const index = try resolve(column, qualifier, input_columns);
-            output[0] = if (input_projection) |projected| projected.columns[index] else index;
+            output[0] = if (input_projection) |*projected|
+                try resolveProjected(column, qualifier, projected, columns)
+            else
+                try resolve(column, qualifier, columns);
             break :blk .{ .columns = output[0..1] };
         },
     };
@@ -119,6 +116,15 @@ pub fn lowerAtom(atom: sql.PredicateAtom, source: []const u8, columns: []const [
 fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8) !u8 {
     if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) return error.UnknownQualifier;
     for (columns, 0..) |name, i| if (std.mem.eql(u8, name, column.name.slice())) return @intCast(i);
+    return error.UnknownColumn;
+}
+fn resolveProjected(column: sql.Column, source: []const u8, projection: *const Projection, columns: []const []const u8) !u8 {
+    if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) return error.UnknownQualifier;
+    // Resolve one aggregate input directly through its projection. COUNT does
+    // not resolve a column, and direct queries need no derived name workspace.
+    for (projection.columns, 0..) |index, i| {
+        if (std.mem.eql(u8, projection.name(i, columns), column.name.slice())) return index;
+    }
     return error.UnknownColumn;
 }
 fn validName(name: *const @import("model.zig").Name) !void {
