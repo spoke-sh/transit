@@ -6,6 +6,33 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## Typed parameter compiler foundation
+
+The `feat/sql-query-parameters` continuation starts from `fbb4ebc9` in its own
+worktree. It compiles typed comparison/LIMIT parameters through the shared
+parser and lowering. Templates and bound plans own their data independently;
+ordinary lowering rejects unresolved placeholders. Existing plan/native bytes
+and definitions are unchanged. Resource identity, installed callers, named
+PREPARE/EXECUTE and persistence remain separate work.
+
+On this working source, pinned Fuze package tests pass, including every
+allocation failure during preparation/binding, released-input/template lifetime,
+all six scalar types, repeated/gapped ordinals, mismatched schema/name and exact
+value bounds. The first build failed on a removed Zig reflection API; replacing
+it with the pinned `std.meta.fieldNames` fixes compilation. Logs:
+`/var/tmp/transit-sql-parameters-component.log` and
+`/var/tmp/transit-sql-parameters-component-fixed.log`.
+
+`just test::sql` passes the ordinary 157 AST / 125 plan-and-Arrow cases,
+57 unified results across three source bases/eight widths, mutation and
+declaration proofs. The new shared 44-case parameter corpus independently checks
+37 reference ASTs, 26 canonical bound plans and actual paged Arrow results, plus
+18 exact parse/binding rejections. The reference binds an independently parsed
+AST, never substituted SQL text. Parameter values use the existing neutral
+scalar decoder. Log: `/var/tmp/transit-sql-parameters-independent.log`.
+These are compiler/component results; full checks, performance, committed-HEAD
+clean qualification and public caller integration remain pending.
+
 ## Declarative benchmark components
 
 The [component harness](benchmarks/README.md) measures synthetic SQL compilation,

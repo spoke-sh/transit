@@ -49,7 +49,8 @@ def documentation_examples():
                 statement = block[start:end].strip()
                 start = end
                 if statement:
-                    visit(tree(statement, 'asOfFragment' if path.stem == 'as-of' else 'statement'))
+                    rule = {'as-of': 'asOfFragment', 'parameters': 'parameterTemplate'}.get(path.stem, 'statement')
+                    visit(tree(statement, rule))
                     count += 1
     assert required <= covered, f'Missing SQL reference examples: {sorted(required - covered)}'
     print(f'SQL documentation: {count} examples parse; every statement and historical fragment covered (syntax only).')

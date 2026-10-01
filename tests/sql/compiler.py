@@ -17,7 +17,8 @@ def reference(case, ast):
     kind = case['schema']['type']
     rows = []
     for n in range(70):
-        value = {'int64': n - 20, 'boolean': n % 2 == 0,
+        value = {'int64': n - 20, 'uint64': 2**64-1-n,
+                 'float64': -0.0 if n == 0 else n + 0.5, 'boolean': n % 2 == 0,
                  'utf8': "it's 東京" if n % 2 == 0 else 'a\\b',
                  'binary': b'\x00\xff' if n % 2 == 0 else b''}[kind]
         rows.append([n - 35, None if n % 5 == 0 else value])
@@ -27,7 +28,7 @@ def reference(case, ast):
             return bytes([1, column, 1]), row[column] is None
         literal = pred['literal']
         value = literal['value']
-        tag = {'int64': 1, 'boolean': 4, 'utf8': 5, 'binary': 6}[literal['kind']]
+        tag = {'int64': 1, 'uint64': 2, 'float64': 3, 'boolean': 4, 'utf8': 5, 'binary': 6}[literal['kind']]
         if tag == 6:
             value = bytes.fromhex(value[2:])
         operators = {'eq': operator.eq, 'ne': operator.ne, 'lt': operator.lt,
@@ -35,6 +36,10 @@ def reference(case, ast):
         encoded = bytes([2, column, list(operators).index(pred['op']), tag])
         if tag == 1:
             encoded += struct.pack('<q', value)
+        elif tag == 2:
+            encoded += struct.pack('<Q', value)
+        elif tag == 3:
+            encoded += struct.pack('<d', value)
         elif tag == 4:
             encoded += bytes([value])
         elif tag in (5, 6):
@@ -159,6 +164,8 @@ def main():
     check_mutations(sys.argv[3])
     from declarations import check as check_declarations
     check_declarations(sys.argv[4])
+    from parameters import check as check_parameters
+    check_parameters(sys.argv[1])
 
 
 if __name__ == '__main__':

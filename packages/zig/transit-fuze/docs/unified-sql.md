@@ -73,3 +73,20 @@ six scalar types and five cell states, compares actual nested Arrow at all eight
 page widths under each source-kind basis, and exercises explicit failures.
 These are pure engine source-basis checks; actual adapter/service recovery has
 separate evidence in the [proof guide](../../../../tests/README.md).
+
+## Typed templates
+
+`Prepared.init(allocator, text, source)` compiles a finite template with `$n`
+parameters at the existing comparison and LIMIT positions. `parameterTypes()`
+returns inferred types in ordinal order. `bind(allocator, current_source, values)`
+checks that exact name/schema and returns a separately owned `Bound.plan`.
+Release the template and bound owner separately with `deinit`; inputs need not
+outlive either owner. Treat an initialized template as immutable.
+
+Binding uses `Unified.Scalar`, never SQL text substitution. Ordinals start at
+one without gaps, comparison types match their input column, and LIMIT requires
+uint64. Conflicting repeated types and outer aggregate LIMIT reject. Empty
+bindings are valid for a constant template. The source name/schema commitment
+does not check resource identity or current permission. Follow the
+[parameter contract](../../../../contracts/SQL_PARAMETERS_V1.md) for exact
+typing, ownership and unsupported public transport profiles.

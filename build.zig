@@ -90,7 +90,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("tests/sql_driver.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }},
+        .imports = &.{ .{ .name = "transit_fuze", .module = fuze.module("transit_fuze") }, .{ .name = "transit_query", .module = query.module("transit_query") } },
     }) });
     const sql_test = b.addSystemCommand(&.{ "python3", "-B" });
     sql_test.addFileArg(b.path("tests/sql/compiler.py"));

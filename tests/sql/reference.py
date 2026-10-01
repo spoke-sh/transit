@@ -85,8 +85,8 @@ def normalized_program(instructions):
     return instructions[0] if len(instructions) == 1 else {'op': 'program', 'instructions': instructions}
 
 
-def antlr_ast(sql):
-    ctx = tree(sql).selectStatement()
+def antlr_ast(sql, *, template=False):
+    ctx = tree(sql, 'parameterTemplate').templateSelect() if template else tree(sql).selectStatement()
     assert ctx
     selected = ctx.selection()
     aggregate = selected.aggregateSelection() if selected else ctx.aggregateSelection()
@@ -96,12 +96,12 @@ def antlr_ast(sql):
         selection = {'kind': 'count'}
     else:
         selection = {'kind': 'count_values' if aggregate.COUNT() else 'sum', 'column': column(aggregate.columnReference())}
-    where = ctx.whereClause()
+    where = ctx.templateWhereClause() if template else ctx.whereClause()
     def atom(pred):
         result = {'column': column(pred.columnReference()), 'op': 'is_' + pred.cellState().getText().lower() if pred.cellState() else None}
         if pred.comparison():
             result['op'] = {'=': 'eq', '<>': 'ne', '!=': 'ne', '<': 'lt', '<=': 'le', '>': 'gt', '>=': 'ge'}[pred.comparison().getText()]
-            result['literal'] = literal(pred.literal())
+            result['literal'] = ({'kind': 'parameter', 'value': int(pred.PARAMETER().getText()[1:])} if template and pred.PARAMETER() else literal(pred.literal()))
         return result
 
     def negation(ctx):
@@ -117,12 +117,13 @@ def antlr_ast(sql):
     def disjunction(ctx):
         return join_program([conjunction(part) for part in ctx.conjunction()], 'or')
 
-    predicate = normalized_program(disjunction(where.predicate().disjunction())) if where else None
-    limits = ctx.limitClause()
+    predicate = (atom(where.templatePredicate()) if template else normalized_program(disjunction(where.predicate().disjunction()))) if where else None
+    limits = ctx.templateLimitClause() if template else ctx.limitClause()
     # Identify clauses by their position relative to the derived-table close.
     outer = inner = None
     for lim in limits:
-        n = int(lim.INTEGER().getText())
+        n = ({'parameter': int(lim.PARAMETER().getText()[1:])}
+             if template and lim.PARAMETER() else int(lim.INTEGER().getText()))
         if ctx.RPAREN() and lim.start.tokenIndex < ctx.RPAREN().symbol.tokenIndex:
             inner = n
         else:
@@ -152,6 +153,8 @@ def pg_ast(sql):
         return [{'column': col(x['val']), 'alias': x.get('name')} for x in targets]
 
     def const(node):
+        if 'ParamRef' in node:
+            return {'kind': 'parameter', 'value': node['ParamRef'].get('number', 0)}
         if 'TypeCast' in node:
             cast = node['TypeCast']
             kind = cast['typeName']['names'][-1]['String']['sval']
@@ -172,7 +175,10 @@ def pg_ast(sql):
         raise AssertionError(value)
 
     def limit(node):
-        return None if 'limitCount' not in node else const(node['limitCount'])['value']
+        if 'limitCount' not in node:
+            return None
+        value = const(node['limitCount'])
+        return {'parameter': value['value']} if value['kind'] == 'parameter' else value['value']
 
     function = node['targetList'][0]['ResTarget']['val'].get('FuncCall')
     if function:

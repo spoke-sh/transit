@@ -18,6 +18,7 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     return result;
 }
 fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source, result: *m.Plan) !void {
+    if (ast.unbound_parameters) return error.UnboundParameters;
     try source.schema.validate();
     if (!sameName(ast.source, source.name)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;

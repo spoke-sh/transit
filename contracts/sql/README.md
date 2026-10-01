@@ -24,6 +24,13 @@ records independent grammar, plan and result checks. The shared grammar admits
 projection lists; lowering accepts up to eight explicit declared columns.
 No rewrite is enabled.
 
+`parameterTemplate` is a separate checked root for the explicit Zig
+`Prepared` compiler. It permits typed `$n` comparison and LIMIT operands;
+ordinary statements continue to reject unresolved placeholders. The
+[parameter contract](../SQL_PARAMETERS_V1.md) and
+[shared corpus](corpus/parameters.json) define its exact scope. This does not
+enable named PREPARE/EXECUTE or parameter submission through the CLI/SDKs.
+
 ## Reproducible reference checks
 
 From the pinned development shell:
