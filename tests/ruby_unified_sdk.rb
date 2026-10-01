@@ -165,7 +165,7 @@ def serve(config)
           page = client.page(Integer(value.fetch('namespace')), value['cursor'].nil? ? nil : Q::Cursor.new(data: value.fetch('cursor')))
           check(page.manifest.resource == resource && page.manifest.source_kind.to_s == config.fetch('kind'))
           check(page.decode.length == page.rows && page.ipc.frozen?)
-          { page: { ordinal: page.ordinal.to_s, ipc: page.ipc.unpack1('H*'), manifest: { segments: page.manifest.segments.to_s }, next: page.next&.data } }
+          { page: { ordinal: page.ordinal.to_s, ipc: page.ipc.unpack1('H*'), manifest: { segments: page.manifest.segments.to_s, selected: page.manifest.selected.to_s, value_count: page.manifest.value_count.to_s }, next: page.next&.data } }
         else raise 'Unsupported test operation'
         end
         puts JSON.generate(status: 0, value: result)

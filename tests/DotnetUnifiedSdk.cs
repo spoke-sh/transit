@@ -143,7 +143,7 @@ static class Program
                     else {
                         var args=action["page"]!; var page=await client.PageAsync(ulong.Parse(Text(args,"namespace")),args["cursor"] is null?null:new(Text(args,"cursor")));
                         Check(page.Manifest.Resource==resource && page.Manifest.Kind.ToString().ToLowerInvariant()==kind); Check((await page.DecodeAsync()).Count==page.Rows); saved=page;
-                        result=Obj(("page",Obj(("ordinal",page.Ordinal.ToString()),("ipc",Hex(page.Ipc)),("manifest",Obj(("segments",page.Manifest.Segments.ToString()))),("next",page.Next?.Opaque))));
+                        result=Obj(("page",Obj(("ordinal",page.Ordinal.ToString()),("ipc",Hex(page.Ipc)),("manifest",Obj(("segments",page.Manifest.Segments.ToString()),("selected",page.Manifest.Selected.ToString()),("value_count",page.Manifest.ValueCount.ToString()))),("next",page.Next?.Opaque))));
                     }
                     Console.WriteLine(Obj(("status",0),("value",result)).ToJsonString());
                 }catch(TransitException e) { Check(e.Status.HasValue); Console.WriteLine(Obj(("status",e.Status!.Value),("value",Obj(("err",e.Code)))).ToJsonString()); }

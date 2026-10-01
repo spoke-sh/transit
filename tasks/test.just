@@ -325,6 +325,10 @@ public-query:
 unified-query *args="-Doptimize=ReleaseSafe":
     zig build test-unified-query {{args}}
 
+# Persist partial value counts through replacement, current denial and cancellation.
+unified-counts *args="-Doptimize=ReleaseSafe":
+    zig build test-unified-query -Dunified-counts=true {{args}}
+
 # Shared inbound HTTP framing, bounded concurrency and joined cancellation.
 serving-http:
     zig build test-serving-http -Doptimize=ReleaseSafe

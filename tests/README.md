@@ -11228,9 +11228,93 @@ A later review corrected Flight's independently reconstructed output schema
 to use the shared plan, including value-count uint64 conversion and row/aggregate
 aliases. The refreshed full `just check` and `just test::sql` pass, exit 0, in
 `/var/tmp/transit-count-column-flight-layout-check.log`, including 57 parsed
-documentation examples and the same independent result counts above. The added
-Flight/ADBC cases are still running; no result is claimed yet. Installed native inspection cases now include named
-value counts and a renamed limited derived input. Their external execution,
-COUNT-specific disk recovery/current denial, frozen performance comparisons
-and committed-HEAD clean lanes remain open in the
+documentation examples and the same independent result counts above.
+
+`just test::flight` completes successfully, exit 0; log
+`/var/tmp/transit-count-column-flight.log`. PyArrow verifies the ordinary native
+Table result and exact retry (72.96 seconds for that phase). ADBC Python then
+verifies named COUNT(value) = 32 across 41 nullable rows, derived LIMIT 3 count =
+2, empty count zero, repeated renamed null outputs and unchanged COUNT(*)/SUM.
+The independent C ADBC consumer checks all 41 int64/null rows and the native
+Table schema. These added count cases establish normal gateway execution, not
+COUNT-specific recovery after a fault.
+
+The installed KV command at `029b21a0` also completes, exit 0, in **233.47 s**;
+log `/var/tmp/transit-count-column-installed-kv.log`. All 13 native/port/SDK caller
+variants agree on named value-count inspection and renamed limited input. The
+existing row schedule preserves exact saved upload retry, worker/node/store
+replacement, current denial, retirement and released pins: 41 rows, six segments,
+13,584 bytes, eight resident authority pages, 8 MiB hot store, 41 cold objects and
+8,005,412 cold bytes. Its runtime query is a row projection, so this pass does
+not establish COUNT accumulator recovery.
+
+`just test::unified-counts` extends that same rig with a receipt held after a
+nonzero unfinished count checkpoint, exact original upload recovery, and a
+comparison of accepted progress before and after all workers, node and disk
+store restart. Separate partial-count cases deny source access and cancel work;
+completed results test current read denial. Every installed SDK exposes its
+selected/value counters to the independent Arrow/result oracle. Empty LIMIT and
+Document missing-value cases keep selected rows distinct from contributing
+values. The **KV schedule passes with all 13 callers in 390.55 s**, exit 0, in
+`/var/tmp/transit-count-column-kv-partial-recovery.log`. Its held committed
+accumulator is 2/10; the identical checkpoint survives replacement and completes
+at 10. Current denial, cancellation, unchanged closed checkpoints, zero LIMIT,
+and source retirement pass. The full rig retains eight resident authority pages,
+8 MiB hot store, 185 cold objects and 20,536,884 cold bytes. This proof extends
+`029b21a0` with the accompanying test changes; runtime code is unchanged.
+
+The **Table schedule passes with all 13 callers in 228.12 s**, with its held
+accumulator at 8/10. It checks the same recovery, denial, cancellation, empty
+LIMIT and retirement cases, retaining eight resident authority pages, 8 MiB hot
+store, 112 cold objects and 11,582,298 cold bytes. The sequential Document
+schedule remains running in
+`/var/tmp/transit-count-column-table-document-partial-recovery.log`; its result
+and the combined command's terminal outcome are not yet established.
+
+Committed-head core at `029b21a0` **fails after 19 passing tasks**, with two later
+tasks unrun, in 1106.60 seconds. `test::callers` expects `AccessDenied` for an
+unauthorized effect but receives `AuthorityUnavailable`; the node records a
+`page.stage ReadFailed` and HTTP 503 after about two seconds of request work.
+That observation does not establish the cause of the provider failure.
+[Exact metadata, task results and unrun inventory](verification/results/count-values-clean-core-2026-10-01.json)
+retain the failed outcome. Checkout: `/var/tmp/transit-ci-skzrxzcq/src`; log:
+`/var/tmp/transit-count-column-clean-core.log`. An unchanged focused
+`just test::callers` rerun in that same checkout passes, exit 0, log
+`/var/tmp/transit-count-clean-callers-focused.log`. No deadlines, assertions or
+runtime code change. This focused pass does not complete the failed lane or
+explain its failure. Refreshed full `just check` for the new proof/benchmark
+changes also passes, exit 0, in `/var/tmp/transit-count-proof-check.log`.
+
+Remaining native-source schedules, file costs and committed-HEAD clean lanes
+remain open in the
 [M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
+
+### Native COUNT costs
+
+The [native count archive](benchmarks/results/2026-10-01-count-values-native.json.gz)
+retains nine alternating candidate/control pairs for the unchanged thirteen-case
+pure benchmark. Frozen runtime `029b21a0` is compared with its parent
+`a3e15a9f`; the original Zig benchmark source is identical at both revisions.
+The binaries, Python driver, new-profile Zig driver, lockfile, source-diff hashes,
+commands and all raw samples are recorded. Both probes use pinned Zig
+0.17.0-dev.2267+48abf1a34, ReleaseSafe and CPU 1, on a shared host with external
+disk proofs active. No isolated-host or end-to-end latency claim follows.
+
+All thirteen median ratios meet the unchanged 1.15 comparison budget in this
+run. SELECT compilation ratios are **1.0106 / 1.0193 / 1.0065 / 1.0086**;
+COUNT(*) and SUM execution ratios are **0.9989 / 1.0039**. Mutation/declaration
+controls range from **0.9706 to 1.0342**. This is a bounded regression observation,
+not evidence of a general speedup or completion of the file/acquisition matrices.
+
+The separate new-capability profile records nine samples for each of 24 compiler
+and 24 execution cases: six native scalar types, all-value/mixed pages and both
+COUNT forms. Compilation medians span **452.95–525.03 ns**; 8192-row execution
+with encode/decode after every eight-row page spans **0.893–0.928 ms**. Every
+iteration checks selected/contributing progress, and the final Arrow result is
+decoded outside the timing interval. Mixed pages contain half values and half
+null/missing, returning 4096 for COUNT(column) and 8192 for COUNT(*). That result
+difference precludes an equivalent-result speedup claim. The baseline execution
+probe does not serialize progress, so its absolute timings cannot isolate the
+new counter's serialization cost. Logs: `/var/tmp/transit-count-performance.log`;
+both commands exit 0. File costs, native acquisition/publication, recovery and
+remaining clean lanes retain their separate gates.

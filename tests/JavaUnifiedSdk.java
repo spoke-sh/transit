@@ -163,7 +163,7 @@ public final class JavaUnifiedSdk {
                         else {
                             var v=action.getAsJsonObject("page"); Page page=await(client.page(new BigInteger(string(v,"namespace")),!v.has("cursor")||v.get("cursor").isJsonNull()?Optional.empty():Optional.of(new Cursor(string(v,"cursor")))));
                             check(page.manifest().resource().equals(resource) && page.manifest().kind().name().equalsIgnoreCase(kind)); check(page.decode().size()==page.rows()); saved=page;
-                            result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
+                            result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString(),"selected",page.manifest().selected().toString(),"value_count",page.manifest().valueCount().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
                         }
                         System.out.println(json("status",0,"value",result));
                     }catch(TransitException e) { check(e.status()>=0); System.out.println(json("status",e.status(),"value",json("err",e.code()))); }

@@ -177,7 +177,7 @@ async def serve(config, asynchronous):
                     sys.path.append(config['arrow_site'])
                     assert page.to_pyarrow().num_rows == page.rows
                     result = {'page': {'ordinal': str(page.ordinal), 'ipc': page.ipc.hex(),
-                        'manifest': {'segments': str(page.manifest.segments)}, 'next': None if page.next is None else page.next.data}}
+                        'manifest': {'segments': str(page.manifest.segments), 'selected': str(page.manifest.selected), 'value_count': str(page.manifest.value_count)}, 'next': None if page.next is None else page.next.data}}
                 else: raise AssertionError('unsupported test operation')
                 print(json.dumps({'status': 0, 'value': result}), flush=True)
             except TransitError as error:

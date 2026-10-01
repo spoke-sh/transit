@@ -157,7 +157,7 @@ async function serve() {
           assert.equal(unifiedToArrow(value).numRows, value.rows);
           const ipc = value.ipc; ipc.fill(0); assert.notEqual(hex(ipc), hex(value.ipc));
           result = {page: {ordinal: value.ordinal.toString(), ipc: hex(value.ipc),
-            manifest: {segments: value.manifest.segments.toString()}, next: value.next?.data ?? null}};
+            manifest: {segments: value.manifest.segments.toString(), selected: value.manifest.selected.toString(), value_count: value.manifest.valueCount.toString()}, next: value.next?.data ?? null}};
         } else throw new Error('unsupported test operation');
         console.log(JSON.stringify({status: 0, value: result}));
       } catch (error) {

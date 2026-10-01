@@ -1,0 +1,230 @@
+{
+  "version": 1,
+  "source_revision": "029b21a0b8dd4faf217324d79170e7d71f6d157b",
+  "command": "just ci-clean --lane core --work-root /var/tmp",
+  "metadata": {
+    "version": 1,
+    "revision": "029b21a0b8dd4faf217324d79170e7d71f6d157b",
+    "tier": "core",
+    "completed": false,
+    "expected_tasks": [
+      "check-core",
+      "test::properties",
+      "test::simulation",
+      "test::resource-simulation-smoke",
+      "test::scheduler-simulation",
+      "test::domain-simulation",
+      "test::vortex",
+      "test::codecs",
+      "test::dev-environment",
+      "test::kubectl-transit",
+      "test::deployments",
+      "test::telemetry",
+      "test::packages-build",
+      "test::compute",
+      "test::client-abi",
+      "test::station",
+      "test::storage",
+      "test::service",
+      "test::runtime-upgrade",
+      "test::callers",
+      "test::inspection",
+      "test::state"
+    ],
+    "seconds": 1106.6,
+    "run_id": null,
+    "run_attempt": null,
+    "machine": {
+      "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+      "logical_cpus": 48,
+      "affinity": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47
+      ],
+      "runner": null,
+      "runner_arch": null
+    }
+  },
+  "results": [
+    {
+      "lane": "core",
+      "task": "check-core",
+      "seconds": 89.12,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::properties",
+      "seconds": 15.46,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::simulation",
+      "seconds": 18.75,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::resource-simulation-smoke",
+      "seconds": 4.24,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::scheduler-simulation",
+      "seconds": 16.62,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::domain-simulation",
+      "seconds": 4.68,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::vortex",
+      "seconds": 19.74,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::codecs",
+      "seconds": 4.53,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::dev-environment",
+      "seconds": 0.11,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::kubectl-transit",
+      "seconds": 3.4,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::deployments",
+      "seconds": 1.99,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::telemetry",
+      "seconds": 1.63,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::packages-build",
+      "seconds": 153.52,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::compute",
+      "seconds": 0.37,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::client-abi",
+      "seconds": 7.5,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::station",
+      "seconds": 196.99,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::storage",
+      "seconds": 487.7,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::service",
+      "seconds": 65.25,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::runtime-upgrade",
+      "seconds": 5.64,
+      "exit_code": 0
+    },
+    {
+      "lane": "core",
+      "task": "test::callers",
+      "seconds": 9.33,
+      "exit_code": 1
+    }
+  ],
+  "unrun": [
+    "test::inspection",
+    "test::state"
+  ],
+  "failure": {
+    "task": "test::callers",
+    "expected": "AccessDenied",
+    "actual": "AuthorityUnavailable",
+    "probe": "tests/client_probe.zig:65",
+    "native_observation": "HTTP503 after page.stage ReadFailed; request work 2000169604ns",
+    "cause": "not established",
+    "log": "/var/tmp/transit-count-column-clean-core.log",
+    "retained_checkout": "/var/tmp/transit-ci-skzrxzcq/src"
+  }
+}

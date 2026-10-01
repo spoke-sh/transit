@@ -147,7 +147,7 @@ static void serve(char **args) {
                 assert(command=="page"); std::optional<q::Cursor> cursor; if(token!="-")cursor.emplace(q::Cursor::recover(unhex(token)));
                 auto page=client.page(std::stoull(arg),cursor?&*cursor:nullptr);
                 assert(page.manifest.source_kind==static_cast<transit_station_unified_source_kind>(kind) && page.manifest.resource.resource==resource.resource()); assert(page.decode().size()==page.rows);
-                result="{\"page\":{\"ordinal\":\""+std::to_string(page.ordinal)+"\",\"ipc\":\""+hex(page.ipc)+"\",\"manifest\":{\"segments\":\""+std::to_string(page.manifest.segments)+"\"},\"next_hex\":"+(page.next?"\""+hex(page.next->data())+"\"":"null")+"}}";
+                result="{\"page\":{\"ordinal\":\""+std::to_string(page.ordinal)+"\",\"ipc\":\""+hex(page.ipc)+"\",\"manifest\":{\"segments\":\""+std::to_string(page.manifest.segments)+"\",\"selected\":\""+std::to_string(page.manifest.selected)+"\",\"value_count\":\""+std::to_string(page.manifest.value_count)+"\"},\"next_hex\":"+(page.next?"\""+hex(page.next->data())+"\"":"null")+"}}";
                 saved=std::move(page);
             }
             std::cout<<"{\"status\":0,\"value\":"<<result<<"}"<<std::endl;

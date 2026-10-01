@@ -128,9 +128,9 @@ action(A,C,#{<<"status">>:=N},_,_)->
     Status=result(A:status(C,binary_to_integer(N))),{#{status=>case Status of undefined->null; #transit_unified_status{phase=P,correlation=Correlation}->#{phase=>atom_to_binary(P,utf8),correlation=>integer_to_binary(Correlation)} end},undefined};
 action(A,C,#{<<"page">>:=#{<<"namespace">>:=N}=Request},Connection,Kind)->
     Cursor=maps:get(<<"cursor">>,Request,null),
-    Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
+    Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments,selected=Selected,value_count=Counted},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
     Resource=Connection#transit_unified_connection.resource,Kind=atom_to_binary(K,utf8),Rows=length(ok(A:decode(Columns,Ipc,Rows))),
-    {#{page=>#{ordinal=>integer_to_binary(Ordinal),ipc=>hex(Ipc),manifest=>#{segments=>integer_to_binary(Segments)},next=>case Next of undefined->null; #transit_unified_cursor{opaque=Opaque}->Opaque end}},Page}.
+    {#{page=>#{ordinal=>integer_to_binary(Ordinal),ipc=>hex(Ipc),manifest=>#{segments=>integer_to_binary(Segments),selected=>integer_to_binary(Selected),value_count=>integer_to_binary(Counted)},next=>case Next of undefined->null; #transit_unified_cursor{opaque=Opaque}->Opaque end}},Page}.
 main(A,[Mode,Path])->
     try
         Cfg=json:decode(read(Path)),case unicode:characters_to_binary(Mode) of <<"codecs">>->codecs(A,Cfg); _->serve(A,Cfg) end

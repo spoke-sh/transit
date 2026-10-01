@@ -616,7 +616,7 @@ fn serve(config: &Value) -> AnyResult<()> {
                 );
                 assert_eq!(page.decode(None)?.len(), usize::from(page.rows));
                 assert_eq!(page.to_arrow()?.num_rows(), usize::from(page.rows));
-                json!({"page":{"ordinal":page.ordinal.to_string(),"ipc":hex(page.ipc()),"manifest":{"segments":page.manifest.segments.to_string()},"next":page.next.as_ref().map(q::Cursor::data)}})
+                json!({"page":{"ordinal":page.ordinal.to_string(),"ipc":hex(page.ipc()),"manifest":{"segments":page.manifest.segments.to_string(),"selected":page.manifest.selected.to_string(),"value_count":page.manifest.value_count.to_string()},"next":page.next.as_ref().map(q::Cursor::data)}})
             } else {
                 panic!("Unsupported test operation")
             })
