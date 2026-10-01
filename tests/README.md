@@ -10211,6 +10211,33 @@ integrated transport implicitly. Hosted run `36815884722` starts no jobs because
 GitHub reports an account payment/spending restriction; it supplies no test result.
 
 
+### Physical-disk captured query delivery
+
+The clean growth run at `be27b037` passed its first eight tasks, then exceeded
+`growing_query.py`'s 180-second complete-delivery limit. An unchanged focused
+run on CPU 12 also exceeded that limit. The same binaries and one-CPU profile
+completed on tmpfs with delivery taking 34.516 seconds; that diagnostic does not
+qualify disk durability. These observations are consistent with physical WAL
+cost, without isolating every source of shared-host I/O contention.
+
+The fixture now allows 600 seconds for complete delivery, matching the existing
+physical-disk proof allowance. **This increases that phase's test allowance from
+180 to 600 seconds.** Other query phases retain 180 seconds. Workload, one-CPU
+execution, resident pages, lost-reply schedules, exact results, cancellation and
+retained acknowledgements are unchanged. Runtime limits and the frozen native
+and file performance budgets are unchanged. A fixture time limit does not define
+a runtime latency guarantee.
+
+The focused ext4 run passes with the revised fixture and unchanged implementation:
+write 10.691, seal 7.633, recover 41.916, publish 4.675 and deliver 242.177 seconds.
+It verifies all 41 rows and 21,296 IPC bytes. The [delivery report](verification/results/m39-query-delivery-2026-10-01.json)
+retains both original deadline failures, the memory-backed diagnostic, source and
+log hashes, and the passing dirty-tree fixture identity. It also retains the
+superseded full check and complete core/experience lanes at `be27b037`; these do
+not qualify later revisions implicitly. Final committed-HEAD qualification
+remains outstanding.
+
+
 ## Durable Table mutation latency
 
 Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is

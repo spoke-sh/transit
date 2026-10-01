@@ -104,7 +104,11 @@ def run(node, caller, *, finish_pages=64):
             captured_queries = None
             for phase in ("write", "seal", "recover", "publish", "deliver"):
                 started = time.monotonic()
-                subprocess.run([caller, proxy_url, phase, str(manifest)], check=True, timeout=180)
+                # Complete delivery includes hundreds of durable paged turns.
+                # Use the disk proof's finite phase allowance for that work;
+                # memory-backed timing does not qualify its WAL cost.
+                budget = 600 if phase == "deliver" else 180
+                subprocess.run([caller, proxy_url, phase, str(manifest)], check=True, timeout=budget)
                 timings[phase] = round(time.monotonic() - started, 3)
                 if phase == "recover":
                     captured_queries = fault["queries"]
@@ -154,7 +158,8 @@ def run(node, caller, *, finish_pages=64):
                 assert received_data == captured_data
                 with pa.ipc.open_stream(received_data) as reader:
                     assert reader.read_all().num_rows == received["segments"][ordinal]["rows"]
-            print("Growing query timing:", json.dumps({"initial_pages": 64, "seal_pages": 1, "finish_pages": finish_pages, **timings}), flush=True)
+            print("Growing query timing:", json.dumps({"initial_pages": 64, "seal_pages": 1, "finish_pages": finish_pages,
+                  "delivery_limit_seconds": 600, "other_phase_limit_seconds": 180, **timings}), flush=True)
             print(f"Growing query: {len(actual)} rows/{total} bytes; staging, sealing, publication and partial consumption recover with exact retries, bounded Arrow validation, cancellation and retained acknowledgement.", flush=True)
         except BaseException:
             log.flush()
