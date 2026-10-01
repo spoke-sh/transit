@@ -1800,6 +1800,16 @@ digest, input, observed failures, replacement and receipt state. Retained
 configurations still name their original temporary paths; the fixture is
 diagnostic evidence, not an automatically restorable launcher installation.
 
+The native cold-store process is joined before its files move into the retained
+fixture. `test::catalog` first checks this lifecycle with a disposable native
+child and an injected unjoined child. The
+[cleanup control](verification/results/m37-cold-fixture-retention-2026-10-01.json)
+reproduces the stale Docker cleanup path's `ColdStore.name` `AttributeError`;
+the corrected path preserves both authority and cold files after normal cleanup
+and refuses to remove unjoined cold state. This is fixture lifecycle evidence,
+not MinIO or database durability qualification. Stop/kill timeouts and provider
+disk reserves are unchanged.
+
 With source based on `ef2cc97d` and the recovery runner under development, the
 original node digest `1039c8de…328d6e07e` stalls after 138 additions. Replacing it
 with the split-only node `214b0646…2dfcd04` still fails the unchanged progress

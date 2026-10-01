@@ -23,6 +23,21 @@ from catalog_cli import Cli
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def retain_recovery_fixture(fixture, cold_store, destination, recovery):
+    """Retain private failed state after joining each owned native process."""
+    fixture.stop()
+    retained = destination.parent / 'recovery-failures' / str(time.time_ns())
+    retained.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    recovery['original_fixture'] = str(fixture.root)
+    shutil.move(fixture.root, retained)
+    recovery['retained_fixture'] = str(retained)
+    if cold_store:
+        recovery['original_cold_fixture'] = str(cold_store.root)
+        cold_store.stop()
+        shutil.move(cold_store.root, retained / 'cold-store')
+        recovery['retained_cold_fixture'] = str(retained / 'cold-store')
+
+
 def diagnostic_errors(log):
     """Retain bounded error attribution before the owned log is removed.
 
@@ -882,16 +897,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             def retain_fixture():
                 # Retain the private failed fixture for accepted-work diagnosis,
                 # after joining every owned process. This is not a passed proof.
-                fixture.stop()
-                retained = destination.parent / 'recovery-failures' / str(time.time_ns())
-                retained.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-                recovery['original_fixture'] = str(root)
-                shutil.move(root, retained)
-                recovery['retained_fixture'] = str(retained)
-                if cold_store:
-                    subprocess.run(['docker', 'stop', cold_store.name], check=True,
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=15)
-                    shutil.move(cold_store.root, retained / 'cold-store')
+                retain_recovery_fixture(fixture, cold_store, destination, recovery)
             if initial_node and (failure is not None or cleanup_errors):
                 cleanup('private fixture retention', retain_fixture)
             report['cleanup_failures'] = [str(error) + ": " + ", ".join(error.__notes__) for error in cleanup_errors]

@@ -171,16 +171,22 @@ hot_size_low = "4MiB"
         # Ursula chunk objects, not merely MinIO's bucket/startup metadata.
         return sum(1 for _ in (self.root / self.bucket).glob("**/chunks/*/xl.meta"))
 
+    def stop(self):
+        """Join the owned native process without removing its disk evidence."""
+        if self.process is not None:
+            if self.process.poll() is None:
+                self.process.terminate()
+            try:
+                self.process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                self.process.wait(timeout=10)
+            if self.process.poll() is None:
+                raise RuntimeError(f'Cold-store stop did not join PID {self.pid}')
+
     def __exit__(self, exc_type, *_):
         try:
-            if self.process is not None:
-                if self.process.poll() is None:
-                    self.process.terminate()
-                try:
-                    self.process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    self.process.kill()
-                    self.process.wait(timeout=10)
+            self.stop()
         finally:
             try:
                 if self.log is not None:

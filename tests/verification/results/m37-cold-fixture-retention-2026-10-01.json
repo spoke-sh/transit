@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "source_head": "7e2634888bdaa61b868945007b2a2c8ab58a29a1",
+  "source_dirty": true,
+  "scope": "Original extracted catalog retention path versus corrected native cleanup, with a real disposable Python child and an injected unjoined child. No MinIO or database durability qualification.",
+  "original_source_sha256": "5a14ac49c756e2e066e74cab7c02bdd320a8887831d42f4be7ff5347e0da94ae",
+  "source_sha256": {
+    "tests/cold_storage.py": "7becd9350acc0569e10d1fac3c1454d8ecb9c53d78c48d7a635164e84f4775cc",
+    "tests/catalog_native.py": "5f13a3756375868d9e193d8c08fe745c6a5b4d835098d126c2d1a437028b0c5c",
+    "tests/catalog_fixture.py": "a55e90eeaa3459279829e1060a69c509118e3d3743e542bcffd2d719b88572ac",
+    "tasks/test.just": "322f0e4c56f3a4383a6c19f08ecc4b2c59ba5cf81174d1e96f68e71b0a53dc66"
+  },
+  "controls": [
+    {
+      "control": "original",
+      "seconds": 0.04017,
+      "expected_failure": true,
+      "failure": {
+        "kind": "AttributeError",
+        "message": "'ColdStore' object has no attribute 'name'"
+      },
+      "passed": true
+    },
+    {
+      "control": "corrected",
+      "seconds": 0.042754,
+      "expected_failure": false,
+      "failure": null,
+      "passed": true
+    }
+  ]
+}
