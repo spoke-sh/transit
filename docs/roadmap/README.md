@@ -49,6 +49,7 @@ before Station, so higher-level abstractions grow on an inspectable kernel.
 | [M39](M39.md) | Comprehensive types and bounded schema on demand | Planned; shared scalar/nested semantics, CSV/JSONL discovery and DuckDB correctness/performance comparisons |
 | [M40](M40.md) | Extended SQL operations and relational composition | Selected: remaining reference operations beyond M34/M36, historical reads, bulk data, transactions and parameters |
 | [M41](M41.md) | Declarative benchmark coverage and measurement | 28 components measured and full TPC coverage inventoried; clean qualification in progress; complete suites blocked |
+| [M42](M42.md) | PostgreSQL and MySQL wire access | Proposed; Zig adapters over scoped interactive queries, TLS/authentication, typed parameters and independent client qualification |
 
 The historical [pre-Station review](../history/reviews/PRE_STATION.md) led to the completed
 [M8 readiness requirements](M8.md#exit-criteria). Station now builds on the resource
@@ -131,6 +132,12 @@ type and reader prerequisites ahead of their consumers.
 M19–M21 separately qualify the serving foundation, reactive API contracts and
 their interface consumers. Completed milestone scope and proof remain unchanged;
 each new milestone requires its own entry gates and qualification evidence.
+
+[M42](M42.md) investigates PostgreSQL and MySQL wire access through shared Fuze
+and interactive-query owners. It selects a proposed read-only Table driver
+profile, with explicit TLS, authentication, parameter and metadata gates;
+neither a listener nor general database compatibility is implemented. M39/M40
+retain the prerequisite type and parameter/transaction semantics.
 
 M15–M18 now have executed qualification within their declared profiles. The
 M19–M35 plans carry those findings forward; a planned server, watch or cluster
