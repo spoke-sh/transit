@@ -26,7 +26,8 @@ downloads. Its Python/OpenBLAS runtime needs more than 1 GiB of virtual mappings
 that reservation is distinct from resident memory. `image_peak_rss_kib` records
 the executable's `/proc/self/status` VmHWM counter after its measured work.
 The separate `wait4` `peak_rss_kib` includes the launcher's inherited pre-exec
-memory and is only a process-lifetime upper bound. Fixture data and private captures live on
+memory and measures the whole process lifetime. These kernel RSS counters have
+their documented accounting granularity. Fixture data and private captures live on
 disk in `/var/tmp`, and are removed after the run.
 
 Each shape is generated once and checked by SHA-256. Before every cold-input

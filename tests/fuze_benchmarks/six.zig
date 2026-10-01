@@ -54,10 +54,11 @@ pub fn main(init: std.process.Init) !void {
                 }
             }
             if (progress.scanned != pages * m.max_rows or progress.rows != (if (index == 0) @as(u64, pages * m.max_rows) else 1) or progress.finished != .source_end) return error.IncorrectResult;
+            if (progress.selected != pages * (if (index == 1) @as(u64, 4) else m.max_rows)) return error.IncorrectSelection;
             if (index == 7 and progress.sum != 28 * pages) return error.IncorrectSum;
         }
         const ns = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
-        try std.json.Stringify.value(.{ .sql = sql, .iterations = iterations, .pages = pages, .rows_per_page = m.max_rows, .elapsed_ns = ns, .export_bytes = bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &stdout.interface);
+        try std.json.Stringify.value(.{ .sql = sql, .iterations = iterations, .pages = pages, .rows_per_page = m.max_rows, .selected_per_iteration = pages * (if (index == 1) @as(u64, 4) else m.max_rows), .elapsed_ns = ns, .export_bytes = bytes, .build_mode = @tagName(@import("builtin").mode) }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
     try stdout.interface.flush();
