@@ -34,7 +34,6 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         error.DuplicateProjection, error.InvalidProjection, error.InvalidOutputNames => "Select one to eight output positions with distinct result names. Use explicit AS names when selecting an input column more than once.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
         error.UnsupportedAggregateLimit => "To limit aggregate input, use the documented aggregate over a limited derived table; an outer LIMIT is not an input limit.",
-        error.UnsupportedCompoundPredicate => "This query profile does not support compound predicates; check its documented syntax before submitting.",
         error.UnsupportedAggregate => "Use COUNT(*) or SUM on an int64 column; other aggregates and input types are unsupported.",
         error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
         error.DuplicateColumn => "Use distinct result names in SELECT, assigning names with AS where needed. Declarations also require distinct column names.",

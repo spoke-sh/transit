@@ -30,8 +30,8 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
     var input_schema = source.schema;
     // Only a derived input introduces a projected scope. Direct queries already
     // have a validated source schema and use its column indices unchanged.
-    var inner: m.Plan = .{ .projection = &.{} };
     if (ast.input) |value| {
+        var inner: m.Plan = undefined;
         try projection(value.projection, source_qualifier, source.schema, &input, &inner);
         input_schema = try inner.outputSchema(source.schema, &input_columns);
     }
@@ -42,12 +42,12 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
         .count => {
             // Count consumes rows; a single validated input column carries the
             // required plan shape without inspecting its value or state.
-            selected[0] = if (ast.input != null) inner.projection[0] else 0;
+            selected[0] = if (ast.input != null) input[0] else 0;
             result.* = .{ .projection = selected[0..1], .aggregate = .count };
         },
         .sum => |column| {
             const index = try resolve(column, qualifier, input_schema);
-            selected[0] = if (ast.input != null) inner.projection[index] else index;
+            selected[0] = if (ast.input != null) input[index] else index;
             result.* = .{ .projection = selected[0..1], .aggregate = .sum };
         },
     }
@@ -56,32 +56,36 @@ fn compileInto(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source
     errdefer allocator.free(owned_projection);
     result.projection = owned_projection;
     result.limit = if (ast.input) |value| value.limit else ast.limit;
-    var column_names: [m.max_columns][]const u8 = undefined;
-    for (source.schema.columns, 0..) |*column, i| column_names[i] = column.name.slice();
-    switch (ast.predicate) {
-        .program => |*program| {
-            try program.validate();
-            result.predicate = .{ .program = .{} };
-            const owned = &result.predicate.program;
-            errdefer for (owned.instructions[0..owned.count]) |instruction| {
-                if (instruction == .atom) freeAtom(allocator, instruction.atom);
-            };
-            for (program.instructions[0..program.count]) |instruction| {
-                owned.instructions[owned.count] = switch (instruction) {
-                    .atom => |value| .{ .atom = try lowerAtom(allocator, try program.expand(value), source_qualifier.slice(), column_names[0..source.schema.columns.len]) },
-                    .negate => .negate,
-                    .conjunction => .conjunction,
-                    .disjunction => .disjunction,
+    // Selection constructors already initialize the absent predicate.
+    if (ast.predicate != .all) {
+        var column_names: [m.max_columns][]const u8 = undefined;
+        for (source.schema.columns, 0..) |*column, i| column_names[i] = column.name.slice();
+        switch (ast.predicate) {
+            .all => unreachable,
+            .program => |*program| {
+                try program.validate();
+                result.predicate = .{ .program = .{} };
+                const owned = &result.predicate.program;
+                errdefer for (owned.instructions[0..owned.count]) |instruction| {
+                    if (instruction == .atom) freeAtom(allocator, instruction.atom);
                 };
-                owned.count += 1;
-            }
-        },
-        inline else => |value, tag| {
-            const atom = try lowerAtom(allocator, @unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier.slice(), column_names[0..source.schema.columns.len]);
-            switch (atom) {
-                inline else => |item, kind| result.predicate = @unionInit(m.Plan.Predicate, @tagName(kind), item),
-            }
-        },
+                for (program.instructions[0..program.count]) |instruction| {
+                    owned.instructions[owned.count] = switch (instruction) {
+                        .atom => |value| .{ .atom = try lowerAtom(allocator, try program.expand(value), source_qualifier.slice(), column_names[0..source.schema.columns.len]) },
+                        .negate => .negate,
+                        .conjunction => .conjunction,
+                        .disjunction => .disjunction,
+                    };
+                    owned.count += 1;
+                }
+            },
+            inline else => |value, tag| {
+                const atom = try lowerAtom(allocator, @unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier.slice(), column_names[0..source.schema.columns.len]);
+                switch (atom) {
+                    inline else => |item, kind| result.predicate = @unionInit(m.Plan.Predicate, @tagName(kind), item),
+                }
+            },
+        }
     }
     errdefer freePredicate(allocator, &result.predicate);
     try result.validate(source.schema);
@@ -147,7 +151,8 @@ fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output
         }
     }
     result.* = .{ .projection = output[0..count], .output_names = names };
-    try result.validate(schema);
+    // A direct selection is checked with its completed predicate by compileInto.
+    // A derived selection is checked by outputSchema before resolving its names.
 }
 pub fn scalar(allocator: std.mem.Allocator, literal: sql.Literal) !m.Scalar {
     switch (literal) {

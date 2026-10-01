@@ -298,3 +298,20 @@ test "compiled Boolean SQL preserves unknown and eager errors in source order" {
     try t.expectError(error.UnknownQualifier, m.Sql.plan(t.allocator, "SELECT * FROM items AS x WHERE x.id = 0 OR items.id = 1", src));
     try t.expectError(error.UnsupportedNullComparison, m.Sql.plan(t.allocator, "SELECT * FROM items WHERE value IS NULL OR id = NULL", src));
 }
+
+test "completed selections reject collisions and free owned atoms on binding failure" {
+    const columns = [_]m.Column{
+        .{ .name = try m.Name.init("id"), .type = .int64 },
+        .{ .name = try m.Name.init("value"), .type = .utf8 },
+    };
+    const src = try source(&columns);
+    for ([_][]const u8{
+        "SELECT id, id FROM items WHERE value = 'owned'",
+        "SELECT id AS key, id AS key FROM items WHERE value = 'first' OR value = 'second'",
+        "SELECT count(*) FROM (SELECT id, id FROM items WHERE value = 'owned') AS chosen",
+    }) |text| try t.expectError(error.DuplicateProjection, m.Sql.plan(t.allocator, text, src));
+    for ([_][]const u8{
+        "SELECT id AS key, value AS key FROM items WHERE value = 'owned'",
+        "SELECT count(*) FROM (SELECT id AS key, value AS key FROM items WHERE value = 'owned') AS chosen",
+    }) |text| try t.expectError(error.DuplicateColumn, m.Sql.plan(t.allocator, text, src));
+}

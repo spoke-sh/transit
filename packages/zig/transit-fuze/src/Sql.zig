@@ -483,18 +483,34 @@ const Parser = struct {
         return .{ .rows = try self.projection() };
     }
     fn predicate(self: *Parser, result: *Predicate) !void {
+        // statement initializes the absent predicate; do not clear the entire
+        // inline program again when this statement has no WHERE clause.
         if (!self.word("WHERE")) {
-            result.* = .all;
+            std.debug.assert(result.* == .all);
             return;
         }
         try self.advance();
+        // Keep a lone atom in its existing representation. Only initialize the
+        // bounded instruction/literal pool when Boolean operators require it.
+        const first: ?PredicateAtom = if (!self.word("NOT") and self.token.tag != .left and self.token.tag != .cursor) try self.predicateAtom() else null;
+        if (first) |atom| if (!self.word("AND") and !self.word("OR")) {
+            switch (atom) {
+                inline else => |value, tag| result.* = @unionInit(Predicate, @tagName(tag), value),
+            }
+            return;
+        };
+        // Keep compound-only storage and stack probes out of the atom path.
+        return @call(.never_inline, compoundPredicate, .{ self, result, if (first) |*atom| atom else null });
+    }
+    fn compoundPredicate(self: *Parser, result: *Predicate, first: ?*const PredicateAtom) !void {
         result.* = .{ .program = .{} };
         const program = &result.program;
+        if (first) |atom| try program.appendAtom(atom.*);
         const Operator = enum { left, disjunction, conjunction, negate };
         var operators: [PredicateProgram.max_instructions]Operator = undefined;
         var count: usize = 0;
         var groups: usize = 0;
-        var operand = true;
+        var operand = first == null;
         while (true) {
             if (operand) {
                 const op: ?Operator = if (self.word("NOT")) .negate else if (self.token.tag == .left) .left else null;
@@ -560,8 +576,8 @@ const Parser = struct {
                 .left => unreachable,
             });
         }
-        if (program.count == 1) result.* = switch (try program.expand(program.instructions[0].atom)) {
-            inline else => |value, tag| @unionInit(Predicate, @tagName(tag), value),
+        if (program.count == 1) switch (try program.expand(program.instructions[0].atom)) {
+            inline else => |value, tag| result.* = @unionInit(Predicate, @tagName(tag), value),
         };
     }
     fn predicateAtom(self: *Parser) !PredicateAtom {
