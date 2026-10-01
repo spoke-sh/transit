@@ -2556,6 +2556,36 @@ two cancellation requests and persisted cold capture. The first failed compariso
 and later injected workload do not qualify a speedup or a default build-profile
 change. Combined-source clean and hosted completion remain separate gates.
 
+## Delivery staging and bounded query progress — 2026-10-01
+
+Committed `d6ce30ea` passes full repository checks in 218.371 seconds and clean
+core's 22 tasks in 1,123.770 seconds including setup. Clean growth passes eight
+tasks, then the query delivery phase exceeds its unchanged 180-second deadline
+inside `test::growing-service`; seventeen later growth tasks are unrun. Clean
+launchers passes both tasks in 345.792 seconds. The
+[progress record](verification/results/m37-delivery-progress-2026-10-01.json)
+retains the exact binaries, completed task outcomes and diagnostics.
+
+The failed delivery window contains 350 completed commands through position 545,
+with negligible authority-lock wait. Sequential controls on CPUs 0, 12 and 0,
+using identical binaries, fixture and the clean runner's 46 MiB stack limit, all
+repeat the delivery timeout. Earlier direct invocations with an 8 MiB stack fail
+before the workload and do not qualify those controls. A separate instrumented
+run observes 13,447 completed Ursula `fdatasync` calls during delivery, with a
+6.8 ms median. Tracing perturbs execution and syscall durations overlap; these
+observations neither decompose wall time nor establish a shared-host cause.
+
+Clean bindings passes its check and native tasks, then its Python SDK task exits
+successfully after client, Station, HTTP/gRPC, mutation and catalog checks. The
+CI controller is paused while that active task continues under its unchanged
+deadlines, then terminated only after the task exits. Its original checkpoint
+and the independently observed zero child exit status are retained separately.
+The lane is deliberately incomplete so the changed implementation can be tested;
+the wrapper's termination is not a failed SDK proof. This source ends with
+**35 ordinary passes, one failure and 38 unrun tasks of 74**, plus seven unrun
+browser tasks. Hosted run `36823397287` is refused before execution by GitHub's
+account billing restriction and contains no test results.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after
