@@ -20,7 +20,7 @@ context: [512]u8 = @splat(0),
 context_len: usize = 0,
 caret: usize = 0,
 
-const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Run transit mutate --help for the saved-command workflow with a separately configured, authorized Table writer. A query connection does not grant writes.";
+const mutation_hint = "Use explicit column names for INSERT, for example INSERT INTO items (id, value) VALUES (1, 100). Use .help INSERT in the console to configure an authorized Table writer and discover execution and recovery. A query connection does not grant writes.";
 const read_hint = "Use SELECT for finite reads; check /reference/sql/ for the supported syntax and interface for each operation.";
 const grammar_hint = "This statement family exists in the reference grammar only; its submitted syntax has not been validated and there is no executable SQL route. See /reference/sql/grammar-surface/.";
 
@@ -29,17 +29,24 @@ const grammar_hint = "This statement family exists in the reference grammar only
 /// `inspection` means this interface accepts DESCRIBE/SHOW TABLES/EXPLAIN.
 pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
     const semantic = switch (cause) {
-        error.UnknownSource => "The source is not the configured query source. Inspect the configured source and use its exact name; SQL does not create a source.",
+        error.UnknownSource => "The source is not the configured source or Table writer name. Inspect the configured source and use its exact name; CREATE TABLE does not configure a query source.",
         error.UnknownColumn, error.UnknownQualifier => "Inspect the configured schema and use its exact column names and source qualifier.",
         error.DuplicateProjection, error.InvalidProjection => "Select one to eight distinct declared columns, or use SELECT *.",
         error.UnsupportedNullComparison => "Use IS NULL to test explicit nulls; use IS MISSING for missing Document fields.",
         error.UnsupportedAggregateLimit => "To limit aggregate input, use the documented aggregate over a limited derived table; an outer LIMIT is not an input limit.",
         error.UnsupportedAggregate => "Use COUNT(*) or SUM on an int64 column; other aggregates and input types are unsupported.",
+        error.UnsupportedTableColumnCount, error.UnspecifiedNullability, error.UnsupportedTableKey, error.UnsupportedTableNullability, error.UnsupportedTableType => "CREATE TABLE requires exactly two columns: an INT64 NOT NULL key and a nullable INT64, BOOL, UTF8 or BINARY value. Use .help CREATE TABLE in the console.",
+        error.DuplicateColumn => "Use distinct column names in the declaration.",
+        error.ImmutablePrimaryKey, error.UnsupportedMutationPredicate, error.InvalidMutationColumns, error.DuplicateMutationKey => "Use .help INSERT, .help UPDATE or .help DELETE in the console for bounded literal mutations and key equality.",
         error.TypeMismatch, error.InvalidPredicate => "Match the literal type to the declared column type; implicit conversions are unsupported.",
         else => null,
     };
     if (semantic) |hint| return .{ .kind = .binding, .cause = cause, .summary = "SQL cannot be bound to the configured source", .hint = hint };
     switch (cause) {
+        error.UnsupportedDeclaration,
+        error.UnsupportedDeclarationType,
+        error.MutationBatchTooLarge,
+        error.DeclarationTooManyColumns,
         error.UnsupportedStatement,
         error.InvalidSqlSyntax,
         error.UnsupportedConstruct,
@@ -74,8 +81,8 @@ pub fn query(text: []const u8, cause: anyerror, inspection: bool) ?Self {
         _ = sql.parseMutationLocated(text, &location) catch |err| return parseFailure(text, err, location, mutation_hint, .mutation);
         result = .{ .kind = .interface, .route = .mutation, .cause = cause, .summary = "Table mutation syntax is supported, but this query interface is read-only", .hint = mutation_hint };
     } else if (word(text, first, "CREATE") and (word(text, second, "TABLE") or word(text, second, "KV") or word(text, second, "DOCUMENT"))) {
-        _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, "Check the state declaration syntax in /reference/sql/. Declarations do not execute through query interfaces.", .declaration);
-        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = if (word(text, second, "TABLE")) "Run transit catalog --help for offline compilation and explicit compatible Table publication through an authorized catalog host." else "Use the offline Declaration compiler for review. SQL publication of KV and Document definitions is unavailable." };
+        _ = sql.parseDeclarationLocated(text, &location) catch |err| return parseFailure(text, err, location, "Check the state declaration syntax in /reference/sql/. Use .help CREATE TABLE in the console for executable Table declarations.", .declaration);
+        result = .{ .kind = .interface, .route = .declaration, .cause = cause, .summary = "State declaration syntax is supported, but query interfaces do not publish definitions", .hint = if (word(text, second, "TABLE")) "Use .help CREATE TABLE in the console to configure an authorized catalog and discover the supported schema and recovery." else "Use the offline Declaration compiler for review. SQL publication of KV and Document definitions is unavailable." };
     } else if (word(text, first, "GRANT") or word(text, first, "REVOKE") or (word(text, first, "CREATE") and (word(text, second, "CONNECTION") or word(text, second, "SOURCE") or word(text, second, "SINK")))) {
         result = .{ .kind = .grammar_only, .cause = cause, .summary = "Statement family has reference grammar but no SQL execution", .hint = grammar_hint };
     } else if (word(text, first, "SHOW") or word(text, first, "DESCRIBE") or word(text, first, "EXPLAIN")) {
@@ -164,16 +171,16 @@ pub fn renderRemote(self: *const Self, out: *std.Io.Writer) !void {
             try out.writeAll(if (self.kind == .syntax) "SQL parse error" else "SQL construct unsupported");
             if (self.location != null) try out.print(" at line {d}, column {d}", .{ self.line, self.column });
             try out.writeAll(if (self.route == .mutation)
-                "; use explicit INSERT columns and an authorized writer: transit mutate --help"
+                "; use explicit INSERT columns and an authorized writer: console .help INSERT"
             else
                 "; check supported syntax in /reference/sql/.");
         },
         .interface => try out.writeAll(if (self.route == .mutation)
-            "Table mutation syntax is supported; this query interface is read-only. Use transit mutate --help with an authorized writer."
+            "Table mutation syntax is supported; this query interface is read-only. Use console .help INSERT with an authorized writer."
         else if (self.route == .inspection)
             "SQL inspection is unavailable here. Use console DESCRIBE/SHOW TABLES/EXPLAIN or Flight metadata operations."
         else
-            "Declaration syntax is supported; query interfaces do not publish it. Use transit catalog --help for explicit Table publication."),
+            "Declaration syntax is supported; this query interface cannot publish it. Use console .help CREATE TABLE."),
         .grammar_only => try out.writeAll("Statement family has reference grammar only; no SQL execution. See /reference/sql/grammar-surface/."),
         .binding => {
             try out.print("{s}: ", .{@errorName(self.cause)});

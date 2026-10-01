@@ -2,11 +2,12 @@
 
 Deletion by primary-key equality is available through the explicit mutation
 writer, shared Zig/native ABI/port callers and
-[typed SDK mutation clients](../sdks.md#table-mutation-callers), and
-[mutation CLI](../../../apps/transit-cli/docs/mutations.md). The
+[typed SDK mutation clients](../sdks.md#table-mutation-callers), and the
+[console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+with `writes.table` configured. Use `.help DELETE` for syntax and recovery. The
 [caller guide](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
 defines signed preparation, exact recovery and durable result observation.
-Applications can also compose `station.TableMutation.applySql` in a private turn. The console, Board query workspace,
+Applications can also compose `station.TableMutation.applySql` in a private turn. Board query workspace,
 Flight SQL and language SDK query clients do not admit SQL mutations.
 
 ```sql

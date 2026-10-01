@@ -5,6 +5,7 @@ const u = @import("Unified.zig");
 const Options = @import("Options.zig");
 const Diagnostic = @import("Diagnostic.zig");
 const Recovery = @import("Recovery.zig");
+const Writes = @import("ConsoleWrites.zig");
 const Preferences = @import("Preferences.zig");
 const Signals = @import("Signals.zig");
 const sql_input = q.fuze.SqlInput;
@@ -21,6 +22,7 @@ pub const Config = struct {
     format: Options.Format = .table,
     recovery_file: ?[]const u8 = null,
     execution: enum { interactive, durable } = .interactive,
+    writes: ?Writes.Config = null,
 };
 fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), diagnostic: *Diagnostic) !Config {
     const Installation = @import("server/Installation.zig");
@@ -78,6 +80,8 @@ fn validate(config: Config, allocator: std.mem.Allocator, diagnostic: *Diagnosti
     _ = try config.workspace.limits.native();
     diagnostic.field = "workspace.name";
     _ = try q.fuze.Unified.Name.init(config.workspace.name);
+    diagnostic.field = "writes";
+    if (config.writes) |writes| try Writes.validateConfig(writes, config.connection);
     diagnostic.field = null;
 }
 pub fn run(init: std.process.Init, options: Options.Options, diagnostic: *Diagnostic) !void {
@@ -146,7 +150,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         try session.checkpoint();
     }
     // One local signing owner per credential file, even across recovery paths.
-    const caller_lock: ?std.Io.File = if (config.execution == .durable) lock: {
+    const caller_lock: ?std.Io.File = if (config.execution == .durable or config.writes != null) lock: {
         const caller_lock_path = try std.fmt.allocPrint(allocator, "{s}.console.lock", .{try path(allocator, base, config.seed_file)});
         const file = try std.Io.Dir.cwd().createFile(init.io, caller_lock_path, .{ .truncate = false, .permissions = .fromMode(0o600) });
         errdefer file.close(init.io);
@@ -154,13 +158,21 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         break :lock file;
     } else null;
     defer if (caller_lock) |file| file.close(init.io);
+    diagnostic.field = "writes.recovery_file";
+    var writes: ?Writes = if (config.writes) |writes_config| open: {
+        const write_path = try path(allocator, base, writes_config.recovery_file);
+        if (config.recovery_file) |query_file| if (std.mem.eql(u8, write_path, try path(allocator, base, query_file))) return error.InvalidWriteConfiguration;
+        break :open try Writes.open(init, write_path, writes_config, &client);
+    } else null;
+    defer if (writes) |*writer| writer.close();
+    if (writes) |*writer| if (writer.unresolved() and session.namespace != null and !session.complete) return error.UnresolvedSubmission;
     diagnostic.field = null;
     const signals = try Signals.install();
     defer signals.close();
     var output_buffer: [8192]u8 = undefined;
     var output = std.Io.File.stdout().writerStreaming(init.io, &output_buffer);
     const terminal = options.sql == null and options.script == null and try std.Io.File.stdin().isTty(init.io) and try std.Io.File.stderr().isTty(init.io);
-    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive };
+    var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
         _ = try console.execute(sql);
@@ -195,6 +207,8 @@ pub const Console = struct {
     config: q.Workspace.Config,
     out: *std.Io.Writer,
     recovery: ?*Recovery,
+    writes: ?*Writes = null,
+    write_running: bool = false,
     batch: bool,
     preferences: Preferences,
     diagnostic: *Diagnostic,
@@ -213,6 +227,7 @@ pub const Console = struct {
         self.diagnostic.sql = null;
         defer {
             self.query_running = false;
+            self.write_running = false;
             self.active_query = null;
         }
         const result: ?anyerror = result: {
@@ -235,6 +250,14 @@ pub const Console = struct {
             if (self.batch) return if (self.interactive) self.queryFailure(error.ConsoleInterrupted) else self.diagnostic.fail(error.ConsoleQueryInterrupted, "console query interrupted", null);
             return true;
         }
+        if (self.write_running and Signals.interrupted()) {
+            self.query_interrupted = true;
+            if (!Signals.terminating()) Signals.clear();
+            const failure = self.diagnostic.fail(error.ConsoleQueryInterrupted, "write interrupted; its outcome may be pending", "Reconnect with the same configuration. Use .status to inspect, .resume to reconcile the saved command, or .cancel for a Table mutation. Interrupting does not undo accepted writes.");
+            if (self.batch or Signals.terminating()) return failure;
+            self.diagnostic.emit(self.init.io, failure);
+            return true;
+        }
         if (result) |err| {
             const failure = self.queryFailure(if (self.recovery != null and self.recovery.?.failed) error.ConsoleRecoveryWriteFailed else err);
             if (self.batch or err == error.ConsoleInterrupted or failure == error.ConsoleRecoveryWriteFailed or err == error.ConsoleOutputTimeout) return failure;
@@ -244,7 +267,47 @@ pub const Console = struct {
     }
     fn perform(self: *Console, text: []const u8) !void {
         const execution = @import("Execute.zig");
+        if (self.writes) |writer| if (writer.catalog) |*catalog| {
+            if (std.mem.eql(u8, text, ".tables")) return @import("ConsoleCatalog.zig").inspect(self, catalog, null);
+            if (!isMeta(text)) if (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) |inspection_sql| switch (inspection_sql) {
+                .show => |kind| if (kind == .tables) {
+                    return @import("ConsoleCatalog.zig").inspect(self, catalog, null);
+                },
+                .describe => |name| return @import("ConsoleCatalog.zig").inspect(self, catalog, name),
+                else => {},
+            };
+        };
+        if (!isMeta(text)) {
+            var syntax_timing = @import("Timing.zig").start(self.init, self.preferences.timing);
+            errdefer syntax_timing.report();
+            if ((q.fuze.Sql.parseMutation(text) catch |err| return self.sqlFailure(text, err)) != null) {
+                self.write_running = true;
+                const writer = self.writes orelse return error.ConsoleWriterRequired;
+                syntax_timing.enabled = false;
+                return writer.start(self, text, .mutation);
+            }
+            if (q.fuze.Sql.parseDeclaration(text) catch |err| return self.sqlFailure(text, err)) |declaration| {
+                if (declaration.body == .table) {
+                    self.write_running = true;
+                    _ = declaration.tableSchema() catch |err| return self.sqlFailure(text, err);
+                    const writer = self.writes orelse return error.ConsoleCatalogRequired;
+                    syntax_timing.enabled = false;
+                    return writer.start(self, text, .declaration);
+                }
+                return self.sqlFailure(text, error.UnsupportedStatement);
+            }
+            if (self.writes) |writer| if (writer.unresolved() and (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) == null) return error.UnresolvedSubmission;
+        }
+        if (self.writes) |writer| if (writer.record.operation != null and (std.mem.eql(u8, text, ".resume") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) {
+            // A saved write owns these commands until replaced by a new query.
+            self.write_running = !std.mem.eql(u8, text, ".status");
+            if (std.mem.eql(u8, text, ".resume")) return writer.recover(self);
+            if (std.mem.eql(u8, text, ".cancel")) return writer.cancel(self);
+            _ = try writer.status(self);
+            return;
+        };
         if (!isMeta(text) and (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) == null) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
+        if (self.writes) |writer| if (writer.unresolved() and std.mem.startsWith(u8, text, ".resume ")) return error.UnresolvedSubmission;
         if (self.interactive and (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) return error.NoQuery;
         if (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ")) {
             const id: ?u64 = if (text.len == 7) null else try q.Values.unsigned(std.mem.trim(u8, text[8..], " \t"));
@@ -270,7 +333,7 @@ pub const Console = struct {
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         try @import("Output.zig").write(self.init, destination, buffered.buffered());
     }
-    fn json(self: *Console, value: anytype) !void {
+    pub fn json(self: *Console, value: anytype) !void {
         try std.json.Stringify.value(value, .{ .escape_unicode = true }, self.out);
         try self.out.writeByte('\n');
     }
@@ -310,6 +373,20 @@ pub const Console = struct {
         self.diagnostic.atArgument(null, null);
         self.diagnostic.file = null;
         self.diagnostic.field = null;
+        if (self.writes) |writer| if (writer.failed) return self.diagnostic.fail(error.ConsoleRecoveryWriteFailed, "cannot persist write recovery", "Stop using this signing credential until the original recovery file can be read and reconciled. No successor command was sent.");
+        switch (err) {
+            error.ConsoleWriterRequired => return self.diagnostic.fail(err, "Table mutation syntax is supported; no writer is configured for this console", "Use .help INSERT for syntax and writes.table connection settings. A query connection does not grant writes."),
+            error.ConsoleCatalogRequired => return self.diagnostic.fail(err, "CREATE TABLE syntax is supported; no catalog is configured for this console", "Use .help CREATE TABLE for the supported schema and writes.catalog connection settings."),
+            error.CatalogCancellationUnsupported => return self.diagnostic.fail(err, "CREATE TABLE cannot be cancelled after submission", "Use .status or .resume to reconcile the saved creation. Disconnecting or interrupting does not undo it."),
+            error.CatalogNameNotFound => return self.diagnostic.fail(err, "the configured catalog has no Table with that name", "Use SHOW TABLES or .tables to list catalog definitions. .schema describes the configured query source."),
+            error.CatalogCursorChanged => return self.diagnostic.fail(err, "the catalog changed during listing", "Discard the partial listing and run SHOW TABLES again to read one consistent revision."),
+            error.NoQuery, error.NoSavedWrite => return self.diagnostic.fail(err, "this connection has no saved operation to recover", "Use .help for supported SQL. .status and .resume inspect or recover previously saved work."),
+            error.UnknownHelpTopic => return self.diagnostic.fail(err, "unknown SQL help topic", "Use .help SQL, .help INSERT, .help UPDATE, .help DELETE or .help CREATE TABLE."),
+            error.UnknownConsoleCommand => return self.diagnostic.fail(err, "unknown console command", "Use .help for SQL and dot commands, or .help INSERT and .help CREATE TABLE for writes."),
+            error.MutationDenied, error.CatalogDenied => return self.diagnostic.fail(err, "the current writer or catalog policy does not permit this operation", "Check the configured principal's native grants and separate writer/catalog policy. Use .help for connection requirements; query read access does not grant writes."),
+            else => {},
+        }
+        if (self.write_running or (self.writes != null and self.writes.?.unresolved())) return self.diagnostic.fail(err, "write could not complete", "Use .status to inspect the saved outcome and .resume to reconcile exact pending work. Use .cancel for a saved Table mutation. Do not repeat the SQL after an uncertain result.");
         if (self.interactive and err == error.ConsoleInterrupted) {
             self.diagnostic.summary = null;
             self.diagnostic.cause = null;
@@ -321,14 +398,10 @@ pub const Console = struct {
         return self.diagnostic.fail(err, "query could not complete", hint);
     }
     fn dispatch(self: *Console, text: []const u8, allocator: std.mem.Allocator) !void {
-        if (self.interactive and std.mem.eql(u8, text, ".help")) {
-            if (self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .timing on|off .connect PATH .show .info .quit\nEach statement gets a fresh snapshot. Ctrl-C or exit cancels active execution.\n");
-            return self.json(.{ .commands = [_][]const u8{ "help", "tables", "schema", "mode", "timing", "connect", "show", "info", "quit" }, .sql = "Finite SELECT over a fresh leased snapshot. Exit cancels active execution." });
-        }
-        if (std.mem.eql(u8, text, ".help") and self.session.format == .table) return self.out.writeAll("SQL: enter a finite SELECT followed by a semicolon.\n.help .tables .schema .mode table|json .timing on|off .connect PATH .show .info .quit\nRecovery: .status .resume [ID] .cancel\nDisconnecting does not cancel accepted work.\n");
-        if (std.mem.eql(u8, text, ".help")) return self.json(.{ .commands = @typeInfo(q.Assistance.Meta).@"enum".field_names, .sql = "Finite read-only SELECT; DESCRIBE, SHOW TABLES and EXPLAIN inspect the configured source. SELECT prints verified results; .resume recovers the saved query." });
+        if (std.mem.eql(u8, text, ".help") or std.mem.startsWith(u8, text, ".help ")) return @import("ConsoleHelp.zig").write(self, std.mem.trim(u8, text[5..], " \t"));
         if (std.mem.startsWith(u8, text, ".connect ")) {
             if (self.batch) return error.ConnectionSwitchRequiresTerminal;
+            if (self.writes) |writer| if (writer.unresolved()) return error.UnresolvedSubmission;
             if (self.session.pending != null or self.session.input != null or (self.session.namespace != null and !self.session.complete)) return error.UnresolvedSubmission;
             const file = try Preferences.argument(allocator, text[9..]);
             self.next_connection = try self.init.arena.allocator().dupe(u8, file);

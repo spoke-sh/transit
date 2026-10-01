@@ -219,10 +219,11 @@ and optional inspection credentials have distinct owners and native grants.
 ## Terminal and public operations
 
 The selected console executes the existing finite v1 KV/Table/Document query
-profile. Source discovery describes only the configured, currently authorized
-source. Complete statements compile through Fuze before any native submission.
-Administrative/reference SQL, writes, continuous queries and unsupported forms
-fail without partial lowering. Application definitions retain their independent
+profile, plus bounded writes through explicit writer/catalog routes. Source
+discovery describes the configured source; catalog SHOW TABLES and DESCRIBE use
+the separately configured catalog. Complete statements compile through Fuze
+before native submission. Reference-only SQL, continuous queries and unsupported
+forms fail without partial lowering. Application definitions retain their independent
 compiler/publication boundary; accepting a declaration as grammar does not make
 it executable at a query endpoint.
 
@@ -334,3 +335,31 @@ unsupported forms, quote/comment boundaries, Unicode offsets and stale/denied
 metadata in both Board and the real terminal. Report cold/warm latency and
 resident bounds for those fixtures. The catalog of complete SQL drafts remains
 a separate API and does not satisfy this cursor-assistance contract.
+
+### Console write routes and recovery
+
+An optional `writes` object contains `recovery_file` and at least one of `table`
+(name plus TableMutationClient connection) or `catalog` (Catalog.Client connection).
+Both use the console's transport and credential, with matching realm/principal.
+The file is distinct from query recovery. No route or configuration grants rights.
+Supported mutations and compatible CREATE TABLE use their owning clients;
+`.help` and SQL topics explain both present and absent routes without I/O.
+
+Write recovery is a separate JSON record, bounded to 32768 bytes. Required fields
+are version 1, current `definition`, public `key`, optional `table` connection and
+`name`, optional `catalog` connection, optional `operation`, `complete` and
+`cancelling`. A mutation owns namespace, typed request, optional prepared command
+and its optional admitted input; creation owns its typed request, prepared command
+and optional input. The definition, key, connections and prepared request binding
+are validated before I/O. Missing/foreign fields are never defaulted. Writes use
+atomic 0600 replacement with file and parent synchronization; a persistence error
+stops further execution. Opening never submits. Each exact signed command is
+saved before sending; receipt position remains paired with it through processed
+observation and rejection checks. Terminal outcomes are read under current rights.
+
+`.status` observes the saved write, `.resume` reconciles it, and `.cancel` requests
+mutation cancellation after reconciling its pending send. Interruptions preserve
+work; neither interruption nor cancellation undoes applied rows. CREATE TABLE has
+no cancellation operation. Unresolved writes block replacement work and connection
+switching. A new durable query replaces completed write recovery only after SQL
+compilation. Query recovery keeps its own format and lifecycle.

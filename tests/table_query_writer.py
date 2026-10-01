@@ -5,6 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -43,6 +44,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
         config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='combined-table', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
         fault = dict(phase=1, seen=threading.Event(), release=threading.Event(), frozen=None, receipt=None)
         send_fault = dict(lose=False, frozen=None, receipt=None, recovered=False)
+        rejection_gate = dict(armed=False, seen=threading.Event(), release=threading.Event())
         counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0, recovered_initialization_receipts=0, snapshot_pause_seconds=0.0)
         errors, processes, logs, clients = [], [], [], []
         snapshot_seen, snapshot_release = threading.Event(), threading.Event()
@@ -61,6 +63,11 @@ def run(node, host, proof, library, cli, *, sdks=()):
                         if 'snapshot_entries' in kind or ('snapshot_read' in kind and 'existing' in kind['snapshot_read']['snapshot']):
                             snapshot_seen.set()
                             assert snapshot_release.wait(timeout=30), 'snapshot fault was never released'
+                    early_command = message.get('request', {}).get('command', {})
+                    if rejection_gate['armed'] and message.get('request', {}).get('principal') == 1234 and 'send' in early_command and b'TMP1' in bytes.fromhex(early_command['send']['value']):
+                        rejection_gate['armed'] = False
+                        rejection_gate['seen'].set()
+                        assert rejection_gate['release'].wait(timeout=15), 'policy rejection fault was never released'
                     upstream.request('POST', self.path, body, {'Content-Type': 'application/json'})
                     response = upstream.getresponse()
                     data = response.read()
@@ -242,7 +249,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             mutations = Mutation(library, endpoint, dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)); clients.append(mutations)
             cli_mutations = Cli(cli, root, endpoint, dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)); clients.append(cli_mutations)
             settings = json.loads((root/'shell.json').read_text())
-            settings.update(version=1, profile='unified_v1', execution='interactive', transport='loopback', format='json')
+            settings.update(version=1, profile='unified_v1', execution='interactive', transport='loopback', format='json', writes=dict(recovery_file='console-writes.json', table=dict(name='items', connection=dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1))))
             (root/'console.json').write_text(json.dumps(settings))
             console_args = [cli, 'console', '--no-rc', '--config', str(root/'console.json'), '-c', 'SELECT * FROM items;']
             mutation("INSERT INTO items (id,value) VALUES(1,'old'),(2,'two')", 1)
@@ -286,6 +293,90 @@ def run(node, host, proof, library, cli, *, sdks=()):
             latest = subprocess.run(console_args, env=fixture.env, capture_output=True, text=True, timeout=30)
             assert latest.returncode == 0, latest.stderr
             assert console_rows(latest.stdout) == current
+            # Console SQL uses the same authorized writer and exact signed recovery.
+            def console_run(sql=None, data=None, code=0):
+                args = console_args[:-2] + (['-c', sql] if sql is not None else [])
+                result = subprocess.run(args, input=data, env=fixture.env, capture_output=True, text=True, timeout=45)
+                assert result.returncode == code, (result.returncode, result.stdout, result.stderr)
+                return result
+            recovery_path = root/'console-writes.json'
+            help_result = json.loads(console_run(data='.help INSERT\n').stdout)
+            assert help_result['table_writer_configured'] and not help_result['catalog_configured']
+            assert 'transit mutate' not in help_result['help']
+            for sql, affected in [("INSERT INTO items (id,value) VALUES (101,'console')", 1),
+                                  ("UPDATE items SET value='changed' WHERE id=101", 1),
+                                  ("DELETE FROM items WHERE id=101", 1),
+                                  ("DELETE FROM items WHERE id=101", 0)]:
+                result = json.loads(console_run(sql).stdout)['mutation']
+                assert result['phase'] == 'applied' and result['affected_rows'] == affected, result
+            rejected = console_run("INSERT INTO items (id,value) VALUES (1,'duplicate'),(101,'atomic')", code=1)
+            assert json.loads(rejected.stdout)['mutation']['reason'] == 'row_exists'
+            assert console_rows(console_run('SELECT * FROM items').stdout) == current
+            send_fault.update(lose=True, recovered=False)
+            lost = console_run("INSERT INTO items (id,value) VALUES (102,'recovered')", code=1)
+            assert not lost.stdout and '.resume' in lost.stderr
+            saved = recovery_path.read_bytes()
+            record = json.loads(saved)
+            assert record['operation']['mutation']['pending']['signed'] == json.loads(send_fault['frozen'])
+            assert record['operation']['mutation']['input'] is None
+            assert recovery_path.stat().st_mode & 0o777 == 0o600
+            console_run(data='.help\n')
+            assert not send_fault['recovered'] and recovery_path.read_bytes() == saved
+            status = json.loads(console_run(data='.status\n').stdout)['mutation']
+            assert status['uncertain'] and not send_fault['recovered']
+            for edit in ('definition', 'key', 'connection'):
+                altered = json.loads(saved)
+                if edit == 'definition': del altered['definition']
+                elif edit == 'key': altered['key'][0] ^= 1
+                else: altered['table']['writer'] += 1
+                recovery_path.write_text(json.dumps(altered))
+                invalid = console_run(data='.resume\n', code=1)
+                assert not invalid.stdout and not send_fault['recovered']
+            recovery_path.write_bytes(saved)
+            restored = json.loads(console_run(data='.resume\n').stdout)['mutation']
+            assert restored['phase'] == 'applied' and restored['affected_rows'] == 1 and send_fault['recovered']
+            again = json.loads(console_run(data='.resume\n').stdout)['mutation']
+            assert again == restored
+            console_run('DELETE FROM items WHERE id=102')
+            # SIGINT retains admitted work, stops a batch before its next SQL,
+            # and explicit cancellation reconciles the original input first.
+            source.send_signal(signal.SIGSTOP)
+            interrupted = subprocess.Popen(console_args[:-2], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=fixture.env)
+            processes.append(interrupted)
+            try:
+                interrupted.stdin.write("INSERT INTO items (id,value) VALUES (103,'pending');\nDELETE FROM items WHERE id=1;\n")
+                interrupted.stdin.flush()
+                until(lambda: recovery_path.exists() and not json.loads(recovery_path.read_bytes())['complete'] and json.loads(recovery_path.read_bytes())['operation']['mutation']['input'] is not None)
+                interrupted.send_signal(signal.SIGINT)
+                stdout, stderr = interrupted.communicate(timeout=15)
+                assert interrupted.returncode == 130 and not stdout and '.resume' in stderr, (interrupted.returncode, stdout, stderr)
+            finally:
+                source.send_signal(signal.SIGCONT)
+            cancelled = json.loads(console_run(data='.cancel\n').stdout)['mutation']
+            assert cancelled['phase'] == 'cancelled', cancelled
+            assert console_rows(console_run('SELECT * FROM items').stdout) == current
+            # Revoke after a part is frozen but before its admission. A rejected
+            # part must not be mistaken for a terminal mutation or lose recovery.
+            rejection_gate['armed'] = True
+            racing = subprocess.Popen(console_args[:-2]+['-c', "INSERT INTO items (id,value) VALUES (104,'denied')"], env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            processes.append(racing)
+            try:
+                assert rejection_gate['seen'].wait(timeout=15), 'console did not prepare a mutation part'
+                position = invoke('combined-mutation-revoke')['position']
+                until(lambda: processed(position))
+            finally:
+                rejection_gate['release'].set()
+            stdout, stderr = racing.communicate(timeout=20)
+            assert racing.returncode == 1 and json.loads(stdout)['mutation']['phase'] == 'input_rejected', (racing.returncode, stdout, stderr)
+            assert not json.loads(recovery_path.read_bytes())['complete']
+            blocked = console_run('SELECT * FROM items', code=1)
+            assert not blocked.stdout and '.cancel' in blocked.stderr
+            cancelled = json.loads(console_run(data='.cancel\n').stdout)['mutation']
+            assert cancelled['phase'] == 'cancelled', cancelled
+            position = invoke('combined-mutation-restore')['position']
+            until(lambda: processed(position))
+            assert console_rows(console_run('SELECT * FROM items').stdout) == current
+            print('Console writes: INSERT/UPDATE/DELETE, atomic rejection, exact lost-receipt recovery, identity checks, read-after-write, interruption, policy-raced input rejection and cancellation passed.', flush=True)
             sdk_results = []
             mutation_connection = dict(realm=46, principal=1234, writer=connection['source'], resource=connection['resource'], table=1)
             for index, (label, factory) in enumerate(installed):
@@ -320,6 +411,8 @@ def run(node, host, proof, library, cli, *, sdks=()):
             position = invoke('combined-mutation-revoke')['position']
             until(lambda: processed(position))
             denied(lambda: mutation('DELETE FROM items WHERE id=1', 17), 'MutationDenied')
+            denied_console = console_run('DELETE FROM items WHERE id=1', code=1)
+            assert 'current writer or catalog policy' in denied_console.stderr and not denied_console.stdout
             query(3); complete(3)
             assert rows(3) == [dict(id=1, value='new'), dict(id=2, value='after-revocation')]
             invoke('revoke')
@@ -337,6 +430,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             raise
         finally:
             fault['release'].set()
+            rejection_gate['release'].set()
             snapshot_release.set()
             for client in clients: client.close()
             for process in reversed(processes):

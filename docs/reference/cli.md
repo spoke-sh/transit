@@ -164,21 +164,25 @@ commands are unsupported. Completion never submits.
 
 | Command | Meaning |
 | --- | --- |
-| `.help` | Show available commands |
-| `.sources`, `.tables`, `.schema` | Inspect the authorized source and schema |
+| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE]` | Show SQL, commands and configured write routes |
+| `.sources`, `.schema` | Inspect the authorized query source and schema |
+| `.tables` | List the configured catalog, or the query source when no catalog is configured |
 | `.mode table\|json` | Select result presentation |
 | `.timing on\|off` | Report query phase wall times to stderr; off by default |
 | `.connect PATH` | Switch connection in a terminal, after resolving outstanding work |
 | `.show` | Effective settings and their origins as aligned text, including in JSON result mode |
-| `.status`, `.info` | Saved query status or evidence |
-| `.resume [ID]` | Recover the saved or selected existing query and print results |
-| `.cancel` | Request durable cancellation of the saved query |
+| `.status`, `.info` | Saved write/query status, or query evidence |
+| `.resume [ID]` | Recover the saved write or durable query; an ID selects a durable query |
+| `.cancel` | Request cancellation of the saved mutation or durable query; CREATE TABLE has no cancellation |
 | `.quit`, EOF | Disconnect; durable accepted work persists |
 
-SQL uses a fresh leased snapshot by default and executes locally without durable
-query state. In `execution: durable` mode, SQL chooses a fresh identity, records
+SELECT uses a fresh leased snapshot by default and executes locally without durable
+query state. In `execution: durable` mode, SELECT chooses a fresh identity, records
 exact intent, advances its upload and prints verified results. Recovery commands
-apply to durable mode. `.new`, `.retry`, `.advance`, `.next` and
+also handle saved writes in either mode. INSERT/UPDATE/DELETE and CREATE TABLE
+require explicit `writes.table` / `writes.catalog` configuration and current
+authority. See [console writes](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+for exact saved commands, Ctrl-C behavior and terminal outcomes. `.new`, `.retry`, `.advance`, `.next` and
 manual recovery exports are not console commands. `query` remains a callable
 shell with its explicit protocol and dot commands;
 root help advertises `console` as the query interface.

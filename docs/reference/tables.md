@@ -20,9 +20,10 @@ Native admission receipts and terminal row results remain separate.
 Its shared Zig client prepares and saves signed commands, resumes immutable
 uploads and reads durable outcomes under current grants. A separate mutation
 policy controls each caller; read-query access alone cannot enable writes.
-The console, Board, Flight SQL and language SDK query routes do not admit these
-mutations. Typed mutation SDKs and the CLI's explicit `mutate` commands use the
-shared mutation owner.
+The console executes these statements through an explicit `writes.table` route;
+`.help INSERT` explains configuration and recovery. Board, Flight SQL and
+language SDK read-query routes do not admit mutations. Console and typed mutation
+SDKs use the shared mutation owner.
 
 The [combined Table owner](../../contracts/TABLE_QUERY_WRITER_V1.md) initializes
 one empty typed Table, then atomically enables its separately configured query

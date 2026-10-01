@@ -114,7 +114,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
             16 => "credential required",
             7 => "current access denied",
             9 => "result or service unavailable",
-            12 => "Flight supports finite read-only queries and metadata; writes require an authorized mutation client. See transit mutate --help",
+            12 => "Flight supports finite read-only queries and metadata; writes require an authorized mutation client. See console .help INSERT",
             8 => "bounded capacity exhausted",
             10 => "admission conflict; retain request identity",
             14 => "unavailable; retain request identity",

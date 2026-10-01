@@ -68,7 +68,7 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         for statement, fragments in (
             ('SELECT;', (b'[syntax]', b'line 1, column 7', b'^--- error here')),
             ('INSERT INTO items VALUES (1, 100);', (b'[syntax]', b'explicit column names')),
-            ('INSERT INTO items (id, value) VALUES (1, 100);', (b'[interface]', b'transit mutate --help')),
+            ('INSERT INTO items (id, value) VALUES (1, 100);', (b'no writer is configured', b'.help INSERT')),
             ('SHOW SOURCES;', (b'[grammar_only]', b'SHOW TABLES')),
         ):
             invalid = run(args=('-c', statement), expected_code=1)

@@ -125,7 +125,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             resident_pages=8, request_timeout_ms=10000)))
         faults = {name: dict(lose=False, body=None, receipt=None, recovered=False) for name in ('send', 'turn')}
         faults['initialize_send'] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
-        for name in ['abi_create', 'port_create', 'cli_create', *[name + '_create' for name, _ in installed]]:
+        for name in ['abi_create', 'port_create', 'cli_create', 'console_create', *[name + '_create' for name, _ in installed]]:
             faults[name] = dict(command='send', lose=False, body=None, receipt=None, recovered=False)
         for name in ('host_initialize', 'host_create'):
             faults[name] = dict(command='turn', lose=False, body=None, receipt=None, recovered=False, blocked=False)
@@ -759,8 +759,49 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
                 invoke('reown')
                 invoke('write-host')
                 start_worker()
+            # The SQL console publishes through the same catalog client. Its
+            # query binding is explicit and independent of named publication.
+            console_config = dict(version=1, profile='unified_v1', url=proxy_url, transport='loopback', seed_file='caller.seed', format='json',
+                connection=dict(realm=46, principal=1234, source=connection['owner'], resource=connection['scope']['resource'], requester=connection['owner'], requests=connection['scope']['resource']),
+                workspace=dict(name='items', source=dict(version=1, resource=connection['scope']['resource'], source=dict(table=dict(id=7, names=['id','value'], value_type='int64'))), limits=dict(pages='1000',segments='100',result_bytes='1048576')),
+                writes=dict(recovery_file='console-writes.json', catalog=dict(connection, scope=dict(connection['scope'],catalog=maximum))))
+            console_path = root/'console.json'
+            console_path.write_text(json.dumps(console_config))
+            def console_run(sql=None, data=None, code=0):
+                args = [cli, 'console', '--no-rc', '--config', str(console_path)] + (['-c', sql] if sql is not None else [])
+                result = subprocess.run(args, input=data, capture_output=True, text=True, timeout=45)
+                assert result.returncode == code, (result.returncode, result.stdout, result.stderr)
+                return result
+            help_result = json.loads(console_run(data='.help CREATE TABLE\n').stdout)
+            assert help_result['catalog_configured'] and not help_result['table_writer_configured']
+            invalid = console_run('CREATE TABLE bad (id INT64, value INT64)', code=1)
+            assert '.help CREATE TABLE' in invalid.stderr and not invalid.stdout
+            faults['console_create']['lose'] = True
+            lost = console_run('CREATE TABLE shell_items (id INT64 NOT NULL, value UTF8 NULL)', code=1)
+            assert not lost.stdout and '.resume' in lost.stderr
+            recovery_path = root/'console-writes.json'
+            saved = recovery_path.read_bytes()
+            saved_record = json.loads(saved)
+            assert saved_record['operation']['creation']['pending']['signed'] == json.loads(faults['console_create']['body'])
+            console_run(data='.help\n')
+            assert not faults['console_create']['recovered'] and recovery_path.read_bytes() == saved
+            console_run(data='.cancel\n', code=1)
+            assert not faults['console_create']['recovered'] and recovery_path.read_bytes() == saved
+            result = json.loads(console_run(data='.resume\n').stdout)['creation']
+            assert result['phase'] == 'applied' and result['name'] == 'shell_items' and faults['console_create']['recovered']
+            assert json.loads(console_run(data='.resume\n').stdout)['creation'] == result
+            assert json.loads(console_run('DESCRIBE shell_items').stdout)['definition']['source']['table']['schema']['value_type'] == 'utf8'
+            pages = [json.loads(line)['catalog_page'] for line in console_run('SHOW TABLES').stdout.splitlines()]
+            assert pages[-1]['next'] is None
+            expected_names = sorted([*expected_names, 'shell_items'])
+            assert [entry['name'] for page in pages for entry in page['entries'] if entry] == expected_names
+            duplicate = console_run('CREATE TABLE shell_items (id INT64 NOT NULL, value UTF8 NULL)', code=1)
+            assert json.loads(duplicate.stdout)['creation']['phase'] == 'name_conflict'
+            print('Console catalog: CREATE TABLE, exact lost-receipt recovery, explicit cancellation limit, DESCRIBE/SHOW TABLES and name conflicts passed.', flush=True)
             revoked = invoke('send-policy', 6, 'true', 'false')['position']
             await_value(lambda: invoke('observe-control', revoked) == 'processed')
+            denied_console = console_run(data='.status\n', code=1)
+            assert not denied_console.stdout and 'current writer or catalog policy' in denied_console.stderr
             invoke('list', error='CatalogDenied')
             invoke('lookup', 'items', error='CatalogDenied')
             invoke('definition', maximum, 1, error='CatalogDenied')
@@ -796,7 +837,7 @@ def run(node, proof, catalog_host, port_host, library, cli, languages=(), growth
             assert counts['max_mutations'] == 4 and counts['max_value_bytes'] <= 256
             if cold_store:
                 assert cold_store.data_objects() > 0, 'Catalog history did not spill to cold storage'
-            report.update(lost_caller_receipts=5 + len(installed), lost_writer_receipts=3, listed_definitions=len(expected_names))
+            report.update(lost_caller_receipts=6 + len(installed), lost_writer_receipts=3, listed_definitions=len(expected_names))
         finally:
             failure = sys.exc_info()[1]
             metadata_release.set()

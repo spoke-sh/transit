@@ -113,7 +113,7 @@ def run(node, host, gateway, proof, mode=None, board=None):
             before_errors = subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)
             for text, category, fragments in (
                 ('SELECT;', pa.ArrowInvalid, ('SQL parse error', 'line 1, column 7', '/reference/sql/')),
-                ('INSERT INTO items VALUES (1, 100);', pa.ArrowInvalid, ('explicit INSERT columns', 'transit mutate --help')),
+                ('INSERT INTO items VALUES (1, 100);', pa.ArrowInvalid, ('explicit INSERT columns', '.help INSERT')),
                 ('INSERT INTO items (id, value) VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
                 ('CREATE CONNECTION unfinished', pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
                 ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'exact source and column names')),

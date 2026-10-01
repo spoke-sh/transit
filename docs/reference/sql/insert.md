@@ -1,16 +1,15 @@
 # INSERT
 
-**Run INSERT through an explicitly configured Table mutation writer. The console
-and Flight SQL query interfaces are read-only.** A successful `SELECT` from
-`items` does not configure a writer or authorize changes to that Table.
+Run INSERT in the [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
+with an explicitly configured, authorized Table writer. `.help INSERT` explains
+syntax, connection requirements and recovery. A successful SELECT does not
+configure a writer or authorize changes. Flight SQL and Board query interfaces
+remain read-only.
 
-Bounded literal inserts are available through the shared Zig mutation client,
-[native ABI/port caller](../../../packages/zig/transit-station-bindings/docs/table-mutations.md),
-[typed SDK mutation clients](../sdks.md#table-mutation-callers) and
-[mutation CLI](../../../apps/transit-cli/docs/mutations.md), with an explicitly
-configured writer. Applications can also compose the private
-`station.TableMutation.applySql` helper. The console, Board query workspace, Flight SQL
-and language SDK query clients do not admit SQL mutations.
+The console uses the shared Zig mutation client, also exposed through
+[native ABI/port callers](../../../packages/zig/transit-station-bindings/docs/table-mutations.md)
+and [typed SDK mutation clients](../sdks.md#table-mutation-callers). Applications
+can compose `station.TableMutation.applySql` inside their private turn.
 
 ## Syntax and values
 
@@ -27,11 +26,12 @@ columns. Repeated keys within the statement reject before application.
 
 `INSERT INTO items VALUES (1, 100)` omits the required column list and is outside
 this syntax. `INSERT INTO items (id, value) VALUES (1, 100)` has supported mutation
-syntax, but submitting it in the console reports that its query interface is
-read-only. Run `transit mutate --help` and follow the
-[saved-command workflow](../../../apps/transit-cli/docs/mutations.md) with your
-writer connection. Compilation, submission and observing the applied result are
-separate steps; query credentials do not implicitly supply write authority.
+syntax and executes when `writes.table` selects an authorized writer. Otherwise
+the console explains the missing route and points to `.help INSERT`.
+The console saves exact signed commands before submission, waits for processed
+inputs and prints an affected-row count only after observing the applied result.
+After an uncertain result, use `.status` and `.resume`; repeating the SQL creates
+new work. `.cancel` can cancel a pending mutation but cannot undo an applied one.
 
 ## Application and result
 

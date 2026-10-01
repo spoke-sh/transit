@@ -375,6 +375,7 @@ const Parser = struct {
         if (self.token.tag != .eof) return error.UnsupportedConstruct;
     }
     fn declarationType(self: *Parser) !m.Type {
+        if (self.location) |location| location.expected = "INT64, BOOL, UTF8 or BINARY";
         const result: m.Type = if (self.word("INT64")) .int64 else if (self.word("BOOL")) .boolean else if (self.word("UTF8")) .utf8 else if (self.word("BINARY")) .binary else return error.UnsupportedDeclarationType;
         try self.advance();
         return result;
