@@ -11267,9 +11267,22 @@ The **Table schedule passes with all 13 callers in 228.12 s**, with its held
 accumulator at 8/10. It checks the same recovery, denial, cancellation, empty
 LIMIT and retirement cases, retaining eight resident authority pages, 8 MiB hot
 store, 112 cold objects and 11,582,298 cold bytes. The sequential Document
-schedule remains running in
-`/var/tmp/transit-count-column-table-document-partial-recovery.log`; its result
-and the combined command's terminal outcome are not yet established.
+schedule fails during provisioning, before query inspection or COUNT assertions,
+and the combined command exits 1. MinIO returns HTTP 507 `XMinioStorageFull`;
+Ursula then reports `ColdBackpressure` when a write would exceed the unchanged
+8 MiB hot limit. The log is
+`/var/tmp/transit-count-column-table-document-partial-recovery.log`;
+[bounded failure evidence](verification/results/count-values-document-provision-2026-10-01.json)
+preserves the completed Table phase and unrun Document checks. Fixture cleanup
+joins its children and removes the private state; the log retains provider tails.
+
+Removing regenerable build caches from three inactive owned checkouts increases
+available disk space from about 18 to 27 GiB while preserving source, recorded
+evidence and frozen comparison binaries. An unchanged Document-only rerun at
+`40ad89aa` is in progress, log
+`/var/tmp/transit-count-column-document-partial-recovery-retry.log`. Its eventual
+outcome is separate from the failed provisioning attempt; no storage threshold,
+deadline, resident bound or assertion changes.
 
 Committed-head core at `029b21a0` **fails after 19 passing tasks**, with two later
 tasks unrun, in 1106.60 seconds. `test::callers` expects `AccessDenied` for an
