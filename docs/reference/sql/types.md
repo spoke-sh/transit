@@ -5,9 +5,8 @@ Native SQL reads the types in an explicitly declared query source. The local
 resolves a frozen CSV/JSONL schema before compiling SQL. Neither creates a
 resource from application bytes. Query types, SQL literal
 syntax, offline declaration types and published Table schemas have different coverage.
-The [planned type system and schema discovery](#planned-type-system-and-schema-discovery)
-below describe work that is not implemented; the scalar and cell-state sections
-describe current behavior.
+The [surface capability matrix](#surface-capability-matrix) distinguishes these
+interfaces; local type support does not widen every source or transport.
 
 ## Logical descriptor API
 
@@ -79,13 +78,13 @@ not choose a fixed-point representation for application monetary values.
 
 ## Cell states
 
-Nested query cells retain a state as well as a scalar type:
+Query cells retain a state as well as a declared type:
 
 | State | Meaning | SQL behavior |
 | --- | --- | --- |
 | Value | A value of the declared scalar type | `IS VALUE` selects it; comparisons require exactly typed operands |
 | Null | Explicit absence of a value | `IS NULL` selects it |
-| Missing | No value at the declared Document projection | `IS MISSING` selects it; distinct from null |
+| Missing | No value at a declared projection or optional field | `IS MISSING` selects it; distinct from null |
 | Type error | The source cannot supply the declared type | `IS TYPE_ERROR` selects it; preserved in row results |
 | Conflict | The source carries an unresolved conflict | `IS CONFLICT` selects it; alternatives remain intact |
 
@@ -103,132 +102,104 @@ by native query v1 does not imply support through every SQL transport. See
 [Arrow interchange](../arrow.md) and the
 [query contract](../../../contracts/UNIFIED_QUERY_V1.md).
 
-## Planned type system and schema discovery
+## Logical family capabilities
 
-**Status: public query-surface expansion is planned.** The local logical
-descriptor, codec and file-source APIs above implement bounded discovery/decoding. The objective is a comprehensive shared
-type system that also makes ad hoc CSV and JSONL queries useful without requiring
-an import or a complete handwritten schema first. Schema on demand means
-deriving a bounded, explicit interpretation when opening a source. It does not
-mean changing the meaning of a running query as more rows arrive. The following
-requirements introduce no executable SQL syntax, reader options or wire fields.
+All families below have canonical descriptors/fingerprints, owned neutral binary
+and JSON values, logical Arrow IPC export, and the local Python/TypeScript codec
+APIs. These capabilities do not imply storage, SQL syntax or native transport
+admission. Parameters, traits and exact encodings are specified in the
+[type contract](../../../contracts/FUZE_TYPES_V1.md).
 
-### Planned type coverage
+| Family | Values and operations | File decoding |
+| --- | --- | --- |
+| Signed/unsigned integers | 8/16/32/64/128 bits; exact binding, checked integer/decimal casts and lossless domain promotion | CSV text; JSON numeric lexemes |
+| Floats | Finite binary32/64; bit-preserving codecs, numeric equality with equal signed zeros; checked selected casts | Explicit CSV/JSON types; inference never silently rounds exact numbers to floats |
+| Decimal | Signed 128-bit coefficient, precision 1–38, scale 0–precision; explicit reject/toward-zero/nearest-even rounding | Explicit CSV; exact JSON numbers within precision bounds |
+| Boolean, UTF-8, binary, UUID | Exact booleans; validated UTF-8 without normalization; byte order for strings/binary/UUID | Scalar literal decoding; UUID requires canonical textual shape |
+| Date, time, timestamp | Gregorian days, nanoseconds since midnight, microsecond civil/UTC timestamps; no implicit timezone conversion | Explicit string literals; inference leaves date-like strings as text |
+| Interval | Independent signed months/days/nanoseconds; equality/hash, no total duration ordering | JSON object with explicit components; CSV unsupported |
+| Struct, list, fixed array | Recursive five-state cells; validated structural equality/hash and partial lexicographic order | Corresponding JSON shapes; CSV unsupported |
+| Map, tagged union | Sorted unique typed map keys; map equality/hash; explicitly tagged union values | Declared JSON object/tag shapes; CSV unsupported |
+| JSON | Validated raw JSON with exact numeric lexemes and duplicate-key rejection; no equality/hash/order trait | Whole-record JSONL raw mode or heterogeneous inferred fields; CSV unsupported |
 
-Logical types describe values and operations; physical layouts describe buffers,
-offsets and encodings. The planned shared Zig model separates them so an integer
-column can retain a specialized execution path even when another column contains
-nested values. Each family needs explicit declaration, expression, source,
-storage, Arrow and SDK capability entries; adding a type to Fuze alone cannot
-enable every consumer.
+Enum, domain, opaque extension, spatial, arbitrary precision numeric and named
+IANA timezone types are unsupported. Float-to-integer, binary-float/decimal and
+temporal casts reject. General decimal arithmetic and additional aggregates are
+unsupported. Decimal types select no monetary policy; temporal types add no
+continuous-query/event-time behavior. Nested query values are separate from
+mutable Document identities and merge semantics.
 
-| Planned family | Semantics required before support |
+Descriptors have independent limits of 16 levels, 256 nodes, 4096 total name
+bytes and 16 KiB encoded bytes. Values have 16 levels, 65536 visited children and
+1 MiB variable bytes; transport envelopes impose additional limits. The local
+codec boundary accepts 256 KiB requests/results and up to 96 KiB binary values.
+Logical Arrow keeps a 4 MiB workspace, 64 KiB segments and at most eight rows per
+batch. A value can be valid logically and too large for a selected transport.
+
+## Surface capability matrix
+
+| Surface | Admitted types and behavior |
 | --- | --- |
-| Signed and unsigned integers | Widths from 8 through 64 bits, with 128-bit support evaluated explicitly; range checks, signed/unsigned promotion and accumulator widths |
-| Floating point | Float32/float64 conversion and rounding; a deliberate decision on non-finite values; preserve the current finite float64 and negative-zero behavior until a coordinated change |
-| Exact decimal | Precision/scale bounds, physical width, arithmetic result types, rounding, overflow and canonical encoding; never route exact values through binary floating point |
-| Boolean, UTF-8 and binary | Validation, byte versus character length, equality/order/hash, explicit collation policy and conversion errors |
-| Date, time, timestamp and interval | Units/ranges, calendar rules, civil time versus instants, offsets/zones and timezone-data identity, daylight-saving ambiguity and interval arithmetic |
-| UUID | Validated syntax, canonical bytes, equality and ordering |
-| Struct, list, fixed array and map | Field identity/order, optionality, element types, map key equality/duplicates, bounded nesting and variable-size children |
-| Tagged union and JSON | Explicit alternatives or raw JSON representation, numeric fidelity, duplicate-key policy and typed extraction; no universal implicit string conversion |
-| Enum, domain and extension types | Explicit scope decisions, identity/constraints and serialization rules before admission; not automatically included by claiming comprehensive types |
+| Zig logical types, neutral codecs and local Python/TypeScript codec owners | All logical families above, with the selected conversion/trait operations; no acquisition or durable admission |
+| Zig file sources and local CLI | Frozen CSV/JSONL schemas up to 128 root fields; logical projection, exactly typed scalar predicates, COUNT and int64 SUM; explicit host capture |
+| Native finite/session/durable query plans | Existing six-scalar profile, explicit KV/Table/Document sources and one to eight columns; no file-source admission |
+| SQL literals and offline declarations | The exact scalar/token table above; a parsed declaration does not create storage |
+| Catalog publication and stored Tables | Declared int64 key and one nullable int64/boolean/UTF-8/binary value; historical/richer schemas remain separately scoped |
+| Board and native/foreign query SDKs | Views/callers of the admitted native contracts; no file acquisition or separate inference authority. Other language SDKs do not advertise rich logical owners merely because an ABI declaration exists. |
+| Logical Arrow IPC export | All logical families plus exact type metadata and five-state wrappers; no logical IPC import or C Data admission |
+| Native Arrow and Flight SQL | Native six-scalar query profile with cell states; Flight retains its primitive-int64 Table subset |
 
-Decimal capability does not choose an application's currency, scale or monetary
-rounding policy. Temporal values do not establish event-time windows, watermarks,
-lateness or continuous queries. Nested query values are distinct from mutable
-Document object identities and CRDT merge semantics.
+Adding a local type or codec action leaves existing accepted native query work,
+stored formats and operation meanings unchanged. The new logical type/source/
+Arrow documents require their own exact current definitions. Missing or foreign
+definitions reject before execution; saved bindings never infer a current
+identifier or reinterpret old work. Future incompatible changes follow the
+[v1 hard-cutover policy](../versioning.md).
 
-The planned semantic contract distinguishes four operations: binding a literal,
-explicit casting, promotion within an expression, and unifying observations
-during inference. Each needs a deterministic compatibility/error table. A wider
-physical type does not necessarily give a lossless conversion: float64 cannot
-represent every uint64. Failed conversions must have a defined error or typed
-cell outcome, not silently become null. Value, null, missing, type error and
-conflict remain distinct, including inside nested values. Comparisons, hashing,
-grouping and aggregates must agree on the chosen equality and error rules.
+## Schema discovery and binding
 
-### Planned discovery and binding
+Schema on demand resolves one explicit interpretation before publishing rows.
+The host first acquires immutable content with a verified length/SHA-256 and
+current access checks. Fuze performs no file or network I/O. The local CLI
+captures regular files, gzip or stdin into private, unlinked disk files under
+separate encoded/expanded quotas. These captures are ephemeral, with no durable
+job recovery or implicit refetch on replay.
 
-The proposed source modes are a complete explicit schema, partial type overrides
-with discovery of remaining fields, bounded sampling, deliberate full-input
-discovery, and a lossless raw mode. Raw CSV fields remain text; raw JSON retains
-its JSON representation rather than flattening every value to a string. These
-are requirements, not available reader options.
-
-1. Acquire an authorized source identity and immutable content/version basis.
-   A pathname, modification time or unverified remote tag alone is insufficient
-   to promise repeatable bytes. A non-seekable input needs bounded buffering or
-   an explicitly authorized durable spool with quotas, or a stated unsupported
-   replay mode. Discovery and execution must read the same basis.
-2. Detect framing and collect evidence within separate byte, record, field,
-   depth, file-count and work budgets. Record dialect, encoding, null tokens,
-   numeric/date formats, sampling locations and algorithm definition. Sampling
-   does not prove the remaining input conforms. Empty/all-null inputs and
-   ambiguous text require an explicit unresolved/raw outcome or an override.
-3. Resolve one schema using deterministic inference rules and user overrides.
-   Review metadata identifies inferred versus specified fields and the evidence
-   coverage. Freeze that schema and its fingerprint before emitting typed output;
-   discovery alone creates no resource, grants or external effects.
-4. Decode bounded batches under the frozen interpretation. A late incompatible
-   value or unseen field follows the selected fail/error/raw-preservation policy.
-   It cannot silently widen an emitted column, disappear, or restart a query
-   under the same accepted identity with different meaning. Any later re-inference
-   is a new explicit binding. Failed prefixes never become complete results.
-
-The future schema fingerprint must cover recursive type parameters, field
-identity/order and relevant semantic definitions. The source contract separately
-binds content identity, decoder/inference definition, resolved schema, reader
-options and sampling evidence. Cached inference is reusable only for a matching
-basis and options under current permission. Historical binding and retained
-requests must keep their original interpretation.
-
-CSV needs explicit rules for delimiters, quoting/escaping, multiline records,
-headers and duplicate names, encoding/BOM, empty fields versus null tokens,
-ragged rows and numeric/date ambiguity. For example, `00123` can be an identifier;
-a numeric guess cannot establish the application's intent. JSONL needs rules for
-record framing, duplicate keys, absent versus null fields, numeric precision,
-heterogeneous arrays, empty containers, nested shape changes and unusually large
-records. Multi-file discovery needs deterministic file/field ordering, bounded
-metadata and explicit name alignment and missing-field behavior. Compression
-and non-seekable sources must expose their different sampling and replay costs.
-
-### DuckDB comparison
-
-DuckDB is a comparison system for usability, semantics and measurements, not a
-Transit runtime dependency or an assertion of SQL compatibility. The linked
-upstream documentation describes its current 1.5 profile when consulted on
-2026-09-30; a benchmark must pin the actual release/build and options.
-
-| DuckDB behavior | Planned Transit evaluation |
+| Mode | Schema resolution |
 | --- | --- |
-| CSV dialect/header/type detection, configurable samples, type overrides, raw text mode and inspectable `sniff_csv` output | Compare discovery cost and reviewable resolved schemas, including ambiguous headers and late outliers |
-| CSV sampling can seek through ordinary files; compressed/non-seekable inputs sample the prefix | Compare coverage and time to first batch separately by input capability |
-| JSON/NDJSON discovery supports explicit columns, sampling/depth controls, multi-file name unification and struct/map inference controls | Evaluate nested fidelity, sparse fields, heterogeneous values and bounded inference metadata |
-| JSON reader missing fields become SQL null | Preserve Transit's separate missing state; classify this as a semantic difference in comparisons |
-| Broad scalar/nested types and distinct ordinary versus combination casts | Define Transit's own type and promotion tables; parser or type-name overlap does not establish equivalence |
+| Explicit | Complete caller-supplied fields and types, without inference |
+| Partial | Named type overrides plus sampled/full discovery for remaining fields |
+| Sampled | A prefix bounded independently by bytes and records; coverage remains visible |
+| Full | Every selected source contributes before schema publication; work quotas still apply |
+| Raw | CSV fields remain decoded text/null; JSONL exposes the original JSON record |
 
-Sources: [CSV detection](https://duckdb.org/docs/current/data/csv/auto_detection),
-[JSON loading](https://duckdb.org/docs/current/data/json/loading_json),
-[type families](https://duckdb.org/docs/current/sql/data_types/overview) and
-[casting](https://duckdb.org/docs/current/sql/data_types/typecasting).
-The [performance plan](../performance.md#planned-schema-on-demand-comparisons)
-defines the proposed comparison method. No Transit CSV/JSONL benchmark or DuckDB
-performance parity is established by these references.
+CSV uses explicit dialect/header/null settings. It preserves leading-zero,
+plus-prefixed, decimal/exponent and otherwise ambiguous text as UTF-8 during
+inference. JSON strings remain strings; numbers infer exact integers/decimals
+or retain JSON when outside the bounded exact domain. Missing and null have
+separate flags. Heterogeneous values retain JSON; nested field fallback can
+normalize whitespace/escaping while preserving JSON values and numeric lexemes.
+Empty/all-null observations require an override or the documented raw fallback,
+not a guessed numeric type. Duplicate names/decoded keys reject.
 
-### Ownership and compatibility
+A frozen binding commits ordered source identities, options, schema, per-field
+origins and sampling evidence. Multi-file headers align by exact name; file order
+still determines row order. Defaults are 1024 sampled records, 1 MiB sampled
+bytes, 1 GiB total source bytes and 100 million records. A binding admits up to
+128 files/fields and 64 KiB per record, with additional recursive budgets.
+These are separate work, metadata and resident-buffer bounds.
 
-Fuze owns pure type checking, conversion and execution. Source adapters own
-authorized acquisition and interpretation; Station/catalog owners govern durable
-definitions and publication. SQL, CLI, Board and SDKs share these contracts rather
-than implementing separate inference or coercion rules. File/network reads belong
-outside the deterministic engine and native authority. Durable external capture
-requires recorded intent/outcome rules; replay cannot refetch changed input.
+Every row is framed, converted and validated, including fields/rows discarded by
+projection, predicates or LIMIT. A late incompatible value follows the selected
+failure/type-error policy. Unknown fields, malformed input, denial, cancellation
+and exhausted budgets always fail; no row disappears and no emitted schema
+widens. Rows remain provisional until length/digest verification at EOF. A saved
+binding requires already captured matching handles and current permission; it
+cannot open a pathname or create authorization. See the
+[file-source guide](../../../packages/zig/transit-fuze/docs/file-sources.md) for
+ownership, exact modes and failures, and the
+[source contract](../../../contracts/FUZE_SOURCE_V1.md) for neutral encoding.
 
-Arrow encodings and neutral binding resources need exact per-type mappings,
-ownership rules and independent round trips before support is advertised. Flight
-retains its narrower profile until separately extended. Incompatible stored,
-wire or ABI semantics require the existing [v1 hard cutover](../versioning.md):
-replace the shared definition, migrate consumers and fixtures together, and reject
-missing/foreign definitions before execution. Never reinterpret old accepted work
-or default a persisted compatibility field to the new definition.
+The [performance reference](../performance.md#planned-schema-on-demand-comparisons)
+separates source measurements from existing native query timings. DuckDB is a
+pinned development comparator, without any Transit runtime dependency.

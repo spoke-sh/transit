@@ -18,7 +18,7 @@ queries use accepted projections. Missing, null, conflict, type error and ordina
 value remain distinct. Replacing any of them with an empty successful answer would
 change the source's meaning.
 
-## Two execution lifetimes
+## Native execution lifetimes
 
 | Profile | Recovery evidence | Completion and cleanup |
 | --- | --- | --- |
@@ -30,6 +30,68 @@ a durable job. Interactive execution avoids recorded upload/progress/result turn
 and gives up resumption of that computation after client loss. Captured queries
 pay for durable bookkeeping in exchange for their specified result recovery.
 These are distinct contracts, not interchangeable optimization settings.
+
+## Frozen file interpretation
+
+The local CSV/JSONL implementation adds an ephemeral host-capture profile. This
+section describes the mechanism at `073b6f9b` (2026-09-30), with contracts and
+correctness evidence linked below. Its question is whether bounded discovery can
+produce a stable interpretation without retaining the input in memory. It does
+not describe durable file-job acceptance or a distributed snapshot.
+
+Let B contain ordered content lengths/hashes, decoder options, discovery evidence
+and a recursive schema. The host owns immutable seekable captures and current
+access/cancellation callbacks; Fuze owns pure framing, discovery and execution.
+The CLI writes private, unlinked disk captures under separate encoded/expanded
+quotas. The source reference is the captured bytes, not the original pathname.
+The argument assumes the host honors immutable handles and reports current
+authority correctly; hashing cannot establish that a host is honest.
+
+Discovery retains a bounded type tree and coverage counters. Explicit schemas
+avoid inference; sampled schemas describe only their bounded prefix; full
+discovery deliberately reads all selected content. Unresolved or heterogeneous
+observations retain text/JSON according to the format contract. The binding
+fingerprint commits B before typed rows are exposed. Execution checks every row
+under that same schema and rejects late unknown fields or incompatible values
+according to the selected policy. No emitted schema widens.
+
+Each scan retains an 8 KiB input chunk, one at-most-64-KiB record and bounded
+schema/header metadata. Each returned row owns its arena; the caller must release
+rows instead of accumulating the result. Arrow adds a fixed 4 MiB workspace and
+at-most-64-KiB output segment, containing at most eight rows. Thus engine resident
+work is bounded by metadata, one record/row and output buffers rather than total
+input length. Disk spooling still scales with captured bytes and remains quota
+limited. This is a structural bound, not an RSS measurement; host allocators,
+kernel caches and I/O machinery require separate measurement.
+
+Source checks occur before reads and buffered disclosure, independently of
+content hashes. Actual length/hash verification at EOF is the completion gate.
+A malicious or changed source may therefore expose an incorrect provisional
+prefix before detection; consumers cannot treat that prefix as a complete result.
+Saved bindings require already acquired matching handles and fresh access checks.
+They do not reopen a pathname, dispatch effects or authorize recovery.
+
+Converting only projected fields would reduce work, but would suppress errors in
+unselected input. Early success after LIMIT would similarly hide a malformed
+tail or changed source. The selected contract validates full rows through EOF;
+projection changes output without changing that obligation. Typed batches and
+metadata reuse can reduce overhead only while preserving these checks. Their
+performance is an experimental question owned by the
+[measurement reference](../reference/performance.md), not a consequence of the
+memory argument.
+
+The [type](../../contracts/FUZE_TYPES_V1.md) and
+[source](../../contracts/FUZE_SOURCE_V1.md) contracts define the exact model;
+[FileSource](../../packages/zig/transit-fuze/src/FileSource.zig) and
+[FileQuery](../../packages/zig/transit-fuze/src/FileQuery.zig) implement it.
+Reproduce the independent numeric/framing/schema/ownership checks with
+`just test::fuze-types`, `just test::fuze-sources`, `just test::file-query` and
+`just test::logical-arrow` in the pinned shell. The
+[proof ledger](../../tests/README.md#fuze-bounded-file-sources) records results and
+scope. These schedules cover source replacement, denial/cancellation, allocation
+failure and failed-prefix completion; they do not prove every parser input or
+durable crash recovery. Broader native/Flight/Table admission remains separately
+specified in the [capability matrix](../reference/sql/types.md#surface-capability-matrix).
 
 ## Correctness of a displayed result
 

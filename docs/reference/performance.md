@@ -317,7 +317,7 @@ requirement. A fast read that skips these boundaries does not qualify the design
 Local CSV/JSONL discovery, finite queries and explicit CLI capture are implemented
 with separate [correctness and memory evidence](../../tests/README.md#captured-local-file-queries).
 That evidence does not establish throughput or DuckDB parity.
-The [type-system plan](sql/types.md#planned-type-system-and-schema-discovery)
+The [type-system plan](sql/types.md#schema-discovery-and-binding)
 requires useful first-query latency without losing exact types or allowing
 resident memory to grow with the input. Existing Table/KV/Document timings above
 are not a file-reading baseline. DuckDB supplies a comparison system; it does

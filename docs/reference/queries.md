@@ -27,9 +27,8 @@ local [file-query command](../../apps/transit-cli/docs/file-query.md) explicitly
 captures regular files, gzip or stdin and executes finite SQL against those bytes.
 It returns provisional logical JSON rows followed by verified completion; it
 does not use native durable acceptance. The
-[type system and schema discovery plan](sql/types.md#planned-type-system-and-schema-discovery)
-describes proposed file-source binding, richer types and preserved cell states;
-it does not extend the current source contract.
+[type and discovery reference](sql/types.md#schema-discovery-and-binding) describes
+frozen file bindings, exact logical types and each interface's admission limits.
 
 Each captured source basis names the resource/revision and contract/schema it
 actually read. This is not a cross-resource transaction, global snapshot or
