@@ -43,7 +43,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
         config.write_text(json.dumps(dict(profile='native_v1', genesis=dict(realm=46, root_key=public, max_clock_error_ms=10000), ursula_url=fixture.url, bucket='combined-table', journal='authority', port=port, resident_pages=8, request_timeout_ms=10000)))
         fault = dict(phase=1, seen=threading.Event(), release=threading.Event(), frozen=None, receipt=None)
         send_fault = dict(lose=False, frozen=None, receipt=None, recovered=False)
-        counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0, recovered_initialization_receipts=0)
+        counts = dict(reads=0, turns=0, max_mutations=0, max_value_bytes=0, recovered_initialization_receipts=0, snapshot_pause_seconds=0.0)
         errors, processes, logs, clients = [], [], [], []
         snapshot_seen, snapshot_release = threading.Event(), threading.Event()
         pause_snapshot = False
@@ -134,15 +134,20 @@ def run(node, host, proof, library, cli, *, sdks=()):
             return start(f'{role}-{generation}', [host, str(path)])
 
         def processed(position):
-            state = invoke('combined-state')
+            state = invoke('combined-progress')
             return state['pending'] is None or state['pending'] > position
 
-        def mutation(sql, namespace, caller=None, compiled=None):
+        def mutation(sql, namespace, caller=None, compiled=None, *, seal_only=False):
             caller = caller or mutations
             compiled = compiled or caller.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
             for _ in range(32):
+                if seal_only:
+                    status = caller.call({'status': compiled['reference']})['status']
+                    if status is not None and status['phase'] == 'sealed':
+                        return compiled
                 prepared = caller.call({'next': compiled})['prepared']
                 if prepared is None:
+                    assert not seal_only, 'mutation applied before the snapshot interleave'
                     status = caller.call({'status': compiled['reference']})['status']
                     assert status['phase'] == 'applied', status
                     return status
@@ -246,16 +251,30 @@ def run(node, host, proof, library, cli, *, sdks=()):
             snapshot = until(lambda: invoke('job', 1)['job'])
             assert snapshot['phase'] == 'capturing', snapshot
             namespace = (1 << 63) | snapshot['id']
+            # Finish upload and seal before holding a live console read. Only
+            # the final apply must commit after its retained snapshot. Holding
+            # the request across the whole upload instead makes test setup race
+            # the console's ordinary five-second per-request deadline.
+            staged = mutation("UPDATE items SET value='new' WHERE id=1", namespace, cli_mutations, seal_only=True)
+            apply = cli_mutations.call({'prepare': {'apply': staged['reference']}})['prepared']
             pause_snapshot = True
             console = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             processes.append(console)
             assert snapshot_seen.wait(timeout=15), 'interactive query did not retain its snapshot'
             # Keep the query self continuation undelivered. A mutation is
             # committed after its retained cut using the SAME numeric namespace.
-            mutation("UPDATE items SET value='new' WHERE id=1", namespace, cli_mutations)
-            snapshot_release.set()
+            paused = time.monotonic()
+            try:
+                applied = cli_mutations.call({'submit': apply})['receipt']
+                until(lambda: cli_mutations.call({'observe': dict(prepared=apply, input=applied['position'])})['observation'] == 'processed')
+            finally:
+                counts['snapshot_pause_seconds'] = round(time.monotonic()-paused, 3)
+                snapshot_release.set()
             stdout, stderr = console.communicate(timeout=30)
             assert console.returncode == 0, stderr
+            assert cli_mutations.call({'rejection': dict(prepared=apply, input=applied['position'])})['rejection'] is None
+            outcome = cli_mutations.call({'status': staged['reference']})['status']
+            assert outcome['phase'] == 'applied' and outcome['affected_rows'] == 1 and outcome['input'] == applied['position'], outcome
             assert console_rows(stdout) == [dict(id=1, value='old'), dict(id=2, value='two')]
             pause_snapshot = False
             complete(1)
