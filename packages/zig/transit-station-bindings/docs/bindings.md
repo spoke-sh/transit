@@ -58,6 +58,16 @@ The host's proposed read deadline is bounded and checked by the authority.
 
 ## Foreign data
 
+The local `station_logical_codec` export and `logical_codec` port action share
+Fuze's complete bounded logical type/value validation. They need no handles,
+credentials or endpoint. Their generated envelopes carry separately versioned
+logical JSON strings or lowercase binary hex. Inputs are borrowed only during
+the call; the returned buffer owns all bytes. The ordinary 8 MiB native calling
+stack and buffer destruction rules apply. See the
+[logical contract](../../../../contracts/FUZE_TYPES_V1.md#neutral-logical-json)
+for operations, bounds and incompatibility rejection. This local capability is
+independent of narrower native query/storage/Flight admission.
+
 The generated action/result schemas own JSON shapes. Payloads and IPC bytes use
 lowercase hex. Arrow int64 values/keys and Station u64 correlations use decimal
 strings across JSON boundaries; protocol identity counters retain their existing

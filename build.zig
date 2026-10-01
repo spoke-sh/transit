@@ -39,6 +39,7 @@ pub fn build(b: *std.Build) void {
     const exchange = b.dependency("transit_exchange", .{ .target = target, .optimize = optimize });
     const station_http = b.dependency("transit_station_http", .{ .target = target, .optimize = optimize });
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
+    b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
     const catalog = b.dependency("transit_catalog", .{ .target = target, .optimize = optimize });
     b.step("query-api", "Export reflected query workspace declarations").dependOn(&b.addInstallArtifact(query.artifact("transit-query-api"), .{}).step);

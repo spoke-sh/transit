@@ -549,3 +549,8 @@ file-query:
 # Independent PyArrow interpretation of all logical families and five states.
 logical-arrow:
     zig build test-logical-arrow
+
+# Exact logical values across owned C buffers and bounded local host messages.
+logical-codec:
+    zig build station-abi transit-station-host
+    python3 -B tests/fuze_logical_codec.py zig-out/lib/libtransit_station.so zig-out/bin/transit-station-host

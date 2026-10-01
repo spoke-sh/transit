@@ -24,6 +24,12 @@ These are local type/codec APIs. Native query plans, catalogs, stored Tables,
 native Arrow query transports and SDK queries accept the narrower profiles below.
 Local file queries can export the rich values through the separately identified
 [logical Arrow profile](../../../contracts/FUZE_ARROW_V1.md).
+The native local codec and the
+[Python](../../../packages/python/transit-station/docs/logical.md) and
+[TypeScript](../../../packages/ts/transit-station-sdk/docs/logical.md) logical
+document APIs expose owned values, fingerprints, casts and Arrow export. Other
+language public query APIs keep their existing scalar profiles; generated ABI
+declarations alone do not establish idiomatic logical value support.
 `Types.Operations` supplies validated structural equality/hash and partial
 lexicographic ordering. Structural null/missing equality remains distinct from
 SQL predicates; errors/conflicts never become ordinary values. JSON has no

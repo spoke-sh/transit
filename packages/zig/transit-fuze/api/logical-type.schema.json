@@ -1,0 +1,473 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/T0",
+  "$defs": {
+    "T0": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "definition": {
+          "const": "transit.fuze.types.v1.2026-09-30"
+        },
+        "type": {
+          "$ref": "#/$defs/T2"
+        }
+      },
+      "required": [
+        "definition",
+        "type"
+      ]
+    },
+    "T1": {
+      "type": "string",
+      "maxLength": 262144
+    },
+    "T2": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "int64"
+          ],
+          "properties": {
+            "int64": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uint64"
+          ],
+          "properties": {
+            "uint64": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "float64"
+          ],
+          "properties": {
+            "float64": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "boolean"
+          ],
+          "properties": {
+            "boolean": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "utf8"
+          ],
+          "properties": {
+            "utf8": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "binary"
+          ],
+          "properties": {
+            "binary": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "int8"
+          ],
+          "properties": {
+            "int8": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "int16"
+          ],
+          "properties": {
+            "int16": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "int32"
+          ],
+          "properties": {
+            "int32": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "int128"
+          ],
+          "properties": {
+            "int128": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uint8"
+          ],
+          "properties": {
+            "uint8": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uint16"
+          ],
+          "properties": {
+            "uint16": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uint32"
+          ],
+          "properties": {
+            "uint32": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uint128"
+          ],
+          "properties": {
+            "uint128": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "float32"
+          ],
+          "properties": {
+            "float32": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decimal"
+          ],
+          "properties": {
+            "decimal": {
+              "$ref": "#/$defs/T4"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "date"
+          ],
+          "properties": {
+            "date": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "time"
+          ],
+          "properties": {
+            "time": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timestamp"
+          ],
+          "properties": {
+            "timestamp": {
+              "$ref": "#/$defs/T6"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "interval"
+          ],
+          "properties": {
+            "interval": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "uuid"
+          ],
+          "properties": {
+            "uuid": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "structure"
+          ],
+          "properties": {
+            "structure": {
+              "$ref": "#/$defs/T7"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "list"
+          ],
+          "properties": {
+            "list": {
+              "$ref": "#/$defs/T10"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "array"
+          ],
+          "properties": {
+            "array": {
+              "$ref": "#/$defs/T12"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "map"
+          ],
+          "properties": {
+            "map": {
+              "$ref": "#/$defs/T14"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "tagged_union"
+          ],
+          "properties": {
+            "tagged_union": {
+              "$ref": "#/$defs/T7"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "json"
+          ],
+          "properties": {
+            "json": {
+              "$ref": "#/$defs/T3"
+            }
+          }
+        }
+      ]
+    },
+    "T3": {
+      "type": "object",
+      "maxProperties": 0
+    },
+    "T4": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "precision": {
+          "$ref": "#/$defs/T5"
+        },
+        "scale": {
+          "$ref": "#/$defs/T5"
+        }
+      },
+      "required": [
+        "precision",
+        "scale"
+      ]
+    },
+    "T5": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255
+    },
+    "T6": {
+      "type": "string",
+      "enum": [
+        "civil",
+        "utc"
+      ]
+    },
+    "T7": {
+      "type": "array",
+      "maxItems": 65536,
+      "items": {
+        "$ref": "#/$defs/T8"
+      }
+    },
+    "T8": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/T1"
+        },
+        "type": {
+          "$ref": "#/$defs/T2"
+        },
+        "nullable": {
+          "$ref": "#/$defs/T9"
+        },
+        "optional": {
+          "$ref": "#/$defs/T9"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "T9": {
+      "type": "boolean"
+    },
+    "T10": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/T11"
+        },
+        "nullable": {
+          "$ref": "#/$defs/T9"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "T11": {
+      "$ref": "#/$defs/T2"
+    },
+    "T12": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "element": {
+          "$ref": "#/$defs/T10"
+        },
+        "length": {
+          "$ref": "#/$defs/T13"
+        }
+      },
+      "required": [
+        "element",
+        "length"
+      ]
+    },
+    "T13": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "T14": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/T11"
+        },
+        "value": {
+          "$ref": "#/$defs/T10"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ]
+    }
+  }
+}

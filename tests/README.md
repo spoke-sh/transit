@@ -9251,3 +9251,25 @@ Recursive tests distinguish null/missing, check exact uint128 ordering, typed ma
 equality and rejection of error/conflict/unsupported traits before comparison
 short-circuiting. Hashing does not change the bit-preserving neutral codecs.
 The log is `/tmp/rey-fuze-operations-test.log`.
+
+## Local logical codec and installed owners
+
+`just test::logical-codec` passes 91 independent scalar/recursive/state fixtures
+through both the C ABI and local native port on Linux x86_64. It compares exact
+binary values and type fingerprints, the independent scalar structural-hash
+oracle, generated recursive JSON Schema validation and PyArrow interpretation.
+It rejects missing/foreign definitions, truncation, trailing bytes and noncanonical
+hex, and checks explicit decimal rounding. Native input bytes are overwritten
+before returned buffers are read; copied results remain valid after native
+buffer release. Fuze's allocation-failure test covers every allocation in a
+complete uint128 binding/result operation.
+
+`just bindings::logical-test` installs current wheels and Node tarballs outside
+the checkout and passes the same 91 fixtures through public Python/TypeScript
+logical owners. Byte arrays are independently owned, results survive later calls
+and codec closure, and closed codecs reject work. Native artifacts come from the
+local pinned build. This qualifies local document/codecs and logical IPC export;
+it does not widen the stored/native query or Flight profiles, qualify other
+language logical APIs, or establish comparative performance. The 100-case
+`just test::logical-arrow` schedule also passes after sharing its recursive
+fixtures with these boundary checks.

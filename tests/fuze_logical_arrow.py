@@ -121,6 +121,25 @@ def cli(args, data=b''):
     return read_stream(p.stdout)
 
 
+def recursive_cases():
+    def atom(name, value):
+        return {'value': {'atom': {name: value}}}
+    def field(name, typ):
+        return {'name': name, 'type': typ, 'nullable': True, 'optional': True}
+    cases = [
+        ({'binary': {}}, atom('binary', '00ff01')),
+        ({'interval': {}}, atom('interval', {'months': '-3', 'days': '4', 'nanos': '-9223372036854775808'})),
+        ({'timestamp': 'civil'}, atom('timestamp_micros', '-1')),
+        ({'array': {'length': 2, 'element': {'type': {'uint16': {}}, 'nullable': True}}}, {'value': {'array': [atom('unsigned', '65535'), {'null': {}}]}}),
+        ({'map': {'key': {'int128': {}}, 'value': {'type': {'utf8': {}}, 'nullable': True}}}, {'value': {'map': [{'key': {'signed': '-1'}, 'value': atom('utf8', 'one')}, {'key': {'signed': '170141183460469231731687303715884105727'}, 'value': {'null': {}}}]}}),
+        ({'tagged_union': [dict(field('wide', {'uint128': {}}), optional=False), dict(field('text', {'utf8': {}}), optional=False)]}, {'value': {'tagged_union': {'index': 0, 'value': atom('unsigned', str(2**128-1))}}}),
+        ({'structure': [field('x', {'int8': {}}), field('y', {'boolean': {}})]}, {'value': {'structure': [{'missing': {}}, {'type_error': 'utf8'}]}}),
+        ({'list': {'type': {'int64': {}}, 'nullable': True}}, {'value': {'list': [atom('signed', '1'), {'null': {}}, {'type_error': 'utf8'}]}}),
+        ({'json': {}}, {'value': {'json': '{"n":9007199254740993,"id":"001"}'}}),
+    ]
+    return cases
+
+
 def main():
     global CASES
     with tempfile.TemporaryDirectory(prefix='transit-logical-arrow-', dir='/var/tmp') as directory:
@@ -154,29 +173,14 @@ def main():
                     actual.append((b'FVL1' + struct.pack('<H', len(desc)) + desc + b'\0' + cell).hex())
             assert actual == case['rows_hex'], case['name']
         # Neutral JSON bridge covers variants and conflicts not produced by files.
-        def atom(name, value):
-            return {'value': {'atom': {name: value}}}
-        def field(name, typ):
-            return {'name': name, 'type': typ, 'nullable': True, 'optional': True}
-        cases = [
-            ({'binary': {}}, atom('binary', '00ff01')),
-            ({'interval': {}}, atom('interval', {'months': '-3', 'days': '4', 'nanos': '-9223372036854775808'})),
-            ({'timestamp': 'civil'}, atom('timestamp_micros', '-1')),
-            ({'array': {'length': 2, 'element': {'type': {'uint16': {}}, 'nullable': True}}}, {'value': {'array': [atom('unsigned', '65535'), {'null': {}}]}}),
-            ({'map': {'key': {'int128': {}}, 'value': {'type': {'utf8': {}}, 'nullable': True}}}, {'value': {'map': [{'key': {'signed': '-1'}, 'value': atom('utf8', 'one')}, {'key': {'signed': '170141183460469231731687303715884105727'}, 'value': {'null': {}}}]}}),
-            ({'tagged_union': [dict(field('wide', {'uint128': {}}), optional=False), dict(field('text', {'utf8': {}}), optional=False)]}, {'value': {'tagged_union': {'index': 0, 'value': atom('unsigned', str(2**128-1))}}}),
-            ({'structure': [field('x', {'int8': {}}), field('y', {'boolean': {}})]}, {'value': {'structure': [{'missing': {}}, {'type_error': 'utf8'}]}}),
-            ({'list': {'type': {'int64': {}}, 'nullable': True}}, {'value': {'list': [atom('signed', '1'), {'null': {}}, {'type_error': 'utf8'}]}}),
-            ({'json': {}}, {'value': {'json': '{"n":9007199254740993,"id":"001"}'}}),
-        ]
-        for typ, cell in cases:
+        for typ, cell in recursive_cases():
             for variant in [cell, {'null': {}}, {'missing': {}}, {'type_error': 'utf8'}, {'conflict': [{'counter': '9007199254740993', 'replica': '18446744073709551615', 'value': cell}, {'counter': '18446744073709551615', 'replica': '1', 'value': {'null': {}}}]}]:
                 path = work / 'value.json'
-                path.write_text(json.dumps({'definition': DEFINITION.decode(), 'field': field('x', typ), 'cell': variant}))
+                path.write_text(json.dumps({'definition': DEFINITION.decode(), 'field': {'name': 'x', 'type': typ, 'nullable': True, 'optional': True}, 'cell': variant}))
                 p = subprocess.run([BRIDGE, str(path)], capture_output=True, timeout=30)
                 assert p.returncode == 0 and not p.stderr, (typ, variant, p.stderr)
                 physical, batches = read_stream(p.stdout)
-                assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': [field('x', typ)]}).hex().encode()
+                assert physical.metadata[b'transit.logical_schema'] == descriptor({'structure': [{'name': 'x', 'type': typ, 'nullable': True, 'optional': True}]}).hex().encode()
                 assert arrow_cell(batches[0].column(0), 0, typ) == cell_bytes(variant, typ), (typ, variant)
                 CASES += 1
         # Batches split under the unchanged 64 KiB segment bound, preserving rows.

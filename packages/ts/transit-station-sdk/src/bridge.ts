@@ -42,6 +42,8 @@ import type {
   CatalogAction,
   CatalogResult,
   CatalogConfig,
+  LogicalCodecAction,
+  LogicalCodecResult,
 } from "./wire.ts";
 import {
   FrozenMutation,
@@ -190,6 +192,12 @@ export class Bridge {
       { unified_query_codec: action },
       { phase: "query-codec", validator: validation.UnifiedQueryCodecResult },
     )) as UnifiedQueryCodecResult;
+  }
+  async logicalCodec(action: LogicalCodecAction): Promise<LogicalCodecResult> {
+    return (await this.port.request(
+      { logical_codec: action },
+      { phase: "logical-codec", validator: validation.LogicalCodecResult },
+    )) as LogicalCodecResult;
   }
   async documentRead(action: DocumentReadAction): Promise<DocumentReadResult> {
     if (!this.caps.document_reads)

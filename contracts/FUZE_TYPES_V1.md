@@ -148,6 +148,32 @@ a value envelope is `{"definition":IDENTIFIER,"field":FIELD,"cell":CELL}`. The
 identifier is the same mandatory current type definition as `FTY1`; missing or
 foreign definitions reject. Duplicate/unknown fields and trailing input reject.
 
+The recursive [type schema](../packages/zig/transit-fuze/api/logical-type.schema.json)
+and [value schema](../packages/zig/transit-fuze/api/logical-value.schema.json)
+are reflected from the owning Zig declarations with `just contract::logical-generate`.
+They validate structural shapes. Zig additionally validates ranges, descriptor
+traits, canonical numeric strings, recursive budgets and cell/type agreement.
+
+`station_logical_codec` and the local port's `logical_codec` action expose the
+same pure `LogicalCodec` operations: capabilities, type/value JSON and canonical
+binary decoding, scalar binding/casting, structural equality/order/hash and
+single-value logical Arrow export. The generated Station action/result schemas
+describe their envelopes. Embedded logical JSON remains a separately versioned
+document string; binary fields use lowercase hex. Root field names normalize to
+`value` because FVL1 identifies the root type/flags, not its presentation label.
+Nested names remain part of descriptor identity.
+
+The local codec admits requests/results up to 256 KiB and binary values up to
+96 KiB; Arrow retains its existing 64 KiB segment, eight-row and 4 MiB workspace
+bounds. Oversized values fail without a partial successful response. The C caller
+owns the returned `station_buffer` independently of input buffers and frees it
+once. A foreign definition returns `incompatible_version`; malformed documents
+and unsupported operations fail before execution. `capabilities` explicitly
+denies Arrow import/C Data, acquisition and durable file-query admission.
+These additive exports/actions leave existing accepted query work and ABI
+operations unchanged. A missing export or unknown port action rejects; it does
+not select a fallback decoder.
+
 `TYPE` is an object with exactly one logical tag. Parameterless types have an
 empty-object payload, for example `{"int64":{}}`. Decimal has `precision`/`scale`;
 timestamp has `"civil"` or `"utc"`. Struct/union payloads are field arrays;

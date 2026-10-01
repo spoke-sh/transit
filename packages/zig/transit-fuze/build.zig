@@ -25,6 +25,14 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{ .{ .name = "zarrow", .module = arrow }, .{ .name = "zarrow_compute", .module = compute } },
     });
     const tests = b.step("test", "Qualify Fuze and the pinned Arrow compute dependency");
+    const contract = b.addExecutable(.{ .name = "transit-logical-contract", .root_module = b.createModule(.{
+        .root_source_file = b.path("src/logical_contract.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_fuze", .module = module }},
+    }) });
+    b.installArtifact(contract);
+    b.step("logical-contract", "Reflect recursive logical JSON schemas").dependOn(&b.addRunArtifact(contract).step);
     const own_tests = b.addTest(.{ .root_module = module });
     const compute_tests = b.addTest(.{ .root_module = compute });
     const compute_run = b.addRunArtifact(compute_tests);

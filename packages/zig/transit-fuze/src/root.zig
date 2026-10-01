@@ -9,6 +9,8 @@ pub const FileSource = @import("FileSource.zig");
 pub const SourceCodec = @import("SourceCodec.zig");
 pub const LogicalJson = @import("LogicalJson.zig");
 pub const LogicalArrow = @import("LogicalArrow.zig");
+pub const LogicalCodec = @import("LogicalCodec.zig");
+pub const LogicalSchema = @import("LogicalSchema.zig");
 pub const Types = @import("Types.zig");
 pub const Unified = @import("Unified.zig");
 pub const Sql = @import("Sql.zig");
@@ -23,6 +25,7 @@ test {
     _ = FileSource;
     _ = LogicalJson;
     _ = LogicalArrow;
+    _ = LogicalCodec;
     _ = Types;
     _ = Unified;
     _ = @import("sql_test.zig");

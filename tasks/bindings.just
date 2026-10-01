@@ -71,6 +71,10 @@ node-sdk-test: node-build
     just test::table-mutation --sdk node
     just test::catalog --sdk node
 
+# Qualify installed logical values and Arrow ownership outside the checkout.
+logical-test: python-build node-build
+    python3 -B tests/sdk_logical.py python node
+
 # Build independent Rust source crates with their embedded native artifact.
 rust-build: build
     cargo fetch --locked --manifest-path packages/rust/transit-client/Cargo.toml
