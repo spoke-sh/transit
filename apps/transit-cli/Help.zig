@@ -13,6 +13,7 @@ pub const root =
     \\  app       Manage installed applications
     \\  mutate    Prepare, submit and observe SQL Table mutations
     \\  catalog   Compile, prepare, submit and inspect catalog operations
+    \\  file-query  Query captured CSV or JSONL files with a frozen schema
     \\
     \\Options:
     \\  --help     Show this help

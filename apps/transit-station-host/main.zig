@@ -140,6 +140,10 @@ fn process(init: std.process.Init, growing: ?*abi.growing.Server, query_client: 
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
             break :blk abi.Api.station_unified_query_codec(json.ptr, json.len, &buffer);
         },
+        .logical_codec => |action| blk: {
+            const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
+            break :blk abi.Api.station_logical_codec(json.ptr, json.len, &buffer);
+        },
         .unified_query => |action| blk: {
             const json = try std.json.Stringify.valueAlloc(allocator, action, .{});
             break :blk if (query_client) |pointer| abi.Api.station_unified_query_call(pointer, json.ptr, json.len, &buffer) else .not_ready;

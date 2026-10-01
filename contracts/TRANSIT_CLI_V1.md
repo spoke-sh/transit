@@ -80,6 +80,25 @@ commands and are omitted from the primary command list. No alias silently change
 single-line shell into a multiline console, adopts a launcher installation or
 changes a connection's authority or installs an application. These separate commands remain supported.
 
+## Local file queries
+
+`transit file-query --format csv|jsonl -c SQL [OPTIONS] FILE...` explicitly
+acquires local paths/stdin into quota-limited, private unlinked disk captures on
+Linux x86_64. It checks single-member gzip headers/checksums when `--gzip` is
+selected. Local OS access supplies authority; the command does not send native
+commands, create a durable job or refetch during replay. Discovery freezes exact
+content, options, schema and evidence before any result record. Fuze owns shared
+SQL lowering, typed conversion, predicate and aggregate semantics.
+
+The [file-query guide](../apps/transit-cli/docs/file-query.md) owns exact flags,
+logical schema JSON, quotas, format limits and output records. Stdout is a
+versioned JSON-lines stream with schema/binding/plan evidence, provisional rows
+and a terminal completion record. Missing completion or a failed exit invalidates
+the prefix. Full input validation continues past LIMIT/projection. Exact integers,
+decimals and five states use the neutral logical codec; no host-float rounding is
+permitted. No saved configuration or native protocol compatibility field changes.
+SIGINT/SIGTERM return 130 after local capture cleanup; broken output returns 1.
+
 ## Explicit catalog commands
 
 `transit catalog` composes the shared [catalog caller](DECLARATIVE_CATALOG_V1.md).

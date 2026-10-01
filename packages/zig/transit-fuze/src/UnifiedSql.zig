@@ -104,7 +104,7 @@ fn projection(value: sql.Projection, qualifier: m.Name, schema: m.Schema, output
     try result.validate(schema);
     return result;
 }
-fn scalar(allocator: std.mem.Allocator, literal: sql.Literal) !m.Scalar {
+pub fn scalar(allocator: std.mem.Allocator, literal: sql.Literal) !m.Scalar {
     switch (literal) {
         .uint64 => |value| return .{ .uint64 = value },
         .float64 => |value| return .{ .float64 = value },

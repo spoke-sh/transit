@@ -104,12 +104,11 @@ pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []
         next.scanned = try std.math.add(u64, next.scanned, 1);
         if (!try bound.plan.matches(row)) continue;
         next.selected = try std.math.add(u64, next.selected, 1);
-        if (bound.plan.aggregate == .sum) switch (row.cells[bound.plan.projection[0]]) {
-            .missing, .null => {},
-            .type_error => return error.QueryTypeError,
-            .conflict => return error.QueryConflict,
-            .value => |value| next.sum = try std.math.add(i64, next.sum orelse 0, value.int64),
-        };
+        if (bound.plan.aggregate == .sum) next.sum = try @import("Finite.zig").sum(next.sum, row.cells[bound.plan.projection[0]], struct {
+            fn integer(value: m.Scalar) !i64 {
+                return value.int64;
+            }
+        }.integer);
         if (bound.plan.aggregate == .rows) {
             for (bound.plan.projection, 0..) |column, index| cells[count][index] = row.cells[column];
             selected[count] = .{ .cells = cells[count][0..bound.plan.projection.len] };

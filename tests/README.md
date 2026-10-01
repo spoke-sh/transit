@@ -9128,3 +9128,235 @@ and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is i
 `/tmp/transit-local-writes-final.log`. These are working-tree executions, not
 clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
 installed SDK matrices were not run for this cutover.
+## Fuze logical type foundation
+
+The local `Types` profile has nine passing focused Zig tests, including 46
+independently generated Python stdlib scalar cases for exact integer widths,
+decimal coefficients, IEEE floats, Gregorian dates, timestamps and UUIDs.
+`just test::fuze-types` checks fixture drift and executes descriptor/value
+truncation, incompatible definitions, recursive budgets, escaped duplicate JSON
+keys and exhaustive allocator-failure cleanup schedules. This is local
+codec/conversion evidence, not CSV/JSONL execution, installed SDK/Arrow extension,
+durable file recovery or comparative performance evidence. The original
+six-scalar Fuze package suite passed before recursive codec additions; final-tree
+package and repository checks are recorded separately when executed.
+
+The type-foundation tree passes full `just check` on Linux x86_64 with the pinned
+Zig 0.17 shell and locked frontend dependencies: generated native/application/ABI
+contracts, unit/CLI checks, independent fixtures, frontend validation/tests and
+Docusaurus build. The initial contract commit `cb86170a` separately passes
+`just ci-clean --lane core` in a fresh checkout, including disk Ursula,
+service/client/caller/inspection/state proofs. This clean result applies to that
+contract-only commit, not subsequent type or reader implementation. One focused
+shell entry failed due to a missing cached Nix derivation; retrying with
+`--option eval-cache false` resolved the environment failure without changing pins.
+
+## Fuze bounded file sources
+
+`just test::fuze-sources` passes 23 focused Zig tests, including the nine type
+checks. Six independent Python csv/json/Decimal cases compare exact schema and
+neutral value bytes at chunk widths 1, 2, 3, 7 and 8192. Separate framing schedules
+split a quoted/BOM/newline corpus at every width. The tests cover partial and raw
+schemas, multi-file names, sparse/nested values, integer precision, late outliers,
+unknown fields, malformed/ragged input, work limits, option ownership, changed
+content, current denial, cancellation, failed-prefix completion, binding
+truncation/definition rejection and exhaustive allocator-failure cleanup.
+
+These callbacks use in-memory fixture sources. They establish neither physical
+file/capture durability nor installed caller, compression, Arrow or DuckDB
+performance qualification. Full checks and clean CI for the source checkpoint
+are recorded when executed; the earlier contract-only clean run does not qualify
+this implementation.
+
+The source checkpoint passes full `just check`, including generated contract
+checks, Zig units, CLI diagnostics, frontend tests and the documentation build.
+A subsequent focused rerun of all 23 source/type tests passes after centralizing
+saved-binding metadata validation. Logs are `/tmp/rey-fuze-sources-check.log`
+and `/tmp/rey-fuze-source-final-test.log`; these local paths are not portable
+artifacts or independent durability evidence.
+
+Committed source checkpoint `2b729f7a` passes `just ci-clean --lane core` without
+inherited outputs. Foundation/package checks, properties, client ABI, Station,
+disk storage, service, runtime upgrade, callers, inspection and state all finish
+successfully. Evidence is `.cache/ci/clean/2b729f7afdcc-transit-ci-9iwhecgd` and
+`/tmp/rey-fuze-source-ci-clean.log`. This is the core lane, not every integration
+or installed SDK profile.
+
+The shared file/native SQL checkpoint passes all 65 Fuze package tests and
+`just test::sql`: 104 independent parser ASTs, 86 Table plans/results and 24
+unified results over three source bases/eight page widths, plus declaration and
+mutation oracles. File tests exercise shared finite filtering/projection/LIMIT,
+COUNT/ordered SUM, late failures behind LIMIT, exact typed uint128 predicates,
+and exhaustive allocation failures. Logical JSON tests preserve recursive
+descriptors, full-width integers and signed floating zero through owned codecs;
+missing/foreign definitions and noncanonical numeric strings reject. Logs are
+`/tmp/rey-fuze-logical-json-test.log` and `/tmp/rey-fuze-sql-regression.log`.
+Physical acquisition, installed SDK extensions and comparative performance
+remain separate qualification gates.
+
+## Captured local file queries
+
+`just test::file-query` passes 83 cases against the real `transit` executable on
+Linux x86_64. Six independent Python source fixtures and all 46 scalar oracle
+cases cross acquisition, discovery/explicit decoding, SQL and neutral JSON;
+the Python checker reconstructs canonical descriptor/value bytes independently.
+Other cases verify gzip optional fields/header CRC/payload CRC/size, truncation,
+trailing/concatenated members, encoded/expanded quotas, exact aggregate results,
+late failures behind LIMIT, explicit type-error cells, duplicate names/keys,
+UTF-8 failures and invocation validation.
+
+SIGINT during idle/partial stdin and blocked stdout exits 130; a broken output
+pipe exits 1. SIGKILL during acquisition leaves no named capture. Each case
+checks its private temporary directory. Rewriting the original file after the
+schema is published leaves all 10000 captured values unchanged. A 192 MiB CSV
+scan returns the expected count under a **96 MiB RLIMIT_AS** process ceiling;
+captures use `/var/tmp` disk storage. This is larger than the process's permitted
+address space, not a claim that input exceeds host RAM or that host caches were
+cold. No durable job is admitted, so these are ephemeral cleanup/immutability
+proofs rather than accepted-work crash recovery.
+
+The CLI checkpoint passes full `just check` (generated contracts, Zig/CLI units,
+independent fixtures, frontend checks/tests and documentation build). Logs are
+`/tmp/rey-fuze-cli-proof.log` and `/tmp/rey-fuze-cli-check.log`. Arrow, installed
+SDK extensions and the DuckDB performance matrix are not qualified by this run.
+
+## Logical Arrow export
+
+`just test::logical-arrow` passes **100 PyArrow 23.0.0 cases** on Linux x86_64.
+All 46 independent scalar fixtures and six source fixtures cross the real CLI
+into IPC, with Python reconstructing exact canonical values from Arrow buffers.
+Temporal validation reads integer units without Python datetime truncation;
+decimal uses widened Python Decimal precision. The separate neutral-JSON bridge
+checks binary, interval, civil timestamp, fixed arrays, maps, tagged unions,
+structs, lists and JSON across value/null/missing/type-error/conflict. Canonical
+type metadata, full-width conflict IDs, inactive variants and ownership after
+the producer exits remain intact.
+
+Independent checks include physical schema/nullability, full Arrow validation,
+batch splitting at widths 1/8 under 64 KiB segments and missing end markers on
+late failure. The Fuze package passes 66 tests, including logical IPC round trip,
+tiny workspace/output failures and the previous allocation schedules. Logs are
+`/tmp/rey-fuze-arrow-proof.log` and `/tmp/rey-fuze-logical-arrow-cli.log`. These
+prove local IPC export, not installed SDK, logical IPC import/C ownership,
+Flight expansion or comparative performance.
+
+The logical Arrow checkpoint also passes full `just check` and a rerun of all
+83 real file-query host cases; see `/tmp/rey-fuze-arrow-check.log`. Rich Arrow
+export remains inside the original output/workspace bounds.
+
+Structural operations pass **11 focused type tests / 68 Fuze package tests**.
+The 46 independent scalar fixtures now also compare Python-computed semantic
+SHA-256 hashes, including float32 widening and signed-zero normalization.
+Recursive tests distinguish null/missing, check exact uint128 ordering, typed map
+equality and rejection of error/conflict/unsupported traits before comparison
+short-circuiting. Hashing does not change the bit-preserving neutral codecs.
+The log is `/tmp/rey-fuze-operations-test.log`.
+
+## Local logical codec and installed owners
+
+`just test::logical-codec` passes 91 independent scalar/recursive/state fixtures
+through both the C ABI and local native port on Linux x86_64. It compares exact
+binary values and type fingerprints, the independent scalar structural-hash
+oracle, generated recursive JSON Schema validation and PyArrow interpretation.
+It rejects missing/foreign definitions, truncation, trailing bytes and noncanonical
+hex, and checks explicit decimal rounding. Native input bytes are overwritten
+before returned buffers are read; copied results remain valid after native
+buffer release. Fuze's allocation-failure test covers every allocation in a
+complete uint128 binding/result operation.
+
+`just bindings::logical-test` installs current wheels and Node tarballs outside
+the checkout and passes the same 91 fixtures through public Python/TypeScript
+logical owners. Byte arrays are independently owned, results survive later calls
+and codec closure, and closed codecs reject work. Native artifacts come from the
+local pinned build. This qualifies local document/codecs and logical IPC export;
+it does not widen the stored/native query or Flight profiles, qualify other
+language logical APIs, or establish comparative performance. The 100-case
+`just test::logical-arrow` schedule also passes after sharing its recursive
+fixtures with these boundary checks.
+
+## File comparison baselines and metadata execution
+
+The [2026-09-30 evidence](fuze_benchmarks/results/2026-09-30/README.md) freezes
+numeric budgets in commit `5052c59e`, before the metadata optimizations. The
+optional benchmark shell pins DuckDB 1.5.2/build `8a5851971f` and PyArrow 23.0.0
+from the unchanged lockfile. `just doctor` and the optional-shell version/build
+checks pass. The harness uses the real CLI capture boundary and Fuze source,
+query and Arrow owners; DuckDB remains a development dependency.
+
+The accepted baseline contains 792 samples over nine shapes, five schema modes,
+two input-cache conditions and two engines, including separate projection,
+batch-size, filter, COUNT and SUM experiments. Every case has three raw
+repetitions and verified source hashes/results. The same eight-query six-scalar
+driver runs against `d5541301` and candidate with one discarded warmup and nine
+measured processes per binary. Median candidate/control ratios are 0.9960–1.0480.
+A 600058901-byte input completes in four modes under a fresh 256 MiB RAM/cache
+cgroup with swap disabled, actual peak 268435456 bytes and no OOM events.
+Exact commands, scope differences, original failures, hashes and compressed raw
+JSON reports accompany the baseline. Executable VmHWM and process-lifetime
+wait4 RSS are separate counters; the latter includes the pre-exec launcher.
+
+The harness rejects wrong counts/checksums, missing phases/completion and changed
+captures. Its six Python evidence tests also reject incomplete/dirty reports,
+changed workloads/drivers/CPU, missing repetitions and numeric regressions; a
+failed check replaces any prior successful report. The numeric checker recomputes
+metrics from raw observations and requires identical declared conditions. It does
+not infer parity from a successful process exit or compare incompatible allocator
+counter scopes.
+
+The descriptor-validation optimization at `19d3ba7d` passes all 25 focused
+source/type tests. The bounded CSV column-map implementation at `f509cdfb` passes
+27, including reordered/absent optional headers and rejection of a replacement
+valid binding during an active scan. Its map is rebuilt per file; current checks,
+full-row conversion, source verification and failed-prefix behavior remain.
+At `00f83fc0`, full `just check`, all 83 executable file-query cases and all 100
+independent PyArrow cases pass. The benchmark binaries are rebuilt from that
+source; generated local Zig caches were then removed before candidate measurement.
+
+The first complete optimized matrix passes its result, allocation, I/O-count,
+memory, scan/query and specialized-path checks but fails the numeric timing gate:
+12 cold-acquisition/phase wall limits and one discovery CPU limit. The retained
+report distinguishes this failure from successful correctness checks. Investigation
+shows large wall/CPU separation in cold acquisition with unchanged bytes and
+similar acquisition CPU; the unchanged repeat below tests reproducibility. These observations
+are not a passed performance gate or final committed-HEAD clean qualification.
+
+
+A complete unchanged repeat also fails seven capture/discovery timing limits in
+different cases. Both optional metadata changes are withdrawn at `cffa7b56`;
+none of these failures is waived and no budget is raised. The
+[experiment archive](fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
+retains every raw run and both failed gate reports. A source comparison verifies
+that all implementation/generated-contract/build/toolchain paths again match
+accepted baseline `5052c59e`. The delivered feature uses that measured baseline;
+it makes no qualified optimization or DuckDB-parity claim. Final clean checks
+remain a separate requirement.
+
+### File-query integration with current main
+
+The schema-on-demand branch integrates `main` at `9fdf1d02`, including current
+native definitions, SQL diagnostics and explicit `AS` source aliases. Alias
+resolution lives in the shared `SqlLowering` path for file and native queries;
+it preserves source identity, binds inner/outer qualifiers separately and rejects
+bare aliases or references to the hidden original qualifier. SDK resources are
+regenerated from the merged Zig owners.
+
+The merged tree passes `just doctor`, full `just check` (including documentation
+production build), and `just test::sql`: 113 independent SELECT ASTs, 92 real
+plans and 28 unified results, plus mutation/declaration fixtures. The first
+expanded file-query proof incorrectly expected bare aliases to succeed; the
+shared parser rejects them. Correcting that expectation and the new guide text
+leaves the implemented grammar unchanged. The complete rerun of
+`just test::file-query` passes 89 real CLI cases, including explicit/nested aliases,
+invalid qualifiers and all existing capture/gzip/cancellation/192 MiB memory cases.
+
+The frozen benchmark artifacts retain their exact pre-integration revisions.
+Integration does not reinstate either withdrawn metadata experiment and does not
+turn those historical timings into measurements of a new revision. Committed-HEAD
+clean qualification remains outstanding at this integration checkpoint.
+
+The subsequent rebase uses `origin/main` at `ac9ad43d`, which adds native SQL
+output aliases and replaces its current protocol definition. Native compilation
+and generated SDK resources retain that implementation. File plans keep their
+previous output-name profile and explicitly reject output aliases; source `AS`
+aliases remain supported. Earlier merged-tree checks do not qualify this rebased
+revision; final checks must run again.

@@ -29,6 +29,7 @@ typedef struct station_buffer station_buffer;
 #define STATION_STATUS_BLOCKED 12u
 #define STATION_STATUS_NOT_READY 13u
 #define STATION_STATUS_BUDGET_EXCEEDED 14u
+uint32_t station_logical_codec(const uint8_t * arg0, size_t arg1, station_buffer ** arg2);
 uint32_t station_catalog_create(uint32_t arg0, const uint8_t * arg1, size_t arg2, const uint8_t * arg3, const uint8_t * arg4, size_t arg5, station_catalog_client ** arg6);
 void station_catalog_destroy(station_catalog_client * arg0);
 uint32_t station_catalog_call(station_catalog_client * arg0, const uint8_t * arg1, size_t arg2, station_buffer ** arg3);

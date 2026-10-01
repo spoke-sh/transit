@@ -1,0 +1,67 @@
+{
+  "completed": true,
+  "status": "failed",
+  "violations": [
+    {
+      "report": "baseline",
+      "case": "wide/explicit/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 14903881,
+      "limit": 7498255
+    },
+    {
+      "report": "baseline",
+      "case": "wide/explicit/cold_input/capture",
+      "metric": "cpu_ns",
+      "actual": 5691296,
+      "limit": 5508733
+    },
+    {
+      "report": "baseline",
+      "case": "wide/partial/cold_input/capture",
+      "metric": "elapsed_ns",
+      "actual": 11330935,
+      "limit": 7499233
+    },
+    {
+      "report": "baseline",
+      "case": "wide/partial/cold_input/capture",
+      "metric": "cpu_ns",
+      "actual": 10793447,
+      "limit": 5294115
+    },
+    {
+      "report": "baseline",
+      "case": "wide/partial/cold_input/discovery",
+      "metric": "cpu_ns",
+      "actual": 25600501,
+      "limit": 25018690
+    },
+    {
+      "report": "baseline",
+      "case": "wide/sampled/cold_input/discovery",
+      "metric": "elapsed_ns",
+      "actual": 30720469,
+      "limit": 28949658
+    },
+    {
+      "report": "baseline",
+      "case": "wide/sampled/cold_input/discovery",
+      "metric": "cpu_ns",
+      "actual": 30649774,
+      "limit": 25072441
+    }
+  ],
+  "budgets_sha256": "63365fed72acde73e8ce3e17194a2d9ddc6fb9a3b6ddc4c1a289309c6ac9bf5d",
+  "reports": {
+    "baseline": "77294e9eee010ca77b8a577689e0cac9fd5a6870c1958cfdd724409d4a8a188a",
+    "projection-baseline": "a3cfb53f6501b629ccbca5251854acbb144bff02b8aafbb861bcf99beefb772e",
+    "batch1-baseline": "46cb080ef8b9079a98e4d95a5b3d7abd8bd8d4ff47032743b28cef38a594234e",
+    "filter-baseline": "15994f13b588ed3788c000519f22b3c33e95e51680ad3485ba31bd1b5b162dfb",
+    "count-baseline": "bb9d6b08a4ac681adb0b5cd1890fd3318b322642900627b9cc9782e54e8e9e50",
+    "sum-baseline": "b6570a32ea2821e2868f3bc998fa3f113d917dd0f391f3ed04f8ba0278a442e0",
+    "six-baseline": "b5bf94d6d43af719acdd7fd8309fdd679414930ea893816759075485eca01962",
+    "large-baseline": "bdc76347bb9abb37497c84b2e6e5bdd403dd6969557e3225494b2a5a3eaf3cc5"
+  },
+  "error": "Numeric regression budget exceeded"
+}

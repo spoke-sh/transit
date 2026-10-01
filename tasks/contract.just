@@ -25,6 +25,7 @@ check:
     zig build application-installation-fixture | python3 -B tests/installation_contract.py
     just contract::client-check
     just contract::station-check
+    just contract::logical-check
     python3 -B bindings/generate.py
 
 # Regenerate the C ABI resource and header from exported Zig function types.
@@ -40,3 +41,10 @@ station-generate:
 
 station-check:
     zig build station-contract | python3 -B packages/zig/transit-station-bindings/generate.py
+
+# Reflect recursive logical documents independently of transport envelopes.
+logical-generate:
+    zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py --write
+
+logical-check:
+    zig build logical-contract | python3 -B packages/zig/transit-fuze/generate.py

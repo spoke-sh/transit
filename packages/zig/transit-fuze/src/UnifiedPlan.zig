@@ -8,8 +8,8 @@ projection: []const u8,
 output_names: [m.max_columns]?m.Name = @splat(null),
 limit: ?u64 = null,
 aggregate: Aggregate = .rows,
-pub const Aggregate = enum(u8) { rows = 0, count = 1, sum = 2 };
-pub const Comparison = enum(u8) { eq = 0, ne = 1, lt = 2, le = 3, gt = 4, ge = 5 };
+pub const Aggregate = @import("Finite.zig").Aggregate;
+pub const Comparison = @import("Finite.zig").Comparison;
 pub const Predicate = union(enum) {
     all,
     state: struct { column: u8, value: m.State },
@@ -85,22 +85,11 @@ pub fn matches(self: Self, row: m.Row) !bool {
         .compare => |comparison| blk: {
             if (comparison.column >= row.cells.len) return error.UnknownColumn;
             const cell = row.cells[comparison.column];
-            switch (cell) {
-                .missing, .null => break :blk false,
-                .type_error => return error.QueryTypeError,
-                .conflict => return error.QueryConflict,
-                .value => |value| {
-                    const order = try value.order(comparison.value);
-                    break :blk switch (comparison.op) {
-                        .eq => order == .eq,
-                        .ne => order != .eq,
-                        .lt => order == .lt,
-                        .le => order != .gt,
-                        .gt => order == .gt,
-                        .ge => order != .lt,
-                    };
-                },
-            }
+            break :blk try @import("Finite.zig").compare(comparison.op, cell, comparison.value, {}, struct {
+                fn order(_: void, left: m.Scalar, right: m.Scalar) !std.math.Order {
+                    return left.order(right);
+                }
+            }.order);
         },
     };
 }
