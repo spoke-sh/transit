@@ -329,6 +329,13 @@
       "sql": "SELECT COUNT(*) FROM lineitem WHERE quantity >= 25"
     },
     {
+      "id": "tpc-h.selected_count_alias",
+      "suite": "TPC-H",
+      "kind": "select",
+      "source": "lineitem",
+      "sql": "SELECT COUNT(*) FROM lineitem AS chosen WHERE chosen.quantity >= 25"
+    },
+    {
       "id": "tpc-h.limited_sum",
       "suite": "TPC-H",
       "kind": "select",

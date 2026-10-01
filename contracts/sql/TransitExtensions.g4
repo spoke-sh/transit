@@ -10,11 +10,12 @@ asOfFragment: asOfClause EOF;
 // The one derived-table form spells filter -> limit -> aggregate without
 // misinterpreting SQL's outer LIMIT as an aggregate input limit.
 selectStatement
-    : SELECT selection FROM identifier whereClause? limitClause?
+    : SELECT selection FROM identifier sourceAlias? whereClause? limitClause?
     | SELECT aggregateSelection FROM LPAREN
-        SELECT projection FROM identifier whereClause? limitClause?
+        SELECT projection FROM identifier sourceAlias? whereClause? limitClause?
       RPAREN AS identifier limitClause?
     ;
+sourceAlias: AS identifier;
 selection: projection | aggregateSelection;
 aggregateSelection: COUNT LPAREN STAR RPAREN | SUM LPAREN columnReference RPAREN;
 projection: STAR | columnReference (COMMA columnReference)*;

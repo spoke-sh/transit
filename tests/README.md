@@ -6769,6 +6769,70 @@ Executed for this documentation change:
 These checks validate documentation and rendering. They do not rerun bundle
 builds, application installation, provider recovery or deployment qualification.
 
+### Explicit source aliases
+
+The `feat/sql-source-aliases` continuation implements explicit `FROM source AS
+alias` through the shared Zig parser, compiler and scoped completion owner.
+Fuze and query package tests pass. Equivalent aliased/unaliased queries produce
+identical canonical plans for row, state-test, count, sum and restricted-derived
+forms. Checks reject hidden original qualifiers, escaped inner aliases, unknown
+actual sources and duplicate columns. Completion fixtures keep the declared
+source authority separate from alias spelling, including quoted case and typed
+literal hints.
+
+Eight additional independent completion fixtures expose and correct a missing
+dot continuation after a source qualifier, including an alias that also names a
+column, quoted case, hidden/foreign sources and an already qualified column.
+The first run fails the original-source continuation case (63/64 package tests
+pass); after the correction all 64 query package tests pass. Logs are
+`/tmp/transit-sql-source-aliases-completion-before.log` and
+`/tmp/transit-sql-source-aliases-completion-after.log`. This changes suggestions,
+not source authority, parsing or the saved-plan format.
+
+`just test::sql` passes **113** Zig/ANTLR/PostgreSQL SELECT AST comparisons,
+**92** real plans and independent paged Arrow checks, and **19** grammar
+exclusions. The unified fixture checks **28** independent results at three source
+kind bases and eight page widths, plus nine explicit failure cases. Mutation and
+declaration fixtures also pass unchanged. The log is
+`/tmp/transit-sql-source-aliases-sql.log`. These are compiler/engine proofs;
+installed native/port/ten-SDK inspection and SQL-shell recovery checks are
+separate.
+
+Full `just check` passes on the initial source tree and again at rebased
+`512ebcb4`, including the completion correction. The latter log is
+`/tmp/transit-sql-source-aliases-rebased-check.log`. The first installed attempt
+stops before provisioning because this fresh worktree has no built Python wheel;
+no caller case ran. The failed log is
+`/tmp/transit-sql-source-aliases-installed.log`. All standalone Zig and ten SDK
+package builds subsequently pass. The installed run passes KV and Table in
+**386.41 s / 374.20 s**, including inspection agreement across thirteen
+native/port/SDK callers and SQL-shell admission, exact retry, source/requester/
+node/store recovery, current denial, retained rows and joined cleanup. Document
+qualification is still running. The log is
+`/tmp/transit-sql-source-aliases-installed-built.log`; its frozen binaries precede
+the rebase and completion-only correction, and these two source passes do not
+establish a complete three-source run.
+
+Committed-head `just ci-clean --lane core --work-root /var/tmp` passes all
+**22 tasks in 1309.02 s** at `34b0b96f`. The report is
+`.cache/ci/clean/34b0b96f175e-transit-ci-ocwpgt5q/core.meta.json`; the log is
+`/tmp/transit-sql-source-aliases-ci-clean-core.log`. Rebase onto merged #44 at
+`b8b224ce` preserves all three original commits unchanged. Clean growth at
+rebased `512ebcb4` is running with #44's catalog read reduction and the corrected
+snapshot fixture; the earlier failed growth attempts remain failed. Its log is
+`/tmp/transit-sql-source-aliases-ci-clean-growth.log`.
+
+The declarative benchmark adds an aliased selected-count component beside its
+unaliased equivalent; all **29 components** and nine rejection probes pass with
+257 rows, three rows per page and five samples. Compile medians are **0.582 /
+0.707 microseconds** for unaliased/aliased SQL; execution medians are **76.816 /
+75.703 microseconds**. The canonical plans and independently checked outputs
+agree. These samples overlap other qualification and do not establish an
+execution speedup or native latency. Full workloads remain blocked. The report
+is `/tmp/transit-sql-source-aliases-benchmark.json`, with dirty source based on
+`d5541301` and exact manifest/harness/binary provenance. The benchmark runner's
+negative controls, documentation links and verification inventory checks pass.
+
 ## SQL performance iteration
 
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
@@ -7275,6 +7339,19 @@ as other installed integration proofs do. Safety checks, workload, fault
 injections, timeouts and resident limits remain unchanged; Debug remains
 available through the direct Zig commands. A new committed-head clean run is
 required to qualify the recipe change.
+
+The clean growth retry at `7f2ef35f` passes its first **seven tasks**, including
+the ReleaseSafe growing service (**300.67 s**) and the expanded mutation task
+(**333.20 s**, including compilation). The mutation schedule itself completes
+**21 profiles in 210.849 s**, with **6231 reads**, **153 turn responses**,
+**23 lost receipts** and successful cleanup. It covers native ABI, port and CLI;
+the separate 98-profile installed proof above covers all ten SDKs.
+The lane then fails in `test::table-query-writer` after **115.47 s** when the
+console reports `AuthorityTimeout`. The **1340.14 s** lane is failed, with its
+last **13 tasks unrun**. Evidence remains at `/var/tmp/transit-ci-w350glyv/src`
+and `/tmp/transit-sql-mutation-coverage-clean-growth-release-safe.log`;
+the completed mutation record is copied to
+`/tmp/transit-sql-mutation-coverage-clean-native.json`.
 
 ### Full-reference mutation command cutover
 
@@ -8133,6 +8210,32 @@ authorized mutations still succeed. Mutation-policy revocation rejects new
 mutations while new queries succeed. Native read revocation finally prevents
 disclosure. Independent PyArrow decoding verifies the complete typed cell
 envelopes and values.
+
+The clean attempt at `7f2ef35f` exposed a synchronization problem in that fixture:
+it held an interactive snapshot read while performing the entire CLI mutation
+upload, seal and apply. The console keeps its ordinary five-second request
+timeout; the extra setup exceeded it. The fixture now stages and seals before
+opening the console snapshot, freezes the final apply command, and holds the
+snapshot read only until that apply input is processed. It checks the applied
+outcome, affected row and original input separately, then compares both retained
+cuts and both later queries. `snapshot_pause_seconds` records the harness's final
+apply interval. Workload rows, numeric namespace collision, request deadlines,
+resident bounds and recovery/policy assertions remain unchanged. The focused
+rerun reaches all retained/latest query assertions, then fails in later policy
+progress polling on `StaleStateResource`: that poll opened a Table-policy view
+while the turn being observed could change its resource revision. The progress
+probe now reads only the current process input. Separate phase, policy and row
+assertions still check their owning state; no rejection is swallowed or retried.
+The first focused log is `/tmp/transit-sql-combined-snapshot-final-apply.log`.
+
+With both fixture corrections, `just test::table-query-writer` passes in
+**106.683 s**, with **5001 reads**, **70 turn responses**, both recovered
+initialization receipts and a **1.085 s** final-apply pause. Four mutations,
+256-byte values, eight authority pages, and the five-second console deadline
+remain unchanged. The log is `/tmp/transit-sql-combined-snapshot-progress.log`.
+This run covers native/CLI callers; it does not expand installed SDK coverage.
+A new committed-head clean growth run is still required; neither earlier failed
+run is reclassified as a pass.
 
 The schedule takes **54.355 s**, including provisioning/recovery, with **5303
 reads**, **70 accepted turn responses**, two recovered initialization receipts,

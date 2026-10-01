@@ -13,9 +13,10 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     if (!sameName(ast.source, source.name)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;
+    const source_qualifier = if (ast.source_alias) |alias| try m.Name.init(alias.slice()) else source.name;
     var input: [m.max_columns]u8 = undefined;
-    const input_projection = try projection(if (ast.input) |value| value.projection else @splat(null), source.name, source.schema, &input);
-    const qualifier = if (ast.input) |value| try m.Name.init(value.alias.slice()) else source.name;
+    const input_projection = try projection(if (ast.input) |value| value.projection else @splat(null), source_qualifier, source.schema, &input);
+    const qualifier = if (ast.input) |value| try m.Name.init(value.alias.slice()) else source_qualifier;
     var selected: [m.max_columns]u8 = undefined;
     var aggregate: m.Plan.Aggregate = .rows;
     const projected = switch (ast.selection) {
@@ -39,9 +40,9 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     var result: m.Plan = .{ .projection = owned_projection, .aggregate = aggregate, .limit = if (ast.input) |value| value.limit else ast.limit };
     result.predicate = switch (ast.predicate) {
         .all => .all,
-        .state => |state| .{ .state = .{ .column = try resolve(state.column, source.name, source.schema), .value = state.value } },
+        .state => |state| .{ .state = .{ .column = try resolve(state.column, source_qualifier, source.schema), .value = state.value } },
         .compare => |value| .{ .compare = .{
-            .column = try resolve(value.column, source.name, source.schema),
+            .column = try resolve(value.column, source_qualifier, source.schema),
             .op = switch (value.op) {
                 .eq => .eq,
                 .ne => .ne,

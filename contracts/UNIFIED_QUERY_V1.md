@@ -194,6 +194,15 @@ star (all declared columns), one to eight ordered named columns, one typed compa
 or an exact cell-state test, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
+`FROM source AS alias` supplies a query-local qualifier. Source resolution still
+checks the declared source name. Qualified columns use the alias when present;
+the original source name then rejects as a qualifier. Unqualified columns remain
+valid. Inner source aliases and the restricted subquery's outer alias have
+separate scopes. `AS` is required, and aliases obey the 16-byte identifier rules.
+An alias does not rename output columns or change the source basis. It lowers
+away before plan encoding, so equivalent aliased and unaliased queries have
+identical canonical plan bytes and execution semantics.
+
 V1 limits use the plan's full u64 range; an absent limit stays unlimited, subject
 to explicit execution budgets. An aggregate's outer LIMIT still rejects.
 `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select

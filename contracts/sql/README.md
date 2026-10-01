@@ -78,8 +78,9 @@ remain outside this evidence.
 
 The read grammar permits one Table, one optional typed comparison or exact cell-state test,
 one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
-fold to lowercase unless quoted. Column qualification is optional; table aliases
-are admitted only on the single restricted aggregate input subquery. Strings
+fold to lowercase unless quoted. Column qualification is optional; `FROM source
+AS alias` makes the alias its column qualifier. `AS` is required. The restricted
+aggregate input subquery has a separate outer alias. Strings
 escape quotes by doubling them; bytea literals use `'\x00ff'::bytea`. Keywords
 are case-insensitive. Line/block comments and one optional terminator are admitted.
 The production profile additionally bounds names, literals, statement size and

@@ -11,10 +11,10 @@ unsupported; query permission does not authorize mutations.
 ## Syntax
 
 ```text
-SELECT projection FROM source [WHERE predicate] [LIMIT count];
-SELECT aggregate FROM source [WHERE predicate];
+SELECT projection FROM source [AS alias] [WHERE predicate] [LIMIT count];
+SELECT aggregate FROM source [AS alias] [WHERE predicate];
 SELECT aggregate FROM (
-  SELECT projection FROM source [WHERE predicate] [LIMIT count]
+  SELECT projection FROM source [AS alias] [WHERE predicate] [LIMIT count]
 ) AS alias;
 
 projection := * | column [, column ...]
@@ -37,11 +37,18 @@ For an authorized source named `items` with int64 columns `id` and nullable `val
 SELECT * FROM items;
 SELECT value FROM items;
 SELECT items.value, items.id FROM items;
+SELECT chosen.value, chosen.id FROM items AS chosen;
 ```
 
 Explicit lists preserve the requested order and contain one to eight different
 column names. Star selects all declared columns. Output aliases,
 expressions and `DISTINCT` are unsupported.
+
+`FROM source AS alias` gives the declared source a query-local qualifier. With
+an alias, qualified columns must use that alias; the original source name is
+hidden as a qualifier. Unqualified columns still resolve against the declared
+schema. Aliases follow identifier case and length rules and do not rename output
+columns, change source identity or grant access. `AS` is required.
 
 Results follow defined source order, including primary-key order for Tables.
 There is no `ORDER BY`. A Document source reads accepted materialized state;
@@ -60,7 +67,7 @@ SELECT value FROM items WHERE value IS CONFLICT;
 
 There is one optional predicate. `AND`, `OR`, `NOT`, `IS NOT NULL`, `IN`, `LIKE`,
 `BETWEEN` and comparisons between two columns are unsupported. A qualifier must
-match the declared source; mismatched names reject rather than selecting another
+match the alias when present, otherwise the declared source; mismatched names reject rather than selecting another
 source.
 
 | Comparison | Query semantics |
@@ -116,7 +123,8 @@ FROM (SELECT * FROM items LIMIT 2) AS chosen;
 
 This single derived-table form applies filter, then limit, then aggregate.
 The inner projection must retain the sum's column. Inner qualifiers refer to the
-source; an outer qualifier must match `chosen`. General or nested subqueries,
+source or its inner alias; an outer qualifier must match `chosen`. The inner
+alias is unavailable in the outer selection. General or nested subqueries,
 outer predicates and derived tables returning rows are unsupported. An outer
 `LIMIT`, even zero, rejects rather than becoming an aggregate input limit.
 
