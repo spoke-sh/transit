@@ -262,7 +262,18 @@ def run(node, host, proof, library, cli, *, sdks=()):
             # the final apply must commit after its retained snapshot. Holding
             # the request across the whole upload instead makes test setup race
             # the console's ordinary five-second per-request deadline.
-            staged = mutation("UPDATE items SET value='new' WHERE id=1", namespace, cli_mutations, seal_only=True)
+            sql = "UPDATE items SET value='new' WHERE id=1"
+            staged = cli_mutations.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
+            # This schedule needs a separately sealed upload. The shared next
+            # operation may choose inline execution for this small request, so
+            # begin its public staged profile explicitly before the CLI resumes.
+            description = mutations.call({'describe': {}})['description']
+            begin = mutations.call({'prepare': {'begin': dict(reference=staged['reference'], table=1, policy_revision=description['policy_revision'])}})['prepared']
+            receipt = mutations.call({'submit': begin})['receipt']
+            until(lambda: mutations.call({'observe': dict(prepared=begin, input=receipt['position'])})['observation'] == 'processed')
+            assert mutations.call({'rejection': dict(prepared=begin, input=receipt['position'])})['rejection'] is None
+            assert mutations.call({'status': staged['reference']})['status']['phase'] == 'uploading'
+            staged = mutation(sql, namespace, cli_mutations, compiled=staged, seal_only=True)
             apply = cli_mutations.call({'prepare': {'apply': staged['reference']}})['prepared']
             pause_snapshot = True
             console = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
