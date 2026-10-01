@@ -13,6 +13,7 @@ pkgs.mkShellNoCC {
     pkgs.protobuf
     (pkgs.python3.withPackages (ps: [
       ps.pyyaml
+      ps.jsonschema
       ps.pyarrow
       ps.grpcio
       ps.protobuf

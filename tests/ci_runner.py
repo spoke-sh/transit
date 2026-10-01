@@ -17,8 +17,13 @@ def main():
     selected = [row["lane"] for row in workflow["jobs"]["checks"]["strategy"]["matrix"]["include"]]
     assert selected == ["core", "growth", "experience", "launchers", "bindings"]
     assert workflow["jobs"]["checks"]["strategy"]["fail-fast"] is False
-    reclaim = next(step for step in workflow['jobs']['checks']['steps'] if step.get('name') == 'Reclaim unused hosted SDKs')
-    assert reclaim['if'] == "runner.environment == 'github-hosted' && steps.nix-cache.outputs.hit-primary-key != 'true'"
+    steps = workflow["jobs"]["checks"]["steps"]
+    reclaim = next(step for step in steps if step.get("name") == "Reclaim unused hosted SDKs")
+    assert reclaim["if"] == "runner.environment == 'github-hosted'"
+    # A primary cache hit can fill the disk during extraction, before the shell
+    # starts. Reclaim on all hosted runs and before either restore or build.
+    for name in ("Restore Nix store", "Prepare development shell"):
+        assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
@@ -46,6 +51,17 @@ def main():
     cold = summarize(sample, [job], cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
+    # Match an actual full hosted selection: the alternative docs-only job is
+    # skipped, but every required matrix lane must still execute successfully.
+    full_jobs = [dict(job, name=name) for name in selected]
+    docs_skipped = dict(job, name='Documentation site', conclusion='skipped')
+    full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
+    full_budgets = dict(budgets, restored_cache_bytes=2000)
+    full = summarize(sample, [*full_jobs, docs_skipped], full_log, full_budgets)
+    assert full['budget_met'] and len(full['lanes']) == len(selected)
+    assert full['restored_cache_bytes'] == 1500
+    assert not summarize(sample, [*full_jobs[:-1], docs_skipped], full_log, full_budgets)['budget_met']
+    assert not summarize(sample, [*full_jobs[:-1], dict(full_jobs[-1], conclusion='skipped'), docs_skipped], full_log, full_budgets)['budget_met']
     assert not select(["docs/reference/state.md", "docs/roadmap/M26.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],

@@ -16,8 +16,13 @@ def seconds(start, end):
 
 def summarize(run, jobs, log, budgets):
     lanes = []
+    full_inventory = {'core', 'growth', 'experience', 'launchers', 'bindings'} <= {job['name'] for job in jobs}
     for job in jobs:
         if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
+            continue
+        # The full matrix owns documentation through experience. Its separate
+        # docs-only job is intentionally skipped by the selection gate.
+        if full_inventory and job['name'] == 'Documentation site' and job['conclusion'] == 'skipped':
             continue
         # Missing/incomplete jobs remain explicit, with no invented duration.
         row = dict(name=job['name'], conclusion=job['conclusion'], seconds=None, phases={})

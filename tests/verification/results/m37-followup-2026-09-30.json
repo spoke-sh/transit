@@ -12285,5 +12285,165 @@
       "classified_bounds": 53,
       "sdk_scenarios": 13
     }
+  },
+  "clean_integrated_experience": {
+    "revision": "8b1be77e8c2e3cdaf22362663244bd92f5e7dcb4",
+    "outer_seconds": 516.624,
+    "metadata": {
+      "version": 1,
+      "revision": "8b1be77e8c2e3cdaf22362663244bd92f5e7dcb4",
+      "tier": "experience",
+      "completed": true,
+      "expected_tasks": [
+        "transit-board::check",
+        "transit-docs::check",
+        "bindings::node-check",
+        "test::observability",
+        "transit-board::test",
+        "transit-board::query-test",
+        "launchers::local::test-station"
+      ],
+      "seconds": 498.84,
+      "run_id": null,
+      "run_attempt": null,
+      "machine": {
+        "platform": "Linux-6.17.0-41-generic-x86_64-with-glibc2.42",
+        "logical_cpus": 48,
+        "affinity": [
+          6,
+          7,
+          8,
+          9,
+          10,
+          11
+        ],
+        "runner": null,
+        "runner_arch": null
+      }
+    },
+    "tasks": [
+      {
+        "lane": "experience",
+        "task": "transit-board::check",
+        "seconds": 69.09,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "transit-docs::check",
+        "seconds": 65.55,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "bindings::node-check",
+        "seconds": 5.35,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "test::observability",
+        "seconds": 16.37,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "transit-board::test",
+        "seconds": 14.16,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "transit-board::query-test",
+        "seconds": 63.23,
+        "exit_code": 0
+      },
+      {
+        "lane": "experience",
+        "task": "launchers::local::test-station",
+        "seconds": 265.08,
+        "exit_code": 0
+      }
+    ],
+    "log": {
+      "path": ".cache/qualify-8b1be77e-experience.log",
+      "sha256": "1ba7875c53d31aeb288ceb54fe6ec45f3dd08bfa4ea64d28236a0fc1a9bafd7f"
+    },
+    "courier": {
+      "read_refusals": 292,
+      "automatic_restarts": 1,
+      "replacement_seconds": 30.284,
+      "total_reply_budget_seconds": 60
+    }
+  },
+  "hosted_setup_followup": {
+    "run_id": 36796408660,
+    "url": "https://github.com/rupurt/rey/actions/runs/36796408660",
+    "revision": "8b1be77e8c2e3cdaf22362663244bd92f5e7dcb4",
+    "test_execution": true,
+    "status_at_recording": "in_progress with failed experience and bindings jobs; not qualification",
+    "experience": {
+      "job_id": 110160796853,
+      "failure": "ModuleNotFoundError: No module named jsonschema",
+      "task": "transit-board::check",
+      "task_seconds": 119.1,
+      "later_tasks_executed": false,
+      "log": {
+        "path": ".cache/hosted-36796408660-experience.log",
+        "sha256": "61dd22fd3157a9177f9cfd4208a7c21c4c4860eb4a81128457781bc294843ac7"
+      }
+    },
+    "bindings": {
+      "job_id": 110160796780,
+      "failure": "No space left on device while restoring Nix store; runner terminated",
+      "tests_executed": false,
+      "annotations": [
+        {
+          "path": ".github",
+          "blob_href": "https://github.com/rupurt/rey/blob/8b1be77e8c2e3cdaf22362663244bd92f5e7dcb4/.github",
+          "start_line": 0,
+          "start_column": null,
+          "end_line": 0,
+          "end_column": null,
+          "annotation_level": "failure",
+          "title": "",
+          "message": "System.IO.IOException: No space left on device : '/home/runner/actions-runner/cached/2.337.0/_diag/Worker_20261001-002920-utc.log'\n   at System.IO.RandomAccess.WriteAtOffset(SafeFileHandle handle, ReadOnlySpan`1 buffer, Int64 fileOffset)\n   at System.IO.StreamWriter.Flush(Boolean flushStream, Boolean flushEncoder)\n   at System.Diagnostics.TextWriterTraceListener.Flush()\n   at GitHub.Runner.Common.HostTraceListener.WriteHeader(String source, TraceEventType eventType, Int32 id)\n   at System.Diagnostics.TraceSource.TraceEvent(TraceEventType eventType, Int32 id, String message)\n   at GitHub.Runner.Worker.Worker.RunAsync(String pipeIn, String pipeOut)\n   at GitHub.Runner.Worker.Worker.RunAsync(String pipeIn, String pipeOut)\n   at GitHub.Runner.Worker.Program.MainAsync(IHostContext context, String[] args)\nSystem.IO.IOException: No space left on device : '/home/runner/actions-runner/cached/2.337.0/_diag/Worker_20261001-002920-utc.log'\n   at System.IO.RandomAccess.WriteAtOffset(SafeFileHandle handle, ReadOnlySpan`1 buffer, Int64 fileOffset)\n   at System.IO.StreamWriter.Flush(Boolean flushStream, Boolean flushEncoder)\n   at System.Diagnostics.TextWriterTraceListener.Flush()\n   at GitHub.Runner.Common.HostTraceListener.WriteHeader(String source, TraceEventType eventType, Int32 id)\n   at System.Diagnostics.TraceSource.TraceEvent(TraceEventType eventType, Int32 id, String message)\n   at GitHub.Runner.Common.Tracing.Error(Exception exception)\n   at GitHub.Runner.Worker.Program.MainAsync(IHostContext context, String[] args)\nUnhandled exception. System.IO.IOException: No space left on device : '/home/runner/actions-runner/cached/2.337.0/_diag/Worker_20261001-002920-utc.log'\n   at System.IO.RandomAccess.WriteAtOffset(SafeFileHandle handle, ReadOnlySpan`1 buffer, Int64 fileOffset)\n   at System.IO.StreamWriter.Flush(Boolean flushStream, Boolean flushEncoder)\n   at System.Diagnostics.TextWriterTraceListener.Flush()\n   at System.Diagnostics.TraceSource.Flush()\n   at GitHub.Runner.Common.Tracing.Dispose(Boolean disposing)\n   at GitHub.Runner.Common.Tracing.Dispose()\n   at GitHub.Runner.Common.TraceManager.Dispose(Boolean disposing)\n   at GitHub.Runner.Common.TraceManager.Dispose()\n   at GitHub.Runner.Common.HostContext.Dispose(Boolean disposing)\n   at GitHub.Runner.Common.HostContext.Dispose()\n   at GitHub.Runner.Worker.Program.Main(String[] args)",
+          "raw_details": ""
+        }
+      ],
+      "job_log_available": false
+    },
+    "correction": {
+      "source_base": "8b1be77e8c2e3cdaf22362663244bd92f5e7dcb4",
+      "dirty": true,
+      "locked_inputs_changed": false,
+      "changes": [
+        "Pinned jsonschema in both reduced CI Python environments",
+        "Hosted-only SDK cleanup before cache extraction and shell preparation on all cache modes",
+        "Cost accounting excludes the alternative skipped documentation job only when all five ordinary lane names are present"
+      ],
+      "passed": [
+        {
+          "path": ".cache/ci-experience-shell-check.log",
+          "sha256": "d536171e54ed55706d639e1fab2373e69b68d6416884070b07318052d93f9b14"
+        },
+        {
+          "path": ".cache/ci-bindings-shell-check.log",
+          "sha256": "a88ec84573edd63be0211d33d52e1f9fd032ec8ccdea0724d64e53e5e303f990"
+        },
+        {
+          "path": ".cache/ci-setup-doctor.log",
+          "sha256": "7dc1b2e564890f2def9cec77779aab2606425141ef0a52508e15bd02f2ba0f2e"
+        },
+        {
+          "path": ".cache/ci-setup-check.log",
+          "sha256": "be5702a6dbb91ac555e8ae8e873baf33422de83e3d869926d5c12c4ffb6b10ff"
+        },
+        {
+          "path": ".cache/ci-setup-runner-check.log",
+          "sha256": "a175008cc3ab96374c257e558e9de4def575cc53dffb55f4f0204e3dbccc8545"
+        }
+      ]
+    }
   }
 }

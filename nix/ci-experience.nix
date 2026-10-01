@@ -10,7 +10,10 @@ pkgs.mkShellNoCC {
   packages = [
     pkgs.just
     pkgs.git
-    (pkgs.python3.withPackages (ps: [ ps.pyyaml ]))
+    (pkgs.python3.withPackages (ps: [
+      ps.pyyaml
+      ps.jsonschema
+    ]))
     pkgs.process-compose
     zig
     vite-plus

@@ -223,8 +223,10 @@ build-store allowance. No cache-purge permission or external cache secret is
 needed. The self-hosted reference workflow keeps its existing local store.
 
 Disposable GitHub-hosted runners remove the image's unused Android and .NET
-installations on Nix cache misses before shell preparation; consumed SDKs come
-from the pinned shell. Exact cache hits skip this filesystem cleanup.
+installations before restoring the Nix cache or preparing the shell; consumed
+SDKs come from the pinned shell. Exact cache hits also need room for extraction:
+the bindings restore in run `36796408660` exhausted disk before the previous
+cleanup step could execute.
 The first explicit cold run (`36196325993`) exhausted disk while copying the
 freshly built Ursula binary in the bindings lane. Its failure is inconclusive,
 not a cache-miss qualification. The cleanup step is excluded from user-managed
@@ -255,7 +257,11 @@ experience as `just ci::browser`. `just ci` runs all five inventories sequential
 in the pinned bindings shell; `just check` uses the ordinary developer tools.
 
 The experience lane uses `nix develop .#ci-experience`, a shell without provider
-or Kubernetes tools and without PyArrow. Its measured environment closure is
+or Kubernetes tools and without PyArrow. Its Python environment includes PyYAML
+and `jsonschema` for the Board query contract checks. The bindings shell's Python
+environment includes those same validators. Both use the existing locked nixpkgs
+input; no compiler, provider or lockfile revision changes are required.
+Its previously measured environment closure is
 1.2 GiB. Experience/launchers share one Nix cache, core/growth share another,
 and bindings owns the third; each group has one writer. Successful preparation is rooted
 before collection, and a miss saves only the live closure. Small changes to the

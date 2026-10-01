@@ -2318,6 +2318,29 @@ probes`. The driver restores the topology and stops its owned failed installatio
 This is detection of the removed lifecycle guard, not an unrelated build or
 timeout failure. Final catalog and documentation checks pass separately.
 
+Clean experience at `8b1be77e` passes all seven tasks in 516.624 seconds including
+setup. Its Station launcher observes 292 refused delivery reads, one automatic
+courier replacement after 30.284 seconds and the Arrow reply within the original
+60-second window. The remaining ordinary lanes are separate until their full
+completion records are available.
+
+Hosted [run 36796408660](https://github.com/rupurt/rey/actions/runs/36796408660)
+executes jobs; the earlier account restriction no longer prevents this run.
+Experience fails its first task because its reduced Nix Python environment lacks
+`jsonschema`. Bindings fails while restoring the Nix store with `No space left
+on device`, before any test executes. These are failed qualifications. The CI
+shells now include the validator from the existing lock, and disposable hosted
+runners reclaim unused SDK space before cache extraction, including exact hits.
+Self-hosted runners retain their software. Both corrected Python environments,
+the full Board check in the reduced experience shell, `just doctor` and full
+`just check` pass locally; hosted correction evidence remains separate.
+
+Cost accounting also distinguishes the intentionally skipped documentation-only
+job from the full matrix that already owns the documentation proof. Its regression
+requires all five lane names before excluding that alternative job and rejects a
+missing or skipped required lane. This correction does not convert failed jobs
+or unknown cache transfers into budget qualification.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)
