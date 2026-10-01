@@ -11644,3 +11644,34 @@ it is not a complete current-source suite pass. The isolated checkout is removed
 by the successful clean runner after copying evidence to
 `.cache/ci/clean/5d897f0dc733-transit-ci-s1517yp_`. Log
 `/var/tmp/transit-count-column-clean-bindings.log`.
+
+The `4b0c9dbc` integration reuses PR #62's existing `38e5a328` fragment-read
+batching commit, preserving its author date. Native captured turns prefetch at
+most eight fragment keys through the existing captured-view cache; read-only
+adapters keep their point-read interface. Station package tests cover identical
+bytes/manifests, fewer reader callbacks, missing/corrupt fragments and poisoned
+proposals after unavailable/denied reads. The matching prototype `64024bdc`
+passes those tests and `just test::query`; integrated `just check` also passes.
+
+The [frozen fragment-read comparison](verification/results/count-values-fragment-reads-2026-10-01.json.gz)
+uses the same instrumented proof, CPU 0, ext4 fixture storage and unchanged
+180-second phase deadlines in candidate/baseline/baseline/candidate order. Each
+run independently verifies all 41 rows, six segments and 21,296 Arrow bytes,
+including exact retry across restart, cancellation and retained acknowledgement.
+Candidate delivery takes **56.302/53.041 s** and baseline delivery takes
+**57.067/53.360 s**. Both candidate samples use **1849 native read queries**
+versus **2546** in both baseline samples, with **467 commands** unchanged;
+146 batched reads are included in the candidate query total. This establishes
+27.38% fewer native read queries for this fixture, not a latency improvement,
+distribution or explanation of the earlier timeouts.
+
+The initial candidate's **166.654 s** delivery and a separate standard-task
+baseline's **56.858 s** delivery remain in the archive. A direct Python launch
+of the frozen baseline fails before provisioning in `zig_probe_stack`: the
+shell has an 8 MiB stack, while the standard Zig task is observed with
+48,234,496 bytes. The comparison uses the standard build-runner path for both
+variants without manually changing limits. An initial package invocation with
+`--build-file` fails configuration before tests; the package-local invocation
+passes. Earlier clean-growth and Station failures remain separate; these focused
+passes do not complete either clean lane. Logs, executable hashes, runner bytes,
+source identities and the comparison wrapper are retained in the archive.
