@@ -7,13 +7,12 @@ The bundle supplies the CLI and matching native neighborhood artifacts.
 
 `transit server --initialize` deliberately creates a private
 installation and runs it in the foreground. Subsequent starts omit
-`--initialize`. Version 3 starts and supervises a separate `transit-board` process
+`--initialize`. Version 1 starts and supervises a separate `transit-board` process
 by default. Its frontend assets are bundled inside the Board executable. Add
-`--no-ui` to either command name for a headless invocation. The Linux `local_table_v1` bootstrap, independent console and
-process-recovery, interrupted bootstrap, gateway pressure and physical ENOSPC
-proofs pass. Completed evidence belongs in the
-[test guide](../../../tests/README.md). It is a trusted single-user placement,
-with Kubernetes/Substrate remaining the reference isolation profile.
+`--no-ui` to either command name for a headless invocation. The server runs on
+Linux x86_64 in a trusted single-user placement. Kubernetes/Substrate remains
+the reference isolation profile. Executed recovery and capacity evidence belongs
+in the [test guide](../../../tests/README.md).
 
 ## Defaults and configuration
 
@@ -116,15 +115,15 @@ Configuration rejects unknown fields and incompatible versions; ports must be di
 listeners bind `127.0.0.1`. The parent of `installation` must exist. Connectors,
 remote listeners and alternate source definitions remain unsupported.
 
-Version 3 requires a resolved `executables.board`, supplied by the bundle by default. Optional `board` settings default to
+Version 1 requires a resolved `executables.board`, supplied by the bundle by default. Optional `board` settings default to
 `{"port":19107,"public_origin":"http://127.0.0.1:19107"}`. Override the port for
 multiple installations; omit the origin to derive it from that port, or specify
 the exact matching loopback origin. Other origins reject in this local profile.
 Board retains its exact Host/Origin checks. All configured ports, including
 optional application management, must be distinct. Startup checks occupied
 listeners before effects; `--no-ui` skips only Board's listener preflight.
-Versions 2 and 3 default to application management on port 19106. Version 3
-accepts `applications: null` to omit it; version 1 defaults to no management.
+Version 1 defaults to application management on port 19106 and
+accepts `applications: null` to omit it.
 
 The native admission ceiling defaults to 65,536 journal positions, with 4,096
 additional control positions. The selected profile accepts ceilings from 128
@@ -169,7 +168,23 @@ transit console
 
 The initial authorized source is `items(id int64, value int64)`, with no example
 rows. `.schema` describes it. `SELECT COUNT(*) FROM items;` prints the verified
-count automatically; `.resume` recovers the same query after interruption. Creating application data is outside this initial server profile.
+count automatically. The server provisions the combined Table query/writer owner
+and explicitly grants the local caller INSERT, UPDATE and DELETE policy. Bare
+`transit console` derives both routes and its private `console-writes.json`
+recovery path from the installation. For example:
+
+```sql
+INSERT INTO items (id, value) VALUES (1, 100);
+SELECT * FROM items;
+UPDATE items SET value = 101 WHERE id = 1;
+DELETE FROM items WHERE id = 1;
+```
+
+These writes retain the [bounded Table mutation syntax](console.md#writing-tables-and-catalogs).
+SELECT opens a fresh snapshot; `.status` and `.resume` observe and recover a saved
+write after interruption. CREATE TABLE requires a separate catalog connection.
+The caller retains native inspect/send and resource read grants; only the fenced
+Table owner commits row changes under its separate current mutation policy.
 
 ## Local names and SSH tunnels
 
@@ -244,8 +259,12 @@ exact ownership generation. Foreign resource access is granted separately from
 the source's optional requester association. Activation markers are never removed.
 
 The server starts MinIO, disk Ursula, authority, maintenance, source, requester,
-courier, then gateway. Actual authorized source/requester inspection precedes
-gateway readiness. SIGINT/SIGTERM stop in reverse order and join children. Each
+courier, then gateway. The combined Table owner initializes in two durable turns;
+the courier delivers its recorded self continuation. The server checks the exact
+ready configuration and authorized source/requester inspection before gateway
+readiness. Recorded initialization is not repeated on restart, and revoked
+mutation rights are not restored. SIGINT/SIGTERM stop in reverse order and join
+children. Each
 child starts in a distinct process group through a Linux parent-death trampoline;
 the trampoline arms SIGKILL and checks the expected parent before exec. Killing
 the manager therefore kills its owned service processes. The next manager
@@ -282,12 +301,12 @@ ownership and live disaster recovery are outside this profile.
 | Ursula | Disk WAL and local cold credential | One Raft group, two cores, 8 MiB hot data and 8 MiB cold read cache; 8 MiB uncommitted Raft payload cap, 64 live-read waiters per core, 512 MiB RSS admission threshold |
 | Authority | Genesis public root key, raw storage location | Eight decoded authority pages plus 16 immutable control records; 16 sockets, four data/two control requests, serialized engine work; 256 KiB native body/reply, two-second HTTP deadline |
 | Maintenance | Separate admin/effect/delivery grant and raw storage location | One bounded scan/transition at a time, one-second idle interval, two-second operation deadline |
-| Source | Fresh PID-scoped inspect/execute/publish grant; own resource and separate requester-resource read grant | Four MiB query workspace, one MiB adapter, four mutations per committed turn |
+| Source / Table writer | Fresh PID-scoped inspect/execute/publish grant; own resource and separate requester-resource read grant | Four MiB query workspace, one MiB adapter, four mutations per committed turn |
 | Requester | Fresh PID-scoped inspect/execute/publish grant and own resource | Four MiB workspace, one active finite query/upload; retained history remains durable |
 | Courier | Separate inspect/send/delivery grant | One bounded output page and one frozen delivery; recorded destinations remain authoritative |
 | Gateway | No signing key or raw provider access | 16 sockets, four data plus two control requests, six exclusive upstream clients; 8 KiB headers, 256 KiB body/reply; one-second header and four-second whole-request deadlines |
 | Board | Separate retained realm inspection-only key and explicit resource grants; no query/operator credential | Existing [Board limits](../../transit-board/README.md#bounds-and-observations); one child, bounded 256 KiB startup response |
-| Console | Realm-scoped inspect/send caller key and two specific resource read grants | Its separate [console bounds](console.md) and optional private recovery file |
+| Console | Realm-scoped inspect/send caller key, two specific resource read grants and separate Table INSERT/UPDATE/DELETE policy | Its separate [console bounds](console.md), private write recovery file and credential lock |
 
 Each child has two independent 64 KiB in-memory log prefixes. After each prefix
 fills, the drain continues and discards additional diagnostics; there is no
@@ -309,10 +328,19 @@ a separate process without root/caller credentials in its configuration. All
 roles share one OS user; this separation does not sandbox them from that user's
 other files. Configure remote TLS at the deployment's ingress boundary.
 
-Version 2 adds the [application manager](applications.md), a separate management listener and explicit active-app/role quotas. Version 1 retains the table-only neighborhood. Neither version permits an implicit pinned-neighborhood upgrade.
+The [application manager](applications.md) has a separate management listener and
+explicit active-app/role quotas. Set `applications: null` for a Table-only
+neighborhood. Pinned neighborhood artifacts cannot be upgraded implicitly.
 
 
 ## Default Board and compatibility
+
+The current shared contract definition covers local combined Table ownership.
+Earlier query-only installation records, authority histories and saved commands
+are incompatible and reject before use. Retain their matching binaries and
+recovery files to finish pending work. A new installation requires a deliberately
+separate directory; startup never converts or resets existing state. See the
+[hard-cutover policy](../../../docs/reference/versioning.md).
 
 Open the printed `board_url`. Every caller that can reach this loopback listener
 shares its inspection scope; there is no viewer login. Board cannot borrow the

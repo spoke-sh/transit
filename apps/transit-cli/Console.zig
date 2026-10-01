@@ -45,8 +45,9 @@ fn localConfig(init: std.process.Init, topology: @import("server/Config.zig"), d
         .transport = .loopback,
         .seed_file = "caller.seed",
         .connection = c,
-        .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, try Installation.tableFor(c).definition(c.resource)), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) },
+        .workspace = .{ .name = "items", .source = try q.Values.Source.fromNative(allocator, try Installation.tableFor(c).definition()), .limits = try q.Values.Limits.fromNative(allocator, Installation.limits) },
         .recovery_file = "console-recovery.json",
+        .writes = .{ .recovery_file = "console-writes.json", .table = .{ .name = "items", .connection = Installation.writerFor(c) } },
     };
 }
 fn path(allocator: std.mem.Allocator, base: []const u8, relative: []const u8) ![]const u8 {

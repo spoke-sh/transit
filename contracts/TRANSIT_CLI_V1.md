@@ -115,20 +115,29 @@ and signature through the shared client. An unknown outcome retains the original
 file for exact retry; there is no automatic retry or sequence coordination.
 Current grants and writer policy still apply. Terminal cancellation cannot undo
 an applied result. The [mutation guide](../apps/transit-cli/docs/mutations.md)
-owns exact flags, configuration and artifact bounds. Console/query connections
-do not implicitly select or authorize a writer.
+owns exact flags, configuration and artifact bounds. These commands require their
+own mutation connection; query permissions do not authorize writes.
 
 ## Local server and recovery
 
 The initial service neighborhood is a growing authority over disk-backed Ursula,
-bounded maintenance, a delivery courier, a separately activated query source and
-requester, and a public native-protocol gateway. The initial source is an empty
-declared int64 Table; a functioning installation need not contain example data.
-Version-3 server configuration enables Board by default with its own retained
+bounded maintenance, a delivery courier, a separately activated combined Table
+query/writer owner and requester, and a public native-protocol gateway. The initial
+source is an empty declared int64 Table; a functioning installation need not
+contain example data.
+Its initial mutation policy explicitly permits INSERT/UPDATE/DELETE for the local
+caller. The manager submits the configuration-bound initializer, retains its
+exact admission receipt, and waits for the courier-delivered second initialization
+turn and exact ready configuration before exposing the gateway. Query inspection
+remains a separate readiness gate. Restart preserves current mutation policy;
+revocation never triggers reinitialization or renewed permissions. Query-only
+local installations belong to an incompatible shared definition and reject
+without conversion or reset.
+Version-1 server configuration enables Board by default with its own retained
 inspection-only key and explicit resource grants. `--no-ui` disables its process
-and listener for one invocation without changing configuration or history. Older
-configuration versions require this headless option; pinned artifact identities
-still forbid implicit upgrades. Effect connectors remain unsupported optional
+and listener for one invocation without changing configuration or history.
+Unsupported configuration versions reject; pinned artifact identities forbid
+implicit upgrades. Effect connectors remain unsupported optional
 roles. Board readiness, configuration and compatibility belong to the
 [server guide](../apps/transit-cli/docs/server.md#default-board-and-compatibility).
 
@@ -341,7 +350,12 @@ a separate API and does not satisfy this cursor-assistance contract.
 An optional `writes` object contains `recovery_file` and at least one of `table`
 (name plus TableMutationClient connection) or `catalog` (Catalog.Client connection).
 Both use the console's transport and credential, with matching realm/principal.
-The file is distinct from query recovery. No route or configuration grants rights.
+The file is distinct from query recovery. The automatic local connection supplies
+the `items` Table route from allocated installation identities and uses
+`console-writes.json` in the installation directory. It uses the existing
+credential lock, recovery validation and explicit resume behavior. Explicit
+connection files supply their own routes; catalog creation is not configured by
+the local default. No route or configuration grants rights.
 Supported mutations and compatible CREATE TABLE use their owning clients;
 `.help` and SQL topics explain both present and absent routes without native I/O.
 

@@ -8371,3 +8371,63 @@ interruption and TLS checks took **237.72 seconds** inside the **275.64-second**
 disk-backed unified proof. The earlier terminal attempt expected a parse caret
 for valid INSERT without a writer and failed; the corrected assertion requires
 the caret only for malformed SELECT and keeps the no-send/stdout checks.
+
+### Default local Table writes — 2026-09-30
+
+The automatic local console now uses the server's combined Table query/writer
+owner for `items`, with an explicitly initialized INSERT/UPDATE/DELETE policy,
+allocated route identities and private write recovery. Gateway readiness checks
+the exact durable ready configuration plus authorized query metadata. The
+superseded local `TableSource` initializer and host role are removed.
+
+This is a hard cutover to shared definition
+`ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e`.
+Schemas, ABI/binding resources and independent signing, mutation and catalog
+fixtures are regenerated. Missing, foreign and previous query-only installation
+definitions reject in both server and automatic console before use, preserving
+the original installation record. Existing histories are not converted or reset.
+
+Executed on Linux x86_64 in `nix develop` with pinned Zig
+`0.17.0-dev.2267+48abf1a34`, native MinIO and disk-backed Ursula:
+
+- `just transit-board::install` installed the locked dependencies; `just check`
+  passed formatting, generated contracts, units, CLI diagnostics, frontend and
+  documentation checks, including the site build. The first check stopped on
+  Zig formatting; the corrected rerun passed.
+- `just test::server` passed the expanded local lifecycle in **41.19 s**.
+  The bare console inserts two rows, updates and deletes by key, and verifies
+  fresh reads. An explicit connection without a writer rejects mutations.
+  The fixture stops the Table owner, admits a console write, kills the console,
+  restarts the server and resumes the same saved operation. Rows survive worker,
+  node, store and manager replacement. Mutation revocation persists across
+  restart while query reads continue. Recovery files retain mode 0600.
+  After removing the old initializer, `just test::unit` and `just test::server`
+  passed again; the final local lifecycle took **37.94 s** and additionally
+  compares the entire saved operation before resuming its original identity.
+- `just test::server-faults` passed that lifecycle again in **37.68 s** and its
+  bootstrap/gateway/rollback schedules in **20.64 s**, retaining exact initial
+  provisioning receipts and refusing changed artifacts or rolled-back storage.
+- `just test::table-query-writer` passed in **51.424 s**, with **7,009 reads**,
+  **105 turn responses** and both initialization receipts recovered. It checks
+  independent query/mutation policies, lost write receipts, cancellation,
+  retained query snapshots across writes and current native disclosure gates.
+  The run retains four mutations per turn, 256-byte values and eight resident
+  authority pages; no installed SDK matrix was selected.
+
+- `just test::server-board` passed default/headless behavior, embedded assets,
+  application replacement, inspection revocation, owned process failures and
+  both lost-reply/manager-death provisioning schedules. The final lifecycle took
+  **34.12 s**. The initial fixture incorrectly requested configuration version 3;
+  it now requests the implemented version 1. A later run correctly rejected
+  shared build outputs replaced during recovery, so the proof now freezes all
+  its binaries. One frozen-artifact run stopped on `AuthorityUnavailable` during
+  application status polling; the unchanged rerun passed all scenarios. No
+  runtime identity, authorization or availability assertion was relaxed.
+  Final evidence: `/tmp/transit-local-writes-board-verified.log`.
+
+Logs: `/tmp/transit-local-writes-check.log`,
+`/tmp/transit-local-writes-server.log`, `/tmp/transit-local-writes-faults.log`
+and `/tmp/transit-local-writes-combined.log`; final unit/lifecycle evidence is in
+`/tmp/transit-local-writes-final.log`. These are working-tree executions, not
+clean committed-HEAD or hosted CI evidence. `just ci-clean`, physical ENOSPC and
+installed SDK matrices were not run for this cutover.

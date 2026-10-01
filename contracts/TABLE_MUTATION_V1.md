@@ -11,8 +11,9 @@ the [state contract](STATE_V1.md) defines accepted commits.
 
 An application must explicitly expose the operation and authorize its caller.
 The helper does not discover a writer, grant access, submit work or commit.
-The console admits SQL mutations through its explicit `writes.table` connection
-and private recovery file. Board, Flight SQL and language SDK query clients do
+The console admits SQL mutations through its `writes.table` connection
+and private recovery file. The local server provisions this route and its
+separate mutation policy for `items`; other connections configure it explicitly. Board, Flight SQL and language SDK query clients do
 not admit mutations. A query source declaration or read permission is insufficient.
 The canonical request below supports immutable transport; it does not create a
 public admission route or standalone transaction session. Table row storage keeps
@@ -22,7 +23,8 @@ or reopen each other's authority history.
 
 `transit-query.TableMutationAdmission` supplies an explicitly composed private-turn
 admission owner. It stages these requests, checks a separate writer policy and
-proposes the terminal result atomically with the rows. The query host exposes it only through an explicit `table_writer` role.
+proposes the terminal result atomically with the rows. The query host exposes it
+through `table_writer` and combined `table_query_writer` roles.
 Read-query source/requester roles do not dispatch its commands. An integrating application uses Station's frozen
 native commit and current authority gates; installed-client write routes remain
 separate from this composition API.

@@ -8,6 +8,7 @@ import select
 import shutil
 import signal
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -177,11 +178,40 @@ class Fixture:
                         source=dict(table=dict(id=1, names=['id', 'value'], value_type='int64'))),
                         limits=dict(pages='1000', segments='128', result_bytes='1048576')))
 
-    def console(self, text):
+    def console(self, text, expected=0):
         result = subprocess.run([self.cli, "console", "--no-rc", "--format", "json"],
             input=text, text=True, capture_output=True, timeout=80, cwd=self.root, env={"PATH": "/unavailable"})
-        assert result.returncode == 0, result
+        assert result.returncode == expected, result
+        if expected:
+            return result
         return [json.loads(line) for line in result.stdout.splitlines()]
+
+    def revoke_table_writes(self):
+        from server_application_faults import ExistingKey, native, post
+        key = ExistingKey(self.root, self.installation / 'caller.seed')
+        port, realm = self.config['ports']['node'], self.config['realm']
+        done = self.record()['provision']
+        address = (b'\0Mp' + struct.pack('>QQ', 10, 1)).hex()
+
+        def query(kind):
+            return post(port, '/v1/query', native(key, realm, 10, kind))
+
+        def policy():
+            result = query({'read_entries': dict(resource=done[5], revision=None, keys=[address] + [None] * 7)})
+            return bytes.fromhex(result['body']['read_entries']['entries'][0]['value'])
+
+        current = policy()
+        assert current[:4] == b'TML1' and current[-1] == 7
+        revision = struct.unpack_from('<Q', current, 16)[0]
+        revoked = current[:16] + struct.pack('<Q', revision + 1) + current[24:-1] + b'\0'
+        payload = b'TMG1' + struct.pack('<QQ', done[5], revision) + revoked
+        frame = (b'STN1\1' + bytes(8) + payload).hex()
+        sequence = query({'capabilities': {}})['principal_sequence'] + 1
+        post(port, '/v1/command', native(key, realm, 10, {'send': dict(pid=done[4], value=frame)}, sequence))
+        deadline = time.monotonic() + 15
+        while policy() != revoked:
+            assert time.monotonic() < deadline, 'mutation policy did not revoke'
+            time.sleep(.05)
 
     def kill_role(self, match):
         candidates = [pid for pid in children(self.process.pid) if match in command(pid) and (match != "/transit-node " or "--maintain" not in command(pid))]
@@ -230,12 +260,44 @@ def run(cli, node, host):
             if shell.process.poll() is None:
                 shell.process.kill(); shell.process.wait(timeout=10)
         print("Transit server independent console: verified empty Table COUNT result", flush=True)
+        results = fixture.console('INSERT INTO items (id, value) VALUES (1, 100), (2, NULL);\n'
+                                  'UPDATE items SET value = 101 WHERE id = 1;\n'
+                                  'DELETE FROM items WHERE id = 2;\nSELECT value FROM items WHERE id = 1;\n')
+        assert [row['mutation']['affected_rows'] for row in results[:3]] == [2, 1, 1], results
+        assert results[-1]['cells'][0][0]['value']['int64'] == '101', results
+        recovery = fixture.installation / 'console-writes.json'
+        assert recovery.stat().st_mode & 0o777 == 0o600
+        # Explicit read-only connections retain their configured scope.
+        readonly = fixture.root / 'readonly.json'
+        readonly.write_text(json.dumps(dict(fixture.console_config(), execution='interactive')))
+        denied = subprocess.run([fixture.cli, 'console', '--no-rc', '--config', str(readonly), '-c',
+                                 'INSERT INTO items (id, value) VALUES (9, 900)'], capture_output=True, text=True, timeout=15)
+        assert denied.returncode == 1 and 'ConsoleWriterRequired' in denied.stderr, denied
+        # Kill a console after native admission while the owner cannot process
+        # its input. A new console must resume the same saved operation.
+        source_pid = next(pid for pid in children(fixture.process.pid) if 'table_query_writer' in command(pid))
+        os.kill(source_pid, signal.SIGSTOP)
+        pending = subprocess.Popen([fixture.cli, 'console', '--no-rc', '-c',
+                                    'INSERT INTO items (id, value) VALUES (3, 300)'],
+                                   cwd=fixture.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 20
+            while True:
+                saved_write = json.loads(recovery.read_text())
+                operation = saved_write.get('operation', {}).get('mutation', {})
+                if not saved_write['complete'] and operation.get('input') is not None:
+                    break
+                assert pending.poll() is None and time.monotonic() < deadline, 'write was not admitted'
+                time.sleep(.05)
+        finally:
+            pending.kill()
+            pending.communicate(timeout=10)
         fixture.stop()
         # Same public v1 label cannot reinterpret another contract definition.
         record_path = fixture.installation / "installation.json"
         saved = record_path.read_bytes()
         try:
-            for incompatible in (None, "previous-v1-definition"):
+            for incompatible in (None, "previous-v1-definition", "2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5"):
                 record = json.loads(saved)
                 if incompatible is None:
                     del record['definition']
@@ -244,6 +306,8 @@ def run(cli, node, host):
                 encoded = json.dumps(record).encode()
                 record_path.write_bytes(encoded)
                 fixture.refusal("cannot read the retained installation record")
+                rejected = fixture.console('SELECT COUNT(*) FROM items;\n', expected=2)
+                assert 'cannot read the local installation' in rejected.stderr, rejected
                 assert record_path.read_bytes() == encoded
         finally:
             record_path.write_bytes(saved)
@@ -251,17 +315,22 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
+        fixture.console('.status\n')
+        assert json.loads(recovery.read_text())['operation'] == saved_write['operation']
+        resumed = fixture.console('.resume\n')[-1]['mutation']
+        assert resumed['id'] == str(operation['namespace']) and resumed['phase'] == 'applied' and resumed['affected_rows'] == 1, resumed
+        assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "2"
         fixture.stop(kill=True)
         fixture.start()
         fixture.ready()
         assert fixture.record()["provision"] == original["provision"]
-        for role in ("table_source", "/transit-node ", "ursula server"):
+        for role in ("table_query_writer", "/transit-node ", "ursula server"):
             fixture.kill_role(role)
             fixture.ready()
             assert fixture.record()["provision"] == original["provision"]
             fixture.console(".schema\n.quit\n")
-            assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "0"
+            assert fixture.console("SELECT COUNT(*) FROM items;\n.quit\n")[-1]["cells"][0][0]["value"]["uint64"] == "2"
+            assert fixture.console('UPDATE items SET value = 101 WHERE id = 1;\n')[-1]['mutation']['affected_rows'] == 1
         fixture.kill_role("/courier.json")
         assert fixture.process.wait(timeout=30) == 1
         failure = Path(fixture.logs[-1].name).read_text().rsplit("error: ", 1)[-1]
@@ -284,9 +353,18 @@ def run(cli, node, host):
         fixture.start()
         fixture.ready()
         fixture.console(".schema\n.quit\n")
+        fixture.revoke_table_writes()
+        for restart in (False, True):
+            if restart:
+                fixture.stop()
+                fixture.start()
+                fixture.ready()
+            denied = fixture.console('INSERT INTO items (id, value) VALUES (4, 400);\n', expected=1)
+            assert 'MutationDenied' in denied.stderr and not denied.stdout, denied
+            assert fixture.console('SELECT COUNT(*) FROM items;\n')[-1]['cells'][0][0]['value']['uint64'] == '2'
         # A stopped child cannot process SIGTERM. Force the supervisor's timed
         # SIGKILL path and join its pipe drainers before closing their handles.
-        source = next(pid for pid in children(fixture.process.pid) if "table_source" in command(pid))
+        source = next(pid for pid in children(fixture.process.pid) if "table_query_writer" in command(pid))
         os.kill(source, signal.SIGSTOP)
         fixture.stop()
         success = True

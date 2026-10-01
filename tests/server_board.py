@@ -10,6 +10,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -26,7 +27,7 @@ class Board(Applications):
         port = free_port()
         while port in [*self.config['ports'].values(), self.config['applications']['port']]:
             port = free_port()
-        self.config.update(version=3, board={'port': port, 'public_origin': f'http://127.0.0.1:{port}'})
+        self.config.update(version=1, board={'port': port, 'public_origin': f'http://127.0.0.1:{port}'})
         self.config['executables']['board'] = str(Path(board).resolve())
         self.path.write_text(json.dumps(self.config))
         self.no_ui = False
@@ -330,8 +331,24 @@ def incompatible(cli, node, host, board):
 
 if __name__ == '__main__':
     assert ctypes.CDLL(None).prctl(36, 1, 0, 0, 0) == 0
-    preflight(*sys.argv[1:5])
-    incompatible(*sys.argv[1:5])
-    lifecycle(*sys.argv[1:])
-    interrupted(*sys.argv[1:5])
-    interrupted(*sys.argv[1:])
+    # Installation identity pins every executable. Concurrent builds may replace
+    # zig-out files; run the whole recovery schedule against owned frozen copies.
+    artifacts = Path(tempfile.mkdtemp(prefix='transit-board-proof-artifacts-', dir='/var/tmp'))
+    success = False
+    try:
+        binaries = []
+        for argument in sys.argv[1:]:
+            target = artifacts / Path(argument).name
+            shutil.copy2(Path(argument).resolve(), target)
+            binaries.append(str(target))
+        preflight(*binaries[:4])
+        incompatible(*binaries[:4])
+        lifecycle(*binaries)
+        interrupted(*binaries[:4])
+        interrupted(*binaries)
+        success = True
+    finally:
+        if success:
+            shutil.rmtree(artifacts)
+        else:
+            print(f'Board proof artifacts retained: {artifacts}', file=sys.stderr)

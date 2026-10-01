@@ -1,7 +1,8 @@
 # SQL reference
 
 Transit executes finite `SELECT` queries through Fuze and bounded Table writes
-through explicitly configured console writer/catalog routes. SQL compiles
+through configured console writer/catalog routes. The automatic local connection
+supplies the writer for `items`; other connections configure their own routes. SQL compiles
 to the same typed plan used by native callers. It does not grant access, create
 a source or change its declaration. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and

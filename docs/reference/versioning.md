@@ -95,6 +95,11 @@ its hard cutover requires matching node, worker, client and SDK builds. Pending
 work under an earlier definition requires that earlier build's recovery procedure,
 not a replacement reference or automatic data reset.
 
+The local server uses the combined Table query/writer owner and its two-turn
+initialization. The current shared definition rejects earlier query-only local
+installation records and history. Recover those installations with their matching
+build; enabling the new local default does not convert or reset retained state.
+
 Publication identity includes its domain, namespace and record ID. Domain-aware
 keys and 72-byte references replace the prior layouts under the current shared
 definition. Native SDK publication actions use the application domain; typed

@@ -149,12 +149,11 @@ fn cycle(self: *Self) !void {
     try self.start(allocator, .courier, &.{ config.executables.query_host, courier_config }, &.{}, false);
     try installation.initializeBehaviors();
     var query: q.UnifiedClient = .{ .wire = installation.wire, .connection = connection, .key = installation.caller_key };
-    const definition = try installation.table().definition(connection.resource);
     const started = std.Io.Clock.awake.now(self.init.io);
     while (true) {
         if (Signals.interrupted()) return error.ServerStopped;
         if (!self.allAlive()) return error.ChildExited;
-        _ = query.describe(definition) catch |err| {
+        self.tableReady(&query) catch |err| {
             if (started.durationTo(std.Io.Clock.awake.now(self.init.io)).toMilliseconds() >= 60000) return err;
             try self.init.io.sleep(.fromMilliseconds(100), .awake);
             continue;
@@ -212,6 +211,16 @@ fn cycle(self: *Self) !void {
         try self.init.io.sleep(.fromMilliseconds(100), .awake);
     }
 }
+fn tableReady(self: *Self, query: *q.UnifiedClient) !void {
+    const config = self.installation.table();
+    const current = try query.resources().readBatch(config.writer.resource, null, &.{q.TableQueryWriter.state_key});
+    const state = (try current.read(q.TableQueryWriter.state_key)) orelse return error.TableWriterNotReady;
+    if (state.eql(try config.state(.staged))) return error.TableWriterNotReady;
+    if (!state.eql(try config.state(.ready))) return error.TableQueryWriterConfigurationChanged;
+    // Current mutation policy may have been revoked. Readiness must never
+    // reinstall it or require the original permission mask after a restart.
+    _ = try query.describe(try config.definition());
+}
 fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const installation = self.installation;
     const connection = installation.connection();
@@ -220,8 +229,8 @@ fn worker(self: *Self, allocator: std.mem.Allocator, role: Role) !void {
     const process = (try installation.query(.{ .process = pid })).body.process.process;
     if (process.lifecycle != .running or process.failure != null) return error.ProcessUnavailable;
     const generation = try std.math.add(u64, process.generation, 1);
-    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { table_source: q.TableSource.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
-    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .table_source = installation.table() } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
+    const Common = struct { url: []const u8, realm: u64, principal: u64, pid: u64, generation: u64, activation_directory: []const u8, interval_ms: u32 = 100, idle_max_interval_ms: u32 = 1000, request_timeout_ms: u32 = 2000, role: union(enum) { table_query_writer: q.TableQueryWriter.Configuration, unified_requester: q.UnifiedBehavior.Requester } };
+    const config: Common = .{ .url = installation.wire.url, .realm = connection.realm, .principal = principal, .pid = pid, .generation = generation, .activation_directory = try installation.path("activations"), .role = if (role == .source) .{ .table_query_writer = installation.table() } else .{ .unified_requester = .{ .principal = Installation.caller, .source = connection.source } } };
     const json = try std.json.Stringify.valueAlloc(allocator, config, .{});
     try self.start(allocator, role, &.{ installation.config.executables.query_host, "--bootstrap-json", json }, &.{}, true);
     var bytes: [1024]u8 = undefined;

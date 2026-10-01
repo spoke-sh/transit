@@ -15,7 +15,9 @@ Bare `transit console` uses the [local server](server.md)'s topology defaults,
 including its `transit.yaml` discovery and `TRANSIT_` overrides. It reads allocated
 resource identities from the existing installation and uses its scoped
 `caller.seed`. No console configuration file is
-generated or required for this read connection. The default endpoint is `http://127.0.0.1:19105`, and the
+generated or required for this connection. The local server also provisions an
+authorized writer for `items`; INSERT, UPDATE and DELETE use it automatically.
+The default endpoint is `http://127.0.0.1:19105`, and the
 default installation is `./.transit`. The console never initializes the server.
 
 ```sh
@@ -124,9 +126,17 @@ Use `.help INSERT`, `.help UPDATE`, `.help DELETE` and `.help CREATE TABLE` to
 learn the supported SQL and configuration without network access. `.help` reports
 whether each route is configured; authority is checked when executing it. Both
 interactive and durable query modes support writes. Bare local-server connections
-supply a query route; they do not automatically install or authorize a writer.
+supply both query and Table writer routes for `items`, using the installation's
+allocated identities and scoped caller credential. Write recovery lives in
+`console-writes.json` inside the installation. Opening the console loads saved
+work without resubmitting it; use `.status` and `.resume` after interruption.
+The credential lock permits one write-capable console per local caller seed.
+Server restart preserves current mutation policy, including revocation.
 
-Add explicit routes to the console connection YAML, using provisioned identities:
+For a separately configured connection, add explicit routes to its YAML using
+provisioned identities. Selecting a connection file replaces the automatic local
+connection; omitted write routes remain unavailable. Catalog creation always
+requires a separately provisioned catalog route:
 
 ```yaml
 writes:

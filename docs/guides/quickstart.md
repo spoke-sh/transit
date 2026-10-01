@@ -1,7 +1,7 @@
 # Run Transit locally
 
-This starts an isolated, application-capable local installation and queries an
-empty Table. Use Linux x86_64 with the complete local bundle installed and
+Start an isolated, application-capable local installation, then read and write
+its Table. Use Linux x86_64 with the complete local bundle installed and
 `transit` available on `PATH` in both terminals. The bundle includes matching
 Transit, Board, Ursula and MinIO executables; Docker is not required at runtime.
 Check that the command is available:
@@ -48,7 +48,7 @@ preserving its identity and grants; restart without the flag to enable it again.
 Board provides shared inspection only. Application resource access requires an
 explicit [inspection declaration](../../apps/transit-cli/docs/applications.md#board-inspection).
 
-## Query from a second terminal
+## Read and write from a second terminal
 
 From the same parent working directory used above:
 
@@ -61,12 +61,18 @@ In the console:
 
 ```text
 .schema
+INSERT INTO items (id, value) VALUES (1, 100);
+SELECT * FROM items;
+UPDATE items SET value = 101 WHERE id = 1;
+SELECT * FROM items;
+DELETE FROM items WHERE id = 1;
 SELECT COUNT(*) FROM items;
 ```
 
 The initial Table has `id` and `value` int64 columns and no application rows.
-The console assigns an identity, advances the upload and prints the verified
-result: count zero. Enter `.quit` to disconnect. To run one query and exit:
+The local connection includes an authorized Table writer. Each mutation prints
+its applied row count; SELECT reads a fresh snapshot. The final count is zero
+after deleting the row. Enter `.quit` to disconnect. To run one query and exit:
 
 ```sh
 transit console -c 'SELECT COUNT(*) FROM items'
@@ -85,8 +91,9 @@ configuration and artifacts:
 transit server
 ```
 
-Do not add `--initialize` on restart. For a previously submitted query, use
-`.resume`; it recovers the original query and prints its result.
+Do not add `--initialize` on restart. After an interrupted write, use `.status`
+and `.resume` to recover the original operation; repeating SQL creates new work.
+Interactive SELECT statements run again against a fresh snapshot.
 If state or an artifact is missing, startup refuses to recreate its history.
 Inspect the error and follow [server recovery](../../apps/transit-cli/docs/server.md#ownership-and-recovery).
 

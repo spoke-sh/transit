@@ -179,8 +179,9 @@ commands are unsupported. Completion never submits.
 SELECT uses a fresh leased snapshot by default and executes locally without durable
 query state. In `execution: durable` mode, SELECT chooses a fresh identity, records
 exact intent, advances its upload and prints verified results. Recovery commands
-also handle saved writes in either mode. INSERT/UPDATE/DELETE and CREATE TABLE
-require explicit `writes.table` / `writes.catalog` configuration and current
+also handle saved writes in either mode. The automatic local connection supplies
+`writes.table` for `items`; separate connection files must configure that route
+explicitly. CREATE TABLE requires `writes.catalog`. All writes require current
 authority. See [console writes](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 for exact saved commands, Ctrl-C behavior and terminal outcomes. `.new`, `.retry`, `.advance`, `.next` and
 manual recovery exports are not console commands. `query` remains a callable

@@ -1,7 +1,8 @@
 # INSERT
 
 Run INSERT in the [console](../../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
-with an explicitly configured, authorized Table writer. `.help INSERT` explains
+with an authorized Table writer. The automatic local-server connection supplies
+this route for `items`; separate connections configure it explicitly. `.help INSERT` explains
 syntax, connection requirements and recovery. A successful SELECT does not
 configure a writer or authorize changes. Flight SQL and Board query interfaces
 remain read-only.

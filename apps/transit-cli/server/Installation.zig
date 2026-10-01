@@ -90,11 +90,14 @@ pub fn connectionFrom(record: Record, realm: u64) q.UnifiedClient.Connection {
     const done = record.provision;
     return .{ .realm = realm, .principal = caller, .requester = done[0].?, .requests = done[1].?, .source = done[4].?, .resource = done[5].? };
 }
-pub fn table(self: *Self) q.TableSource.Configuration {
+pub fn table(self: *Self) q.TableQueryWriter.Configuration {
     return tableFor(self.connection());
 }
-pub fn tableFor(c: q.UnifiedClient.Connection) q.TableSource.Configuration {
-    return .{ .peer = c.requester, .initializer = caller, .requests = c.requests, .limits = limits };
+pub fn tableFor(c: q.UnifiedClient.Connection) q.TableQueryWriter.Configuration {
+    return .{ .writer = .{ .resource = c.resource, .initializer = caller, .principal = caller, .permissions = 7 }, .peer = c.requester, .requests = c.requests, .allow = true, .limits = limits };
+}
+pub fn writerFor(c: q.UnifiedClient.Connection) q.TableMutationClient.Connection {
+    return .{ .realm = c.realm, .principal = c.principal, .writer = c.source, .resource = c.resource, .table = tableFor(c).writer.table };
 }
 pub fn provision(self: *Self) !void {
     try self.flush();
@@ -158,7 +161,8 @@ pub fn activate(self: *Self, registration: q.wire.bootstrap.GrowingRegistration)
 pub fn initializeBehaviors(self: *Self) !void {
     const c = self.connection();
     for ([_]u64{ c.source, c.requester }, 0..) |pid, i| if (!self.record.initialized[i]) {
-        try self.submit(caller, .{ .send = .{ .pid = pid, .value = try (q.station.Frame{ .kind = .cast, .payload = try q.UnifiedRequest.Command.encode(.initialize) }).encode() } }, .initialize, @intCast(i));
+        const payload = if (i == 0) try self.table().initializeCommand() else try q.UnifiedRequest.Command.encode(.initialize);
+        try self.submit(caller, .{ .send = .{ .pid = pid, .value = try (q.station.Frame{ .kind = .cast, .payload = payload }).encode() } }, .initialize, @intCast(i));
     };
 }
 pub fn create(init: std.process.Init, config: Config, identity: Config.Identity) !void {

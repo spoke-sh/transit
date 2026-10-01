@@ -1078,7 +1078,7 @@
       "scenarios": [
         "Interrupted persisted bootstrap recovers identical identities/receipts; duplicate manager, listener conflicts, changed artifacts and missing/rolled-back storage reject",
         "Manager SIGKILL, child/node/store loss, fresh keys/increasing generations and preserved activation markers; bounded restart exhaustion and forced shutdown join children and pipe readers",
-        "Independent console verifies empty Table COUNT through a gateway that preserves signed bodies/native denial and reserves control under stalled data",
+        "Independent automatic console verifies Table INSERT/UPDATE/DELETE and fresh reads, exact admitted-write recovery after process loss, and mutation revocation across restart; the gateway preserves signed bodies/native denial and reserves control under stalled data",
         "Real ext4 ENOSPC after accepted query; bounded control/shutdown and exact query recovery after space is released; full log prefixes keep draining"
       ],
       "limits": "Trusted single-user Linux placement, no sandbox. Three restart attempts, eight sockets/four data/two control requests, 64 KiB per log prefix; provider soft heap/RSS admission limits are not isolation. Capacity fixture uses 4 MiB metadata headroom and a 512 MiB preallocated reserve. Observed rollback floor is not a disaster-recovery oracle. Artifact changes currently refuse startup; M29 owns neighborhood upgrade transitions.",

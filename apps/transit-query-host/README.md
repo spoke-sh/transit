@@ -24,7 +24,6 @@ durable work is noticed; interactive reads do not wait for these workers.
 | Role | Configuration | Provisioning |
 | --- | --- | --- |
 | Unified source | `{"unified_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL}}` | Existing v1 source declaration/policy and data; a non-required association and independent current read/inspect grant to the request resource |
-| Empty Table source | `{"table_source":{"peer":REQUESTER_PID,"initializer":PRINCIPAL,"requests":RESOURCE,"limits":{"pages":1000,"segments":100,"result_bytes":1048576}}}` | The local composition initializes an empty int64 Table and its peer policy in the owning activation; defaults `table: 1`, `key_name: "id"`, `value_name: "value"`; existing metadata rejects |
 | Table mutation writer | `{"table_writer":{"resource":RESOURCE,"initializer":ADMIN,"principal":CALLER,"permissions":7,"value_type":"utf8"}}` | Existing native resource and required association; exact initializer cast creates an empty typed Table and separate mutation policy. Defaults `table: 1`, names `id`/`value`, type `int64`; permissions are explicit |
 | Table query/writer | `{"table_query_writer":{"writer":{"resource":RESOURCE,"initializer":ADMIN,"principal":CALLER,"permissions":7},"peer":REQUESTER_PID,"requests":REQUEST_RESOURCE,"allow":true,"limits":{"pages":1000,"segments":100,"result_bytes":1048576}}}` | Empty typed Table; initializer is nonzero. Required writer resource association plus optional request resource association and separate read grant; two durable initialization turns before query/mutation dispatch |
 | Catalog | `{"catalog":{"scope":{"realm":REALM,"resource":RESOURCE,"catalog":CATALOG_ID},"owner":PID,"administrator":ADMIN}}` | Existing resource and required association; realm/PID match the activation. Exact administrator initialization publishes framework/configuration/policy/disposition in one turn |
@@ -43,6 +42,8 @@ separate recorded dispositions; they do not replace terminal mutation results.
 This role owns writes and does not initialize a read-query peer.
 
 The `table_query_writer` role supplies both owners with independent policies.
+The local server uses it for the default `items` Table, with INSERT, UPDATE and
+DELETE explicitly authorized for its scoped caller.
 Use `TableQueryWriter.Configuration.initializeCommand()` from its initializer;
 deliver its self continuation through the deployment's courier. Query calls and
 mutations become admissible only after `TableQueryWriter.phase(reader)` reports

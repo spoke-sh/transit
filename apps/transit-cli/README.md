@@ -31,8 +31,10 @@ configuration use YAML by default; `.transitrc` remains a DuckDB-style startup
 file containing dot commands.
 
 The console runs `-c 'SELECT COUNT(*) FROM items'`, `-f queries.sql` or interactive
-SQL with automatic query progress and verified results. Explicit writer/catalog
-connections also execute INSERT/UPDATE/DELETE and compatible CREATE TABLE;
+SQL with automatic query progress and verified results. The local connection
+also executes INSERT/UPDATE/DELETE against `items` without extra configuration.
+Separate connections require writer routes; compatible CREATE TABLE requires
+an explicitly configured catalog;
 `.help INSERT` and `.help CREATE TABLE` explain syntax, configuration and
 recovery inside the shell. Its `.transitrc` hierarchy
 configures `.connect` and `.mode`; server `transit.yaml` settings overlay the
