@@ -62,7 +62,10 @@ nulls and binary labels. Five-second current-policy observations continue while
 the resource interior is hidden by Neighborhood. Browser tab hiding clears
 visible results; returning rechecks authority. Known denial/expiry clears the
 source, draft and result. In v1 it also stops automatic reads, including after
-follow-lease expiry; **Refresh query access** explicitly rechecks authorization.
+follow-lease expiry; **Refresh query access** explicitly rechecks authorization
+without selecting the cleared result again. **Resume without rerunning** selects
+a retained namespace and verifies its result under current access. Its saved SQL
+is unavailable, so the result is marked separately from the current draft.
 The workspace retains frozen pending requests across
 in-app route remounts for exact recovery; known denial does not invent their
 rejection. Temporary connection failures retain permitted v1 rows with their

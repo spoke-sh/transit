@@ -181,7 +181,12 @@ retirement/collection; they cannot promise external cancellation or retract byte
 
 One result segment is resident. Each visible observation rechecks current source
 access and verifies that page, including its manifest, plan and source contract.
-Known denial, expiry and history gaps clear source/draft/pending/result state.
-Connection failure hides rows while preserving an uncertain token. Hidden tabs
+Known denial, expiry and history gaps clear source, draft and displayed result;
+the original upload plan and frozen uncertain token remain available for exact
+recovery. **Refresh query access** rechecks access and retained status without
+reading the cleared result. **Resume without rerunning** explicitly selects that
+namespace again; its result remains distinct from the current SQL draft.
+Temporary connection failure retains permitted rows with their original source
+basis and preserves an uncertain token. Hidden tabs
 hide results and returning rechecks access. No browser storage, Live queries,
 arbitrary business-value decoder or administrative SQL is introduced.

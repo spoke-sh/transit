@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "scope": "Cleared query result selection remains separate from retained accepted-work recovery",
+  "development_base": "e1253fc62931436063cdb3068eb7e355feabafce",
+  "dirty": true,
+  "source_sha256": {
+    "apps/transit-board-web/src/unified-workspace.tsx": "f8a16ddc6e4ec0664df8416454278abdb45702337a76a465c513345b6b6fce46",
+    "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+  },
+  "hosted_failure": {
+    "run_id": 36809340716,
+    "source": "7e0d6a69522a95f7bdd7bac6030265bda73f1dc8",
+    "head": "31f071d0fbc166dee8251cb170cf90093590a2a3",
+    "assertion": "After revoke/restore/Refresh query access, Verified query result count must be zero; observed one.",
+    "context_sha256": "205ad903391137cf8d792615510781d977d0c61d1d9106a5cde2117cdda5a8ab"
+  },
+  "local_attempts": [
+    {
+      "base_revision": "7942de26b6105d589ef58670ed82b36b2a24203f",
+      "deadline_seconds": 180,
+      "runs": [
+        {
+          "label": "original",
+          "exit_code": 1,
+          "seconds": 97.614,
+          "sha256": {
+            "apps/transit-board-web/src/unified-workspace.tsx": "43562903703fb0c1d985ca2cdb33d85c0421cd61386efce4a4c30f23dcc0d79b",
+            "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+          },
+          "log_sha256": "b936678bb8bed9b26de4bc4546e6724ad487e26d7f6b7b1381c8f90cefa1e8e6",
+          "classification": "unavailable-api-response-before-browser; not UI defect detection"
+        },
+        {
+          "label": "corrected",
+          "exit_code": 1,
+          "seconds": 62.792,
+          "sha256": {
+            "apps/transit-board-web/src/unified-workspace.tsx": "f8a16ddc6e4ec0664df8416454278abdb45702337a76a465c513345b6b6fce46",
+            "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+          },
+          "log_sha256": "8cb4edbf628efdaf29dd4a90713b6b2f14b27308ae7905ed92114d402fcd6167",
+          "classification": "unavailable-api-response-before-browser; not UI defect detection"
+        }
+      ]
+    },
+    {
+      "base_revision": "e1253fc62931436063cdb3068eb7e355feabafce",
+      "deadline_seconds": 180,
+      "runs": [
+        {
+          "label": "original",
+          "exit_code": 1,
+          "seconds": 68.649,
+          "sha256": {
+            "apps/transit-board-web/src/unified-workspace.tsx": "43562903703fb0c1d985ca2cdb33d85c0421cd61386efce4a4c30f23dcc0d79b",
+            "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+          },
+          "log_sha256": "e16c0416fa12e40d84575feef83c32e47d3f8cae2ade92a77b7a164b0f28f435",
+          "classification": "unavailable-api-response-before-browser; not UI defect detection"
+        },
+        {
+          "label": "corrected",
+          "exit_code": 0,
+          "seconds": 167.816,
+          "sha256": {
+            "apps/transit-board-web/src/unified-workspace.tsx": "f8a16ddc6e4ec0664df8416454278abdb45702337a76a465c513345b6b6fce46",
+            "apps/transit-board-web/browser/query.spec.ts": "9949cbc82583a62523bc2cdeb5ef0a8c2532711a5ce150f30c2eda47fcc9995a"
+          },
+          "log_sha256": "9ea6e935a03a36400d3fb5e341e46d708a8485bbf5753baf4cb1e7b5cf46dfcf",
+          "classification": "passed-api-and-browser"
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    "Original lost submission reply retains identical signed token through route remount and retry",
+    "Canvas/Browse switches and edited draft do not admit a new query",
+    "Revocation clears source, SQL draft and displayed result",
+    "Access refresh completes with zero new result-page reads and retained original namespace",
+    "Explicit resume verifies original rows without another submission and marks unavailable saved SQL separately",
+    "Source retirement clears rows again; browser errors, cookies and storage remain absent"
+  ],
+  "limits": [
+    "Earlier local attempts failed before the browser and are not negative-control detections.",
+    "The successful focused run retains the original 180-second browser test and assertion deadlines.",
+    "Complete clean/hosted qualification of the combined source remains separate."
+  ]
+}

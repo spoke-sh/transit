@@ -2500,6 +2500,26 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Query result selection after access recovery — 2026-10-01
+
+Hosted run `36809340716` passes the five atlas browser tests, then exposes a
+workspace defect: revocation clears rows, but refreshing restored access reads
+the retained completed namespace and displays those rows again under a reset
+draft. The [selection record](verification/results/m37-query-selection-2026-10-01.json)
+retains the hosted failure and source hashes.
+
+The workspace now retains accepted upload/signature recovery independently of
+result selection. Access refresh checks access and status without selecting
+cleared rows; explicit namespace resume verifies the original result and labels
+its unavailable saved SQL separately from the current draft. The real disk-backed
+API/browser proof passes in **167.816 seconds** on development base `e1253fc6`.
+It checks zero result-page reads during access refresh, the unchanged namespace,
+explicit resume with no new submission, exact retry after a lost acknowledgement,
+and clearing on source retirement. The original browser deadlines are unchanged.
+Three earlier attempts receive unavailable API responses before browser launch;
+they do not detect the UI defect or qualify completion. Full combined-source
+clean and hosted qualification remain open.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after

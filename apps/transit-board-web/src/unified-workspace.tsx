@@ -24,6 +24,7 @@ type Page = Extract<UnifiedQueryResponse, { page: unknown }>["page"];
 type Status = Extract<UnifiedQueryResponse, { status: unknown }>["status"];
 type Work = {
   namespace: string;
+  resultSelected: boolean;
   bundle: string | null;
   input: number | null;
   pending: { token: string } | null;
@@ -31,6 +32,7 @@ type Work = {
 };
 const empty = (): Work => ({
   namespace: "",
+  resultSelected: false,
   bundle: null,
   input: null,
   pending: null,
@@ -130,6 +132,9 @@ export function UnifiedWorkspace({
     liveDraft.invalidate();
     retained.follow = false;
     retained.blocked = true;
+    // Rechecking access can recover the upload/status, but selecting cleared
+    // rows again requires an explicit run or namespace resume.
+    work.current.resultSelected = false;
     abort.current.abort();
     abort.current = new AbortController();
     verified.current = null;
@@ -295,7 +300,7 @@ export function UnifiedWorkspace({
             setError("Query denied. Workspace cleared.");
             return;
           }
-          if (observation.status?.phase === "complete") {
+          if (current.resultSelected && observation.status?.phase === "complete") {
             const namespace = current.namespace;
             const result =
               verified.current === namespace
@@ -386,7 +391,7 @@ export function UnifiedWorkspace({
     }
     retained.follow = false;
     retained.binding = bindingId;
-    work.current = { ...empty(), namespace: result.namespace };
+    work.current = { ...empty(), namespace: result.namespace, resultSelected: true };
     verified.current = result.namespace;
     setRunDraft(result.sql || "Recovered query; saved SQL is unavailable");
     setPage(result.page);
@@ -412,6 +417,7 @@ export function UnifiedWorkspace({
     }
     if (retained.follow && liveQuery.following && live.snapshot && visible && !document.hidden) {
       work.current.namespace = live.snapshot.namespace!;
+      work.current.resultSelected = true;
       work.current.cursor = null;
       verified.current = work.current.namespace;
       try {
@@ -452,7 +458,12 @@ export function UnifiedWorkspace({
       if (binding) unifiedContract(binding, response.compiled);
       retained.binding = bindingId;
       retained.follow = false;
-      work.current = { ...empty(), namespace: freshNamespace(), bundle: response.compiled.bundle };
+      work.current = {
+        ...empty(),
+        namespace: freshNamespace(),
+        resultSelected: true,
+        bundle: response.compiled.bundle,
+      };
       setCompiled(response.compiled);
       setInspection(null);
       setRunDraft(draft);
@@ -650,12 +661,12 @@ export function UnifiedWorkspace({
           if (work.current.namespace)
             saveQueryReference("unified_v1", retained.resource, work.current.namespace);
           retained.follow = false;
-          work.current = { ...empty(), namespace: resume };
+          work.current = { ...empty(), namespace: resume, resultSelected: true };
           setPage(null);
           setStatus(null);
           verified.current = "";
           setCompiled(null);
-          setRunDraft("");
+          setRunDraft("Recovered query; saved SQL is unavailable");
           refresh((n) => n + 1);
         }}
       >

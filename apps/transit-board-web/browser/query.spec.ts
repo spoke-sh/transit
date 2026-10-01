@@ -11,10 +11,12 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   let submissions = 0;
+  let pageReads = 0;
   page.on("request", (request) => {
     if (request.url().endsWith("/api/v1/query") && request.method() === "POST") {
       const body = request.postDataJSON() as Record<string, unknown>;
       if ("submit" in body) submissions++;
+      if ("page" in body) pageReads++;
     }
   });
   await page.goto("/");
@@ -158,9 +160,24 @@ test("one explicit query survives Canvas/Browse changes and is cleared on revoca
     "restore",
     process.env.BOARD_QUERY_CONFIG!,
   ]);
+  const clearedPageReads = pageReads;
   await page.getByRole("button", { name: "Refresh query access" }).click();
   await expect(draft).toHaveValue("SELECT * FROM items");
+  // Wait for the complete access/status refresh, not just its early source update.
+  await expect(page.getByRole("button", { name: "Run query", exact: true })).toBeEnabled();
+  await expect(recovery).toContainText(`Retained query ${correlation}.`);
   await expect(page.getByLabel("Verified query result")).toHaveCount(0);
+  expect(pageReads).toBe(clearedPageReads);
+  await page.getByLabel("Existing query namespace", { exact: true }).fill(correlation!);
+  await page.getByRole("button", { name: "Resume without rerunning", exact: true }).click();
+  await expect(page.getByLabel("Verified query result")).toBeVisible();
+  await expect(
+    page.getByLabel("Verified query result").getByText("9007199254740994", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Draft changed. The displayed result belongs to the earlier submitted SQL."),
+  ).toBeVisible();
+  expect(pageReads).toBeGreaterThan(clearedPageReads);
   expect(submissions).toBe(completed);
   expect(errors).toEqual([]);
   execFileSync(process.env.BOARD_QUERY_PROOF!, [
