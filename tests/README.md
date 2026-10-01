@@ -10657,3 +10657,58 @@ records are retained in the native archive and under
 `.cache/ci/clean/2330d6ede62c-transit-ci-8__7bafx`; log
 `/tmp/transit-sql-boolean-file-clean-core.log`. This predates the compiler change.
 Current-source clean lanes and installed requalification remain separate gates.
+
+### Compiled-plan return and equivalent compound measurements
+
+Commit `06700b69` removes a private value-returning compiler wrapper. Each public
+entry point lowers into its own result storage and retains the same allocation,
+cleanup and validation path. The pinned ReleaseSafe assembly loses one 3,400-byte
+plan copy; the public `plan` stack frame shrinks from 22,664 to 19,272 bytes.
+One full-plan return copy remains. The [native return archive](benchmarks/results/2026-10-01-boolean-compiler-return.json.gz)
+retains source patches, assembly, binary/source hashes and three nine-pair CPU-1
+comparisons. An earlier active-payload reconstruction experiment gives mixed
+results (−1.7% to +6.7%) and is reverted. The accepted change gives 0.5–11.9%
+lower SELECT medians against `4b1dc42e`, with overlapping ranges; it does not
+establish a general speedup. Against the unchanged main control, SELECT medians
+remain **22.5–41.6% higher**, so the native compiler gate stays open.
+
+Pinned Fuze unit tests, full `just check` and `just test::sql` pass for the final
+runtime. The independent SQL proof retains 151 SELECT ASTs, 122 canonical
+plan/Arrow cases and 56 result cases across three source bases/eight page widths.
+Log: `/tmp/transit-sql-compiler-direct-check.log`. The file comparison runner
+adds explicit baseline-query and CPU controls: identical query programs are
+labeled separately from filter/compound comparisons with equal results but
+different operator work. Its seven negative/oracle tests pass; different query
+pairs with different results reject before execution.
+
+The [equivalent compound report](benchmarks/results/2026-10-01-boolean-file-compound-equivalent.json.gz)
+passes **486 result-checked samples**: nine alternating pairs across all nine
+shapes and three discovery modes, 4096 rows, CPU 1 and warm input. Both binaries
+execute the same six-instruction program. The frozen baseline is `2330d6ed`;
+candidate source hashes match `06700b69`. All **27 compiler ratios** satisfy
+1.15 (0.7388–1.1221, median 0.9956), as do all **27 pipeline ratios**
+(0.9955–1.0215, median 1.0118). This qualifies that equivalent compound matrix;
+it does not replace the earlier CPU-0 single-atom pipeline outlier or qualify
+cold inputs, independent DuckDB comparisons, native transport latency or clean
+integration lanes. The shared host is not isolated. Log:
+`/tmp/transit-sql-compiler-direct-qualification.log`.
+
+Committed-HEAD **clean core at `dafca8c9` passes all 22 tasks in 1161.50 seconds**,
+exit 0. Expected task order, zero exits and completed metadata are verified in
+`.cache/ci/clean/dafca8c97bdb-transit-ci-ainxmlaz` and retained in the native
+return archive. Log: `/tmp/transit-sql-boolean-compiler-clean-core.log`. This
+qualifies the preceding compiler checkpoint, not the later return-wrapper
+change or the other required lanes. Final documentation validation for this
+continuation passes 4,908 local links across 503 files.
+
+Further read-only inspection of the retained Station experience failure at
+`0b8f3750` identifies six `/v1/query` deadline events with **1.90–1.95 seconds
+spent acquiring the authority lock** and no serialized work recorded. The two
+clusters accompany command work reaching the two-second request limit, provider
+`ReadFailed` events and capacity refusals. The owning `Native.Server.acquire`
+and observability reference define `wait_ns` as lock acquisition, distinct from
+provider/engine work. These sampled logs narrow the next investigation to lock
+holders and provider progress; they do not prove why the holder stalled or why
+the complete Arrow reply missed its deadline. No rerun or changed limit is
+claimed. Logs/stores remain at
+`/var/tmp/transit-ci-zpxsqzvc/src/.cache/launchers/local/station-c5bbc0`.
