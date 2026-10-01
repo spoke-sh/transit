@@ -53,12 +53,6 @@ arena and must be deinitialized. Release rows as they are consumed; retaining al
 returned rows is a caller allocation decision, not a bounded streaming scan.
 Call `scan.deinit()` on success, error or cancellation.
 
-A scan freezes its binding commitment and caches at most 128 CSV column indices.
-It rebuilds that mapping for every file header, including absent optional fields.
-Replacing even a valid binding during an active scan fails before further rows
-or completion. Metadata validation still checks schema/options/content identity;
-the cache never replaces current host checks or full-row conversion.
-
 Every source read and buffered row disclosure rechecks the host callback. The
 scan verifies actual source length and digest before setting `complete` at EOF.
 Rows returned earlier are a provisional prefix. An error is terminal: later

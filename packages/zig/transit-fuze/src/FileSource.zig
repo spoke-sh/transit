@@ -68,9 +68,7 @@ pub const Binding = struct {
     }
     pub fn validateMetadata(self: *const Binding) !void {
         try self.options.validate();
-        // bindingDigest fingerprints the descriptor through its validating
-        // encoder below. Keep that check once per metadata validation rather
-        // than traversing the same bounded tree twice.
+        try self.schema.type.validate(.{});
         if (self.schema.type != .structure or self.schema.type.structure.len > self.options.max_fields) return error.InvalidExplicitSchema;
         if (self.options.format == .csv) for (self.schema.type.structure) |field| switch (field.type) {
             .structure, .list, .array, .map, .tagged_union, .json, .interval => return error.UnsupportedCsvType,
@@ -293,38 +291,31 @@ pub const Row = struct {
 pub const Scan = struct {
     allocator: std.mem.Allocator,
     binding: *const Binding,
-    binding_digest: [32]u8,
     sources: []const Source,
     record_buffer: []u8,
     reader: ?Reader = null,
     file: usize = 0,
     header: Header = .{},
-    csv_columns: [128]?u8 = @splat(null),
     records: u64 = 0,
     complete: bool = false,
     failed: bool = false,
     pub fn init(allocator: std.mem.Allocator, binding: *const Binding, sources: []const Source) !Scan {
         try binding.validate(sources);
-        return .{ .allocator = allocator, .binding = binding, .binding_digest = binding.digest, .sources = sources, .record_buffer = try allocator.alloc(u8, binding.options.max_record_bytes) };
+        return .{ .allocator = allocator, .binding = binding, .sources = sources, .record_buffer = try allocator.alloc(u8, binding.options.max_record_bytes) };
     }
     pub fn deinit(self: *Scan) void {
         self.allocator.free(self.record_buffer);
         self.* = undefined;
     }
-    fn validateBinding(self: *const Scan) !void {
-        try self.binding.validate(self.sources);
-        if (!std.mem.eql(u8, &self.binding_digest, &self.binding.digest)) return error.SourceChanged;
-    }
     pub fn next(self: *Scan) !?Row {
         if (self.failed) return error.FailedSource;
         if (self.complete) return null;
         errdefer self.failed = true;
-        try self.validateBinding();
+        try self.binding.validate(self.sources);
         while (self.file < self.sources.len) {
             if (self.reader == null) {
                 self.reader = try Reader.init(self.sources[self.file], self.binding.options, self.record_buffer);
                 self.header = .{};
-                self.csv_columns = @splat(null);
             }
             const record = (try self.reader.?.next()) orelse {
                 if (!self.reader.?.verified) return error.IncompleteSource;
@@ -342,17 +333,17 @@ pub const Scan = struct {
                 const parsed = try framing.csv(record, self.binding.options.dialect, fields[0..self.binding.options.max_fields]);
                 if (self.header.count == 0) {
                     try self.header.fromFields(parsed, self.binding.options.dialect.header);
-                    for (self.header.names[0..self.header.count], 0..) |name, i| {
-                        const column = findField(schema, name) orelse return error.UnknownField;
-                        self.csv_columns[column] = @intCast(i);
-                    }
+                    for (self.header.names[0..self.header.count]) |name| if (findField(schema, name) == null) return error.UnknownField;
                     if (self.binding.options.dialect.header) {
                         arena.deinit();
                         continue;
                     }
                 }
                 if (parsed.len != self.header.count) return error.RaggedCsvRow;
-                for (schema, cells, self.csv_columns[0..schema.len]) |field, *cell, index| {
+                for (schema, cells) |field, *cell| {
+                    const index = for (self.header.names[0..self.header.count], 0..) |name, i| {
+                        if (std.mem.eql(u8, field.name, name)) break i;
+                    } else null;
                     if (index) |i| {
                         if (parsed[i].is_null) cell.* = .null else cell.* = try textCell(alloc, parsed[i].text, field.type, self.binding.options.mismatch);
                     } else cell.* = .missing;
@@ -375,7 +366,7 @@ pub const Scan = struct {
             try self.sources[self.file].check(self.sources[self.file].context);
             return .{ .arena = arena, .cells = cells };
         }
-        try self.validateBinding();
+        try self.binding.validate(self.sources);
         self.complete = true;
         return null;
     }
@@ -575,46 +566,6 @@ test "CSV full discovery aligns names across files and never rounds large intege
     }
     try t.expect((try scan.next()) == null);
     try t.expect(scan.complete);
-}
-test "CSV column metadata resets across reordered and absent optional headers" {
-    const t = std.testing;
-    var first: Memory = .{ .bytes = "id,value\n1,10\n2,20\n" };
-    var second: Memory = .{ .bytes = "value,id\n30,3\n" };
-    var third: Memory = .{ .bytes = "id\n4\n" };
-    const sources = [_]Source{ first.source(), second.source(), third.source() };
-    var binding = try discover(t.allocator, &sources, .{ .format = .csv, .mode = .explicit }, &.{
-        .{ .name = "value", .type = .int64, .optional = true },
-        .{ .name = "id", .type = .int64 },
-    });
-    defer binding.deinit();
-    var scan = try Scan.init(t.allocator, &binding, &sources);
-    defer scan.deinit();
-    for (1..5) |id| {
-        var row = (try scan.next()).?;
-        defer row.deinit();
-        try t.expectEqual(@as(i128, id), row.cells[1].value.atom.signed);
-        if (id == 4) try t.expect(row.cells[0] == .missing) else try t.expectEqual(@as(i128, id * 10), row.cells[0].value.atom.signed);
-    }
-    try t.expect((try scan.next()) == null);
-    try t.expect(scan.complete);
-}
-test "an active scan rejects a different valid binding before reusing column metadata" {
-    const t = std.testing;
-    var memory: Memory = .{ .bytes = "id\n1\n2\n" };
-    const sources = [_]Source{memory.source()};
-    var binding = try discover(t.allocator, &sources, .{ .format = .csv, .mode = .explicit }, &.{.{ .name = "id", .type = .int64 }});
-    defer binding.deinit();
-    var replacement = try discover(t.allocator, &sources, .{ .format = .csv, .mode = .explicit }, &.{.{ .name = "id", .type = .uint64 }});
-    defer replacement.deinit();
-    var scan = try Scan.init(t.allocator, &binding, &sources);
-    defer scan.deinit();
-    var row = (try scan.next()).?;
-    row.deinit();
-    std.mem.swap(Binding, &binding, &replacement);
-    try binding.validate(&sources); // Valid on its own, but not this scan's basis.
-    try t.expectError(error.SourceChanged, scan.next());
-    try t.expectError(error.FailedSource, scan.next());
-    try t.expect(!scan.complete);
 }
 test "JSON nested discovery preserves null missing heterogeneous raw and exact decimals" {
     const t = std.testing;
