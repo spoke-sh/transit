@@ -98,7 +98,7 @@ other administrative SQL families retain their own stated support boundaries.
 | `ALTER`, `DROP`, `TRUNCATE` | **Planned — syntax undecided** | Conditional definition/dependency lifecycle; logical retirement is separate from physical cleanup |
 | `COPY`, SQL `MERGE INTO`, upsert | **Planned — syntax undecided** | Bounded typed transfer or one-resource mutation/conflict semantics; no implicit file/network authority |
 | `BEGIN`, `COMMIT`, `ROLLBACK` | **Planned — syntax undecided** | A defined transaction scope above Station; no implicit cross-resource atomicity or rollback of uncertain commits |
-| `PREPARE`, `EXECUTE`, parameters | **Planned — syntax undecided** | Owned typed bindings, exact source/schema identity and bounded plan lifetime |
+| `PREPARE`, `EXECUTE`, parameters | **Zig parameter templates; named statements planned** | [Typed `$n` binding](parameters.md) owns plans, checks complete source definitions and current policy; CLI/SDK execution remains separate work |
 | Richer `EXPLAIN` and query description | **Planned — syntax undecided** | Shared logical/physical operators, effects and budgets without executing them; current `EXPLAIN SELECT` remains implemented |
 
 The checked connector, privilege and listing forms have individual pages in the

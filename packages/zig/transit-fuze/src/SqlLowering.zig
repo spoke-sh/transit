@@ -53,6 +53,7 @@ pub const Shape = struct {
     },
 };
 pub fn lower(ast: *const sql.Ast, source: []const u8, columns: []const []const u8, input: []u8, output: []u8) !Shape {
+    if (ast.unbound_parameters) return error.UnboundParameters;
     if (!std.mem.eql(u8, ast.source.slice(), source)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
     if (ast.input != null and ast.selection == .rows) return error.UnsupportedConstruct;

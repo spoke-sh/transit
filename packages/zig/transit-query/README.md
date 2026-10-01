@@ -93,6 +93,14 @@ Table and ready configuration in two bounded turns. Restart preserves that
 configuration and current policy, including revocation. See the
 [combined owner contract](../../../contracts/TABLE_QUERY_WRITER_V1.md) and
 [local server guide](../../../apps/transit-cli/docs/server.md).
+`SqlTemplate` owns a typed parameter template and commits to the full source
+definition, including resource, decoders, paths and accepted Document revision.
+`UnifiedClient.prepareSql` and `bindSql` check current access before and after
+their work; binding also checks current budgets. Each bound owner contains an
+independent ordinary `Bundle`. Release it separately from the template. The
+[caller guide](docs/unified-client.md#typed-query-templates) describes identity,
+ownership and retry; CLI/SDK parameter operations remain unsupported.
+
 `Bundle.fromSql` compiles the [SQL profile](../transit-fuze/docs/unified-sql.md)
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`
 first verifies current source policy. The [compatibility matrix](docs/compatibility.md)

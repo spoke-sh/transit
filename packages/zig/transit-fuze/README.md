@@ -78,6 +78,9 @@ bounded evaluator; each profile retains its own schema and literal admission.
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and
 errors. `Sql` owns the shared parser and cursor assistance. All callers execute
 through `Unified.Plan` and `Unified.Stream`, including Station Table delivery.
+`Prepared` compiles explicitly requested typed parameter templates and binds
+owned values into that same plan. Its [template API](docs/unified-sql.md#typed-templates)
+checks name/schema compatibility; callers retain resource identity and admission.
 
 `Sql.parseMutation` and `TableMutation.compile/lower` produce owned, exactly
 typed plans for literal INSERT, UPDATE and DELETE against one declared Table.

@@ -44,7 +44,19 @@ pub const Ast = struct {
     predicate: Predicate = .all,
     limit: ?u64 = null,
     input: ?Input = null,
+    /// A template must bind every parameter before ordinary lowering.
+    unbound_parameters: bool = false,
 };
+/// Parameter positions in the finite SELECT grammar, not a prepared-query catalog.
+pub const ParameterSites = struct {
+    comparison: ?u32 = null,
+    limit: ?u32 = null,
+    input_limit: ?u32 = null,
+    pub fn any(self: ParameterSites) bool {
+        return self.comparison != null or self.limit != null or self.input_limit != null;
+    }
+};
+pub const TemplateAst = struct { ast: Ast, parameters: ParameterSites };
 pub const Catalog = enum { tables, sources, sinks, connections };
 pub const Inspection = union(enum) { describe: m.Name, show: Catalog, explain: Ast };
 pub const max_mutation_rows = 3;
@@ -74,6 +86,20 @@ pub fn parseInto(text: []const u8, result: *Ast, location: ?*Location) !void {
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     return statement(&parser, result);
+}
+/// Separate compiler entry point. Ordinary queries reject unresolved parameters.
+/// Placeholder values in the returned AST cannot pass ordinary lowering.
+pub fn parseTemplate(text: []const u8, location: ?*Location) !TemplateAst {
+    if (location) |value| value.* = .{};
+    try validateText(text);
+    var parameters: ParameterSites = .{};
+    var parser: Parser = .{ .lexer = .{ .text = text, .parameters_enabled = true }, .location = location, .parameters = &parameters };
+    var ast: Ast = undefined;
+    try statement(&parser, &ast);
+    // Template grammar retains its explicit single-atom binding profile.
+    if (ast.predicate == .program) return error.UnsupportedConstruct;
+    ast.unbound_parameters = parameters.any();
+    return .{ .ast = ast, .parameters = parameters };
 }
 /// Offline state declaration syntax. No catalog lookup, provisioning or grants.
 /// Omitted nullability remains unspecified; semantic validation is separate.
@@ -229,13 +255,13 @@ fn statement(parser: *Parser, ast: *Ast) !void {
         if (parser.assistance) |h| h.source = ast.source;
         ast.source_alias = try parser.sourceAlias();
         try parser.predicate(&ast.predicate);
-        const limit = try parser.limit();
+        const limit = try parser.limit(true);
         try parser.require(.right);
         try parser.requireWord("AS");
         parser.name_role = .alias;
         ast.input = .{ .projection = projected, .limit = limit, .alias = try parser.name() };
         if (parser.assistance) |h| h.aggregate = true;
-        ast.limit = try parser.limit();
+        ast.limit = try parser.limit(false);
         try parser.end();
         return;
     }
@@ -243,7 +269,7 @@ fn statement(parser: *Parser, ast: *Ast) !void {
     if (parser.assistance) |h| h.source = ast.source;
     ast.source_alias = try parser.sourceAlias();
     try parser.predicate(&ast.predicate);
-    ast.limit = try parser.limit();
+    ast.limit = try parser.limit(false);
     try parser.end();
     return;
 }
@@ -276,6 +302,7 @@ const Lexer = struct {
     text: []const u8,
     position: usize = 0,
     cursor_enabled: bool = false,
+    parameters_enabled: bool = false,
     start: usize = 0,
     fn next(self: *Lexer) !Token {
         while (self.position < self.text.len) {
@@ -328,6 +355,14 @@ const Lexer = struct {
                 break :blk if (byte == '\'') .string else .quoted;
             },
             1 => if (self.cursor_enabled) .cursor else return error.UnsupportedConstruct,
+            '$' => blk: {
+                if (!self.parameters_enabled) return error.UnsupportedConstruct;
+                const first = self.position;
+                while (self.position < self.text.len and std.ascii.isDigit(self.text[self.position])) self.position += 1;
+                if (self.position == first) return error.InvalidParameterIndex;
+                // Keep template-only syntax out of the ordinary assistance vocabulary.
+                break :blk .integer;
+            },
             '(' => .left,
             ')' => .right,
             ',' => .comma,
@@ -356,6 +391,7 @@ const Parser = struct {
     token: Token = undefined,
     assistance: ?*Hints = null,
     location: ?*Location = null,
+    parameters: ?*ParameterSites = null,
     name_role: NameRole = .source,
     fn advance(self: *Parser) !void {
         defer {
@@ -620,6 +656,10 @@ const Parser = struct {
         return .{ .column = column_value, .literal = try self.literal() };
     }
     fn literal(self: *Parser) !Literal {
+        if (try self.parameter()) |index| {
+            self.parameters.?.comparison = index;
+            return .null;
+        }
         if (self.word("NULL")) {
             try self.advance();
             return .null;
@@ -668,9 +708,21 @@ const Parser = struct {
         try self.advance();
         return .{ .int64 = result };
     }
-    fn limit(self: *Parser) !?u64 {
+    fn parameter(self: *Parser) !?u32 {
+        if (self.token.tag != .integer or self.token.text.len == 0 or self.token.text[0] != '$') return null;
+        if (self.parameters == null) return error.UnboundParameters;
+        const index = std.fmt.parseInt(u32, self.token.text[1..], 10) catch return error.InvalidParameterIndex;
+        if (index == 0) return error.InvalidParameterIndex;
+        try self.advance();
+        return index;
+    }
+    fn limit(self: *Parser, comptime inner: bool) !?u64 {
         if (!self.word("LIMIT")) return null;
         try self.advance();
+        if (try self.parameter()) |index| {
+            if (inner) self.parameters.?.input_limit = index else self.parameters.?.limit = index;
+            return 0;
+        }
         if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(.integer);
         if (self.token.tag != .integer) return error.InvalidSqlSyntax;
         const result = std.fmt.parseInt(u64, self.token.text, 10) catch return error.LiteralOutOfRange;

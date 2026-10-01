@@ -5,6 +5,17 @@ options { caseInsensitive = true; }
 
 statement: (selectStatement | mutationStatement | extensionStatement) SEMI? EOF;
 asOfFragment: asOfClause EOF;
+// Explicit compiler entry; parameters are not accepted by ordinary statements.
+parameterTemplate: templateSelect SEMI? EOF;
+templateSelect
+    : SELECT selection FROM identifier sourceAlias? templateWhereClause? templateLimitClause?
+    | SELECT aggregateSelection FROM LPAREN
+        SELECT projection FROM identifier sourceAlias? templateWhereClause? templateLimitClause?
+      RPAREN AS identifier templateLimitClause?
+    ;
+templateWhereClause: WHERE templatePredicate;
+templatePredicate: columnReference (IS cellState | comparison (literal | PARAMETER));
+templateLimitClause: LIMIT (INTEGER | PARAMETER);
 
 // Boolean predicates and a projection bounded by the declared schema at compile time.
 // The one derived-table form spells filter -> limit -> aggregate without
@@ -268,6 +279,7 @@ SEMI: ';';
 IDENTIFIER: [a-z_][a-z0-9_]*;
 QUOTED_IDENTIFIER: '"' ('""' | ~["\u0000])+ '"';
 INTEGER: [0-9]+;
+PARAMETER: '$' [0-9]+;
 // standard_conforming_strings=on: doubled quotes escape a quote; backslashes
 // are literal. E strings, dollar quoting and adjacent string concatenation
 // are outside this profile.

@@ -122,6 +122,15 @@ pub fn compileSql(self: *Self, allocator: std.mem.Allocator, definition: q.Sourc
     if (!current.limits.permits(limits)) return error.QueryBudgetExceeded;
     return q.Bundle.fromSql(allocator, definition, name, text, limits);
 }
+/// A template retains exact source identity, not permission or a source pin.
+pub fn prepareSql(self: *Self, allocator: std.mem.Allocator, definition: q.SourceDefinition, name: q.fuze.Unified.Name, text: []const u8) !q.SqlTemplate {
+    return q.SqlTemplate.prepareCurrent(allocator, self, definition, name, text);
+}
+/// A new binding is a new finite query. Retry uncertain uploads using their
+/// original saved Bundle/Prepared commands instead of binding again.
+pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.SqlTemplate, definition: q.SourceDefinition, values: []const q.fuze.Unified.Scalar, limits: q.Bundle.Limits) !q.SqlTemplate.Bound {
+    return template.bindCurrent(allocator, self, definition, values, limits);
+}
 fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
     var storage: [3]p.Value = undefined;
     const keys = try self.sourceMetadata(definition, &storage);

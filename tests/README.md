@@ -6,6 +6,103 @@ earlier entry refers to that entry's source, not automatically to HEAD. The late
 records its reruns and remaining qualification separately; earlier consolidation
 results do not qualify the changed stored layout by inheritance.
 
+## SQL parameter integration with Boolean main — 2026-10-01
+
+The SQL stack rebases onto main `fe2fbd81` through the combined COUNT branch
+`95730437`. Conflict resolution preserves Boolean postfix programs, owned AST
+lowering, file aliases, value-count progress and both SDK interfaces. The combined
+native definition is `e412a074bf01f92cb62c7953051930d81a78cc1a0f45472b7eff17d9931f8633`;
+the FZP1 definition is `772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c`.
+Schemas, binding resources and independent signing/plan fixtures are regenerated.
+Tests reject both earlier Boolean-only and value-count-only definitions.
+
+Pinned Fuze, protocol and query package tests pass after integration. Full
+`just check` passes at parameter revision `8ed8f52f`; the later move onto
+`95730437` changes only inherited qualification documents and retained results.
+Additional `just test::sql` cases combine value counts, Boolean truth, output and
+derived-input aliases, input LIMIT and eager predicate errors across all three
+sources and eight page widths. The independent suite passes 174 ASTs, 142 plan
+cases, 72 query results and 27 query exclusions. Parameter checks pass 37 reference
+ASTs, 26 canonical plan/Arrow results and 20 exact rejections. Log:
+`/var/tmp/transit-sql-main-495-combined-regressions-fixed.log`.
+
+The template grammar still admits one comparison or state test. Compound
+parameter templates reject before binding, while ordinary SQL retains Boolean
+composition. The first added corpus run failed because a literal-only rejection
+case was incorrectly marked as containing placeholders; the fixture now records
+`has_parameters: false`, keeping ordinary Boolean acceptance and template rejection
+separate. No parser behavior or limit was weakened to satisfy that check.
+
+These checks do not qualify every clean lane, the remaining performance budgets,
+named prepared-statement lifetimes or continuous SQL. Earlier source-qualified
+failures and measurements below retain their original scope.
+
+## Typed parameter compiler foundation
+
+The `feat/sql-query-parameters` continuation starts from `fbb4ebc9` in its own
+worktree. It compiles typed comparison/LIMIT parameters through the shared
+parser and lowering. Templates and bound plans own their data independently;
+ordinary lowering rejects unresolved placeholders. Existing plan/native bytes
+and definitions are unchanged. Resource identity, installed callers, named
+PREPARE/EXECUTE and persistence remain separate work.
+
+On this working source, pinned Fuze package tests pass, including every
+allocation failure during preparation/binding, released-input/template lifetime,
+all six scalar types, repeated/gapped ordinals, mismatched schema/name and exact
+value bounds. The first build failed on a removed Zig reflection API; replacing
+it with the pinned `std.meta.fieldNames` fixes compilation. Logs:
+`/var/tmp/transit-sql-parameters-component.log` and
+`/var/tmp/transit-sql-parameters-component-fixed.log`.
+
+`just test::sql` passes the ordinary 157 AST / 125 plan-and-Arrow cases,
+57 unified results across three source bases/eight widths, mutation and
+declaration proofs. The new shared 44-case parameter corpus independently checks
+37 reference ASTs, 26 canonical bound plans and actual paged Arrow results, plus
+18 exact parse/binding rejections. The reference binds an independently parsed
+AST, never substituted SQL text. Parameter values use the existing neutral
+scalar decoder. Log: `/var/tmp/transit-sql-parameters-independent.log`.
+These are compiler/component results; full checks, performance, committed-HEAD
+clean qualification and public caller integration remain pending.
+
+The subsequent query layer adds exact definition binding and owned source paths
+to `SqlTemplate`; `UnifiedClient.prepareSql`/`bindSql` use the same current
+description boundary before and after their work. All 69 query package tests
+pass, including three new tests covering KV/Table/Document identity changes,
+canonical literal-bundle equality, independent path/value ownership and every
+allocation failure, revocation at either observation and budget reduction. A
+read-only fake exposes no submission method. This is component authority-order
+evidence, not a signed transport or installed-caller proof. The first run passed
+68/69 and failed because the test's source factory returned a runtime-created
+borrowed path; static fixture storage fixes that lifetime. Logs:
+`/var/tmp/transit-sql-parameters-source-binding.log` and
+`/var/tmp/transit-sql-parameters-source-binding-fixed.log`.
+
+After the Document revision/path cases are extended, package tests and all 4944
+documentation links pass; log
+`/var/tmp/transit-sql-parameters-source-binding-final.log`. At clean committed
+`9412e439`, the ReleaseSafe
+[parameter measurements](benchmarks/results/2026-10-01-sql-parameters.json.gz)
+retain nine CPU-1 samples, exact binaries/drivers/source patch and canonical
+plan checks. Across six scalar types, literal compilation medians are
+1032–1186 ns, preparation 1295–1367 ns, and subsequent binding 386–417 ns.
+Preparation is excluded from the binding interval. These are pure Fuze costs,
+not full source-definition/authorization or public query latency.
+
+The alternating frozen `fbb4ebc9` control compares the unchanged thirteen
+compiler/mutation/declaration/aggregate cases. All ratios meet the existing
+1.15 budget, ranging from 0.9932 to 1.0798; samples and overlapping ranges remain
+in the archive. Neither this shared-host observation nor reuse of ordinary plan
+bytes establishes a full file or installed-caller performance pass. Logs:
+`/var/tmp/transit-sql-parameters-costs.log` and
+`/var/tmp/transit-sql-parameters-unchanged-control.log`.
+
+Full `just check` at `731bf348` passes native/unit/generated-contract, CLI and
+Board checks, then fails the handbook navigation inventory because the new
+parameter reference is absent from `catalog.ts` (six of seven content tests
+pass). Adding its SQL navigation entry corrects that omission. The failed run
+remains recorded at `/var/tmp/transit-sql-parameters-check.log`; the final
+full-check and committed-HEAD clean results are tracked separately in the PR.
+
 ## Declarative benchmark components
 
 The [component harness](benchmarks/README.md) measures synthetic SQL compilation,

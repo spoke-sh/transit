@@ -1,0 +1,827 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "int-op-0",
+      "sql": "SELECT value AS chosen, id FROM items WHERE id = $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-op-1",
+      "sql": "SELECT value AS chosen, id FROM items WHERE id <> $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-op-2",
+      "sql": "SELECT value AS chosen, id FROM items WHERE id < $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-op-3",
+      "sql": "SELECT value AS chosen, id FROM items WHERE id <= $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-op-4",
+      "sql": "SELECT value AS chosen, id FROM items WHERE id > $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "int-op-5",
+      "sql": "SELECT value AS chosen, id FROM items WHERE id >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "scalar-int64",
+      "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "int64": "-9223372036854775808"
+        },
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "scalar-uint64",
+      "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "uint64": "18446744073709551614"
+        },
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "uint64"
+      }
+    },
+    {
+      "id": "scalar-float64",
+      "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "float_bits": "0000000000000440"
+        },
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "float64"
+      }
+    },
+    {
+      "id": "scalar-boolean",
+      "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "boolean": true
+        },
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "scalar-utf8",
+      "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "utf8": "it's \u6771\u4eac"
+        },
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "scalar-binary",
+      "sql": "SELECT value FROM items WHERE value >= $1 LIMIT $2",
+      "parameters": [
+        {
+          "binary": "00ff"
+        },
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "float-negative-zero",
+      "sql": "SELECT value FROM items WHERE value = $1",
+      "parameters": [
+        {
+          "float_bits": "0000000000000080"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "float64"
+      }
+    },
+    {
+      "id": "binary-empty",
+      "sql": "SELECT value FROM items WHERE value = $1",
+      "parameters": [
+        {
+          "binary": ""
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "inert-value",
+      "sql": "SELECT value FROM items WHERE value = $1",
+      "parameters": [
+        {
+          "utf8": "'; DROP TABLE items; -- $2"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "zero-limit",
+      "sql": "SELECT * FROM items LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "0"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "wide-limit",
+      "sql": "SELECT * FROM items LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "18446744073709551615"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "repeated-index",
+      "sql": "SELECT value FROM items WHERE value >= $01 LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "9"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "uint64"
+      }
+    },
+    {
+      "id": "out-of-order",
+      "sql": "SELECT row.value AS chosen FROM items AS row WHERE row.id > $2 LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "4"
+        },
+        {
+          "int64": "3"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "derived-value-count",
+      "sql": "SELECT count(chosen.renamed) AS present FROM (SELECT row.value AS renamed FROM items AS row WHERE row.id > $2 LIMIT $1) AS chosen",
+      "parameters": [
+        {
+          "uint64": "7"
+        },
+        {
+          "int64": "-3"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "derived-sum",
+      "sql": "SELECT sum(chosen.renamed) AS total FROM (SELECT value AS renamed FROM items WHERE id > $1 LIMIT $2) AS chosen",
+      "parameters": [
+        {
+          "int64": "-3"
+        },
+        {
+          "uint64": "11"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "derived-empty-count",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items LIMIT $1) AS chosen",
+      "parameters": [
+        {
+          "uint64": "0"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "derived-empty-sum",
+      "sql": "SELECT sum(id) FROM (SELECT id FROM items LIMIT $1) AS chosen",
+      "parameters": [
+        {
+          "uint64": "0"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count-filter",
+      "sql": "SELECT count(value) FROM items WHERE id > $1",
+      "parameters": [
+        {
+          "int64": "-3"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "state-limit",
+      "sql": "SELECT * FROM items WHERE value IS NULL LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "3"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "constant-template",
+      "sql": "SELECT value FROM items WHERE value = 'owned $1' /* $2 */",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      },
+      "has_parameters": false
+    },
+    {
+      "id": "gap",
+      "sql": "SELECT * FROM items WHERE id = $2",
+      "parameters": [
+        {
+          "int64": "0"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "ParameterGap"
+    },
+    {
+      "id": "conflict",
+      "sql": "SELECT * FROM items WHERE id = $1 LIMIT $1",
+      "parameters": [
+        {
+          "int64": "0"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "ParameterTypeConflict"
+    },
+    {
+      "id": "count-mismatch",
+      "sql": "SELECT * FROM items LIMIT $1",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "ParameterCountMismatch"
+    },
+    {
+      "id": "wrong-type",
+      "sql": "SELECT * FROM items LIMIT $1",
+      "parameters": [
+        {
+          "int64": "1"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "TypeMismatch"
+    },
+    {
+      "id": "aggregate-limit",
+      "sql": "SELECT count(*) FROM items LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "1"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "outer-limit",
+      "sql": "SELECT count(*) FROM (SELECT * FROM items LIMIT $1) AS chosen LIMIT $2",
+      "parameters": [
+        {
+          "uint64": "1"
+        },
+        {
+          "uint64": "1"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "bad-unsigned",
+      "sql": "SELECT * FROM items LIMIT $1",
+      "parameters": [
+        {
+          "uint64": "01"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "InvalidDocumentInteger"
+    },
+    {
+      "id": "unknown-column",
+      "sql": "SELECT value AS named FROM items WHERE named = $1",
+      "parameters": [
+        {
+          "int64": "1"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "compile_error": "UnknownColumn"
+    },
+    {
+      "id": "not-finite",
+      "sql": "SELECT value FROM items WHERE value = $1",
+      "parameters": [
+        {
+          "float_bits": "000000000000f07f"
+        }
+      ],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "float64"
+      },
+      "compile_error": "NonFiniteValue"
+    },
+    {
+      "id": "zero-index",
+      "sql": "SELECT * FROM items LIMIT $0",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "InvalidParameterIndex",
+      "grammar": true,
+      "postgres": true
+    },
+    {
+      "id": "overflow-index",
+      "sql": "SELECT * FROM items LIMIT $4294967296",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "InvalidParameterIndex",
+      "grammar": true,
+      "postgres": false
+    },
+    {
+      "id": "bare-dollar",
+      "sql": "SELECT * FROM items LIMIT $",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "InvalidParameterIndex",
+      "grammar": false,
+      "postgres": false
+    },
+    {
+      "id": "projection",
+      "sql": "SELECT $1 FROM items",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "InvalidSqlSyntax",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "table-name",
+      "sql": "SELECT * FROM $1",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "InvalidSqlSyntax",
+      "grammar": false,
+      "postgres": false
+    },
+    {
+      "id": "signed-parameter",
+      "sql": "SELECT * FROM items WHERE id = -$1",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "LiteralOutOfRange",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "cast",
+      "sql": "SELECT * FROM items WHERE id = $1::int64",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "arithmetic",
+      "sql": "SELECT * FROM items WHERE id = $1 + 2",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "trailing-statement",
+      "sql": "SELECT * FROM items LIMIT $1; SELECT * FROM items",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "compound-template-exclusion-0",
+      "sql": "SELECT * FROM items WHERE id = $1 OR id = $2",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true
+    },
+    {
+      "id": "compound-template-exclusion-1",
+      "sql": "SELECT * FROM items WHERE NOT id = 1",
+      "parameters": [],
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      },
+      "parse_error": "UnsupportedConstruct",
+      "grammar": false,
+      "postgres": true,
+      "has_parameters": false
+    }
+  ]
+}

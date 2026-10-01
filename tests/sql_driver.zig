@@ -4,10 +4,12 @@ const std = @import("std");
 const f = @import("transit_fuze");
 const sql = f.Sql;
 const m = f.Unified;
+const q = @import("transit_query");
 const Case = struct {
     id: []const u8,
     sql: []const u8,
     schema: struct { name: []const u8, columns: [2][]const u8, type: m.Type } = .{ .name = "items", .columns = .{ "id", "value" }, .type = .int64 },
+    parameters: ?[]const q.Values.Scalar = null,
 };
 fn writeColumn(out: anytype, column: *const sql.Column) !void {
     try out.write([2]?[]const u8{ if (column.qualifier) |*name| name.slice() else null, column.name.slice() });
@@ -25,7 +27,7 @@ fn writeProjection(out: anytype, projection: *const sql.Projection) !void {
     };
     try out.endArray();
 }
-fn writeAtom(out: anytype, atom: *const sql.PredicateAtom) !void {
+fn writeAtom(out: anytype, atom: *const sql.PredicateAtom, parameter: ?u32) !void {
     switch (atom.*) {
         .all => try out.write(null),
         .state => |*state| {
@@ -51,9 +53,9 @@ fn writeAtom(out: anytype, atom: *const sql.PredicateAtom) !void {
             try out.objectField("literal");
             try out.beginObject();
             try out.objectField("kind");
-            try out.write(@tagName(comparison.literal));
+            try out.write(if (parameter != null) "parameter" else @tagName(comparison.literal));
             try out.objectField("value");
-            switch (comparison.literal) {
+            if (parameter) |index| try out.write(index) else switch (comparison.literal) {
                 .null => try out.write(null),
                 inline .int64, .uint64, .float64 => |value| try out.write(value),
                 .boolean => |value| try out.write(value),
@@ -66,6 +68,7 @@ fn writeAtom(out: anytype, atom: *const sql.PredicateAtom) !void {
 }
 const AstView = struct {
     ast: sql.Ast,
+    parameters: sql.ParameterSites = .{},
     pub fn jsonStringify(self: *const AstView, out: anytype) !void {
         const ast = &self.ast;
         try out.beginObject();
@@ -100,7 +103,7 @@ const AstView = struct {
                 try out.objectField("instructions");
                 try out.beginArray();
                 for (program.instructions[0..program.count]) |instruction| switch (instruction) {
-                    .atom => |atom| try writeAtom(out, &(program.expand(atom) catch unreachable)),
+                    .atom => |atom| try writeAtom(out, &(program.expand(atom) catch unreachable), null),
                     else => {
                         try out.beginObject();
                         try out.objectField("op");
@@ -116,17 +119,17 @@ const AstView = struct {
                 try out.endArray();
                 try out.endObject();
             },
-            inline else => |value, tag| try writeAtom(out, &@as(sql.PredicateAtom, @unionInit(sql.PredicateAtom, @tagName(tag), value))),
+            inline else => |value, tag| try writeAtom(out, &@as(sql.PredicateAtom, @unionInit(sql.PredicateAtom, @tagName(tag), value)), self.parameters.comparison),
         }
         try out.objectField("limit");
-        try out.write(ast.limit);
+        if (self.parameters.limit) |index| try out.write(.{ .parameter = index }) else try out.write(ast.limit);
         try out.objectField("input");
         if (ast.input) |*input| {
             try out.beginObject();
             try out.objectField("projection");
             try writeProjection(out, &input.projection);
             try out.objectField("limit");
-            try out.write(input.limit);
+            if (self.parameters.input_limit) |index| try out.write(.{ .parameter = index }) else try out.write(input.limit);
             try out.objectField("alias");
             try out.write(input.alias.slice());
             try out.endObject();
@@ -134,6 +137,33 @@ const AstView = struct {
         try out.endObject();
     }
 };
+const PlanOwner = union(enum) {
+    ordinary: m.Plan,
+    bound: f.Prepared.Bound,
+    fn plan(self: *const PlanOwner) m.Plan {
+        return switch (self.*) {
+            .ordinary => |value| value,
+            .bound => |value| value.plan,
+        };
+    }
+    fn deinit(self: *PlanOwner) void {
+        if (self.* == .bound) self.bound.deinit();
+    }
+};
+fn compile(allocator: std.mem.Allocator, case: Case, ast: sql.Ast, source: m.Sql.Source) !PlanOwner {
+    if (case.parameters) |values| {
+        var prepared = try f.Prepared.init(allocator, case.sql, source);
+        defer prepared.deinit();
+        if (values.len > f.Prepared.max_parameters) return error.ParameterCountMismatch;
+        var scalars: [f.Prepared.max_parameters]m.Scalar = undefined;
+        for (values, scalars[0..values.len]) |value, *scalar| scalar.* = try value.native(allocator);
+        return .{ .bound = try prepared.bind(allocator, source, scalars[0..values.len]) };
+    }
+    return .{ .ordinary = try m.Sql.compile(allocator, ast, source) };
+}
+fn parse(case: Case) !sql.TemplateAst {
+    return if (case.parameters != null) try sql.parseTemplate(case.sql, null) else .{ .ast = try sql.parse(case.sql), .parameters = .{} };
+}
 pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(init.arena.allocator());
     if (args.len != 3) return error.Usage;
@@ -144,21 +174,24 @@ pub fn main(init: std.process.Init) !void {
     var buffer: [8192]u8 = undefined;
     var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
     for (cases.value, 0..) |case, index| {
-        const ast = sql.parse(case.sql) catch |err| {
+        const parsed = parse(case) catch |err| {
             try std.json.Stringify.value(.{ .id = case.id, .parse_error = @errorName(err) }, .{}, &stdout.interface);
             try stdout.interface.writeByte('\n');
             continue;
         };
+        const ast_view: AstView = .{ .ast = parsed.ast, .parameters = parsed.parameters };
         const columns = [_]m.Column{
             .{ .name = try m.Name.init(case.schema.columns[0]), .type = .int64 },
             .{ .name = try m.Name.init(case.schema.columns[1]), .type = case.schema.type },
         };
         const source: m.Sql.Source = .{ .name = try m.Name.init(case.schema.name), .schema = .{ .columns = &columns } };
-        const plan = m.Sql.compile(init.arena.allocator(), ast, source) catch |err| {
-            try std.json.Stringify.value(.{ .id = case.id, .ast = AstView{ .ast = ast }, .compile_error = @errorName(err) }, .{}, &stdout.interface);
+        var owner = compile(init.arena.allocator(), case, parsed.ast, source) catch |err| {
+            try std.json.Stringify.value(.{ .id = case.id, .ast = ast_view, .compile_error = @errorName(err) }, .{}, &stdout.interface);
             try stdout.interface.writeByte('\n');
             continue;
         };
+        defer owner.deinit();
+        const plan = owner.plan();
         var encoded: [m.Codec.max_plan_bytes]u8 = undefined;
         const saved = try m.Codec.encode(plan, &encoded);
         var hex: [2 * m.Codec.max_plan_bytes]u8 = undefined;
@@ -171,7 +204,7 @@ pub fn main(init: std.process.Init) !void {
         var canonical: [m.Codec.max_plan_bytes]u8 = undefined;
         if (!std.mem.eql(u8, saved, try m.Codec.encode(restored, &canonical))) return error.PlanRoundTrip;
         const segments = try execute(init, restored, source.schema, args[2], index);
-        try std.json.Stringify.value(.{ .id = case.id, .ast = AstView{ .ast = ast }, .encoded = hex[0 .. 2 * saved.len], .segments = segments }, .{}, &stdout.interface);
+        try std.json.Stringify.value(.{ .id = case.id, .ast = ast_view, .encoded = hex[0 .. 2 * saved.len], .segments = segments }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
     }
     try stdout.interface.flush();
@@ -190,10 +223,11 @@ fn execute(init: std.process.Init, plan: m.Plan, schema: m.Schema, directory: []
             const ordinal = offset + i;
             const value: m.Scalar = switch (schema.columns[1].type) {
                 .int64 => .{ .int64 = @as(i64, @intCast(ordinal)) - 20 },
+                .uint64 => .{ .uint64 = std.math.maxInt(u64) - ordinal },
+                .float64 => .{ .float64 = if (ordinal == 0) -0.0 else @as(f64, @floatFromInt(ordinal)) + 0.5 },
                 .boolean => .{ .boolean = ordinal % 2 == 0 },
                 .utf8 => .{ .utf8 = if (ordinal % 2 == 0) "it's 東京" else "a\\b" },
                 .binary => .{ .binary = if (ordinal % 2 == 0) &.{ 0, 255 } else "" },
-                else => return error.UnsupportedFixtureType,
             };
             cells[i] = .{ .{ .value = .{ .int64 = @as(i64, @intCast(ordinal)) - 35 } }, if (ordinal % 5 == 0) .null else .{ .value = value } };
             row.* = .{ .cells = &cells[i] };

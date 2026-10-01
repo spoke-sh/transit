@@ -125,15 +125,15 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 
 ### Other SQL operations
 
-| Operation                                             | Current boundary                                                               |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `DESCRIBE SELECT`                                     | Use `EXPLAIN SELECT` for output column inspection                              |
-| `ALTER`, `DROP`, `TRUNCATE`                           | No SQL object replacement, retirement or bulk deletion                         |
-| `BEGIN`, `COMMIT`, `ROLLBACK`                         | No SQL transaction session; application turns retain their own atomic boundary |
-| `COPY`, `MERGE`, upsert forms                         | No SQL import/export or mutation contract                                      |
-| `CREATE VIEW`, `CREATE MATERIALIZED VIEW`             | No named SQL view or maintained-query definition                               |
-| `SUBSCRIBE`, streaming windows, event-time watermarks | No continuous SQL contract; see [streaming and effects](sql/streaming.md)      |
-| `PREPARE`, `EXECUTE`, parameters                      | No SQL prepared-statement or parameter-binding grammar                         |
+| Operation | Current boundary |
+| --- | --- |
+| `DESCRIBE SELECT` | Use `EXPLAIN SELECT` for output column inspection |
+| `ALTER`, `DROP`, `TRUNCATE` | No SQL object replacement, retirement or bulk deletion |
+| `BEGIN`, `COMMIT`, `ROLLBACK` | No SQL transaction session; application turns retain their own atomic boundary |
+| `COPY`, `MERGE`, upsert forms | No SQL import/export or mutation contract |
+| `CREATE VIEW`, `CREATE MATERIALIZED VIEW` | No named SQL view or maintained-query definition |
+| `SUBSCRIBE`, streaming windows, event-time watermarks | No continuous SQL contract; see [streaming and effects](sql/streaming.md) |
+| `PREPARE`, `EXECUTE`, parameters | [Typed compiler templates](sql/parameters.md) use a separate grammar entry; named statements and CLI/SDK parameter submission are unsupported |
 
 These forms are absent from the checked grammar. Native operations, transport
 metadata and console dot commands do not establish equivalent SQL support.

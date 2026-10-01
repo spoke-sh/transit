@@ -154,6 +154,9 @@ def check(driver):
     statements += [f'SELECT count({name}) FROM items' for name in NAMES[:-1]]
     statements += [
         'SELECT count(x.value) AS present FROM items AS x',
+        'SELECT count(value) AS present FROM items WHERE NOT (id < 0 OR value IS NULL)',
+        'SELECT count(chosen.label) AS present FROM (SELECT value AS label FROM items WHERE id < 0 OR flag = TRUE LIMIT 9) AS chosen',
+        "SELECT count(value) FROM items WHERE NOT missing = 'x'",
         'SELECT count(chosen.label) FROM (SELECT value AS label FROM items LIMIT 7) AS chosen',
         'SELECT count(value) FROM (SELECT value FROM items LIMIT 0) AS chosen',
         'SELECT count(value) FROM items WHERE missing IS NULL',
@@ -161,6 +164,7 @@ def check(driver):
         'SELECT count(optional) FROM items WHERE optional IS MISSING',
     ]
     failures = [
+        ("SELECT count(value) FROM items WHERE id = 100 AND optional = 'x'", 'QueryTypeError'),
         ("SELECT * FROM items WHERE id = 100 AND optional = 'x'", 'QueryTypeError'),
         ("SELECT * FROM items WHERE id < 100 OR optional = 'x'", 'QueryTypeError'),
         ("SELECT * FROM items WHERE NOT (optional IS NULL OR optional = 'x')", 'QueryTypeError'),
