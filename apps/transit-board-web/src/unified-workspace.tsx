@@ -684,9 +684,9 @@ export function UnifiedWorkspace({
             </p>
             <p>
               Statement ≤ {source.sql.statement_bytes} bytes. Star or up to{" "}
-              {source.sql.named_columns} named columns; one comparison or exact cell-state test;
-              rows, count, checked int64 sum. Uint64/float64 literals use explicit type suffixes.
-              Writes are unsupported.
+              {source.sql.named_columns} named columns; comparisons and exact cell-state tests with
+              NOT, AND, OR and parentheses; rows, count, checked int64 sum. Uint64/float64 literals
+              use explicit type suffixes. Writes are unsupported.
             </p>
             <p>
               Budgets: {source.budgets.pages} pages · {source.budgets.segments} segments ·{" "}

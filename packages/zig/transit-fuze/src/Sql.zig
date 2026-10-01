@@ -23,10 +23,17 @@ pub const Text = struct {
     }
 };
 pub const Literal = union(enum) { null, int64: i64, uint64: u64, float64: f64, boolean: bool, utf8: Text, binary: Text };
-pub const Predicate = union(enum) {
+pub const PredicateAtom = union(enum) {
     all,
     state: struct { column: Column, value: f.Unified.State },
     compare: struct { column: Column, op: f.Unified.Plan.Comparison, literal: Literal },
+};
+pub const PredicateProgram = @import("SqlPredicate.zig");
+pub const Predicate = union(enum) {
+    all,
+    state: @FieldType(PredicateAtom, "state"),
+    compare: @FieldType(PredicateAtom, "compare"),
+    program: PredicateProgram,
 };
 pub const Input = struct { projection: Projection, limit: ?u64, alias: m.Name };
 pub const Ast = struct {
@@ -56,10 +63,17 @@ pub fn parse(text: []const u8) !Ast {
     return parseLocated(text, null);
 }
 pub fn parseLocated(text: []const u8, location: ?*Location) !Ast {
+    var result: Ast = undefined;
+    try parseInto(text, &result, location);
+    return result;
+}
+/// Fill caller-owned AST storage without intermediate large-value copies.
+/// Discard result on failure; successful output owns all parsed bytes.
+pub fn parseInto(text: []const u8, result: *Ast, location: ?*Location) !void {
     if (location) |value| value.* = .{};
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
-    return statement(&parser);
+    return statement(&parser, result);
 }
 /// Offline state declaration syntax. No catalog lookup, provisioning or grants.
 /// Omitted nullability remains unspecified; semantic validation is separate.
@@ -170,7 +184,11 @@ pub fn parseInspectionLocated(text: []const u8, location: ?*Location) !?Inspecti
     try validateText(text);
     var parser: Parser = .{ .lexer = .{ .text = text }, .location = location };
     try parser.advance();
-    if (parser.word("EXPLAIN")) return .{ .explain = try statement(&parser) };
+    if (parser.word("EXPLAIN")) {
+        var ast: Ast = undefined;
+        try statement(&parser, &ast);
+        return .{ .explain = ast };
+    }
     if (parser.word("DESCRIBE")) {
         try parser.advance();
         const name = try parser.name();
@@ -190,7 +208,7 @@ pub fn parseInspectionLocated(text: []const u8, location: ?*Location) !?Inspecti
     }
     return null;
 }
-fn statement(parser: *Parser) !Ast {
+fn statement(parser: *Parser, ast: *Ast) !void {
     try parser.advance();
     if (!parser.word("SELECT")) return error.UnsupportedStatement;
     try parser.advance();
@@ -205,10 +223,10 @@ fn statement(parser: *Parser) !Ast {
         try parser.requireWord("SELECT");
         const projected = try parser.projection();
         try parser.requireWord("FROM");
-        var ast: Ast = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
+        ast.* = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
         if (parser.assistance) |h| h.source = ast.source;
         ast.source_alias = try parser.sourceAlias();
-        ast.predicate = try parser.predicate();
+        try parser.predicate(&ast.predicate);
         const limit = try parser.limit();
         try parser.require(.right);
         try parser.requireWord("AS");
@@ -217,15 +235,15 @@ fn statement(parser: *Parser) !Ast {
         if (parser.assistance) |h| h.aggregate = true;
         ast.limit = try parser.limit();
         try parser.end();
-        return ast;
+        return;
     }
-    var ast: Ast = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
+    ast.* = .{ .source = try parser.name(), .selection = selection, .output_alias = output_alias };
     if (parser.assistance) |h| h.source = ast.source;
     ast.source_alias = try parser.sourceAlias();
-    ast.predicate = try parser.predicate();
+    try parser.predicate(&ast.predicate);
     ast.limit = try parser.limit();
     try parser.end();
-    return ast;
+    return;
 }
 
 /// Shared checked SQL literal decoding; the returned value owns its bytes.
@@ -394,7 +412,7 @@ const Parser = struct {
         if (token.tag != .word and token.tag != .quoted) return error.InvalidSqlSyntax;
         // Match the reference grammar's reserved keyword set exactly.
         if (token.tag == .word) {
-            inline for (.{ "SELECT", "WHERE", "LIMIT", "COUNT", "SUM", "IS", "TRUE", "FALSE", "BYTEA", "CREATE", "CONNECTION", "CONNECTIONS", "SOURCE", "SOURCES", "SINK", "SINKS", "TABLE", "TABLES", "DOCUMENT", "KV", "TO", "FROM", "INTO", "WITH", "GRANT", "REVOKE", "ON", "SHOW", "DESCRIBE", "NOT", "NULL", "SECRET", "AS", "OF", "FOR", "SYSTEM_TIME", "INT64", "BOOL", "UTF8", "BINARY" }) |keyword| {
+            inline for (.{ "SELECT", "WHERE", "LIMIT", "COUNT", "SUM", "IS", "AND", "OR", "TRUE", "FALSE", "BYTEA", "CREATE", "CONNECTION", "CONNECTIONS", "SOURCE", "SOURCES", "SINK", "SINKS", "TABLE", "TABLES", "DOCUMENT", "KV", "TO", "FROM", "INTO", "WITH", "GRANT", "REVOKE", "ON", "SHOW", "DESCRIBE", "NOT", "NULL", "SECRET", "AS", "OF", "FOR", "SYSTEM_TIME", "INT64", "BOOL", "UTF8", "BINARY" }) |keyword| {
                 if (std.ascii.eqlIgnoreCase(token.text, keyword)) return error.InvalidSqlSyntax;
             }
         }
@@ -464,9 +482,89 @@ const Parser = struct {
         }
         return .{ .rows = try self.projection() };
     }
-    fn predicate(self: *Parser) !Predicate {
-        if (!self.word("WHERE")) return .all;
+    fn predicate(self: *Parser, result: *Predicate) !void {
+        if (!self.word("WHERE")) {
+            result.* = .all;
+            return;
+        }
         try self.advance();
+        result.* = .{ .program = .{} };
+        const program = &result.program;
+        const Operator = enum { left, disjunction, conjunction, negate };
+        var operators: [PredicateProgram.max_instructions]Operator = undefined;
+        var count: usize = 0;
+        var groups: usize = 0;
+        var operand = true;
+        while (true) {
+            if (operand) {
+                const op: ?Operator = if (self.word("NOT")) .negate else if (self.token.tag == .left) .left else null;
+                if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(.left);
+                if (op) |value| {
+                    if (count == operators.len) return error.PredicateTooComplex;
+                    operators[count] = value;
+                    count += 1;
+                    if (value == .left) groups += 1;
+                    try self.advance();
+                    continue;
+                }
+                try program.appendAtom(try self.predicateAtom());
+                operand = false;
+                continue;
+            }
+            const next: ?Operator = if (self.word("AND")) .conjunction else if (self.word("OR")) .disjunction else null;
+            if (next) |op| {
+                while (count > 0 and @backingInt(operators[count - 1]) >= @backingInt(op)) {
+                    count -= 1;
+                    try program.append(switch (operators[count]) {
+                        .negate => .negate,
+                        .conjunction => .conjunction,
+                        .disjunction => .disjunction,
+                        .left => unreachable,
+                    });
+                }
+                if (count == operators.len) return error.PredicateTooComplex;
+                operators[count] = op;
+                count += 1;
+                try self.advance();
+                operand = true;
+                continue;
+            }
+            if (groups > 0) {
+                if (self.token.tag == .cursor) if (self.assistance) |h| h.symbol(.right);
+                if (self.token.tag == .right) {
+                    while (operators[count - 1] != .left) {
+                        count -= 1;
+                        try program.append(switch (operators[count]) {
+                            .negate => .negate,
+                            .conjunction => .conjunction,
+                            .disjunction => .disjunction,
+                            .left => unreachable,
+                        });
+                    }
+                    count -= 1;
+                    groups -= 1;
+                    try self.advance();
+                    continue;
+                }
+                if (self.location) |location| location.expected = ")";
+                return error.InvalidSqlSyntax;
+            }
+            break;
+        }
+        while (count > 0) {
+            count -= 1;
+            try program.append(switch (operators[count]) {
+                .negate => .negate,
+                .conjunction => .conjunction,
+                .disjunction => .disjunction,
+                .left => unreachable,
+            });
+        }
+        if (program.count == 1) result.* = switch (try program.expand(program.instructions[0].atom)) {
+            inline else => |value, tag| @unionInit(Predicate, @tagName(tag), value),
+        };
+    }
+    fn predicateAtom(self: *Parser) !PredicateAtom {
         const col = try self.column();
         if (self.assistance) |h| h.predicate_column = col;
         if (self.word("IS")) {
@@ -612,6 +710,7 @@ pub fn hints(prefix: []const u8) !Hints {
     bytes[prefix.len] = 1;
     var result: Hints = .{};
     var parser: Parser = .{ .lexer = .{ .text = bytes[0 .. prefix.len + 1], .cursor_enabled = true }, .assistance = &result };
-    _ = statement(&parser) catch {};
+    var ast: Ast = undefined;
+    statement(&parser, &ast) catch {};
     return result;
 }

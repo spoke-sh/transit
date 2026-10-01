@@ -167,7 +167,10 @@ def main():
             aliased = invoke(['--format', 'csv', '-c', sql, '-'], data, env=env)
             assert aliased[1]['row'] == ordinary[1]['row']
             assert aliased[-1]['complete']['scanned'] == ordinary[-1]['complete']['scanned']
-        for sql in ('SELECT n AS renamed FROM input',
+        for sql in ('SELECT n FROM input WHERE n > 0 AND n < 3',
+                    'SELECT n FROM input WHERE NOT n = 0',
+                    'SELECT n FROM input WHERE n = 0 OR n = 1',
+                    'SELECT n AS renamed FROM input',
                     'SELECT SUM(n) AS total FROM input',
                     'SELECT SUM(chosen.renamed) FROM (SELECT n AS renamed FROM input LIMIT 2) AS chosen',
                     'SELECT input.n FROM input AS src',

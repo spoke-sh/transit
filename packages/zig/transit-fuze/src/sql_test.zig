@@ -126,7 +126,11 @@ test "incomplete grammar expectations come from the production parser" {
         .{ .prefix = "SELECT id, value ", .keyword = "FROM" },
         .{ .prefix = "SELECT * FROM ", .role = .source },
         .{ .prefix = "SELECT * FROM items ", .keyword = "WHERE", .symbol = .semi },
-        .{ .prefix = "SELECT * FROM items WHERE ", .role = .column },
+        .{ .prefix = "SELECT * FROM items WHERE ", .role = .column, .keyword = "NOT", .symbol = .left },
+        .{ .prefix = "SELECT * FROM items WHERE id = 1 ", .keyword = "AND" },
+        .{ .prefix = "SELECT * FROM items WHERE id = 1 AND ", .keyword = "NOT", .role = .column, .symbol = .left },
+        .{ .prefix = "SELECT * FROM items WHERE NOT (id = 1 ", .keyword = "OR", .symbol = .right },
+        .{ .prefix = "SELECT * FROM items WHERE NOT (id = 1 OR ", .role = .column },
         .{ .prefix = "SELECT * FROM items WHERE id ", .keyword = "IS", .symbol = .eq },
         .{ .prefix = "SELECT * FROM items WHERE id IS ", .keyword = "NULL" },
         .{ .prefix = "SELECT * FROM items WHERE id > ", .symbol = .integer },
@@ -179,4 +183,75 @@ test "incomplete grammar expectations come from the production parser" {
     try t.expectError(error.InvalidSqlEncoding, sql.hints("SELECT \x01"));
     try t.expectError(error.UnsupportedConstruct, sql.parse("SELECT \x01"));
     try t.expectError(error.StatementTooLarge, sql.hints(&(@as([4097]u8, @splat(' ')))));
+}
+
+test "Boolean SQL owns compact literals and preserves precedence without recursion" {
+    const Instruction = sql.PredicateProgram.Instruction;
+    const cases = .{
+        .{ "id = 1 OR id = 2 AND NOT id = 3", [_]std.meta.Tag(Instruction){ .atom, .atom, .atom, .negate, .conjunction, .disjunction } },
+        .{ "NOT (id = 1 OR id = 2) AND id = 3", [_]std.meta.Tag(Instruction){ .atom, .atom, .disjunction, .negate, .atom, .conjunction } },
+    };
+    inline for (cases) |case| {
+        const ast = try sql.parse("SELECT * FROM items WHERE " ++ case[0]);
+        try ast.predicate.program.validate();
+        try t.expectEqual(case[1].len, ast.predicate.program.count);
+        for (case[1], ast.predicate.program.instructions[0..case[1].len]) |tag, instruction| try t.expectEqual(tag, std.meta.activeTag(instruction));
+    }
+    var text = "SELECT * FROM items WHERE value = 'it''s 東京' OR NOT value = '\\x00ff'::bytea".*;
+    var ast: sql.Ast = undefined;
+    try sql.parseInto(&text, &ast, null);
+    const copy = ast;
+    @memset(&text, 0);
+    @memset(&ast.predicate.program.bytes, 0);
+    const program = &copy.predicate.program;
+    const first = try program.expand(program.instructions[0].atom);
+    const second = try program.expand(program.instructions[1].atom);
+    try t.expectEqualStrings("it's 東京", first.compare.literal.utf8.slice());
+    try t.expectEqualStrings("\\x00ff", second.compare.literal.binary.slice());
+    // Literal bytes are bounded once per statement, not once per instruction.
+    try t.expect(@sizeOf(sql.PredicateProgram) < 16 * 1024);
+    try t.expectEqualDeep(try sql.parse("SELECT * FROM items WHERE id = 1"), try sql.parse("SELECT * FROM items WHERE (((id = 1)))"));
+    var invalid = copy;
+    invalid.predicate.program.instructions[0].atom.compare.literal.utf8.start = 65535;
+    try t.expectError(error.InvalidPredicateProgram, invalid.predicate.program.validate());
+    invalid = copy;
+    invalid.predicate.program.count = 255;
+    try t.expectError(error.InvalidPredicateProgram, invalid.predicate.program.validate());
+}
+
+test "Boolean SQL bounds instructions and operator nesting at exact limits" {
+    var buffer: [sql.max_statement_bytes]u8 = undefined;
+    for ([_]usize{ 63, 64 }) |count| {
+        var out: std.Io.Writer = .fixed(&buffer);
+        try out.writeAll("SELECT * FROM items WHERE ");
+        for (0..count) |_| try out.writeAll("NOT ");
+        try out.writeAll("id = 1");
+        if (count == 63) {
+            const ast = try sql.parse(out.buffered());
+            try t.expectEqual(64, ast.predicate.program.count);
+        } else try t.expectError(error.PredicateTooComplex, sql.parse(out.buffered()));
+    }
+    for ([_]usize{ 64, 65 }) |count| {
+        var out: std.Io.Writer = .fixed(&buffer);
+        try out.writeAll("SELECT * FROM items WHERE ");
+        try out.splatByteAll('(', count);
+        try out.writeAll("id = 1");
+        try out.splatByteAll(')', count);
+        if (count == 64) {
+            try t.expect((try sql.parse(out.buffered())).predicate == .compare);
+        } else try t.expectError(error.PredicateTooComplex, sql.parse(out.buffered()));
+    }
+    var out: std.Io.Writer = .fixed(&buffer);
+    try out.writeAll("SELECT * FROM items WHERE id = 1");
+    for (0..32) |_| try out.writeAll(" AND id = 1");
+    try t.expectError(error.PredicateTooComplex, sql.parse(out.buffered()));
+    for ([_][]const u8{ "NOT", "()", "id = 1 AND", "(id = 1", "id = 1)", "id = 1 OR AND id = 2", "(id = 1 LIMIT 2)" }) |suffix| {
+        out = .fixed(&buffer);
+        try out.print("SELECT * FROM items WHERE {s}", .{suffix});
+        if (sql.parse(out.buffered())) |_| return error.UnexpectedSuccess else |_| {}
+    }
+    var location: sql.Location = .{};
+    try t.expectError(error.InvalidSqlSyntax, sql.parseLocated("SELECT * FROM items WHERE (id = 1", &location));
+    try t.expectEqualStrings(")", location.expected.?);
+    try t.expectEqual(@as(usize, 33), location.offset);
 }

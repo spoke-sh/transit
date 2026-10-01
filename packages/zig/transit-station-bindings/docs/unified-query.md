@@ -33,8 +33,9 @@ Atoms reuse the `all`, `state` and `compare` values; `negate`, `conjunction` and
 `disjunction` have empty-object payloads. The shared owner validates complete
 stack shape and every typed atom before encoding. Decode copies instruction
 and literal storage into its owned result. The generated array limit is specific
-to programs; column and row limits stay at eight. SQL parsing and typed SDK
-constructors still expose the single-atom profile.
+to programs; column and row limits stay at eight. Native SQL lowers NOT, AND, OR
+and grouping to these programs; typed SDK constructors retain the single-atom
+profile.
 
 The complete JSON input is at most 256 KiB. The native implementation additionally
 enforces the 16 KiB bundle, 8-column/8-row page, 4 KiB scalar and 64 KiB Arrow

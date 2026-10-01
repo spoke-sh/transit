@@ -47,8 +47,9 @@ Native typed plans and the shared native/port codec accept Boolean predicate
 programs with up to 64 instructions. They retain null/missing as unknown,
 evaluate atoms eagerly in instruction order, and select only true. A determining
 Boolean operand does not suppress an evaluated type error or conflict. Programs
-share the finite plan's byte budget and continuation identity. SQL and typed
-language SDK constructors currently accept one comparison or state predicate;
+share the finite plan's byte budget and continuation identity. Native SQL lowers
+NOT, AND, OR and grouping to these programs. Typed language SDK constructors and
+local file-query plans currently accept one comparison or state predicate;
 the [query contract](../../contracts/UNIFIED_QUERY_V1.md#typed-expressions-and-results)
 defines the native program representation and ownership.
 

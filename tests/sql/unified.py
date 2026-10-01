@@ -31,19 +31,47 @@ def source_rows():
 
 def expected(ast):
     rows = source_rows()
-    pred = ast['predicate']
-    if pred:
+    def atom(pred, row):
         index = NAMES.index(pred['column'][1])
+        state = row[index]['state']
         if pred['op'].startswith('is_'):
-            state = ['missing', 'null', 'type_error', 'value', 'conflict'].index(pred['op'][3:])
-            rows = [r for r in rows if r[index]['state'] == state]
-        else:
-            value = pred['literal']['value']
-            if pred['literal']['kind'] == 'binary':
-                value = bytes.fromhex(value[2:])
-            op = dict(eq=operator.eq, ne=operator.ne, lt=operator.lt,
-                      le=operator.le, gt=operator.gt, ge=operator.ge)[pred['op']]
-            rows = [r for r in rows if r[index]['state'] == 3 and op(r[index]['value'], value)]
+            return state == ['missing', 'null', 'type_error', 'value', 'conflict'].index(pred['op'][3:])
+        if state in (0, 1):
+            return None
+        if state in (2, 4):
+            raise ValueError('QueryTypeError' if state == 2 else 'QueryConflict')
+        value = pred['literal']['value']
+        if pred['literal']['kind'] == 'binary':
+            value = bytes.fromhex(value[2:])
+        op = dict(eq=operator.eq, ne=operator.ne, lt=operator.lt,
+                  le=operator.le, gt=operator.gt, ge=operator.ge)[pred['op']]
+        return op(row[index]['value'], value)
+
+    def truth(pred, row):
+        if pred is None:
+            return True
+        if pred['op'] != 'program':
+            return atom(pred, row)
+        stack = []
+        for instruction in pred['instructions']:
+            op = instruction['op']
+            if op == 'not':
+                value = stack.pop()
+                stack.append(None if value is None else not value)
+            elif op in ('and', 'or'):
+                b, a = stack.pop(), stack.pop()
+                # Independent finite three-valued truth table. Every atom has
+                # already run in postfix order; neither operator short circuits.
+                and_table = ((False, False, False), (False, True, None), (False, None, None))
+                or_table = ((False, True, None), (True, True, True), (None, True, None))
+                values = (False, True, None)
+                stack.append((and_table if op == 'and' else or_table)[values.index(a)][values.index(b)])
+            else:
+                stack.append(atom(instruction, row))
+        assert len(stack) == 1
+        return stack[0]
+
+    rows = [r for r in rows if truth(ast['predicate'], r) is True]
     limit = ast['input']['limit'] if ast['input'] else ast['limit']
     if limit is not None:
         rows = rows[:limit]
@@ -106,7 +134,26 @@ def check(driver):
         'SELECT sum("ID") AS "SUM" FROM (SELECT id AS "ID" FROM items LIMIT 0) AS chosen',
         'SELECT count(*) AS total FROM (SELECT optional AS state FROM items LIMIT 33) AS chosen',
     ]
+    statements += [
+        "SELECT id, value FROM items WHERE NOT value = 'a\\b'",
+        "SELECT id FROM items WHERE NOT missing = 'x'",
+        "SELECT id FROM items WHERE id < -30 OR NOT value = 'a\\b' AND flag = TRUE",
+        "SELECT id FROM items WHERE (id < -30 OR NOT value = 'a\\b') AND flag = TRUE LIMIT 9",
+        "SELECT optional FROM items WHERE optional IS TYPE_ERROR OR optional IS CONFLICT",
+        "SELECT optional FROM items WHERE NOT (optional IS NULL OR optional IS MISSING)",
+        "SELECT raw FROM items WHERE raw = '\\x00ff'::bytea AND NOT flag = FALSE",
+        "SELECT counter FROM items WHERE counter > '18446744073709551600'::uint64 OR fraction = '-0.0'::float64",
+        "SELECT count(*) FROM items WHERE NOT missing = 'x'",
+        "SELECT count(*) FROM items WHERE missing = 'x' OR id < 0",
+        "SELECT sum(chosen.id) FROM (SELECT id FROM items WHERE id < 0 OR value IS NULL LIMIT 9) AS chosen",
+        "SELECT x.id AS key FROM items AS x WHERE NOT (x.id = 1 OR x.flag = FALSE)",
+    ]
     failures = [
+        ("SELECT * FROM items WHERE id = 100 AND optional = 'x'", 'QueryTypeError'),
+        ("SELECT * FROM items WHERE id < 100 OR optional = 'x'", 'QueryTypeError'),
+        ("SELECT * FROM items WHERE NOT (optional IS NULL OR optional = 'x')", 'QueryTypeError'),
+        ("SELECT * FROM items WHERE id = 1 AND counter = 2", 'TypeMismatch'),
+        ("SELECT * FROM items WHERE id = 1 OR absent = 2", 'UnknownColumn'),
         ('SELECT id, counter, id FROM items', 'DuplicateProjection'),
         ('SELECT id, counter, absent FROM items', 'UnknownColumn'),
         ('SELECT id, counter, fraction, flag, value, raw, missing, optional, id FROM items', 'InvalidProjection'),

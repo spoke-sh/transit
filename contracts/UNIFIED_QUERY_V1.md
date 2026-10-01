@@ -13,11 +13,11 @@ Document. The `transit-query` package composes Station's current/retained reader
 and the accepted Document reader; Document never imports query execution.
 A source definition declares one resource and exactly one of these adapters:
 
-| Source | Declared decoding / projection | Ordering |
-| --- | --- | --- |
-| KV | Explicit prefix and independently versioned key/value decoders: binary, UTF-8, little-endian signed/unsigned 64-bit, finite IEEE float64 or canonical boolean byte | Unsigned byte order of keys |
-| Table | Exact Table ID and schema fingerprint; key and nullable value columns | Signed primary-key order |
-| Document | Exact document/epoch/type/change-format/accepted revision; named paths, scalar or materialized-text projections, optional list expansion | One root row, or accepted sequence traversal order |
+| Source   | Declared decoding / projection                                                                                                                                     | Ordering                                           |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| KV       | Explicit prefix and independently versioned key/value decoders: binary, UTF-8, little-endian signed/unsigned 64-bit, finite IEEE float64 or canonical boolean byte | Unsigned byte order of keys                        |
+| Table    | Exact Table ID and schema fingerprint; key and nullable value columns                                                                                              | Signed primary-key order                           |
+| Document | Exact document/epoch/type/change-format/accepted revision; named paths, scalar or materialized-text projections, optional list expansion                           | One root row, or accepted sequence traversal order |
 
 There is no KV schema inference or application callback. A decoder mismatch is a
 `type_error` cell. A missing Document path, explicit null and unresolved register
@@ -245,9 +245,9 @@ complete postfix shape, exact scalar types and source column bounds. Decoding
 copies instructions and literal values into the caller's result allocator;
 preparing that result preserves canonical bytes and Publication identity.
 Generated schemas derive the program bound from the Fuze instruction owner,
-separately from the eight-column and eight-row bounds. The SQL parser and typed
-language SDK constructors still expose the single-atom profile; this program
-representation is available through the shared native/port codec.
+separately from the eight-column and eight-row bounds. Native SQL lowers Boolean
+composition to this program representation through the shared native/port codec.
+Typed language SDK constructors retain the single-atom profile.
 
 Input JSON is bounded at 256 KiB; source, plan, bundle, scalar, page and Arrow
 limits still apply independently. Native outputs are owned buffers that callers
@@ -263,8 +263,8 @@ The v1 SQL compiler reuses the complete-input SQL parser and reference grammar.
 One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
-star (all declared columns), one to eight ordered named columns, one typed comparison
-or an exact cell-state test, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
+star (all declared columns), one to eight ordered named columns, Boolean
+composition of typed comparisons and exact cell-state tests, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
 `FROM source AS alias` supplies a query-local qualifier. Source resolution still
@@ -289,7 +289,14 @@ V1 limits use the plan's full u64 range; an absent limit stays unlimited, subjec
 to explicit execution budgets. An aggregate's outer LIMIT still rejects.
 `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR` and `IS CONFLICT` select
 exactly the named state. Missing values do not become null;
-comparisons skip missing/null and fail on type errors or unresolved conflicts.
+comparisons on missing/null produce unknown and fail on type errors or unresolved
+conflicts. NOT preserves unknown; AND/OR use three-valued truth, and only true
+selects a row. NOT binds before AND, which binds before OR; grouping overrides
+precedence. SQL preserves source-order eager atom evaluation and the first error,
+including errors after a determining Boolean operand. A program has at most 64
+instructions, counting each atom and each Boolean operator. The parser also
+bounds pending operators/group delimiters to 64 entries. Redundant grouping of
+one atom preserves that atom's canonical encoding; operators are never simplified.
 Comparisons require an exact literal type. The grammar has int64, boolean,
 UTF-8 and binary literals, plus string literals with `::uint64` or `::float64`.
 Uint64 accepts decimal digits through 18446744073709551615; float64 accepts

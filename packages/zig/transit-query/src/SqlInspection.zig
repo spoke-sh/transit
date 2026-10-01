@@ -216,4 +216,15 @@ test "inspection fixtures share typed lowering and final authority without an ex
     try t.expectEqual(0, empty.details.tables.len);
     const value = try apply(allocator, &client, .{ .scope = kv_scope, .sql = "EXPLAIN SELECT value FROM items WHERE value = '18446744073709551615'::uint64" });
     try t.expectEqual(m.Type.uint64, value.details.explanation.predicate.compare.type);
+    const compound_sql = "EXPLAIN SELECT value FROM items WHERE NOT (value = '123456789'::uint64 OR value IS NULL)";
+    const compound = try apply(allocator, &client, .{ .scope = kv_scope, .sql = compound_sql });
+    const program = compound.details.explanation.predicate.program;
+    try t.expectEqual(4, program.len);
+    try t.expectEqual(m.Type.uint64, program[0].atom.compare.type);
+    try t.expectEqual(m.State.null, program[1].atom.state.value);
+    try t.expect(program[2] == .disjunction and program[3] == .negate);
+    const inspected = try std.json.Stringify.valueAlloc(allocator, compound, .{});
+    try t.expect(std.mem.indexOf(u8, inspected, "123456789") == null);
+    var compound_revoked: TestClient = .{ .deny_at = 2 };
+    try t.expectError(error.QueryDenied, apply(allocator, &compound_revoked, .{ .scope = kv_scope, .sql = compound_sql }));
 }

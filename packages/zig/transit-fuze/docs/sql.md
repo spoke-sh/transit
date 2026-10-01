@@ -17,7 +17,9 @@ const bound = try logical.bind(authorized_basis, authorized_schema);
 ```
 
 Parsing allocates nothing and owns every parsed byte. The input text may be
-released immediately after `parse`. Compilation owns its projection and literal
+released immediately after `parse`. `parseInto(text, result, location)` fills
+caller-owned AST storage directly; discard that output on failure. It shares
+parsing and optional location evidence with `parseLocated`. Compilation owns its projection and literal
 slices in the supplied allocator. Neither step performs I/O, resolves a catalog,
 retains a source version or grants access. The caller supplies current authority
 and the exact source basis before execution. `Unified.Codec` is the canonical
@@ -28,7 +30,7 @@ float64 literal suffixes. See [typed SQL](unified-sql.md) for their semantics.
 
 ## Syntax and escaping
 
-Every query has exactly one `FROM` source and at most one predicate. Unquoted
+Every query has exactly one `FROM` source and an optional Boolean predicate. Unquoted
 ASCII identifiers fold to lowercase; quoted names preserve case and must still
 be valid identifiers. `FROM source AS alias` supplies a query-local qualifier;
 qualified columns use that alias when present, otherwise the declared source.
@@ -75,13 +77,19 @@ admits at most 220 value bytes with 442 bytes of hex scratch storage. Typed plan
 have their own larger cell and name bounds. These limits bound one operation,
 not retained source cardinality. Parsing is a linear scan with no recursive
 parser stack. The AST holds up to eight explicit projection items, each with an
-optional owned alias, and one predicate;
+optional owned alias, and up to 64 postfix predicate instructions. NOT binds
+before AND, which binds before OR; parentheses override precedence. Operators
+and group delimiters share a bounded 64-entry stack. The AST stores string
+literal bytes in one statement-sized pool and owns its instruction storage;
+copying it does not retain pointers into the input or the original AST. AND,
+OR and NOT are reserved words. Single-atom/grouped-atom predicates retain their
+existing plan representation; no Boolean algebra rewrites are performed;
 `SELECT *` expands to every declared column during compilation.
 
 Malformed encoding, NUL, unterminated strings/comments, oversized input,
 out-of-range integers and unsupported syntax fail explicitly. Schema/name/type
 validation runs before returning a plan. Unsupported DDL, writes, joins, sorting,
-grouping, arithmetic, compound predicates and general casts do
+aggregation grouping, arithmetic and general casts do
 not become executable merely because the reference grammar describes them.
 There is no best-effort translation or successful partial parse.
 

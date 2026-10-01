@@ -19,7 +19,10 @@ SELECT aggregate FROM (
 
 projection := * | column [AS name] [, column [AS name] ...]
 aggregate  := (COUNT(*) | SUM(column)) [AS name]
-predicate  := column IS state | column comparison literal
+predicate  := disjunction
+disjunction := conjunction [OR conjunction ...]
+conjunction := negation [AND negation ...]
+negation   := NOT negation | (predicate) | column IS state | column comparison literal
 state      := NULL | MISSING | VALUE | TYPE_ERROR | CONFLICT
 comparison := = | <> | != | < | <= | > | >=
 column     := name | qualifier.name
@@ -75,22 +78,31 @@ SELECT value FROM items WHERE value IS TYPE_ERROR;
 SELECT value FROM items WHERE value IS CONFLICT;
 ```
 
-There is one optional predicate. `AND`, `OR`, `NOT`, `IS NOT NULL`, `IN`, `LIKE`,
-`BETWEEN` and comparisons between two columns are unsupported. A qualifier must
+The optional WHERE predicate composes atoms with `NOT`, `AND`, `OR` and
+parentheses, with that precedence. It admits at most 64 instructions and 64
+pending operators/group delimiters. `IS NOT NULL`, `IN`, `LIKE`, `BETWEEN` and
+comparisons between two columns are unsupported. A qualifier must
 match the alias when present, otherwise the declared source; mismatched names reject rather than selecting another
 source.
 
-| Comparison | Query semantics |
-| --- | --- |
-| `=`, `<>`, `!=` | Exactly typed equality/inequality |
-| `<`, `<=`, `>`, `>=` | Exactly typed comparison, including byte ordering for UTF-8/binary |
-| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Selects exactly the named cell state |
-| Comparison with `NULL` | Rejected with `UnsupportedNullComparison` |
+| Comparison                                                          | Query semantics                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `=`, `<>`, `!=`                                                     | Exactly typed equality/inequality                                  |
+| `<`, `<=`, `>`, `>=`                                                | Exactly typed comparison, including byte ordering for UTF-8/binary |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Selects exactly the named cell state                               |
+| Comparison with `NULL`                                              | Rejected with `UnsupportedNullComparison`                          |
 
 There are no implicit casts. Query v1 carries value, null, missing, type error
 and conflict as distinct cells. State tests inspect the tag without evaluating
 the value, so errors and conflicts can be selected without coercion or choosing
-a conflict winner.
+a conflict winner. Null/missing comparisons remain unknown through negation;
+only true selects a row. Atoms evaluate eagerly in source order, so a determining
+false AND or true OR does not hide a later type error or conflict. See the
+[Boolean rules](expressions.md#predicate-operators) for exact truth behavior.
+
+```sql
+SELECT id, value FROM items WHERE id >= 0 AND NOT (value = 7 OR value IS NULL);
+```
 
 ## Limit output
 

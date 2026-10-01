@@ -1,6 +1,6 @@
 # Functions and operators
 
-Transit SQL supports column projections, one predicate and one of two aggregate
+Transit SQL supports column projections, bounded Boolean predicates and one of two aggregate
 functions. It has no general scalar expression evaluator. Use
 [SELECT](select.md) for clause order and complete queries, and
 [data types](types.md) for scalar and cell-state behavior.
@@ -18,24 +18,38 @@ Arithmetic, concatenation, `CASE` and scalar function calls are unsupported.
 
 ## Predicate operators
 
-| Operator | Operands | Behavior |
-| --- | --- | --- |
-| `=`, `<>`, `!=` | Column and exactly typed literal | Equality or inequality |
-| `<`, `<=`, `>`, `>=` | Column and exactly typed literal | Comparison; text and binary use byte ordering |
-| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Column | Selects exactly the named cell state |
+| Operator                                                            | Operands                         | Behavior                                                       |
+| ------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------- |
+| `=`, `<>`, `!=`                                                     | Column and exactly typed literal | Equality or inequality                                         |
+| `<`, `<=`, `>`, `>=`                                                | Column and exactly typed literal | Comparison; text and binary use byte ordering                  |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Column                           | Selects exactly the named cell state                           |
+| `NOT`, `AND`, `OR`, parentheses                                     | Predicates                       | Three-valued composition; precedence is NOT, then AND, then OR |
 
 The literal forms cover int64, uint64, finite float64, boolean, UTF-8 and binary. Comparisons to `NULL`
-reject; there is no implicit cast to another column type. The syntax allows one
-predicate, with no `AND`, `OR`, `NOT`, `IS NOT NULL`, `IN`, `LIKE`, `BETWEEN` or
-column-to-column comparison. General precedence and boolean-expression rules
-are therefore not part of this SQL profile.
+reject; there is no implicit cast to another column type. `IS NOT NULL`, `IN`,
+`LIKE`, `BETWEEN` and column-to-column comparison are unsupported; use
+`NOT (column IS NULL)` for the negated state test.
+
+Native KV/Table/Document queries support up to 64 predicate instructions: each
+comparison/state test and each NOT/AND/OR counts once. Parentheses do not count
+as instructions, but pending operators and group delimiters share a 64-entry
+parser stack. The statement byte limit still applies. Local file queries retain
+their single-atom predicate profile.
+
+Null/missing comparisons produce unknown; NOT preserves unknown. AND is false
+if either operand is false and true only if both are true. OR is true if either
+operand is true and false only if both are false. Other combinations are unknown.
+Only true selects a row. All atoms evaluate eagerly in source order; the first
+evaluated type error or conflict fails the query, including a false AND or true
+OR with an erroneous later operand. State tests inspect those states without
+raising their value errors. No reordering or short-circuit rewrite is enabled.
 
 ## Aggregate functions
 
-| Function | Input | Result | Empty input |
-| --- | --- | --- | --- |
-| `COUNT(*)` | Selected rows, including all cell states | uint64 | Zero |
-| `SUM(column)` | int64 values in source order | Checked int64; null/missing skipped, error/conflict fails | Null |
+| Function      | Input                                    | Result                                                    | Empty input |
+| ------------- | ---------------------------------------- | --------------------------------------------------------- | ----------- |
+| `COUNT(*)`    | Selected rows, including all cell states | uint64                                                    | Zero        |
+| `SUM(column)` | int64 values in source order             | Checked int64; null/missing skipped, error/conflict fails | Null        |
 
 An aggregate returns one cell. There is no grouping, multiple aggregates,
 `COUNT(column)`, `DISTINCT`, `AVG`, `MIN`, `MAX`, window function or user-defined

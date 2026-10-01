@@ -4,7 +4,9 @@
 SELECT grammar and lowers it to `Unified.Plan`. `compile(allocator, ast, source)`
 accepts the same owned AST. Supply one explicit `Source { name, schema }`; the
 compiler performs no catalog lookup, I/O or authorization. Projection and literal
-slices belong to the supplied allocator. A bounded request arena is recommended.
+slices belong to the supplied allocator. A bounded request arena is recommended;
+`Unified.Sql.deinit` releases a compiled plan with its original allocator. It must
+not be used for decoded plans, which borrow encoded bytes.
 The caller must bind the plan to the exact source basis before execution.
 
 The source schema can describe KV, Table or accepted Document projections.
@@ -17,17 +19,18 @@ the committed source cut recorded in the result.
 The [v1 SQL contract](../../../../contracts/UNIFIED_QUERY_V1.md#sql-capability-profile)
 defines the exact profile:
 
-| SQL | Behavior |
-| --- | --- |
-| `SELECT *` | All one to eight declared columns |
-| One to eight named columns | Ordered projection; duplicate names reject |
-| `column AS name`, `COUNT(*) AS name`, `SUM(column) AS name` | Owned output names; repeated inputs are allowed with distinct output names |
-| `FROM source AS alias` | Alias supplies the column qualifier; source and output column identities stay unchanged |
-| One comparison | Exactly typed int64, uint64, finite float64, bool, UTF-8 or binary literal; byte ordering for text/binary |
-| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state selection |
-| `LIMIT` | Full u64 count after filtering; no limit means no implicit truncation |
-| `COUNT(*)` | uint64 count including all cell states |
-| `SUM(column)` | Checked int64 sum in source order; missing/null skipped, error/conflict fails |
+| SQL                                                                 | Behavior                                                                                                  |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `SELECT *`                                                          | All one to eight declared columns                                                                         |
+| One to eight named columns                                          | Ordered projection; duplicate names reject                                                                |
+| `column AS name`, `COUNT(*) AS name`, `SUM(column) AS name`         | Owned output names; repeated inputs are allowed with distinct output names                                |
+| `FROM source AS alias`                                              | Alias supplies the column qualifier; source and output column identities stay unchanged                   |
+| Each comparison atom                                                | Exactly typed int64, uint64, finite float64, bool, UTF-8 or binary literal; byte ordering for text/binary |
+| `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state selection                                                                                |
+| `NOT`, `AND`, `OR`, grouping                                        | Up to 64 postfix instructions; precedence in that order; eager first-error evaluation                     |
+| `LIMIT`                                                             | Full u64 count after filtering; no limit means no implicit truncation                                     |
+| `COUNT(*)`                                                          | uint64 count including all cell states                                                                    |
+| `SUM(column)`                                                       | Checked int64 sum in source order; missing/null skipped, error/conflict fails                             |
 
 The existing restricted aggregate subquery spells filter → limit → aggregate.
 An inner output alias becomes the column name resolved by the outer sum. Output
@@ -37,6 +40,9 @@ identity without changing the input schema or source basis.
 An outer aggregate LIMIT rejects. Uint64 and finite float64 comparison literals
 use explicit `'digits'::uint64` and `'decimal'::float64` forms. `column = NULL`
 rejects with `UnsupportedNullComparison`. No implicit casts or rewrites occur.
+Comparisons on null/missing stay unknown through NOT; only true selects. Atoms
+evaluate in source order, including after a determining Boolean value. The first
+type error or conflict aborts evaluation; no short-circuit rewrite is enabled.
 Document paths, expansion and text materialization belong to the declared source,
 not SQL syntax. DDL, writes, joins, arbitrary expressions and continuous queries
 remain unsupported. The [syntax guide](sql.md) defines parser bounds and escaping.
@@ -59,7 +65,7 @@ The returned diagnostic owns a bounded, redacted context buffer and borrows only
 static vocabulary. `render` emits an ASCII excerpt/caret and guidance;
 `renderRemote` emits at most 128 printable ASCII bytes, with only static vocabulary
 and numeric coordinates. Neither performs I/O or copies source into telemetry.
-Existing ASTs, plan bytes, acceptance rules and saved requests are unchanged.
+Diagnostic rendering does not change ASTs, plan bytes or saved requests.
 
 The SQL proof checks the production parser and current compiler. It independently evaluates 70 rows with
 six scalar types and five cell states, compares actual nested Arrow at all eight

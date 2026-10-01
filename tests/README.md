@@ -8094,6 +8094,82 @@ paged aggregate medians are **2.6–2.8% higher**. This shared-host component ev
 is not a native throughput or complete performance pass. It predates merged #42
 and must be requalified with its shared logical/file primitives.
 
+
+### Native Boolean SQL and compact owned syntax
+
+The Boolean-SQL continuation after `e07bd2c9` adds NOT/AND/OR and parentheses
+through the shared production/reference grammar, native lowering, editor
+completion, located errors and EXPLAIN. The allocation-free parser owns a
+compact literal pool bounded by the 4096-byte statement, up to 64 postfix
+instructions and 64 pending operators/group delimiters. Copies have no internal
+borrowed pointers. Single-atom parentheses preserve the existing canonical atom;
+Boolean operators are not simplified or reordered. Native compilation uses
+`SqlLowering.lowerAtom` and the saved-program owner rather than another
+comparison definition. File plans explicitly reject compound programs.
+
+Full `just check`, `just test::sql` and `just test::file-query` pass in
+`/tmp/transit-sql-boolean-parser-final-check.log`. The independent proof compares
+**151 Zig/ANTLR/PostgreSQL ASTs and 122 canonical plans/Arrow cases**, checks
+**56 result cases across three source bases/eight page widths**, and rejects
+**22 explicit binding/execution failures**. It includes null/missing negation,
+precedence/grouping, full-width scalars, eager errors behind determining operands,
+whole-query limits and unchanged alias scopes. All **57 documentation examples**
+parse. File-query qualification passes **95 real CLI cases**, including explicit
+compound rejection and the unchanged large-input memory bound.
+
+Fuze passes **93 executed tests** with its upstream suite cached; logs include
+`/tmp/transit-sql-boolean-parser-inplace-tests.log` and
+`/tmp/transit-sql-boolean-parser-atom-tests.log`. Fixtures cover copied literal
+ownership, exact instruction/nesting limits, malformed compact spans, complete
+input rejection, source-order errors and allocation-failure cleanup for multiple
+owned literals. The query package's 66-test run adds Boolean cursor fixtures;
+full checks also exercise compound EXPLAIN's final authority check and omission
+of literals. Initial test-only serializer error-set, cell-constructor and EOF
+coordinate failures are corrected; their logs remain in
+`/tmp/transit-sql-boolean-parser-{sql,tests,tests-fixed}.log`.
+
+The [Boolean SQL cost report](benchmarks/results/2026-10-01-boolean-sql-costs.json)
+retains five paired experiments, frozen hashes, raw samples and cumulative source
+patches on `051c766a`. Initial SELECT compilation regresses 64–91% versus that
+saved-program control. Borrowing the AST inside compilation improves those
+medians 7–10%; filling caller-owned AST/predicate storage improves another
+15–33% versus the pointer-only version. A special single-atom path gives mixed
+results (predicate cases about 3% faster, no-WHERE cases 4.5–5.2% slower) and is
+reverted. Final SELECT compilation remains **18.6–33.5% higher** than the control,
+about **0.17–0.48 microseconds extra**. Existing paged aggregate medians are
+2.3–2.8% lower. These shared-host component samples do not qualify compound
+throughput, the logical/file controls, installed callers or end-to-end latency.
+
+The predecessor `051c766a`, rebased onto main `85746270`, passes doctor, all
+91 logical-codec fixtures per native/port boundary and 100 logical Arrow cases.
+Node qualification first finds an inherited formatting error in the logical
+value guide; `e07bd2c9` corrects it and all 39 Node tests then pass. Logs are
+`/tmp/transit-sql-boolean-post42-logical-node.log` and
+`/tmp/transit-sql-boolean-post42-node-fixed.log`.
+
+Committed-HEAD clean core at **`051c766a` fails after 17 passing tasks**.
+`test::service` receives `503 AuthorityUnavailable` when submitting its first
+retained KV turn, before replay assertions (18.34 s); the final four tasks are
+unrun. Total lane time is **1215.07 s**. Station and disk write/recovery/checkpoint/
+trim proofs pass, including the 604.85-second storage task. Cause remains
+unestablished. The failed checkout is `/var/tmp/transit-ci-mv9l_ft8`; its metadata
+is also copied to `rey-sql-boolean-predicates/.cache/ci/clean/051c766a976d-service-failure`.
+The command log is `/tmp/transit-sql-boolean-owned-clean-core.log`. A separate
+diagnostic clone at `/var/tmp/transit-sql-service-diagnostic-8jwnky5h` prints
+internal error names. Its first focused service run passes, but the fixture's
+explicit cleanup still removes its store despite disabling automatic cleanup;
+no retained-store claim follows. That helper is corrected for a subsequent
+instrumented capture. These are investigative runs, not replacement clean
+passes or an established cause. The original failed checkout remains unchanged.
+Diagnostic logs are `/tmp/transit-sql-boolean-service-diagnostic.log` and
+`/tmp/transit-sql-boolean-service-diagnostic-retained.log`.
+
+Typed program APIs/inspection across all ten SDKs, compound file-plan admission,
+installed current-definition recovery/authorization, final performance controls
+and committed-head clean qualification remain open. The earlier named-output
+all-source recovery failure remains failed; this syntax increment does not
+complete it or the original SQL operation scope.
+
 ## SQL performance iteration
 
 ### Output-name component coverage

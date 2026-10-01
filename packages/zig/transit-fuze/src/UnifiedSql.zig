@@ -6,9 +6,14 @@ const m = f.Unified;
 const sql = f.Sql;
 pub const Source = struct { name: m.Name, schema: m.Schema };
 pub fn plan(allocator: std.mem.Allocator, text: []const u8, source: Source) !m.Plan {
-    return compile(allocator, try sql.parse(text), source);
+    var ast: sql.Ast = undefined;
+    try sql.parseInto(text, &ast, null);
+    return compileAst(allocator, &ast, source);
 }
 pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Plan {
+    return compileAst(allocator, &ast, source);
+}
+fn compileAst(allocator: std.mem.Allocator, ast: *const sql.Ast, source: Source) !m.Plan {
     try source.schema.validate();
     if (!sameName(ast.source, source.name)) return error.UnknownSource;
     if (ast.selection != .rows and ast.limit != null) return error.UnsupportedAggregateLimit;
@@ -46,29 +51,65 @@ pub fn compile(allocator: std.mem.Allocator, ast: sql.Ast, source: Source) !m.Pl
     errdefer allocator.free(owned_projection);
     result.projection = owned_projection;
     result.limit = if (ast.input) |value| value.limit else ast.limit;
+    var column_names: [m.max_columns][]const u8 = undefined;
+    for (source.schema.columns, 0..) |*column, i| column_names[i] = column.name.slice();
     result.predicate = switch (ast.predicate) {
-        .all => .all,
-        .state => |state| .{ .state = .{ .column = try resolve(state.column, source_qualifier, source.schema), .value = state.value } },
-        .compare => |value| .{ .compare = .{
-            .column = try resolve(value.column, source_qualifier, source.schema),
-            .op = switch (value.op) {
-                .eq => .eq,
-                .ne => .ne,
-                .lt => .lt,
-                .le => .le,
-                .gt => .gt,
-                .ge => .ge,
-            },
-            .value = try scalar(allocator, value.literal),
-        } },
+        .program => |*program| blk: {
+            try program.validate();
+            var owned: m.PredicateProgram.Owned = .{};
+            errdefer for (owned.instructions[0..owned.count]) |instruction| {
+                if (instruction == .atom) freeAtom(allocator, instruction.atom);
+            };
+            for (program.instructions[0..program.count]) |instruction| {
+                owned.instructions[owned.count] = switch (instruction) {
+                    .atom => |value| .{ .atom = try lowerAtom(allocator, try program.expand(value), source_qualifier.slice(), column_names[0..source.schema.columns.len]) },
+                    .negate => .negate,
+                    .conjunction => .conjunction,
+                    .disjunction => .disjunction,
+                };
+                owned.count += 1;
+            }
+            break :blk .{ .program = owned };
+        },
+        inline else => |value, tag| blk: {
+            const atom = try lowerAtom(allocator, @unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier.slice(), column_names[0..source.schema.columns.len]);
+            break :blk switch (atom) {
+                inline else => |item, kind| @unionInit(m.Plan.Predicate, @tagName(kind), item),
+            };
+        },
     };
-    errdefer if (result.predicate == .compare) switch (result.predicate.compare.value) {
-        .utf8, .binary => |bytes| allocator.free(bytes),
-        else => {},
-    };
+    errdefer freePredicate(allocator, &result.predicate);
     try result.validate(source.schema);
     return result;
 }
+/// Release only plans returned by this compiler with the same allocator.
+/// Canonically decoded plans borrow their input and must not use this function.
+pub fn deinit(allocator: std.mem.Allocator, compiled: *const m.Plan) void {
+    allocator.free(compiled.projection);
+    freePredicate(allocator, &compiled.predicate);
+}
+fn lowerAtom(allocator: std.mem.Allocator, atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8) !m.Plan.Atom {
+    return switch (try @import("SqlLowering.zig").lowerAtom(atom, source, columns)) {
+        .all => .all,
+        .state => |state| .{ .state = .{ .column = state.column, .value = state.value } },
+        .compare => |value| .{ .compare = .{ .column = value.column, .op = value.op, .value = try scalar(allocator, value.literal) } },
+    };
+}
+fn freeAtom(allocator: std.mem.Allocator, atom: m.Plan.Atom) void {
+    if (atom == .compare) switch (atom.compare.value) {
+        .utf8, .binary => |bytes| allocator.free(bytes),
+        else => {},
+    };
+}
+fn freePredicate(allocator: std.mem.Allocator, predicate: *const m.Plan.Predicate) void {
+    switch (predicate.*) {
+        .program => |*program| for (program.instructions[0..program.count]) |instruction| {
+            if (instruction == .atom) freeAtom(allocator, instruction.atom);
+        },
+        inline else => |value, tag| freeAtom(allocator, @unionInit(m.Plan.Atom, @tagName(tag), value)),
+    }
+}
+
 fn sameName(a: anytype, b: anytype) bool {
     return std.mem.eql(u8, a.slice(), b.slice());
 }

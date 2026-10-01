@@ -43,19 +43,21 @@ pub fn lower(ast: sql.Ast, source: []const u8, columns: []const []const u8, inpu
         .aggregate = aggregate,
         .limit = if (ast.input) |value| value.limit else ast.limit,
         .predicate = switch (ast.predicate) {
-            .all => .all,
-            .state => |state| .{ .state = .{ .column = try resolve(state.column, source_qualifier, columns), .value = state.value } },
-            .compare => |value| .{ .compare = .{ .column = try resolve(value.column, source_qualifier, columns), .op = switch (value.op) {
-                .eq => .eq,
-                .ne => .ne,
-                .lt => .lt,
-                .le => .le,
-                .gt => .gt,
-                .ge => .ge,
-            }, .literal = value.literal } },
+            .program => return error.UnsupportedCompoundPredicate,
+            inline else => |value, tag| try lowerAtom(@unionInit(sql.PredicateAtom, @tagName(tag), value), source_qualifier, columns),
         },
     };
 }
+/// Shared column scope and operator binding for native and local file profiles.
+/// The selected plan owns literal conversion and type admission.
+pub fn lowerAtom(atom: sql.PredicateAtom, source: []const u8, columns: []const []const u8) !@FieldType(Shape, "predicate") {
+    return switch (atom) {
+        .all => .all,
+        .state => |state| .{ .state = .{ .column = try resolve(state.column, source, columns), .value = state.value } },
+        .compare => |value| .{ .compare = .{ .column = try resolve(value.column, source, columns), .op = value.op, .literal = value.literal } },
+    };
+}
+
 fn resolve(column: sql.Column, source: []const u8, columns: []const []const u8) !u8 {
     if (column.qualifier) |qualifier| if (!std.mem.eql(u8, qualifier.slice(), source)) return error.UnknownQualifier;
     for (columns, 0..) |name, i| if (std.mem.eql(u8, name, column.name.slice())) return @intCast(i);

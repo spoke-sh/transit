@@ -24,12 +24,12 @@ options and schema commitments, discovery coverage and each root field's origin:
 schema and copied options. The binding owns override/type/name/null-token bytes.
 Source handles and their contexts remain owned by the host.
 
-| Mode | Behavior |
-| --- | --- |
-| `explicit` | Requires a complete field list; binds it without inferring types |
-| `sampled` | Uses a prefix bounded separately by record count and bytes; optional overrides replace named fields |
-| `full` | Explicitly scans every source to discover a schema without retaining rows; work budgets still apply |
-| `raw` | CSV fields remain UTF-8; JSONL returns one `record` JSON column; overrides reject |
+| Mode       | Behavior                                                                                            |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| `explicit` | Requires a complete field list; binds it without inferring types                                    |
+| `sampled`  | Uses a prefix bounded separately by record count and bytes; optional overrides replace named fields |
+| `full`     | Explicitly scans every source to discover a schema without retaining rows; work budgets still apply |
+| `raw`      | CSV fields remain UTF-8; JSONL returns one `record` JSON column; overrides reject                   |
 
 Inferred root/nested field names sort by decoded UTF-8 bytes. Multi-file CSV
 headers align by exact names; input file order still determines row order.
@@ -147,3 +147,7 @@ The [source contract](../../../../contracts/FUZE_SOURCE_V1.md) owns the binding
 format. The [type contract](../../../../contracts/FUZE_TYPES_V1.md) owns descriptor
 and cell formats. Independent fixture and allocator-failure commands live in
 [the proof ledger](../../../../tests/README.md#fuze-bounded-file-sources).
+
+File-query plans accept one comparison or state atom, including redundant grouping.
+Compound NOT/AND/OR predicates reject with `UnsupportedCompoundPredicate`. The
+shared parser accepting them does not expand this plan profile.

@@ -25,6 +25,45 @@ fn writeProjection(out: anytype, projection: *const sql.Projection) !void {
     };
     try out.endArray();
 }
+fn writeAtom(out: anytype, atom: *const sql.PredicateAtom) !void {
+    switch (atom.*) {
+        .all => try out.write(null),
+        .state => |*state| {
+            try out.beginObject();
+            try out.objectField("column");
+            try writeColumn(out, &state.column);
+            try out.objectField("op");
+            try out.write(switch (state.value) {
+                .null => "is_null",
+                .missing => "is_missing",
+                .type_error => "is_type_error",
+                .value => "is_value",
+                .conflict => "is_conflict",
+            });
+            try out.endObject();
+        },
+        .compare => |*comparison| {
+            try out.beginObject();
+            try out.objectField("column");
+            try writeColumn(out, &comparison.column);
+            try out.objectField("op");
+            try out.write(@tagName(comparison.op));
+            try out.objectField("literal");
+            try out.beginObject();
+            try out.objectField("kind");
+            try out.write(@tagName(comparison.literal));
+            try out.objectField("value");
+            switch (comparison.literal) {
+                .null => try out.write(null),
+                inline .int64, .uint64, .float64 => |value| try out.write(value),
+                .boolean => |value| try out.write(value),
+                .utf8, .binary => |*value| try out.write(value.slice()),
+            }
+            try out.endObject();
+            try out.endObject();
+        },
+    }
+}
 const AstView = struct {
     ast: sql.Ast,
     pub fn jsonStringify(self: *const AstView, out: anytype) !void {
@@ -54,41 +93,30 @@ const AstView = struct {
         try out.endObject();
         try out.objectField("predicate");
         switch (ast.predicate) {
-            .all => try out.write(null),
-            .state => |*state| {
+            .program => |*program| {
                 try out.beginObject();
-                try out.objectField("column");
-                try writeColumn(out, &state.column);
                 try out.objectField("op");
-                try out.write(switch (state.value) {
-                    .null => "is_null",
-                    .missing => "is_missing",
-                    .type_error => "is_type_error",
-                    .value => "is_value",
-                    .conflict => "is_conflict",
-                });
+                try out.write("program");
+                try out.objectField("instructions");
+                try out.beginArray();
+                for (program.instructions[0..program.count]) |instruction| switch (instruction) {
+                    .atom => |atom| try writeAtom(out, &(program.expand(atom) catch unreachable)),
+                    else => {
+                        try out.beginObject();
+                        try out.objectField("op");
+                        try out.write(switch (instruction) {
+                            .negate => "not",
+                            .conjunction => "and",
+                            .disjunction => "or",
+                            .atom => unreachable,
+                        });
+                        try out.endObject();
+                    },
+                };
+                try out.endArray();
                 try out.endObject();
             },
-            .compare => |*comparison| {
-                try out.beginObject();
-                try out.objectField("column");
-                try writeColumn(out, &comparison.column);
-                try out.objectField("op");
-                try out.write(@tagName(comparison.op));
-                try out.objectField("literal");
-                try out.beginObject();
-                try out.objectField("kind");
-                try out.write(@tagName(comparison.literal));
-                try out.objectField("value");
-                switch (comparison.literal) {
-                    .null => try out.write(null),
-                    inline .int64, .uint64, .float64 => |value| try out.write(value),
-                    .boolean => |value| try out.write(value),
-                    .utf8, .binary => |*value| try out.write(value.slice()),
-                }
-                try out.endObject();
-                try out.endObject();
-            },
+            inline else => |value, tag| try writeAtom(out, &@as(sql.PredicateAtom, @unionInit(sql.PredicateAtom, @tagName(tag), value))),
         }
         try out.objectField("limit");
         try out.write(ast.limit);

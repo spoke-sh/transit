@@ -45,15 +45,15 @@ is visible to the outer aggregate in the restricted subquery form.
 
 ## Query literals
 
-| Form | Example | Meaning |
-| --- | --- | --- |
-| Signed decimal integer | `-42`, `+7`, `0` | int64, from -9223372036854775808 through 9223372036854775807 |
-| Boolean | `TRUE`, `FALSE` | Boolean value |
-| Null | `NULL` | Explicit null; use `IS NULL` |
-| String | `'it''s ready'` | UTF-8 text; doubled single quotes encode a quote |
-| Binary | `'\x00ff'::bytea` | Hexadecimal bytes |
-| Unsigned integer | `'18446744073709551615'::uint64` | Decimal digits; 0 through 18446744073709551615 |
-| Floating point | `'-0.0'::float64`, `'1.25e2'::float64` | Finite IEEE 754 double; negative zero is preserved |
+| Form                   | Example                                | Meaning                                                      |
+| ---------------------- | -------------------------------------- | ------------------------------------------------------------ |
+| Signed decimal integer | `-42`, `+7`, `0`                       | int64, from -9223372036854775808 through 9223372036854775807 |
+| Boolean                | `TRUE`, `FALSE`                        | Boolean value                                                |
+| Null                   | `NULL`                                 | Explicit null; use `IS NULL`                                 |
+| String                 | `'it''s ready'`                        | UTF-8 text; doubled single quotes encode a quote             |
+| Binary                 | `'\x00ff'::bytea`                      | Hexadecimal bytes                                            |
+| Unsigned integer       | `'18446744073709551615'::uint64`       | Decimal digits; 0 through 18446744073709551615               |
+| Floating point         | `'-0.0'::float64`, `'1.25e2'::float64` | Finite IEEE 754 double; negative zero is preserved           |
 
 Backslashes are literal, including the `\x` prefix decoded by the binary literal
 handler. Numeric type suffixes apply only to string literals: uint64 accepts
@@ -97,7 +97,9 @@ not imply SQL provisioning support or encode every type in a unified query schem
 The production parser accepts at most 4096 UTF-8 bytes, 16-byte identifiers,
 16 levels of block comments and 220 bytes per decoded literal cell. It rejects
 NUL, malformed UTF-8, unterminated tokens and out-of-range integers. The AST holds
-at most eight explicit projected columns and one predicate. Durable queries have finite plan upload and execution budgets.
+at most eight explicit projected columns and a predicate of at most 64 instructions.
+Pending Boolean operators and group delimiters share a 64-entry stack. AND, OR
+and NOT are reserved words; quote them when used as identifiers. Durable queries have finite plan upload and execution budgets.
 
 These are per-operation bounds, independent of source cardinality. A syntactically
 valid query may still fail name/type checking, authorization or execution. See
