@@ -2279,6 +2279,45 @@ their actual source identities. The follow-up record embeds the failed clean
 attempt and controlled-check driver. Complete clean qualification of the final
 fixture is still required.
 
+At clean simulation source `95ed6c72`, the expanded campaigns repeat successfully:
+38 authority traces / 5,293 events (121.605 s), 3,202 exhaustive resource traces /
+60,704 events (1,835.258 s), and 36 shared-client traces / 6,490 events (164.360 s).
+The component campaign now includes catalog and passes 160 schedules across five
+owners in 55.894 s. Each report retains identical replay, source and tool/binary
+identity. These are 72,487 events across 3,276 traces plus the separate component
+schedules; they preserve the existing atomic-journal and host-scheduling limits.
+
+Clean experience at `5fe3df66` passes all six Board/frontend tasks, including the
+corrected Board query proof, then fails the Station launcher's unchanged
+60-second Arrow-reply wait. The retained manager log shows the courier exiting
+after repeated failed readiness probes; its inherited `restart: no` policy leaves
+it stopped. This matches the manager's documented
+[probe lifecycle](https://f1bonacc1.github.io/process-compose/health/).
+Current public reads show consumed requester input with no recorded Arrow result.
+Restarting the same courier completes that retained reply (16.689 s of subsequent
+polling). No query is reissued and no authority or deadline is changed. The
+original clean attempt remains failed; subsequent lanes did not run.
+
+The native counter and Station topologies now restart the stateless courier
+after failure with a one-second backoff. An owned proxy in the Station proof
+refuses only signed delivery reads, preserving command bytes and all authority
+checks. The proof observes a new courier PID and increased manager restart count
+before releasing the fault, then requires the Arrow result within the original
+60-second window. It passes with 292 refused reads and one replacement after
+30.261 s, followed by the existing same-PID worker recovery, upgrades, Board and
+persistent stop/start assertions. The proxy restores the original configuration
+and joins its threads. The full ordinary gate still requires all five lanes at
+the final committed source.
+
+The counter launcher proof also passes with the new policy, including an explicit
+courier stop that preserves its queued outbox until explicit restart, authority
+restart, same-PID replacement and foreground cleanup. Full `just check` passes.
+A negative control disables only the Station courier restart policy: the real
+injected-outage proof fails at `Courier did not recover after failed readiness
+probes`. The driver restores the topology and stops its owned failed installation.
+This is detection of the removed lifecycle guard, not an unrelated build or
+timeout failure. Final catalog and documentation checks pass separately.
+
 ## Expanded fault-verification qualification — 2026-09-30
 
 The [local experiment record](verification/results/m37-local-2026-09-30.json)

@@ -1685,6 +1685,29 @@
       ],
       "limits": "Process-lifetime code mappings; at most sixteen distinct native images. Handles and buffers still release on close. Mapping checks are Linux-specific; finite stress does not prove every host schedule.",
       "model": null
+    },
+    {
+      "id": "HOST-03",
+      "claim": "Native stateless courier replacement after failed readiness probes reconstructs pending work from current authority with the same delivery identity",
+      "owner": "launchers/README.md",
+      "implementation": [
+        "process-compose.yaml",
+        "examples/station-ledger/process-compose.yaml",
+        "apps/transit-delivery/main.zig"
+      ],
+      "profile": "Native Process Compose counter and Station topologies; injected readiness outage in the Station proof",
+      "tasks": [
+        "launchers::local::test-station",
+        "launchers::local::test",
+        "test::callers"
+      ],
+      "scenarios": [
+        "Signed delivery reads are unavailable until the manager replaces its failed-readiness courier; a pending Arrow reply completes within the existing window after reads recover",
+        "Explicit manager stop preserves queued outbox until explicit restart",
+        "Current delivery permissions and original destinations remain authoritative across courier replacement"
+      ],
+      "limits": "Finite Linux fixture with pinned Process Compose; no general fairness, availability SLO or additional provider qualification. Worker activations remain explicit.",
+      "model": null
     }
   ]
 }

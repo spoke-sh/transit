@@ -351,6 +351,13 @@ those definitions with saved installation settings. `restart` replaces a service
 using its current manager/container configuration. The local manager is started
 in the installation directory, including for probes.
 
+The local stateless courier restarts after an unsuccessful exit or failed
+readiness probes, with a one-second backoff. Its replacement reuses the dedicated
+delivery identity and reconstructs pending work from current authority. Current
+permission and readiness checks still apply. An explicit manager stop keeps the
+courier stopped until it is started again. Application workers retain their
+explicit activation and replacement lifecycle.
+
 Launchers still provision identity, configuration and durable state through the
 public API; these are not safe to express as automatic service restarts. They
 generate only environment-specific inputs, not a second copy of the topology.
