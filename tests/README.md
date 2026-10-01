@@ -11581,12 +11581,24 @@ all recorded Fuze source hashes match prototype `605e46ed` and implementation
 `53945c67`. The exact patch and comparison driver are retained. Native/FZP1
 definitions, canonical plan bytes, fingerprints and bounds do not change.
 
-The new complete matrix remains in progress in
-`/var/tmp/transit-count-plan-validation-full-comparison.log`. Its first warm
-projection matrix already records narrow/explicit compilation at **1.1592**,
-above 1.15. Targeted success does not establish a complete timing pass. The clean
-core run started at `8b9d1d5b` precedes this optimization and cannot qualify it by
-inheritance. Current-source clean qualification remains separate.
+The [completed full matrix](benchmarks/results/2026-10-01-count-values-plan-validation-full.json.gz)
+retains **3888 correct results** and all **216 pipeline gates passing**.
+**213 of 216 compiler gates pass**. Remaining failures are warm narrow/explicit
+projection **1.1592**, cold nested/explicit COUNT(*) **1.3123**, and cold
+pipe/explicit COUNT(*) **1.1763**. Each sample inventory and median is audited;
+all recorded source hashes match committed prototype `605e46ed`. Targeted
+success does not establish a complete timing pass. The shared-host run overlaps
+other qualification and the retained Station fixture shutdown below; it does not
+establish a causal explanation for the timing differences. Log
+`/var/tmp/transit-count-plan-validation-full-comparison.log`.
+
+Clean core at `8b9d1d5b` passes **22/22 tasks in 1123.21 s**. The
+[record](verification/results/count-values-core-descriptor-copy-2026-10-01.json)
+retains the completed metadata, exact task inventory, source revision and log
+digest. It includes the owned descriptor copy but precedes `53945c67` and cannot
+qualify the later compiler optimization by inheritance. Current-source clean
+growth and installed bindings remain separate. Log
+`/var/tmp/transit-count-completed-matrix-clean-core.log`.
 
 The retained Station launcher installation was still running after its earlier
 Arrow-reply failure. A signed read at **13:01:20 UTC** observes `last-query` at
