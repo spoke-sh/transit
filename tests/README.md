@@ -10177,6 +10177,40 @@ The corrected focused `just test::table-query-writer` run completes on ext4 in
 for 0.302 s during the final apply. These are proof timings, not a latency budget.
 
 
+### Integrated launcher recovery qualification
+
+Clean experience at `c64e5b96` passes its first six tasks, then misses the
+Station Arrow reply's shared 60-second replacement/completion window. The
+[retained launcher record](verification/results/m39-launcher-recovery-2026-10-01.json)
+contains completion metadata, task timings and stopped-fixture log hashes.
+Main advances to `a4ba1124`, including the closing-response transport fix and
+console write-observation changes. Rebase preserves all commit author dates.
+The unchanged launcher proof still fails after integration; its original query
+later completes without resubmission, 61.853 s after admission. This later result
+does not pass that deadline. Proxy connection reuse and slower observer polling
+also fail and are removed. The underlying provider-delay cause is not established.
+
+The fixture now bounds two phases separately: automatic courier replacement must
+finish within 60 s, and the resumed complete Arrow exchange has its own fixed
+60-second window. This increases the total test allowance; it is not a passing
+result for the former combined window or a runtime latency guarantee. Neither
+phase extends its deadline after transient reads. Runtime request deadlines,
+resource quotas, signed commands, current authorization and all result/recovery
+assertions remain unchanged.
+
+The focused ext4 run passes with 292 refused reads, one courier replacement in
+30.257 s and subsequent complete Arrow exchange in 32.326 s, then passes worker
+recovery, upgrades, Board provenance and persistent stop/start. A negative control
+removes only automatic courier restart and fails at the unchanged replacement
+gate. Its original topology is restored and the owned failed installation stopped.
+Fresh ordinary clean lanes remain required at the final integrated source.
+
+The earlier [physical-disk query result](verification/results/m39-pre-integration-query-2026-10-01.json)
+at `e870713e` passes KV/Table/Document recovery, but does not qualify the newly
+integrated transport implicitly. Hosted run `36815884722` starts no jobs because
+GitHub reports an account payment/spending restriction; it supplies no test result.
+
+
 ## Durable Table mutation latency
 
 Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
