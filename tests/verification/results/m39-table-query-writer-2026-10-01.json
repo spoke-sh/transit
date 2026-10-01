@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "issue": 53,
+  "hosted_failure": {
+    "branch_revision": "efc7e001b06cb3d5483c02de60e7ad487588375a",
+    "metadata": {
+      "version": 1,
+      "revision": "2b53c1fc9538157ae4a600bddfcea6ae8e65150b",
+      "tier": "growth",
+      "completed": false,
+      "expected_tasks": [
+        "test::arrow",
+        "test::fuze-types",
+        "test::fuze-sources",
+        "test::file-query",
+        "test::logical-arrow",
+        "test::logical-codec",
+        "test::pages",
+        "test::growing",
+        "test::growing-service",
+        "test::public-query",
+        "test::publication",
+        "test::table-mutation",
+        "test::table-query-writer",
+        "test::catalog",
+        "test::http-transport",
+        "test::tls-alpn",
+        "test::grpc-libraries",
+        "test::grpc-codegen",
+        "test::grpc-transport",
+        "test::grpc-server",
+        "test::flight-metadata",
+        "test::grpc-worker",
+        "test::grpc-faults",
+        "test::http-worker",
+        "examples::http",
+        "examples::grpc"
+      ],
+      "seconds": 1510.85,
+      "run_id": "36811688656",
+      "run_attempt": "1",
+      "machine": {
+        "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.42",
+        "logical_cpus": 2,
+        "affinity": [
+          0,
+          1
+        ],
+        "runner": "GitHub Actions 1000001548",
+        "runner_arch": "X64"
+      }
+    },
+    "tasks": [
+      {
+        "lane": "growth",
+        "task": "test::arrow",
+        "seconds": 90.86,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::fuze-types",
+        "seconds": 0.89,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::fuze-sources",
+        "seconds": 1.02,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::file-query",
+        "seconds": 25.0,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::logical-arrow",
+        "seconds": 11.8,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::logical-codec",
+        "seconds": 21.65,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::pages",
+        "seconds": 7.45,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::growing",
+        "seconds": 71.16,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::growing-service",
+        "seconds": 422.61,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::public-query",
+        "seconds": 89.83,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::publication",
+        "seconds": 177.83,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::table-mutation",
+        "seconds": 503.18,
+        "exit_code": 0
+      },
+      {
+        "lane": "growth",
+        "task": "test::table-query-writer",
+        "seconds": 87.56,
+        "exit_code": 1
+      }
+    ],
+    "job": "https://github.com/rupurt/rey/actions/runs/36811688656/job/110207970487",
+    "error": "mutation applied before the snapshot interleave",
+    "log": {
+      "path": "/tmp/rey-issue53-tracking-hosted-growth.log",
+      "sha256": "b11d0e56cd7c8298f7420705e47a534efd0ae3f89c3e94602a7a94323a7b7f4e"
+    }
+  },
+  "diagnosis": "The combined proof assumed every small mutation used staged begin/part/seal/apply. Current prepareNext directly executes requests of at most 223 bytes, so the small UPDATE never reached the seal-only barrier. The later interruption and part-rejection fixtures had the same stale assumption.",
+  "correction": [
+    "A 200-byte UPDATE value selects staged admission for the existing CLI snapshot barrier; no CLI command or runtime admission behavior changes.",
+    "200-byte values select staged admission for interruption/cancellation and policy-raced part rejection.",
+    "The short lost-reply mutation remains direct; cancellation must retain its applied outcome and row."
+  ],
+  "runtime_changed": false,
+  "limits_changed": false,
+  "focused_validation": {
+    "base_revision": "e870713ed3d6804d38a19f4d3247e96c05b5a867",
+    "dirty": true,
+    "source_sha256": "dc77f3e9cbd25ee4a5143430ce785283d016dbb5b4f1461ea919d4678e755673",
+    "command": "NIX_CONFIG='eval-cache = false' nix develop --command env TMPDIR=/var/tmp/rey-issue53-focused-sDk3Hp just test::table-query-writer",
+    "completed": true,
+    "exit_code": 0,
+    "fixture_filesystem": "ext4",
+    "wal_backend": "disk",
+    "metrics": {
+      "proof": "combined Table query/writer",
+      "elapsed_seconds": 40.117,
+      "reads": 4502,
+      "turns": 80,
+      "max_mutations": 4,
+      "max_value_bytes": 256,
+      "recovered_initialization_receipts": 2,
+      "snapshot_pause_seconds": 0.302,
+      "resident_pages": 8,
+      "mutation_namespace": "9223372036854775859",
+      "installed_sdks": [],
+      "sdk_install_seconds": 0.0,
+      "sdk_callers": [],
+      "binaries": {
+        "node": "9b9ffadcdee722565b203fb9ca80b4d081948dbe3317543139931ae081f4c9ae",
+        "host": "67fa8ff3f3fb87917801a426f14ffbd4f2bc73c47cc843fb30d4321abd02d557",
+        "proof": "17157e858fc9f8dc78c7511ffca1bf454a8dd1eb94fc09ea9087fdf6fc9e0dc8",
+        "library": "e1ab08d817dbd0760ca365f76be0486a2aafc7f8e72bdbdea0f0168eadb5ae72",
+        "cli": "e504e54f901336dea8cefa5e779f2e2528316989fe33f7e6eb2a264bde71961d"
+      }
+    },
+    "log": {
+      "path": "/tmp/rey-issue53-table-query-writer.log",
+      "sha256": "36c9d9cdb22a56d52e63fd8143aaa938a3e380efb87f59a1a0144dbc1f7b6d75"
+    }
+  },
+  "corrective_trial": {
+    "base_revision": "e870713ed3d6804d38a19f4d3247e96c05b5a867",
+    "dirty": true,
+    "completed": false,
+    "exit_code": 1,
+    "source_sha256": "0deeecb3bff28fbc0b7ac08bb42836fed7be961af0bca893d502ac11b09c17f4",
+    "error": "The CLI proof adapter exposes only apply/cancel controls; explicit begin is available through the native API but not this CLI adapter.",
+    "log": {
+      "path": "/tmp/rey-issue53-table-query-writer-explicit-begin.log",
+      "sha256": "35ec505d35e6f0f406a47b94938a246a258d645f4c19da05ffbbb22e513ba85a"
+    }
+  }
+}

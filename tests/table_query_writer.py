@@ -262,18 +262,10 @@ def run(node, host, proof, library, cli, *, sdks=()):
             # the final apply must commit after its retained snapshot. Holding
             # the request across the whole upload instead makes test setup race
             # the console's ordinary five-second per-request deadline.
-            sql = "UPDATE items SET value='new' WHERE id=1"
-            staged = cli_mutations.call({'compile': dict(name='items', sql=sql, namespace=str(namespace))})['compiled']
-            # This schedule needs a separately sealed upload. The shared next
-            # operation may choose inline execution for this small request, so
-            # begin its public staged profile explicitly before the CLI resumes.
-            description = mutations.call({'describe': {}})['description']
-            begin = mutations.call({'prepare': {'begin': dict(reference=staged['reference'], table=1, policy_revision=description['policy_revision'])}})['prepared']
-            receipt = mutations.call({'submit': begin})['receipt']
-            until(lambda: mutations.call({'observe': dict(prepared=begin, input=receipt['position'])})['observation'] == 'processed')
-            assert mutations.call({'rejection': dict(prepared=begin, input=receipt['position'])})['rejection'] is None
-            assert mutations.call({'status': staged['reference']})['status']['phase'] == 'uploading'
-            staged = mutation(sql, namespace, cli_mutations, compiled=staged, seal_only=True)
+            # Select staged admission with a bounded 200-byte value; a small
+            # request executes directly and has no sealed barrier to hold.
+            updated_value = 'new-' + 'x' * 196
+            staged = mutation(f"UPDATE items SET value='{updated_value}' WHERE id=1", namespace, cli_mutations, seal_only=True)
             apply = cli_mutations.call({'prepare': {'apply': staged['reference']}})['prepared']
             pause_snapshot = True
             console = subprocess.Popen(console_args, env=fixture.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -300,7 +292,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             assert previous == [dict(id=1, value='old'), dict(id=2, value='two')], previous
             query(2); complete(2)
             current = rows(2)
-            assert current == [dict(id=1, value='new'), dict(id=2, value='two')], current
+            assert current == [dict(id=1, value=updated_value), dict(id=2, value='two')], current
             latest = subprocess.run(console_args, env=fixture.env, capture_output=True, text=True, timeout=30)
             assert latest.returncode == 0, latest.stderr
             assert console_rows(latest.stdout) == current
@@ -350,7 +342,11 @@ def run(node, host, proof, library, cli, *, sdks=()):
             assert restored['phase'] == 'applied' and restored['affected_rows'] == 1 and send_fault['recovered']
             again = json.loads(console_run(data='.resume\n').stdout)['mutation']
             assert again == restored
-            console_run('DELETE FROM items WHERE id=102')
+            # Direct admission can already be applied when cancellation is
+            # requested. It must preserve that terminal outcome and its rows.
+            assert b'TME1' in bytes.fromhex(json.loads(send_fault['frozen'])['request']['command']['send']['value'])
+            assert json.loads(console_run(data='.cancel\n').stdout)['mutation'] == restored
+            assert json.loads(console_run('DELETE FROM items WHERE id=102').stdout)['mutation']['affected_rows'] == 1
             # SIGINT retains the admitted command and stops before the next SQL.
             # Check the actual command selected: inline execution can finish
             # during reconciliation, while a staged begin remains cancellable.
@@ -440,7 +436,7 @@ def run(node, host, proof, library, cli, *, sdks=()):
             denied_console = console_run('DELETE FROM items WHERE id=1', code=1)
             assert 'current writer or catalog policy' in denied_console.stderr and not denied_console.stdout
             query(3); complete(3)
-            assert rows(3) == [dict(id=1, value='new'), dict(id=2, value='after-revocation')]
+            assert rows(3) == [dict(id=1, value=updated_value), dict(id=2, value='after-revocation')]
             invoke('revoke')
             denied(lambda: rows(3), 'AccessDenied')
             for _, owner, reference, _ in sdk_results:

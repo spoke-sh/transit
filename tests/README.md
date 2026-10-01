@@ -10158,6 +10158,25 @@ unchanged focused reproduction passes; the initial cause is not established,
 and final clean qualification still must pass. Neither failed lane is complete.
 
 
+Hosted growth on the tracking PR's merge revision `2b53c1fc` passes twelve
+tasks, then the combined Table/query proof fails at its seal-only snapshot
+barrier. The fixture assumes small mutations upload before applying, but current
+`prepareNext` selects direct execution for requests of at most 223 bytes. Its
+later staged cancellation and part-rejection cases make the same assumption.
+The corrected CLI fixtures use 200-byte values within the existing 220-byte
+Table bound to select publication staging; no runtime path or limit changes.
+The short lost-reply operation still verifies direct execution, exact recovery
+and preservation of its applied result and row when cancellation follows.
+The [retained Table proof record](verification/results/m39-table-query-writer-2026-10-01.json)
+includes hosted completion metadata, the failed explicit-begin adapter trial,
+source identities and the focused physical-disk rerun.
+
+The corrected focused `just test::table-query-writer` run completes on ext4 in
+40.117 s, recovering both initialization receipts and preserving the four-mutation,
+256-byte-value and eight-resident-page bounds. The interactive snapshot is held
+for 0.302 s during the final apply. These are proof timings, not a latency budget.
+
+
 ## Durable Table mutation latency
 
 Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
