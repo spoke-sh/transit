@@ -2532,6 +2532,30 @@ existing ten-second preparation, sixty-second settlement and 120-second upload
 windows; receipt retries now consume the settlement window instead of preceding
 it. These controls retain unavailable observations as uncertainty, not rejection.
 
+## Inspection read throttling — 2026-10-01
+
+After the complete clean browser lane passes at `88fc1d0d`, a ReleaseSafe
+HTTP/browser comparison fails its original five-second records-heading assertion.
+The [trace and controls](verification/results/m37-inspection-throttle-2026-10-01.json)
+show two records reads starting 97 ms and 90 ms after successful atlas reads,
+inside Board's unchanged 100 ms read interval. Both receive HTTP 429. Retrying
+only on the next five-second poll allows the same collision to recur.
+
+Records and selected metadata now recover only explicit `429 RateLimited`
+responses, with at most three retries 250 ms apart. They preserve resource and
+continuation identity, clear displayed data before waiting, stop on hiding or
+disposal, and do not retry denial, stale history or unclassified failures. Six
+focused controls, strict types and frontend checks pass.
+
+The real browser proof injects two rate-limit responses for each of records and
+HTTP metadata without changing its assertion deadlines. The original UI fails
+the intended heading assertion; the corrected UI passes. The complete corrected
+HTTP/browser fixture then passes in **988.537 seconds** including compilation
+(**879.10 seconds** inside the proof), retaining sixteen sends, eight applications,
+two cancellation requests and persisted cold capture. The first failed comparison
+and later injected workload do not qualify a speedup or a default build-profile
+change. Combined-source clean and hosted completion remain separate gates.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after
