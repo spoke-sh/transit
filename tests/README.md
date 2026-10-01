@@ -7354,6 +7354,39 @@ Installed authority/CLI named-schema checks, exact retry, current denial,
 disk-backed recovery, performance measurements and committed-HEAD clean lanes
 remain required. Earlier source-alias failures remain separate evidence.
 
+### Installed named-output recovery checkpoint
+
+The disk-backed unified-query schedule now uses an explicit `Result` output
+name in the Zig bundle and all ten SDK constructors. Document's other output
+positions retain their default names. Independently decoded Arrow must carry
+the exact renamed schema and original values. The SQL shell uses a quoted
+output alias, saves its original bundle/request across shell exit, and checks
+names on each returned page. Inspection includes named count and repeated
+inputs with distinct names, both under current access and subsequent denial.
+
+The first installed attempt fails before upload because its new inspection
+fixture expects mixed case from an unquoted SQL identifier. Quoting `Result`
+corrects the fixture without changing compiler case rules. That failure remains
+in `/tmp/transit-sql-output-aliases-installed-recovery.log`.
+
+The corrected schedule passes KV named-plan preparation and SQL inspection
+across **13 native/port/installed caller variants**, then exact signed upload
+retry and worker/node/disk-store restart after staging a segment. After restart,
+the cold store refuses writes with **507 `XMinioStorageFull`**: its shared 1.8 TB
+backing filesystem has only 17 GB available. Ursula reaches its existing 8 MiB
+hot-store boundary and returns `ColdBackpressure`; native staging reports 503.
+No storage quota or operation deadline is increased. This is incomplete recovery
+evidence: completed results, post-restart disclosure denial, CLI execution and
+the Table/Document schedules are not qualified by this run.
+
+The corrected log is
+`/tmp/transit-sql-output-aliases-installed-recovery-fixed.log`. A private log
+snapshot is retained at `/var/tmp/transit-sql-output-aliases-capacity-evidence`.
+The six frozen runtime artifact hashes are in
+`/tmp/transit-sql-output-aliases-installed-artifacts.json`; their runtime source
+is `4e9a8bca`, before the later compiler optimization. The unchanged limits and
+remaining gates still apply after capacity is restored.
+
 ## SQL performance iteration
 
 ### Output-name component coverage

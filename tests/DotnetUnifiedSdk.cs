@@ -27,7 +27,7 @@ static class Program
         return new Q.DocumentSource(await Reference(r,17,1,13),[new(new("value",Q.Type.Utf8),relative:true),new(new("counter",Q.Type.UInt64),relative:true,mode:Q.ProjectionMode.ElementCounter),new(new("replica",Q.Type.UInt64),relative:true,mode:Q.ProjectionMode.ElementReplica),new(new("optional",Q.Type.Utf8),["optional"])],["items"]);
     }
     static Task<Q.Bundle> Bundle(Q.Source source,string kind,bool golden,bool named=false) => Q.Bundle.PrepareAsync(source,
-        new(golden?[1,0]:kind=="document"?[0,1,2,3]:[1],new Q.Compare((byte)(golden?1:kind=="document"?0:1),QueryComparison.Ne,golden&&kind=="kv"?new Q.Unsigned(ulong.MaxValue):new Q.Text(new string('x',512))),limit:golden?ulong.MaxValue:null,outputNames:named?["Result",null]:null),new(1000,golden?500u:100u,1048576));
+        new(golden?[1,0]:kind=="document"?[0,1,2,3]:[1],new Q.Compare((byte)(golden?1:kind=="document"?0:1),QueryComparison.Ne,golden&&kind=="kv"?new Q.Unsigned(ulong.MaxValue):new Q.Text(new string('x',512))),limit:golden?ulong.MaxValue:null,outputNames:named?(golden?["Result",null]:kind=="document"?["Result",null,null,null]:["Result"]):null),new(1000,golden?500u:100u,1048576));
     static void Scalar(Q.Scalar scalar,int col) {
         bool valid=col switch { 0=>scalar is Q.Signed { Value:long.MinValue },1=>scalar is Q.Unsigned { Value:ulong.MaxValue },2=>scalar is Q.Floating f && BitConverter.DoubleToInt64Bits(f.Value)==long.MinValue,
             3=>scalar is Q.BooleanValue { Value:false },4=>scalar is Q.Text { Value:"café é 東京🙂" },5=>scalar is Q.Binary b && b.Value.Copy().SequenceEqual(new byte[]{0,255,128}),_=>false }; Check(valid);
@@ -71,7 +71,7 @@ static class Program
     static async Task Serve(JsonNode config) {
         var c=config["connection"]!; ulong realm=Number(c,"realm"); ResourceRef resource=new(realm,Number(c,"resource"));
         Q.Connection connection=new(new(realm,Number(c,"source")),resource,new(realm,Number(c,"requester")),new(realm,Number(c,"requests")));
-        string kind=Text(config,"kind"); var source=await Source(resource,kind,false); Check((await Bundle(source,kind,false)).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
+        string kind=Text(config,"kind"); var source=await Source(resource,kind,false); Check((await Bundle(source,kind,false,true)).Bytes.Copy().SequenceEqual(Read(config,"bundle").Copy()));
         Q.Page? saved=null;
         await using(var client=await Q.Client.OpenAsync(new(new Uri(Text(config,"url")),Profile.NativeV1,10000),new(realm,Number(c,"principal"),Text(config,"seed_file")),connection)) {
             var description=await client.DescribeAsync(source); Check(description.BundleBytes==16384 && description.BatchRows==8);

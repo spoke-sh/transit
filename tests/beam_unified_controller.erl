@@ -43,7 +43,7 @@ config(Cfg)->
     {Client,Identity,Connection}.
 serve(A,Cfg)->
     {Config,Identity,Connection}=config(Cfg),Kind=maps:get(<<"kind">>,Cfg),Source=source(Connection#transit_unified_connection.resource,Kind,false),
-    #transit_unified_bundle{bytes=Bundle}=bundle(A,Source,Kind,false),Bundle=read(maps:get(<<"bundle">>,Cfg)),Client=ok(A:open(Config,Identity,Connection)),
+    #transit_unified_bundle{bytes=Bundle}=bundle(A,Source,Kind,false,case Kind of <<"document">>->[<<"Result">>,undefined,undefined,undefined]; _->[<<"Result">>] end),Bundle=read(maps:get(<<"bundle">>,Cfg)),Client=ok(A:open(Config,Identity,Connection)),
     try
         #transit_unified_description{bundle_bytes=16384,batch_rows=8}=ok(A:describe(Client,Source)),report(#{ready=>true}),
         Saved=loop(A,Client,Cfg,Connection,undefined),ok(A:close(Client)),{error,#transit_error{kind=closed}}=A:status(Client,1),

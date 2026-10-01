@@ -87,7 +87,8 @@ Arrow int64 columns.
 | --- | --- |
 | Sources | One declared KV, Table or accepted Document projection |
 | `SELECT *` | All one to eight declared columns |
-| Explicit projection | One to eight distinct column names in the requested order |
+| Explicit projection | One to eight output positions in the requested order; result names must be distinct |
+| Output aliases | Explicit `AS name` on columns, `COUNT(*)` and `SUM(column)`; distinct names permit repeated inputs |
 | Predicate | One comparison or exact cell-state test |
 | Ordering | Defined source order |
 | `LIMIT n` | Full u64 count; no implicit truncation when omitted |

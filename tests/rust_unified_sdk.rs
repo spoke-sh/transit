@@ -321,7 +321,11 @@ fn serve(config: &Value) -> AnyResult<()> {
         },
     };
     let plan = q::Plan {
-        output_names: None,
+        output_names: Some(if kind == "document" {
+            vec![Some("Result".into()), None, None, None]
+        } else {
+            vec![Some("Result".into())]
+        }),
         projection: if kind == "document" {
             vec![0, 1, 2, 3]
         } else {

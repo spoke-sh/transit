@@ -94,7 +94,7 @@ static void serve(char **args) {
     const uint64_t realm=strtoull(args[6],NULL,10),principal=strtoull(args[7],NULL,10);
     transit_station_unified_connection connection={{realm,strtoull(args[8],NULL,10)},{realm,strtoull(args[10],NULL,10)},{realm,strtoull(args[9],NULL,10)},{realm,strtoull(args[11],NULL,10)}};
     const int kind=!strcmp(args[4],"kv")?0:!strcmp(args[4],"table")?1:2;
-    definition d=source(connection.resource,kind,false); transit_station_unified_bundle *b=bundle(&d,false,false); transit_sdk_bytes data={0}; checked(transit_station_unified_bundle_bytes(b,&data)); transit_sdk_bytes expected=file_bytes(args[5]); equal(data,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
+    definition d=source(connection.resource,kind,false); transit_station_unified_bundle *b=bundle(&d,false,true); transit_sdk_bytes data={0}; checked(transit_station_unified_bundle_bytes(b,&data)); transit_sdk_bytes expected=file_bytes(args[5]); equal(data,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
     transit_sdk_config config=transit_sdk_growing_config(args[2]); config.timeout_ms=10000; transit_sdk_credential credential={realm,principal,args[3]}; transit_station_unified_client *client=NULL; checked(transit_station_unified_open(&config,&credential,connection,&client));
     transit_station_unified_description description={0}; checked(transit_station_unified_describe(client,&d.source,&description)); assert(description.bundle_bytes==16384&&description.batch_rows==8);
     puts("{\"ready\":true}"); char line[140000]; transit_station_unified_page *saved=NULL;

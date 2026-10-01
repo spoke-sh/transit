@@ -70,7 +70,8 @@ async function serve() {
         {column: {name: 'replica', type: 'uint64'}, relative: true, mode: 'element_replica'},
         {column: {name: 'optional', type: 'utf8'}, path: ['optional']},
       ]};
-  const bundle = await q.Bundle.prepare(source, {projection: config.kind === 'document' ? [0, 1, 2, 3] : [1], predicate: {
+  const bundle = await q.Bundle.prepare(source, {projection: config.kind === 'document' ? [0, 1, 2, 3] : [1],
+    outputNames: config.kind === 'document' ? ['Result', null, null, null] : ['Result'], predicate: {
     kind: 'compare', column: config.kind === 'document' ? 0 : 1, comparison: 'ne', value: {type: 'utf8', value: 'x'.repeat(512)},
   }}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
   assert.equal(hex(bundle.data), hex(await readFile(config.bundle)));
