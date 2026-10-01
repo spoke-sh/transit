@@ -96,10 +96,16 @@ async function serve() {
         {column: {name: 'replica', type: 'uint64'}, relative: true, mode: 'element_replica'},
         {column: {name: 'optional', type: 'utf8'}, path: ['optional']},
       ]};
-  const bundle = await q.Bundle.prepare(source, {projection: config.kind === 'document' ? [0, 1, 2, 3] : [1],
-    outputNames: config.kind === 'document' ? ['Result', null, null, null] : ['Result'], predicate: {
-    kind: 'compare', column: config.kind === 'document' ? 0 : 1, comparison: 'ne', value: {type: 'utf8', value: 'x'.repeat(512)},
-  }}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
+  const doc = config.kind === 'document', column = doc ? 0 : 1;
+  let predicate = {kind: 'compare', column, comparison: 'ne', value: {type: 'utf8', value: 'x'.repeat(512)}};
+  if (config.compound) predicate = {kind: 'program', instructions: [
+    {kind: 'atom', atom: predicate},
+    {kind: 'atom', atom: {kind: 'compare', column, comparison: 'ge', value: {type: 'utf8', value: `東京🙂/${'x'.repeat(doc ? 64 : 128)}/${doc ? '10' : '39'}`}}},
+    {kind: 'atom', atom: {kind: 'state', column, state: 'null'}},
+    {kind: 'disjunction'}, {kind: 'negate'}, {kind: 'conjunction'},
+  ]};
+  const bundle = await q.Bundle.prepare(source, {projection: doc ? [0, 1, 2, 3] : [1],
+    outputNames: doc ? ['Result', null, null, null] : ['Result'], predicate}, {pages: 1000n, segments: 100n, resultBytes: 1048576n});
   assert.equal(hex(bundle.data), hex(await readFile(config.bundle)));
   const client = await q.Client.open({url: config.url, profile: 'native_v1', timeoutMs: 10000},
     new Credential(v.realm, v.principal, config.seed_file), connection);

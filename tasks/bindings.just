@@ -337,6 +337,10 @@ unified-beam source="table": beam-build
 unified-all: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir
 
+# Filtering Boolean programs through all ten SDKs and the SQL shell, across all sources.
+unified-compound: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
+    zig build test-unified-query -Doptimize=ReleaseSafe -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir -Dunified-compound=true -Dunified-shell=true
+
 # Pure installed query codecs: exact bundle bytes and independently produced Arrow.
 unified-codecs: python-build node-build ruby-build rust-build c-build java-build dotnet-build beam-build
     python3 -B tests/sdk_unified.py

@@ -16,7 +16,9 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, console=None, console_tls=False):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, console=None, console_tls=False, compound=False):
+    if compound and any((board, browser, lifecycle, example, console, console_tls)):
+        raise ValueError('compound recovery selects installed SDKs and the SQL shell; other profiles have separate schedules')
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
     for kind in kinds:
         started = time.monotonic()
@@ -105,7 +107,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30, env=fixture.env)
                 authority = start("node", [node, str(node_config)])
                 wait_ready(fixture.http, authority, url + "/health")
-                connection = invoke("provision", kind, timeout=1800, direct=True)
+                connection = invoke("provision-compound" if compound else "provision", kind, timeout=1800, direct=True)
                 print(f"Unified {kind}: provisioned in {time.monotonic() - started:.2f}s", flush=True)
                 for name in ("source", "requester", "courier"):
                     path = root / f"{name}.json"
@@ -176,6 +178,14 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 print(f"Unified {kind}: Boolean inspection including 64 instructions agrees across {len(program_inspectors)} enabled native/port/SDK callers", flush=True)
                 assert sends == fault['console_sends'], 'inspection submitted query work'
                 print(f"Unified {kind}: SQL inspection agrees across {len(inspectors)} enabled native/port/SDK callers", flush=True)
+                if compound:
+                    action = {'next': dict(namespace='1', bundle=(root/'bundle.bin').read_bytes().hex())}
+                    prepared = native.call(action)['prepared']
+                    assert prepared is not None
+                    for owner in (port_client, *callers):
+                        assert owner.call(action)['prepared'] == prepared, 'compound preparation changed signed identity'
+                    assert sends == fault['console_sends'], 'preparation submitted query work'
+                    print(f"Unified {kind}: compound bundle and original prepared identity agree across {2+len(callers)} callers", flush=True)
                 uploader = callers[0] if callers else native
                 try:
                     upload(uploader, root)
@@ -265,6 +275,10 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         row['counter'] = dict(state=3, kind=2, value=index+2, alternatives=[])
                         row['replica'] = dict(state=3, kind=2, value=1, alternatives=[])
                         row['optional'] = dict(state=0, kind=0, value=None, alternatives=[])
+                if compound:
+                    # Independent oracle: the compound program excludes exactly
+                    # the last two input values, without renumbering Document IDs.
+                    expected = expected[:-2]
                 named_expected = [{('Result' if name == 'value' else name): cell for name, cell in row.items()} for row in expected]
                 assert actual == named_expected, actual[:2]
                 assert total > 8192
@@ -280,7 +294,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     shell_config = json.loads((root / 'shell.json').read_text())
                     shell_config['url'] = proxy_url
                     (root / 'shell.json').write_text(json.dumps(shell_config))
-                    check(shell, root, kind, invoke, expected, fault)
+                    check(shell, root, kind, invoke, expected, fault, compound=compound)
                 if board:
                     from unified_board import check
                     check(board, root, kind, invoke, expected, fixture, start, browser=browser)
@@ -336,7 +350,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     except Failure as failure:
                         assert failure.detail['err'] in retired_errors, failure
                 assert cold.data_objects() > 0
-                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
+                print(f"Unified {kind}: {len(actual)} rows / {final['ordinal'] + 1} segments / {total} bytes / {resident_pages} resident authority pages / 8 MiB hot store / {cold.data_objects()} cold objects / {cold.file_bytes()} cold bytes / predicate={'compound' if compound else 'atom'} / installed SDKs={','.join(sdks) or 'none'}; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in {time.monotonic() - started:.2f}s", flush=True)
             except BaseException:
                 for log in logs:
                     log.flush(); log.seek(0)
@@ -363,6 +377,7 @@ if __name__ == "__main__":
     parser.add_argument('kinds', nargs='*', choices=('kv', 'table', 'document'))
     parser.add_argument('--sdk', action='append', choices=('python', 'node', 'ruby', 'rust', 'c', 'cpp', 'java', 'dotnet', 'erlang', 'elixir'))
     parser.add_argument('--shell')
+    parser.add_argument('--compound', action='store_true')
     parser.add_argument('--console')
     parser.add_argument('--console-tls', action='store_true')
     parser.add_argument('--board')
@@ -371,10 +386,12 @@ if __name__ == "__main__":
     parser.add_argument('--expiry', action='store_true')
     parser.add_argument('--example')
     args = parser.parse_args()
+    if args.compound and args.expiry:
+        parser.error('--compound and --expiry select separate schedules')
     if args.expiry:
         from unified_expiry import run as expiry
         expiry(args.node, args.host, args.proof, args.library, args.kinds or ('kv', 'table', 'document'))
         raise SystemExit(0)
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
-        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, console=args.console, console_tls=args.console_tls)
+        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, console=args.console, console_tls=args.console_tls, compound=args.compound)

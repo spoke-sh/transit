@@ -13,10 +13,18 @@ source(R,<<"table">>,Golden)->#transit_unified_table{resource=R,id=case Golden o
 source(R,<<"document">>,true)->#transit_unified_document{reference=#transit_document_reference{resource=R,document=?MAX,epoch=3,type_revision=1,revision=42},projections=[projection(<<"title">>,utf8,[<<"title">>],false,scalar),projection(<<"body">>,utf8,[<<"body">>],false,text)]};
 source(R,<<"document">>,false)->#transit_unified_document{reference=#transit_document_reference{resource=R,document=17,epoch=1,type_revision=1,revision=13},expand=[<<"items">>],projections=[projection(<<"value">>,utf8,[],true,scalar),projection(<<"counter">>,uint64,[],true,element_counter),projection(<<"replica">>,uint64,[],true,element_replica),projection(<<"optional">>,utf8,[<<"optional">>],false,scalar)]}.
 bundle(A,S,K,Golden)->bundle(A,S,K,Golden,undefined).
-bundle(A,S,K,Golden,Names)->
+bundle(A,S,K,Golden,Names)->bundle(A,S,K,Golden,Names,false).
+bundle(A,S,K,Golden,Names,Compound)->
     {P,C}=case {Golden,K} of {true,_}->{[1,0],1}; {false,<<"document">>}->{[0,1,2,3],0}; _->{[1],1} end,
     V=case {Golden,K} of {true,<<"kv">>}->{uint64,?MAX}; _->{utf8,binary:copy(<<"x">>,512)} end,
-    Plan=#transit_unified_plan{output_names=Names,projection=P,predicate={compare,C,ne,V},limit=case Golden of true->?MAX; false->undefined end},
+    Predicate=case Compound of
+        false->{compare,C,ne,V};
+        true->false=Golden,{Padding,Suffix}=case K of <<"document">>->{64,<<"/10">>}; _->{128,<<"/39">>} end,
+            Ceiling=iolist_to_binary([<<"東京🙂/"/utf8>>,binary:copy(<<"x">>,Padding),Suffix]),
+            #transit_unified_predicate_program{instructions=[{atom,{compare,C,ne,V}},
+                {atom,{compare,C,ge,{utf8,Ceiling}}},{atom,{state,C,null}},disjunction,negate,conjunction]}
+    end,
+    Plan=#transit_unified_plan{output_names=Names,projection=P,predicate=Predicate,limit=case Golden of true->?MAX; false->undefined end},
     ok(A:prepare(S,Plan,#transit_unified_budgets{pages=1000,segments=case Golden of true->500; false->100 end,result_bytes=1048576})).
 scalar({int64,-9223372036854775808},int64)->ok;
 scalar({uint64,?MAX},uint64)->ok;
@@ -66,7 +74,7 @@ config(Cfg)->
     {Client,Identity,Connection}.
 serve(A,Cfg)->
     {Config,Identity,Connection}=config(Cfg),Kind=maps:get(<<"kind">>,Cfg),Source=source(Connection#transit_unified_connection.resource,Kind,false),
-    #transit_unified_bundle{bytes=Bundle}=bundle(A,Source,Kind,false,case Kind of <<"document">>->[<<"Result">>,undefined,undefined,undefined]; _->[<<"Result">>] end),Bundle=read(maps:get(<<"bundle">>,Cfg)),Client=ok(A:open(Config,Identity,Connection)),
+    #transit_unified_bundle{bytes=Bundle}=bundle(A,Source,Kind,false,case Kind of <<"document">>->[<<"Result">>,undefined,undefined,undefined]; _->[<<"Result">>] end,maps:get(<<"compound">>,Cfg)),Bundle=read(maps:get(<<"bundle">>,Cfg)),Client=ok(A:open(Config,Identity,Connection)),
     try
         #transit_unified_description{bundle_bytes=16384,batch_rows=8}=ok(A:describe(Client,Source)),report(#{ready=>true}),
         Saved=loop(A,Client,Cfg,Connection,undefined),ok(A:close(Client)),{error,#transit_error{kind=closed}}=A:status(Client,1),

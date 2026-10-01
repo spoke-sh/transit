@@ -10454,3 +10454,70 @@ Signed Boolean inspection is enabled for all ten SDKs in the existing source
 schedule. Current-definition signed inspection/recovery, committed-source clean
 lanes, Table/Document and compound delivery remain separate qualification gates.
 PR #52 and issue #37 retain their terminal results and continuation handoff.
+
+At `95d4abd0`, the all-ten-SDK ReleaseSafe KV schedule passes, exit 0, in
+231.67 seconds. All 13 native/port/SDK callers agree on Boolean inspection,
+redaction and 64 instructions. The existing single-atom delivery workload
+recovers through source/requester/node/disk restart with exact upload retry,
+current prefix denial and source-pin release: 41 rows, six segments, 13,584
+bytes, eight resident authority pages, an 8 MiB hot store and 76 cold objects
+(8,019,053 bytes). The log is `/tmp/transit-sql-boolean-all-sdk-kv.log`.
+
+Committed-source `just ci-clean --lane core` at `95d4abd0` passes all 22 tasks,
+exit 0, in 1111.20 seconds. The log is
+`/tmp/transit-sql-boolean-c-clean-core.log`; terminal metadata is retained under
+`.cache/ci/clean/95d4abd0d49c-transit-ci-kl2d3hfc`. This qualifies the core lane
+for the native-definition cutover, not the following recovery fixture extension
+or other clean lanes. Hosted run `36820952024` did not start its jobs because
+GitHub reports failed account payments or a spending limit; skipped jobs are
+not executed evidence.
+
+### Compound programs in installed recovery
+
+The continuation from `95d4abd0` adds an explicit compound profile to the real
+source/requester recovery schedule. All ten installed SDKs construct the same
+six-instruction program as the native fixture: a long UTF-8 comparison combined
+with NOT of a comparison/state disjunction. Every typed bundle must match the
+native canonical bytes, and all 13 caller variants prepare the identical signed
+begin operation without dispatch. The independent result oracle excludes the
+last two source rows: 39 KV/Table rows or 10 Document rows, preserving Document
+element identities. Ignoring or changing the Boolean operators changes those
+expected results. The original single-atom profile remains available.
+
+The SQL shell additionally compiles a Boolean filter with a tighter threshold,
+returning 31 KV/Table rows or eight Document rows before its LIMIT 33. This
+prevents an ignored filter from passing merely because LIMIT selects the same
+prefix. Its bundle and original signed request survive shell exit, lost reply
+and exact retry; existing denial, ownership, complete-coverage and permanent
+retirement checks remain. Resident pages, hot-store limits, operation budgets
+and deadlines do not increase. Document retains its separate 64-page authority
+profile; KV/Table use eight pages.
+
+Build all packages and run all three sources with
+`just bindings::unified-compound` in the pinned bindings shell. After building
+matching packages, the equivalent explicit command is
+`just test::unified-query -Doptimize=ReleaseSafe
+-Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir
+-Dunified-compound=true -Dunified-shell=true`; add `-Dunified-source=kv`,
+`table` or `document` for one source. Board/browser, console, example and expiry
+profiles retain their separate schedules and cannot select this flag implicitly.
+
+The updated proof executable builds and all ten installed codec consumers pass,
+exit 0, in `/tmp/transit-sql-boolean-compound-build-2.log` and
+`/tmp/transit-sql-boolean-compound-consumers.log`. The first build stopped on an
+obsolete array-repetition spelling, corrected for pinned Zig 0.17; it did not
+execute a schedule. Full `just check` also passes, exit 0, in
+`/tmp/transit-sql-boolean-compound-check.log`. These checks do not establish
+durable compound recovery; the signed source outcomes are recorded separately.
+
+The combined installed run's **KV phase passes** in 327.75 seconds, including
+joined caller/service cleanup before the next source begins. All 13 callers
+agree on the compound bundle/prepared identity and verify complete results after
+source/requester/node/disk restart. Current prefix denial and source retirement
+reject. The typed program returns 39 rows / six segments / 13,288 bytes; the SQL
+shell independently returns 31 rows, survives lost-reply exit and retries the
+same bundle/command before retirement and collection. Bounds remain eight
+authority pages and an 8 MiB hot store; the complete source phase records 138
+cold objects / 16,738,044 bytes, including the separate shell query. The log is
+`/tmp/transit-sql-boolean-compound-all-sources.log`. Table and Document phases
+are still running or unrun at this checkpoint; this is not an all-source pass.

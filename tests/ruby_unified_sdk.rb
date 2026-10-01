@@ -98,8 +98,15 @@ def serve(config)
     Q::Projection.new(column: Q::Column.new(name: 'optional', type: :utf8), path: ['optional'])])
   end
   doc = config.fetch('kind') == 'document'
-  bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], output_names: doc ? ['Result', nil, nil, nil] : ['Result'], predicate:
-    Q::Compare.new(column: doc ? 0 : 1, comparison: :ne, value: Q::Scalar.new(type: :utf8, value: 'x'*512))), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
+  column = doc ? 0 : 1
+  predicate = Q::Compare.new(column: column, comparison: :ne, value: Q::Scalar.new(type: :utf8, value: 'x'*512))
+  if config.fetch('compound')
+    ceiling = "東京🙂/#{'x'*(doc ? 64 : 128)}/#{doc ? '10' : '39'}"
+    predicate = Q::PredicateProgram.new(instructions: [Q::PredicateAtom.new(predicate: predicate),
+      Q::PredicateAtom.new(predicate: Q::Compare.new(column: column, comparison: :ge, value: Q::Scalar.new(type: :utf8, value: ceiling))),
+      Q::PredicateAtom.new(predicate: Q::IsState.new(column: column, state: :null)), :disjunction, :negate, :conjunction])
+  end
+  bundle = Q::Bundle.prepare(source, Q::Plan.new(projection: doc ? [0, 1, 2, 3] : [1], output_names: doc ? ['Result', nil, nil, nil] : ['Result'], predicate: predicate), Q::Budgets.new(pages: 1000, segments: 100, result_bytes: 1048576))
   check(bundle.data == File.binread(config.fetch('bundle')))
   cfg = Transit::ClientConfig.new(url: config.fetch('url'), profile: :native_v1, timeout_ms: 10000)
   credential = Transit::Credential.new(realm: v.fetch('realm'), principal: v.fetch('principal'), seed_file: config.fetch('seed_file'))

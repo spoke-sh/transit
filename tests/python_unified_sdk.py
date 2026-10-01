@@ -84,8 +84,16 @@ def source(config):
             q.Projection(q.Column('counter', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_COUNTER),
             q.Projection(q.Column('replica', q.Type.UINT64), relative=True, mode=q.ProjectionMode.ELEMENT_REPLICA),
             q.Projection(q.Column('optional', q.Type.UTF8), ('optional',))), ('items',))
-    plan = q.Plan((0, 1, 2, 3) if config['kind'] == 'document' else (1,),
-        q.Compare(0 if config['kind'] == 'document' else 1, Comparison.NE, q.Scalar(q.Type.UTF8, 'x'*512)),
+    doc = config['kind'] == 'document'
+    column = 0 if doc else 1
+    predicate = q.Compare(column, Comparison.NE, q.Scalar(q.Type.UTF8, 'x'*512))
+    if config['compound']:
+        ceiling = f"東京🙂/{'x'*(64 if doc else 128)}/{'10' if doc else '39'}"
+        predicate = q.PredicateProgram((q.PredicateAtom(predicate),
+            q.PredicateAtom(q.Compare(column, Comparison.GE, q.Scalar(q.Type.UTF8, ceiling))),
+            q.PredicateAtom(q.IsState(column, q.State.NULL)), q.PredicateOperator.DISJUNCTION,
+            q.PredicateOperator.NEGATE, q.PredicateOperator.CONJUNCTION))
+    plan = q.Plan((0, 1, 2, 3) if doc else (1,), predicate,
         output_names=('Result', None, None, None) if config['kind'] == 'document' else ('Result',))
     bundle = q.Bundle.prepare(value, plan, q.Budgets(1000, 100, 1048576))
     assert bundle.data == Path(config['bundle']).read_bytes()

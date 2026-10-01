@@ -68,6 +68,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::server-capacity` | Fill a newly allocated ext4 image to real ENOSPC, preserve accepted query identity and recover the same installation |
 | `just test::unified-codec` | Check independent v1 bundles and nested Arrow through the native library and local port |
 | `just bindings::unified-codecs` | Build all ten SDKs and verify installed codec consumers against independent default/named bundles and Arrow; no service or recovery claim |
+| `just bindings::unified-compound` | Build all ten SDKs and run filtering Boolean programs through installed callers and the SQL shell across KV, Table and Document, including exact retry, disk restart, current denial and retirement |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |
 | `just test::publication` | Qualify 64 KiB immutable records, bounded staging/cleanup, exact retry and worker/node/store recovery |
 | `just test::unit` | Runs Zig unit/protocol tests without a service |

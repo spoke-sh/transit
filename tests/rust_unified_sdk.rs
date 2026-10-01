@@ -470,6 +470,41 @@ fn serve(config: &Value) -> AnyResult<()> {
             ],
         },
     };
+    use q::{PredicateAtom as A, PredicateInstruction as I};
+    let column = if kind == "document" { 0 } else { 1 };
+    let comparison = A::Compare {
+        column,
+        comparison: Comparison::Ne,
+        value: q::Scalar::Utf8("x".repeat(512)),
+    };
+    let predicate = if config["compound"].as_bool().unwrap() {
+        let ceiling = format!(
+            "東京🙂/{}/{}",
+            "x".repeat(if kind == "document" { 64 } else { 128 }),
+            if kind == "document" { "10" } else { "39" }
+        );
+        q::Predicate::Program(vec![
+            I::Atom(comparison),
+            I::Atom(A::Compare {
+                column,
+                comparison: Comparison::Ge,
+                value: q::Scalar::Utf8(ceiling),
+            }),
+            I::Atom(A::State {
+                column,
+                state: q::State::Null,
+            }),
+            I::Disjunction,
+            I::Negate,
+            I::Conjunction,
+        ])
+    } else {
+        q::Predicate::Compare {
+            column,
+            comparison: Comparison::Ne,
+            value: q::Scalar::Utf8("x".repeat(512)),
+        }
+    };
     let plan = q::Plan {
         output_names: Some(if kind == "document" {
             vec![Some("Result".into()), None, None, None]
@@ -481,11 +516,7 @@ fn serve(config: &Value) -> AnyResult<()> {
         } else {
             vec![1]
         },
-        predicate: q::Predicate::Compare {
-            column: if kind == "document" { 0 } else { 1 },
-            comparison: Comparison::Ne,
-            value: q::Scalar::Utf8("x".repeat(512)),
-        },
+        predicate,
         limit: None,
         aggregate: Aggregate::Rows,
     };

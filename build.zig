@@ -775,6 +775,7 @@ pub fn build(b: *std.Build) void {
         unified_query_test.addArg("--shell");
         unified_query_test.addArtifactArg(query_shell);
     }
+    if (b.option(bool, "unified-compound", "Recover a filtering Boolean program across installed callers") orelse false) unified_query_test.addArg("--compound");
     if (b.option(bool, "unified-console", "Qualify the versioned Transit console and exact recovery") orelse false) {
         unified_query_test.addArg("--console");
         unified_query_test.addArtifactArg(query_shell);

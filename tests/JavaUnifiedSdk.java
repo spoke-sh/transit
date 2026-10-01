@@ -40,8 +40,19 @@ public final class JavaUnifiedSdk {
     }
     private static Bundle bundle(Source source,String kind,boolean golden) { return bundle(source,kind,golden,false); }
     private static Bundle bundle(Source source,String kind,boolean golden,boolean named) {
+        return bundle(source,kind,golden,named,false);
+    }
+    private static Bundle bundle(Source source,String kind,boolean golden,boolean named,boolean compound) {
         boolean doc=kind.equals("document");
-        return Bundle.prepare(source,new Plan(golden?List.of(1,0):doc?List.of(0,1,2,3):List.of(1),new Compare(golden?1:doc?0:1,Query.Comparison.NE,golden&&kind.equals("kv")?new Unsigned(MAX):new Text("x".repeat(512))),Query.Aggregate.ROWS,golden?Optional.of(MAX):Optional.empty(),named?Optional.of(java.util.stream.IntStream.range(0,golden?2:doc?4:1).mapToObj(i -> i==0?Optional.of("Result"):Optional.<String>empty()).toList()):Optional.empty()),new Budgets(n(1000),n(golden?500:100),n(1048576)));
+        int column=golden?1:doc?0:1;
+        var comparison=new Compare(column,Query.Comparison.NE,golden&&kind.equals("kv")?new Unsigned(MAX):new Text("x".repeat(512)));
+        Predicate predicate=comparison;
+        if(compound){
+            check(!golden);String ceiling="東京🙂/"+"x".repeat(doc?64:128)+(doc?"/10":"/39");
+            predicate=new PredicateProgram(List.of(atom(comparison),atom(new Compare(column,Query.Comparison.GE,new Text(ceiling))),
+                atom(new IsState(column,State.NULL)),PredicateOperator.DISJUNCTION,PredicateOperator.NEGATE,PredicateOperator.CONJUNCTION));
+        }
+        return Bundle.prepare(source,new Plan(golden?List.of(1,0):doc?List.of(0,1,2,3):List.of(1),predicate,Query.Aggregate.ROWS,golden?Optional.of(MAX):Optional.empty(),named?Optional.of(java.util.stream.IntStream.range(0,golden?2:doc?4:1).mapToObj(i -> i==0?Optional.of("Result"):Optional.<String>empty()).toList()):Optional.empty()),new Budgets(n(1000),n(golden?500:100),n(1048576)));
     }
     private static Bytes read(JsonObject config,String key) throws Exception { return new Bytes(Files.readAllBytes(Path.of(string(config,key)))); }
     private static PredicateAtomInstruction atom(PredicateAtom value) { return new PredicateAtomInstruction(value); }
@@ -126,7 +137,7 @@ public final class JavaUnifiedSdk {
     private static void serve(JsonObject config) throws Exception {
         var c=config.getAsJsonObject("connection"); long realm=c.get("realm").getAsLong(); ResourceRef resource=new ResourceRef(realm,c.get("resource").getAsLong());
         var connection=new Connection(new ProcessRef(realm,c.get("source").getAsLong()),resource,new ProcessRef(realm,c.get("requester").getAsLong()),new ResourceRef(realm,c.get("requests").getAsLong()));
-        String kind=string(config,"kind"); Source source=source(resource,kind,false); check(bundle(source,kind,false,true).bytes().equals(read(config,"bundle")));
+        String kind=string(config,"kind"); Source source=source(resource,kind,false); check(bundle(source,kind,false,true,config.get("compound").getAsBoolean()).bytes().equals(read(config,"bundle")));
         Page saved=null;
         try(var client=UnifiedQuery.Client.open(new ClientConfig(java.net.URI.create(string(config,"url")),ClientConfig.Profile.NATIVE_V1,10000,null),new Credential(realm,c.get("principal").getAsLong(),Path.of(string(config,"seed_file"))),connection)) {
             var description=await(client.describe(source)); check(description.bundleBytes()==16384 && description.batchRows()==8);
