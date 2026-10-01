@@ -30,6 +30,8 @@ def codecs(config)
     named = Q::Bundle.prepare(source, Q::Plan.new(projection: [1, 0], output_names: ['Result', nil], predicate: Q::Compare.new(column: 1, comparison: :ne, value: scalar), limit: (1 << 64)-1),
       Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
     check(named.data.unpack1('H*') == fixtures[index].fetch('named_wire_hex'))
+    counted = Q::Bundle.prepare(source, Q::Plan.new(projection: [1], aggregate: :count_values, output_names: ['present']), Q::Budgets.new(pages: 1000, segments: 500, result_bytes: 1048576))
+    check(counted.data.unpack1('H*') == fixtures[index].fetch('counted_wire_hex'))
   end
   begin
     Q::Bundle.prepare(Q::KVSource.new(resource: resource, prefix: '', key: Q::Decoder.new(type: :binary, version: 2), value: Q::Decoder.new(type: :utf8)),
@@ -163,7 +165,7 @@ def serve(config)
           page = client.page(Integer(value.fetch('namespace')), value['cursor'].nil? ? nil : Q::Cursor.new(data: value.fetch('cursor')))
           check(page.manifest.resource == resource && page.manifest.source_kind.to_s == config.fetch('kind'))
           check(page.decode.length == page.rows && page.ipc.frozen?)
-          { page: { ordinal: page.ordinal.to_s, ipc: page.ipc.unpack1('H*'), manifest: { segments: page.manifest.segments.to_s }, next: page.next&.data } }
+          { page: { ordinal: page.ordinal.to_s, ipc: page.ipc.unpack1('H*'), manifest: { segments: page.manifest.segments.to_s, selected: page.manifest.selected.to_s, value_count: page.manifest.value_count.to_s }, next: page.next&.data } }
         else raise 'Unsupported test operation'
         end
         puts JSON.generate(status: 0, value: result)

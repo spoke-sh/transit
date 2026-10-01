@@ -311,6 +311,17 @@ pub fn main(init: std.process.Init) !void {
         return print(init, .{ .seed_file = try keyFile(init, directory, "inspector.seed", 12) });
     }
     var client: q.UnifiedClient = .{ .wire = &transport, .connection = config.connection, .key = try p.Ed25519.KeyPair.generateDeterministic(@splat(10)) };
+    if (std.mem.eql(u8, command, "compile-count")) {
+        if (args.len != 5) return error.Usage;
+        const source = try definition(config.kind, config.connection.resource);
+        var columns: [q.fuze.Unified.max_columns]q.fuze.Unified.Column = undefined;
+        const plan = try q.fuze.Unified.Sql.plan(init.arena.allocator(), args[4], .{ .name = try .init("items"), .schema = try source.schema(&columns) });
+        if (plan.aggregate != .count_values) return error.ExpectedValueCount;
+        var bytes: [q.Bundle.max_bytes]u8 = undefined;
+        const result: q.Bundle = .{ .source = source, .plan = plan, .limits = budgets };
+        try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = try file(init, directory, "count-bundle.bin"), .data = try result.encode(&bytes) });
+        return;
+    }
     if (std.mem.eql(u8, command, "upload")) {
         for (0..1000) |_| {
             const pending = (try client.prepareNext(1, try bundle(config))) orelse return print(init, (try client.status(1)).?);

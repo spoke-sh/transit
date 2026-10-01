@@ -172,6 +172,7 @@
       "bindings::document-beam",
       "transit-board::document-test",
       "test::unified-query",
+      "test::unified-counts",
       "test::unified-codec",
       "test::unified-ingress",
       "test::unified-lifecycle",

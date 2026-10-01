@@ -170,7 +170,7 @@ public final class UnifiedQuery {
         JsonObject wire(Credential identity) { if(identity.realm()!=source.realm())throw new IllegalArgumentException("Different credential realm"); return obj("realm",source.realm(),"principal",identity.principal(),"source",source.pid(),"resource",resource.resource(),"requester",requester.pid(),"requests",requests.resource()); }
     }
     public record Description(long resourceRevision,BigInteger policyRevision,Budgets budgets,Optional<BigInteger> active,int bundleBytes,int segmentBytes,int batchRows) {}
-    public enum InspectionOperator { SCAN, FILTER, LIMIT, PROJECT, COUNT, SUM }
+    public enum InspectionOperator { SCAN, FILTER, LIMIT, PROJECT, COUNT, SUM, COUNT_VALUES }
     public sealed interface InspectedPredicate permits InspectedAtom, InspectedProgram {}
     public sealed interface InspectedAtom extends InspectedPredicate permits InspectedAll, InspectedState, InspectedComparison {}
     public record InspectedAll() implements InspectedAtom {}
@@ -251,7 +251,7 @@ public final class UnifiedQuery {
     public enum Finished { SOURCE_END, LIMIT }
     public record Manifest(long job,Types.ReadVersion source,ProcessRef requester,BigInteger correlation,BigInteger policyRevision,Bytes request,
         SourceKind kind,ResourceRef resource,long revision,Bytes sourceDigest,Bytes schemaDigest,Bytes planDigest,
-        BigInteger pages,BigInteger scanned,BigInteger selected,BigInteger segments,BigInteger rows,BigInteger byteCount,Optional<Long> sum,Finished finished,Bytes chain) {}
+        BigInteger pages,BigInteger scanned,BigInteger selected,BigInteger valueCount,BigInteger segments,BigInteger rows,BigInteger byteCount,Optional<Long> sum,Finished finished,Bytes chain) {}
     public record Page(Manifest manifest,List<Column> columns,BigInteger ordinal,int rows,Bytes ipc,Optional<Cursor> next) {
         public Page { columns=List.copyOf(columns); Objects.requireNonNull(ipc); if(rows<0 || rows>8 || ipc.size()>65536)throw incompatible("query-page-bound"); }
         public List<List<Cell>> decode() { return decodeArrow(columns,ipc,rows); }
@@ -262,7 +262,7 @@ public final class UnifiedQuery {
         JsonObject v=object(value), b=object(v.get("basis"));
         return new Manifest(number(v.get("job"),1),NativeValues.version(v.get("source")),new ProcessRef(realm,number(v.get("requester"),1)),wide(v.get("correlation")),wide(v.get("policy_revision")),fixed(v.get("request"),72),
             SourceKind.valueOf(string(b.get("kind")).toUpperCase(Locale.ROOT)),new ResourceRef(realm,number(b.get("resource"),1)),number(b.get("revision"),0),NativeValues.digest(b.get("contract")),NativeValues.digest(b.get("schema")),NativeValues.digest(v.get("plan")),
-            wide(v.get("pages")),wide(v.get("scanned")),wide(v.get("selected")),wide(v.get("segments")),wide(v.get("rows")),wide(v.get("bytes")),v.get("sum").isJsonNull()?Optional.empty():Optional.of(NativeValues.signed(v.get("sum"))),Finished.valueOf(string(v.get("finished")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("chain")));
+            wide(v.get("pages")),wide(v.get("scanned")),wide(v.get("selected")),wide(v.get("value_count")),wide(v.get("segments")),wide(v.get("rows")),wide(v.get("bytes")),v.get("sum").isJsonNull()?Optional.empty():Optional.of(NativeValues.signed(v.get("sum"))),Finished.valueOf(string(v.get("finished")).toUpperCase(Locale.ROOT)),NativeValues.digest(v.get("chain")));
     }
     /** One admitted operation; cancelling a future retains ownership until join. */
     public static final class Client implements AutoCloseable {

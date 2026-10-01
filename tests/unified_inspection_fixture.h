@@ -44,7 +44,7 @@ static void print_inspection(const transit_station_unified_inspection *value) {
         printf("\"tables\":[");for(size_t i=0;i<value->details.tables.count;++i){if(i)putchar(',');inspection_text(value->details.tables.names[i]);}putchar(']');
     } else {
         const transit_station_unified_explanation *p=&value->details.explanation;
-        const char *operators[]={"scan","filter","limit","project","count","sum"},*aggregates[]={"rows","count","sum"};
+        const char *operators[]={"scan","filter","limit","project","count","sum","count_values"},*aggregates[]={"rows","count","sum","count_values"};
         printf("\"explanation\":{\"operators\":[");for(size_t i=0;i<p->operator_count;++i){if(i)putchar(',');inspection_text(operators[p->operators[i]]);}
         printf("],\"predicate\":");
         if(p->predicate==TRANSIT_UNIFIED_PROGRAM){

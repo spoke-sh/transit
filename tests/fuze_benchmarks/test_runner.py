@@ -76,6 +76,25 @@ class Evidence(unittest.TestCase):
             self.assertFalse(report['completed'])
             self.assertEqual(report['summary'], [])
 
+    def test_value_count_oracle_matches_fixture_cells(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for shape in run.SHAPES:
+                source = run.fixture(Path(temporary), shape, 31)
+                column = source['fields'][1]['name']
+                values = []
+                for path in source['paths']:
+                    opener = run.gzip.open if shape == 'gzip' else open
+                    with opener(path, 'rt') as stream:
+                        rows = run.csv.DictReader(stream) if source['format'] == 'csv' else map(json.loads, stream)
+                        values.extend(row.get(column) for row in rows)
+                present = sum(value is not None for value in values)
+                for mode in ('explicit', 'partial', 'sampled', 'full'):
+                    cfg = run.config(source, mode, 31, 8, False, 'count-values')
+                    self.assertEqual(cfg['expected_output_rows'], 1)
+                    self.assertEqual(cfg['expected_result_sum'], present)
+                    self.assertEqual(cfg['expected_rows'], 31)
+                with self.assertRaises(ValueError): run.config(source, 'raw', 31, 8, False, 'count-values')
+
     def matrix(self):
         records = self.records()
         for r in records[:-1]:

@@ -1995,7 +1995,8 @@
                       "enum": [
                         "rows",
                         "count",
-                        "sum"
+                        "sum",
+                        "count_values"
                       ]
                     },
                     "predicate": {
@@ -2710,7 +2711,8 @@
                                   "limit",
                                   "project",
                                   "count",
-                                  "sum"
+                                  "sum",
+                                  "count_values"
                                 ]
                               }
                             },
@@ -3017,7 +3019,8 @@
                               "enum": [
                                 "rows",
                                 "count",
-                                "sum"
+                                "sum",
+                                "count_values"
                               ]
                             },
                             "columns": {
@@ -3353,6 +3356,7 @@
                         "pages",
                         "scanned",
                         "selected",
+                        "value_count",
                         "segments",
                         "rows",
                         "bytes",
@@ -3518,6 +3522,10 @@
                           "type": "string",
                           "maxLength": 131072
                         },
+                        "value_count": {
+                          "type": "string",
+                          "maxLength": 131072
+                        },
                         "segments": {
                           "type": "string",
                           "maxLength": 131072
@@ -3580,6 +3588,7 @@
                         "pages",
                         "scanned",
                         "selected",
+                        "value_count",
                         "segments",
                         "rows",
                         "bytes",

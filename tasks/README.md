@@ -67,6 +67,7 @@ reference deployment and physical-capacity tests remain explicit commands.
 | `just test::server-faults` | Add interrupted provisioning, native gateway denial/capacity and negative provider-rollback checks |
 | `just test::server-capacity` | Fill a newly allocated ext4 image to real ENOSPC, preserve accepted query identity and recover the same installation |
 | `just test::unified-codec` | Check independent v1 bundles and nested Arrow through the native library and local port |
+| `just test::unified-counts [-Dunified-source=kv -Dunified-sdk=python,node,...]` | Extend the signed query rig with partial COUNT progress, exact saved upload retry, worker/node/store restart, current denial, cancellation and installed manifest counters; add `-Dunified-shell=true` for actual SQL-shell COUNT recovery; SDK artifacts must already be built |
 | `just bindings::unified-codecs` | Build all ten SDKs and verify installed codec consumers against independent default/named bundles and Arrow; no service or recovery claim |
 | `just bindings::unified-compound` | Build all ten SDKs and run filtering Boolean programs through installed callers and the SQL shell across KV, Table and Document, including exact retry, disk restart, current denial and retirement |
 | `just test::document` | Qualify Document change/checkpoint publication, exact retries, current-policy reads and bounded cleanup through worker/node/store loss |

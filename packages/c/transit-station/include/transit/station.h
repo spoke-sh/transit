@@ -168,7 +168,7 @@ void transit_station_row_destroy(transit_station_row *row);
 void transit_station_table_destroy(transit_station_table *table);
 
 typedef enum transit_station_projection { TRANSIT_PROJECT_BOTH, TRANSIT_PROJECT_KEY, TRANSIT_PROJECT_VALUE } transit_station_projection;
-typedef enum transit_station_aggregate { TRANSIT_AGGREGATE_ROWS, TRANSIT_AGGREGATE_COUNT, TRANSIT_AGGREGATE_SUM } transit_station_aggregate;
+typedef enum transit_station_aggregate { TRANSIT_AGGREGATE_ROWS, TRANSIT_AGGREGATE_COUNT, TRANSIT_AGGREGATE_SUM, TRANSIT_AGGREGATE_COUNT_VALUES } transit_station_aggregate;
 typedef enum transit_station_column { TRANSIT_COLUMN_KEY, TRANSIT_COLUMN_VALUE } transit_station_column;
 typedef enum transit_station_comparison { TRANSIT_COMPARE_EQ, TRANSIT_COMPARE_NE, TRANSIT_COMPARE_LT, TRANSIT_COMPARE_LE, TRANSIT_COMPARE_GT, TRANSIT_COMPARE_GE } transit_station_comparison;
 typedef enum transit_station_predicate_kind { TRANSIT_PREDICATE_ALL, TRANSIT_PREDICATE_NULL, TRANSIT_PREDICATE_COMPARE } transit_station_predicate_kind;

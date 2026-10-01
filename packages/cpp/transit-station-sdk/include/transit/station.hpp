@@ -104,7 +104,7 @@ public:
     transit_station_table_schema native() const { return {id_, cell_type<T>(), key_.c_str(), value_.c_str()}; }
 };
 enum class Projection { Both = TRANSIT_PROJECT_BOTH, Key = TRANSIT_PROJECT_KEY, Value = TRANSIT_PROJECT_VALUE };
-enum class Aggregate { Rows = TRANSIT_AGGREGATE_ROWS, Count = TRANSIT_AGGREGATE_COUNT, Sum = TRANSIT_AGGREGATE_SUM };
+enum class Aggregate { Rows = TRANSIT_AGGREGATE_ROWS, Count = TRANSIT_AGGREGATE_COUNT, Sum = TRANSIT_AGGREGATE_SUM, CountValues = TRANSIT_AGGREGATE_COUNT_VALUES };
 enum class Column { Key = TRANSIT_COLUMN_KEY, Value = TRANSIT_COLUMN_VALUE };
 enum class Comparison { Eq, Ne, Lt, Le, Gt, Ge };
 struct All {};

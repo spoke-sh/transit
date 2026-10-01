@@ -343,3 +343,111 @@ test "unified capture rejects changed evidence cancellation and forged progress"
     try t.expectEqual(@as(u64, 1), empty.progress.segments);
     try t.expectError(error.QueryComplete, s.step(bound, empty.progress, page, workspace, &output, &cancellation));
 }
+
+test "value counts resume across all source kinds page widths and pre-aggregate limits" {
+    const f = @import("root.zig");
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    const cancellation = f.execution.Cancellation.init(false);
+    const values = [_]m.Scalar{ .{ .int64 = -1 }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = false }, .{ .utf8 = "" }, .{ .binary = "" } };
+    for (values) |value| {
+        const input: m.Schema = .{ .columns = &.{.{ .name = try m.Name.init("value"), .type = std.meta.activeTag(value) }} };
+        var cells: [19][1]m.Cell = undefined;
+        var rows: [19]m.Row = undefined;
+        for (&cells, &rows, 0..) |*cell, *row, i| {
+            cell[0] = switch (i % 3) {
+                0 => .null,
+                1 => .missing,
+                else => .{ .value = value },
+            };
+            row.* = .{ .cells = cell };
+        }
+        for ([_]m.SourceKind{ .kv, .table, .document }) |kind| {
+            const cut: m.Basis = .{ .kind = kind, .resource = 17, .revision = 29, .contract = @splat(7), .schema = try input.fingerprint() };
+            for ([_]?u64{ null, 0, 1, 2, 3, 7, 18 }) |limit| {
+                const plan: m.Plan = .{ .projection = &.{0}, .aggregate = .count_values, .limit = limit };
+                const bound = try plan.bind(cut, input);
+                for (1..m.max_rows + 1) |width| {
+                    var progress = m.Stream.Progress.start(bound);
+                    var after: usize = 0;
+                    while (progress.finished == null) {
+                        const end = @min(rows.len, after + width);
+                        const step = try m.Stream.step(bound, progress, .{ .basis = cut, .ordinal = progress.pages, .rows = rows[after..end], .end = end == rows.len }, workspace, &output, &cancellation);
+                        progress = try m.Stream.Progress.decode(&try step.progress.encode());
+                        try progress.validate(bound);
+                        if (step.segment) |part| {
+                            var columns_out: [m.max_columns]m.Column = undefined;
+                            const output_schema = try plan.outputSchema(input, &columns_out);
+                            try t.expectEqualStrings("count", output_schema.columns[0].name.slice());
+                            var arena: std.heap.ArenaAllocator = .init(t.allocator);
+                            defer arena.deinit();
+                            var decoded: m.Inspect.Batch = undefined;
+                            try m.Inspect.decode(output_schema, part.bytes, 1, workspace, arena.allocator(), &decoded);
+                            try t.expectEqual(@as(u64, (limit orelse rows.len) / 3), (try decoded.row(0)).cells[0].value.uint64);
+                        } else try t.expect(progress.finished == null);
+                        after = end;
+                    }
+                    try t.expectEqual(limit orelse rows.len, progress.selected);
+                    try t.expectEqual(@as(u64, (limit orelse rows.len) / 3), progress.value_count);
+                    try t.expectEqual(@as(u64, 1), progress.rows);
+                }
+            }
+        }
+    }
+}
+
+test "value count rejects bad states and forged accumulators without publishing a candidate" {
+    const f = @import("root.zig");
+    const workspace = try t.allocator.alloc(u8, m.Arrow.working_bytes);
+    defer t.allocator.free(workspace);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    const cancellation = f.execution.Cancellation.init(false);
+    const bound = try (m.Plan{ .projection = &.{1}, .aggregate = .count_values }).bind(try basis(.kv), schema);
+    const initial = m.Stream.Progress.start(bound);
+    const conflicts = [_]m.Alternative{ .{ .counter = 1, .replica = 1, .value = .null }, .{ .counter = 1, .replica = 2, .value = .null } };
+    const bad_cells = [_]m.Cell{ .{ .type_error = .map }, .{ .conflict = &conflicts } };
+    for (bad_cells) |cell| {
+        const page: m.Page = .{ .basis = bound.basis, .ordinal = 0, .rows = &.{.{ .cells = &.{ .{ .value = .{ .uint64 = 1 } }, cell } }}, .end = true };
+        try t.expectError(if (cell == .conflict) error.QueryConflict else error.QueryTypeError, m.Stream.step(bound, initial, page, workspace, &output, &cancellation));
+        try t.expectEqual(@as(u64, 0), initial.pages);
+        // COUNT(*) keeps counting rows even when a projected cell is an error.
+        const count = try (m.Plan{ .projection = &.{1}, .aggregate = .count }).bind(bound.basis, schema);
+        const step = try m.Stream.step(count, m.Stream.Progress.start(count), page, workspace, &output, &cancellation);
+        try t.expectEqual(@as(u64, 1), step.progress.selected);
+        try t.expectEqual(@as(u64, 0), step.progress.value_count);
+    }
+    var invalid = initial;
+    invalid.value_count = 1;
+    try t.expectError(error.InvalidQueryProgress, invalid.validate(bound));
+    invalid = initial;
+    invalid.sum = 0;
+    invalid.pages = 1;
+    try t.expectError(error.InvalidQueryProgress, invalid.validate(bound));
+    const max = std.math.maxInt(u64);
+    var full = initial;
+    full.pages = max / m.max_rows + 1;
+    full.scanned = max;
+    full.selected = max;
+    full.value_count = max;
+    try full.validate(bound);
+    const restored = try m.Stream.Progress.decode(&try full.encode());
+    try t.expectEqual(max, restored.value_count);
+    const old: [167]u8 = @splat(0);
+    try t.expectError(error.InvalidQueryProgress, m.Stream.Progress.decode(&old));
+    const count = try (m.Plan{ .projection = &.{1}, .aggregate = .count }).bind(bound.basis, schema);
+    full.plan = count.fingerprint;
+    try t.expectError(error.InvalidQueryProgress, full.validate(count));
+}
+
+test "combined plans reject earlier Boolean and value-count definitions" {
+    var bytes: [m.Codec.max_plan_bytes]u8 = undefined;
+    const encoded = try m.Codec.encode(.{ .projection = &.{0} }, &bytes);
+    for ([_][]const u8{
+        "fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b77",
+        "661ed530f1b3654b456966cff2a22102ed32111e5ef7d9a218af6d88ba7c2bde",
+    }) |previous| {
+        _ = try std.fmt.hexToBytes(bytes[4..36], previous);
+        try t.expectError(error.UnsupportedPlanDefinition, m.Codec.decode(encoded));
+    }
+}

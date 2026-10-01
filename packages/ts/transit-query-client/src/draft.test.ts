@@ -47,6 +47,7 @@ const page: ResultPage = {
       pages: "1",
       scanned: "1",
       selected: "1",
+      value_count: "0",
       segments: "1",
       rows: "1",
       bytes: "1",

@@ -4,6 +4,9 @@ const f = @import("transit_fuze");
 const m = f.Unified;
 
 pub fn main(init: std.process.Init) !void {
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    if (args.len == 2 and std.mem.eql(u8, args[1], "--count-values")) return countValues(init);
+    if (args.len != 1) return error.Usage;
     const columns = [_]m.Column{
         .{ .name = try m.Name.init("id"), .type = .int64 },
         .{ .name = try m.Name.init("value"), .type = .int64 },
@@ -88,6 +91,73 @@ pub fn main(init: std.process.Init) !void {
         const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
         try std.json.Stringify.value(.{ .phase = "aggregate", .case = case, .iterations = 100, .rows_per_iteration = 8192, .elapsed_ns = elapsed }, .{}, &stdout.interface);
         try stdout.interface.writeByte('\n');
+    }
+    try stdout.interface.flush();
+}
+
+/// New-capability costs are separate from the unchanged baseline workload.
+/// A nullable fixture has two value cells, one null and one missing per four
+/// inputs; both COUNT forms consume exactly the same bounded pages.
+fn countValues(init: std.process.Init) !void {
+    const values = [_]m.Scalar{ .{ .int64 = -1 }, .{ .uint64 = std.math.maxInt(u64) }, .{ .float64 = -0.0 }, .{ .boolean = false }, .{ .utf8 = "" }, .{ .binary = "\x00\xff" } };
+    var buffer: [4096]u8 = undefined;
+    var stdout = std.Io.File.stdout().writerStreaming(init.io, &buffer);
+    var memory: [16384]u8 = undefined;
+    var allocator = std.heap.FixedBufferAllocator.init(&memory);
+    const workspace = try init.arena.allocator().alloc(u8, m.Arrow.working_bytes);
+    var output: [m.Arrow.segment_bytes]u8 = undefined;
+    const cancelled = f.execution.Cancellation.init(false);
+    for (values) |value| {
+        const columns = [_]m.Column{.{ .name = try .init("value"), .type = std.meta.activeTag(value) }};
+        const source: m.Sql.Source = .{ .name = try .init("items"), .schema = .{ .columns = &columns } };
+        for ([_]bool{ false, true }) |mixed| {
+            var cells: [m.max_rows][1]m.Cell = undefined;
+            var rows: [m.max_rows]m.Row = undefined;
+            for (&rows, &cells, 0..) |*row, *cell, i| {
+                cell[0] = if (mixed and i % 4 < 2) (if (i % 4 == 0) .null else .missing) else .{ .value = value };
+                row.* = .{ .cells = cell };
+            }
+            for ([_][]const u8{ "SELECT COUNT(*) FROM items", "SELECT COUNT(value) FROM items" }, 0..) |sql, kind| {
+                const label = try std.fmt.allocPrint(init.arena.allocator(), "{s}/{s}/{s}", .{ @tagName(value), if (mixed) "nullable" else "values", if (kind == 0) "rows" else "values" });
+                const compile_iterations = 10000;
+                const compile_start = std.Io.Clock.awake.now(init.io);
+                for (0..compile_iterations) |_| {
+                    allocator.reset();
+                    std.mem.doNotOptimizeAway(try m.Sql.plan(allocator.allocator(), sql, source));
+                }
+                const compile_elapsed = compile_start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+                try std.json.Stringify.value(.{ .phase = "compile", .case = label, .iterations = compile_iterations, .elapsed_ns = compile_elapsed }, .{}, &stdout.interface);
+                try stdout.interface.writeByte('\n');
+                allocator.reset();
+                const plan = try m.Sql.plan(allocator.allocator(), sql, source);
+                const bound = try plan.bind(.{ .kind = .table, .resource = 1, .revision = 1, .contract = @splat(1), .schema = try source.schema.fingerprint() }, source.schema);
+                const expected: u64 = if (kind == 1 and mixed) 4096 else 8192;
+                var final_bytes: []const u8 = &.{};
+                const start = std.Io.Clock.awake.now(init.io);
+                for (0..100) |_| {
+                    var progress = m.Stream.Progress.start(bound);
+                    for (0..1024) |page| {
+                        const result = try m.Stream.step(bound, progress, .{ .basis = bound.basis, .ordinal = page, .rows = &rows, .end = page == 1023 }, workspace, &output, &cancelled);
+                        progress = try m.Stream.Progress.decode(&try result.progress.encode());
+                        if (result.segment) |segment| {
+                            if (page != 1023) return error.IncorrectResult;
+                            final_bytes = segment.bytes;
+                            std.mem.doNotOptimizeAway(final_bytes);
+                        }
+                    }
+                    if (progress.scanned != 8192 or progress.selected != 8192 or progress.rows != 1 or progress.finished != .source_end or progress.sum != null) return error.IncorrectResult;
+                    if (progress.value_count != (if (kind == 1) expected else 0)) return error.IncorrectResult;
+                }
+                const elapsed = start.durationTo(std.Io.Clock.awake.now(init.io)).toNanoseconds();
+                var output_columns: [m.max_columns]m.Column = undefined;
+                const schema = try plan.outputSchema(source.schema, &output_columns);
+                var decoded: m.Inspect.Batch = undefined;
+                try m.Inspect.decode(schema, final_bytes, 1, workspace, init.arena.allocator(), &decoded);
+                if ((try decoded.row(0)).cells[0].value.uint64 != expected) return error.IncorrectResult;
+                try std.json.Stringify.value(.{ .phase = "aggregate_checkpoint", .case = label, .iterations = 100, .rows_per_iteration = 8192, .expected = expected, .elapsed_ns = elapsed }, .{}, &stdout.interface);
+                try stdout.interface.writeByte('\n');
+            }
+        }
     }
     try stdout.interface.flush();
 }

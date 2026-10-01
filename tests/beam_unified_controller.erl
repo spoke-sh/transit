@@ -56,7 +56,8 @@ boolean_codecs(A,Cfg)->
     end,Invalid).
 codecs(A,Cfg)->
     Fixtures=json:decode(read(maps:get(<<"bundles">>,Cfg))),
-    lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
+    lists:foreach(fun({Kind,F})->#transit_unified_bundle{bytes=B}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true),B=binary:decode_hex(maps:get(<<"wire_hex">>,F)),#transit_unified_bundle{bytes=Named}=bundle(A,source(#transit_resource{realm=46,resource=7},Kind,true),Kind,true,[<<"Result">>,undefined]),Named=binary:decode_hex(maps:get(<<"named_wire_hex">>,F)),
+        #transit_unified_bundle{bytes=Counted}=ok(A:prepare(source(#transit_resource{realm=46,resource=7},Kind,true),#transit_unified_plan{projection=[1],aggregate=count_values,output_names=[<<"present">>]},#transit_unified_budgets{pages=1000,segments=500,result_bytes=1048576})),Counted=binary:decode_hex(maps:get(<<"counted_wire_hex">>,F)) end,lists:zip([<<"kv">>,<<"table">>,<<"document">>],Fixtures)),
     boolean_codecs(A,Cfg),
     Types=[int64,uint64,float64,boolean,utf8,binary],Cols=[column(atom_to_binary(T,utf8),T)||T<-Types],
     [Missing,Null,Errors,Values,Conflicts]=ok(A:decode(Cols,read(maps:get(<<"arrow">>,Cfg)),5)),
@@ -127,9 +128,9 @@ action(A,C,#{<<"status">>:=N},_,_)->
     Status=result(A:status(C,binary_to_integer(N))),{#{status=>case Status of undefined->null; #transit_unified_status{phase=P,correlation=Correlation}->#{phase=>atom_to_binary(P,utf8),correlation=>integer_to_binary(Correlation)} end},undefined};
 action(A,C,#{<<"page">>:=#{<<"namespace">>:=N}=Request},Connection,Kind)->
     Cursor=maps:get(<<"cursor">>,Request,null),
-    Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
+    Page=#transit_unified_page{manifest=#transit_unified_manifest{resource=Resource,kind=K,segments=Segments,selected=Selected,value_count=Counted},columns=Columns,rows=Rows,ordinal=Ordinal,ipc=Ipc,next=Next}=result(A:page(C,binary_to_integer(N),case Cursor of null->undefined; _->#transit_unified_cursor{opaque=Cursor} end)),
     Resource=Connection#transit_unified_connection.resource,Kind=atom_to_binary(K,utf8),Rows=length(ok(A:decode(Columns,Ipc,Rows))),
-    {#{page=>#{ordinal=>integer_to_binary(Ordinal),ipc=>hex(Ipc),manifest=>#{segments=>integer_to_binary(Segments)},next=>case Next of undefined->null; #transit_unified_cursor{opaque=Opaque}->Opaque end}},Page}.
+    {#{page=>#{ordinal=>integer_to_binary(Ordinal),ipc=>hex(Ipc),manifest=>#{segments=>integer_to_binary(Segments),selected=>integer_to_binary(Selected),value_count=>integer_to_binary(Counted)},next=>case Next of undefined->null; #transit_unified_cursor{opaque=Opaque}->Opaque end}},Page}.
 main(A,[Mode,Path])->
     try
         Cfg=json:decode(read(Path)),case unicode:characters_to_binary(Mode) of <<"codecs">>->codecs(A,Cfg); _->serve(A,Cfg) end

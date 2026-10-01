@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "source_runtime": "029b21a0b8dd4faf217324d79170e7d71f6d157b",
+  "proof_revision": "40ad89aa1b7c5c528f41de0c9b248d589769965d",
+  "exit_code": 1,
+  "log": {
+    "path": "/var/tmp/transit-count-column-table-document-partial-recovery.log",
+    "sha256": "3048dcd7957e4b48db4ddd714bf09248e50d09321f1da7c3376816c93b20aa64"
+  },
+  "completed": {
+    "table": {
+      "seconds": 228.12,
+      "partial_count": 8,
+      "final_count": 10,
+      "consumers": 13,
+      "resident_pages": 8,
+      "hot_store_bytes": 8388608,
+      "cold_objects": 112,
+      "cold_bytes": 11582298
+    }
+  },
+  "failed": {
+    "kind": "document",
+    "stage": "provision",
+    "error": "AuthorityUnavailable",
+    "cold_store_status": 507,
+    "cold_store_error": "XMinioStorageFull",
+    "provider_error": "ColdBackpressure",
+    "hot_bytes_before": 8387717,
+    "hot_bytes_after": 8389138,
+    "hot_limit": 8388608
+  },
+  "unrun": [
+    "Document SQL inspection",
+    "Document ordinary row recovery",
+    "Document COUNT partial recovery/denial/cancellation",
+    "Document missing-value counts",
+    "Document final retirement/pin release"
+  ],
+  "limits": [
+    "Fixture cleanup joined its children and removed its temporary state; the command log retains bounded provider tails.",
+    "The Table completion does not qualify the failed Document phase.",
+    "The observed cold-store rejection and hot-limit backpressure preceded the provisioning failure; no COUNT-specific transition ran."
+  ],
+  "recovery_environment": {
+    "action": "Removed regenerable .zig-cache directories from three inactive owned clean worktrees/checkouts; source, .cache evidence and frozen comparison binaries retained.",
+    "inventory": [
+      {
+        "root": "/home/alex/workspace/rupurt/rey-console-signal-read-race",
+        "revision": "7627434abdf5fea32dc2ca89d063c4beb67d6008",
+        "cache": "/home/alex/workspace/rupurt/rey-console-signal-read-race/.zig-cache",
+        "du": "2546502584"
+      },
+      {
+        "root": "/home/alex/workspace/rupurt/rey-sql-file-output-aliases",
+        "revision": "a3e15a9f38e10482296a49aa83cdfe120a4413b9",
+        "cache": "/home/alex/workspace/rupurt/rey-sql-file-output-aliases/.zig-cache",
+        "du": "9061496815"
+      },
+      {
+        "root": "/var/tmp/transit-ci-skzrxzcq/src",
+        "revision": "029b21a0b8dd4faf217324d79170e7d71f6d157b",
+        "cache": "/var/tmp/transit-ci-skzrxzcq/src/.zig-cache",
+        "du": "3592652986"
+      }
+    ],
+    "available_disk_before_gib": 18,
+    "available_disk_after_gib": 27
+  }
+}

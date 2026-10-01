@@ -13,6 +13,7 @@ just test::file-benchmark --project-id --output .cache/fuze-projection.json
 just test::file-benchmark --query filter --modes explicit sampled full --output .cache/fuze-filter.json
 just test::file-benchmark --query compound --modes explicit sampled full --output .cache/fuze-compound.json
 just test::file-benchmark --query count --output .cache/fuze-count.json
+just test::file-benchmark --query count-values --modes explicit partial sampled full --output .cache/fuze-count-values.json
 just test::file-benchmark --query sum --modes explicit sampled full --output .cache/fuze-sum.json
 python3 -B tests/fuze_benchmarks/large.py zig-out/bin/transit-file-benchmark --output .cache/fuze-large.json
 ```
@@ -107,6 +108,15 @@ claims that the engines have identical inference or result contracts. See the
 upstream [CSV discovery](https://duckdb.org/docs/current/data/csv/auto_detection),
 [JSON loading](https://duckdb.org/docs/current/data/json/loading_json), and
 [streaming Python API](https://duckdb.org/docs/current/clients/python/reference/).
+
+The `count-values` profile counts the first non-id column in each typed fixture:
+text in wide/identifier CSV, a list in nested JSONL, decimal values, and nullable
+optional integers in sparse JSONL. Top-level nested values contribute one each.
+The sparse 4096-row fixture has 2184 contributing values; other shapes contribute
+4096. Independent fixture-cell checks and both engines verify the scalar result
+after complete-source scanning. This profile excludes raw mode and records new
+capability costs; COUNT(*) over sparse input returns a different result and
+cannot serve as an equivalent-result speed comparison.
 
 Fully explicit DuckDB CSV columns assign names by position. The comparator reads
 each fixture's header, orders that file's explicit column map, and projects back

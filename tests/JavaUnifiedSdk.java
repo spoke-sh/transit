@@ -83,7 +83,9 @@ public final class JavaUnifiedSdk {
     }
     private static void codecs(JsonObject config) throws Exception {
         var fixtures=new Gson().fromJson(Files.readString(Path.of(string(config,"bundles"))),JsonArray.class);
-        for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString())); }
+        for(int i=0;i<3;i++) { String kind=List.of("kv","table","document").get(i); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("wire_hex").getAsString())); check(hex(bundle(source(new ResourceRef(46,7),kind,true),kind,true,true).bytes()).equals(fixtures.get(i).getAsJsonObject().get("named_wire_hex").getAsString()));
+            var counted=Bundle.prepare(source(new ResourceRef(46,7),kind,true),new Plan(List.of(1),new All(),Query.Aggregate.COUNT_VALUES,Optional.empty(),Optional.of(List.of(Optional.of("present")))),new Budgets(n(1000),n(500),n(1048576)));
+            check(hex(counted.bytes()).equals(fixtures.get(i).getAsJsonObject().get("counted_wire_hex").getAsString())); }
         booleanCodecs(config);
         List<Column> columns=Arrays.stream(Type.values()).map(type -> new Column(type.name().toLowerCase(Locale.ROOT),type)).toList();
         byte[] input=read(config,"arrow").copy(); var rows=UnifiedQuery.decodeArrow(columns,new Bytes(input),5); Arrays.fill(input,(byte)0);
@@ -161,7 +163,7 @@ public final class JavaUnifiedSdk {
                         else {
                             var v=action.getAsJsonObject("page"); Page page=await(client.page(new BigInteger(string(v,"namespace")),!v.has("cursor")||v.get("cursor").isJsonNull()?Optional.empty():Optional.of(new Cursor(string(v,"cursor")))));
                             check(page.manifest().resource().equals(resource) && page.manifest().kind().name().equalsIgnoreCase(kind)); check(page.decode().size()==page.rows()); saved=page;
-                            result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
+                            result=json("page",json("ordinal",page.ordinal().toString(),"ipc",hex(page.ipc()),"manifest",json("segments",page.manifest().segments().toString(),"selected",page.manifest().selected().toString(),"value_count",page.manifest().valueCount().toString()),"next",page.next().map(Cursor::opaque).orElse(null)));
                         }
                         System.out.println(json("status",0,"value",result));
                     }catch(TransitException e) { check(e.status()>=0); System.out.println(json("status",e.status(),"value",json("err",e.code()))); }

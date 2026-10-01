@@ -19,6 +19,14 @@ The [logical type contract](../../../contracts/FUZE_TYPES_V1.md) specifies codec
 budgets and capability limits. These APIs do not extend SQL, persisted Tables,
 native query plans or Flight. Run `just test::fuze-types` for independent fixtures.
 
+`Type.clone(allocator)` validates descriptor and encoding budgets and returns a
+`Decoded` owner with independent copies of every name and recursive child.
+Release it with `deinit`; its canonical bytes and fingerprint match the source.
+File SQL compilation uses this copy while retaining the source binding's current
+metadata and identity checks. Lowering checks plan constraints against that owned,
+immutable schema without repeating descriptor validation. Public plan admission
+validates both descriptor and plan constraints.
+
 `FileSource` implements bounded CSV/JSONL discovery and decoding over immutable
 host-provided bytes. Explicit, sampled, full and raw modes freeze one schema;
 `SourceCodec` saves/restores its exact binding under current source access.

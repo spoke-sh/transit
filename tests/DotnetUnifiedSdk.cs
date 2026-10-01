@@ -71,7 +71,9 @@ static class Program
     }
     static async Task Codecs(JsonNode config) {
         var fixtures=JsonNode.Parse(File.ReadAllText(Text(config,"bundles")))!.AsArray();
-        for(int i=0;i<3;i++) { string kind=new[]{"kv","table","document"}[i]; Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true)).Bytes)==Text(fixtures[i]!,"wire_hex")); Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true,true)).Bytes)==Text(fixtures[i]!,"named_wire_hex")); }
+        for(int i=0;i<3;i++) { string kind=new[]{"kv","table","document"}[i]; Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true)).Bytes)==Text(fixtures[i]!,"wire_hex")); Check(Hex((await Bundle(await Source(new(46,7),kind,true),kind,true,true)).Bytes)==Text(fixtures[i]!,"named_wire_hex"));
+            var counted=await Q.Bundle.PrepareAsync(await Source(new(46,7),kind,true),new([1],aggregate:QueryAggregate.CountValues,outputNames:["present"]),new(1000,500,1048576));
+            Check(Hex(counted.Bytes)==Text(fixtures[i]!,"counted_wire_hex")); }
         await BooleanCodecs(config);
         Q.Column[] columns=Enum.GetValues<Q.Type>().Select(type => new Q.Column(type.ToString().ToLowerInvariant(),type)).ToArray();
         byte[] input=Read(config,"arrow").Copy(); var rows=await Q.DecodeArrowAsync(columns,new Bytes(input),5); Array.Fill(input,(byte)0); Check(rows.Count==5);
@@ -83,7 +85,7 @@ static class Program
         bool rejected=false; try { await Q.DecodeArrowAsync(columns,Read(config,"malformed"),5); }catch(TransitException) { rejected=true; } Check(rejected);
         Console.WriteLine(".NET installed unified codecs: three sources, nine Boolean bundles, six types, five states, immutable values and malformed rejection passed");
     }
-    static string Name(Enum value) => value.ToString() is "TypeError"?"type_error":value.ToString().ToLowerInvariant();
+    static string Name(Enum value) => value.ToString() is "TypeError"?"type_error":value.ToString() is "CountValues"?"count_values":value.ToString().ToLowerInvariant();
     static JsonObject InspectedPredicate(Q.InspectedPredicate value) => value switch {
         Q.InspectedAll=>Obj(("all",Obj())),
         Q.InspectedState p=>Obj(("state",Obj(("column",p.Column),("value",Name(p.State))))),
@@ -141,7 +143,7 @@ static class Program
                     else {
                         var args=action["page"]!; var page=await client.PageAsync(ulong.Parse(Text(args,"namespace")),args["cursor"] is null?null:new(Text(args,"cursor")));
                         Check(page.Manifest.Resource==resource && page.Manifest.Kind.ToString().ToLowerInvariant()==kind); Check((await page.DecodeAsync()).Count==page.Rows); saved=page;
-                        result=Obj(("page",Obj(("ordinal",page.Ordinal.ToString()),("ipc",Hex(page.Ipc)),("manifest",Obj(("segments",page.Manifest.Segments.ToString()))),("next",page.Next?.Opaque))));
+                        result=Obj(("page",Obj(("ordinal",page.Ordinal.ToString()),("ipc",Hex(page.Ipc)),("manifest",Obj(("segments",page.Manifest.Segments.ToString()),("selected",page.Manifest.Selected.ToString()),("value_count",page.Manifest.ValueCount.ToString()))),("next",page.Next?.Opaque))));
                     }
                     Console.WriteLine(Obj(("status",0),("value",result)).ToJsonString());
                 }catch(TransitException e) { Check(e.Status.HasValue); Console.WriteLine(Obj(("status",e.Status!.Value),("value",Obj(("err",e.Code)))).ToJsonString()); }

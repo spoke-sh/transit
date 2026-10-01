@@ -10,8 +10,8 @@ functions. It has no general scalar expression evaluator. Use
 `*` selects all declared columns. A named projection contains one to eight output
 positions, optionally qualified by the declared source name or its explicit
 source alias. `column AS name` names an output position; repeated inputs require
-distinct result names. `COUNT(*) AS name` and `SUM(column) AS name` name aggregate
-results. Output names do not enter `WHERE` scope. See
+distinct result names. `AS name` names either COUNT form and `SUM(column)`.
+Output names do not enter `WHERE` scope. See
 [projection and alias rules](select.md#project-rows) for case, collision and
 derived-input behavior. Literals cannot be selected as result expressions.
 Arithmetic, concatenation, `CASE` and scalar function calls are unsupported.
@@ -46,13 +46,14 @@ raising their value errors. No reordering or short-circuit rewrite is enabled.
 
 ## Aggregate functions
 
-| Function      | Input                                    | Result                                                    | Empty input |
-| ------------- | ---------------------------------------- | --------------------------------------------------------- | ----------- |
-| `COUNT(*)`    | Selected rows, including all cell states | uint64                                                    | Zero        |
-| `SUM(column)` | int64 values in source order             | Checked int64; null/missing skipped, error/conflict fails | Null        |
+| Function | Input | Result | Empty input |
+| --- | --- | --- | --- |
+| `COUNT(*)` | Selected rows, including all cell states | uint64 | Zero |
+| `COUNT(column)` | Top-level values of any admitted column type; null/missing skipped, error/conflict fails | Checked uint64 | Zero |
+| `SUM(column)` | int64 values in source order | Checked int64; null/missing skipped, error/conflict fails | Null |
 
 An aggregate returns one cell. There is no grouping, multiple aggregates,
-`COUNT(column)`, `DISTINCT`, `AVG`, `MIN`, `MAX`, window function or user-defined
+`DISTINCT`, `AVG`, `MIN`, `MAX`, window function or user-defined
 function. `SUM` does not widen its result type or reorder values to avoid an
 intermediate overflow.
 

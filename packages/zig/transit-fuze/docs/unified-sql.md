@@ -23,7 +23,7 @@ defines the exact profile:
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `SELECT *`                                                          | All one to eight declared columns                                                                         |
 | One to eight named columns                                          | Ordered projection; duplicate names reject                                                                |
-| `column AS name`, `COUNT(*) AS name`, `SUM(column) AS name`         | Owned output names; repeated inputs are allowed with distinct output names                                |
+| `column AS name`, `COUNT(*) AS name`, `COUNT(column) AS name`, `SUM(column) AS name`         | Owned output names; repeated inputs are allowed with distinct output names                                |
 | `FROM source AS alias`                                              | Alias supplies the column qualifier; source and output column identities stay unchanged                   |
 | Each comparison atom                                                | Exactly typed int64, uint64, finite float64, bool, UTF-8 or binary literal; byte ordering for text/binary |
 | `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | Exact cell-state selection                                                                                |
@@ -31,6 +31,7 @@ defines the exact profile:
 | `LIMIT`                                                             | Full u64 count after filtering; no limit means no implicit truncation                                     |
 | `COUNT(*)`                                                          | uint64 count including all cell states                                                                    |
 | `SUM(column)`                                                       | Checked int64 sum in source order; missing/null skipped, error/conflict fails                             |
+| `COUNT(column)` | Checked uint64 value count; any admitted type, missing/null skipped, error/conflict fails |
 
 The existing restricted aggregate subquery spells filter → limit → aggregate.
 An inner output alias becomes the column name resolved by the outer sum. Output

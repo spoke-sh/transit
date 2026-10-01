@@ -3,7 +3,7 @@
 const std = @import("std");
 const f = @import("root.zig");
 const m = f.Unified;
-pub const progress_bytes = 167;
+pub const progress_bytes = 175;
 pub const Finish = enum(u8) { source_end = 1, limit = 2 };
 pub const Progress = struct {
     basis: m.Basis,
@@ -11,6 +11,7 @@ pub const Progress = struct {
     pages: u64 = 0,
     scanned: u64 = 0,
     selected: u64 = 0,
+    value_count: u64 = 0,
     segments: u64 = 0,
     rows: u64 = 0,
     sum: ?i64 = null,
@@ -21,6 +22,7 @@ pub const Progress = struct {
     pub fn validate(self: Progress, bound: m.Plan.Bound) !void {
         if (!std.meta.eql(self.basis, bound.basis) or !std.mem.eql(u8, &self.plan, &bound.fingerprint)) return error.SourceChanged;
         if (self.selected > self.scanned or self.scanned / m.max_rows + @intFromBool(self.scanned % m.max_rows != 0) > self.pages or self.segments > self.pages) return error.InvalidQueryProgress;
+        if (self.value_count > self.selected or (bound.plan.aggregate != .count_values and self.value_count != 0)) return error.InvalidQueryProgress;
         if (self.pages == 0 and (self.sum != null or self.finished != null)) return error.InvalidQueryProgress;
         if (bound.plan.limit) |limit| {
             if (self.selected > limit or (self.finished == .limit and self.selected != limit)) return error.InvalidQueryProgress;
@@ -33,9 +35,9 @@ pub const Progress = struct {
                     if (self.segments != @intFromBool(self.finished != null)) return error.InvalidQueryProgress;
                 } else if (self.segments == 0 or self.segments > self.selected or self.rows / m.max_rows + @intFromBool(self.rows % m.max_rows != 0) > self.segments) return error.InvalidQueryProgress;
             },
-            .count, .sum => {
+            .count, .sum, .count_values => {
                 if (self.rows != @intFromBool(self.finished != null) or self.segments != self.rows) return error.InvalidQueryProgress;
-                if ((bound.plan.aggregate == .count or self.selected == 0) and self.sum != null) return error.InvalidQueryProgress;
+                if ((bound.plan.aggregate != .sum or self.selected == 0) and self.sum != null) return error.InvalidQueryProgress;
             },
         }
     }
@@ -49,7 +51,7 @@ pub const Progress = struct {
         try writer.writeAll(&self.basis.contract);
         try writer.writeAll(&self.basis.schema);
         try writer.writeAll(&self.plan);
-        inline for (.{ "pages", "scanned", "selected", "segments", "rows" }) |name| try writer.writeInt(u64, @field(self, name), .little);
+        inline for (.{ "pages", "scanned", "selected", "value_count", "segments", "rows" }) |name| try writer.writeInt(u64, @field(self, name), .little);
         try writer.writeByte(@intFromBool(self.sum != null));
         try writer.writeInt(i64, self.sum orelse 0, .little);
         try writer.writeByte(if (self.finished) |finish| @backingInt(finish) else 0);
@@ -70,7 +72,7 @@ pub const Progress = struct {
             },
             .plan = (try reader.takeArray(32)).*,
         };
-        inline for (.{ "pages", "scanned", "selected", "segments", "rows" }) |name| @field(result, name) = try reader.takeInt(u64, .little);
+        inline for (.{ "pages", "scanned", "selected", "value_count", "segments", "rows" }) |name| @field(result, name) = try reader.takeInt(u64, .little);
         const present = try reader.takeByte();
         const sum = try reader.takeInt(i64, .little);
         if (present > 1 or (present == 0 and sum != 0)) return error.InvalidQueryProgress;
@@ -103,6 +105,7 @@ pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []
         next.scanned = try std.math.add(u64, next.scanned, 1);
         if (!try bound.plan.matches(row)) continue;
         next.selected = try std.math.add(u64, next.selected, 1);
+        if (bound.plan.aggregate == .count_values) next.value_count = try @import("Finite.zig").countValue(next.value_count, row.cells[bound.plan.projection[0]]);
         if (bound.plan.aggregate == .sum) next.sum = try @import("Finite.zig").sum(next.sum, row.cells[bound.plan.projection[0]], struct {
             fn integer(value: m.Scalar) !i64 {
                 return value.int64;
@@ -122,7 +125,12 @@ pub fn step(bound: m.Plan.Bound, previous: Progress, page: m.Page, workspace: []
             segment = try encode(try bound.plan.outputSchema(bound.schema, &columns), selected[0..count], workspace, output);
         }
     } else if (next.finished != null) {
-        const value: m.Cell = if (bound.plan.aggregate == .count) .{ .value = .{ .uint64 = next.selected } } else if (next.sum) |sum| .{ .value = .{ .int64 = sum } } else .null;
+        const value: m.Cell = switch (bound.plan.aggregate) {
+            .count => .{ .value = .{ .uint64 = next.selected } },
+            .count_values => .{ .value = .{ .uint64 = next.value_count } },
+            .sum => if (next.sum) |sum| .{ .value = .{ .int64 = sum } } else .null,
+            .rows => unreachable,
+        };
         segment = try encode(try bound.plan.outputSchema(bound.schema, &columns), &.{.{ .cells = &.{value} }}, workspace, output);
     }
     if (cancellation.load(.acquire)) return error.Cancelled;

@@ -17,17 +17,13 @@ pub fn init(table: f.model.Schema, plan: m.Plan) !Self {
         .{ .name = try .init(table.names[0].slice()), .type = .int64 },
         .{ .name = try .init(table.names[1].slice()), .type = .int64 },
     };
-    try plan.validate(.{ .columns = &input });
-    var result: Self = .{ .len = if (plan.aggregate == .rows) @intCast(plan.projection.len) else 1 };
+    var output: [m.max_columns]m.Column = undefined;
+    const schema = try plan.outputSchema(.{ .columns = &input }, &output);
+    var result: Self = .{ .len = @intCast(schema.columns.len) };
     if (result.len > result.columns.len) return error.UnsupportedFlightType;
-    if (plan.aggregate == .rows) {
-        for (plan.projection, 0..) |column, index| {
-            result.columns[index] = input[column];
-            result.nullable[index] = column != 0;
-        }
-    } else {
-        result.columns[0] = .{ .name = try .init(@tagName(plan.aggregate)), .type = if (plan.aggregate == .count) .uint64 else .int64 };
-        result.nullable[0] = plan.aggregate == .sum;
+    for (schema.columns, 0..) |column, index| {
+        result.columns[index] = column;
+        result.nullable[index] = if (plan.aggregate == .rows) plan.projection[index] != 0 else plan.aggregate == .sum;
     }
     return result;
 }
@@ -98,11 +94,25 @@ test "Table Flight conversion preserves full-width cells, projection nullability
     try t.expectError(error.InvalidArrowResult, layout.encode(&rows, &output, workspace));
     rows.cells[0][1] = .missing;
     try t.expectError(error.InvalidArrowResult, layout.encode(&rows, &output, workspace));
-    const count = try init(table, .{ .projection = &.{0}, .aggregate = .count });
     rows.columns = 1;
-    rows.cells[0][0] = .{ .value = .{ .uint64 = 41 } };
-    _ = try count.encode(&rows, &output, workspace);
-    try t.expect(!count.nullable[0]);
-    rows.cells[0][0] = .{ .value = .{ .uint64 = std.math.maxInt(u64) } };
-    try t.expectError(error.Overflow, count.encode(&rows, &output, workspace));
+    inline for (.{ .count, .count_values }) |aggregate| {
+        var plan: m.Plan = .{ .projection = &.{1}, .aggregate = aggregate };
+        plan.output_names[0] = try .init("present");
+        const count = try init(table, plan);
+        try count.checkSchema(.{ .columns = &.{.{ .name = try .init("present"), .type = .uint64 }} });
+        rows.cells[0][0] = .{ .value = .{ .uint64 = 41 } };
+        _ = try count.encode(&rows, &output, workspace);
+        try t.expect(!count.nullable[0]);
+        rows.cells[0][0] = .{ .value = .{ .uint64 = std.math.maxInt(u64) } };
+        try t.expectError(error.Overflow, count.encode(&rows, &output, workspace));
+    }
+    var plan: m.Plan = .{ .projection = &.{ 1, 1 } };
+    plan.output_names[0] = try .init("first");
+    plan.output_names[1] = try .init("second");
+    const renamed = try init(table, plan);
+    try renamed.checkSchema(.{ .columns = &.{
+        .{ .name = try .init("first"), .type = .int64 },
+        .{ .name = try .init("second"), .type = .int64 },
+    } });
+    try t.expect(renamed.nullable[0] and renamed.nullable[1]);
 }

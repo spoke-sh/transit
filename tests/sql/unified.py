@@ -78,12 +78,15 @@ def expected(ast):
     selection = ast['selection']
     if selection['kind'] == 'count':
         return {ast['output_alias'] or 'count': [cell(2, len(rows))]}
-    if selection['kind'] == 'sum':
+    if selection['kind'] in ('sum', 'count_values'):
         inner = ast['input']['projection'] if ast['input'] else None
         input_names = [item['alias'] or item['column'][1] for item in inner] if inner else NAMES
         input_columns = [NAMES.index(item['column'][1]) for item in inner] if inner else list(range(8))
         column = input_columns[input_names.index(selection['column'][1])]
         values = [r[column]['value'] for r in rows if r[column]['state'] == 3]
+        assert all(r[column]['state'] not in (2, 4) for r in rows)
+        if selection['kind'] == 'count_values':
+            return {ast['output_alias'] or 'count': [cell(2, len(values))]}
         return {ast['output_alias'] or 'sum': [cell(1, sum(values)) if values else cell(7, state=1)]}
     items = selection['columns']
     columns = [NAMES.index(item['column'][1]) for item in items] if items else range(8)
@@ -148,12 +151,25 @@ def check(driver):
         "SELECT sum(chosen.id) FROM (SELECT id FROM items WHERE id < 0 OR value IS NULL LIMIT 9) AS chosen",
         "SELECT x.id AS key FROM items AS x WHERE NOT (x.id = 1 OR x.flag = FALSE)",
     ]
+    statements += [f'SELECT count({name}) FROM items' for name in NAMES[:-1]]
+    statements += [
+        'SELECT count(x.value) AS present FROM items AS x',
+        'SELECT count(chosen.label) FROM (SELECT value AS label FROM items LIMIT 7) AS chosen',
+        'SELECT count(value) FROM (SELECT value FROM items LIMIT 0) AS chosen',
+        'SELECT count(value) FROM items WHERE missing IS NULL',
+        'SELECT count(optional) FROM items WHERE optional IS NULL',
+        'SELECT count(optional) FROM items WHERE optional IS MISSING',
+    ]
     failures = [
         ("SELECT * FROM items WHERE id = 100 AND optional = 'x'", 'QueryTypeError'),
         ("SELECT * FROM items WHERE id < 100 OR optional = 'x'", 'QueryTypeError'),
         ("SELECT * FROM items WHERE NOT (optional IS NULL OR optional = 'x')", 'QueryTypeError'),
         ("SELECT * FROM items WHERE id = 1 AND counter = 2", 'TypeMismatch'),
         ("SELECT * FROM items WHERE id = 1 OR absent = 2", 'UnknownColumn'),
+        ('SELECT count(optional) FROM items', 'QueryTypeError'),
+        ('SELECT count(optional) FROM items WHERE optional IS CONFLICT', 'QueryConflict'),
+        ('SELECT count(value) FROM items LIMIT 1', 'UnsupportedAggregateLimit'),
+        ('SELECT count(chosen.value) FROM (SELECT value AS label FROM items) AS chosen', 'UnknownColumn'),
         ('SELECT id, counter, id FROM items', 'DuplicateProjection'),
         ('SELECT id, counter, absent FROM items', 'UnknownColumn'),
         ('SELECT id, counter, fraction, flag, value, raw, missing, optional, id FROM items', 'InvalidProjection'),
@@ -206,7 +222,7 @@ def check(driver):
                         assert math.copysign(1, observed['value']) == math.copysign(1, expected_cell['value'])
             seen.add((i, response['kind'], response['width']))
         for i, case in enumerate(cases):
-            if 'expected_error' in case and case['expected_error'] != 'QueryTypeError':
+            if 'expected_error' in case and case['expected_error'] not in ('QueryTypeError', 'QueryConflict'):
                 assert (i, None, None) in seen
             else:
                 assert all((i, kind, width) in seen for kind in ('kv', 'table', 'document') for width in range(1, 9))

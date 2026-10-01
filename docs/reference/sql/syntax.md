@@ -38,7 +38,7 @@ the identity to resolve, while the alias supplies its query-local qualifier.
 The restricted [aggregate subquery](select.md#aggregate-a-limited-input) has a
 separate outer alias; an inner source alias does not escape that subquery.
 
-`column AS name`, `COUNT(*) AS name` and `SUM(column) AS name` name result
+`column AS name`, either COUNT form with `AS name`, and `SUM(column) AS name` name result
 columns. These names use the same identifier rules and must be distinct within
 the output schema. They do not enter `WHERE` scope. A renamed inner projection
 is visible to the outer aggregate in the restricted subquery form.

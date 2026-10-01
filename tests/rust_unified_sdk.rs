@@ -146,6 +146,27 @@ fn codecs(config: &Value) -> AnyResult<()> {
             None,
         )?;
         assert_eq!(hex(bundle.data()), text(&fixtures[index], "named_wire_hex"));
+        let counted = q::Plan {
+            projection: vec![1],
+            predicate: q::Predicate::All,
+            aggregate: Aggregate::CountValues,
+            limit: None,
+            output_names: Some(vec![Some("present".into())]),
+        };
+        let bundle = q::Bundle::prepare(
+            source,
+            &counted,
+            q::Budgets {
+                pages: 1000,
+                segments: 500,
+                result_bytes: 1048576,
+            },
+            None,
+        )?;
+        assert_eq!(
+            hex(bundle.data()),
+            text(&fixtures[index], "counted_wire_hex")
+        );
     }
     let boolean_fixtures: Value = serde_json::from_slice(&fs::read(text(config, "boolean"))?)?;
     let types = [
@@ -401,8 +422,8 @@ fn inspection(value: q::Inspection) -> Value {
                 }).collect::<Vec<_>>()})
                 }
             };
-            json!({"explanation":{"operators":operators.iter().map(|v|format!("{v:?}").to_lowercase()).collect::<Vec<_>>(),
-                "predicate":predicate,"projection":projection,"limit":limit.map(|v|v.to_string()),"aggregate":format!("{aggregate:?}").to_lowercase(),
+            json!({"explanation":{"operators":operators.iter().map(|v|format!("{v:?}").to_lowercase().replace("countvalues", "count_values")).collect::<Vec<_>>(),
+                "predicate":predicate,"projection":projection,"limit":limit.map(|v|v.to_string()),"aggregate":format!("{aggregate:?}").to_lowercase().replace("countvalues", "count_values"),
                 "columns":columns(values),"budgets":{"pages":budgets.pages.to_string(),"segments":budgets.segments.to_string(),"result_bytes":budgets.result_bytes.to_string()}}})
         }
     };
@@ -595,7 +616,7 @@ fn serve(config: &Value) -> AnyResult<()> {
                 );
                 assert_eq!(page.decode(None)?.len(), usize::from(page.rows));
                 assert_eq!(page.to_arrow()?.num_rows(), usize::from(page.rows));
-                json!({"page":{"ordinal":page.ordinal.to_string(),"ipc":hex(page.ipc()),"manifest":{"segments":page.manifest.segments.to_string()},"next":page.next.as_ref().map(q::Cursor::data)}})
+                json!({"page":{"ordinal":page.ordinal.to_string(),"ipc":hex(page.ipc()),"manifest":{"segments":page.manifest.segments.to_string(),"selected":page.manifest.selected.to_string(),"value_count":page.manifest.value_count.to_string()},"next":page.next.as_ref().map(q::Cursor::data)}})
             } else {
                 panic!("Unsupported test operation")
             })

@@ -15,7 +15,7 @@ public static class UnifiedQuery
     private static ulong Positive(ulong v) => v == 0 ? throw new ArgumentException("Expected positive query identity/budget") : v;
     private static string Name<T>(T v) where T : struct, Enum {
         if(!Enum.IsDefined(v)) throw new ArgumentException("Unknown query variant");
-        return v.ToString() switch { "TypeError" => "type_error", "ElementCounter" => "element_counter", "ElementReplica" => "element_replica", "SourceEnd" => "source_end", var name => name.ToLowerInvariant() };
+        return v.ToString() switch { "CountValues" => "count_values", "TypeError" => "type_error", "ElementCounter" => "element_counter", "ElementReplica" => "element_replica", "SourceEnd" => "source_end", var name => name.ToLowerInvariant() };
     }
     private static T Variant<T>(JsonNode? v) where T : struct, Enum {
         string name=V.String(v); foreach(T value in Enum.GetValues<T>()) if(Name(value)==name) return value; throw V.Incompatible("query-variant");
@@ -165,7 +165,7 @@ public static class UnifiedQuery
         }
     }
     public sealed record Description(ulong ResourceRevision,ulong PolicyRevision,Budgets Budgets,ulong? Active,int BundleBytes,int SegmentBytes,int BatchRows);
-    public enum InspectionOperator { Scan,Filter,Limit,Project,Count,Sum }
+    public enum InspectionOperator { Scan,Filter,Limit,Project,Count,Sum,CountValues }
     public abstract record InspectedPredicate { private protected InspectedPredicate() {} }
     public abstract record InspectedAtom : InspectedPredicate { private protected InspectedAtom() {} }
     public sealed record InspectedAll : InspectedAtom;
@@ -254,7 +254,7 @@ public static class UnifiedQuery
     public enum Finished { SourceEnd,Limit }
     public sealed record Manifest(ulong Job,ReadVersion Source,ProcessRef Requester,ulong Correlation,ulong PolicyRevision,Bytes Request,
         SourceKind Kind,ResourceRef Resource,ulong Revision,Bytes SourceDigest,Bytes SchemaDigest,Bytes PlanDigest,
-        ulong Pages,ulong Scanned,ulong Selected,ulong Segments,ulong Rows,ulong ByteCount,long? Sum,Finished Finished,Bytes Chain);
+        ulong Pages,ulong Scanned,ulong Selected,ulong ValueCount,ulong Segments,ulong Rows,ulong ByteCount,long? Sum,Finished Finished,Bytes Chain);
     public sealed record Page {
         public Manifest Manifest { get; } public IReadOnlyList<Column> Columns { get; } public ulong Ordinal { get; } public byte Rows { get; } public Bytes Ipc { get; } public Cursor? Next { get; }
         internal Page(Manifest manifest,IReadOnlyList<Column> columns,ulong ordinal,byte rows,Bytes ipc,Cursor? next) { Manifest=manifest; Columns=Copy(columns,8); Ordinal=ordinal; Rows=rows; Ipc=ipc; Next=next; if(rows>8 || columns.Count==0 || ipc.Length>65536) throw V.Incompatible("query-page-bound"); }
@@ -264,7 +264,7 @@ public static class UnifiedQuery
         var v=V.Object(value); var b=V.Object(v["basis"]);
         return new(V.Number(v["job"],1),NativeValues.ReadVersion(v["source"]),new(realm,V.Number(v["requester"],1)),NativeValues.Wide(v["correlation"]),NativeValues.Wide(v["policy_revision"]),Fixed(v["request"],72),
             Variant<SourceKind>(b["kind"]),new(realm,V.Number(b["resource"],1)),V.Number(b["revision"]),NativeValues.Digest(b["contract"]),NativeValues.Digest(b["schema"]),NativeValues.Digest(v["plan"]),
-            NativeValues.Wide(v["pages"]),NativeValues.Wide(v["scanned"]),NativeValues.Wide(v["selected"]),NativeValues.Wide(v["segments"]),NativeValues.Wide(v["rows"]),NativeValues.Wide(v["bytes"]),v["sum"] is null?null:NativeValues.Signed(v["sum"]),Variant<Finished>(v["finished"]),NativeValues.Digest(v["chain"]));
+            NativeValues.Wide(v["pages"]),NativeValues.Wide(v["scanned"]),NativeValues.Wide(v["selected"]),NativeValues.Wide(v["value_count"]),NativeValues.Wide(v["segments"]),NativeValues.Wide(v["rows"]),NativeValues.Wide(v["bytes"]),v["sum"] is null?null:NativeValues.Signed(v["sum"]),Variant<Finished>(v["finished"]),NativeValues.Digest(v["chain"]));
     }
     /// <summary>One admitted native operation; dispose joins after local cancellation.</summary>
     public sealed class Client : IAsyncDisposable {

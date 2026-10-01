@@ -83,19 +83,20 @@ The console, CLI and Board use the same query v1 source and plan contract.
 Flight SQL uses its configured Table subset and adapts results to primitive
 Arrow int64 columns.
 
-| Capability             | Query v1                                                                                           |
-| ---------------------- | -------------------------------------------------------------------------------------------------- |
-| Sources                | One declared KV, Table or accepted Document projection                                             |
-| `SELECT *`             | All one to eight declared columns                                                                  |
-| Explicit projection    | One to eight output positions in the requested order; result names must be distinct                |
-| Output aliases         | Explicit `AS name` on columns, `COUNT(*)` and `SUM(column)`; distinct names permit repeated inputs |
-| Predicate              | One comparison or exact cell-state test                                                            |
-| Ordering               | Defined source order                                                                               |
-| `LIMIT n`              | Full u64 count; no implicit truncation when omitted                                                |
-| `COUNT(*)`             | uint64, counting every cell state; Flight checks conversion to int64                               |
-| `SUM(column)`          | Checked int64; skips missing/null; error/conflict fails                                            |
-| Comparison with `NULL` | Rejected; use `IS NULL`                                                                            |
-| Results                | Nested typed cells: value, null, missing, type error, conflict                                     |
+| Capability | Query v1 |
+| --- | --- |
+| Sources | One declared KV, Table or accepted Document projection |
+| `SELECT *` | All one to eight declared columns |
+| Explicit projection | One to eight output positions in the requested order; result names must be distinct |
+| Output aliases | Explicit `AS name` on columns, `COUNT(*)`, `COUNT(column)` and `SUM(column)`; distinct names permit repeated inputs |
+| Predicate | Boolean composition of typed comparisons and exact cell-state tests |
+| Ordering | Defined source order |
+| `LIMIT n` | Full u64 count; no implicit truncation when omitted |
+| `COUNT(*)` | uint64, counting every cell state; Flight checks conversion to int64 |
+| `COUNT(column)` | uint64, counting top-level values; skips missing/null; error/conflict fails; Flight checks conversion to int64 |
+| `SUM(column)` | Checked int64; skips missing/null; error/conflict fails |
+| Comparison with `NULL` | Rejected; use `IS NULL` |
+| Results | Nested typed cells: value, null, missing, type error, conflict |
 
 ## Statement forms
 
@@ -197,7 +198,7 @@ trailing tokens fail. Durable requests use an explicitly budgeted finite plan
 upload.
 
 Joins, sorting, aggregation grouping, arithmetic,
-`COUNT(column)`, general casts and continuous queries are unsupported.
+general casts and continuous queries are unsupported.
 Public query transports reject writes. Applications can explicitly integrate
 the [bounded Table mutation helper](sql/insert.md) in their fenced writer.
 `CREATE TABLE/KV/DOCUMENT` compile offline through Fuze's

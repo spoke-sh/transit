@@ -159,6 +159,10 @@ test "incomplete grammar expectations come from the production parser" {
     try t.expectEqual(sql.NameRole.column, qualified.name_role.?);
     try t.expectEqualStrings("items", qualified.qualifier.?.slice());
     try t.expect((try sql.hints("SELECT SUM(")).sum_only);
+    const count_column = try sql.hints("SELECT COUNT(");
+    try t.expect(!count_column.sum_only);
+    try t.expectEqual(sql.NameRole.column, count_column.name_role.?);
+    try t.expect(std.mem.indexOfScalar(?sql.Tag, &count_column.symbols, .star) != null);
     const literal = try sql.hints("SELECT * FROM items WHERE id = ");
     try t.expectEqualStrings("id", literal.literal_column.?.name.slice());
     try t.expectEqualStrings("items", literal.source.?.slice());

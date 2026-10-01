@@ -43,6 +43,8 @@ async function codecs() {
       kind: 'compare', column: 1, comparison: 'ne', value: index === 0 ? {type: 'uint64', value: wide} : {type: 'utf8', value: 'x'.repeat(512)},
     }}, {pages: 1000n, segments: 500n, resultBytes: 1048576n});
     assert.equal(hex(named.data), fixtures[index].named_wire_hex);
+    const counted = await q.Bundle.prepare(source, {projection: [1], aggregate: 'count_values', outputNames: ['present']}, {pages: 1000n, segments: 500n, resultBytes: 1048576n});
+    assert.equal(hex(counted.data), fixtures[index].counted_wire_hex);
   }
   for (const source of [{...sources[0], value: {type: 'uint64', version: 2}}, {...sources[1], valueType: 'uint64'}])
     await assert.rejects(q.Bundle.prepare(source, {projection: [0]}, {pages: 1n, segments: 1n, resultBytes: 1n}));
@@ -155,7 +157,7 @@ async function serve() {
           assert.equal(unifiedToArrow(value).numRows, value.rows);
           const ipc = value.ipc; ipc.fill(0); assert.notEqual(hex(ipc), hex(value.ipc));
           result = {page: {ordinal: value.ordinal.toString(), ipc: hex(value.ipc),
-            manifest: {segments: value.manifest.segments.toString()}, next: value.next?.data ?? null}};
+            manifest: {segments: value.manifest.segments.toString(), selected: value.manifest.selected.toString(), value_count: value.manifest.valueCount.toString()}, next: value.next?.data ?? null}};
         } else throw new Error('unsupported test operation');
         console.log(JSON.stringify({status: 0, value: result}));
       } catch (error) {

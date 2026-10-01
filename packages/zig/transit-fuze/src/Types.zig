@@ -1,5 +1,5 @@
 //! Logical descriptors, independent of physical execution/transport layouts.
-//! All slices borrow their owner. Decode returns an arena owner explicitly.
+//! All slices borrow their owner. Decode and clone return an explicit arena owner.
 const std = @import("std");
 pub const Query = @import("Scalar.zig");
 pub const State = Query.State;
@@ -113,6 +113,19 @@ pub const Type = union(Tag) {
         try writeType(self, &writer);
         return writer.buffered();
     }
+    /// Validate and own every descriptor child/name without a wire round trip.
+    /// The canonical encoder still checks the independent encoded-byte bound.
+    pub fn clone(self: Type, allocator: std.mem.Allocator) !Decoded {
+        try self.validate(.{});
+        var buffer: [256]u8 = undefined;
+        var encoded: std.Io.Writer.Discarding = .init(&buffer);
+        try writeType(self, &encoded.writer);
+        if (encoded.fullCount() > max_encoding_bytes - 5 - definition.len) return error.WriteFailed;
+        var arena: std.heap.ArenaAllocator = .init(allocator);
+        errdefer arena.deinit();
+        const value = try cloneType(arena.allocator(), self);
+        return .{ .arena = arena, .type = value };
+    }
     pub fn fingerprint(self: Type) ![32]u8 {
         var buffer: [max_encoding_bytes]u8 = undefined;
         const bytes = try self.encode(&buffer);
@@ -210,6 +223,33 @@ pub const Decoded = struct {
         self.* = undefined;
     }
 };
+fn cloneType(allocator: std.mem.Allocator, value: Type) anyerror!Type {
+    return switch (value) {
+        .structure, .tagged_union => |fields| blk: {
+            const owned = try allocator.alloc(Field, fields.len);
+            for (fields, owned) |field, *copy| copy.* = .{
+                .name = try allocator.dupe(u8, field.name),
+                .type = try cloneType(allocator, field.type),
+                .nullable = field.nullable,
+                .optional = field.optional,
+            };
+            break :blk if (value == .structure) .{ .structure = owned } else .{ .tagged_union = owned };
+        },
+        .list => |element| .{ .list = try cloneElement(allocator, element) },
+        .array => |array| .{ .array = .{ .length = array.length, .element = try cloneElement(allocator, array.element) } },
+        .map => |map| blk: {
+            const key = try allocator.create(Type);
+            key.* = try cloneType(allocator, map.key.*);
+            break :blk .{ .map = .{ .key = key, .value = try cloneElement(allocator, map.value) } };
+        },
+        else => value,
+    };
+}
+fn cloneElement(allocator: std.mem.Allocator, element: Element) !Element {
+    const child = try allocator.create(Type);
+    child.* = try cloneType(allocator, element.type.*);
+    return .{ .type = child, .nullable = element.nullable };
+}
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Decoded {
     if (bytes.len > max_encoding_bytes) return error.TypeBudgetExceeded;
     var reader: std.Io.Reader = .fixed(bytes);

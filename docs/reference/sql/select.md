@@ -18,7 +18,7 @@ SELECT aggregate FROM (
 ) AS alias;
 
 projection := * | column [AS name] [, column [AS name] ...]
-aggregate  := (COUNT(*) | SUM(column)) [AS name]
+aggregate  := (COUNT(*) | COUNT(column) | SUM(column)) [AS name]
 predicate  := disjunction
 disjunction := conjunction [OR conjunction ...]
 conjunction := negation [AND negation ...]
@@ -124,6 +124,7 @@ operation, source and result budgets still govern execution. `OFFSET` is unsuppo
 
 ```sql
 SELECT COUNT(*) FROM items;
+SELECT COUNT(value) AS present FROM items;
 SELECT SUM(value) FROM items WHERE id > 0;
 SELECT COUNT(*) AS rows FROM items;
 SELECT SUM(value) AS total FROM items WHERE id > 0;
@@ -132,7 +133,12 @@ SELECT SUM(value) AS total FROM items WHERE id > 0;
 An aggregate returns one result cell. `COUNT(*)` counts selected rows, including
 null and every other cell state. Its result is uint64;
 an empty input gives zero. Flight checks conversion to its published int64
-result type. `COUNT(column)` is unsupported.
+result type. `COUNT(column)` counts top-level value cells of any admitted column
+type, skips null/missing and fails on type errors or conflicts in source order.
+False, empty text/binary and empty collections each count as one value. Its
+uint64 result is zero on empty/all-skipped input; overflow fails. Both forms
+apply filtering and an input limit before aggregation, so null/missing rows
+still consume a restricted derived input's LIMIT.
 The default output names are `count` and `sum`; `AS name` replaces that name.
 
 `SUM(column)` requires int64. It adds values with checked overflow in source order,
@@ -154,8 +160,9 @@ FROM (SELECT value AS amount FROM items WHERE id >= 0 LIMIT 2) AS chosen;
 ```
 
 This single derived-table form applies filter, then limit, then aggregate.
-The inner projection must retain the sum's column. If it renames that column,
-the outer sum uses the new name; the original name is hidden. Inner qualifiers refer to the
+The inner projection must retain the column used by `SUM(column)` or
+`COUNT(column)`. If it renames that column, the outer aggregate uses the new
+name; the original name is hidden. Inner qualifiers refer to the
 source or its inner alias; an outer qualifier must match `chosen`. The inner
 alias is unavailable in the outer selection. General or nested subqueries,
 outer predicates and derived tables returning rows are unsupported. An outer

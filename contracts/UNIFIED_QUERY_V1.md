@@ -55,7 +55,7 @@ point preserves negative zero; text is UTF-8 and lengths are bytes unless the
 operation explicitly declares Unicode scalar traversal.
 
 Typed plans support ordered scan, typed comparison and explicit state predicates,
-bounded Boolean composition, ordered projection, whole-query limit, row count and
+bounded Boolean composition, ordered projection, whole-query limit, row count, value count and
 checked int64 sum. Value comparisons preserve unknown for missing/null and reject
 type errors/conflicts. Only true selects a row. State predicates select the
 named state as true or false. A Boolean program contains one to 64 postfix
@@ -72,7 +72,10 @@ is owned inline in the plan; text/binary literals keep their existing borrowed
 lifetime. Copying a plan does not borrow its original instruction storage.
 Sum ignores missing/null, rejects error/conflict and checks overflow in source
 order across page boundaries. Count includes selected rows, regardless of cell
-state. Limit is applied after filtering and before aggregation. No rewrite,
+state. The `count_values` aggregate counts top-level value cells in its one
+projected column, ignores missing/null, rejects type errors/conflicts in source
+order and checks u64 overflow. Both counts return zero for empty input.
+Limit is applied after filtering and before aggregation. No rewrite,
 predicate pushdown, sorting or implicit coercion is enabled. The bounded SQL rewrite theorems do
 not establish new v1 operator correctness.
 
@@ -88,10 +91,21 @@ before they are advertised.
 The implemented pure profile uses at most eight rows per input page, 4096 bytes
 per variable-width scalar, a 64 KiB Arrow segment and 4 MiB of caller-owned Arrow
 workspace. Segment overflow is an error; callers cannot publish its partial
-output buffer. `FZP1` plans have an 8192-byte encoding budget. The 167-byte `FZS1`
-checkpoint binds source evidence and plan digest to global progress, checked sum
+output buffer. `FZP1` plans have an 8192-byte encoding budget. The 175-byte `FZS1`
+checkpoint binds source evidence and plan digest to global progress, value count, checked sum
 and explicit end/limit disposition. Adapter continuation is a separate owned
 record. These are resident/batch limits, not total source or result cardinality.
+
+`FZS1` encodes magic, source kind (u8), resource/revision (u64 each), source
+contract/schema digests (32 bytes each), plan digest (32 bytes), then six u64
+counters in order: pages, scanned, selected, value_count, segments, rows. A
+one-byte sum-present flag and i64 sum follow; absent sum requires zero bits.
+The final byte is 0 (unfinished), 1 (source end) or 2 (input limit). All integers
+are little-endian. `value_count` must not exceed selected rows and must be zero
+for other aggregate kinds; `count_values` cannot carry a sum. Missing/null rows
+consume the selected-row limit even though they do not increment value_count.
+The prior 167-byte encoding rejects; no accumulator is inferred or reset.
+The neutral result manifest exposes value_count as an unsigned decimal string.
 
 ## Canonical plans and output names
 
@@ -104,9 +118,10 @@ beyond the output width must be empty. Duplicate output names reject; aliases
 never rename the source schema or confer access to another source.
 
 The current `FZP1` encoding starts with its four-byte magic and the mandatory
-32-byte SHA-256 of `transit.fuze.plan.v1.boolean-programs.2026-10-01`. Missing or
+32-byte SHA-256 of `transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01`. Missing or
 foreign plan definitions reject before the plan can bind or execute. Next come
-the aggregate byte, projection-count byte, and that many source-column bytes.
+the aggregate byte (`rows` 0, `count` 1, `sum` 2, `count_values` 3),
+projection-count byte, and that many source-column bytes.
 Each output position then has a one-byte name length and exactly that many name
 bytes; zero means no explicit output name. The existing limit-present byte,
 little-endian u64 limit and predicate encoding follow. Absent limits retain a
@@ -202,7 +217,7 @@ request uploads and mutations in the same resource. Segment ordinal `n` uses rec
 record `2^64 - 1`, format `0x314d5155`. `UQJ1` binds the original route, request
 reference, policy revision and retained version. The `UQC1` checkpoint contains
 the `FZS1` engine progress, source-specific cursor, total bytes and ordered segment
-chain in at most 246 bytes. It fits the unchanged 256-byte KV value.
+chain in at most 254 bytes. It fits the unchanged 256-byte KV value.
 
 `UQS1` segment metadata (in the separate result-record context) is 125 bytes:
 magic, u64 ordinal, u64 first row, u8 row count, `SPF1` reference and raw Arrow
@@ -266,7 +281,7 @@ One configured SQL name resolves to an explicit authorized source definition;
 KV decoders and Document paths/list/text projections are declared in that
 definition, never inferred from SQL or application values. This profile supports
 star (all declared columns), one to eight ordered named columns, Boolean
-composition of typed comparisons and exact cell-state tests, row output, `COUNT(*)`, and checked int64 `SUM(column)`. The existing
+composition of typed comparisons and exact cell-state tests, row output, `COUNT(*)`, `COUNT(column)`, and checked int64 `SUM(column)`. The existing
 restricted aggregate subquery preserves filter → limit → aggregate order.
 
 `FROM source AS alias` supplies a query-local qualifier. Source resolution still
@@ -278,7 +293,7 @@ A source alias does not rename output columns or change the source basis. It low
 away before plan encoding, so equivalent aliased and unaliased queries have
 identical canonical plan bytes and execution semantics.
 
-`column AS name`, `COUNT(*) AS name` and `SUM(column) AS name` supply owned
+`column AS name`, either COUNT form with `AS name`, and `SUM(column) AS name` supply owned
 output names. `AS` is required, using the same 16-byte identifier rules. The
 resulting names must be distinct; repeated source indices are allowed with
 distinct names. Names, types and cell states in the source remain unchanged.
@@ -312,8 +327,9 @@ UTF-8/binary comparisons use the plan's lexicographic byte order.
 
 Parser bounds remain 4096 statement bytes, 16-byte identifiers, eight explicit
 projection names and 220 decoded literal bytes. Star can project eight declared
-columns, including columns whose names exceed the SQL identifier bound. Count
-returns uint64, sum returns checked int64 with null for no contributing values.
+columns, including columns whose names exceed the SQL identifier bound. Both counts
+return uint64 with zero for no contributing values; sum returns checked int64
+with null for no contributing values.
 Compilation owns projection/literal storage in a caller-supplied allocator and
 validates the resulting plan; it performs no reads and confers no authority.
 

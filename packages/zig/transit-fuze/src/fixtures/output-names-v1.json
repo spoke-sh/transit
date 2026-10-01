@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "definition": "fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b77",
+  "definition": "772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c",
   "cases": [
     {
       "name": "renamed-row",
@@ -13,7 +13,7 @@
         null
       ],
       "aggregate": "rows",
-      "encoded": "465a5031fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b770002010006616d6f756e740000000000000000000000",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c0002010006616d6f756e740000000000000000000000",
       "columns": [
         "amount",
         "id"
@@ -30,7 +30,7 @@
         "right_id"
       ],
       "aggregate": "rows",
-      "encoded": "465a5031fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b7700020000076c6566745f69640872696768745f696400000000000000000000",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c00020000076c6566745f69640872696768745f696400000000000000000000",
       "columns": [
         "left_id",
         "right_id"
@@ -45,7 +45,7 @@
         "total"
       ],
       "aggregate": "count",
-      "encoded": "465a5031fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b7701010005746f74616c00000000000000000000",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c01010005746f74616c00000000000000000000",
       "columns": [
         "total"
       ]
@@ -59,9 +59,37 @@
         "Total"
       ],
       "aggregate": "sum",
-      "encoded": "465a5031fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b7702010005546f74616c00000000000000000000",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c02010005546f74616c00000000000000000000",
       "columns": [
         "Total"
+      ]
+    },
+    {
+      "name": "renamed-value-count",
+      "projection": [
+        1
+      ],
+      "output_names": [
+        "present"
+      ],
+      "aggregate": "count_values",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c0301010770726573656e7400000000000000000000",
+      "columns": [
+        "present"
+      ]
+    },
+    {
+      "name": "value-count",
+      "projection": [
+        1
+      ],
+      "output_names": [
+        null
+      ],
+      "aggregate": "count_values",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c0301010000000000000000000000",
+      "columns": [
+        "count"
       ]
     },
     {
@@ -75,7 +103,7 @@
         null
       ],
       "aggregate": "rows",
-      "encoded": "465a5031fcfb9172e418c58d7d40f43b14cc121645cc8cedba70f18e69ed864188476b7700020001000000000000000000000000",
+      "encoded": "465a5031772db79a4ed16fff507c2b5ea28580a266ee2552548329e7107842c90413a88c00020001000000000000000000000000",
       "columns": [
         "id",
         "value"

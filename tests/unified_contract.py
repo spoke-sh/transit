@@ -12,7 +12,7 @@ BUNDLES = ROOT / 'packages/zig/transit-query/src/fixtures/bundles.json'
 SOURCES = ROOT / 'packages/zig/transit-query/src/fixtures/sources.json'
 OUTPUT_NAMES = ROOT / 'packages/zig/transit-fuze/src/fixtures/output-names-v1.json'
 BOOLEAN_PLANS = ROOT / 'packages/zig/transit-fuze/src/fixtures/boolean-plans-v1.json'
-PLAN_DEFINITION = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
+PLAN_DEFINITION = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
 
 
 def generate():
@@ -43,6 +43,8 @@ def output_names():
         ('repeated-input', [0, 0], ['left_id', 'right_id'], 0, ['left_id', 'right_id']),
         ('renamed-count', [0], ['total'], 1, ['total']),
         ('renamed-sum', [0], ['Total'], 2, ['Total']),
+        ('renamed-value-count', [1], ['present'], 3, ['present']),
+        ('value-count', [1], [None], 3, ['count']),
         ('unchanged-row', [0, 1], [None, None], 0, ['id', 'value']),
     ]:
         wire = b'FZP1' + PLAN_DEFINITION + bytes([aggregate, len(projection), *projection])
@@ -51,7 +53,7 @@ def output_names():
             wire += bytes([len(raw)]) + raw
         wire += b'\0' + struct.pack('<Q', 0) + b'\0'
         cases.append(dict(name=label, projection=projection, output_names=aliases,
-                          aggregate=['rows', 'count', 'sum'][aggregate], encoded=wire.hex(), columns=columns))
+                          aggregate=['rows', 'count', 'sum', 'count_values'][aggregate], encoded=wire.hex(), columns=columns))
     return json.dumps(dict(version=1, definition=PLAN_DEFINITION.hex(), cases=cases), indent=2)+'\n'
 
 
@@ -105,7 +107,9 @@ def bundles():
             part = bundle[offset:offset+256]
             digest = hashlib.sha256(b'\1' + digest + struct.pack('<IH', index, len(part)) + part).digest()
         ref = b'SPF1' + struct.pack('<QIQQII', 8, 2, 2**64-1, 1, 0x31425155, len(bundle)) + digest
-        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex(), named_wire_hex=named_bundle.hex()))
+        counted_plan = b'FZP1' + PLAN_DEFINITION + bytes([3, 1, 1, 7]) + b'present' + b'\0' + struct.pack('<Q', 0) + b'\0'
+        counted_bundle = b'UQB1' + struct.pack('<HH', len(source), len(counted_plan)) + limits + source + counted_plan
+        result.append(dict(kind=definition['kind'], wire_hex=bundle.hex(), reference_hex=ref.hex(), named_wire_hex=named_bundle.hex(), counted_wire_hex=counted_bundle.hex()))
     return json.dumps(result, indent=2)+'\n'
 
 

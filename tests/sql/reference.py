@@ -92,10 +92,10 @@ def antlr_ast(sql):
     aggregate = selected.aggregateSelection() if selected else ctx.aggregateSelection()
     if not aggregate:
         selection = {'kind': 'rows', 'columns': projection(selected.projection())}
-    elif aggregate.COUNT():
+    elif aggregate.COUNT() and aggregate.STAR():
         selection = {'kind': 'count'}
     else:
-        selection = {'kind': 'sum', 'column': column(aggregate.columnReference())}
+        selection = {'kind': 'count_values' if aggregate.COUNT() else 'sum', 'column': column(aggregate.columnReference())}
     where = ctx.whereClause()
     def atom(pred):
         result = {'column': column(pred.columnReference()), 'op': 'is_' + pred.cellState().getText().lower() if pred.cellState() else None}
@@ -178,7 +178,8 @@ def pg_ast(sql):
     if function:
         name = function['funcname'][0]['String']['sval']
         selection = {'kind': name}
-        if name == 'sum':
+        if name == 'sum' or (name == 'count' and not function.get('agg_star')):
+            selection['kind'] = 'sum' if name == 'sum' else 'count_values'
             selection['column'] = col(function['args'][0])
         else:
             assert name == 'count' and function['agg_star']

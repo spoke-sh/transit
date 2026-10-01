@@ -765,8 +765,8 @@
       }
     },
     {
-      "id": "utf8='it''s 東京'",
-      "sql": "SELECT * FROM items WHERE value = 'it''s 東京'",
+      "id": "utf8='it''s \u6771\u4eac'",
+      "sql": "SELECT * FROM items WHERE value = 'it''s \u6771\u4eac'",
       "schema": {
         "name": "items",
         "columns": [
@@ -801,8 +801,8 @@
       }
     },
     {
-      "id": "utf8<>'it''s 東京'",
-      "sql": "SELECT * FROM items WHERE value <> 'it''s 東京'",
+      "id": "utf8<>'it''s \u6771\u4eac'",
+      "sql": "SELECT * FROM items WHERE value <> 'it''s \u6771\u4eac'",
       "schema": {
         "name": "items",
         "columns": [
@@ -1889,6 +1889,261 @@
         ],
         "type": "int64"
       }
+    },
+    {
+      "id": "count-column-int64-0",
+      "sql": "SELECT count(value) FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count-column-int64-1",
+      "sql": "SELECT count(x.value) AS present FROM items AS x",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count-column-int64-2",
+      "sql": "SELECT count(chosen.label) AS total FROM (SELECT value AS label FROM items LIMIT 7) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count-column-int64-3",
+      "sql": "SELECT count(value) FROM (SELECT value FROM items LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count-column-int64-4",
+      "sql": "SELECT count(value) FROM items WHERE value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "int64"
+      }
+    },
+    {
+      "id": "count-column-boolean-0",
+      "sql": "SELECT count(value) FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "count-column-boolean-1",
+      "sql": "SELECT count(x.value) AS present FROM items AS x",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "count-column-boolean-2",
+      "sql": "SELECT count(chosen.label) AS total FROM (SELECT value AS label FROM items LIMIT 7) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "count-column-boolean-3",
+      "sql": "SELECT count(value) FROM (SELECT value FROM items LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "count-column-boolean-4",
+      "sql": "SELECT count(value) FROM items WHERE value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "boolean"
+      }
+    },
+    {
+      "id": "count-column-utf8-0",
+      "sql": "SELECT count(value) FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "count-column-utf8-1",
+      "sql": "SELECT count(x.value) AS present FROM items AS x",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "count-column-utf8-2",
+      "sql": "SELECT count(chosen.label) AS total FROM (SELECT value AS label FROM items LIMIT 7) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "count-column-utf8-3",
+      "sql": "SELECT count(value) FROM (SELECT value FROM items LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "count-column-utf8-4",
+      "sql": "SELECT count(value) FROM items WHERE value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "utf8"
+      }
+    },
+    {
+      "id": "count-column-binary-0",
+      "sql": "SELECT count(value) FROM items",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "count-column-binary-1",
+      "sql": "SELECT count(x.value) AS present FROM items AS x",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "count-column-binary-2",
+      "sql": "SELECT count(chosen.label) AS total FROM (SELECT value AS label FROM items LIMIT 7) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "count-column-binary-3",
+      "sql": "SELECT count(value) FROM (SELECT value FROM items LIMIT 0) AS chosen",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "count-column-binary-4",
+      "sql": "SELECT count(value) FROM items WHERE value IS NULL",
+      "schema": {
+        "name": "items",
+        "columns": [
+          "id",
+          "value"
+        ],
+        "type": "binary"
+      }
+    },
+    {
+      "id": "count-column-reject-0",
+      "sql": "SELECT count(value) FROM items LIMIT 2",
+      "compile_error": "UnsupportedAggregateLimit"
+    },
+    {
+      "id": "count-column-reject-1",
+      "sql": "SELECT count(other.value) FROM items",
+      "compile_error": "UnknownQualifier"
+    },
+    {
+      "id": "count-column-reject-2",
+      "sql": "SELECT count(absent) FROM items",
+      "compile_error": "UnknownColumn"
     }
   ],
   "reject": [
@@ -1905,11 +2160,6 @@
     {
       "id": "excluded-2",
       "sql": "SELECT * FROM items; SELECT * FROM items",
-      "postgres": true
-    },
-    {
-      "id": "excluded-4",
-      "sql": "SELECT count(value) FROM items",
       "postgres": true
     },
     {
@@ -2046,6 +2296,21 @@
       "id": "boolean-invalid-6",
       "sql": "SELECT * FROM items WHERE (id = 1 LIMIT 2)",
       "postgres": false
+    },
+    {
+      "id": "count-column-exclusion-0",
+      "sql": "SELECT count(DISTINCT value) FROM items",
+      "postgres": true
+    },
+    {
+      "id": "count-column-exclusion-1",
+      "sql": "SELECT count(1) FROM items",
+      "postgres": true
+    },
+    {
+      "id": "count-column-exclusion-2",
+      "sql": "SELECT count(value, id) FROM items",
+      "postgres": true
     }
   ],
   "extensions": [

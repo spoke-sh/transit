@@ -16,7 +16,9 @@ from cold_storage import ColdStore
 from unified_abi import Native, Port, Failure, upload, verify
 
 
-def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, console=None, console_tls=False, compound=False):
+def run(node, host, proof, port_host, library, kinds=("kv", "table", "document"), sdks=(), shell=None, board=None, browser=False, lifecycle=False, example=None, console=None, console_tls=False, compound=False, counts=False):
+    if compound and counts:
+        raise ValueError('compound and value-count recovery use separate fixture profiles')
     if compound and any((board, browser, lifecycle, example, console, console_tls)):
         raise ValueError('compound recovery selects installed SDKs and the SQL shell; other profiles have separate schedules')
     node, host, proof, port_host, library = (str(Path(path).resolve()) for path in (node, host, proof, port_host, library))
@@ -94,6 +96,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                             if request["principal"] == 65536 and not fault["stage"].is_set() and any(item and bytes.fromhex(item["key"]).startswith(b"\x00Us") for item in turn.get("mutations", [])):
                                 fault["stage"].set()
                                 fault["resume"].wait(timeout=60)
+                        if hook := fault.get('count_hook'):
+                            data = hook(self.path, message, body, response.status, data)
                         if hook := fault.get('console_hook'):
                             data = hook(self.path, message, data)
                         if seed_turn and status == 200:
@@ -134,6 +138,25 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     assert result.returncode == 0, (mode, result.stdout, result.stderr)
                 return json.loads(result.stdout) if result.returncode == 0 and result.stdout.strip() else None
 
+            def restart(label='recovered', before_workers=None, after_stop=None):
+                nonlocal source, requester, courier, authority
+                for process in (source, requester, courier, authority):
+                    if process.poll() is None: process.kill()
+                    process.wait(timeout=10)
+                if after_stop: after_stop()
+                fixture.stop(); fixture.start()
+                authority = start('node-' + label, [node, str(node_config)])
+                wait_ready(fixture.http, authority, url + '/health')
+                if before_workers: before_workers()
+                for role in ('source', 'requester'):
+                    generation = invoke('fence' if role == 'source' else 'fence-requester', direct=True)['generation']
+                    path = root / (role + '.json')
+                    config = json.loads(path.read_text()); config['generation'] = generation
+                    path.write_text(json.dumps(config))
+                source = start('source-' + label, [host, str(root / 'source.json')])
+                requester = start('requester-' + label, [host, str(root / 'requester.json')])
+                courier = start('courier-' + label, [host, str(root / 'courier.json')])
+
             try:
                 subprocess.run([node, str(node_config), "--initialize"], check=True, capture_output=True, timeout=30, env=fixture.env)
                 authority = start("node", [node, str(node_config)])
@@ -163,6 +186,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                     'EXPLAIN SELECT count(*) FROM items AS chosen;',
                     'EXPLAIN SELECT chosen.value FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;',
                     'EXPLAIN SELECT count(*) AS total FROM items AS chosen;',
+                    'EXPLAIN SELECT count(chosen.value) AS present FROM items AS chosen;',
+                    'EXPLAIN SELECT count(chosen.amount) FROM (SELECT value AS amount FROM items LIMIT 0) AS chosen;',
                     'EXPLAIN SELECT chosen.value AS "Result", chosen.value AS copy FROM items AS chosen WHERE chosen.value IS TYPE_ERROR LIMIT 0;')]
                 program_inspectors = (native, port_client, *(caller for caller in callers if caller.predicate_programs))
                 program_requests = [{'inspect': {'scope': scope, 'sql': sql}} for sql in (
@@ -189,7 +214,11 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                         if 'tables' in expected: assert expected['tables'] == (['items'] if kind == 'table' else [])
                         if 'explanation' in expected:
                             plan = expected['explanation']
-                            if plan['aggregate'] == 'count':
+                            if plan['aggregate'] == 'count_values':
+                                assert plan['projection'] == ['value']
+                                assert plan['columns'] == [{'name': 'present' if 'AS present' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
+                                assert plan['operators'] == (['scan', 'limit', 'count_values'] if 'LIMIT 0' in action['inspect']['sql'] else ['scan', 'count_values'])
+                            elif plan['aggregate'] == 'count':
                                 assert plan['columns'] == [{'name': 'total' if 'AS total' in action['inspect']['sql'] else 'count', 'type': 'uint64'}]
                             elif 'state' in plan['predicate']:
                                 assert plan['limit'] == '0' and plan['predicate'] == {'state': {'column': 'value', 'value': 'type_error'}}
@@ -241,22 +270,8 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 fault["resume"].set()
                 same = subprocess.run([host, str(root / "source.json")], capture_output=True, timeout=15, env=fixture.env)
                 assert same.returncode and b"FreshOwnershipRequired" in same.stderr, same.stderr
-                requester.kill(); requester.wait(timeout=10)
-                courier.kill(); courier.wait(timeout=10)
-                authority.kill(); authority.wait(timeout=10)
-                fixture.stop()
-                fixture.start()
+                restart()
                 print(f"Unified {kind}: restarted source, requester, node and disk store after segment staging", flush=True)
-                authority = start("node-recovered", [node, str(node_config)])
-                wait_ready(fixture.http, authority, url + "/health")
-                for role in ("source", "requester"):
-                    generation = invoke("fence" if role == "source" else "fence-requester", direct=True)["generation"]
-                    path = root / f"{role}.json"
-                    config = json.loads(path.read_text()); config["generation"] = generation
-                    path.write_text(json.dumps(config))
-                source = start("source-recovered", [host, str(root / "source.json")])
-                requester = start("requester-recovered", [host, str(root / "requester.json")])
-                courier = start("courier-recovered", [host, str(root / "courier.json")])
                 until = time.monotonic() + 900
                 while True:
                     status = invoke("status", timeout=15)
@@ -323,12 +338,15 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 assert manifest["checkpoint"]["bytes"] == total
                 verify(native, port_client, root, final['ordinal']+1)
                 for owner in callers: verify(owner, owner, root, final['ordinal']+1)
+                if counts:
+                    from unified_counts import check
+                    check(native, port_client, callers, root, invoke, restart, fault, kind)
                 if shell:
                     from unified_shell import check
                     shell_config = json.loads((root / 'shell.json').read_text())
                     shell_config['url'] = proxy_url
                     (root / 'shell.json').write_text(json.dumps(shell_config))
-                    check(shell, root, kind, invoke, expected, fault, compound=compound)
+                    check(shell, root, kind, invoke, expected, fault, compound=compound, counts=counts)
                 if board:
                     from unified_board import check
                     check(board, root, kind, invoke, expected, fixture, start, browser=browser)
@@ -392,6 +410,7 @@ def run(node, host, proof, port_host, library, kinds=("kv", "table", "document")
                 raise
             finally:
                 fault["resume"].set()
+                if release := fault.get('count_release'): release.set()
                 cleanup_errors = []
                 for owner in (*callers, port_client, native):
                     if owner is not None:
@@ -417,6 +436,7 @@ if __name__ == "__main__":
     parser.add_argument('--board')
     parser.add_argument('--browser', action='store_true')
     parser.add_argument('--lifecycle', action='store_true')
+    parser.add_argument('--counts', action='store_true')
     parser.add_argument('--expiry', action='store_true')
     parser.add_argument('--example')
     args = parser.parse_args()
@@ -428,4 +448,4 @@ if __name__ == "__main__":
         raise SystemExit(0)
     run(args.node, args.host, args.proof, args.port_host, args.library,
         kinds=args.kinds or ('kv', 'table', 'document'), sdks=args.sdk or (), shell=args.shell,
-        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, console=args.console, console_tls=args.console_tls, compound=args.compound)
+        board=args.board, browser=args.browser, lifecycle=args.lifecycle, example=args.example, console=args.console, console_tls=args.console_tls, compound=args.compound, counts=args.counts)

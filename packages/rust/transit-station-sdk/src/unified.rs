@@ -391,7 +391,7 @@ impl Plan {
             }
         };
         Ok(
-            json!({"version":1,"projection":self.projection,"output_names":self.output_names,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum"}}),
+            json!({"version":1,"projection":self.projection,"output_names":self.output_names,"predicate":predicate,"limit":self.limit.map(|v|v.to_string()),"aggregate":match self.aggregate {Aggregate::Rows=>"rows",Aggregate::Count=>"count",Aggregate::Sum=>"sum",Aggregate::CountValues=>"count_values"}}),
         )
     }
 }
@@ -607,6 +607,7 @@ pub enum InspectionOperator {
     Project,
     Count,
     Sum,
+    CountValues,
 }
 /// Predicate structure only. Inspection never returns the query's literal.
 #[derive(Clone, Debug)]
@@ -794,6 +795,7 @@ impl Inspection {
                             "project" => InspectionOperator::Project,
                             "count" => InspectionOperator::Count,
                             "sum" => InspectionOperator::Sum,
+                            "count_values" => InspectionOperator::CountValues,
                             _ => return Err(malformed()),
                         })
                     })
@@ -815,6 +817,7 @@ impl Inspection {
                         "rows" => Aggregate::Rows,
                         "count" => Aggregate::Count,
                         "sum" => Aggregate::Sum,
+                        "count_values" => Aggregate::CountValues,
                         _ => return Err(malformed()),
                     },
                     columns: columns(data)?,
@@ -857,6 +860,7 @@ pub struct Manifest {
     pub pages: u64,
     pub scanned: u64,
     pub selected: u64,
+    pub value_count: u64,
     pub segments: u64,
     pub rows: u64,
     pub byte_count: u64,
@@ -916,6 +920,7 @@ impl Page {
             pages: wide(field(m, "pages")?)?,
             scanned: wide(field(m, "scanned")?)?,
             selected: wide(field(m, "selected")?)?,
+            value_count: wide(field(m, "value_count")?)?,
             segments: wide(field(m, "segments")?)?,
             rows: wide(field(m, "rows")?)?,
             byte_count: wide(field(m, "bytes")?)?,

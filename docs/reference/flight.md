@@ -10,7 +10,7 @@ Arrow columns. Missing, conflicted and mistyped cells reject.
 | --- | --- |
 | Statement execution | `CommandStatementQuery`, one endpoint, ordered finite batches through `DoGet` |
 | Metadata | `GetSchema`, catalogs, database schemas, Tables, Table types, selected SqlInfo |
-| Application SQL | [query SQL](sql/select.md), including count, checked sum and typed empty results |
+| Application SQL | [query SQL](sql/select.md), including `COUNT(*)`, `COUNT(column)`, checked sum, output aliases and typed empty results |
 | Independent clients | PyArrow 23.0.0; ADBC release 24 Flight SQL driver 1.12.0, Python 3.13 and C vtable on Linux x86_64 |
 | Excluded | Prepared parameters, transactions, writes/ingest, `ListFlights`, `DoPut`, `DoExchange`, distributed endpoints and arbitrary actions |
 

@@ -21,6 +21,7 @@ class Aggregate(Enum):
     ROWS = 'rows'
     COUNT = 'count'
     SUM = 'sum'
+    COUNT_VALUES = 'count_values'
 
 
 class Comparison(Enum):

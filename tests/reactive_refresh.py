@@ -102,7 +102,7 @@ def run(env, _tls):
     cast(application, b'UQA1' + struct.pack('<QQQ', ingress, requests, 1) + declaration + b'\1' + limits)
     drained(application)
     mutate(1)
-    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.2026-10-01').digest()
+    definition = hashlib.sha256(b'transit.fuze.plan.v1.boolean-programs.count-values.2026-10-01').digest()
     plan = b'FZP1' + definition + b'\0\2\0\1\0\0\0' + struct.pack('<Q', 0) + b'\0'
     bundle = b'UQB1' + struct.pack('<HH', len(source), len(plan)) + limits + source + plan
     digest = hashlib.sha256(b'transit.station.publication.v1\0' + struct.pack('<II', 0x31425155, len(bundle))).digest()

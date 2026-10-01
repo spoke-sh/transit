@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "source_revision": "cdb1bc49777e9fc550836a6835119dc240def0e8",
+  "command": "just test::unified-counts -Doptimize=ReleaseSafe -Dunified-source=document -Dunified-shell=true",
+  "exit_code": 0,
+  "log": {
+    "path": "/var/tmp/transit-count-column-shell-document-recovery.log",
+    "sha256": "ba21b3f6930c7d3a220eac2b954d305997edda508451d81d10f616aa4b4d23a7"
+  },
+  "seconds": 1328.6,
+  "provision_seconds": 1023.26,
+  "ordinary_manifest_seconds": 1127.95,
+  "callers": [
+    "native",
+    "port",
+    "actual signed SQL shell"
+  ],
+  "partial_count": 8,
+  "final_count": 10,
+  "missing_column": {
+    "selected": 10,
+    "value_count": 0
+  },
+  "resident_pages": 64,
+  "hot_store_bytes": 8388608,
+  "cold_objects": 1094,
+  "cold_bytes": 124201701,
+  "checks": [
+    "exact saved upload retry after nonzero unfinished counter",
+    "all worker/node/disk-store replacement preserves checkpoint",
+    "current denial and cancellation after partial progress",
+    "closed checkpoint unchanged and no partial result",
+    "zero LIMIT",
+    "actual SQL shell frozen bundle and original request through shell exit/restart",
+    "named uint64 result and selected/value manifest counters",
+    "permanent retirement/collection and released source pins"
+  ],
+  "limits": [
+    "Installed SDK consumers are not enabled in this run; the separate all13-caller Document schedule is retained independently.",
+    "No deadline, resident bound, retry policy or production code changed.",
+    "This separate Document-only pass does not complete or explain the earlier combined shell command failure."
+  ]
+}

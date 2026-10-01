@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "runtime_revision": "029b21a0b8dd4faf217324d79170e7d71f6d157b",
+  "proof_revision": "40ad89aa1b7c5c528f41de0c9b248d589769965d",
+  "exit_code": 0,
+  "seconds": 1443.13,
+  "command": "just test::unified-counts -Doptimize=ReleaseSafe -Dunified-source=document -Dunified-sdk=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir",
+  "proof_sha256": "1671fbd3b63886c18721fb57a501261e573a70c27d64538c0ebc420b36211a94",
+  "log": {
+    "path": "/var/tmp/transit-count-column-document-partial-recovery-retry.log",
+    "sha256": "67fffc5937a81a5c77904892f85205ef3e54ffb1519c725314902062df1e09b8"
+  },
+  "summary": [
+    "Unified document: provisioned in 1130.86s",
+    "Unified document: SQL inspection agrees across 13 enabled native/port/SDK callers",
+    "Unified document: frozen upload retry and admission passed",
+    "Unified document: restarted source, requester, node and disk store after segment staging",
+    "Unified document: complete manifest after 1244.45s",
+    "Unified document COUNT: partial 8/10, exact saved upload, worker/node/store replacement and 13 result/manifest consumers passed.",
+    "Unified document COUNT: current denial, cancellation after partial progress, no partial result, zero LIMIT and selected/value manifest counters passed.",
+    "Unified document: 12 rows / 2 segments / 9880 bytes / 64 resident authority pages / 8 MiB hot store / 1037 cold objects / 120666637 cold bytes / installed SDKs=python,node,ruby,rust,c,cpp,java,dotnet,erlang,elixir; frozen upload retry, worker/node/store recovery, prefix revocation and released source pin passed in 1443.13s"
+  ],
+  "count": {
+    "partial": 8,
+    "selected_final": 10,
+    "count_final": 10,
+    "missing_selected": 10,
+    "missing_count": 0,
+    "callers": 13
+  },
+  "bounds": {
+    "resident_pages": 64,
+    "hot_store_bytes": 8388608,
+    "cold_objects": 1037,
+    "cold_bytes": 120666637
+  },
+  "scope": [
+    "Exact original saved upload; nonzero unfinished count survives all worker/node/store replacement.",
+    "Current completed-result read denial, source denial and cancellation after partial progress, unchanged closed checkpoint and no partial result.",
+    "Empty LIMIT and Document missing-value result checked independently through all 13 native/port/SDK consumers.",
+    "Final retirement and released pins. The ordinary row result has 12 rows, two segments and 9880 bytes."
+  ],
+  "prior_failure": "count-values-document-provision-2026-10-01.json",
+  "environment": "Same code, storage thresholds, resident limits and timeouts; rerun after removing disposable build caches from three inactive owned checkouts."
+}

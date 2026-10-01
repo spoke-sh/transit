@@ -18,6 +18,8 @@ def main():
     parser.add_argument('--control', type=Path, help='Frozen ReleaseSafe probe to alternate with the candidate')
     parser.add_argument('--control-revision', help='Source revision of the frozen control')
     parser.add_argument('--cpu', type=int, help='Pin both frozen probes to one available CPU')
+    parser.add_argument('--profile', choices=('baseline', 'count-values'), default='baseline',
+                        help='Keep unchanged-operation controls separate from new value-count costs')
     args = parser.parse_args()
     if not 1 <= args.samples <= 100:
         parser.error('--samples must be between 1 and 100')
@@ -27,22 +29,26 @@ def main():
         parser.error('--cpu must name an available affinity CPU')
     pin = None if args.cpu is None else lambda: os.sched_setaffinity(0, {args.cpu})
     binary = args.binary.resolve()
+    profile_args = ['--count-values'] if args.profile == 'count-values' else []
     # One unrecorded warm-up, followed by independent processes with identical work.
-    subprocess.run([binary], check=True, capture_output=True, text=True, preexec_fn=pin)
+    subprocess.run([binary, *profile_args], check=True, capture_output=True, text=True, timeout=300, preexec_fn=pin)
     samples = []
     control_samples = []
     control = args.control.resolve() if args.control else None
     if control:
-        subprocess.run([control], check=True, capture_output=True, text=True, preexec_fn=pin)
+        subprocess.run([control, *profile_args], check=True, capture_output=True, text=True, timeout=300, preexec_fn=pin)
     for sample_index in range(args.samples):
         runs = [(binary, samples)] + ([(control, control_samples)] if control else [])
         for executable, target in runs if sample_index % 2 == 0 else reversed(runs):
-            result = subprocess.run([executable], check=True, capture_output=True, text=True, preexec_fn=pin)
+            result = subprocess.run([executable, *profile_args], check=True, capture_output=True, text=True, timeout=300, preexec_fn=pin)
             target.append([json.loads(line) for line in result.stdout.splitlines()])
     summary = []
     for index, first in enumerate(samples[0]):
         values = [sample[index]['elapsed_ns'] / sample[index]['iterations'] for sample in samples]
-        assert all((sample[index]['phase'], sample[index]['case']) == (first['phase'], first['case']) for sample in samples)
+        for sample in samples:
+            assert len(sample) == len(samples[0])
+            assert {k: v for k, v in sample[index].items() if k != 'elapsed_ns'} == {k: v for k, v in first.items() if k != 'elapsed_ns'}, 'candidate workload differs'
+            assert sample[index]['elapsed_ns'] > 0 and sample[index]['iterations'] > 0
         summary.append(dict(phase=first['phase'], case=first['case'],
                             median_ns=statistics.median(values), min_ns=min(values), max_ns=max(values)))
         if control:
@@ -57,7 +63,9 @@ def main():
         ['git', 'rev-parse', 'HEAD'], text=True).strip(), dirty=bool(subprocess.check_output(
         ['git', 'status', '--porcelain'], text=True)), platform=platform.platform(),
         compiler=subprocess.check_output(['zig', 'version'], text=True).strip(),
-        binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(), optimization='ReleaseSafe',
+        binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(), optimization='ReleaseSafe', profile=args.profile,
+        source_diff_sha256=hashlib.sha256(subprocess.check_output(['git', 'diff', 'HEAD', '--binary'])).hexdigest(),
+        affinity=sorted(os.sched_getaffinity(0)), probe_timeout_seconds=300,
         scope='pure compile and paged aggregate; excludes source I/O, authorization and transport',
         cpu=args.cpu, host_load=os.getloadavg() if hasattr(os, 'getloadavg') else None,
         driver_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),

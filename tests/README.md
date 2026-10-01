@@ -11160,3 +11160,518 @@ retain their distinct outcomes. Pinned `just transit-board::install`, full
 diagnostic cases, units, generated contracts and both frontend checks/builds.
 Committed-HEAD clean qualification remains pending. This is local terminal
 evidence, not a new query recovery or SDK compatibility claim.
+
+## COUNT(column) shared transition — 2026-10-01
+
+The `feat/sql-count-column` continuation starts from `a3e15a9f`. Its shared
+pure cell transition counts each top-level value, ignores missing/null, rejects
+type errors/conflicts and checks the full u64 range. Focused Fuze package tests
+pass under the pinned bindings shell (`cd packages/zig/transit-fuze && zig build
+test`), exit 0; log `/var/tmp/transit-sql-count-value-units.log`. Fixtures cover
+all six native scalar types, false/empty/negative-zero values, overflow and a
+logical empty list as one top-level value.
+
+At prerequisite commit `d35d04e4`, this helper was not exposed through typed
+plans, SQL, resumable execution or caller APIs. The coordinated continuation
+below supersedes that implementation boundary without enlarging this unit proof.
+
+## COUNT(column) coordinated surface — 2026-10-01
+
+The continuation on `d35d04e4` adds aggregate `count_values` (tag 3), shared
+native/file SQL lowering, resumable progress and neutral manifest value counts,
+all ten typed SDKs, generated contracts and independent signing fixtures.
+Progress grows from 167 to 175 bytes; the largest KV checkpoint is 254 bytes
+within the unchanged 256-byte value bound. Both native and FZP1 definition
+identifiers change. Former definitions/layouts reject rather than defaulting,
+resetting progress or invoking a fallback decoder.
+
+The working-tree full `just check` passes under the pinned bindings shell,
+followed by **162 real file CLI cases**, **106 PyArrow cases** and **64 shared
+native/port codec cases**, exit 0. Log:
+`/var/tmp/transit-count-column-check-manifest-fixed.log`. The file proof retains
+192 MiB input under 96 MiB address space and checks late conversion failures
+after LIMIT 0 and LIMIT 1. Recursive file counts count a top-level list as one
+value. Full checks include generated drift, units, 422 CLI diagnostic cases,
+the four terminal signal schedules, history and frontend checks/builds.
+
+`just test::sql` and the independent Arrow proof pass, exit 0, in
+`/var/tmp/transit-count-column-generated-sql-fixed.log`: **157 SELECT ASTs,
+125 canonical-plan/codec/Arrow cases, 57 independently evaluated results across
+three source kinds and eight page widths**, and 21 excluded/error cases.
+Fuze units separately exercise six scalar types, all three basis kinds, widths
+1–8, seven LIMIT choices, encode/decode after every step, full u64 counters,
+null/missing LIMIT consumption, errors/conflicts and forged checkpoint rejection;
+log `/var/tmp/transit-count-column-fuze-expanded.log`.
+
+All ten installed query SDK codec consumers pass against independent count
+bundles for KV, Table and Document sources, alongside existing byte/Arrow
+fixtures. All SDK packages build, and Node checks pass after formatting a
+pre-existing logical-types example. Log:
+`/var/tmp/transit-count-column-installed-codecs-fixed.log`, exit 0. This is codec
+and packaging evidence, not service authorization or recovery qualification.
+
+Failed development attempts remain distinct: an old fixed-offset malformed
+progress test failed after the layout change; generated Board contracts rejected
+stale reactive signing fixtures; full checks caught the stale progress limit,
+remaining signing fixtures and missing required `value_count` fields in frontend
+test manifests. The first SDK command stopped at Node documentation formatting,
+before running installed consumers. Their logs are respectively
+`/var/tmp/transit-count-column-fuze.log`,
+`/var/tmp/transit-count-column-generated-sql.log`,
+`/var/tmp/transit-count-column-check.log`,
+`/var/tmp/transit-count-column-check-fixed.log`,
+`/var/tmp/transit-count-column-check-signing-fixed.log` and
+`/var/tmp/transit-count-column-sdk-codecs.log`. Subsequent focused successes do
+not turn those incomplete commands into passes.
+
+A later review corrected Flight's independently reconstructed output schema
+to use the shared plan, including value-count uint64 conversion and row/aggregate
+aliases. The refreshed full `just check` and `just test::sql` pass, exit 0, in
+`/var/tmp/transit-count-column-flight-layout-check.log`, including 57 parsed
+documentation examples and the same independent result counts above.
+
+`just test::flight` completes successfully, exit 0; log
+`/var/tmp/transit-count-column-flight.log`. PyArrow verifies the ordinary native
+Table result and exact retry (72.96 seconds for that phase). ADBC Python then
+verifies named COUNT(value) = 32 across 41 nullable rows, derived LIMIT 3 count =
+2, empty count zero, repeated renamed null outputs and unchanged COUNT(*)/SUM.
+The independent C ADBC consumer checks all 41 int64/null rows and the native
+Table schema. These added count cases establish normal gateway execution, not
+COUNT-specific recovery after a fault.
+
+The installed KV command at `029b21a0` also completes, exit 0, in **233.47 s**;
+log `/var/tmp/transit-count-column-installed-kv.log`. All 13 native/port/SDK caller
+variants agree on named value-count inspection and renamed limited input. The
+existing row schedule preserves exact saved upload retry, worker/node/store
+replacement, current denial, retirement and released pins: 41 rows, six segments,
+13,584 bytes, eight resident authority pages, 8 MiB hot store, 41 cold objects and
+8,005,412 cold bytes. Its runtime query is a row projection, so this pass does
+not establish COUNT accumulator recovery.
+
+`just test::unified-counts` extends that same rig with a receipt held after a
+nonzero unfinished count checkpoint, exact original upload recovery, and a
+comparison of accepted progress before and after all workers, node and disk
+store restart. Separate partial-count cases deny source access and cancel work;
+completed results test current read denial. Every installed SDK exposes its
+selected/value counters to the independent Arrow/result oracle. Empty LIMIT and
+Document missing-value cases keep selected rows distinct from contributing
+values. The **KV schedule passes with all 13 callers in 390.55 s**, exit 0, in
+`/var/tmp/transit-count-column-kv-partial-recovery.log`. Its held committed
+accumulator is 2/10; the identical checkpoint survives replacement and completes
+at 10. Current denial, cancellation, unchanged closed checkpoints, zero LIMIT,
+and source retirement pass. The full rig retains eight resident authority pages,
+8 MiB hot store, 185 cold objects and 20,536,884 cold bytes. This proof extends
+`029b21a0` with the accompanying test changes; runtime code is unchanged.
+
+The **Table schedule passes with all 13 callers in 228.12 s**, with its held
+accumulator at 8/10. It checks the same recovery, denial, cancellation, empty
+LIMIT and retirement cases, retaining eight resident authority pages, 8 MiB hot
+store, 112 cold objects and 11,582,298 cold bytes. The sequential Document
+schedule fails during provisioning, before query inspection or COUNT assertions,
+and the combined command exits 1. MinIO returns HTTP 507 `XMinioStorageFull`;
+Ursula then reports `ColdBackpressure` when a write would exceed the unchanged
+8 MiB hot limit. The log is
+`/var/tmp/transit-count-column-table-document-partial-recovery.log`;
+[bounded failure evidence](verification/results/count-values-document-provision-2026-10-01.json)
+preserves the completed Table phase and unrun Document checks. Fixture cleanup
+joins its children and removes the private state; the log retains provider tails.
+
+Removing regenerable build caches from three inactive owned checkouts increases
+available disk space from about 18 to 27 GiB while preserving source, recorded
+evidence and frozen comparison binaries. The unchanged Document-only rerun at
+`40ad89aa` **passes with all 13 callers in 1443.13 s**, exit 0; log
+`/var/tmp/transit-count-column-document-partial-recovery-retry.log`.
+Its held 8/10 accumulator survives replacement and completes at 10. The separate
+missing-column query selects ten rows and counts zero. The same current-denial,
+cancellation, empty LIMIT, retirement and pin-release checks pass, with the
+existing 64 resident authority pages, 8 MiB hot store, 1037 cold objects and
+120,666,637 cold bytes. [Source-qualified evidence](verification/results/count-values-document-recovery-2026-10-01.json)
+retains the completed scope and prior failure. No storage threshold, deadline,
+resident bound or assertion changes.
+
+Committed-head core at `029b21a0` **fails after 19 passing tasks**, with two later
+tasks unrun, in 1106.60 seconds. `test::callers` expects `AccessDenied` for an
+unauthorized effect but receives `AuthorityUnavailable`; the node records a
+`page.stage ReadFailed` and HTTP 503 after about two seconds of request work.
+That observation does not establish the cause of the provider failure.
+[Exact metadata, task results and unrun inventory](verification/results/count-values-clean-core-2026-10-01.json)
+retain the failed outcome. Checkout: `/var/tmp/transit-ci-skzrxzcq/src`; log:
+`/var/tmp/transit-count-column-clean-core.log`. An unchanged focused
+`just test::callers` rerun in that same checkout passes, exit 0, log
+`/var/tmp/transit-count-clean-callers-focused.log`. No deadlines, assertions or
+runtime code change. This focused pass does not complete the failed lane or
+explain its failure. Refreshed full `just check` for the new proof/benchmark
+changes also passes, exit 0, in `/var/tmp/transit-count-proof-check.log`.
+
+Fresh core at `40ad89aa` **passes all 22 tasks in 1155.90 s**, exit 0. Completed
+metadata, exact task order and all zero exits are verified at
+`.cache/ci/clean/40ad89aa1b7c-transit-ci-jty9suii`; the
+[file-control archive](benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
+retains the metadata/results. Log:
+`/var/tmp/transit-count-column-recovery-clean-core.log`. This later pass does
+not establish the cause of the earlier failure. Production code is unchanged
+at `5d897f0d`; its clean bindings lane remains in progress. Full `just check`
+for the file-profile/evidence changes passes in
+`/var/tmp/transit-count-file-profile-check.log`.
+
+`just test::unified-counts -Dunified-shell=true` also selects COUNT for the
+actual signed SQL shell's existing frozen-bundle/original-command recovery
+schedule. It checks the renamed derived input, named uint64 result and manifest
+counters, including Document missing values, through shell exit/restart and
+permanent retirement/collection. The all-source native/port/shell command
+**fails**, exit 1, in `/var/tmp/transit-count-column-shell-recovery.log`.
+KV completes the shell assertions in **287.10 s**. Table completes ordinary
+row recovery and native/port partial-count recovery, denial, cancellation and
+zero LIMIT, then fails in shell completion polling with `KeyError: status`.
+That expression discards the actual response body; worker tails include
+`AuthorityTimeout`, but they do not establish the shell error or its cause.
+Document is unrun. [Bounded failure evidence](verification/results/count-values-shell-recovery-2026-10-01.json)
+retains the completed scope and exact proof hashes. A diagnostic assertion now
+preserves the status response without accepting errors, repeating failed reads
+or increasing the existing 300-second deadline.
+
+The diagnostic-only Table rerun **passes in 223.92 s**, exit 0; log
+`/var/tmp/transit-count-column-shell-table-diagnostic.log`. It covers native/port
+partial-count recovery and the actual shell's exact restart/retry, named uint64
+result, manifest counters, current denial and retirement/collection. The existing
+eight resident pages and 8 MiB hot store retain 166 cold objects / 18,368,277 bytes.
+[Source-qualified Table evidence](verification/results/count-values-shell-table-recovery-2026-10-01.json)
+does not explain the earlier status failure. Document shell recovery separately
+**passes at `cdb1bc49` in 1328.60 s**, exit 0, including provisioning in 1023.26 s.
+The native/port/actual-shell schedule preserves partial 8/10 through replacement,
+checks denial/cancellation and missing values (ten selected/count zero), and
+completes original-bundle/request recovery, named output and retirement/collection.
+Its existing 64 resident pages and 8 MiB hot store retain 1094 cold objects /
+124,201,701 bytes. [Document shell evidence](verification/results/count-values-shell-document-recovery-2026-10-01.json)
+and `/var/tmp/transit-count-column-shell-document-recovery.log` retain this
+separate pass; installed SDK consumers were not enabled in that run.
+
+The default console's separate snapshot path also **passes** explicit COUNT
+cases in the real local-server proof: empty zero, one value among two nullable
+rows, unchanged row count two, null-only zero, renamed derived input and LIMIT
+zero. Each result has a named uint64 column and independent completed snapshot.
+The full server lifecycle completes in **50.56 s**, exit 0; log
+`/var/tmp/transit-count-column-interactive-server-runtime-env.log`. The command
+uses the pinned bindings shell with only `TRANSIT_SQL_TOOLS` and
+`TRANSIT_GSON_JAR` removed from the runtime environment. Its first attempt failed
+before these assertions because automatic server configuration rejected the
+tool-only setting `TRANSIT_SQL_TOOLS`; log
+`/var/tmp/transit-count-column-interactive-server.log`, retained fixture
+`/var/tmp/transit-server-proof-c70z6cd8`. No product setting or deadline changes.
+
+Clean experience at committed `2130f367` **fails after five passing tasks in
+208.01 s**. `transit-board::query-test` receives HTTP 503 `Unavailable` when
+retrying the exact prepared upload after its original receipt; the final Station
+task is unrun. The response does not establish a rejected or duplicated mutation,
+and the retained process tails do not identify its upstream cause.
+[Exact metadata and task inventory](verification/results/count-values-clean-experience-2026-10-01.json)
+are verified against the committed suite. Checkout:
+`/var/tmp/transit-ci-en_y0mfh/src`; log:
+`/var/tmp/transit-count-column-clean-experience.log`.
+An unchanged focused `just transit-board::query-test` rerun in that checkout
+passes, exit 0; log `/var/tmp/transit-count-clean-board-query-focused.log`.
+The focused pass does not complete the failed lane or explain its HTTP 503.
+Full `just check` passes for the diagnostic and failure-evidence changes, exit 0;
+log `/var/tmp/transit-count-failure-diagnostics-check.log`.
+
+The fresh clean experience lane at `cdb1bc49` **fails after six passing tasks
+in 514.46 s**, including a passing Board query task. The final Station launcher
+task fails its unchanged 60-second Arrow-reply deadline after courier readiness
+replacement. Its later lifecycle checks are unrun. Worker logs record HTTP 503
+`HttpCapacity` and `AuthorityUnavailable`; the cause is not established.
+[Completed task inventory and bounded observations](verification/results/count-values-experience-station-2026-10-01.json)
+retain this failure separately from the earlier Board failure. Checkout:
+`/var/tmp/transit-ci-mc2kg8kf/src`; fixture:
+`.cache/launchers/local/station-886ef1`; log:
+`/var/tmp/transit-count-diagnostics-clean-experience-retry.log`.
+
+Clean launchers at `cdb1bc49` **passes both tasks in 322.54 s**.
+[Completed metadata and task results](verification/results/count-values-clean-launchers-2026-10-01.json)
+match the committed suite. The proof includes local persistence, exact retries,
+same-PID replacement, fencing, missing-store refusal and foreground shutdown.
+Log: `/var/tmp/transit-count-diagnostics-clean-launchers.log`; retained results:
+`.cache/ci/clean/cdb1bc49777e-transit-ci-x77143dn`. The successful runner removes
+its temporary checkout. This lane does not complete experience or bindings.
+Full `just check` passes for the interactive-console proof and qualification
+evidence changes, exit 0; log `/var/tmp/transit-count-console-qualification-check.log`.
+
+Remaining CLI qualification, compiler timing failures and clean lanes stay in the
+[M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
+
+### Native COUNT costs
+
+The [native count archive](benchmarks/results/2026-10-01-count-values-native.json.gz)
+retains nine alternating candidate/control pairs for the unchanged thirteen-case
+pure benchmark. Frozen runtime `029b21a0` is compared with its parent
+`a3e15a9f`; the original Zig benchmark source is identical at both revisions.
+The binaries, Python driver, new-profile Zig driver, lockfile, source-diff hashes,
+commands and all raw samples are recorded. Both probes use pinned Zig
+0.17.0-dev.2267+48abf1a34, ReleaseSafe and CPU 1, on a shared host with external
+disk proofs active. No isolated-host or end-to-end latency claim follows.
+
+All thirteen median ratios meet the unchanged 1.15 comparison budget in this
+run. SELECT compilation ratios are **1.0106 / 1.0193 / 1.0065 / 1.0086**;
+COUNT(*) and SUM execution ratios are **0.9989 / 1.0039**. Mutation/declaration
+controls range from **0.9706 to 1.0342**. This is a bounded regression observation,
+not evidence of a general speedup or completion of the file/acquisition matrices.
+
+The separate new-capability profile records nine samples for each of 24 compiler
+and 24 execution cases: six native scalar types, all-value/mixed pages and both
+COUNT forms. Compilation medians span **452.95–525.03 ns**; 8192-row execution
+with encode/decode after every eight-row page spans **0.893–0.928 ms**. Every
+iteration checks selected/contributing progress, and the final Arrow result is
+decoded outside the timing interval. Mixed pages contain half values and half
+null/missing, returning 4096 for COUNT(column) and 8192 for COUNT(*). That result
+difference precludes an equivalent-result speedup claim. The baseline execution
+probe does not serialize progress, so its absolute timings cannot isolate the
+new counter's serialization cost. Logs: `/var/tmp/transit-count-performance.log`;
+both commands exit 0. File costs, native acquisition/publication, recovery and
+remaining clean lanes retain their separate gates.
+
+### File COUNT costs and rejected compiler experiments
+
+The [file-control archive](benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
+retains **3888 correct results** across projection, filter, COUNT(*) and SUM;
+nine file shapes; explicit/sampled/full discovery; both input-cache conditions;
+and nine alternating pairs. Both frozen probes use the same benchmark source,
+with runtime `029b21a0` compared against parent `a3e15a9f`. All **216 pipeline
+ratios pass** the existing 1.15 limit (0.9832–1.0849). Three of 216 compiler ratios
+fail: cold projection narrow/explicit **1.2579**, cold projection wide/explicit
+**1.2833**, and warm SUM sparse/sampled **1.2231**. Other compiler ratios pass.
+These failures keep overall performance qualification open. Exact drivers,
+source/binary hashes, raw samples, input-residency checks and gates are retained.
+
+The separate [COUNT(column) capability archive](benchmarks/results/2026-10-01-count-values-file-capability.json.gz)
+passes **1296 Transit/DuckDB results**: nine shapes, four typed discovery modes,
+both input-cache conditions and nine samples per engine. Each source has 4096
+rows; sparse values contribute 2184 and the other selected columns contribute
+4096, including top-level lists. Native compilation medians span **5.56–24.98
+microseconds**; full scan/conversion/count medians span **33.97–407.53 ms**.
+DuckDB's corresponding binding and scan/Arrow phases have different boundaries;
+matching scalar results do not establish equal conversion work, type inference
+or a general speedup. Both matrices run on CPU 1 on a shared host, with unchanged
+resource and timeout limits. Log `/var/tmp/transit-count-file-performance.log`,
+combined exit 0 for correctness; the three timing failures remain failures.
+
+An isolated parser experiment reuses #52's owned selection/projection storage,
+adapted for COUNT(column). Independent SQL, Fuze units and all 162 file CLI cases
+pass. The projection function shrinks from 744 to 532 machine-code bytes, but
+native SELECT median ratios are only 0.9903–0.9984 and targeted cold wide/explicit
+compilation regresses to **1.3533**. Same-binary file controls span 0.8703–1.0613,
+with that cold wide/explicit case at 0.9724. The experiment is **rejected** and
+its runtime patch restored; code size alone is not a timing improvement.
+The [experiment archive](benchmarks/results/2026-10-01-rejected-count-parser-storage.json.gz)
+retains 1098 native case measurements, 486 file process results, the exact patch,
+drivers, assembly and control provenance. These diagnostics use CPU 2 while the
+original matrices use CPU 1; shared-host variation and the original failures
+remain explicit. No published production implementation changes.
+
+A separate experiment moves the unchanged file compiler into a private function
+that cannot be inlined. Fuze units and all **540 paired process results** pass,
+but ten of thirty compiler gates fail: maxima **3.7779** against pre-COUNT and
+**3.8324** against unmodified COUNT. All thirty pipeline gates pass. The smaller
+caller body does not justify the compiler costs; this patch is **rejected and
+restored**. The [boundary experiment archive](benchmarks/results/2026-10-01-rejected-count-compile-boundary.json.gz)
+retains the exact patch, source/binary identities, driver bytes, assembly and
+six completed comparisons. They use CPU 1, nine alternating pairs, verified
+input-cache conditioning and unchanged limits on the shared host. Changing a
+call boundary changes where work is incurred; these timings do not prove why
+the explicit-schema cases regress.
+
+The subsequent `db5a29bc` implementation replaces the file compiler's schema
+encode/decode copy with `Type.clone`. It retains descriptor validation and uses
+the canonical writer to check the independent encoded-byte budget, then owns all
+names and recursive children directly. Source identity/metadata checks remain.
+Canonical bytes, fingerprints, native/FZP1 definitions and ABI layouts do not
+change. Fuze tests check use after releasing the original, every allocation
+failure, recursive containers, independent scalar fixtures and exact node/name
+budget boundaries. An added test initially used an inferred tuple where the
+pinned compiler requires an array; the corrected full unit suite passes in
+`/var/tmp/transit-count-descriptor-copy-bounds-array.log`. All **162 file CLI
+cases** also pass, including the 192 MiB/96 MiB memory proof, in
+`/var/tmp/transit-count-descriptor-copy-file-query.log`.
+
+The [owned-descriptor archive](benchmarks/results/2026-10-01-count-values-descriptor-copy.json.gz)
+retains **540 correct paired results** against pre-COUNT and unmodified COUNT,
+with all **30 compiler and 30 pipeline gates passing**. Compiler ratios span
+**0.7880–1.0321** for the targeted narrow/wide projections and sparse SUM cases.
+The three originally failing combinations pass these targeted runs, but the
+complete frozen-control matrix remains open. Nine alternating pairs use CPU 1,
+verified input-cache conditions and unchanged budgets on the shared host.
+The final committed prototype rebuild is byte-identical to the measured binary;
+the archive distinguishes subsequent test-only boundary checks from runtime code.
+Log `/var/tmp/transit-count-descriptor-copy-comparison.log`. The broader run is
+`/var/tmp/transit-count-descriptor-copy-full-comparison.log`.
+Full integrated `just check` passes, exit 0, in
+`/var/tmp/transit-count-descriptor-copy-integrated-check.log`.
+
+The completed [full owned-descriptor comparison](benchmarks/results/2026-10-01-count-values-descriptor-copy-full.json.gz)
+retains **3888 correct process results**: four unchanged queries, nine shapes,
+three discovery modes, two input-cache conditions and nine alternating pairs.
+All **216 pipeline gates pass**; **214 of 216 compiler gates pass**. Warm
+projection with decimal/explicit discovery reaches **1.1960**, and cold SUM
+with wide/explicit discovery reaches **1.2297**, above the unchanged 1.15 limit.
+The final cold SUM report adds the second failure after the earlier seven-report
+checkpoint. Correctness completion is not a full timing pass. Every sample
+inventory and median was audited; binary hashes and all recorded Fuze source
+hashes match the frozen `d14887f2` prototype, whose runtime is published in
+`db5a29bc`. The untracked archived comparison driver explains the dirty flag.
+
+Committed-HEAD `just ci-clean --lane growth --work-root /var/tmp` at `40718b3f`
+**fails** after eight passing tasks. `test::growing-service` finishes the query
+write, seal, recover and publish phases, then its deliver subprocess exceeds the
+unchanged **180-second** deadline. The task takes **487.29 s** and the incomplete
+lane takes **685.38 s**; **17 of 26 tasks are unrun**. The
+[failure record](verification/results/count-values-growth-delivery-2026-10-01.json)
+retains exact metadata, task order and the log digest. The node-log tail shows
+successful deliver/open-view/turn receipts; a proxy disconnect during cleanup
+does not establish a cause. The clean checkout remains at
+`/var/tmp/transit-ci-9vlbv3xj/src`; the fixture's temporary storage was removed by
+its cleanup. Log `/var/tmp/transit-count-descriptor-copy-clean-growth.log`.
+No deadline, residency or operation limit changes were made.
+
+A [discovery-copy experiment](benchmarks/results/2026-10-01-rejected-discovery-descriptor-copy.json.gz)
+extends `Type.clone` to explicit/raw discovery and neutral JSON descriptor
+decoding. Full `just check`, allocation-failure/ownership checks, 162 real file
+CLI cases and 91 independent native/port logical-codec cases pass. The initial
+and final probe builds are byte-identical after adding ownership tests. All
+**594 paired results** and **33 pipeline gates** pass, but cold wide/explicit
+SUM compilation reaches **1.3147** against the published descriptor-copy build:
+**32 of 33 compiler gates pass**. Passing that case against the older pre-COUNT
+control does not erase this failure. This variant is **not adopted**; its patch
+is restored from the integration worktree. The archive retains both patches,
+driver bytes and all six reports with independently audited sample inventories
+and medians. A separate variant retaining the JSON parser arena is evaluated
+independently. Logs `/var/tmp/transit-count-discovery-copy-comparison.log`,
+`/var/tmp/transit-count-discovery-copy-sum-comparison.log`,
+`/var/tmp/transit-count-discovery-copy-ownership-checks.log` and
+`/var/tmp/transit-count-discovery-copy-integrated-check.log`.
+
+The [direct-parser-arena variant](benchmarks/results/2026-10-01-rejected-discovery-parser-arena.json.gz)
+keeps the parsed JSON descriptor arena after definition, descriptor and encoded-byte
+checks, alongside direct copies in explicit/raw discovery. Fuze package units,
+including ownership after overwriting the JSON input and every allocation failure,
+pass. All **594 paired results** and **33 pipeline gates** pass, but three compiler
+gates fail: wide/explicit warm projection **1.2101** against the current copy,
+wide/explicit cold projection **1.2371** against pre-COUNT, and wide/explicit cold
+SUM **1.6610** against the current copy. This variant is also **rejected and
+restored**. It does not establish an improvement by removing an allocation alone.
+The archive keeps the exact patch, all six reports, drivers and audited medians.
+Logs `/var/tmp/transit-count-discovery-arena-check-build.log`,
+`/var/tmp/transit-count-discovery-arena-units.log` and
+`/var/tmp/transit-count-discovery-arena-comparison.log`.
+
+The `53945c67` implementation reuses descriptor validation while lowering a
+compiler-owned immutable schema. `Type.clone` and binding metadata checks remain;
+the private plan-shape check validates projection, names, aggregates and predicates.
+Public typed-plan admission still validates both schema and shape. Boundary tests
+reject duplicate fields, invalid decimal descriptors and changed binding identity;
+an already compiled plan retains its owned descriptor after the source binding is
+changed. Fuze package tests and all **162 real file CLI cases** pass. The frozen
+probe rebuilt after adding these tests is byte-identical. Full integrated
+`just check` passes in `/var/tmp/transit-count-plan-validation-integrated-check.log`.
+
+The [compiler-validation comparison](benchmarks/results/2026-10-01-count-values-plan-validation.json.gz)
+retains **594 correct paired results**, all **33 compiler gates** and all
+**33 pipeline gates** passing against pre-COUNT and the current descriptor-copy
+control. Compiler ratios span **0.5834–1.1146** and pipeline ratios
+**0.9971–1.0270**. The two failing combinations in the earlier complete matrix
+pass these targeted comparisons. Every sample inventory and median is audited;
+all recorded Fuze source hashes match prototype `605e46ed` and implementation
+`53945c67`. The exact patch and comparison driver are retained. Native/FZP1
+definitions, canonical plan bytes, fingerprints and bounds do not change.
+
+The [completed full matrix](benchmarks/results/2026-10-01-count-values-plan-validation-full.json.gz)
+retains **3888 correct results** and all **216 pipeline gates passing**.
+**213 of 216 compiler gates pass**. Remaining failures are warm narrow/explicit
+projection **1.1592**, cold nested/explicit COUNT(*) **1.3123**, and cold
+pipe/explicit COUNT(*) **1.1763**. Each sample inventory and median is audited;
+all recorded source hashes match committed prototype `605e46ed`. Targeted
+success does not establish a complete timing pass. The shared-host run overlaps
+other qualification and the retained Station fixture shutdown below; it does not
+establish a causal explanation for the timing differences. Log
+`/var/tmp/transit-count-plan-validation-full-comparison.log`.
+
+Clean core at `8b9d1d5b` passes **22/22 tasks in 1123.21 s**. The
+[record](verification/results/count-values-core-descriptor-copy-2026-10-01.json)
+retains the completed metadata, exact task inventory, source revision and log
+digest. It includes the owned descriptor copy but precedes `53945c67` and cannot
+qualify the later compiler optimization by inheritance. Current-source clean
+growth and installed bindings remain separate. Log
+`/var/tmp/transit-count-completed-matrix-clean-core.log`.
+
+The retained Station launcher installation was still running after its earlier
+Arrow-reply failure. A signed read at **13:01:20 UTC** observes `last-query` at
+authority position 169. This establishes later completion, not its arrival time
+or satisfaction of the original 60-second deadline. The owning launcher's
+`down` operation stops it at **13:02:15 UTC**, with its WAL and logs preserved
+and no reset. The [original failure record](verification/results/count-values-experience-station-2026-10-01.json)
+retains this follow-up separately; the experience lane remains failed.
+
+Current-runtime clean growth at `3f5cfdd8` also **fails** after eight passing
+tasks, including the new file compiler and logical-source checks. Query write,
+seal, recover and publish finish, then deliver exceeds the unchanged 180-second
+subprocess deadline. The failed task takes **501.54 s**, the lane **730.01 s**,
+and **17 of 26 tasks remain unrun**. The [separate record](verification/results/count-values-growth-validation-2026-10-01.json)
+retains exact metadata and task order. This repeats the earlier failure stage;
+its cause remains unestablished. Checkout `/var/tmp/transit-ci-r6_tbid3/src` and
+log `/var/tmp/transit-count-plan-validation-clean-growth.log` are retained.
+
+The [frozen compiler diagnostics](benchmarks/results/2026-10-01-count-values-compiler-diagnostics.json.gz)
+retain **108 correct process results** for the three failing full-matrix cases.
+Each case first compares the current binary with itself, then with the frozen
+pre-COUNT binary, using nine alternating pairs, CPU 1, explicit discovery and
+the original input-cache conditions and 1.15 limit. Same-binary compiler ratios
+are **0.9835/0.9875/0.9476** for warm narrow projection, cold nested COUNT(*) and
+cold pipe COUNT(*), respectively. The corresponding pre-COUNT ratios are
+**0.9628/1.0066/0.9666**; all six pipeline comparisons also pass. Sample identities,
+medians, frozen binary hashes and prototype source hashes are independently
+audited. No source or benchmark change separates these observations from the
+earlier full matrix. The shared-host diagnostics do not reproduce its three
+failures, establish their cause, erase them or provide a full timing pass. They
+do not justify another runtime optimization without further evidence. Logs
+`/var/tmp/transit-count-compiler-self-control.log` and
+`/var/tmp/transit-count-compiler-diagnostic-comparison.log`.
+
+The fixed-revision installed-bindings clean lane at `5d897f0d` completes with
+**17/17 tasks passing in 9909.64 s**. The [completed record](verification/results/count-values-bindings-2026-10-01.json)
+retains the exact source revision, completed metadata, ordered task inventory,
+zero exit codes and log digest. It covers the installed SDK checks, the public
+language interoperability ring, bounded models, SQL rewrite checks, independent
+SQL fixtures and Python gRPC fault schedules. This source includes COUNT's
+coordinated definition/SDK cutover but precedes the later file-compiler changes;
+it is not a complete current-source suite pass. The isolated checkout is removed
+by the successful clean runner after copying evidence to
+`.cache/ci/clean/5d897f0dc733-transit-ci-s1517yp_`. Log
+`/var/tmp/transit-count-column-clean-bindings.log`.
+
+The `4b0c9dbc` integration reuses PR #62's existing `38e5a328` fragment-read
+batching commit, preserving its author date. Native captured turns prefetch at
+most eight fragment keys through the existing captured-view cache; read-only
+adapters keep their point-read interface. Station package tests cover identical
+bytes/manifests, fewer reader callbacks, missing/corrupt fragments and poisoned
+proposals after unavailable/denied reads. The matching prototype `64024bdc`
+passes those tests and `just test::query`; integrated `just check` also passes.
+
+The [frozen fragment-read comparison](verification/results/count-values-fragment-reads-2026-10-01.json.gz)
+uses the same instrumented proof, CPU 0, ext4 fixture storage and unchanged
+180-second phase deadlines in candidate/baseline/baseline/candidate order. Each
+run independently verifies all 41 rows, six segments and 21,296 Arrow bytes,
+including exact retry across restart, cancellation and retained acknowledgement.
+Candidate delivery takes **56.302/53.041 s** and baseline delivery takes
+**57.067/53.360 s**. Both candidate samples use **1849 native read queries**
+versus **2546** in both baseline samples, with **467 commands** unchanged;
+146 batched reads are included in the candidate query total. This establishes
+27.38% fewer native read queries for this fixture, not a latency improvement,
+distribution or explanation of the earlier timeouts.
+
+The initial candidate's **166.654 s** delivery and a separate standard-task
+baseline's **56.858 s** delivery remain in the archive. A direct Python launch
+of the frozen baseline fails before provisioning in `zig_probe_stack`: the
+shell has an 8 MiB stack, while the standard Zig task is observed with
+48,234,496 bytes. The comparison uses the standard build-runner path for both
+variants without manually changing limits. An initial package invocation with
+`--build-file` fails configuration before tests; the package-local invocation
+passes. Earlier clean-growth and Station failures remain separate; these focused
+passes do not complete either clean lane. Logs, executable hashes, runner bytes,
+source identities and the comparison wrapper are retained in the archive.

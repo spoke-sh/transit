@@ -119,6 +119,8 @@ static void codecs(const char *root) {
         definition d=source((transit_sdk_resource){46,7},i,true); transit_station_unified_bundle *b=bundle(&d,true,false,false); transit_sdk_bytes encoded={0}; checked(transit_station_unified_bundle_bytes(b,&encoded));
         char name[32]; snprintf(name,sizeof(name),"bundle%d.bin",i); transit_sdk_bytes expected=fixture(root,name); equal(encoded,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
         b=bundle(&d,true,true,false); checked(transit_station_unified_bundle_bytes(b,&encoded)); snprintf(name,sizeof(name),"named-bundle%d.bin",i); expected=fixture(root,name); equal(encoded,expected); free((void *)expected.data); transit_station_unified_bundle_destroy(b);
+        const uint8_t projection[]={1};transit_station_unified_plan counted={0};counted.projection=projection;counted.projection_count=1;counted.aggregate=TRANSIT_AGGREGATE_COUNT_VALUES;counted.output_names[0]="present";
+        b=NULL;checked(transit_station_unified_prepare_bundle(&d.source,&counted,(transit_station_unified_budgets){1000,500,1048576},NULL,&b));checked(transit_station_unified_bundle_bytes(b,&encoded));snprintf(name,sizeof(name),"counted-bundle%d.bin",i);expected=fixture(root,name);equal(encoded,expected);free((void*)expected.data);transit_station_unified_bundle_destroy(b);
     }
     boolean_codecs(root);
     const char *names[]={"int64","uint64","float64","boolean","utf8","binary"}; transit_station_unified_column columns[6];
@@ -174,7 +176,7 @@ static void serve(char **args) {
             if(!error.kind) {
                 transit_station_unified_page_info info={0}; checked(transit_station_unified_page_get(out,&info)); assert(info.manifest.source_kind==(transit_station_unified_source_kind)kind && info.manifest.resource.resource==connection.resource.resource);
                 transit_station_unified_rows *rows=NULL; checked(transit_station_unified_decode_arrow(info.columns,info.column_count,info.ipc,info.rows,NULL,&rows)); transit_station_unified_rows_destroy(rows);
-                printf("{\"status\":0,\"value\":{\"page\":{\"ordinal\":\"%llu\",\"ipc\":\"",(unsigned long long)info.ordinal); print_hex(info.ipc); printf("\",\"manifest\":{\"segments\":\"%llu\"},\"next_hex\":",(unsigned long long)info.manifest.segments);
+                printf("{\"status\":0,\"value\":{\"page\":{\"ordinal\":\"%llu\",\"ipc\":\"",(unsigned long long)info.ordinal); print_hex(info.ipc); printf("\",\"manifest\":{\"segments\":\"%llu\",\"selected\":\"%llu\",\"value_count\":\"%llu\"},\"next_hex\":",(unsigned long long)info.manifest.segments,(unsigned long long)info.manifest.selected,(unsigned long long)info.manifest.value_count);
                 checked(transit_station_unified_page_next(out,&cursor)); if(cursor) { checked(transit_station_unified_cursor_bytes(cursor,&data)); putchar('"'); print_hex(data); putchar('"'); }else printf("null"); puts("}}}"); transit_station_unified_cursor_destroy(cursor); transit_station_unified_page_destroy(saved); saved=out;
             }
         }

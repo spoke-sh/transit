@@ -13,7 +13,7 @@ public final class Query {
     public enum Column { KEY, VALUE }
     public enum Comparison { EQ, NE, LT, LE, GT, GE }
     public enum Projection { BOTH, KEY, VALUE }
-    public enum Aggregate { ROWS, COUNT, SUM }
+    public enum Aggregate { ROWS, COUNT, SUM, COUNT_VALUES }
     public enum CloseReason { CANCELLED, DENIED }
     public sealed interface Predicate permits All, IsNull, Compare {}
     public record All() implements Predicate {}

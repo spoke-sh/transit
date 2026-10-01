@@ -194,9 +194,9 @@
     {
       "source": "packages/zig/transit-fuze/src/UnifiedStream.zig",
       "symbol": "progress_bytes",
-      "expression": "167",
+      "expression": "175",
       "classification": "encoding",
-      "meaning": "Owned incremental query progress format; counters and aggregate carry are independent of total retained rows."
+      "meaning": "Current v1 fixed checkpoint encoding, including separate selected-row and value-count accumulators; maximum KV continuation remains within the unchanged 256-byte value."
     },
     {
       "source": "packages/zig/transit-fuze/src/UnifiedCodec.zig",
@@ -609,7 +609,7 @@
       "status": "segmented",
       "meaning": "KV, Table and Document queries evaluate bounded batches with retained progress and independently addressed result segments.",
       "source": "packages/zig/transit-fuze/src/UnifiedStream.zig",
-      "anchor": "pub const progress_bytes = 167;",
+      "anchor": "pub const progress_bytes = 175;",
       "replaces": null
     },
     {

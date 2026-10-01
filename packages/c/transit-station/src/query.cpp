@@ -17,7 +17,7 @@ transit_station_manifest manifest(transit_station_turn &turn, uint64_t correlati
 }
 static std::string plan_wire(const transit_station_query_plan &plan, size_t bound) {
     const char *projection = plan.projection == TRANSIT_PROJECT_BOTH ? "both" : plan.projection == TRANSIT_PROJECT_KEY ? "key" : plan.projection == TRANSIT_PROJECT_VALUE ? "value" : nullptr;
-    const char *aggregate = plan.aggregate == TRANSIT_AGGREGATE_ROWS ? "rows" : plan.aggregate == TRANSIT_AGGREGATE_COUNT ? "count" : plan.aggregate == TRANSIT_AGGREGATE_SUM ? "sum" : nullptr;
+    const char *aggregate = plan.aggregate == TRANSIT_AGGREGATE_ROWS ? "rows" : plan.aggregate == TRANSIT_AGGREGATE_COUNT ? "count" : plan.aggregate == TRANSIT_AGGREGATE_SUM ? "sum" : plan.aggregate == TRANSIT_AGGREGATE_COUNT_VALUES ? "count_values" : nullptr;
     require(projection && aggregate, "query-plan"); std::string predicate;
     if (plan.predicate == TRANSIT_PREDICATE_ALL) predicate = "{\"all\":{}}";
     else {

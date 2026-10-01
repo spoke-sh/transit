@@ -68,7 +68,7 @@ predicate_atom({compare,C,Op,V}) -> #{<<"compare">>=>#{<<"column">>=>transit_sdk
 predicate_atom(_) -> transit_sdk_value:fail(invalid_argument,predicate_atom).
 plan(#transit_unified_plan{projection=P,predicate=F,aggregate=A,limit=L,output_names=N}) -> true=P=/=[],
     Names=optional(N,fun(Values)->true=length(Values)=:=length(P),[optional(V,fun(Name)->transit_sdk_value:text(Name,32) end)||V<-array(Values,8)] end),
-    #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"output_names">>=>Names,<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum]),<<"limit">>=>optional(L,fun decimal/1)}.
+    #{<<"version">>=>1,<<"projection">>=>[transit_sdk_value:integer(I,0,7)||I<-array(P,8)],<<"output_names">>=>Names,<<"predicate">>=>predicate(F),<<"aggregate">>=>enum(A,[rows,count,sum,count_values]),<<"limit">>=>optional(L,fun decimal/1)}.
 budgets(#transit_unified_budgets{pages=P,segments=S,result_bytes=B}) -> positive(P),positive(S),positive(B),#{<<"pages">>=>decimal(P),<<"segments">>=>decimal(S),<<"result_bytes">>=>decimal(B)}.
 parsed_budgets(#{<<"pages">>:=P,<<"segments">>:=S,<<"result_bytes">>:=B}) -> V=#transit_unified_budgets{pages=wide(P),segments=wide(S),result_bytes=wide(B)},budgets(V),V.
 optional(undefined,_) -> null;
@@ -165,9 +165,9 @@ inspection_details(V) when map_size(V)=:=1 ->
         #{<<"description">>:=#{<<"columns">>:=Columns}} -> #transit_unified_source_description{columns=[parsed_column(C)||C<-array(Columns,8)]};
         #{<<"tables">>:=Names} -> #transit_unified_table_listing{names=[transit_sdk_value:text(N,32)||N<-array(Names,1)]};
         #{<<"explanation">>:=Plan} ->
-            Operators=[known(O,[scan,filter,limit,project,count,sum])||O<-array(maps:get(<<"operators">>,Plan),4)],true=length(Operators)>=2,
+            Operators=[known(O,[scan,filter,limit,project,count,sum,count_values])||O<-array(maps:get(<<"operators">>,Plan),4)],true=length(Operators)>=2,
             #transit_unified_explanation{operators=Operators,predicate=inspection_predicate(maps:get(<<"predicate">>,Plan)),projection=[transit_sdk_value:text(N,32)||N<-array(maps:get(<<"projection">>,Plan),8)],
-                limit=parsed_optional(maps:get(<<"limit">>,Plan),fun wide/1),aggregate=known(maps:get(<<"aggregate">>,Plan),[rows,count,sum]),
+                limit=parsed_optional(maps:get(<<"limit">>,Plan),fun wide/1),aggregate=known(maps:get(<<"aggregate">>,Plan),[rows,count,sum,count_values]),
                 columns=[parsed_column(C)||C<-array(maps:get(<<"columns">>,Plan),8)],budgets=parsed_budgets(maps:get(<<"budgets">>,Plan))}
     end.
 inspection_predicate(#{<<"program">>:=Instructions}=V) when map_size(V)=:=1 ->
@@ -198,4 +198,4 @@ manifest(V,Realm) ->
     Basis=maps:get(<<"basis">>,V),
     #transit_unified_manifest{job=maps:get(<<"job">>,V),source=transit_station_value:version(maps:get(<<"source">>,V)),requester=#transit_process{realm=Realm,pid=maps:get(<<"requester">>,V)},correlation=wide(maps:get(<<"correlation">>,V)),policy_revision=wide(maps:get(<<"policy_revision">>,V)),request=fixed(maps:get(<<"request">>,V),72),
         kind=known(maps:get(<<"kind">>,Basis),[kv,table,document]),resource=#transit_resource{realm=Realm,resource=maps:get(<<"resource">>,Basis)},revision=maps:get(<<"revision">>,Basis),source_digest=transit_station_value:digest(maps:get(<<"contract">>,Basis)),schema_digest=transit_station_value:digest(maps:get(<<"schema">>,Basis)),plan_digest=transit_station_value:digest(maps:get(<<"plan">>,V)),
-        pages=wide(maps:get(<<"pages">>,V)),scanned=wide(maps:get(<<"scanned">>,V)),selected=wide(maps:get(<<"selected">>,V)),segments=wide(maps:get(<<"segments">>,V)),rows=wide(maps:get(<<"rows">>,V)),byte_count=wide(maps:get(<<"bytes">>,V)),sum=parsed_optional(maps:get(<<"sum">>,V),fun transit_sdk_value:signed/1),finished=known(maps:get(<<"finished">>,V),[source_end,limit]),chain=transit_station_value:digest(maps:get(<<"chain">>,V))}.
+        pages=wide(maps:get(<<"pages">>,V)),scanned=wide(maps:get(<<"scanned">>,V)),selected=wide(maps:get(<<"selected">>,V)),value_count=wide(maps:get(<<"value_count">>,V)),segments=wide(maps:get(<<"segments">>,V)),rows=wide(maps:get(<<"rows">>,V)),byte_count=wide(maps:get(<<"bytes">>,V)),sum=parsed_optional(maps:get(<<"sum">>,V),fun transit_sdk_value:signed/1),finished=known(maps:get(<<"finished">>,V),[source_end,limit]),chain=transit_station_value:digest(maps:get(<<"chain">>,V))}.

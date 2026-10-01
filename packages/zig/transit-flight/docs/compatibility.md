@@ -7,7 +7,7 @@ The [protocol](../../../../contracts/FLIGHT_V1.md) specifies exact wire formats.
 | --- | --- |
 | Source/result | Query v1 with a Table source; one explicitly configured Table per caller |
 | Application types | Two int64 columns, nullable value; full-width integers remain exact |
-| SQL | Existing Fuze read-only SELECT compiler, filters, limits, count and checked sum |
+| SQL | Shared Fuze read-only SELECT compiler, filters, limits, `COUNT(*)`, `COUNT(column)`, checked sum and output aliases |
 | Wire | Apache Arrow 23.0.0 Flight/Flight SQL protobuf definitions, pinned in `proto/manifest.json` |
 | Clients | PyArrow 23.0.0; Apache ADBC release 24 Flight SQL driver 1.12.0, Python 3.13 and C vtable consumers on Linux x86_64 |
 | Discovery | `GetSchema`; `GetFlightInfo`/`DoGet` for catalogs, database schemas, Tables, Table types and selected SqlInfo |

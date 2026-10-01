@@ -41,9 +41,9 @@ transport must expose this layout or define and test an explicit conversion;
 client support for primitive Arrow alone is insufficient.
 
 The typed plan supports bounded Boolean programs over comparisons and cell-state
-tests, ordered projection, limit, count and checked int64 sum. Native SQL shares
+tests, ordered projection, limit, row/value counts and checked int64 sum. Native SQL shares
 that parser and lowering: star or one to eight named columns, comparisons/state
-tests combined with NOT, AND, OR and parentheses, row output, `COUNT(*)` and int64
+tests combined with NOT, AND, OR and parentheses, row output, `COUNT(*)`, `COUNT(column)` and int64
 `SUM`. Programs contain at most 64 instructions, preserve null/missing unknown
 and evaluate atoms eagerly in source order with the first error retained. Uint64/float64
 comparisons use explicit string literals with `::uint64`/`::float64`. `IS NULL`

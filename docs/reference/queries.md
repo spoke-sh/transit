@@ -120,7 +120,10 @@ Joins, general sorting, arbitrary writes and continuous SQL remain unsupported.
 
 ## Relational boundary
 
-COUNT and checked int64 SUM aggregate the selected rows of one declared source.
+COUNT(*) counts selected rows. COUNT(column) counts top-level values of any
+admitted column type, skips missing/null and rejects type errors/conflicts.
+Both return uint64; null/missing still consume the input LIMIT. Checked int64
+SUM adds the selected values of one declared source.
 They do not provide grouping or multi-source aggregation. Each query has one
 resource cut; there is no source-vector consistency mode, JOIN or GROUP BY
 execution contract. Querying two resources separately does not establish an

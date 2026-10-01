@@ -37,7 +37,7 @@ Every row is **Implemented — execution** within its stated profile.
 | `WHERE column comparison literal` | One exactly typed comparison: `=`, `<>`, `!=`, `<`, `<=`, `>`, `>=` | [Expressions](expressions.md) |
 | `IS NULL`, `IS MISSING`, `IS VALUE`, `IS TYPE_ERROR`, `IS CONFLICT` | One exact cell-state predicate; missing and null remain distinct | [Types and cell states](types.md) |
 | `LIMIT n` | Full uint64 row count; omission does not truncate or remove execution budgets | [SELECT](select.md) |
-| `COUNT(*)`, `SUM(column)` | One aggregate; uint64 count or ordered checked int64 sum | [Aggregates](expressions.md#aggregate-functions) |
+| `COUNT(*)`, `COUNT(column)`, `SUM(column)` | One aggregate; uint64 count or ordered checked int64 sum | [Aggregates](expressions.md#aggregate-functions) |
 | Aggregate over one derived table | Only the restricted filter → limit → aggregate form, with its required alias | [Limited aggregate input](select.md#aggregate-a-limited-input) |
 | `FROM source AS alias` | Query-local column qualifier; explicit `AS`, unchanged source and output column identities | [Project rows](select.md#project-rows) |
 | Output `AS name` | Names row or aggregate output positions; distinct names allow repeated inputs; renamed inner columns resolve in the outer aggregate | [Project rows](select.md#project-rows) |
@@ -90,7 +90,7 @@ other administrative SQL families retain their own stated support boundaries.
 | `GRANT`, `REVOKE` | **Planned — checked grammar** | Lower to current owning authorization operations; names and PID ownership do not grant rights |
 | `SHOW SOURCES`, `SHOW SINKS`, `SHOW CONNECTIONS` | **Planned — checked grammar** | Authorized paged catalog inspection; a configured-source listing is not a global catalog |
 | Expressions, boolean composition and reusable queries | **Planned — syntax undecided** | Selected SQL expressions with explicit type, five-state conversion and error-order rules; no general evaluator exists today |
-| `JOIN`, `GROUP BY`, `COUNT(column)` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
+| `JOIN`, `GROUP BY` | **Planned — syntax undecided** | One inner or left int64 equijoin over Tables, optional int64 grouping, count and ordered checked int64 sum; explicit source vectors and bag multiplicity |
 | `ORDER BY`, further expressions, aggregates and query composition | **Planned — syntax undecided** | Broader selected relational operations with explicit error/order semantics and bounded state; individual variants still need contracts |
 | `CREATE VIEW`, `CREATE MATERIALIZED VIEW`, `SUBSCRIBE` | **Planned — syntax undecided** | Named definitions, complete changes, resumable backfill, snapshot/change handoff and current disclosure |
 | Timestamp/interval types, event-time windows and watermarks | **Planned — syntax undecided** | Time domains, lateness, corrections and finality; resource revisions are not event time |

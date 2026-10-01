@@ -77,7 +77,7 @@ remain outside this evidence.
 ## Grammar coverage
 
 The read grammar permits one source, an optional Boolean predicate over typed comparisons and exact cell-state tests,
-one to eight columns or star, row output, `COUNT(*)`, and `SUM(column)`. Identifiers
+one to eight columns or star, row output, `COUNT(*)`, `COUNT(column)`, and `SUM(column)`. Identifiers
 fold to lowercase unless quoted. Column qualification is optional; `FROM source
 AS alias` makes the alias its column qualifier. `AS` is required. The restricted
 aggregate input subquery has a separate outer alias. Row projections and
@@ -100,7 +100,7 @@ spells Fuze's filter → limit → aggregate order. A direct aggregate's outer
 `LIMIT` is syntactically recognized but cannot be lowered as an input limit.
 No optimizer rewrite is implied. General subqueries, joins, grouping, sorting,
 expression arithmetic, general casts,
-`COUNT(column)` and adjacent-string concatenation
+and adjacent-string concatenation
 are outside the grammar. `AS OF` remains a separately checked fragment.
 
 `CREATE TABLE`/`DOCUMENT`/`KV` have a separate bounded offline Zig compiler:

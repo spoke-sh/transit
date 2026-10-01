@@ -37,7 +37,7 @@ segment({transit_result, Turn, Correlation}, Ordinal) -> transit_turn:access(Tur
         _ -> transit_sdk_value:fail(incompatible_native, segment_identity)
     end end).
 plan(#transit_query_plan{projection = Projection, aggregate = Aggregate, limit = Limit, predicate = Predicate}, Bound) ->
-    #{<<"projection">> => transit_station_value:enum(Projection, [both, key, value]), <<"aggregate">> => transit_station_value:enum(Aggregate, [rows, count, sum]),
+    #{<<"projection">> => transit_station_value:enum(Projection, [both, key, value]), <<"aggregate">> => transit_station_value:enum(Aggregate, [rows, count, sum, count_values]),
       <<"limit">> => case Limit of undefined -> null; _ -> transit_station_value:decimal(Limit) end, <<"predicate">> => predicate(Predicate, Bound)}.
 predicate(all, _) -> #{<<"all">> => #{}};
 predicate({is_null, Column}, _) -> #{<<"is_null">> => column(Column)};

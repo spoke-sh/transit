@@ -25,7 +25,7 @@ self-origin, source identity, persisted plan/progress, current policy and the
 candidate segment's identity before adding staged fragments.
 
 The plan uses canonical `FZP1` bytes and must fit one 256-byte value at start.
-The source basis and 167-byte `FZS1` progress use the current query definition;
+The source basis and 175-byte `FZS1` progress use the current query definition;
 the Table cursor is stored separately in the job. Each step uses a 4 MiB workspace
 and an 8192-byte nested Arrow segment buffer independently of total result size.
 At most three 221-byte fragments are staged in a turn. A separate seal verifies

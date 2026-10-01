@@ -25,6 +25,8 @@ def codecs(config):
         assert bundle.data.hex() == fixtures[index]['wire_hex']
         named = q.Bundle.prepare(source, q.Plan((1, 0), q.Compare(1, Comparison.NE, scalar), 2**64-1, output_names=('Result', None)), q.Budgets(1000, 500, 1048576))
         assert named.data.hex() == fixtures[index]['named_wire_hex']
+        counted = q.Bundle.prepare(source, q.Plan((1,), aggregate=q.Aggregate.COUNT_VALUES, output_names=('present',)), q.Budgets(1000, 500, 1048576))
+        assert counted.data.hex() == fixtures[index]['counted_wire_hex']
     for source in (q.KVSource(resource, b'', q.Decoder(q.Type.BINARY, 2), q.Decoder(q.Type.UTF8)),
                    q.TableSource(resource, 9, ('id', 'label'), q.Type.UINT64)):
         try: q.Bundle.prepare(source, q.Plan((0,)), q.Budgets(1, 1, 1))
@@ -175,7 +177,7 @@ async def serve(config, asynchronous):
                     sys.path.append(config['arrow_site'])
                     assert page.to_pyarrow().num_rows == page.rows
                     result = {'page': {'ordinal': str(page.ordinal), 'ipc': page.ipc.hex(),
-                        'manifest': {'segments': str(page.manifest.segments)}, 'next': None if page.next is None else page.next.data}}
+                        'manifest': {'segments': str(page.manifest.segments), 'selected': str(page.manifest.selected), 'value_count': str(page.manifest.value_count)}, 'next': None if page.next is None else page.next.data}}
                 else: raise AssertionError('unsupported test operation')
                 print(json.dumps({'status': 0, 'value': result}), flush=True)
             except TransitError as error:
