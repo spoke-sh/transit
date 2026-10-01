@@ -10202,7 +10202,7 @@ A focused `just test::query` rerun at `3d0d7819` passes with delivery in 35.52 s
 That rerun does not establish the cause of the earlier timeout. Full clean
 qualification of this follow-up remains pending.
 
-### Boolean integration with native admission and Fuze validation
+## Boolean integration with native admission and Fuze validation
 
 At `014e4f6d`, the Boolean branch is rebased onto main `e82c8430`, retaining
 #54's validated canonical encoder and unnamed-output schema validation,
@@ -10244,9 +10244,60 @@ fixtures under `/var/tmp/transit-sql-service-diagnostic-8jwnky5h/tmp`; it does n
 reproduce or explain the original clean-service failure. Private stores and keys
 remain outside Git. The earlier failed clean result remains failed.
 
-A new committed-HEAD clean core run at `014e4f6d` is in progress when this record
-is written, at `/var/tmp/transit-ci-o6sevl3q`, log
-`/tmp/transit-sql-boolean-main-e82-clean-core.log`. Only its terminal completion
-metadata can establish a lane pass. PR #52 and issue #37 track that outcome,
-remaining clean lanes, typed SDK constructors/inspection and installed recovery.
-The draft remains blocked on those gates and the measured performance failures.
+Committed-HEAD clean core at `014e4f6d` passes all 22 tasks in 1280.49 seconds;
+terminal metadata is retained at
+`.cache/ci/clean/014e4f6d35d3-transit-ci-o6sevl3q`, log
+`/tmp/transit-sql-boolean-main-e82-clean-core.log`. Clean experience at
+`0b8f3750` fails after six passing tasks: the final Station launcher Arrow reply
+misses its unchanged deadline (309.20 seconds task / 593.61 seconds lane).
+Checkout `/var/tmp/transit-ci-zpxsqzvc` and log
+`/tmp/transit-sql-boolean-main-e82-clean-experience.log` retain evidence. Its
+owned services are stopped; data, keys and logs remain outside Git. Client
+telemetry includes `HttpCapacity` refusals, but the timeout cause is unestablished.
+Other lanes and installed all-source recovery remain unqualified.
+
+### Validation reuse and current-main integration
+
+At `c5cce70a`, the branch includes main `a4ba1124`, retaining unavailable-read
+observation retries without implicit mutation resubmission and persistent
+console history. The only rebase conflict joins both verification-ledger
+additions. Author/committer dates are preserved; the native and FZP1 definitions
+are unchanged by these main commits and the following optimizations.
+
+Atom representation and schema correspondence are checked once per full plan
+validation. The private encoder consumes that validated shape; each binding
+call reuses its own schema validation before hashing. Public encoding still
+rejects invalid UTF-8, oversized bytes, nonfinite floats and unknown columns;
+binding still rejects type mismatches. No validation flag survives the call,
+and continuation/source checks remain. SQL lowering fills owned output storage
+to reduce intermediate plan copies without changing literal ownership or cleanup.
+
+Full `just check`, `just test::unit`, `just test::sql`,
+`just test::unified-codec` and `just test::console-history` pass at this executable
+source, exit 0; log `/tmp/transit-sql-boolean-main-a4-check.log`. The independent
+SQL and native/port counts remain 151 ASTs, 122 plans/Arrow cases, 56 results
+across three sources/eight page widths, 57 documentation examples and 88 codecs.
+The console proof exercises real PTY search/accept/cancel, Unicode/multiline,
+restart, concurrent append, malformed records, permissions and file failure.
+
+The [retained validation measurements](benchmarks/results/2026-10-01-boolean-validation.json.gz)
+contain raw alternating samples, binary/source/driver/lock identities, reproduction
+commands, dirty exploratory patches and the committed-source six-type gate.
+Nine measured pairs plus a discarded warmup return identical results. The eight
+ratios against the original frozen control are 1.0042, 1.0322, 1.0233, 1.0627,
+1.0217, 1.0115, 1.0186 and 1.0010: **the specialized subset passes** its unchanged
+1.15 limit. `budgets.six_ratios` verifies complete clean evidence; the control,
+driver, lock and CPU match the original budget. Other file matrices and the
+large-input gate are not requalified. The earlier failing measurements remain.
+
+Seven compiler pairs against `e82c8430` still show 64–92% overhead in the four
+SELECT probes; the two paged aggregates are 1.4–1.5% faster in this sample.
+Main's intervening CLI commits do not change that control's query/driver/lock
+inputs. These shared-host component results do not establish native latency,
+compound throughput or a complete performance pass. Compiler work remains open.
+
+A committed-HEAD clean core run at `c5cce70a` is in progress at
+`/var/tmp/transit-ci-yb7tf4xi`, log `/tmp/transit-sql-boolean-main-a4-clean-core.log`.
+PR #52 and issue #37 track its terminal result, the failed experience proof,
+remaining lanes, typed SDK APIs and installed recovery. Neither earlier clean
+passes nor the specialized performance pass qualify those outstanding gates.
