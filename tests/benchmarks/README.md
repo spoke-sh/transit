@@ -63,6 +63,24 @@ types by position. A name such as `Total` cannot determine whether its cells are
 signed or unsigned. Every run verifies both names and types before reporting
 timings. These components do not promote full-workload coverage.
 
+The separate `just test::sql-benchmark` probe keeps its default thirteen-case
+compiler/aggregate workload unchanged for frozen-control comparisons. Pass
+`--profile count-values` for the new COUNT(column) cost profile: all six native
+scalar types, all-value and mixed null/missing/value pages, and both COUNT forms.
+It records compilation separately from 8192-row execution with checkpoint
+encode/decode on every eight-row page, checks selected and contributing counters,
+and decodes the final Arrow count outside the timed interval. Different COUNT
+forms intentionally return different results on mixed cells; these are feature
+costs, not an equivalent-result speedup. The profile has 24 compile and 24
+execution cases, with nine samples selected explicitly for comparisons.
+
+For example, `just test::sql-benchmark --profile count-values --samples 9`
+records this pure profile. It does not measure authorization, native source
+acquisition, publication or network delivery. The report retains CPU affinity,
+driver/source-diff/binary hashes and a 300-second per-probe timeout. Candidate
+and control samples must have identical workload metadata; old probes cannot
+serve as controls for a profile they do not implement.
+
 Every SELECT uses the production SQL compiler, FZP1 encode/decode and bound
 `Unified.Stream`. The source is a synthetic two-column Table basis with eight
 or fewer resident rows, not a native Table adapter. Fixture row generation,
