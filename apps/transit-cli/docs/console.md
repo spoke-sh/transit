@@ -175,7 +175,8 @@ changes between pages, discard the partial listing and run it again.
 The console saves the original typed request and each exact signed command before
 submission in a private file (0600, at most 32 KiB). The mandatory current contract
 definition, public key and route identities are checked before recovery; no keys
-or result rows are saved. Atomic file replacement synchronizes both file and
+or result rows are saved. Recovery is canonical JSON: retain its original bytes;
+do not edit or reformat it. Missing nested compatibility fields reject. Atomic file replacement synchronizes both file and
 parent directory. A native receipt proves admission only. The console observes
 processed input and its rejection before advancing an upload, and prints affected
 rows only after the writer's terminal applied result. JSON uses `mutation` or

@@ -107,6 +107,14 @@ pub fn open(init: std.process.Init, path: []const u8, config: Config, client: *q
             if (!std.meta.eql(try value.pending.request(), value.request)) return error.InvalidConsoleRecovery;
         },
     } else if (record.complete or record.cancelling) return error.InvalidConsoleRecovery;
+    // Native types have convenience defaults. Saved recovery cannot use them:
+    // require every nested compatibility field and the exact canonical shape.
+    const canonical = try std.json.Stringify.valueAlloc(init.gpa, record, .{});
+    defer {
+        std.crypto.secureZero(u8, canonical);
+        init.gpa.free(canonical);
+    }
+    if (!std.mem.eql(u8, bytes, canonical)) return error.InvalidConsoleRecovery;
     self.record = record;
     return self;
 }

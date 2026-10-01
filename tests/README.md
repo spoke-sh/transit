@@ -8331,7 +8331,7 @@ exactly once. SIGINT preserves admitted work and prevents the following batch
 statement from running; `.cancel` reconciles the input and observes cancellation.
 A proxy holds a prepared part while a distinct administrator revokes policy.
 The rejected input leaves its upload recoverable, blocks replacement work and
-can still be cancelled. The final focused run completed in **51.73 seconds**,
+can still be cancelled. The policy-race focused run completed in **51.73 seconds**,
 with at most four mutations per turn, 256-byte values and eight authority pages.
 
 The real catalog proof runs CREATE TABLE through the console, loses its receipt,
@@ -8358,3 +8358,16 @@ recovery assertions are unchanged. These fixtures do not establish arbitrary
 SQL, automatic query registration after CREATE TABLE, multi-resource transactions,
 or cancellation of an already applied write. Clean-checkout lane execution is
 reported separately with the PR's committed revision.
+
+The console recovery reader also requires exact canonical JSON, preventing native
+type defaults from filling in omitted nested request definitions or schema
+versions. The writer proof removes each field from otherwise canonical saved
+bytes and checks rejection before resubmission. The initial clean growth run at
+`7d97b4fd` was interrupted after Arrow, page and growing-authority checks passed
+to include this additional check; it is not a complete clean-lane result.
+
+The subsequent full `just test::console table` run completed: console batch, PTY,
+interruption and TLS checks took **237.72 seconds** inside the **275.64-second**
+disk-backed unified proof. The earlier terminal attempt expected a parse caret
+for valid INSERT without a writer and failed; the corrected assertion requires
+the caret only for malformed SELECT and keeps the no-send/stdout checks.

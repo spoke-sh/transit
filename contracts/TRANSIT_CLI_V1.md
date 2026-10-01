@@ -343,7 +343,7 @@ An optional `writes` object contains `recovery_file` and at least one of `table`
 Both use the console's transport and credential, with matching realm/principal.
 The file is distinct from query recovery. No route or configuration grants rights.
 Supported mutations and compatible CREATE TABLE use their owning clients;
-`.help` and SQL topics explain both present and absent routes without I/O.
+`.help` and SQL topics explain both present and absent routes without native I/O.
 
 Write recovery is a separate JSON record, bounded to 32768 bytes. Required fields
 are version 1, current `definition`, public `key`, optional `table` connection and
@@ -351,7 +351,9 @@ are version 1, current `definition`, public `key`, optional `table` connection a
 `cancelling`. A mutation owns namespace, typed request, optional prepared command
 and its optional admitted input; creation owns its typed request, prepared command
 and optional input. The definition, key, connections and prepared request binding
-are validated before I/O. Missing/foreign fields are never defaulted. Writes use
+are validated before native I/O. Exact canonical JSON equality rejects omitted
+nested compatibility fields, alternate formatting and unknown fields; a missing
+field cannot acquire a native type's convenience default. Writes use
 atomic 0600 replacement with file and parent synchronization; a persistence error
 stops further execution. Opening never submits. Each exact signed command is
 saved before sending; receipt position remains paired with it through processed

@@ -324,12 +324,14 @@ def run(node, host, proof, library, cli, *, sdks=()):
             assert not send_fault['recovered'] and recovery_path.read_bytes() == saved
             status = json.loads(console_run(data='.status\n').stdout)['mutation']
             assert status['uncertain'] and not send_fault['recovered']
-            for edit in ('definition', 'key', 'connection'):
+            for edit in ('definition', 'key', 'connection', 'signed_definition', 'schema_version'):
                 altered = json.loads(saved)
                 if edit == 'definition': del altered['definition']
                 elif edit == 'key': altered['key'][0] ^= 1
-                else: altered['table']['writer'] += 1
-                recovery_path.write_text(json.dumps(altered))
+                elif edit == 'connection': altered['table']['writer'] += 1
+                elif edit == 'signed_definition': del altered['operation']['mutation']['pending']['signed']['request']['definition']
+                else: del altered['operation']['mutation']['request']['plan']['schema']['version']
+                recovery_path.write_text(json.dumps(altered, separators=(',', ':')))
                 invalid = console_run(data='.resume\n', code=1)
                 assert not invalid.stdout and not send_fault['recovered']
             recovery_path.write_bytes(saved)
