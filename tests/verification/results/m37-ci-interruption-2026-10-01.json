@@ -1,0 +1,199 @@
+{
+  "version": 1,
+  "scope": "CI interruption checkpoints; no new ordinary or cost qualification",
+  "development_base": "fcba4390e8e564753e5dee872cac531031375c3e",
+  "dirty": true,
+  "hosted_failure": {
+    "run_id": 36809340716,
+    "job_id": 110201098691,
+    "source": "7e0d6a69522a95f7bdd7bac6030265bda73f1dc8",
+    "conclusion": "cancelled",
+    "annotation": "The job has exceeded the maximum execution time of 30m0s",
+    "completed_tasks": [
+      {
+        "task": "test::build",
+        "seconds": 592.32,
+        "exit_code": 0
+      }
+    ],
+    "interrupted_task": "launchers::local::test",
+    "timing_artifact_present": false,
+    "shell_preparation_seconds": 623,
+    "job": {
+      "completedAt": "2026-10-01T03:43:23Z",
+      "conclusion": "cancelled",
+      "id": 110201098691,
+      "startedAt": "2026-10-01T03:13:04Z",
+      "steps": [
+        {
+          "completedAt": "2026-10-01T03:13:07Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "startedAt": "2026-10-01T03:13:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:13:10Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "startedAt": "2026-10-01T03:13:07Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:13:10Z",
+          "conclusion": "success",
+          "name": "Record dependency cache mode",
+          "startedAt": "2026-10-01T03:13:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:13:15Z",
+          "conclusion": "success",
+          "name": "Run cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7",
+          "startedAt": "2026-10-01T03:13:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:15:05Z",
+          "conclusion": "success",
+          "name": "Reclaim unused hosted SDKs",
+          "startedAt": "2026-10-01T03:13:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:15:06Z",
+          "conclusion": "success",
+          "name": "Restore Nix store",
+          "startedAt": "2026-10-01T03:15:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:25:29Z",
+          "conclusion": "success",
+          "name": "Prepare development shell",
+          "startedAt": "2026-10-01T03:15:06Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:25:32Z",
+          "conclusion": "success",
+          "name": "Restore Zig standard libraries and fetched packages",
+          "startedAt": "2026-10-01T03:25:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:25:55Z",
+          "conclusion": "success",
+          "name": "Install locked Board frontend dependencies",
+          "startedAt": "2026-10-01T03:25:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:25:55Z",
+          "conclusion": "skipped",
+          "name": "Install locked Node binding dependencies",
+          "startedAt": "2026-10-01T03:25:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "cancelled",
+          "name": "Run launchers checks",
+          "startedAt": "2026-10-01T03:25:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "skipped",
+          "name": "Install browser and host dependencies",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "skipped",
+          "name": "Qualify embedded Board in Chromium",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "success",
+          "name": "Preserve task timings and completion evidence",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "skipped",
+          "name": "Save Zig standard libraries and fetched packages",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "skipped",
+          "name": "Save Nix store",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:20Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-01T03:43:21Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "startedAt": "2026-10-01T03:43:20Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "log_sha256": "a4736d09fe0aaccdb2970c533537f3680cf8b83ced47f782bda4cf848ed7402c"
+  },
+  "controls": [
+    {
+      "label": "original",
+      "exit_code": 1,
+      "seconds": 11.545,
+      "source_sha256": "5e6d9ad3e4f71e359aed2e45c894b67f2788f3caa2dc93a60b55fb5b1efc961a",
+      "log_sha256": "cef283943fe3a4d38a13449e31e6748265f7373c1082e8cad7564151ca85982e",
+      "missing_checkpoint": true
+    },
+    {
+      "label": "corrected",
+      "exit_code": 0,
+      "seconds": 5.978,
+      "source_sha256": "5743cb32ebcd8e6756bb2710aec7fbb31ff17a6efb48011c17f20300cc3932f6",
+      "log_sha256": "a175008cc3ab96374c257e558e9de4def575cc53dffb55f4f0204e3dbccc8545",
+      "missing_checkpoint": false
+    }
+  ],
+  "corrected_assertions": [
+    "Real runner terminated with SIGTERM after the first task passes and second starts",
+    "Real runner terminated with SIGKILL at the same boundary",
+    "Completed first task and active second task survive both signals; third task never starts",
+    "Subsequent complete run records every success and clears the active task",
+    "Original failing task status and aggregate gate checks still pass"
+  ],
+  "changes": [
+    "Checkpoint results and incomplete metadata before and after every task, with atomic per-file replacement",
+    "Cache the prepared rooted Nix toolchain before test execution, preserving existing cache keys and cold-mode exclusion",
+    "Retain Station readiness completion/cleanup evidence in hosted artifacts"
+  ],
+  "source_sha256": {
+    "tests/ci.py": "5743cb32ebcd8e6756bb2710aec7fbb31ff17a6efb48011c17f20300cc3932f6",
+    "tests/ci_runner.py": "cd95a5b1630f85f3a00cf2f98fa92611f8d0dc8b780926d45812a63a302e329f",
+    ".github/workflows/ci.yml": "193532f06a4ffbe30e1a02070daf9efdd4aa3cd88071eb1b2e56ca77311c3cf3"
+  },
+  "limits": [
+    "The existing job execution caps and task-local deadlines are unchanged.",
+    "SIGTERM/SIGKILL tests establish process-interruption retention, not host-power-loss durability.",
+    "Two file replacements are not a transaction: interrupted/inconsistent pairs cannot establish completion.",
+    "The workflow cache ordering still needs hosted execution; this record claims only static validation and runner controls."
+  ]
+}

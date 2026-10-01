@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import signal
+import time
 
 import yaml
 from ci import LANES, ROOT
@@ -25,6 +27,11 @@ def main():
     # starts. Reclaim on all hosted runs and before either restore or build.
     for name in ("Restore Nix store", "Prepare development shell"):
         assert steps.index(reclaim) < next(i for i, step in enumerate(steps) if step.get("name") == name)
+    names = [step.get("name") for step in steps]
+    assert names.index("Prepare development shell") < names.index("Save Nix store")
+    assert names.index("Save Nix store") < names.index("Run ${{ matrix.lane }} checks")
+    artifacts = next(step for step in steps if step.get("name") == "Preserve task timings and completion evidence")
+    assert ".cache/m9/station-local-readiness.json" in artifacts["with"]["path"].splitlines()
     gate = workflow["jobs"]["foundation-and-protocol"]
     assert gate["if"] == "always()" and gate["needs"] == ["plan", "checks", "documentation"]
     assert workflow["jobs"]["documentation"]["if"] == "needs.plan.outputs.full == 'false'"
@@ -154,6 +161,60 @@ def main():
         assert metadata["completed"] is False
         assert metadata["expected_tasks"] == LANES["browser"]
         assert "transit-board::browser" in (path / "summary").read_text()
+    # Kill the real runner while its second task is active. Neither SIGTERM nor
+    # SIGKILL executes its finally block; the earlier task must remain recorded.
+    with tempfile.TemporaryDirectory(prefix="transit-ci-interrupted-") as directory:
+        path = Path(directory)
+        runner = path / "tests/ci.py"
+        runner.parent.mkdir()
+        runner.write_bytes((ROOT / "tests/ci.py").read_bytes())
+        (runner.parent / "verification").mkdir()
+        expected = ["first", "paused", "later"]
+        (runner.parent / "verification/suite.json").write_text(json.dumps({
+            "version": 1, "lanes": {"fixture": expected}, "tiers": {}}))
+        script = path / "just"
+        script.write_text(f"#!{sys.executable}\nimport os,sys,time\nfrom pathlib import Path\n"
+                          "Path(sys.argv[1]+'.started').touch()\n"
+                          "if sys.argv[1] == os.getenv('BLOCK_TASK'): time.sleep(30)\n")
+        script.chmod(0o755)
+        env = os.environ | {"PATH": str(path) + os.pathsep + os.environ["PATH"],
+                            "GITHUB_STEP_SUMMARY": str(path / "summary")}
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            marker = path / "paused.started"
+            marker.unlink(missing_ok=True)
+            child = subprocess.Popen([sys.executable, "-B", runner, "fixture"],
+                                     env=env | {"BLOCK_TASK": "paused"},
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                     start_new_session=True)
+            try:
+                deadline = time.monotonic() + 10
+                while not marker.exists():
+                    assert child.poll() is None and time.monotonic() < deadline
+                    time.sleep(.02)
+                os.killpg(child.pid, sig)
+                child.communicate(timeout=5)
+                assert child.returncode == -sig
+            finally:
+                try: os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError: pass
+                child.communicate(timeout=5)
+            evidence = json.loads((path / ".cache/ci/fixture.json").read_text())
+            metadata = json.loads((path / ".cache/ci/fixture.meta.json").read_text())
+            assert len(evidence) == metadata["result_count"] == 1
+            assert evidence[0]["task"] == "first" and evidence[0]["exit_code"] == 0
+            assert metadata["completed"] is False and metadata["expected_tasks"] == expected
+            assert metadata["active_task"] == {"lane": "fixture", "task": "paused"}
+            assert metadata["checkpoint_unix"] > 0
+            assert not (path / "later.started").exists()
+        # A complete subsequent run replaces the incomplete checkpoint only
+        # after every selected task succeeds.
+        subprocess.run([sys.executable, "-B", runner, "fixture"], env=env,
+                       capture_output=True, check=True)
+        evidence = json.loads((path / ".cache/ci/fixture.json").read_text())
+        metadata = json.loads((path / ".cache/ci/fixture.meta.json").read_text())
+        assert metadata["completed"] and metadata["active_task"] is None
+        assert [row["task"] for row in evidence] == expected
+        assert all(row["exit_code"] == 0 for row in evidence)
     # Run the discovery entry point: a completed first stage followed by a
     # definite task failure must retain both outcomes and stop before stage 3.
     with tempfile.TemporaryDirectory(prefix='transit-discovery-runner-') as directory:

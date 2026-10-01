@@ -143,6 +143,16 @@ completed reports share a revision and cover the committed inventory exactly.
 These local timings do not requalify the earlier hosted 33-task budget samples.
 Individual lanes and interrupted attempts must never be reported as the full gate.
 
+The runner atomically replaces task results and completion metadata before and
+after each task. Metadata identifies `active_task`, `result_count` and the last
+`checkpoint_unix`; `completed` becomes true only after every selected task passes.
+After a hard interruption, `seconds` measures through the last checkpoint rather
+than the unseen end of the active task. A partially updated file pair or an active
+task remains incomplete. Hosted job timing separately measures the job's cost.
+The rooted Nix shell is cached before task execution so later cancellation does
+not discard a successfully prepared toolchain; cached tools do not establish a
+passing test result.
+
 ## CI and clean-run cost evidence
 
 Executed budget qualification belongs to the retained 33-task baseline below.

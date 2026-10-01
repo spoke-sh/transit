@@ -2500,6 +2500,28 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Interrupted CI evidence — 2026-10-01
+
+Hosted launcher job `110201098691` reaches its 30-minute execution cap after
+`test::build` passes in 592.32 seconds, while `launchers::local::test` is active.
+The original runner writes results only in `finally`; cancellation leaves no
+CI JSON for artifact upload. Shell preparation alone takes 623 seconds.
+The [interruption record](verification/results/m37-ci-interruption-2026-10-01.json)
+retains the job phases, timeout annotation and log hash.
+
+The corrected runner atomically checkpoints each completed task and the current
+attempt before/after execution. Its actual entry point retains one passed task
+and the interrupted second task under both SIGTERM and SIGKILL, never running
+the third. A subsequent complete run records all three successes. The original
+runner fails this control because the checkpoint is absent. Existing definite
+failure propagation and aggregate-gate checks pass. A cancelled task receives no
+invented exit status or duration; metadata remains incomplete at its checkpoint.
+
+CI also saves the rooted Nix shell before long checks and uploads the separate
+Station readiness record. Cache keys, cold-mode exclusion, job execution caps,
+proof deadlines and provider guards remain unchanged. Workflow ordering requires
+hosted validation; these controls do not qualify a complete lane or cost budget.
+
 ## Qualification checkpoint — 2026-10-01
 
 The [completed hosted record](verification/results/m37-hosted-ordinary-2026-10-01.json)
