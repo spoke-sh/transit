@@ -17,6 +17,8 @@ only until the header deadline; this is not an authenticated per-principal quota
 consumer also sends keep-alive responses. Requests on a socket remain sequential,
 with fresh admission and deadlines; idle sockets retain no data/control slot.
 The header deadline bounds idle reuse and the final response advertises closure.
+The shared `respond` helper ends reuse even when a handler has consumed the body;
+buffered successor requests are not dispatched after that closing response.
 The growing node and local gateway use 64 exchanges per connection. Other
 consumers keep their existing close-after-response behavior.
 

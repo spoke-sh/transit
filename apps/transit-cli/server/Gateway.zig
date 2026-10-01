@@ -18,9 +18,9 @@ const Context = struct {
     hosts: []const []const u8,
     upstream: [6]Slot = undefined,
     const Slot = struct { client: wire.Client, busy: std.atomic.Value(bool) = .init(false) };
-    pub fn connectionError(_: *Context, err: anyerror, _: bool) void {
-        if (err == error.EndOfStream or err == error.HttpDeadline) return;
-        std.debug.print("gateway transport: {s}\n", .{@errorName(err)});
+    pub fn connectionError(_: *Context, err: anyerror, started: bool) void {
+        const name = transportFailure(err, started) orelse return;
+        std.debug.print("gateway transport: {s}\n", .{name});
     }
     pub fn isControl(_: *Context, request: *std.http.Server.Request) bool {
         return std.mem.eql(u8, request.head.target, "/v1/command") or
@@ -65,3 +65,19 @@ const Context = struct {
         } });
     }
 };
+
+fn transportFailure(err: anyerror, started: bool) ?[]const u8 {
+    // An idle peer's orderly close is normal. Once dispatch starts, a deadline
+    // can interrupt an upstream request and must not disappear as idle expiry.
+    if (!started and (err == error.EndOfStream or err == error.HttpConnectionClosing or err == error.HttpDeadline)) return null;
+    return if (err == error.HttpDeadline) "HttpRequestDeadline" else @errorName(err);
+}
+
+test "gateway diagnostics distinguish idle expiry from an interrupted request" {
+    const t = std.testing;
+    try t.expect(transportFailure(error.HttpConnectionClosing, false) == null);
+    try t.expect(transportFailure(error.HttpDeadline, false) == null);
+    try t.expectEqualStrings("HttpRequestDeadline", transportFailure(error.HttpDeadline, true).?);
+    try t.expectEqualStrings("HttpConnectionClosing", transportFailure(error.HttpConnectionClosing, true).?);
+    try t.expectEqualStrings("HttpCapacity", transportFailure(error.HttpCapacity, false).?);
+}
