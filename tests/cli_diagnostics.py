@@ -322,6 +322,46 @@ with tempfile.TemporaryDirectory(prefix='transit-cli-diagnostics-') as directory
     invoke(['console'], contains=('seed_file',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
     invoke(['console', '--config', root/'override.json'], contains=('override.json',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
     invoke(['server'], contains=('cannot find minio beside transit or on PATH',), env=dict(ENV, TRANSIT_CONSOLE_CONFIG=str(path)))
+    # Compiler failures need no running authority, even in JSON result mode.
+    # A listening trap proves invalid SQL never opens a snapshot or sends work.
+    seed = root/'sql.seed'
+    seed.write_text('2a' * 32)
+    with socket.socket() as trap:
+        trap.bind(('127.0.0.1', 0)); trap.listen(); trap.settimeout(.1)
+        sql_config = dict(console, seed_file=seed.name, url=f'http://127.0.0.1:{trap.getsockname()[1]}')
+        path.write_text(json.dumps(sql_config))
+        for statement, fragments in (
+            ('SELECT;', ('SQL parse error', 'line 1, column 7', '  SELECT;\n        ^--- error here')),
+            ('SELECT *\nFROM', ('SQL parse error', 'line 2, column 5', 'expected an identifier')),
+            ('INSERT INTO items VALUES (1, 100);', ('[syntax]', 'column 19', 'explicit column names', '.help INSERT')),
+            ('INSERT INTO items (id, value) VALUES (1, 100);', ('no writer is configured', '.help INSERT')),
+            ('SELECT * FROM items WHERE value = \'private-must-not-appear', ('SQL parse error', '^--- error here')),
+            ('SELECT * /* private-must-not-appear', ('SQL parse error', '^--- error here')),
+            ('CREATE KV items (UTF8);', ('[interface]', 'offline Declaration compiler')),
+            ('CREATE TABLE items (id INT64 NOT NULL, value INT64 NULL);', ('no catalog is configured', '.help CREATE TABLE')),
+            ('CREATE TABLE items (id INT64, value INT64);', ('[binding]', 'INT64 NOT NULL', '.help CREATE TABLE')),
+            ('CREATE TABLE items (id BOOLEAN);', ('[syntax]', 'INT64, BOOL, UTF8 or BINARY')),
+            ('INSERT INTO items (id,value) VALUES (1,1),(2,2),(3,3),(4,4);', ('[limit]', 'MutationBatchTooLarge')),
+            ('CREATE CONNECTION unfinished', ('[grammar_only]', 'syntax has not been validated')),
+            ('SELEC * FROM items;', ('[unsupported]', 'supported syntax')),
+            ('SELECT absent FROM items;', ('[binding]', 'exact column names')),
+            ('SELECT * FROM items WHERE value = NULL;', ('[binding]', 'IS NULL', 'IS MISSING')),
+        ):
+            invoke(['console', '--no-rc', '--config', path, '--format', 'json', '-c', statement], 1, fragments)
+        script = root/'bad.sql'
+        script.write_text('SELECT *\nFROM;')
+        invoke(['console', '--no-rc', '--config', path, '-f', script], 1, ('line 2, column 5', '^--- error here'))
+        invoke(['console', '--no-rc', '--config', path], 1, ('line 1, column 7',), data=b'SELECT;')
+        for data in (b"SELECT * FROM items WHERE value = 'private-must-not-appear", b'SELECT * /* private-must-not-appear'):
+            invoke(['console', '--no-rc', '--config', path], 1, ('SQL parse error', '^--- error here'), data=data)
+        invoke(['console', '--no-rc', '--config', path], 1, ('4096-byte statement limit',), data=b'SELECT '+b'x'*4096)
+        try:
+            connection, _ = trap.accept()
+        except TimeoutError:
+            pass
+        else:
+            connection.close()
+            raise AssertionError('invalid SQL contacted authority')
     # The executable's physical directory precedes PATH, independent of cwd.
     adjacent, search = root/'bin', root/'search'
     adjacent.mkdir(); search.mkdir()

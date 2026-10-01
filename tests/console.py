@@ -65,6 +65,15 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         invalid = run(b'.timing on\nCREATE KV items (UTF8);', expected_code=1)
         assert b'Time: ' in invalid.stderr and b'error: ' in invalid.stderr and not invalid.stdout
         assert fault['console_sends'] == before
+        for statement, fragments in (
+            ('SELECT;', (b'[syntax]', b'line 1, column 7', b'^--- error here')),
+            ('INSERT INTO items VALUES (1, 100);', (b'[syntax]', b'explicit column names')),
+            ('INSERT INTO items (id, value) VALUES (1, 100);', (b'no writer is configured', b'.help INSERT')),
+            ('SHOW SOURCES;', (b'[grammar_only]', b'SHOW TABLES')),
+        ):
+            invalid = run(args=('-c', statement), expected_code=1)
+            assert all(fragment in invalid.stderr for fragment in fragments), invalid
+            assert not invalid.stdout and fault['console_sends'] == before
         fault['lost'], fault['retry'] = None, False
         sql = 'SELECT *' if kind == 'document' else 'SELECT value'
         statement = sql+'\n/* ; .quit /* nested ; */ */ FROM items\nLIMIT 33;\n'

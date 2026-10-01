@@ -1,6 +1,6 @@
 # Transit console
 
-`transit console` is the query interface for finite, read-only SQL over the
+`transit console` executes finite reads over the
 configured KV, Table or Document source. Each SELECT compiles SQL, acquires a
 fresh leased snapshot and executes Fuze in the client, printing native Arrow
 batches. Completion or cancellation releases the snapshot. No durable query
@@ -15,7 +15,7 @@ Bare `transit console` uses the [local server](server.md)'s topology defaults,
 including its `transit.yaml` discovery and `TRANSIT_` overrides. It reads allocated
 resource identities from the existing installation and uses its scoped
 `caller.seed`. No console configuration file is
-generated or required. The default endpoint is `http://127.0.0.1:19105`, and the
+generated or required for this read connection. The default endpoint is `http://127.0.0.1:19105`, and the
 default installation is `./.transit`. The console never initializes the server.
 
 ```sh
@@ -118,6 +118,82 @@ query strings, fragments and path prefixes are rejected. The existing native
 client verifies the peer and never follows redirects with signed requests.
 Neither transport selection nor configuration grants native access.
 
+## Writing Tables and catalogs
+
+Use `.help INSERT`, `.help UPDATE`, `.help DELETE` and `.help CREATE TABLE` to
+learn the supported SQL and configuration without network access. `.help` reports
+whether each route is configured; authority is checked when executing it. Both
+interactive and durable query modes support writes. Bare local-server connections
+supply a query route; they do not automatically install or authorize a writer.
+
+Add explicit routes to the console connection YAML, using provisioned identities:
+
+```yaml
+writes:
+  recovery_file: "console-writes.json"
+  table:
+    name: "items"
+    connection:
+      realm: 42
+      principal: 1234
+      writer: 1
+      resource: 7
+      table: 1
+  catalog:
+    scope:
+      realm: 42
+      resource: 9
+      catalog: 1
+    owner: 3
+    principal: 1234
+```
+
+Either route may be omitted. Realm and principal must match the console's
+credential; the named writer/catalog must already expose its respective public
+operation. Native grants and separate current mutation or catalog create/inspect
+policy are required. Query permissions do not grant writes. The write recovery
+path must differ from the query recovery path; paths resolve relative to the
+connection file. A credential lock serializes local consoles using writes.
+
+```sql
+INSERT INTO items (id, value) VALUES (1, 100);
+UPDATE items SET value = 101 WHERE id = 1;
+DELETE FROM items WHERE id = 1;
+CREATE TABLE readings (id INT64 NOT NULL, value INT64 NULL);
+```
+
+INSERT requires both columns and one to three literal rows. UPDATE/DELETE require
+primary-key equality. CREATE TABLE accepts exactly two columns with explicit
+nullability: a non-null int64 key and a nullable int64, boolean, UTF-8 or binary
+value. Creation publishes the empty Table descriptor and catalog definition.
+It does not configure a query source, choose a Table writer or grant permissions.
+SELECT continues to use the configured query workspace. With a catalog configured,
+SHOW TABLES and `.tables` stream its bounded metadata pages; DESCRIBE resolves
+catalog names. `.schema` continues to describe the query source. If the catalog
+changes between pages, discard the partial listing and run it again.
+
+The console saves the original typed request and each exact signed command before
+submission in a private file (0600, at most 32 KiB). The mandatory current contract
+definition, public key and route identities are checked before recovery; no keys
+or result rows are saved. Recovery is canonical JSON: retain its original bytes;
+do not edit or reformat it. Missing nested compatibility fields reject. Atomic file replacement synchronizes both file and
+parent directory. A native receipt proves admission only. The console observes
+processed input and its rejection before advancing an upload, and prints affected
+rows only after the writer's terminal applied result. JSON uses `mutation` or
+`creation` envelopes; full-width operation identities are decimal strings.
+
+Opening the console never resubmits saved work. `.status` observes under current
+rights; `.resume` reconciles the original signed request and continues its saved
+operation. Ctrl-C stops waiting, preserves the operation and discards the remaining
+submitted batch; disconnecting does not undo a write. `.cancel` first reconciles
+any uncertain mutation input, then requests cancellation. It cannot undo an
+applied mutation, and CREATE TABLE has no cancellation operation. Recovery commands
+refer to the last saved write until replaced by another write or durable query.
+An explicit `.resume ID` selects a durable query only after pending writes finish.
+Do not repeat SQL after uncertainty: it creates a new operation. Unresolved work
+blocks new writes, queries and connection switching; inspection/help remain usable.
+If recovery persistence fails, execution stops before sending a successor.
+
 ## Input, commands and results
 
 ```text
@@ -149,15 +225,16 @@ error and returns to the prompt when recovery permits.
 
 | Command | Purpose |
 | --- | --- |
-| `.help` | Available SQL and console commands |
-| `.tables`, `.sources`, `.schema` | Currently authorized source and schema |
+| `.help [SQL\|INSERT\|UPDATE\|DELETE\|CREATE TABLE]` | Offline SQL help, route configuration and commands |
+| `.tables` | Catalog tables when configured, otherwise the query source |
+| `.sources`, `.schema` | Currently authorized query source and schema |
 | `.mode table\|json` | Result presentation |
 | `.timing on\|off` | Set query wall-time reporting (off by default) |
 | `.show` | Aligned text showing effective console settings and origins |
 | `.connect PATH` | Switch connection in an interactive session |
-| `.status`, `.info` | Saved query status or result evidence |
-| `.resume [ID]` | In durable mode, recover the saved query or a selected existing query |
-| `.cancel` | In durable mode, request cancellation of the saved query |
+| `.status`, `.info` | Saved write/query status, or query result evidence |
+| `.resume [ID]` | Recover the saved write; in durable query mode, recover the saved query or selected query ID |
+| `.cancel` | Request cancellation of a saved Table mutation or durable query; CREATE TABLE cannot be cancelled |
 | `.quit`, EOF | Exit; active interactive execution is canceled |
 
 There is no `.new`, `.retry`, `.advance` or `.next` in the console. Normal SQL
@@ -277,6 +354,39 @@ disconnects. Killed interactive clients leave only bounded lease bookkeeping:
 at most 64 active snapshots, eight per principal. Tokens do not survive authority
 restart. The `query` and `query` shells retain their explicit cancellation and
 recovery protocols. Cancellation cannot undo completed work or a disclosed prefix.
+
+## SQL errors
+
+SQL errors explain the failed stage and the supported next step. For example:
+
+```text
+transit> SELECT;
+error: SQL parse error [syntax] (InvalidSqlSyntax) at line 1, column 7: expected an identifier
+  SELECT;
+        ^--- error here
+```
+
+The following guidance points to the supported SQL reference. Coordinates count
+UTF-8 bytes within the submitted statement, starting at one; script coordinates
+are relative to each statement, not the whole file. The caret follows the escaped
+display. At most 120 source bytes around the failure are shown. Literal values,
+quoted identifiers and comments are masked, including unfinished tokens. These
+excerpts appear in local stderr diagnostics, not telemetry or result stdout.
+
+The categories distinguish syntax errors, unsupported constructs, exceeded
+bounds, source/type binding failures, grammar-only families and operations
+unavailable on the query interface. Grammar-family recognition alone does not
+validate the submitted syntax. `INSERT`, `UPDATE` and `DELETE` use an explicitly
+authorized Table writer configured in `writes.table`. INSERT also requires
+explicit column names. Compatible CREATE TABLE uses `writes.catalog`. Missing
+routes point to `.help INSERT` or `.help CREATE TABLE`; grammar-only forms are
+identified without claiming executable support.
+
+Failed compilation creates no query identity, acquires no query snapshot and
+sends no mutation. Inspection and durable compilation can read current authorized
+metadata. Runtime failures can follow admission or partial output; follow their
+recovery guidance and retain the original saved identity. A syntax correction is
+not a reason to replace unresolved durable work with a new request.
 
 ## Exact recovery and bounds
 

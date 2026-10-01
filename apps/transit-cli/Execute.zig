@@ -25,8 +25,9 @@ pub fn sql(console: *Console, statement: []const u8) !void {
     defer arena.deinit();
     // Compile before changing identity; invalid SQL cannot start durable work.
     timing.enter(.compile);
-    _ = try q.Workspace.apply(arena.allocator(), console.client, console.config, .{ .compile = .{ .sql = statement } });
+    _ = q.Workspace.apply(arena.allocator(), console.client, console.config, .{ .compile = .{ .sql = statement } }) catch |err| return console.sqlFailure(statement, err);
     if (Signals.interrupted()) return error.ConsoleInterrupted;
+    if (console.writes) |writer| try writer.clearComplete();
     timing.enter(.prepare);
     var id: u64 = 0;
     for (0..8) |_| {
@@ -61,6 +62,7 @@ pub fn recover(console: *Console, selected: ?u64) !void {
             session.clear();
             session.namespace = id;
         }
+        if (console.writes) |writer| try writer.clearComplete();
     }
     if (session.namespace == null) return error.NoQuery;
     console.query_running = true;

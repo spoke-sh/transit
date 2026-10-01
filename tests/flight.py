@@ -108,6 +108,30 @@ def run(node, host, gateway, proof, mode=None, board=None):
                     time.sleep(.1)
             catalogs = available(lambda: client.get_flight_info(descriptor(sql.CommandGetCatalogs()), call_options()))
             assert available(lambda: client.do_get(catalogs.endpoints[0].ticket, call_options()).read_all()).to_pylist() == [{'catalog_name':'transit'}]
+            # Schema and execution errors carry the same compiler evidence.
+            # Rejections leave the caller sequence available for the real query.
+            before_errors = subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30)
+            for text, category, fragments in (
+                ('SELECT;', pa.ArrowInvalid, ('SQL parse error', 'line 1, column 7', '/reference/sql/')),
+                ('INSERT INTO items VALUES (1, 100);', pa.ArrowInvalid, ('explicit INSERT columns', '.help INSERT')),
+                ('INSERT INTO items (id, value) VALUES (1, 100);', pa.ArrowNotImplementedError, ('read-only', 'authorized writer')),
+                ('CREATE CONNECTION unfinished', pa.ArrowNotImplementedError, ('reference grammar only', 'no SQL execution')),
+                ('SELECT absent FROM items;', pa.ArrowInvalid, ('UnknownColumn', 'exact source and column names')),
+                ("SELECT * FROM items WHERE value = 'private-must-not-appear' junk;", pa.ArrowNotImplementedError, ('SQL construct unsupported', 'column')),
+            ):
+                invalid = descriptor(sql.CommandStatementQuery(query=text))
+                for operation in (lambda: client.get_schema(invalid, call_options()),
+                                  lambda: client.get_flight_info(invalid, call_options(2))):
+                    try:
+                        available(operation)
+                    except category as error:
+                        message = str(error)
+                        assert all(fragment in message for fragment in fragments), message
+                        assert 'private-must-not-appear' not in message and '\x1b' not in message
+                    else:
+                        raise AssertionError(f'invalid SQL succeeded: {text}')
+            assert subprocess.check_output([proof, url, 'next-sequence', str(fixture.root / 'cli.json')], timeout=30) == before_errors
+            print('Flight SQL diagnostics: schema/execution categories, locations, recovery hints, redaction and no admission pass.', flush=True)
             statement = descriptor(sql.CommandStatementQuery(query='SELECT id, value FROM items'))
             schema = available(lambda: client.get_schema(statement, call_options())).schema
             assert schema == pa.schema([pa.field('id',pa.int64(),False),pa.field('value',pa.int64())])

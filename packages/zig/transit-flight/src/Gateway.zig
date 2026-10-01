@@ -85,9 +85,20 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     // Finite enum/tag telemetry only, never SQL, ticket, credential or result.
     var observation = q.wire.observability.begin(self.diagnostics, .client_request, "flight", null);
     defer observation.finish();
-    self.handleOnce(io, allocator, request, response) catch |err| {
+    var sql_diagnostic: ?f.SqlDiagnostic = null;
+    self.handleOnce(io, allocator, request, response, &sql_diagnostic) catch |err| {
         observation.fail(err);
         if (err == error.Canceled or err == error.GrpcCancelled or response.finished) return err;
+        if (sql_diagnostic) |diagnostic| {
+            var buffer: [128]u8 = undefined;
+            var message: std.Io.Writer = .fixed(&buffer);
+            try diagnostic.renderRemote(&message);
+            const status: u8 = switch (diagnostic.kind) {
+                .unsupported, .grammar_only, .interface => 12,
+                .syntax, .binding, .limit => 3,
+            };
+            return response.finish(status, message.buffered());
+        }
         const status: u8 = switch (err) {
             error.FlightUnauthenticated => 16,
             error.AccessDenied, error.QueryAccessDenied, error.ServingDenied, error.FlightTicketScope, error.SignatureVerificationFailed => 7,
@@ -103,7 +114,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
             16 => "credential required",
             7 => "current access denied",
             9 => "result or service unavailable",
-            12 => "operation unsupported",
+            12 => "Flight supports finite read-only queries and metadata; writes require an authorized mutation client. See console .help INSERT",
             8 => "bounded capacity exhausted",
             10 => "admission conflict; retain request identity",
             14 => "unavailable; retain request identity",
@@ -112,7 +123,7 @@ pub fn handle(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
         });
     };
 }
-fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server.Request, response: *server.Response) !void {
+fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server.Request, response: *server.Response, sql_diagnostic: *?f.SqlDiagnostic) !void {
     const index = try self.authenticate(request);
     const control = self.isControl(request);
     // Independent metadata/control capacity: a data stream cannot own this slot.
@@ -141,7 +152,7 @@ fn handleOnce(self: *Self, io: Io, allocator: std.mem.Allocator, request: server
     const caller = self.config.callers[index];
     var client: q.UnifiedClient = .{ .wire = &wire, .connection = .{ .realm = caller.connection.realm, .principal = caller.connection.principal, .source = caller.connection.source, .resource = caller.connection.resource, .requester = caller.connection.requester, .requests = caller.connection.requests }, .key = caller.key };
     const adapter: s.Adapter = .{ .service = caller.service, .ingress = caller.connection.requester, .resource = caller.ingress_resource, .resources = .{ .wire = &wire, .realm = caller.connection.realm, .principal = self.config.inspector, .key = self.config.inspector_key } };
-    var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace };
+    var call: Call = .{ .gateway = self, .io = io, .allocator = alloc, .caller = caller, .client = &client, .adapter = adapter, .response = response, .workspace = workspace, .sql_diagnostic = sql_diagnostic };
     const method = try request.method();
     if (std.mem.eql(u8, method, root.method_prefix ++ "DoGet")) {
         var ticket = try pb.decode(w.Ticket, alloc, request.message, .{ .max_arena_bytes = 65536 });
@@ -175,6 +186,7 @@ const Call = struct {
     client: *q.UnifiedClient,
     adapter: s.Adapter,
     response: *server.Response,
+    sql_diagnostic: *?f.SqlDiagnostic,
     workspace: []u8,
     output: [f.Unified.Arrow.segment_bytes]u8 = undefined,
     next_sequence: ?u64 = null,
@@ -232,7 +244,10 @@ const Call = struct {
             defer decoded.deinit();
             if (decoded.value.transaction_id != null) return error.UnsupportedFlightCommand;
             if (schema_only) {
-                schema = root.Metadata.querySchema(self.caller.connection.name, self.caller.schema, decoded.value.query, &self.output, self.workspace) catch return error.UnsupportedQuery;
+                schema = root.Metadata.querySchema(self.caller.connection.name, self.caller.schema, decoded.value.query, &self.output, self.workspace) catch |err| {
+                    self.sql_diagnostic.* = f.SqlDiagnostic.query(decoded.value.query, err, false);
+                    return err;
+                };
             } else {
                 const raw_sequence = (try request.header("x-transit-request-sequence")) orelse return error.InvalidQueryIdentity;
                 if (raw_sequence.len == 0 or raw_sequence.len > 16 or raw_sequence[0] == '0') return error.InvalidQueryIdentity;
@@ -293,7 +308,10 @@ const Call = struct {
         const limits: q.Bundle.Limits = .{ .pages = 4096, .segments = 63, .result_bytes = 240 * 1024 };
         const description = try self.client.describe(self.definition());
         if (!description.limits.permits(limits)) return error.QueryBudgetExceeded;
-        const bundle = try q.Bundle.fromSql(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits);
+        const bundle = q.Bundle.fromSql(self.allocator, self.definition(), try .init(self.caller.connection.name), sql, limits) catch |err| {
+            self.sql_diagnostic.* = f.SqlDiagnostic.query(sql, err, false);
+            return err;
+        };
         const reference = try bundle.reference(self.caller.connection.requests, first);
         var encoded: [q.Bundle.max_bytes]u8 = undefined;
         const bytes = try bundle.encode(&encoded);

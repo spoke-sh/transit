@@ -58,11 +58,11 @@ different [recovery behavior](../queries.md).
 
 | Form | Support | Caller and boundary |
 | --- | --- | --- |
-| `INSERT INTO ... VALUES ...` | **Implemented — execution** | One to three literal rows through an explicitly enabled Table writer, shared client, typed SDKs or mutation CLI |
+| `INSERT INTO ... VALUES ...` | **Implemented — execution** | One to three literal rows through an explicitly enabled Table writer, shared client, typed SDKs or configured console |
 | `UPDATE ... SET ... WHERE key = literal` | **Implemented — execution** | One value-column assignment at one primary key through that writer |
 | `DELETE FROM ... WHERE key = literal` | **Implemented — execution** | One primary key through that writer |
 | `CREATE TABLE`, `CREATE KV`, `CREATE DOCUMENT` compilation | **Implemented — compilation** | Shared offline state compiler; owned definitions and canonical review SQL |
-| Compatible empty `CREATE TABLE` publication | **Implemented — execution** | Explicit catalog host/caller/CLI; two columns: int64 non-null key and explicitly nullable int64/bool/UTF-8/binary value |
+| Compatible empty `CREATE TABLE` publication | **Implemented — execution** | Explicit catalog host/caller/console; two columns: int64 non-null key and explicitly nullable int64/bool/UTF-8/binary value |
 | `CREATE KV`, `CREATE DOCUMENT` publication | **Planned — checked grammar** | No catalog creation operation, provisioning or default decoder/replica follows from offline compilation |
 | `CREATE INTERFACE`, `CREATE THEME`, `CREATE SCREEN`, `CREATE BINDING`, `CREATE ACTION` | **Implemented — compilation**, with separate implemented publication | One complete application definition; explicit reviewed conditional publication, outside the query grammar |
 
@@ -78,8 +78,8 @@ The [SDK matrix](../sdks.md#table-mutation-callers) and
 [catalog contract](../../../contracts/DECLARATIVE_CATALOG_V1.md) identify the
 available language callers. All ten SDKs expose typed catalog creation, controls,
 exact saved recovery and owned lookup/definition/page values through the shared
-native implementation. These explicit catalog APIs do not enable administrative
-statements in the query console.
+native implementation. The console exposes compatible CREATE TABLE through an explicit catalog route;
+other administrative SQL families retain their own stated support boundaries.
 
 ## Planned declarations and relational composition
 

@@ -8295,3 +8295,79 @@ is `.cache/ci/clean/a3c40a0d6006-transit-ci-ux_5ezz5`. Later commits add the opt
 SDK test schedule and documentation, with the production source unchanged.
 This is a complete core-lane pass plus the separately executed combined-host
 proofs, not a complete clean-suite pass.
+
+### Console SQL routes, diagnostics and exact write recovery
+
+The console dispatches bounded mutations and compatible Table declarations to the
+shared signed clients through explicit `writes.table` / `writes.catalog` routes.
+Located parser failures and the shared diagnostic presenter distinguish syntax,
+unsupported constructs, reference-only families, unavailable interfaces and
+binding errors. This does not extend the accepted mutation grammar, install
+writers/catalogs, grant rights or enable Flight writes.
+
+Local focused runs for issue #46 completed with the pinned development shell:
+
+```sh
+just check
+just test::sql
+just test::table-query-writer
+just test::catalog
+just test::flight
+```
+
+`just check` includes **419 real CLI cases**, including both reported INSERT
+forms, missing catalog routes, incompatible Table definitions, statement/batch
+bounds, locations, escaped/redacted context, and a listening trap proving invalid
+SQL makes no authority call. The SQL corpus retains **113 SELECT ASTs, 92 plans,
+28 unified results, 31 mutation cases and 182 declaration cases**. These compiler
+checks alone make no admission or durability claim.
+
+The real console in `tests/table_query_writer.py` runs against the combined host
+and disk Ursula. It inserts, updates and deletes, observes zero-row results and
+atomic duplicate-key rejection, and reads the resulting rows. It loses a native
+receipt, verifies the original saved signature, reopens without submission, rejects
+changed key/connection or missing-definition recovery, and explicitly resumes
+exactly once. SIGINT preserves admitted work and prevents the following batch
+statement from running; `.cancel` reconciles the input and observes cancellation.
+A proxy holds a prepared part while a distinct administrator revokes policy.
+The rejected input leaves its upload recoverable, blocks replacement work and
+can still be cancelled. The policy-race focused run completed in **51.73 seconds**,
+with at most four mutations per turn, 256-byte values and eight authority pages.
+
+The real catalog proof runs CREATE TABLE through the console, loses its receipt,
+verifies no replay on open, resumes the original signed command, checks the
+explicit creation-cancellation limitation, and resolves the created definition
+through DESCRIBE and paged SHOW TABLES. Duplicate names report the recorded
+conflict; revoked inspection prevents `.status` disclosure. The final catalog
+report has `completed: true` and no cleanup failures. The first attempt's new
+Python variable shadowed its report function during finalization; that attempt
+failed and is not counted as a complete proof.
+
+Flight schema and execution tests cover error categories, coordinates, guidance,
+redaction, authentication/current authorization before diagnostics, and no
+admission for rejected SQL. Full finite-result recovery and independent PyArrow,
+ADBC Python and ADBC C checks pass. Remote public messages retain their 128-byte
+ASCII bound; a longer draft message failed its unit check and was shortened.
+
+Console batch and controlling-PTY regressions keep result stdout separate from
+errors and preserve recovery files on rejected SQL. Valid INSERT without a writer
+has configuration guidance, while malformed SELECT has a caret. The idle-interrupt
+fixture acknowledges a queued `.show` after the final result, so an earlier input
+redraw cannot be mistaken for completed recovery persistence. Deadlines and
+recovery assertions are unchanged. These fixtures do not establish arbitrary
+SQL, automatic query registration after CREATE TABLE, multi-resource transactions,
+or cancellation of an already applied write. Clean-checkout lane execution is
+reported separately with the PR's committed revision.
+
+The console recovery reader also requires exact canonical JSON, preventing native
+type defaults from filling in omitted nested request definitions or schema
+versions. The writer proof removes each field from otherwise canonical saved
+bytes and checks rejection before resubmission. The initial clean growth run at
+`7d97b4fd` was interrupted after Arrow, page and growing-authority checks passed
+to include this additional check; it is not a complete clean-lane result.
+
+The subsequent full `just test::console table` run completed: console batch, PTY,
+interruption and TLS checks took **237.72 seconds** inside the **275.64-second**
+disk-backed unified proof. The earlier terminal attempt expected a parse caret
+for valid INSERT without a writer and failed; the corrected assertion requires
+the caret only for malformed SELECT and keeps the no-send/stdout checks.

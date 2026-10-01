@@ -1,6 +1,7 @@
 # SQL reference
 
-Transit executes a finite, read-only `SELECT` subset through Fuze. SQL compiles
+Transit executes finite `SELECT` queries through Fuze and bounded Table writes
+through explicitly configured console writer/catalog routes. SQL compiles
 to the same typed plan used by native callers. It does not grant access, create
 a source or change its declaration. The console uses a fresh authorized snapshot
 session for each query; explicit durable queries capture a source basis and
@@ -26,7 +27,7 @@ schema syntax. Planned examples are proposals, not runnable SQL.
 | Understand names and literal syntax | [Syntax](sql/syntax.md) |
 | Check scalar types, nulls and missing values | [Data types and cell states](sql/types.md) |
 | Find a function or operator | [Functions and operators](sql/expressions.md) |
-| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer, shared Zig/native ABI/port and [typed SDK callers](sdks.md#table-mutation-callers), or [mutation CLI](../../apps/transit-cli/docs/mutations.md) |
+| Insert, change or remove rows | [INSERT](sql/insert.md), [UPDATE](sql/update.md), [DELETE](sql/delete.md) through an explicitly enabled writer, shared Zig/native ABI/port and [typed SDK callers](sdks.md#table-mutation-callers), or the [console](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs) |
 | Inspect definitions and plans | [DESCRIBE](sql/describe.md), [SHOW TABLES](sql/show.md), [EXPLAIN](sql/explain.md) within the configured source scope |
 | Connect streams, materialize data or dispatch effects | [Streaming and effects](sql/streaming.md) |
 | Define an application interface | [Application declarations](sql/application.md) |
@@ -48,8 +49,30 @@ capabilities. Each operation has an explicit support boundary:
 | Zig integration | An application explicitly invokes a typed helper inside its authorized Station turn |
 | Unsupported | The form has no accepted SQL grammar or execution contract |
 
+The console dispatches each supported SQL family to its configured execution owner. Console SELECT statements
+compile in Fuze and run through authorized query snapshots; Flight adapts its
+finite query client. Table mutations instead use the separately configured writer
+and its saved-command/result protocol. The local native gateway carries signed
+operations, not a general SQL session with implicit write routing.
+
+### Diagnosing rejected SQL
+
+The console and Flight query adapter distinguish parse errors, unsupported
+constructs, reference-grammar-only families, and syntax supported through a
+different interface. Recognizing a grammar-only family does not validate the
+submitted statement or establish execution support. Valid syntax can still fail
+source binding, type checks, budgets or current authorization.
+
+Console parse errors include statement-relative line and byte-column coordinates,
+a caret and correction guidance. Context is bounded; literals, quoted identifiers
+and comments are masked, and control bytes are escaped. Flight returns a compact
+message with coordinates where available and a next step, without SQL excerpts.
+Syntax/binding failures use INVALID_ARGUMENT; unavailable syntax or interfaces
+use UNIMPLEMENTED. The [console guide](../../apps/transit-cli/docs/console.md#sql-errors)
+shows the display and explains how compile failures differ from uncertain work.
+
 State definitions have an offline Zig compiler. Shared Zig/C ABI/native-port
-catalog callers and the explicit [catalog CLI](../../apps/transit-cli/docs/catalog.md)
+catalog callers and the [console](../../apps/transit-cli/docs/console.md#writing-tables-and-catalogs)
 also create and publish named two-column Tables. General SQL administrative
 routes, grants and connector catalog listings remain unavailable;
 their examples describe syntax and do not execute in the query console. Unsupported command entries
@@ -80,13 +103,13 @@ Start with [syntax, names and literals](sql/syntax.md) for notation and shared r
 | Statement | Support | Reference |
 | --- | --- | --- |
 | `SELECT` | Executable finite read in the profiles above | [Projection, filtering, limits and aggregates](sql/select.md) |
-| `INSERT` | Bounded explicit writer with Zig/native ABI/port and typed SDK callers; query transports reject | [Row insertion and current application APIs](sql/insert.md) |
+| `INSERT` | Console with explicit writer, Zig/native ABI/port and typed SDK callers; Flight rejects | [Row insertion and current application APIs](sql/insert.md) |
 | `UPDATE` | Primary-key equality through the explicit mutation writer | [State changes and commit boundaries](sql/update.md) |
 | `DELETE` | Primary-key equality through the explicit mutation writer | [Row removal and retained history](sql/delete.md) |
 | `CREATE CONNECTION` | Grammar only | [Connector configuration and secret references](sql/create-connection.md) |
 | `CREATE SOURCE` | Grammar only | [Captured connector observations as a source](sql/create-source.md) |
 | `CREATE SINK` | Grammar only | [Connector effect target](sql/create-sink.md) |
-| `CREATE TABLE` | Offline compiler, shared Zig/C ABI/native-port callers, catalog CLI and explicit catalog host; query transports reject | [Columns, types and nullability](sql/create-table.md) |
+| `CREATE TABLE` | Console with explicit catalog, offline compiler and shared callers; Flight rejects | [Columns, types and nullability](sql/create-table.md) |
 | `CREATE DOCUMENT` | Offline compiler; no publication | [Document declaration](sql/create-document.md) |
 | `CREATE KV` | Offline compiler; no publication | [Typed KV declaration](sql/create-kv.md) |
 | `GRANT` | Grammar only | [Privilege declaration](sql/grant.md) |
