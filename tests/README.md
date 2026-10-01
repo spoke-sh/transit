@@ -2500,6 +2500,23 @@ seconds: 105 turns, two recovered initialization receipts, a 0.504-second held
 snapshot and all added SQL-write interruption/recovery/cancellation cases. No
 assertion, request deadline or provider capacity guard changes between attempts.
 
+## Exchange example upload markers — 2026-10-01
+
+Both runnable HTTP and RPC examples reproduce `ChangedCallConfiguration` on
+their first publication: they compare a stored `SPU1` upload marker with the raw
+request reference. The shared `PublicationUpload.marker` encoder now supplies
+the expected domain, namespace and frozen-request digest. Its independent byte
+vector checks the existing 48-byte layout; no stored format or definition changes.
+
+The [example record](verification/results/m37-exchange-marker-2026-10-01.json)
+retains both original failures and four passing local schedules: HTTP/RPC with
+ordinary credentials and with fresh bootstrap keys. Each rejects a changed
+reconciliation deadline under a fresh activation, resumes the original peer and
+correlation, restarts disk Ursula/node and replays after credential removal.
+Each observes exactly one external send. Station package tests pass, including
+the independent marker bytes and existing interrupted-publication checks.
+These runs do not qualify Compose/reference placement or the whole clean suite.
+
 ## Installed Node optional Arrow dependency — 2026-10-01
 
 Hosted [bindings job 110181434108](https://github.com/rupurt/rey/actions/runs/36803044000/job/110181434108)

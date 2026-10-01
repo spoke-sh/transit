@@ -64,8 +64,9 @@ pub fn main(init: std.process.Init) !void {
             if (try driver.server.session.receive() != null) try driver.drive() else try driver.tick();
         } else return error.PublicationBudgetExceeded;
         const saved = (try driver.read(call_key)).?;
-        const reference = (try driver.read(http.RequestRecord.key(config.namespace))) orelse return error.MissingRequest;
-        if (saved.len != 16 or std.mem.readInt(u64, saved.data[0..8], .little) != config.worker or !reference.eql(try driver.prepared.reference.encode())) return error.ChangedCallConfiguration;
+        const marker = (try driver.read(http.RequestRecord.key(config.namespace))) orelse return error.MissingRequest;
+        const expected_marker = try s.PublicationUpload.marker(.application, config.namespace, try driver.prepared.reference.encode());
+        if (saved.len != 16 or std.mem.readInt(u64, saved.data[0..8], .little) != config.worker or !marker.eql(expected_marker)) return error.ChangedCallConfiguration;
         try output.interface.print("{{\"phase\":\"called\",\"peer\":\"{d}\",\"correlation\":\"{d}\"}}\n", .{ std.mem.readInt(u64, saved.data[0..8], .little), std.mem.readInt(u64, saved.data[8..16], .little) });
     } else {
         if (config.mode == .receive) {

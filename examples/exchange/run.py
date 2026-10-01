@@ -308,6 +308,15 @@ backend = "inline"
 
             called = activate("caller", caller_config, "publish")
             assert called["phase"] == "called"
+            # Reopening a saved call validates the whole frozen request policy.
+            # This new activation must reject a changed deadline before recovery
+            # with the original configuration resumes the same durable call.
+            try:
+                activate("caller", caller_config | {"reconcile_before_ms": caller_config["reconcile_before_ms"] + 1}, "publish")
+            except RuntimeError as error:
+                assert "ChangedCallConfiguration" in str(error), str(error)
+            else:
+                raise AssertionError("Changed request policy reused a saved call")
             if profile == "reference": placement.kill_caller_worker()
             recovered = activate("caller", caller_config, "publish")
             assert recovered == called, ("Restart changed the durable call", called, recovered)

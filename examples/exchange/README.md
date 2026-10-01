@@ -14,6 +14,9 @@ caller replacement, then restarts node/store and replays after deleting the
 credential and stopping the peer. Protocol selection is fixed by each example's
 runnable entry point. HTTP uses a synthetic POST; RPC uses a protoc descriptor
 and original binary/Unicode/full-width protobuf plus an empty message.
+Saved-call recovery checks the shared publication marker against the complete
+frozen request. The schedule rejects a changed reconciliation deadline before
+resuming the original peer and correlation under fresh ownership.
 
 `compose.py` builds static Zig images and packages only the pinned Python closure
 needed by the independent fixture. RPC adds pinned grpcio; it is never a worker

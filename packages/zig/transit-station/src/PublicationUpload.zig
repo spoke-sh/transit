@@ -13,12 +13,16 @@ pub const Input = struct {
     limits: Publication.Limits,
     records: []const Record,
 };
-fn identity(input: Input) !p.Value {
+/// Encode the frozen upload identity for comparison with an authorized read of
+/// the stored marker. This neither stages records nor grants access to them.
+pub fn marker(domain: Publication.Domain, namespace: u64, frozen: p.Value) !p.Value {
+    try frozen.validate();
+    if (@backingInt(domain) == 0 or namespace == 0 or frozen.len == 0) return error.InvalidPublicationUpload;
     var bytes: [48]u8 = undefined;
     bytes[0..4].* = "SPU1".*;
-    std.mem.writeInt(u32, bytes[4..8], @backingInt(input.domain), .little);
-    std.mem.writeInt(u64, bytes[8..16], input.namespace, .little);
-    std.crypto.hash.sha2.Sha256.hash(input.identity.slice(), bytes[16..48], .{});
+    std.mem.writeInt(u32, bytes[4..8], @backingInt(domain), .little);
+    std.mem.writeInt(u64, bytes[8..16], namespace, .little);
+    std.crypto.hash.sha2.Sha256.hash(frozen.slice(), bytes[16..48], .{});
     return p.Value.init(&bytes);
 }
 /// Stage at most one operation per turn. True means every record was already
@@ -41,7 +45,7 @@ pub fn step(turn: *Turn, input: Input) !bool {
     }
     if (total > input.limits.staging_bytes or input.records.len > input.limits.staging_records) return error.InvalidPublicationUpload;
     const publication: Publication = .{ .resource = turn.view.resource, .domain = input.domain, .namespace = input.namespace };
-    const frozen = try identity(input);
+    const frozen = try marker(input.domain, input.namespace, input.identity);
     if (try turn.read(input.identity_key)) |previous| {
         if (!previous.eql(frozen)) return error.PublicationUploadIdentityConflict;
     } else {
