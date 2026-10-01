@@ -36,6 +36,7 @@ class Console:
 
     def call(self, sql):
         started = time.monotonic_ns()
+        self.last_measurement = {'elapsed_ns': 0, 'timing': None}
         self.process.stdin.write((sql.rstrip(';') + ';\n').encode())
         self.process.stdin.flush()
         output = timing = None
@@ -43,6 +44,7 @@ class Console:
             for index, pipe in enumerate((self.process.stdout, self.process.stderr)):
                 selector.register(pipe, selectors.EVENT_READ, index)
             while output is None or timing is None:
+                self.last_measurement['elapsed_ns'] = time.monotonic_ns() - started
                 if time.monotonic_ns() - started > 330_000_000_000:
                     raise TimeoutError('mutation caller exceeded deadline; outcome unknown')
                 for key, _ in selector.select(.1):
@@ -62,6 +64,7 @@ class Console:
                             output = json.loads(line)
                         elif line.startswith(b'Time: '):
                             timing = line.decode()
+                            self.last_measurement.update(elapsed_ns=time.monotonic_ns() - started, timing=timing)
                         elif line:
                             raise RuntimeError(line.decode())
         return output, {'elapsed_ns': time.monotonic_ns() - started, 'timing': timing,
@@ -178,7 +181,7 @@ def main():
                 result, measurement = writer.call(sql)
             except Exception:
                 report['unknown_outcomes'] += 1
-                report['failed_sample'] = {'case': case, 'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}}
+                report['failed_sample'] = {'case': case, **writer.last_measurement, 'attempts': {name: dict(probe.snapshot() - before[name]) for name, probe in probes.items()}}
                 raise
             assert result['mutation']['phase'] == 'applied', result
             assert result['mutation']['affected_rows'] == affected, result
