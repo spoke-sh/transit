@@ -11278,11 +11278,16 @@ joins its children and removes the private state; the log retains provider tails
 
 Removing regenerable build caches from three inactive owned checkouts increases
 available disk space from about 18 to 27 GiB while preserving source, recorded
-evidence and frozen comparison binaries. An unchanged Document-only rerun at
-`40ad89aa` is in progress, log
-`/var/tmp/transit-count-column-document-partial-recovery-retry.log`. Its eventual
-outcome is separate from the failed provisioning attempt; no storage threshold,
-deadline, resident bound or assertion changes.
+evidence and frozen comparison binaries. The unchanged Document-only rerun at
+`40ad89aa` **passes with all 13 callers in 1443.13 s**, exit 0; log
+`/var/tmp/transit-count-column-document-partial-recovery-retry.log`.
+Its held 8/10 accumulator survives replacement and completes at 10. The separate
+missing-column query selects ten rows and counts zero. The same current-denial,
+cancellation, empty LIMIT, retirement and pin-release checks pass, with the
+existing 64 resident authority pages, 8 MiB hot store, 1037 cold objects and
+120,666,637 cold bytes. [Source-qualified evidence](verification/results/count-values-document-recovery-2026-10-01.json)
+retains the completed scope and prior failure. No storage threshold, deadline,
+resident bound or assertion changes.
 
 Committed-head core at `029b21a0` **fails after 19 passing tasks**, with two later
 tasks unrun, in 1106.60 seconds. `test::callers` expects `AccessDenied` for an
@@ -11298,8 +11303,26 @@ runtime code change. This focused pass does not complete the failed lane or
 explain its failure. Refreshed full `just check` for the new proof/benchmark
 changes also passes, exit 0, in `/var/tmp/transit-count-proof-check.log`.
 
-Remaining native-source schedules, file costs and committed-HEAD clean lanes
-remain open in the
+Fresh core at `40ad89aa` **passes all 22 tasks in 1155.90 s**, exit 0. Completed
+metadata, exact task order and all zero exits are verified at
+`.cache/ci/clean/40ad89aa1b7c-transit-ci-jty9suii`; the
+[file-control archive](benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
+retains the metadata/results. Log:
+`/var/tmp/transit-count-column-recovery-clean-core.log`. This later pass does
+not establish the cause of the earlier failure. Production code is unchanged
+at `5d897f0d`; its clean bindings lane remains in progress. Full `just check`
+for the file-profile/evidence changes passes in
+`/var/tmp/transit-count-file-profile-check.log`.
+
+`just test::unified-counts -Dunified-shell=true` also selects COUNT for the
+actual signed SQL shell's existing frozen-bundle/original-command recovery
+schedule. It checks the renamed derived input, named uint64 result and manifest
+counters, including Document missing values, through shell exit/restart and
+permanent retirement/collection. The all-source native/port/shell command is
+running in `/var/tmp/transit-count-column-shell-recovery.log`; these new shell
+assertions are not yet qualified by the completed SDK schedules above.
+
+Remaining CLI qualification, compiler timing failures and clean lanes stay in the
 [M40 continuation](../docs/roadmap/M40.md#countcolumn-continuation).
 
 ### Native COUNT costs
@@ -11331,3 +11354,41 @@ probe does not serialize progress, so its absolute timings cannot isolate the
 new counter's serialization cost. Logs: `/var/tmp/transit-count-performance.log`;
 both commands exit 0. File costs, native acquisition/publication, recovery and
 remaining clean lanes retain their separate gates.
+
+### File COUNT costs and rejected parser experiment
+
+The [file-control archive](benchmarks/results/2026-10-01-count-values-file-controls.json.gz)
+retains **3888 correct results** across projection, filter, COUNT(*) and SUM;
+nine file shapes; explicit/sampled/full discovery; both input-cache conditions;
+and nine alternating pairs. Both frozen probes use the same benchmark source,
+with runtime `029b21a0` compared against parent `a3e15a9f`. All **216 pipeline
+ratios pass** the existing 1.15 limit (0.9832–1.0849). Three of 216 compiler ratios
+fail: cold projection narrow/explicit **1.2579**, cold projection wide/explicit
+**1.2833**, and warm SUM sparse/sampled **1.2231**. Other compiler ratios pass.
+These failures keep overall performance qualification open. Exact drivers,
+source/binary hashes, raw samples, input-residency checks and gates are retained.
+
+The separate [COUNT(column) capability archive](benchmarks/results/2026-10-01-count-values-file-capability.json.gz)
+passes **1296 Transit/DuckDB results**: nine shapes, four typed discovery modes,
+both input-cache conditions and nine samples per engine. Each source has 4096
+rows; sparse values contribute 2184 and the other selected columns contribute
+4096, including top-level lists. Native compilation medians span **5.56–24.98
+microseconds**; full scan/conversion/count medians span **33.97–407.53 ms**.
+DuckDB's corresponding binding and scan/Arrow phases have different boundaries;
+matching scalar results do not establish equal conversion work, type inference
+or a general speedup. Both matrices run on CPU 1 on a shared host, with unchanged
+resource and timeout limits. Log `/var/tmp/transit-count-file-performance.log`,
+combined exit 0 for correctness; the three timing failures remain failures.
+
+An isolated parser experiment reuses #52's owned selection/projection storage,
+adapted for COUNT(column). Independent SQL, Fuze units and all 162 file CLI cases
+pass. The projection function shrinks from 744 to 532 machine-code bytes, but
+native SELECT median ratios are only 0.9903–0.9984 and targeted cold wide/explicit
+compilation regresses to **1.3533**. Same-binary file controls span 0.8703–1.0613,
+with that cold wide/explicit case at 0.9724. The experiment is **rejected** and
+its runtime patch restored; code size alone is not a timing improvement.
+The [experiment archive](benchmarks/results/2026-10-01-rejected-count-parser-storage.json.gz)
+retains 1098 native case measurements, 486 file process results, the exact patch,
+drivers, assembly and control provenance. These diagnostics use CPU 2 while the
+original matrices use CPU 1; shared-host variation and the original failures
+remain explicit. No published production implementation changes.
