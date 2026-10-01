@@ -144,8 +144,7 @@ pub const Client = struct {
     }
 
     fn perform(self: *Client, comptime T: type, path: []const u8, signed: anytype) anyerror!T {
-        self.expireIdleConnection();
-        defer self.last_exchange_ms = std.Io.Clock.awake.now(self.http.io).toMilliseconds();
+        self.beginExchange();
         const allocator = self.http.allocator;
         const url = try allocator.print("{s}{s}", .{ self.url, path });
         defer allocator.free(url);
@@ -204,8 +203,16 @@ pub const Client = struct {
         return parsed.value;
     }
 
-    /// One borrower per Client. Retire idle sockets BEFORE sending, without
-    /// retrying any request. This short reuse window fits native idle deadlines.
+    /// Conservatively age a pooled connection from exchange start. Response
+    /// transfer/parsing and scheduling delays must not renew a server-idle socket.
+    /// One borrower per Client; this never retries a transport attempt.
+    pub fn beginExchange(self: *Client) void {
+        self.expireIdleConnection();
+        self.last_exchange_ms = std.Io.Clock.awake.now(self.http.io).toMilliseconds();
+    }
+
+    /// Retire old sockets BEFORE sending. A transport failure still has unknown
+    /// outcome and requires reconciliation of the original signed command.
     pub fn expireIdleConnection(self: *Client) void {
         const now = std.Io.Clock.awake.now(self.http.io).toMilliseconds();
         if (self.last_exchange_ms) |last| if (now - last >= 200) {
