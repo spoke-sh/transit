@@ -18,6 +18,10 @@ projection, one predicate, LIMIT, COUNT and checked int64 SUM. Logical values ca
 be projected recursively; comparison literals retain the existing six scalar
 types without implicit casts. SQL does not open arbitrary paths or invoke a
 file-reading function. Explicit acquisition options select the bytes.
+An explicit source alias, such as `FROM input AS src`, binds qualified columns
+to that alias and hides `input` as a qualifier. Aliases also work inside the
+supported limited aggregate input. Bare aliases without `AS` are rejected.
+Output-column and aggregate aliases are not supported by file plans.
 
 ## Schemas and exact values
 

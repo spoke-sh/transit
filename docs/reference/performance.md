@@ -386,8 +386,8 @@ Two optional metadata optimizations were evaluated after the baseline: avoiding
 one repeated descriptor-validation traversal and caching header-to-column indices.
 Their full result, allocation, I/O-count, memory and six-type checks passed, but
 two complete repetitions failed different capture/discovery timing limits. Both
-optimizations were withdrawn without changing the budgets. The current runtime
-matches the accepted baseline implementation. The
+optimizations were withdrawn without changing the budgets. File discovery and
+scanning retain the measured baseline's metadata algorithm. The
 [experiment record](../../tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
 retains both failures and the observed shared-host interference; it establishes
 no qualified optimization benefit or isolated cause for every timing change.

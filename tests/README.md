@@ -9317,7 +9317,7 @@ memory, scan/query and specialized-path checks but fails the numeric timing gate
 12 cold-acquisition/phase wall limits and one discovery CPU limit. The retained
 report distinguishes this failure from successful correctness checks. Investigation
 shows large wall/CPU separation in cold acquisition with unchanged bytes and
-similar acquisition CPU; a complete unchanged rerun is required. These observations
+similar acquisition CPU; the unchanged repeat below tests reproducibility. These observations
 are not a passed performance gate or final committed-HEAD clean qualification.
 
 
@@ -9330,3 +9330,33 @@ that all implementation/generated-contract/build/toolchain paths again match
 accepted baseline `5052c59e`. The delivered feature uses that measured baseline;
 it makes no qualified optimization or DuckDB-parity claim. Final clean checks
 remain a separate requirement.
+
+### File-query integration with current main
+
+The schema-on-demand branch integrates `main` at `9fdf1d02`, including current
+native definitions, SQL diagnostics and explicit `AS` source aliases. Alias
+resolution lives in the shared `SqlLowering` path for file and native queries;
+it preserves source identity, binds inner/outer qualifiers separately and rejects
+bare aliases or references to the hidden original qualifier. SDK resources are
+regenerated from the merged Zig owners.
+
+The merged tree passes `just doctor`, full `just check` (including documentation
+production build), and `just test::sql`: 113 independent SELECT ASTs, 92 real
+plans and 28 unified results, plus mutation/declaration fixtures. The first
+expanded file-query proof incorrectly expected bare aliases to succeed; the
+shared parser rejects them. Correcting that expectation and the new guide text
+leaves the implemented grammar unchanged. The complete rerun of
+`just test::file-query` passes 89 real CLI cases, including explicit/nested aliases,
+invalid qualifiers and all existing capture/gzip/cancellation/192 MiB memory cases.
+
+The frozen benchmark artifacts retain their exact pre-integration revisions.
+Integration does not reinstate either withdrawn metadata experiment and does not
+turn those historical timings into measurements of a new revision. Committed-HEAD
+clean qualification remains outstanding at this integration checkpoint.
+
+The subsequent rebase uses `origin/main` at `ac9ad43d`, which adds native SQL
+output aliases and replaces its current protocol definition. Native compilation
+and generated SDK resources retain that implementation. File plans keep their
+previous output-name profile and explicitly reject output aliases; source `AS`
+aliases remain supported. Earlier merged-tree checks do not qualify this rebased
+revision; final checks must run again.

@@ -139,7 +139,10 @@ Both optional changes were withdrawn in `cffa7b56`; their timing failures were
 not waived and the budgets were not raised. The
 [implementation comparison](experiments/restored-implementation.json) verifies
 that implementation, generated contracts, build and toolchain paths match the
-accepted baseline. The type/source/CLI/Arrow/SDK features remain. The delivered
-runtime therefore uses the measured baseline, with no optimization or speedup
-claim. Further optimization needs complete matching evidence under these budgets
+accepted baseline at that checkpoint. The type/source/CLI/Arrow/SDK features
+remain. Subsequent integration of `main` brings shared SQL aliases, diagnostics
+and current native contract definitions; it preserves the file discovery/scan
+metadata algorithm. These reports measure their recorded revisions, not that
+integration. No optimization or speedup is claimed. Further optimization needs
+complete matching evidence under these budgets
 or an explicitly reviewed new measurement profile established beforehand.

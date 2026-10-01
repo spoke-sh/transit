@@ -160,6 +160,21 @@ def main():
         base = ['--format', 'csv', '-c', 'SELECT SUM(n) FROM input', '-']
         data = b'n,id\n1,001\n2,002\n'
         ordinary = invoke(base, data, env=env)
+        # Source aliases lower to the same typed plan, including inside the
+        # limited aggregate input; a bound alias hides the original qualifier.
+        for sql in ('SELECT SUM(src.n) FROM input AS src',
+                    'SELECT SUM(chosen.n) FROM (SELECT src.n FROM input AS src WHERE src.n > 0 LIMIT 2) AS chosen'):
+            aliased = invoke(['--format', 'csv', '-c', sql, '-'], data, env=env)
+            assert aliased[1]['row'] == ordinary[1]['row']
+            assert aliased[-1]['complete']['scanned'] == ordinary[-1]['complete']['scanned']
+        for sql in ('SELECT n AS renamed FROM input',
+                    'SELECT SUM(n) AS total FROM input',
+                    'SELECT SUM(chosen.renamed) FROM (SELECT n AS renamed FROM input LIMIT 2) AS chosen',
+                    'SELECT input.n FROM input AS src',
+                    'SELECT SUM(src.n) FROM input src',
+                    'SELECT src.n FROM input AS src WHERE input.n > 0',
+                    'SELECT n FROM absent AS input'):
+            invoke(['--format', 'csv', '-c', sql, '-'], data, 1, env)
         compressed = gzip.compress(data)
         zipped = invoke(base + ['--gzip'], compressed, env=env)
         assert ordinary == zipped
