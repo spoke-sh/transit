@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "revision": "bf39a19787c8d250a4b952fe18367845c3993343",
+  "command": "NIX_CONFIG='eval-cache = false' nix develop --command just test::unified-query",
+  "completed": false,
+  "exit_code": 1,
+  "passed_sources": {
+    "kv": { "seconds": 31.79, "rows": 41, "segments": 6, "ipc_bytes": 13584 },
+    "table": { "seconds": 33.42, "rows": 41, "segments": 6, "ipc_bytes": 13584 }
+  },
+  "failed_source": "document",
+  "failed_phase": "provision",
+  "error": "AuthorityUnavailable",
+  "provider_observation": "Ursula HTTP 503 ColdBackpressure at the configured group hot-byte limit",
+  "hot_store_limit_bytes": 8388608,
+  "diagnosis_complete": false,
+  "log": {
+    "path": "/tmp/rey-fuze-integrated-unified-query.log",
+    "sha256": "474f6a30be0f20e016ea21d5ddff71c433010135bd21b978be2526bc804382b9"
+  },
+  "limits_changed": false
+}

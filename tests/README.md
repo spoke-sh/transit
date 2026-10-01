@@ -10119,6 +10119,20 @@ original revision identities. Main's new native definitions, generated caller
 resources, Table admission and transport changes require fresh integration
 checks and ordinary clean lanes.
 
+### Qualification continuation after PR #54
+
+PR #54 merges as `5f46096b`; issue #53 retains the final qualification gates.
+The focused signed query run at `bf39a197` passes KV and Table recovery in
+31.79 s and 33.42 s respectively. Each returns 41 rows, six segments and 13584
+IPC bytes after frozen upload retry and worker/node/disk restart, then checks
+prefix revocation and released source pins. Document provisioning fails with
+`AuthorityUnavailable` before its query schedule begins. Ursula reports
+`ColdBackpressure` at the existing 8388608-byte hot-store limit. This is a failed
+three-source run; no provider limit or failure is waived. The
+[retained failure](verification/results/m39-document-provisioning-2026-10-01.json)
+records the command, source and log identity. Diagnosis and final ordinary clean
+lanes remain outstanding.
+
 
 ## Durable Table mutation latency
 
