@@ -10521,3 +10521,83 @@ authority pages and an 8 MiB hot store; the complete source phase records 138
 cold objects / 16,738,044 bytes, including the separate shell query. The log is
 `/tmp/transit-sql-boolean-compound-all-sources.log`. Table and Document phases
 are still running or unrun at this checkpoint; this is not an all-source pass.
+
+
+The same combined run subsequently **passes Table and Document**, and exits 0.
+Table completes in 305.80 seconds with 39 rows / five segments / 12,048 bytes,
+eight authority pages, 8 MiB hot store and 118 cold objects / 14,291,811 bytes.
+Document provisioning takes 1107.88 seconds and the complete phase takes 1311.16
+seconds: ten rows / two segments / 9,648 bytes, 64 authority pages, 8 MiB hot
+store and 988 cold objects / 113,112,747 bytes. Every source includes all 13
+caller variants, compound canonical/prepared-identity agreement, exact upload
+retry, source/requester/node/disk restart, current prefix denial and retirement.
+The SQL shell independently verifies 31 Table / eight Document rows, saved
+bundle/exact retry across exit and permanent retirement/collection. Cleanup joins
+before moving between sources and before terminal success. This qualifies the
+compound schedule at frozen `0bdaaf15`, not a later runtime refactor or every
+transport/bounds/error profile.
+
+Committed-HEAD **`just ci-clean --lane core` at `0bdaaf15` passes all 22 tasks**
+in 1128.22 seconds, exit 0. Completion metadata and all expected zero-exit task
+records are verified under
+`.cache/ci/clean/0bdaaf158d20-transit-ci-8npolt5b`; the command log is
+`/tmp/transit-sql-boolean-compound-clean-core.log`. Remaining clean lanes and
+hosted checks retain their separate gates.
+
+### Shared Boolean execution for file queries
+
+The continuation from `0bdaaf15` extracts the bounded postfix machine shared by
+native and file predicates. Logical file atoms retain their own type admission;
+SQL keeps the six-scalar literal profile. The compiler borrows its owned AST
+only during lowering, then owns the program, literal bytes and descriptor.
+File fingerprints bind instruction order/opcodes/typed literals within the
+existing 8192-byte bound; existing single-atom identities and native definitions
+are unchanged. Full source conversion and digest verification remain mandatory
+after filtering and LIMIT.
+
+Pinned `zig build test` in `packages/zig/transit-fuze` passes, including native
+Boolean regressions and logical file truth tables, eager first-error order,
+64-instruction/invalid-stack/type/column rejection, full-width uint128 comparison,
+changed-program poisoning, late conversion/digest failures and exhaustive
+allocation-failure cleanup. Log: `/tmp/transit-sql-boolean-file-unit-3.log`.
+The first build fails on a declaration placed between Zig fields; moving the
+unchanged declaration resolves it before tests execute. That log remains
+`/tmp/transit-sql-boolean-file-unit-initial.log`.
+
+`just test::file-query` passes **110 real CLI cases**, including independent
+CSV/JSONL results, precedence/grouping, unknown under NOT, exact atom fingerprint,
+source/derived-input aliases, aggregates, eager error branches, statement bounds,
+checked gzip and disk/pipe/cancellation proofs. The retained memory proof reads
+192 MiB under a 96 MiB address-space limit. Its initial new assertion compares a
+lossless decimal-string counter with a Python integer; converting the asserted
+counter to an integer corrects the test without changing runtime behavior.
+The failed and passing logs are `/tmp/transit-sql-boolean-file-cli.log` and
+`/tmp/transit-sql-boolean-file-cli-2.log`. Full `just check` and `just test::sql`
+pass, exit 0, in `/tmp/transit-sql-boolean-file-check.log`. These working-tree
+results do not substitute for committed-HEAD clean validation.
+
+The [paired file report](benchmarks/results/2026-10-01-boolean-file-comparison.json.gz)
+retains 162 successful samples: three alternating baseline/candidate pairs over
+nine shapes and explicit/sampled/full discovery, 4096 rows each, one CPU, warm
+input pages and unchanged budgets. The frozen baseline is `0bdaaf15`, SHA-256
+`70f06335012ad4f94f044f25f305b904eb3a16c48a0281a5192cafa062f05452`;
+the candidate hash is
+`e499d60b442070907cdfdfb47d985fb41cd03a229027bb31f8b5e95c16055a5d`.
+Reports retain source/driver/lock hashes, raw wall/CPU/allocation/RSS records,
+fixture identities and independent result checks. All 27 pipeline median ratios
+are within 1.15 (0.7607–1.0764, median 0.9746). Compiler ratios range
+0.7649–1.4507, median 0.9993; **wide/sampled (1.4507) and gzip/sampled (1.1561)
+exceed 1.15 and remain unresolved**. Allocation counts/bytes match for those
+cases; one wide sample shows wall preemption, but neither cause nor a general
+speedup is established. These per-source single-compilation phases and three
+pairs do not resolve the earlier native SELECT compiler regressions.
+
+The [compound-work report](benchmarks/results/2026-10-01-boolean-file-compound-cost.json.gz)
+adds another 162 successful samples, comparing the same selected rows with a
+six-instruction candidate and single-atom baseline. Across configurations,
+median compile and pipeline ratios are 1.1533 and 1.0644 respectively;
+pipeline ratios range 0.8524–1.2293. Extra operators are different work, so this
+is a cost measurement, not an unchanged-workload regression pass. Both reports
+are reproducible through `tests/fuze_benchmarks/compare.py`; the ordinary matrix
+also accepts `--query compound`. Independent DuckDB compound measurements,
+cold-input/remaining query matrices and installed native latency remain unrun.

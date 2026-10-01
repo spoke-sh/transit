@@ -86,8 +86,10 @@ def config(fixture, mode, rows, batch_rows, projected, query='all'):
     sql = 'SELECT id FROM input' if projected and mode != 'raw' else 'SELECT * FROM input'
     output_rows = rows
     result_sum = None if mode == 'raw' else rows*(rows-1)//2
-    if query == 'filter':
+    if query in ('filter', 'compound'):
         sql = f'SELECT id FROM input WHERE id < {rows//4}'
+        if query == 'compound':
+            sql += f' AND NOT (id >= {rows//4} OR id IS NULL)'
         output_rows = rows//4
         result_sum = output_rows*(output_rows-1)//2
     elif query == 'count':
@@ -232,12 +234,12 @@ def main():
     parser.add_argument('--engines', nargs='+', choices=('transit', 'duckdb'), default=['transit', 'duckdb'])
     parser.add_argument('--batch-rows', type=int, choices=(1, 8), default=8)
     parser.add_argument('--project-id', action='store_true')
-    parser.add_argument('--query', choices=('all', 'filter', 'count', 'sum'), default='all')
+    parser.add_argument('--query', choices=('all', 'filter', 'compound', 'count', 'sum'), default='all')
     parser.add_argument('--timeout', type=int, default=300)
     args = parser.parse_args()
     if not 1 <= args.rows <= 100_000_000 or not 1 <= args.repetitions <= 20 or not 1 <= args.timeout <= 3600:
         parser.error('Invalid workload budget')
-    if (args.project_id and args.query != 'all') or (args.query in ('filter', 'sum') and 'raw' in args.modes):
+    if (args.project_id and args.query != 'all') or (args.query in ('filter', 'compound', 'sum') and 'raw' in args.modes):
         parser.error('Projection selects the all query; filter/sum require typed modes')
     args.binary = args.binary.resolve(); args.output = args.output.resolve()
     report = dict(definition=DEFINITION, status='running', completed=False, samples=[], summary=[], fixtures=[])

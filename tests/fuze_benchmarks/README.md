@@ -11,6 +11,7 @@ just doctor
 just test::file-benchmark --output .cache/fuze-baseline.json
 just test::file-benchmark --project-id --output .cache/fuze-projection.json
 just test::file-benchmark --query filter --modes explicit sampled full --output .cache/fuze-filter.json
+just test::file-benchmark --query compound --modes explicit sampled full --output .cache/fuze-compound.json
 just test::file-benchmark --query count --output .cache/fuze-count.json
 just test::file-benchmark --query sum --modes explicit sampled full --output .cache/fuze-sum.json
 python3 -B tests/fuze_benchmarks/large.py zig-out/bin/transit-file-benchmark --output .cache/fuze-large.json
@@ -142,3 +143,28 @@ events and CPU usage from inside the cgroup. The capture and its file cache are
 charged to that same group. Kernel charge batching has a documented 2% peak
 margin; a process success or address-space limit alone is insufficient evidence.
 The proof requires Linux cgroup v2 and a running user systemd manager.
+
+
+## Paired file-plan changes
+
+Build and preserve a ReleaseSafe `transit-file-benchmark` before changing the
+runtime. Compare it with the new binary using the same pinned compiler:
+
+```sh
+python3 -B tests/fuze_benchmarks/compare.py \
+  --baseline /path/to/frozen-transit-file-benchmark --baseline-revision BASE_COMMIT \
+  --candidate zig-out/bin/transit-file-benchmark --output .cache/file-comparison.json
+```
+
+This runs three alternating pairs per shape and discovery mode over all nine
+shapes, using 4096 rows, one CPU, warm input pages and unchanged per-process
+budgets. Every sample checks capture identities, source rows and result checksums.
+The report retains binary/source/driver/lock hashes, raw timing/allocation/RSS
+records and median compile/pipeline ratios. `status: passed` means every sample
+completed with correct results; assess ratios separately against the applicable
+performance budget. Host activity is not isolated and no native latency is measured.
+
+`--query compound` compares the baseline filter with a six-instruction program
+that selects the same rows, to measure the extra predicate work. That is not a
+same-workload regression comparison. The ordinary matrix also accepts
+`--query compound`, including its independent DuckDB result comparator.
