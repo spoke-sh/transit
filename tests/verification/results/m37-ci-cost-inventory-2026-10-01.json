@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "control": "Successful core job with all other ordinary lanes absent",
+  "original_source_sha256": "9a8395b43f4c5fb433661acde8bccd3fc0bc9ddad0fa35e578e39052b50c78bc",
+  "original_result": {
+    "version": 1,
+    "run_id": 1,
+    "revision": "synthetic-fixture",
+    "url": "https://example.invalid",
+    "run_attempt": 1,
+    "cache_profile": "warm",
+    "budget": {
+      "feedback_seconds": 600,
+      "aggregate_runner_seconds": 3000,
+      "restored_cache_bytes": 1000
+    },
+    "conclusion": "success",
+    "status": "measured",
+    "feedback_seconds": 10.0,
+    "aggregate_runner_seconds": 9.0,
+    "restored_cache_bytes": 300,
+    "lanes": [
+      {
+        "name": "core",
+        "conclusion": "success",
+        "seconds": 9.0,
+        "phases": {},
+        "cache": {
+          "restored_bytes": 300,
+          "mode": "warm"
+        }
+      }
+    ],
+    "budget_met": true
+  },
+  "expected_budget_met": false,
+  "corrected_source_sha256": "157fdfc5914eeaf0fdb8ec4b660ccdf133ae361fad87adbcc8e642bf77b7d0ba",
+  "corrected_result": {
+    "version": 1,
+    "run_id": 1,
+    "revision": "synthetic-fixture",
+    "url": "https://example.invalid",
+    "run_attempt": 1,
+    "cache_profile": "warm",
+    "budget": {
+      "feedback_seconds": 600,
+      "aggregate_runner_seconds": 3000,
+      "restored_cache_bytes": 1000
+    },
+    "conclusion": "success",
+    "status": "inconclusive",
+    "missing_lanes": [
+      "bindings",
+      "experience",
+      "growth",
+      "launchers"
+    ],
+    "duplicate_lanes": [],
+    "feedback_seconds": 10.0,
+    "aggregate_runner_seconds": 9.0,
+    "restored_cache_bytes": 300,
+    "lanes": [
+      {
+        "name": "core",
+        "conclusion": "success",
+        "seconds": 9.0,
+        "phases": {},
+        "cache": {
+          "restored_bytes": 300,
+          "mode": "warm"
+        }
+      }
+    ],
+    "budget_met": false
+  },
+  "base_revision": "88fc1d0d2ea643ca24b39f6241a3f4c7fd52f7a4",
+  "scope": "Synthetic cost collector inventory control; no hosted measurements",
+  "validation": {
+    "command": "nix develop --command python3 -B tests/ci_runner.py",
+    "exit_code": 0,
+    "log_sha256": "a175008cc3ab96374c257e558e9de4def575cc53dffb55f4f0204e3dbccc8545"
+  },
+  "limits": [
+    "Source hashes identify the collector before and after the correction; other worktree documentation edits do not participate in the synthetic input.",
+    "No numeric budget, job execution cap, task deadline or proof inventory is changed.",
+    "This control is not a hosted cost or ordinary qualification sample."
+  ]
+}

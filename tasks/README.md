@@ -152,6 +152,12 @@ Use `zig build test-growing-service -Doptimize=Debug` or
 `zig build test-query -Doptimize=Debug` to reproduce those integration schedules
 in Debug. Unit tests retain their default Debug build.
 
+`just ci::cost RUN_ID` compares ordinary-suite budgets only when every ordinary
+lane appears exactly once and completes successfully with available cache evidence.
+Missing or duplicate lanes leave the result inconclusive; measured job timings
+and restored bytes remain available. A successful selected profile does not
+qualify the ordinary-suite budget.
+
 Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer
 builds and storage fixtures share that run's disk-backed scratch directory.

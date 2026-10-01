@@ -2556,6 +2556,15 @@ hosted validation; these controls do not qualify a complete lane or cost budget.
 
 ## Qualification checkpoint — 2026-10-01
 
+The [cost-inventory control](verification/results/m37-ci-cost-inventory-2026-10-01.json)
+exposes a reporting error: a synthetic successful core-only run with known warm
+caches meets the old collector's full-suite budget check. The corrected collector
+requires exactly one job for each ordinary inventory lane and reports missing or
+duplicate lanes as inconclusive while retaining measured timings and cache bytes.
+Controls cover each missing lane, duplicates, full warm/cold selections, skipped
+jobs, incomplete timestamps and missing cache evidence. The CI runner checks pass.
+These synthetic checks do not supply hosted cost samples or change any budget.
+
 The [completed hosted record](verification/results/m37-hosted-ordinary-2026-10-01.json)
 for run `36803044000` retains **53 passed, two failed and thirteen unrun** ordinary
 tasks out of 68 at synthetic merge `03ab0209`. Its tree matches merged `9fdf1d02`.

@@ -52,38 +52,52 @@ def main():
     reclaim = next(step for step in fault_steps if step.get('name') == 'Reclaim unused hosted SDKs')
     assert reclaim['if'] == "runner.environment == 'github-hosted'"
     assert fault_steps.index(reclaim) < next(i for i, step in enumerate(fault_steps) if step.get('name') == 'Restore Nix store')
-    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 1000}
+    budgets = {"feedback_seconds": 600, "aggregate_runner_seconds": 3000, "restored_cache_bytes": 2000}
     sample = dict(id=1, head_sha='fixture', html_url='https://example.invalid', conclusion='success', created_at='2026-01-01T00:00:00Z')
     job = dict(name='core', conclusion='success', started_at='2026-01-01T00:00:01Z', completed_at='2026-01-01T00:00:10Z', steps=[])
     log = 'core\tCache hit for: nix-key\ncore\tCache Size: ~0 MB (100 B)\ncore\tCache hit for: zig-key\ncore\tCache Size: ~0 MB (200 B)\n'
-    measured = summarize(sample, [job], log, budgets)
-    assert measured['budget_met'] and measured['restored_cache_bytes'] == 300
-    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 9
-    assert not summarize(sample, [job], '', budgets)['budget_met']
-    assert not summarize(sample, [dict(job, conclusion='failure')], log, budgets)['budget_met']
-    assert not summarize(sample, [dict(job, completed_at=None)], log, budgets)['budget_met']
-    assert not summarize(sample, [job], log, dict(budgets, feedback_seconds=10))['budget_met']
-    cold_log = 'core\tCI dependency cache mode: cold\n'
-    assert not summarize(sample, [job], cold_log, budgets)['budget_met']
-    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=20, restored_cache_bytes=0)
-    cold = summarize(sample, [job], cold_log, dict(budgets, cold=cold_budget))
+    full_jobs = [dict(job, name=name) for name in selected]
+    full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
+    measured = summarize(sample, full_jobs, full_log, budgets)
+    assert measured['budget_met'] and measured['restored_cache_bytes'] == 1500
+    assert measured['feedback_seconds'] == 10 and measured['aggregate_runner_seconds'] == 45
+    assert not measured['missing_lanes'] and not measured['duplicate_lanes']
+    assert not summarize(sample, full_jobs, '', budgets)['budget_met']
+    assert not summarize(sample, [dict(job, conclusion='failure'), *full_jobs[1:]], full_log, budgets)['budget_met']
+    assert not summarize(sample, [dict(job, completed_at=None), *full_jobs[1:]], full_log, budgets)['budget_met']
+    assert not summarize(sample, full_jobs, full_log, dict(budgets, feedback_seconds=10))['budget_met']
+    cold_log = ''.join(name + '\tCI dependency cache mode: cold\n' for name in selected)
+    assert not summarize(sample, full_jobs, cold_log, budgets)['budget_met']
+    cold_budget = dict(feedback_seconds=20, aggregate_runner_seconds=60, restored_cache_bytes=0)
+    cold = summarize(sample, full_jobs, cold_log, dict(budgets, cold=cold_budget))
     assert cold['budget_met'] and cold['budget'] == cold_budget and cold['cache_profile'] == 'cold'
     assert measured['budget'] == budgets and measured['cache_profile'] == 'warm'
-    fallback_log = log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
-    fallback = summarize(sample, [job], fallback_log, budgets)
-    assert fallback['restored_cache_bytes'] == 300 and fallback['cache_profile'] == 'miss-or-partial'
+    fallback_log = full_log.replace('Cache hit for: zig-key', 'Cache hit for restore-key: zig-key')
+    fallback = summarize(sample, full_jobs, fallback_log, budgets)
+    assert fallback['restored_cache_bytes'] == 1500 and fallback['cache_profile'] == 'miss-or-partial'
     assert fallback['status'] == 'measured' and not fallback['budget_met']
     # Match an actual full hosted selection: the alternative docs-only job is
     # skipped, but every required matrix lane must still execute successfully.
-    full_jobs = [dict(job, name=name) for name in selected]
     docs_skipped = dict(job, name='Documentation site', conclusion='skipped')
-    full_log = ''.join(log.replace('core\t', name + '\t') for name in selected)
     full_budgets = dict(budgets, restored_cache_bytes=2000)
     full = summarize(sample, [*full_jobs, docs_skipped], full_log, full_budgets)
     assert full['budget_met'] and len(full['lanes']) == len(selected)
     assert full['restored_cache_bytes'] == 1500
     assert not summarize(sample, [*full_jobs[:-1], docs_skipped], full_log, full_budgets)['budget_met']
     assert not summarize(sample, [*full_jobs[:-1], dict(full_jobs[-1], conclusion='skipped'), docs_skipped], full_log, full_budgets)['budget_met']
+    # Missing ordinary lanes cannot meet the suite budget even when there is no
+    # skipped documentation job to expose the incomplete selection.
+    for name in selected:
+        incomplete = summarize(sample, [row for row in full_jobs if row['name'] != name], full_log, budgets)
+        assert incomplete['status'] == 'inconclusive' and not incomplete['budget_met']
+        assert incomplete['missing_lanes'] == [name] and not incomplete['duplicate_lanes']
+    single = summarize(sample, [job], log, budgets)
+    assert single['status'] == 'inconclusive' and not single['budget_met']
+    assert single['feedback_seconds'] == 10 and single['aggregate_runner_seconds'] == 9
+    assert single['restored_cache_bytes'] == 300
+    duplicate = summarize(sample, [*full_jobs, job], full_log, budgets)
+    assert duplicate['status'] == 'inconclusive' and not duplicate['budget_met']
+    assert duplicate['duplicate_lanes'] == ['core'] and not duplicate['missing_lanes']
     assert not select(["docs/reference/state.md", "docs/roadmap/M26.md", "README.md"])["full"]
     for paths in ([], ["docs/schema.json"], ["contracts/STATE_V1.md"],
                   ["build.zig"], ["unknown"], ["docs/../../build.zig"],

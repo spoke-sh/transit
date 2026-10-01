@@ -8,6 +8,7 @@ import re
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
+ORDINARY_LANES = json.loads((ROOT / 'tests/verification/suite.json').read_text())['tiers']['ordinary']
 
 
 def seconds(start, end):
@@ -16,7 +17,10 @@ def seconds(start, end):
 
 def summarize(run, jobs, log, budgets):
     lanes = []
-    full_inventory = {'core', 'growth', 'experience', 'launchers', 'bindings'} <= {job['name'] for job in jobs}
+    names = [job['name'] for job in jobs]
+    missing_lanes = sorted(name for name in ORDINARY_LANES if name not in names)
+    duplicate_lanes = sorted(name for name in ORDINARY_LANES if names.count(name) > 1)
+    full_inventory = not missing_lanes and not duplicate_lanes
     for job in jobs:
         if job['name'] in ('Selection and documentation', 'foundation-and-protocol'):
             continue
@@ -57,10 +61,11 @@ def summarize(run, jobs, log, budgets):
     profile = next(iter(modes)) if len(modes) == 1 else 'mixed'
     limits = budgets.get('cold') if profile == 'cold' else budgets if profile == 'warm' else None
     recorded_limits = {key: limits[key] for key in ('feedback_seconds', 'aggregate_runner_seconds', 'restored_cache_bytes')} if limits else None
-    qualified = complete and run['conclusion'] == 'success' and cache_known
+    qualified = full_inventory and complete and run['conclusion'] == 'success' and cache_known
     return dict(version=1, run_id=run['id'], revision=run['head_sha'], url=run['html_url'],
                 run_attempt=run.get('run_attempt', 1), cache_profile=profile, budget=recorded_limits,
                 conclusion=run['conclusion'], status='measured' if qualified else 'inconclusive',
+                missing_lanes=missing_lanes, duplicate_lanes=duplicate_lanes,
                 feedback_seconds=feedback, aggregate_runner_seconds=cost,
                 restored_cache_bytes=cache_bytes, lanes=lanes,
                 budget_met=qualified and limits is not None and feedback < limits['feedback_seconds'] and cost <= limits['aggregate_runner_seconds']
