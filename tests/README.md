@@ -7378,6 +7378,11 @@ hot-store boundary and returns `ColdBackpressure`; native staging reports 503.
 No storage quota or operation deadline is increased. This is incomplete recovery
 evidence: completed results, post-restart disclosure denial, CLI execution and
 the Table/Document schedules are not qualified by this run.
+The run exits unsuccessfully at the unchanged **900-second** post-restart
+deadline, with namespace 1 / correlation 86 still `admitted` and no manifest.
+Table and Document are unrun. The fixture's normal cleanup completes; the
+separately retained log snapshot is diagnostic evidence, not a recoverable
+copy of the store.
 
 The corrected log is
 `/tmp/transit-sql-output-aliases-installed-recovery-fixed.log`. A private log
@@ -7386,6 +7391,11 @@ The six frozen runtime artifact hashes are in
 `/tmp/transit-sql-output-aliases-installed-artifacts.json`; their runtime source
 is `4e9a8bca`, before the later compiler optimization. The unchanged limits and
 remaining gates still apply after capacity is restored.
+
+Full `just check` passes on the subsequent optimized source tree, including
+generated-contract drift, runtime units, browser validation and the documentation
+build, in `/tmp/transit-sql-output-aliases-optimized-check.log`. This does not
+complete the storage-dependent installed schedule or committed-HEAD clean lanes.
 
 ## SQL performance iteration
 
@@ -7451,8 +7461,8 @@ path retains its validation work, so its small observed difference is not
 attributed to a removed operation. This shared host also runs installed recovery;
 the measurements do not establish isolated-host, native, transport or storage
 latency. The installed recovery run uses frozen pre-optimization binaries and
-does not independently qualify the later compiler change. Full checks and
-committed-HEAD clean lanes remain separate gates.
+does not independently qualify the later compiler change. The subsequent full
+check passes as recorded above; committed-HEAD clean lanes remain outstanding.
 
 ### Finite SQL probe
 
