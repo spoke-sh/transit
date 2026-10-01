@@ -312,7 +312,7 @@ def run(node, host, proof, board, browser=False):
             capacity.arm('/v1/query', 'resource', 4)
             api({"page": {"namespace": "1"}}, status=503, retry=False)
             capacity.finish(attempts=4)
-            for code, native_status, board_status in [('AccessDenied', 403, 403), ('AuthorityUnavailable', 503, 503)]:
+            for code, native_status, board_status in [('Forbidden', 403, 403), ('AuthorityUnavailable', 503, 503)]:
                 capacity.arm('/v1/query', 'resource', 1, code, native_status)
                 api({"page": {"namespace": "1"}}, status=board_status, retry=False)
                 capacity.finish(attempts=1)

@@ -21,7 +21,9 @@ pub fn unifiedQuery(wire: *client.Client, io: std.Io, config: UnifiedQueryConfig
     };
     var attempt: u2 = 0;
     while (true) return q.Workspace.apply(allocator, &caller, config.workspace, request) catch |err| {
-        if (!read_only or err != error.HttpCapacity or attempt == 3) return err;
+        // HTTP 503 maps to AuthorityUnavailable; only the separately validated
+        // rejection identifies a capacity refusal rather than an unknown loss.
+        if (!read_only or err != error.AuthorityUnavailable or wire.last_rejection != .HttpCapacity or attempt == 3) return err;
         // At most four bounded workspace attempts, all under the original
         // request cancellation/deadline. No candidate page is disclosed early.
         try io.sleep(.fromMilliseconds(@as(u32, 500) << attempt), .awake);
