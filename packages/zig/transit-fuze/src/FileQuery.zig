@@ -103,6 +103,11 @@ pub const Plan = struct {
     };
     pub fn validate(self: Plan) !void {
         try self.schema.validate(.{});
+        try self.validateShape();
+    }
+    // Compiler-owned schemas have already passed Type.clone's validation and
+    // remain immutable during lowering. Public plans still validate both parts.
+    fn validateShape(self: Plan) !void {
         if (self.schema != .structure or self.schema.structure.len > 128) return error.InvalidQuerySchema;
         if (self.projection.len == 0 or self.projection.len > 128) return error.InvalidProjection;
         if (self.output_names.len != 0 and self.output_names.len != self.projection.len) return error.InvalidOutputNames;
@@ -228,7 +233,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
     const shape = try lowering.lower(&ast, name, names[0..schema.structure.len], &input, &projected);
     var output_names: [@import("Unified.zig").max_columns]?[]const u8 = undefined;
     if (shape.input) |*inner| {
-        try (Plan{ .schema = schema, .source_basis = binding.digest, .projection = inner.columns, .output_names = namesView(inner.names, &output_names, inner.columns.len) }).validate();
+        try (Plan{ .schema = schema, .source_basis = binding.digest, .projection = inner.columns, .output_names = namesView(inner.names, &output_names, inner.columns.len) }).validateShape();
     }
     var plan: Plan = .{ .schema = schema, .source_basis = binding.digest, .projection = try alloc.dupe(u8, shape.projection), .aggregate = shape.aggregate, .limit = shape.limit };
     const borrowed_names = namesView(shape.output_names, &output_names, shape.projection.len);
@@ -259,7 +264,7 @@ pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8,
             };
         },
     };
-    try plan.validate();
+    try plan.validateShape();
     return .{ .arena = arena, .descriptor = descriptor, .plan = plan };
 }
 fn lowerAtom(allocator: std.mem.Allocator, atom: lowering.Atom, schema: types.Type) !Plan.Atom {
@@ -416,6 +421,31 @@ test "file projections and limits never hide a source conversion failure" {
     try t.expectError(error.InvalidLiteral, execution.next());
     try t.expect(!execution.complete);
     try t.expectError(error.FailedQuery, execution.next());
+}
+
+test "file compilation and public plans retain schema validation boundaries" {
+    const t = std.testing;
+    var memory: Memory = .{ .bytes = "id,value\n1,2\n" };
+    const sources = [_]source.Source{memory.handle()};
+    var binding = try source.discover(t.allocator, &sources, .{ .format = .csv, .mode = .full }, &.{});
+    defer binding.deinit();
+    const original = binding.schema.type;
+    var compiled = try compile(t.allocator, "SELECT SUM(value) FROM input", "input", &binding);
+    defer compiled.deinit();
+    for ([_]struct { schema: types.Type, failure: anyerror }{
+        .{ .schema = .{ .structure = &.{ .{ .name = "id", .type = .int64 }, .{ .name = "id", .type = .int64 } } }, .failure = error.DuplicateField },
+        .{ .schema = .{ .structure = &.{.{ .name = "id", .type = .{ .decimal = .{ .precision = 0, .scale = 0 } } }} }, .failure = error.InvalidDecimal },
+    }) |fixture| {
+        binding.schema.type = fixture.schema;
+        try t.expectError(fixture.failure, compile(t.allocator, "SELECT * FROM input", "input", &binding));
+        const borrowed: Plan = .{ .schema = fixture.schema, .source_basis = binding.digest, .projection = &.{0} };
+        try t.expectError(fixture.failure, borrowed.validate());
+        // A compiled plan owns its already validated descriptor independently.
+        try compiled.plan.validate();
+    }
+    binding.schema.type = original;
+    binding.digest[0] ^= 1;
+    try t.expectError(error.SourceChanged, compile(t.allocator, "SELECT * FROM input", "input", &binding));
 }
 test "typed file plans compare all integer bits while SQL keeps exact literal admission" {
     const t = std.testing;

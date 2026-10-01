@@ -23,7 +23,9 @@ native query plans or Flight. Run `just test::fuze-types` for independent fixtur
 `Decoded` owner with independent copies of every name and recursive child.
 Release it with `deinit`; its canonical bytes and fingerprint match the source.
 File SQL compilation uses this copy while retaining the source binding's current
-metadata and identity checks.
+metadata and identity checks. Lowering checks plan constraints against that owned,
+immutable schema without repeating descriptor validation. Public plan admission
+validates both descriptor and plan constraints.
 
 `FileSource` implements bounded CSV/JSONL discovery and decoding over immutable
 host-provided bytes. Explicit, sampled, full and raw modes freeze one schema;
