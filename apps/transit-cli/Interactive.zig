@@ -6,7 +6,8 @@ const Signals = @import("Signals.zig");
 const Timing = @import("Timing.zig");
 const m = q.fuze.Unified;
 
-pub fn sql(console: *Console, statement: []const u8) !void {
+pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
+    const statement = request.sql;
     console.query_running = true;
     // A previous Ctrl-C may have been coalesced while cleanup was finishing.
     Signals.cancellation.store(false, .release);
@@ -19,9 +20,13 @@ pub fn sql(console: *Console, statement: []const u8) !void {
     const allocator = arena.allocator();
     timing.enter(.compile);
     const source = try console.config.source.native(allocator);
-    // Compilation uses the configured declaration. Opening validates it against
-    // current authority before acquiring data; compilation itself performs no I/O.
-    const bundle = q.Bundle.fromSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native()) catch |err| return console.sqlFailure(statement, err);
+    // Ordinary SQL keeps its pure compile path. Explicit bindings use the
+    // shared compiler's current-access checks; opening still validates authority
+    // independently before acquiring any data.
+    const bundle = if (request.parameters != null) compiled: {
+        const result = (q.Workspace.apply(allocator, console.client, console.config, .{ .compile = request }) catch |err| return console.sqlFailure(statement, err)).compiled;
+        break :compiled try q.Bundle.decode(allocator, try q.Values.unhex(allocator, result.bundle, q.Bundle.max_bytes));
+    } else q.Bundle.fromSql(allocator, source, try .init(console.config.name), statement, try console.config.limits.native()) catch |err| return console.sqlFailure(statement, err);
     try interrupted();
     timing.enter(.open);
     var nonce: [16]u8 = undefined;

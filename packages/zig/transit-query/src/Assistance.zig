@@ -27,7 +27,7 @@ pub const Response = struct {
     items: []const Item,
 };
 /// Shared console vocabulary; dispatchers must reject unimplemented operations.
-pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show, timing };
+pub const Meta = enum { help, info, tables, sources, schema, status, @"resume", cancel, mode, quit, connect, show, timing, execute };
 const Builder = struct {
     allocator: std.mem.Allocator,
     prefix: []const u8,

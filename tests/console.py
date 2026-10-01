@@ -115,6 +115,31 @@ def check(binary, root, kind, invoke, expected, fault, config, tls=False):
         assert table.startswith('┌'.encode()) and b' rows\n' in table and b'\x1b' not in table
 
         print(f'Transit console {kind}: saved-intent resume, all result pages and current read denial passed.', flush=True)
+        for query_file in (False, True):
+            parameter_file = root / 'console query input.json'
+            template = sql + ' FROM items LIMIT $1'
+            bindings = [{'uint64': '33'}]
+            parameter_file.write_text(json.dumps({'sql': template, 'parameters': bindings} if query_file else bindings))
+            data = ('.execute ' + json.dumps(str(parameter_file)) + '\n').encode() if query_file else b''
+            arguments = ('--format', 'json') if query_file else ('--format', 'json', '-c', template, '--parameters', str(parameter_file))
+            fault['lost'], fault['retry'] = None, False
+            uncertain = run(data, args=arguments, expected_code=1)
+            assert not uncertain.stdout and b'InvalidAuthorityResponse' in uncertain.stderr, uncertain
+            frozen = recovery.read_bytes()
+            retained = json.loads(frozen)
+            assert retained['pending']['signed'] == json.loads(fault['lost'][0])
+            parameter_file.write_text(json.dumps({'sql': template, 'parameters': [{'uint64': '1'}]} if query_file else [{'uint64': '1'}]))
+            before = fault['console_sends']
+            run(data, args=arguments, expected_code=1)
+            assert fault['console_sends'] == before and recovery.read_bytes() == frozen
+            parameter_file.unlink()
+            resumed = run(b'.resume\n', args=('--format', 'json'))
+            pages = [json.loads(line) for line in resumed.stdout.splitlines()]
+            assert pages[-1]['complete_coverage'] and fault['retry']
+            rows = [row for page in pages for row in page['cells']]
+            assert [row[0]['value']['utf8'] for row in rows] == [row['value']['value'] for row in expected[:33]]
+            assert json.loads(recovery.read_text())['namespace'] == retained['namespace']
+        print(f'Transit console {kind}: flag/file bindings preserve saved query identity after changed/deleted inputs and uncertain upload.', flush=True)
         count_sql = 'SELECT COUNT(*) FROM items'
         result = run(args=('-c', count_sql, '--format', 'json'))
         assert json.loads(result.stdout)['cells'][0][0]['value']['uint64'] in ('12', '41')

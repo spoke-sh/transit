@@ -7,7 +7,8 @@ const Signals = @import("Signals.zig");
 const Output = @import("Output.zig");
 const Timing = @import("Timing.zig");
 
-pub fn sql(console: *Console, statement: []const u8) !void {
+pub fn sql(console: *Console, request: @import("SqlInput.zig").Request) !void {
+    const statement = request.sql;
     var timing = Timing.start(console.init, console.preferences.timing);
     defer timing.report();
     const session = console.session;
@@ -25,7 +26,7 @@ pub fn sql(console: *Console, statement: []const u8) !void {
     defer arena.deinit();
     // Compile before changing identity; invalid SQL cannot start durable work.
     timing.enter(.compile);
-    _ = q.Workspace.apply(arena.allocator(), console.client, console.config, .{ .compile = .{ .sql = statement } }) catch |err| return console.sqlFailure(statement, err);
+    _ = q.Workspace.apply(arena.allocator(), console.client, console.config, .{ .compile = request }) catch |err| return console.sqlFailure(statement, err);
     if (Signals.interrupted()) return error.ConsoleInterrupted;
     if (console.writes) |writer| try writer.clearComplete();
     timing.enter(.prepare);
@@ -47,7 +48,7 @@ pub fn sql(console: *Console, statement: []const u8) !void {
     const deadline = now(console) + 300000;
     var discard_buffer: [4096]u8 = undefined;
     var discard: std.Io.Writer.Discarding = .init(&discard_buffer);
-    try u.command(console.init, session, console.client, console.config, statement, arena.allocator(), &discard.writer);
+    try u.executeSql(console.init, session, console.client, console.config, request, arena.allocator(), &discard.writer);
     try finish(console, deadline, &timing);
 }
 pub fn recover(console: *Console, selected: ?u64) !void {

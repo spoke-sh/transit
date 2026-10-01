@@ -97,6 +97,14 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
         diagnostic.file = init.arena.allocator().dupe(u8, file) catch null;
     };
     const allocator = arena.allocator();
+    // Read and own explicit bindings before loading credentials or opening any
+    // recovery state. A malformed input cannot dispatch or start a query.
+    const Input = @import("SqlInput.zig");
+    const parameters: ?Input.Parameters = if (options.parameters) |file| Input.read(Input.Parameters, init, allocator, file) catch |err| {
+        diagnostic.atFile(file);
+        diagnostic.setFailure(err, "cannot read SQL parameter input", "Use a JSON array of at most three exact query scalar values. --parameters requires -c SQL.");
+        return error.InvalidQueryInput;
+    } else null;
     var base: []const u8 = undefined;
     const config = if (preferences.connection) |selected| explicit: {
         diagnostic.atFile(selected);
@@ -176,7 +184,7 @@ fn connection(init: std.process.Init, options: Options.Options, preferences: Pre
     var console: Console = .{ .init = init, .session = &session, .client = &client, .config = config.workspace, .out = &output.interface, .recovery = if (recovery) |*file| file else null, .batch = !terminal, .preferences = preferences, .diagnostic = diagnostic, .interactive = config.execution == .interactive, .writes = if (writes) |*writer| writer else null };
     if (options.sql) |sql| {
         if (isMeta(std.mem.trimStart(u8, sql, " \t\r\n"))) return diagnostic.invalidInvocation("-c requires a SQL statement");
-        _ = try console.execute(sql);
+        _ = try console.executeWithParameters(sql, parameters);
     } else if (options.script) |file_name| {
         const file = std.Io.Dir.cwd().openFile(init.io, file_name, .{}) catch |err| {
             diagnostic.atFile(file_name);
@@ -221,6 +229,9 @@ pub const Console = struct {
     active_query: ?u64 = null,
     query_interrupted: bool = false,
     pub fn execute(self: *Console, raw: []const u8) !bool {
+        return self.executeWithParameters(raw, null);
+    }
+    pub fn executeWithParameters(self: *Console, raw: []const u8, parameters: ?@import("SqlInput.zig").Parameters) !bool {
         const text = std.mem.trim(u8, raw, " \t\r\n");
         if (text.len == 0) return true;
         if (std.mem.eql(u8, text, ".quit")) return false;
@@ -232,7 +243,9 @@ pub const Console = struct {
             self.active_query = null;
         }
         const result: ?anyerror = result: {
-            self.perform(text) catch |err| break :result err;
+            if (parameters) |values| {
+                self.query(.{ .sql = text, .parameters = values }) catch |err| break :result err;
+            } else self.perform(text) catch |err| break :result err;
             break :result null;
         };
         if (result) |err| if (denied(err)) {
@@ -268,6 +281,13 @@ pub const Console = struct {
     }
     fn perform(self: *Console, text: []const u8) !void {
         const execution = @import("Execute.zig");
+        const Input = @import("SqlInput.zig");
+        {
+            var arena: std.heap.ArenaAllocator = .init(self.init.gpa);
+            defer arena.deinit();
+            if (try Input.commandPath(arena.allocator(), text)) |file|
+                return self.query(try Input.read(Input.Request, self.init, arena.allocator(), file));
+        }
         if (self.writes) |writer| if (writer.catalog) |*catalog| {
             if (std.mem.eql(u8, text, ".tables")) return @import("ConsoleCatalog.zig").inspect(self, catalog, null);
             if (!isMeta(text)) if (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) |inspection_sql| switch (inspection_sql) {
@@ -307,7 +327,7 @@ pub const Console = struct {
             _ = try writer.status(self);
             return;
         };
-        if (!isMeta(text) and (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) == null) return if (self.interactive) @import("Interactive.zig").sql(self, text) else execution.sql(self, text);
+        if (!isMeta(text) and (q.fuze.Sql.parseInspection(text) catch |err| return self.sqlFailure(text, err)) == null) return self.query(.{ .sql = text });
         if (self.writes) |writer| if (writer.unresolved() and std.mem.startsWith(u8, text, ".resume ")) return error.UnresolvedSubmission;
         if (self.interactive and (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ") or std.mem.eql(u8, text, ".cancel") or std.mem.eql(u8, text, ".status"))) return error.NoQuery;
         if (std.mem.eql(u8, text, ".resume") or std.mem.startsWith(u8, text, ".resume ")) {
@@ -333,6 +353,10 @@ pub const Console = struct {
         }
         if (Signals.interrupted()) return error.ConsoleInterrupted;
         try @import("Output.zig").write(self.init, destination, buffered.buffered());
+    }
+    fn query(self: *Console, request: @import("SqlInput.zig").Request) !void {
+        if (self.writes) |writer| if (writer.unresolved()) return error.UnresolvedSubmission;
+        return if (self.interactive) @import("Interactive.zig").sql(self, request) else @import("Execute.zig").sql(self, request);
     }
     pub fn json(self: *Console, value: anytype) !void {
         try std.json.Stringify.value(value, .{ .escape_unicode = true }, self.out);
@@ -376,6 +400,8 @@ pub const Console = struct {
         self.diagnostic.field = null;
         if (self.writes) |writer| if (writer.failed) return self.diagnostic.fail(error.ConsoleRecoveryWriteFailed, "cannot persist write recovery", "Stop using this signing credential until the original recovery file can be read and reconciled. No successor command was sent.");
         switch (err) {
+            error.InvalidQueryInput => return self.diagnostic.fail(err, "invalid SQL query input", "Use .execute FILE with a JSON object containing sql and optional parameters, or --parameters FILE with an array of exact scalar values."),
+            error.QueryInputTooLarge => return self.diagnostic.fail(err, "SQL query input exceeds 131072 bytes", "Use one finite statement and at most three scalar bindings per input file."),
             error.ConsoleWriterRequired => return self.diagnostic.fail(err, "Table mutation syntax is supported; no writer is configured for this console", "Use .help INSERT for syntax and writes.table connection settings. A query connection does not grant writes."),
             error.ConsoleCatalogRequired => return self.diagnostic.fail(err, "CREATE TABLE syntax is supported; no catalog is configured for this console", "Use .help CREATE TABLE for the supported schema and writes.catalog connection settings."),
             error.CatalogCancellationUnsupported => return self.diagnostic.fail(err, "CREATE TABLE cannot be cancelled after submission", "Use .status or .resume to reconcile the saved creation. Disconnecting or interrupting does not undo it."),

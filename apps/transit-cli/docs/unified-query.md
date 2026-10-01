@@ -43,6 +43,7 @@ segment only after a complete manifest exists.
 | --- | --- |
 | `.sources`, `.schema` | Current authorized declaration, SQL capabilities and budgets |
 | `.new ID` | Select an unused positive u64 namespace before entering SQL |
+| `.execute FILE` | Compile and upload a JSON query object with `sql` and optional typed `parameters` |
 | `.resume ID` | Observe an existing namespace without executing SQL again |
 | `.status`, `.info` | Durable status or bounded local session state |
 | `.advance` | Observe admitted input, then continue the same finite upload |
@@ -54,11 +55,29 @@ segment only after a complete manifest exists.
 | `.retire`, `.collect` | Withdraw a terminal request and reclaim it in bounded steps |
 | `.quit` / EOF | Disconnect without changing durable state |
 
+`.execute query.json` uses the same shared compiler and exact scalar codec as
+the client and SDKs. For example, after `.new 42`, this file binds a uint64 LIMIT:
+
+```json
+{"sql":"SELECT * FROM items LIMIT $1","parameters":[{"uint64":"3"}]}
+```
+
+Omitted/null bindings select ordinary SQL; `[]` selects a template without
+placeholders. Paths resolve against the working directory; quoted paths support
+spaces. Input files are limited to 131072 bytes, statements to 4096 bytes, and
+bindings to three exact scalars. Compilation retains current source/budget checks
+and cannot execute mutation or administrative SQL. The
+[parameter contract](../../../contracts/SQL_PARAMETERS_V1.md) defines types
+and grammar sites. Inputs are owned only for that command; values are never
+substituted into text or retained as default bindings.
+
 An unconfirmed submission stays pending. Never replace it with new SQL. Save the
 canonical bytes returned by `.bundle` and the opaque token returned by `.pending`
 if recovery must survive shell exit; the shell does not write history or credentials.
 In a fresh shell, `.resume ID`, `.restore-bundle HEX`, `.restore TOKEN` and `.retry`
-reconcile the original input and continue the original upload. Import rechecks
+reconcile the original input and continue the original upload. Recovery does not
+read query input files again; changing or deleting them cannot rebind saved work.
+Import rechecks
 the configured source, budgets, durable identity and current policy. Without an
 uncertain input, `.advance` continues the imported bundle. Keep exported material
 private: bundles can contain query literals. Never reconstruct a lost bundle from SQL. Commands and results use escaped JSON, wide
