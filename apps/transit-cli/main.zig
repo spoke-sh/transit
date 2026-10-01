@@ -7,7 +7,7 @@ pub fn main(init: std.process.Init) !void {
         diagnostic.emit(init.io, err);
         std.process.exit(switch (err) {
             error.ConsoleInterrupted, error.InteractiveQueryCancelled, error.ConsoleQueryInterrupted, error.FileQueryInterrupted => 130,
-            error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile => 2,
+            error.InvalidInvocation, error.InvalidConfiguration, error.InvalidConfigurationPath, error.InvalidCredentialFile, error.InvalidQueryInput, error.QueryInputTooLarge => 2,
             else => 1,
         });
     };

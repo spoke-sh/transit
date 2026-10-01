@@ -7,8 +7,11 @@ statement parser and public SQL submission routes reject unresolved parameters.
 Named `PREPARE`, `EXECUTE`, prepared-state persistence and file-query parameters
 are not implemented. The shared query boundary exposes the one-shot compilation
 operation below. All ten SDKs expose it through typed one-shot compilation
-methods returning an ordinary owned bundle; CLI parameter arguments are not
-implemented.
+methods returning an ordinary owned bundle. The console accepts explicit
+`--parameters FILE` with `-c SQL`; both console and durable SQL shell accept
+`.execute FILE` with a shared compilation request. The
+[CLI contract](TRANSIT_CLI_V1.md#explicit-sql-bindings) defines input ownership,
+bounds and unchanged saved-operation recovery.
 
 ## Syntax and typing
 

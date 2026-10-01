@@ -6,7 +6,7 @@ or an input LIMIT. Values bind directly into an ordinary plan; they are never
 interpreted as SQL text. Templates support one comparison or cell-state test;
 Boolean predicate composition remains available through ordinary SQL submission.
 
-These templates are accepted through explicit compiler or SDK bindings; ordinary
+These templates are accepted through explicit compiler, SDK or CLI bindings; ordinary
 console and SQL-shell text does not supply their parameter values:
 
 ```sql
@@ -55,7 +55,15 @@ placeholders. Host integers and scalar types map through the existing exact
 codecs. At most three values bind the current grammar sites. SDK guides describe
 ownership and cancellation for each host language.
 
-Unresolved placeholders in ordinary SQL submission, CLI parameter arguments,
-named `PREPARE`/`EXECUTE`, file parameters and saved templates are unsupported. See the
+The [console](../../../apps/transit-cli/docs/console.md#typed-query-parameters)
+accepts `--parameters FILE` with `-c SQL`, or `.execute FILE` with a JSON query
+object containing `sql` and optional `parameters`. The
+[durable SQL shell](../../../apps/transit-cli/docs/unified-query.md) accepts the
+same query file after selecting a fresh namespace. These input files request
+new compilations; uncertain work recovers from its original saved bundle and
+command without reopening the input file.
+
+Unresolved placeholders in ordinary SQL submission, named `PREPARE`/`EXECUTE`,
+parameters for captured file sources and saved templates are unsupported. See the
 [compiler API](../../../packages/zig/transit-fuze/docs/unified-sql.md#typed-templates)
 and [exact parameter contract](../../../contracts/SQL_PARAMETERS_V1.md).

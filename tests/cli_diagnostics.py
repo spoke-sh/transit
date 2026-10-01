@@ -70,6 +70,19 @@ invoke(['console', '--no-rc'], contains=('cannot read the local installation', '
 invoke(['console', '--config', 'missing', '--format', 'csv'], stderr='error: --format must be table or json\n')
 invoke(['console', '--format'], stderr='error: --format must be table or json\n')
 invoke(['console', '--config', 'missing', '--no-ui'], contains=('--no-ui is not supported',))
+invoke(['console', '--parameters', 'bindings.json'], contains=('--parameters requires -c SQL',))
+invoke(['console', '-f', 'script.sql', '--parameters', 'bindings.json'], contains=('--parameters requires -c SQL',))
+invoke(['console', '-c', 'SELECT * FROM items', '--parameters'], contains=('--parameters requires a file path',))
+invoke(['console', '-c', 'SELECT * FROM items', '--parameters', 'one', '--parameters', 'two'], contains=('--parameters can only be specified once',))
+invoke(['server', '--parameters', 'bindings.json'], contains=('--parameters is not supported',))
+invoke(['console', '--help'], 0, ('--parameters FILE', '.execute FILE'))
+parameter_file = Path(ISOLATED.name) / 'parameters.json'
+for invalid in ('null', '{}', '[{"utf8": "private-must-not-appear", "uint64":"1"}]',
+                '[{"uint64":1}]', '[{"boolean":true},{"boolean":true},{"boolean":true},{"boolean":true}]',
+                ' ' * 131073):
+    parameter_file.write_text(invalid)
+    invoke(['console', '--no-rc', '--config', 'missing-connection', '--parameters', parameter_file,
+            '-c', 'SELECT * FROM items LIMIT $1'], contains=('cannot read SQL parameter input',))
 for command in ('query',):
     invoke([command], contains=('a configuration file is required', f'Usage: transit {command} CONFIG'))
     invoke([command, 'one', 'two'], contains=('argument 3',))

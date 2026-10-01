@@ -80,6 +80,36 @@ commands and are omitted from the primary command list. No alias silently change
 single-line shell into a multiline console, adopts a launcher installation or
 changes a connection's authority or installs an application. These separate commands remain supported.
 
+## Explicit SQL bindings
+
+`transit console -c SQL --parameters FILE` executes one finite SELECT with an
+ordered JSON array of the existing exact query scalars. The flag requires `-c`;
+it cannot select a script, startup command, inspection or write route. The
+ordinary `-c` path retains its existing behavior when the flag is absent.
+
+Both the console and `transit query` shell accept `.execute FILE`. The JSON file
+has the shared workspace compilation shape `{sql, parameters?}`. Omitted/null
+parameters select ordinary SQL; an explicit empty array selects a template with
+no placeholders. The query shell requires its ordinary `.new ID` selection.
+The console uses the configured interactive or durable execution mode. These
+explicit query inputs do not route administrative or mutation statements.
+
+Files resolve against the process working directory and are bounded to 131072
+bytes. Parsed SQL and scalars belong to the current execution arena; at most
+three bindings and 4096 SQL bytes reach the shared compiler. Duplicate/unknown
+fields and malformed scalar representations reject. Comparison operands require
+exact types; LIMIT requires uint64. The [parameter contract](SQL_PARAMETERS_V1.md)
+defines the canonical scalar encodings and grammar sites. Values are never
+substituted into SQL text. Input files are new compilation requests, not saved
+prepared templates, source snapshots or recovery records.
+
+Compilation and execution preserve current access and budget checks. Durable
+admission checkpoints the ordinary bundle and signed operation before dispatch.
+After an unknown outcome, `.resume`, `.restore-bundle` and `.retry` use that
+original evidence without reopening input files or rebinding values. A changed
+or deleted parameter file cannot change the accepted query. No bindings persist
+as session defaults, and query values are not added to dot-command history.
+
 ## Local file queries
 
 `transit file-query --format csv|jsonl -c SQL [OPTIONS] FILE...` explicitly

@@ -102,7 +102,9 @@ independent ordinary `Bundle`. Release it separately from the template. The
 ownership and retry. `SqlCompilation` adds one-shot neutral compilation through
 `Bridge.compile` and `Workspace.compile`; both use the same typing, current
 access and budget checks. Typed language SDK methods use this same operation;
-CLI parameter arguments have separate integration scope.
+The [console](../../../apps/transit-cli/docs/console.md#typed-query-parameters)
+and durable SQL shell use explicit parameter/query files through this same
+compiler; saved-operation recovery never reopens those input files.
 
 `Bundle.fromSql` compiles the [SQL profile](../transit-fuze/docs/unified-sql.md)
 against an explicit source declaration and budgets; `UnifiedClient.compileSql`

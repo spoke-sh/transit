@@ -296,6 +296,7 @@ test "a full metadata view fits the bounded HTTP response" {
 
 test {
     _ = @import("ConcurrencyTests.zig");
+    _ = SnapshotReader;
     _ = Session;
     _ = Application;
 }

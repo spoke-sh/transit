@@ -8,6 +8,7 @@ pub const Options = struct {
     path_from_environment: bool = false,
     format: ?Format = null,
     sql: ?[]const u8 = null,
+    parameters: ?[]const u8 = null,
     script: ?[]const u8 = null,
     rc: ?[]const u8 = null,
     no_rc: bool = false,
@@ -36,12 +37,12 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
         const arg = args[i];
-        const known = for ([_][]const u8{ "--help", "--initialize", "--no-ui", "--config", "--format", "-c", "-f", "--init", "--no-rc" }) |name| {
+        const known = for ([_][]const u8{ "--help", "--initialize", "--no-ui", "--config", "--format", "-c", "-f", "--parameters", "--init", "--no-rc" }) |name| {
             if (std.mem.eql(u8, arg, name)) break name;
         } else null;
         diagnostic.atArgument(i + 1, known);
         const option = known orelse return diagnostic.invalidArgument("unexpected input");
-        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and (std.mem.eql(u8, option, "--format") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "-f") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc")))) {
+        if ((!server and (std.mem.eql(u8, option, "--initialize") or std.mem.eql(u8, option, "--no-ui"))) or (server and (std.mem.eql(u8, option, "--format") or std.mem.eql(u8, option, "-c") or std.mem.eql(u8, option, "-f") or std.mem.eql(u8, option, "--parameters") or std.mem.eql(u8, option, "--init") or std.mem.eql(u8, option, "--no-rc")))) {
             diagnostic.show_help = true;
             return diagnostic.invalidOption("is not supported by this command");
         }
@@ -58,7 +59,7 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
             if (result.no_rc) return duplicate(diagnostic);
             result.no_rc = true;
         } else {
-            const target: ?*?[]const u8 = if (std.mem.eql(u8, option, "--config")) &result.path else if (std.mem.eql(u8, option, "-c")) &result.sql else if (std.mem.eql(u8, option, "-f")) &result.script else if (std.mem.eql(u8, option, "--init")) &result.rc else blk: {
+            const target: ?*?[]const u8 = if (std.mem.eql(u8, option, "--config")) &result.path else if (std.mem.eql(u8, option, "-c")) &result.sql else if (std.mem.eql(u8, option, "-f")) &result.script else if (std.mem.eql(u8, option, "--parameters")) &result.parameters else if (std.mem.eql(u8, option, "--init")) &result.rc else blk: {
                 if (result.format != null) return duplicate(diagnostic);
                 if (i + 1 == args.len) return diagnostic.invalidOption("must be table or json");
                 i += 1;
@@ -74,6 +75,7 @@ pub fn parseDiagnosed(args: []const []const u8, console_config: ?[]const u8, dia
         }
     }
     if (result.sql != null and result.script != null) return diagnostic.invalidInvocation("-c and -f cannot be combined");
+    if (result.parameters != null and result.sql == null) return diagnostic.invalidInvocation("--parameters requires -c SQL");
     if (result.rc != null and result.no_rc) return diagnostic.invalidInvocation("--init and --no-rc cannot be combined");
     if (!server and result.path == null) if (console_config) |path| {
         if (path.len > 0) {
@@ -120,4 +122,15 @@ test "both server aliases default to UI and accept only one opt-out" {
         try std.testing.expectError(error.InvalidInvocation, parse(&.{ alias, "--config", "server.json", "--ui" }));
     }
     try std.testing.expectError(error.InvalidInvocation, parse(&.{ "console", "--config", "console.json", "--no-ui" }));
+}
+
+test "parameter files are explicit one-statement console inputs" {
+    const options = try parse(&.{ "console", "--parameters", "bindings.json", "-c", "SELECT * FROM items LIMIT $1" });
+    try std.testing.expectEqualStrings("bindings.json", options.parameters.?);
+    for ([_][]const []const u8{
+        &.{ "console", "--parameters", "bindings.json" },
+        &.{ "console", "--parameters", "bindings.json", "-f", "queries.sql" },
+        &.{ "server", "--parameters", "bindings.json" },
+        &.{ "console", "--parameters", "one", "--parameters", "two", "-c", "SELECT * FROM items" },
+    }) |args| try std.testing.expectError(error.InvalidInvocation, parse(args));
 }

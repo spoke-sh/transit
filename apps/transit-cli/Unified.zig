@@ -67,7 +67,7 @@ pub fn run(init: std.process.Init, path: []const u8) !void {
     }
 }
 pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, line: []const u8, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
-    if (std.mem.eql(u8, line, ".help")) return out.writeAll(".sources .schema .info .new ID .resume ID .status .advance .next .cancel .retire .collect .bundle .restore-bundle HEX .pending .restore TOKEN .retry .quit\nSQL compiles and uploads explicitly. .advance continues committed upload progress.\nA receipt is input admission; .status reports result completion. .next reads one verified page.\nSave .bundle and .pending before disconnecting after uncertainty; restoring both keeps the frozen upload and signed identity.\n.new requires a fresh positive namespace. .quit never cancels durable work.\n");
+    if (std.mem.eql(u8, line, ".help")) return out.writeAll(".sources .schema .info .execute FILE .new ID .resume ID .status .advance .next .cancel .retire .collect .bundle .restore-bundle HEX .pending .restore TOKEN .retry .quit\nSQL compiles and uploads explicitly. .execute FILE reads sql and optional parameters from a JSON query object.\n.advance continues committed upload progress.\nA receipt is input admission; .status reports result completion. .next reads one verified page.\nSave .bundle and .pending before disconnecting after uncertainty; restoring both keeps the frozen upload and signed identity.\n.new requires a fresh positive namespace. .quit never cancels durable work.\n");
     if (std.mem.eql(u8, line, ".sources") or std.mem.eql(u8, line, ".schema")) return json(out, try w.apply(allocator, client, config, .describe));
     if (std.mem.eql(u8, line, ".info")) {
         _ = try client.describe(try config.source.native(allocator));
@@ -149,14 +149,31 @@ pub fn command(init: std.process.Init, session: *Session, client: *q.UnifiedClie
         session.pending = try q.Bridge.prepared(allocator, prepared.token);
         session.length = 0;
     } else {
-        if (line[0] == '.' or line[0] == '/') return error.UnknownCommand;
-        if (session.length != 0 or try client.status(id) != null) return error.QueryUploadIdentityConflict;
-        const compiled = (try w.apply(allocator, client, config, .{ .compile = .{ .sql = line } })).compiled;
-        const bytes = try q.Values.unhex(allocator, compiled.bundle, q.Bundle.max_bytes);
-        @memcpy(session.bundle[0..bytes.len], bytes);
-        session.length = bytes.len;
-        session.pending = try client.prepareNext(id, try q.Bundle.decode(allocator, session.bundle[0..session.length]));
+        const Input = @import("SqlInput.zig");
+        const request: Input.Request = if (try Input.commandPath(allocator, line)) |path|
+            try Input.read(Input.Request, init, allocator, path)
+        else ordinary: {
+            if (line[0] == '.' or line[0] == '/') return error.UnknownCommand;
+            break :ordinary .{ .sql = line };
+        };
+        return executeSql(init, session, client, config, request, allocator, out);
     }
+    return submitAndAdvance(init, session, client, allocator, out);
+}
+/// Only new work reaches compilation. Recovery paths keep the saved bundle
+/// and signed operation and never reopen a parameter file or rebind its values.
+pub fn executeSql(init: std.process.Init, session: *Session, client: *q.UnifiedClient, config: w.Config, request: @import("SqlInput.zig").Request, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
+    if (session.pending != null or session.input != null) return error.UnresolvedSubmission;
+    const id = session.namespace orelse return error.NamespaceRequired;
+    if (session.length != 0 or try client.status(id) != null) return error.QueryUploadIdentityConflict;
+    const compiled = (try w.apply(allocator, client, config, .{ .compile = request })).compiled;
+    const bytes = try q.Values.unhex(allocator, compiled.bundle, q.Bundle.max_bytes);
+    @memcpy(session.bundle[0..bytes.len], bytes);
+    session.length = bytes.len;
+    session.pending = try client.prepareNext(id, try q.Bundle.decode(allocator, session.bundle[0..session.length]));
+    return submitAndAdvance(init, session, client, allocator, out);
+}
+fn submitAndAdvance(init: std.process.Init, session: *Session, client: *q.UnifiedClient, allocator: std.mem.Allocator, out: *std.Io.Writer) !void {
     const receipt = try submit(session, client, session.pending orelse return error.NoPendingSubmission);
     try json(out, .{ .receipt = receipt });
     return advance(init, session, client, allocator, out);

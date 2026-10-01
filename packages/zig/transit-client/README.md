@@ -57,6 +57,13 @@ signed mutations. A peer may close a connection after a response.
 Snapshot release and combined finish reads carry a checked control-admission
 hint; signed authorization and request semantics remain mandatory.
 
+`ResourceReader.Batches.init` and `SnapshotReader.Support.init` can share one
+checked capabilities response for the same caller and connection. Each requires
+its own advertised flags; only immutable protocol support is reused. The handles
+cache no grants, resource metadata, values or principal sequence. Every read and
+snapshot operation retains its current signed authorization, definition checks
+and ordinary failure behavior after an authority restart.
+
 Delivered input includes position, opaque value and
 authenticated origin within the current native definition. Match the expected source PID/turn or effect attempt before interpreting
 application correlation; claimed senders inside opaque bytes carry no authority.

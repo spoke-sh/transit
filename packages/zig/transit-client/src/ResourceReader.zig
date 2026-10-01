@@ -101,11 +101,16 @@ pub fn readBatch(self: Self, resource: u64, revision: ?u64, keys: []const p.Valu
 /// Negotiate immutable protocol support once. The handle caches no permission,
 /// resource metadata or values; each read still uses current signed authority.
 pub fn batches(self: Self) !Batches {
-    if (!(try self.query(.capabilities)).body.capabilities.resource_read_batch) return error.ResourceReadBatchUnavailable;
-    return .{ .client = self };
+    return Batches.init(self, (try self.query(.capabilities)).body.capabilities);
 }
 pub const Batches = struct {
     client: Self,
+    /// Reuse the checked capability reply for this same caller/connection.
+    /// This accepts protocol support only; every read rechecks current rights.
+    pub fn init(client: Self, capabilities: g.Capabilities) !Batches {
+        if (!capabilities.resource_read_batch) return error.ResourceReadBatchUnavailable;
+        return .{ .client = client };
+    }
     pub fn read(self: Batches, resource: u64, revision: ?u64, keys: []const p.Value) !Batch {
         if (keys.len == 0 or keys.len > g.page_size) return error.InvalidResourceRead;
         var requested: [g.page_size]?p.Value = @splat(null);

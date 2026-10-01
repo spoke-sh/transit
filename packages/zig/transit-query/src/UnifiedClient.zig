@@ -134,7 +134,14 @@ pub fn bindSql(self: *Self, allocator: std.mem.Allocator, template: *const q.Sql
 fn describeOnce(self: *Self, definition: q.SourceDefinition) !Description {
     var storage: [3]p.Value = undefined;
     const keys = try self.sourceMetadata(definition, &storage);
-    if (self.batch_reads == null) self.batch_reads = try self.resources().batches();
+    if (self.batch_reads == null) {
+        const reader = self.resources();
+        const capabilities = (try reader.query(.capabilities)).body.capabilities;
+        self.batch_reads = try q.wire.ResourceReader.Batches.init(reader, capabilities);
+        // Both owners validate their own required flags from the same checked
+        // reply. Cache no grants, source metadata, values or principal sequence.
+        self.snapshot_support = q.wire.SnapshotReader.Support.init(reader, capabilities) catch null;
+    }
     const source = try self.batch_reads.?.read(self.connection.resource, null, keys);
     const requests = try self.batch_reads.?.read(self.connection.requests, null, &.{ r.key('w', 0, 0), r.key('a', 0, 0) });
     if (source.resource.writer != self.connection.source or requests.resource.writer != self.connection.requester) return error.QuerySourceUnavailable;

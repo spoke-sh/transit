@@ -72,9 +72,24 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 args = [cli, 'console', '--no-rc', '--config', str(connection)]
                 count = 12 if kind == 'document' else rows
 
-                def query(sql, expected_rows, mode='json', request_budget=None):
+                def query(sql, expected_rows, mode='json', request_budget=None, parameters=None, query_file=False):
+                    command = [*args, '--format', mode]
+                    if query_file:
+                        path = root / 'query input.json'
+                        request = {'sql': sql}
+                        if parameters is not None: request['parameters'] = parameters
+                        path.write_text(json.dumps(request))
+                        script = root / 'query.sql'
+                        script.write_text('.execute ' + json.dumps(str(path)) + '\n')
+                        command += ['-f', str(script)]
+                    else:
+                        command += ['-c', sql]
+                        if parameters is not None:
+                            path = root / 'parameters.json'
+                            path.write_text(json.dumps(parameters))
+                            command += ['--parameters', str(path)]
                     before_counts = probe.snapshot()
-                    code, stdout, stderr, measurements = measured_run([*args, '--format', mode, '-c', sql], root, timeout=180, node=process.pid)
+                    code, stdout, stderr, measurements = measured_run(command, root, timeout=180, node=process.pid)
                     assert code == 0, stderr
                     counts = probe.snapshot() - before_counts
                     assert not any(value for key, value in counts.items() if key.startswith('update:')), counts
@@ -93,6 +108,7 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                         assert sum(len(frame['cells']) for frame in frames) == expected_rows
                         assert int(frames[-1]['rows']) == expected_rows
                     print(json.dumps({'source': kind, 'sql': sql, 'rows': expected_rows,
+                                      'parameters': parameters is not None, 'query_file': query_file,
                                       **measurements,
                                       'native_attempts': counts['POST'], 'durable_updates': 0,
                                       'native_operations': {key: value for key, value in counts.items() if key.startswith('read:')}}), flush=True)
@@ -130,6 +146,33 @@ def check(node, proof, cli, kind, rows=41, age=0, resident_pages=64):
                 query('SELECT * FROM items LIMIT 3;', min(3, count), request_budget=small_budget)
                 query('SELECT * FROM items LIMIT 0;', 0, request_budget=3)
                 query('SELECT * FROM items;', count, 'table', request_budget=scan_budget)
+                # Explicit bindings add the shared compiler's two current
+                # description checks; ordinary-query request ceilings above
+                # remain unchanged. Values never become executable SQL text.
+                literal = query('SELECT * FROM items LIMIT 3;', min(3, count), request_budget=small_budget)
+                for from_file in (False, True):
+                    bound = query('SELECT * FROM items LIMIT $1;', min(3, count),
+                                  parameters=[{'uint64': '3'}], query_file=from_file,
+                                  request_budget=small_budget + 4)
+                    assert [frame['cells'] for frame in bound] == [frame['cells'] for frame in literal]
+                    assert bound[0]['columns'] == literal[0]['columns'] and bound[0]['basis'] == literal[0]['basis']
+                query('SELECT * FROM items;', count, parameters=[], request_budget=scan_budget + 4)
+                query('SELECT * FROM items LIMIT $1;', count, parameters=[{'uint64': '18446744073709551615'}], request_budget=scan_budget + 4)
+                query('SELECT * FROM items WHERE value = $1;', 0,
+                      parameters=[{'utf8': "'; DROP TABLE items; -- $2"}])
+                for request in (
+                    {'sql': 'SELECT * FROM items LIMIT $1', 'parameters': []},
+                    {'sql': 'SELECT * FROM items LIMIT $1', 'parameters': [{'int64': '3'}]},
+                    {'sql': 'DELETE FROM items WHERE id = 0', 'parameters': []},
+                ):
+                    path = root / 'invalid-query.json'; path.write_text(json.dumps(request))
+                    before_counts = probe.snapshot()
+                    rejected = subprocess.run(args, input='.execute ' + str(path) + '\n', text=True,
+                                              capture_output=True, timeout=30, cwd=root)
+                    assert rejected.returncode and not rejected.stdout, rejected
+                    counts = probe.snapshot() - before_counts
+                    assert not any(value for key, value in counts.items() if key.startswith('update:') or 'snapshot' in key), counts
+                print(f'Interactive {kind}: explicit parameter/file inputs, exact literal results and no-dispatch rejection passed.', flush=True)
                 if kind == 'table':
                     query('SELECT * FROM items WHERE id IS VALUE;', count, request_budget=scan_budget)
                     for state in ('MISSING', 'TYPE_ERROR', 'CONFLICT'):
