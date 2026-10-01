@@ -9389,6 +9389,25 @@ both changes. The final paired six-type control passes every unchanged 1.15
 budget with ratios 1.0003–1.1219. Raw measurements, exact hashes and both prior
 failed trials remain in the linked evidence. Final clean lanes are still pending.
 
+At `331abe3a`, full `just check` and the 52 native C ABI/port codec cases pass.
+The clean core lane completes all 22 tasks, including signed service and disk
+recovery. Clean growth completes its first eight tasks: Arrow, logical types,
+sources, all 92 file-query cases, 100 logical Arrow cases, 91 logical codec cases,
+immutable pages and growing authority recovery. Main then advances through
+PR #57 to `8bd85869`; integrating it supersedes this source. The owned clean run
+is interrupted during `test::growing-service`, with exit 130 and no surviving
+owned processes. Growth is incomplete; experience, launchers and bindings did
+not start. The [retained checkpoint](verification/results/m39-superseded-2026-10-01.json)
+records task timings, completion and log hashes. These results do not qualify
+the new integration implicitly.
+
+The rebase preserves both evidence-ledger additions and every original commit
+author/committer date. Fuze, Arrow, the six-type driver and `flake.lock` match
+the measured native implementation; its raw benchmark reports retain their
+original revision identities. Main's new native definitions, generated caller
+resources, Table admission and transport changes require fresh integration
+checks and ordinary clean lanes.
+
 
 ## Durable Table mutation latency
 
