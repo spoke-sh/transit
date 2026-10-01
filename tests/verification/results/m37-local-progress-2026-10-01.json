@@ -1214,9 +1214,30 @@
             "resume_before_ms": null
           }
         }
-      }
+      },
+      "fixture_cleanup_restart_after_failure": true,
+      "unassisted_recovery_proved": false
     },
-    "cleanup": "Owned installation stopped through its launcher after the late read; provider state retained."
+    "cleanup": "Owned installation stopped through its launcher after the late read; provider state retained.",
+    "fixture_cleanup": {
+      "owner": "tests/courier_readiness.py:ReadinessOutage.__exit__",
+      "actions": [
+        "Restore original delivery endpoint",
+        "Restart delivery",
+        "Close fault proxy"
+      ],
+      "delivery_stopped_local": "2026-09-30T20:10:14.966-07:00",
+      "delivery_started_local": "2026-09-30T20:10:15.967-07:00",
+      "evidence": "manager.log retained in logs manifest",
+      "limit": "The later reply observation follows this fixture-owned restart and cannot prove completion without cleanup intervention."
+    },
+    "artifact_provenance": {
+      "commit": "31f071d0fbc166dee8251cb170cf90093590a2a3",
+      "dirty": false,
+      "zig": "0.17.0-dev.2267+48abf1a34",
+      "flake_lock": "865faed173c5a710f77c231ce13c427bfe9eeaf3900e7edc7fa7e9d6233b1264",
+      "optimize": "ReleaseSafe"
+    }
   },
   "query_focused": {
     "command": [

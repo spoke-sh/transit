@@ -2520,9 +2520,16 @@ The [local checkpoint](verification/results/m37-local-progress-2026-10-01.json)
 keeps clean experience's seven passes at `5c76d03e` separate from its later core
 failure after nineteen passes. Clean experience at `31f071d0` passes six tasks,
 then misses the original 60-second Station Arrow-reply window following the
-courier readiness fault. The original reply later exists without resubmission
-or a manual restart. The owned installation is then stopped and its disk state
-retained. Current evidence does not establish the cause of that progress delay.
+courier readiness fault. The original reply later exists without resubmission,
+after the fault fixture restores the original endpoint and restarts the courier
+during cleanup. This
+observation does not prove completion without that intervention. The owned
+installation is then stopped and its disk state retained. Current evidence does
+not establish the cause of that progress delay. The local Station proof writes
+`.cache/m9/station-local-readiness.json` after its timed schedule and cleanup,
+including replacement timing, reply time, whether it passed before cleanup, and
+whether cleanup restarted the courier. Writing this evidence does not extend
+the 60-second reply deadline.
 
 A focused disk-backed query run at clean `5c76d03e` passes, with delivery taking
 84.552 seconds under its unchanged 180-second cap. Nineteen matching request

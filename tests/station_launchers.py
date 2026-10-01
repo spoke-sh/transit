@@ -100,15 +100,35 @@ def exercise(profile, name=None, base=None, existing=False):
         await_value(lambda: total() == 10 and entry("requester", b"answer") == b"10", "Correlated delta/retry was not atomic")
         if profile == "local":
             from courier_readiness import ReadinessOutage
-            with ReadinessOutage(installation, launcher) as fault:
-                invoke("send", "query", "--request-id", "proof-query")
-                deadline = time.monotonic() + 60
-                recovery = fault.recover(deadline)
-                await_value(lambda: entry("requester", b"last-query") is not None,
-                            "Arrow reply did not complete", seconds=max(0, deadline-time.monotonic()))
-                assert time.monotonic() < deadline, "Arrow reply exceeded its original deadline"
-                assert fault.commands > 0
-                print("Station courier readiness recovery: " + json.dumps(recovery), flush=True)
+            fault = ReadinessOutage(installation, launcher)
+            started_reply = None
+            reply_seconds = None
+            passed = False
+            try:
+                with fault:
+                    invoke("send", "query", "--request-id", "proof-query")
+                    started_reply = time.monotonic()
+                    deadline = started_reply + 60
+                    fault.recover(deadline)
+                    await_value(lambda: entry("requester", b"last-query") is not None,
+                                "Arrow reply did not complete", seconds=max(0, deadline-time.monotonic()))
+                    reply_seconds = time.monotonic() - started_reply
+                    assert time.monotonic() < deadline, "Arrow reply exceeded its original deadline"
+                    assert fault.commands > 0
+                    passed = True
+            finally:
+                # Record only after the timed schedule and cleanup. A reply
+                # observed after cleanup's restart cannot turn failure into a pass.
+                readiness = {"version": 1, "profile": profile, "installation": installation.name,
+                             "artifact_provenance": installation.artifacts.read("selected")["provenance"],
+                             "deadline_seconds": 60, "query_submitted": started_reply is not None,
+                             "reply_seconds": reply_seconds, "passed_before_cleanup": passed,
+                             "recovery": fault.recovery, "refused_reads": fault.refusals,
+                             "forwarded_commands": fault.commands,
+                             "cleanup_restart_started": fault.cleanup_restart_started,
+                             "cleanup_restart_completed": fault.cleanup_restart_completed}
+                write(ROOT / ".cache/m9/station-local-readiness.json", readiness)
+                print("Station courier readiness recovery: " + json.dumps(readiness), flush=True)
         else:
             invoke("send", "query", "--request-id", "proof-query")
             await_value(lambda: entry("requester", b"last-query") is not None, "Arrow reply did not complete")

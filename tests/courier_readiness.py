@@ -19,6 +19,9 @@ class ReadinessOutage:
         self.commands = 0
         self.errors = []
         self.started = time.monotonic()
+        self.recovery = None
+        self.cleanup_restart_started = False
+        self.cleanup_restart_completed = False
 
     def __enter__(self):
         fault = self
@@ -90,9 +93,10 @@ class ReadinessOutage:
                     current['restarts'] > self.before['restarts']):
                 assert self.refusals >= 15 and self.commands == 0
                 self.blocked.clear()
-                return {'refused_reads': self.refusals,
-                        'restarts': current['restarts'] - self.before['restarts'],
-                        'replacement_seconds': round(time.monotonic()-self.started, 3)}
+                self.recovery = {'refused_reads': self.refusals,
+                                 'restarts': current['restarts'] - self.before['restarts'],
+                                 'replacement_seconds': round(time.monotonic()-self.started, 3)}
+                return self.recovery
             time.sleep(.1)
         raise AssertionError('Courier did not recover after failed readiness probes')
 
@@ -100,7 +104,9 @@ class ReadinessOutage:
         self.blocked.clear()
         try:
             self.path.write_bytes(self.original)
+            self.cleanup_restart_started = True
             self.launcher.restart('delivery')
+            self.cleanup_restart_completed = True
         finally:
             self.server.shutdown()
             self.thread.join(timeout=5)
