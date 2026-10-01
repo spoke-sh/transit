@@ -46,6 +46,25 @@ borrowed path; static fixture storage fixes that lifetime. Logs:
 `/var/tmp/transit-sql-parameters-source-binding.log` and
 `/var/tmp/transit-sql-parameters-source-binding-fixed.log`.
 
+After the Document revision/path cases are extended, package tests and all 4944
+documentation links pass; log
+`/var/tmp/transit-sql-parameters-source-binding-final.log`. At clean committed
+`9412e439`, the ReleaseSafe
+[parameter measurements](benchmarks/results/2026-10-01-sql-parameters.json.gz)
+retain nine CPU-1 samples, exact binaries/drivers/source patch and canonical
+plan checks. Across six scalar types, literal compilation medians are
+1032–1186 ns, preparation 1295–1367 ns, and subsequent binding 386–417 ns.
+Preparation is excluded from the binding interval. These are pure Fuze costs,
+not full source-definition/authorization or public query latency.
+
+The alternating frozen `fbb4ebc9` control compares the unchanged thirteen
+compiler/mutation/declaration/aggregate cases. All ratios meet the existing
+1.15 budget, ranging from 0.9932 to 1.0798; samples and overlapping ranges remain
+in the archive. Neither this shared-host observation nor reuse of ordinary plan
+bytes establishes a full file or installed-caller performance pass. Logs:
+`/var/tmp/transit-sql-parameters-costs.log` and
+`/var/tmp/transit-sql-parameters-unchanged-control.log`.
+
 ## Declarative benchmark components
 
 The [component harness](benchmarks/README.md) measures synthetic SQL compilation,
