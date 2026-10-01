@@ -5,7 +5,7 @@ pub const version = 1;
 /// Contract-set fingerprint, independent of the public version label. Replace
 /// this identifier on an incompatible pre-1.0 cutover, including changed stored
 /// Station/query semantics. Never reuse it to reinterpret accepted history.
-pub const Definition = enum { ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e };
+pub const Definition = enum { @"67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0" };
 pub const current_definition: Definition = @fromBackingInt(0);
 pub const Id = u64;
 pub const request_domain = "transit.request.v1\x00";
@@ -573,6 +573,8 @@ test "native responses require the current contract definition even with a v1 la
     try t.expectError(error.MissingField, std.json.parseFromSlice(Response, t.allocator, missing, .{}));
     const foreign = "{\"version\":1,\"definition\":\"previous-v1-definition\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
     try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, foreign, .{}));
+    const retired = "{\"version\":1,\"definition\":\"2577b1247a78a2f8a3eae59b3b36a286fedf9836759d19325edd9b3318b5bad5\",\"realm\":42,\"position\":1,\"principal_sequence\":0,\"body\":{\"identity\":{\"principal\":0,\"permissions\":1,\"pid\":null,\"policy_revision\":0}}}";
+    try t.expectError(error.InvalidEnumTag, std.json.parseFromSlice(Response, t.allocator, retired, .{}));
 }
 
 test "leased snapshot responses reject wrong tokens, cuts and malformed coverage" {
@@ -736,8 +738,8 @@ test "v1 turn and entries signatures match independent canonical bytes" {
     // Altering Turn or the entries-query defaults breaks retained receipts.
     const request: Request = .{ .realm = 42, .principal = 0, .sequence = 1, .command = .{ .turn = .{ .pid = 2, .generation = 3, .input = 4, .expected_revision = 0 } } };
     const query: Query = .{ .realm = 42, .principal = 0, .kind = .{ .entries = .{ .view = 5 } } };
-    try std.testing.expectEqualStrings("034675aa9cc956aa75eedabc2f66e139617f0f2b6ea6126c26633f51b641f0fa", &std.fmt.bytesToHex(try digest(request), .lower));
-    try std.testing.expectEqualStrings("450ef7466e190ca4735ff3279c9b5940dd8b6dc63b10b6e1032bc1161441a0bf", &std.fmt.bytesToHex(try queryDigest(query), .lower));
+    try std.testing.expectEqualStrings("bfc41f7a2403ca35b5df848ad2986eac7ea24e51e05a1adb1726fe1da3150115", &std.fmt.bytesToHex(try digest(request), .lower));
+    try std.testing.expectEqualStrings("8e6de26447bfe58105b19640900dc03dc5191f60bb9c84612a50139ac509f664", &std.fmt.bytesToHex(try queryDigest(query), .lower));
 }
 
 test "retained version proposals and responses reject foreign duplicate and forged bases" {

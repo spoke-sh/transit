@@ -7187,19 +7187,32 @@ package builds subsequently pass. The installed run passes KV and Table in
 **386.41 s / 374.20 s**, including inspection agreement across thirteen
 native/port/SDK callers and SQL-shell admission, exact retry, source/requester/
 node/store recovery, current denial, retained rows and joined cleanup. Document
-qualification is still running. The log is
+qualification also passes in **1726.68 s**, including **1465.98 s** provisioning:
+twelve rows/two segments/9,880 bytes, with its existing 64 authority pages and
+8 MiB hot store. The entire three-source command exits successfully. The log is
 `/tmp/transit-sql-source-aliases-installed-built.log`; its frozen binaries precede
-the rebase and completion-only correction, and these two source passes do not
-establish a complete three-source run.
+the rebase and completion-only correction. KV/Table retain eight authority pages;
+these different fixture profiles do not establish comparable native latency.
 
 Committed-head `just ci-clean --lane core --work-root /var/tmp` passes all
 **22 tasks in 1309.02 s** at `34b0b96f`. The report is
 `.cache/ci/clean/34b0b96f175e-transit-ci-ocwpgt5q/core.meta.json`; the log is
 `/tmp/transit-sql-source-aliases-ci-clean-core.log`. Rebase onto merged #44 at
 `b8b224ce` preserves all three original commits unchanged. Clean growth at
-rebased `512ebcb4` is running with #44's catalog read reduction and the corrected
-snapshot fixture; the earlier failed growth attempts remain failed. Its log is
-`/tmp/transit-sql-source-aliases-ci-clean-growth.log`.
+rebased `512ebcb4` includes #44's catalog read reduction and the corrected
+snapshot fixture, but fails in query delivery at the unchanged 180-second
+deadline (**592.17 s** task / **752.95 s** lane). Three tasks pass and seventeen
+are unrun, including the corrected fixture. The earlier failed attempts remain
+failed; this result does not establish their cause. The log is
+`/tmp/transit-sql-source-aliases-ci-clean-growth.log`, with its failure checkout
+retained at `/var/tmp/transit-ci-0sct7l0m`.
+
+Clean experience at final alias head `93c3832b` passes five tasks, then fails
+Board's cancellation-result observation with HTTP **503 Unavailable**
+(**93.33 s** task / **261.17 s** lane). The final Station task is unrun. The log
+is `/tmp/transit-sql-source-aliases-ci-clean-experience.log`, with its failure
+checkout retained at `/var/tmp/transit-ci-knqo9ipr`. Neither lane is passed;
+the implementation is published as tracking draft PR #47.
 
 The declarative benchmark adds an aliased selected-count component beside its
 unaliased equivalent; all **29 components** and nine rejection probes pass with
@@ -7211,6 +7224,43 @@ execution speedup or native latency. Full workloads remain blocked. The report
 is `/tmp/transit-sql-source-aliases-benchmark.json`, with dirty source based on
 `d5541301` and exact manifest/harness/binary provenance. The benchmark runner's
 negative controls, documentation links and verification inventory checks pass.
+
+### Typed output-name plan checkpoint
+
+The `feat/sql-output-aliases` continuation introduces owned names by output
+position and a mandatory definition in `FZP1`. Five independent Python byte
+fixtures cover renamed rows, repeated inputs with distinct names, named count
+and sum, and default names. Fuze tests compare exact bytes and output schemas,
+retain input basis/schema identity, and reject old/foreign definitions,
+colliding names, hidden slots and malformed owned names. Decoded names remain
+owned when the encoded input is changed. Fuze package tests pass after migrating
+two limit-field corruption probes to the replacement wire offsets.
+The full unit task passes after two inline signing digests are recomputed with
+independent canonical JSON/SHA-256. The first broader run passes 493/494 tests
+and exposes that stale expected digest; it remains distinct from the corrected
+pass in `/tmp/transit-sql-output-aliases-unit-fixed.log`.
+
+A source-behavior regression publishes an integrity-valid bundle with a foreign
+plan definition, then verifies one terminal rejection reply to the original peer
+and correlation without retaining a source version. The first run fails because
+the new decoder error escapes the disposition mapping (64/65 tests pass).
+Classifying incompatible-plan and invalid-output-name errors as failed requests
+makes all 65 query-package tests pass. The before/after logs are
+`/tmp/transit-sql-output-aliases-rejection-before.log` and
+`/tmp/transit-sql-output-aliases-rejection-after.log`. This is an in-memory
+behavior proof; it does not replace installed or disk-backed recovery evidence.
+
+The shared native definition, generated protocol/installation/ABI/host/browser
+resources, neutral bundles and signing fixtures are replaced together. Native
+fixtures use independent SHA-256 and OpenSSL signatures; rejection of the actual
+retired definition remains explicit. `just test::sql` passes its existing 113
+parser comparisons, 92 plan/Arrow checks, 28 three-source/eight-page-width cases,
+and mutation/declaration checks under the new plan encoding. This checkpoint
+does not yet enable output-alias SQL syntax or qualify installed caller recovery
+and performance under the replacement definition. Its logs are
+`/tmp/transit-sql-output-aliases-model-test-fixed.log`,
+`/tmp/transit-sql-output-aliases-wire-sql.log` and
+`/tmp/transit-sql-output-aliases-fixtures.log`.
 
 ## SQL performance iteration
 

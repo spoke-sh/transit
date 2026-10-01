@@ -3,7 +3,7 @@
   "title": "Transit native protocol v1",
   "x-transit": {
     "version": 1,
-    "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e",
+    "definition": "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0",
     "request_domain": "transit.request.v1\u0000",
     "query_domain": "transit.query.v1\u0000",
     "identity_maximum": 9007199254740991,
@@ -57,7 +57,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+            "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
           ]
         },
         "realm": {
@@ -2639,7 +2639,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+        "definition": "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
       }
     },
     "SignedRequest": {
@@ -2672,7 +2672,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+                "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
               ]
             },
             "realm": {
@@ -5254,7 +5254,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+            "definition": "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
           }
         },
         "signature": {
@@ -5297,7 +5297,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+            "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
           ]
         },
         "realm": {
@@ -6702,7 +6702,7 @@
       ],
       "x-transit-defaults": {
         "version": 1,
-        "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+        "definition": "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
       }
     },
     "SignedQuery": {
@@ -6734,7 +6734,7 @@
             "definition": {
               "type": "string",
               "enum": [
-                "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+                "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
               ]
             },
             "realm": {
@@ -8139,7 +8139,7 @@
           ],
           "x-transit-defaults": {
             "version": 1,
-            "definition": "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+            "definition": "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
           }
         },
         "signature": {
@@ -8183,7 +8183,7 @@
         "definition": {
           "type": "string",
           "enum": [
-            "ccd596113a3719c6d38afdffe907f04e90f4703472c91aaaffa7875364b5b31e"
+            "67e9b3edcd3502e692285c9a3d093bd6b9a958dc6edde4c7057504067d505ff0"
           ]
         },
         "realm": {

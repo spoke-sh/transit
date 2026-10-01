@@ -5,6 +5,7 @@ const Self = @This();
 version: u8 = 1,
 predicate: Predicate = .all,
 projection: []const u8,
+output_names: [m.max_columns]?m.Name = @splat(null),
 limit: ?u64 = null,
 aggregate: Aggregate = .rows,
 pub const Aggregate = enum(u8) { rows = 0, count = 1, sum = 2 };
@@ -14,15 +15,31 @@ pub const Predicate = union(enum) {
     state: struct { column: u8, value: m.State },
     compare: struct { column: u8, op: Comparison, value: m.Scalar },
 };
-pub fn validate(self: Self, schema: m.Schema) !void {
-    try schema.validate();
+/// Schema-independent shape checks also protect canonical encoding/decoding.
+pub fn validateShape(self: Self) !void {
     if (self.version != 1) return error.UnsupportedPlan;
     if (self.projection.len == 0 or self.projection.len > m.max_columns) return error.InvalidProjection;
     for (self.projection, 0..) |column, index| {
-        _ = try schema.column(column);
-        for (self.projection[0..index]) |previous| if (column == previous) return error.DuplicateProjection;
+        if (column >= m.max_columns) return error.UnknownColumn;
+        for (self.projection[0..index], 0..) |previous, prior| {
+            if (column == previous and std.meta.eql(self.output_names[index], self.output_names[prior])) return error.DuplicateProjection;
+        }
     }
+    for (self.output_names, 0..) |name, index| if (name) |value| {
+        if (index >= self.projection.len) return error.InvalidOutputNames;
+        if (value.len > value.bytes.len or !std.meta.eql(value, try m.Name.init(value.slice()))) return error.InvalidColumnName;
+    };
     if (self.aggregate != .rows and self.projection.len != 1) return error.UnsupportedAggregate;
+}
+pub fn validate(self: Self, schema: m.Schema) !void {
+    try schema.validate();
+    try self.validateShape();
+    var output: [m.max_columns]m.Column = undefined;
+    for (self.projection, 0..) |column, index| {
+        _ = try schema.column(column);
+        output[index] = try self.outputColumn(schema, index);
+    }
+    try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     if (self.aggregate == .sum and (try schema.column(self.projection[0])).type != .int64) return error.UnsupportedAggregate;
     switch (self.predicate) {
         .all => {},
@@ -34,12 +51,16 @@ pub fn validate(self: Self, schema: m.Schema) !void {
 /// verification. The returned slice borrows columns, never the source schema.
 pub fn outputSchema(self: Self, schema: m.Schema, columns: *[m.max_columns]m.Column) !m.Schema {
     try self.validate(schema);
-    if (self.aggregate != .rows) {
-        columns[0] = .{ .name = try m.Name.init(@tagName(self.aggregate)), .type = if (self.aggregate == .count) .uint64 else .int64 };
-        return .{ .columns = columns[0..1] };
-    }
-    for (self.projection, 0..) |index, offset| columns[offset] = try schema.column(index);
+    for (0..self.projection.len) |index| columns[index] = try self.outputColumn(schema, index);
     return .{ .columns = columns[0..self.projection.len] };
+}
+fn outputColumn(self: Self, schema: m.Schema, index: usize) !m.Column {
+    var column = if (self.aggregate == .rows) try schema.column(self.projection[index]) else m.Column{
+        .name = try m.Name.init(@tagName(self.aggregate)),
+        .type = if (self.aggregate == .count) .uint64 else .int64,
+    };
+    if (self.output_names[index]) |name| column.name = name;
+    return column;
 }
 pub const Bound = struct {
     plan: Self,

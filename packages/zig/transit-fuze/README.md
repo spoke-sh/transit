@@ -17,6 +17,14 @@ KV, Table and Document adapters, interactive snapshots and durable public
 submission compose these types through [transit-query](../transit-query/README.md).
 The contract fixes workspace, segment and encoding budgets.
 
+Typed plans provide optional owned `output_names` by output position. Row names
+default to their source names; aggregate names default to `count` or `sum`.
+Distinct output names permit projecting one input column more than once.
+Validation rejects duplicate output names, malformed names and names outside the
+output width. Output names affect the saved plan and result schema, while the
+input schema and source basis stay unchanged. `FZP1` requires its current plan
+definition before decoding; incompatible saved plans reject.
+
 `Unified.Sql` lowers SELECT syntax against declared sources. The
 [SQL guide](docs/unified-sql.md) describes capabilities, allocated ownership and
 errors. `Sql` owns the shared parser and cursor assistance. All callers execute

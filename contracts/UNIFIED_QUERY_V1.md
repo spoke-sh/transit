@@ -81,6 +81,33 @@ checkpoint binds source evidence and plan digest to global progress, checked sum
 and explicit end/limit disposition. Adapter continuation is a separate owned
 record. These are resident/batch limits, not total source or result cardinality.
 
+## Canonical plans and output names
+
+A typed plan owns up to eight optional output names. A name applies to its
+output position, not its source column: a repeated source column is permitted
+when the resulting output names are distinct. An omitted name preserves the
+source name for rows or `count`/`sum` for an aggregate. Names use the schema's
+one-to-thirty-two-byte ASCII identifier rules and canonical zero padding. Slots
+beyond the output width must be empty. Duplicate output names reject; aliases
+never rename the source schema or confer access to another source.
+
+The current `FZP1` encoding starts with its four-byte magic and the mandatory
+32-byte SHA-256 of `transit.fuze.plan.v1.output-names.2026-09-30`. Missing or
+foreign plan definitions reject before the plan can bind or execute. Next come
+the aggregate byte, projection-count byte, and that many source-column bytes.
+Each output position then has a one-byte name length and exactly that many name
+bytes; zero means no explicit output name. The existing limit-present byte,
+little-endian u64 limit and predicate encoding follow. Absent limits retain a
+zero value. Canonical decoding rejects trailing bytes and malformed names.
+
+Output names participate in the plan fingerprint and the output-schema
+fingerprint. Execution, EXPLAIN and Arrow use the same validated output schema,
+including for empty results. Input basis/schema identity, filtering, aggregate
+arithmetic, source order, five-state cells and resource bounds are unchanged.
+The shared native definition also changes for this stored-framework cutover;
+old saved requests and authority heads require their matching build for recovery.
+There is no fallback decoder, automatic migration or data reset.
+
 ## Larger requests and durable publication
 
 V1 advertises separate plan, source, result and upload capabilities. It never
