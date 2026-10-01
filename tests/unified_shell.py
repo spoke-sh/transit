@@ -127,7 +127,6 @@ def check(binary, root, kind, invoke, expected, fault, *, compound=False, counts
         assert progress['status']['collected'], progress
         assert shell.call('.new 2')['err'] == 'QueryUploadIdentityConflict'
         print(f'Unified {kind} SQL shell: truthful capabilities, pre-submit rejection, frozen bundle/exact retry across shell exit, current prefix denial, '
-              f"named output schemas, owned nested rows, predicate={'compound' if compound else 'atom'}, complete coverage and permanent retirement/collection passed.", flush=True)
               f'named output schemas, {"COUNT value/missing counters" if counts else "owned nested rows"}, complete coverage and permanent retirement/collection passed.', flush=True)
     finally:
         if shell.process.poll() is None: shell.close()
