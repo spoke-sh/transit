@@ -7356,6 +7356,34 @@ remain required. Earlier source-alias failures remain separate evidence.
 
 ## SQL performance iteration
 
+### Output-name component coverage
+
+The declarative benchmark includes four additional output-name components:
+named count, named sum over a renamed derived input, renamed row projection,
+and repeated inputs with distinct names. Its independent manifest declares
+result types by position; the oracle no longer infers signedness from names.
+SQLite supplies expected names/values and PyArrow checks complete output.
+
+All **33 components and nine rejection probes** pass for both 257 rows in
+three-row pages and zero rows, including quoted mixed-case output names.
+Reports are `/tmp/transit-sql-output-aliases-benchmark-oracle-fixed.json` and
+`/tmp/transit-sql-output-aliases-benchmark-empty.json`. These correctness runs
+use one sample, one execution and ten compilations; they are not performance
+comparisons. The eight benchmark-runner negative checks and local documentation
+links also pass. Full TPC workloads remain blocked.
+Reports identify dirty source based on `4e9a8bca`, with exact binary,
+manifest, harness and fixture hashes; runtime code is unchanged from that commit.
+
+The first run fails on a fixture's unquoted mixed-case alias: Transit correctly
+folds it to lowercase while SQLite preserves case. The fixture now uses quoted
+identifiers when expecting mixed case. That failed report remains at
+`/tmp/transit-sql-output-aliases-benchmark-oracle.json`; the corrected passes do
+not overwrite it. Logs are
+`/tmp/transit-sql-output-aliases-benchmark-build.log` and
+`/tmp/transit-sql-output-aliases-benchmark-oracles-fixed.log`.
+
+### Finite SQL probe
+
 `just test::sql-benchmark` builds a ReleaseSafe public-package consumer and records
 five independent process samples after one warm-up. Four compile cases each run
 10,000 times; count and sum each consume 8,192 rows in eight-row pages, 100 times.
