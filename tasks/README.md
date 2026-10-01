@@ -160,6 +160,12 @@ Missing or duplicate lanes leave the result inconclusive; measured job timings
 and restored bytes remain available. A successful selected profile does not
 qualify the ordinary-suite budget.
 
+The growing query fixture allows 600 seconds for complete result delivery over
+physical disk and 180 seconds for each other phase. Delivery includes hundreds
+of durable paged turns; the proof records actual phase times and verifies the
+complete original result. These fixture limits do not define runtime latency
+guarantees or change the separate performance regression budgets.
+
 Clean checkouts and their owned `TMPDIR` default to `/var/tmp`, outside Nix's
 temporary shell directory and the often memory-backed `/tmp`. SDK consumer
 builds and storage fixtures share that run's disk-backed scratch directory.

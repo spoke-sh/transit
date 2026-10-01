@@ -120,12 +120,25 @@ const Seed = struct {
     }
 };
 fn drive(init: std.process.Init, server: *s.GenServer, handler: s.GenServer.Handler) !void {
-    for (0..20) |_| switch (try server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000)) {
-        .committed => return,
-        .blocked => return server.handler_error orelse error.Blocked,
-        .idle => return error.NoInput,
-        .progress => {},
-    };
+    const started = std.Io.Clock.awake.now(init.io);
+    var steps: usize = 0;
+    while (steps < 20) {
+        const step = server.step(handler, @as(u64, @intCast(std.Io.Clock.real.now(init.io).toMilliseconds())) + 30000) catch |err| {
+            if (!s.client.Client.unavailable(err) or started.durationTo(std.Io.Clock.awake.now(init.io)).toMilliseconds() >= 10000) return err;
+            // Match the actual host: retry frozen pending bytes, or discard
+            // only an unsent private read candidate before polling again.
+            if (server.pending == null and server.ready != null) try server.discard();
+            try init.io.sleep(.fromMilliseconds(25), .awake);
+            continue;
+        };
+        steps += 1;
+        switch (step) {
+            .committed => return,
+            .blocked => return server.handler_error orelse error.Blocked,
+            .idle => return error.NoInput,
+            .progress => {},
+        }
+    }
     return error.StepBudgetExceeded;
 }
 fn file(init: std.process.Init, directory: []const u8, name: []const u8) ![]const u8 {

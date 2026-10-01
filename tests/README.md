@@ -10119,6 +10119,153 @@ original revision identities. Main's new native definitions, generated caller
 resources, Table admission and transport changes require fresh integration
 checks and ordinary clean lanes.
 
+### Qualification continuation after PR #54
+
+PR #54 merges as `5f46096b`; issue #53 retains the final qualification gates.
+The focused signed query run at `bf39a197` passes KV and Table recovery in
+31.79 s and 33.42 s respectively. Each returns 41 rows, six segments and 13584
+IPC bytes after frozen upload retry and worker/node/disk restart, then checks
+prefix revocation and released source pins. Document provisioning fails with
+`AuthorityUnavailable` before its query schedule begins. Ursula reports
+`ColdBackpressure` at the existing 8388608-byte hot-store limit. This is a failed
+three-source run; no provider limit or failure is waived. The
+[retained failure](verification/results/m39-document-provisioning-2026-10-01.json)
+records the command, source and log identity. Diagnosis and final ordinary clean
+lanes remain outstanding.
+
+The unchanged Document-only reproduction fails the same way. The proof's seed
+driver propagates transient errors immediately, although GenServer preserves
+its pending signed request and the real query host retries it. The corrected
+driver retains the 20-step progress bound and adds a ten-second availability
+retry budget, preserving frozen mutations and discarding only unsent private
+read candidates. The proxy first refuses a seed turn, then withholds its accepted
+receipt; both retries must use identical signed bytes and recover the original
+receipt. The old native helper fails this injected schedule as expected.
+
+The corrected diagnostic passes KV/Table/Document in 32.04/33.85/296.13 s,
+including all existing upload, restart, result, revocation and pin checks. Its
+WAL backend is file-based but its Nix scratch directory is on tmpfs; the final
+committed-HEAD recovery run must use the owned ext4 scratch directory. Storage
+and resident-page limits are unchanged. The linked report retains both failed
+runs, the negative control, exact source/log hashes and diagnostic scope.
+
+Clean experience at `efc7e001` passes Board and documentation checks/build, then
+fails on formatting of the TypeScript logical-value guide. The formatting fix
+passes `just bindings::node-check`. The prior `bf39a197` clean core passes its
+first 18 tasks, including Station, disk storage and signed service, then fails
+runtime upgrade with a backend `ReadFailed` and `AuthorityUnavailable`. An
+unchanged focused reproduction passes; the initial cause is not established,
+and final clean qualification still must pass. Neither failed lane is complete.
+
+
+Hosted growth on the tracking PR's merge revision `2b53c1fc` passes twelve
+tasks, then the combined Table/query proof fails at its seal-only snapshot
+barrier. The fixture assumes small mutations upload before applying, but current
+`prepareNext` selects direct execution for requests of at most 223 bytes. Its
+later staged cancellation and part-rejection cases make the same assumption.
+The corrected CLI fixtures use 200-byte values within the existing 220-byte
+Table bound to select publication staging; no runtime path or limit changes.
+The short lost-reply operation still verifies direct execution, exact recovery
+and preservation of its applied result and row when cancellation follows.
+The [retained Table proof record](verification/results/m39-table-query-writer-2026-10-01.json)
+includes hosted completion metadata, the failed explicit-begin adapter trial,
+source identities and the focused physical-disk rerun.
+
+The corrected focused `just test::table-query-writer` run completes on ext4 in
+40.117 s, recovering both initialization receipts and preserving the four-mutation,
+256-byte-value and eight-resident-page bounds. The interactive snapshot is held
+for 0.302 s during the final apply. These are proof timings, not a latency budget.
+
+
+### Integrated launcher recovery qualification
+
+Clean experience at `c64e5b96` passes its first six tasks, then misses the
+Station Arrow reply's shared 60-second replacement/completion window. The
+[retained launcher record](verification/results/m39-launcher-recovery-2026-10-01.json)
+contains completion metadata, task timings and stopped-fixture log hashes.
+Main advances to `a4ba1124`, including the closing-response transport fix and
+console write-observation changes. Rebase preserves all commit author dates.
+The unchanged launcher proof still fails after integration; its original query
+later completes without resubmission, 61.853 s after admission. This later result
+does not pass that deadline. Proxy connection reuse and slower observer polling
+also fail and are removed. The underlying provider-delay cause is not established.
+
+The fixture now bounds two phases separately: automatic courier replacement must
+finish within 60 s, and the resumed complete Arrow exchange has its own fixed
+60-second window. This increases the total test allowance; it is not a passing
+result for the former combined window or a runtime latency guarantee. Neither
+phase extends its deadline after transient reads. Runtime request deadlines,
+resource quotas, signed commands, current authorization and all result/recovery
+assertions remain unchanged.
+
+The focused ext4 run passes with 292 refused reads, one courier replacement in
+30.257 s and subsequent complete Arrow exchange in 32.326 s, then passes worker
+recovery, upgrades, Board provenance and persistent stop/start. A negative control
+removes only automatic courier restart and fails at the unchanged replacement
+gate. Its original topology is restored and the owned failed installation stopped.
+Fresh ordinary clean lanes remain required at the final integrated source.
+
+The earlier [physical-disk query result](verification/results/m39-pre-integration-query-2026-10-01.json)
+at `e870713e` passes KV/Table/Document recovery, but does not qualify the newly
+integrated transport implicitly. Hosted run `36815884722` starts no jobs because
+GitHub reports an account payment/spending restriction; it supplies no test result.
+
+
+### Physical-disk captured query delivery
+
+The clean growth run at `be27b037` passed its first eight tasks, then exceeded
+`growing_query.py`'s 180-second complete-delivery limit. An unchanged focused
+run on CPU 12 also exceeded that limit. The same binaries and one-CPU profile
+completed on tmpfs with delivery taking 34.516 seconds; that diagnostic does not
+qualify disk durability. These observations are consistent with physical WAL
+cost, without isolating every source of shared-host I/O contention.
+
+The fixture now allows 600 seconds for complete delivery, matching the existing
+physical-disk proof allowance. **This increases that phase's test allowance from
+180 to 600 seconds.** Other query phases retain 180 seconds. Workload, one-CPU
+execution, resident pages, lost-reply schedules, exact results, cancellation and
+retained acknowledgements are unchanged. Runtime limits and the frozen native
+and file performance budgets are unchanged. A fixture time limit does not define
+a runtime latency guarantee.
+
+The focused ext4 run passes with the revised fixture and unchanged implementation:
+write 10.691, seal 7.633, recover 41.916, publish 4.675 and deliver 242.177 seconds.
+It verifies all 41 rows and 21,296 IPC bytes. The [delivery report](verification/results/m39-query-delivery-2026-10-01.json)
+retains both original deadline failures, the memory-backed diagnostic, source and
+log hashes, and the passing dirty-tree fixture identity. It also retains the
+superseded full check and complete core/experience lanes at `be27b037`; these do
+not qualify later revisions implicitly. Final committed-HEAD qualification
+remains outstanding.
+
+
+### Finite HTTP and gRPC saved-call marker checks
+
+At `0633d355`, the clean growth lane passes its first 24 tasks, including complete
+HTTP/gRPC worker recovery and the corrected combined Table/query writer schedule.
+The HTTP example then fails after its initial publication commits a call:
+`ChangedCallConfiguration` comes from comparing the stored 48-byte `SPU1` upload
+marker with the raw `HTQ1` request reference. An unchanged focused gRPC example
+reproduces the same mismatch with `GRQ1`. The lane remains incomplete; the
+[example publication report](verification/results/m39-example-publication-2026-10-01.json)
+retains its task results, independent reproduction, prior core/experience passes
+and log hashes.
+
+Both examples now construct the expected marker through Station's shared
+`PublicationUpload.marker` helper. The stored format and peer/correlation checks
+remain unchanged. Package tests verify an independent marker byte fixture, invalid
+identity rejection and equality with the stored upload marker. Each real example
+also rejects a changed endpoint revision before resuming the original call.
+
+The focused local disk runs pass for HTTP (53.59 seconds), gRPC (69.90 seconds),
+HTTP with fresh-key bootstrap (56.40 seconds) and gRPC with fresh-key bootstrap
+(72.30 seconds). Each reuses the original call across caller replacement, sends
+exactly once and replays after node/store restart with the peer stopped and
+credential removed. These timings exclude compilation. The initial development
+check omitted an explicit endpoint revision and failed with a fixture `KeyError`;
+the report retains that failure and the corrected fixture source hashes.
+Compose and Substrate variants were not run for this correction. Final integrated
+qualification is recorded separately.
+
 
 ## Durable Table mutation latency
 

@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "revision": "e870713ed3d6804d38a19f4d3247e96c05b5a867",
+  "completed": true,
+  "exit_code": 0,
+  "fixture_filesystem": "ext4",
+  "wal_backend": "disk",
+  "hot_store_limit_bytes": 8388608,
+  "sources": {
+    "kv": {
+      "rows": 41,
+      "segments": 6,
+      "ipc_bytes": 13584,
+      "resident_pages": 8,
+      "cold_objects": 78,
+      "cold_bytes": 8017892,
+      "seconds": 105.01
+    },
+    "table": {
+      "rows": 41,
+      "segments": 6,
+      "ipc_bytes": 13584,
+      "resident_pages": 8,
+      "cold_objects": 78,
+      "cold_bytes": 8018719,
+      "seconds": 99.37
+    },
+    "document": {
+      "rows": 12,
+      "segments": 2,
+      "ipc_bytes": 9880,
+      "resident_pages": 64,
+      "cold_objects": 937,
+      "cold_bytes": 107957601,
+      "seconds": 1376.23
+    }
+  },
+  "log": {
+    "path": "/tmp/rey-issue53-e870713e-unified-query.log",
+    "sha256": "06d0e2680434b4f5c1128e82b6b67eee0cb08900bf18cd561132895d4bf61e51"
+  },
+  "scope": "Passed before integration of current main at a4ba1124; does not qualify the new transport source implicitly."
+}

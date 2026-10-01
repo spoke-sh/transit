@@ -341,6 +341,7 @@ test "paired upload keeps partial publication separate from admission and reject
         try store.commit(turn);
     }
     try t.expect(steps > 2 and steps < 20);
+    try t.expect(store.state.get(input.identity_key).?.eql(try Upload.marker(input.domain, input.namespace, input.identity)));
     var turn = try store.capture();
     const publication: Pub = .{ .domain = .application, .resource = 7, .namespace = input.namespace };
     try verify(publication, &turn, 1, "metadata");

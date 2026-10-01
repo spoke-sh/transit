@@ -109,19 +109,27 @@ def exercise(profile, name=None, base=None, existing=False):
                     invoke("send", "query", "--request-id", "proof-query")
                     started_reply = time.monotonic()
                     deadline = started_reply + 60
-                    fault.recover(deadline)
+                    recovery = fault.recover(deadline)
+                    # Readiness replacement deliberately consumes about 30 seconds
+                    # in failed probes. Bound resumed query progress separately;
+                    # no phase can renew its own deadline after an unavailable read.
+                    assert time.monotonic() < deadline, "Courier replacement exceeded its original deadline"
+                    resumed = time.monotonic()
+                    completion_deadline = resumed + 60
                     await_value(lambda: entry("requester", b"last-query") is not None,
-                                "Arrow reply did not complete", seconds=max(0, deadline-time.monotonic()))
+                                "Arrow reply did not complete", seconds=max(0, completion_deadline-time.monotonic()))
                     reply_seconds = time.monotonic() - started_reply
-                    assert time.monotonic() < deadline, "Arrow reply exceeded its original deadline"
+                    assert time.monotonic() < completion_deadline, "Arrow reply exceeded its completion deadline"
                     assert fault.commands > 0
+                    recovery['query_completion_seconds'] = round(time.monotonic()-resumed, 3)
                     passed = True
             finally:
                 # Record only after the timed schedule and cleanup. A reply
                 # observed after cleanup's restart cannot turn failure into a pass.
                 readiness = {"version": 1, "profile": profile, "installation": installation.name,
                              "artifact_provenance": installation.artifacts.read("selected")["provenance"],
-                             "deadline_seconds": 60, "query_submitted": started_reply is not None,
+                             "replacement_deadline_seconds": 60, "completion_deadline_seconds": 60,
+                             "query_submitted": started_reply is not None,
                              "reply_seconds": reply_seconds, "passed_before_cleanup": passed,
                              "recovery": fault.recovery, "refused_reads": fault.refusals,
                              "forwarded_commands": fault.commands,
