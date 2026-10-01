@@ -10,14 +10,17 @@ import { logical } from "@transit/station";
 
 const codec = await logical.Codec.open();
 try {
-  const type = await logical.Type.fromJson(codec,
-    '{"definition":"transit.fuze.types.v1.2026-09-30","type":{"uint128":{}}}');
-  const value = await logical.Value.bind(codec, type,
-    "340282366920938463463374607431768211455");
+  const type = await logical.Type.fromJson(
+    codec,
+    '{"definition":"transit.fuze.types.v1.2026-09-30","type":{"uint128":{}}}',
+  );
+  const value = await logical.Value.bind(codec, type, "340282366920938463463374607431768211455");
   const saved = value.bytes;
   const ipc = await codec.arrow(value);
   // Both byte arrays and the logical value survive codec.close().
-} finally { await codec.close(); }
+} finally {
+  await codec.close();
+}
 ```
 
 `Type.fromJson/fromBytes` and `Value.fromJson/fromBytes` validate complete logical
