@@ -2616,6 +2616,22 @@ the focused query timeout. Hosted run `36832812554` is refused before any test
 starts with the same GitHub account billing annotation. The source-specific
 record retains both outcomes; neither is a complete ordinary or cost pass.
 
+The [receipt-batching follow-up](verification/results/m37-delivery-receipt-batching-2026-10-01.json)
+at `8e49e0bc` prepares delivery's records together with the caller sequence and
+receipt in the existing eight-key mutation limit. Other commands still read
+their resulting caller record after applying their own changes. The same unit
+fixture now stages **six pages**, with twelve staging/acknowledgement fault
+cases; all 65 tests pass. Expanded replay passes **70 traces / 10,535 events** in
+227.346 seconds, full repository checks pass on matching development source,
+and both compiling delivery mutants are detected at the committed revision.
+
+A six-key/eight-key/six-key disk comparison again times out in all three delivery
+phases, after **415/430/394 commands**, with matching coordinates over their common
+394-command prefix. Total fixture times are 237.729/244.619/259.620 seconds.
+The additional staging reduction does not resolve the deadline, and these
+incomplete shared-host samples do not establish a complete-workload speedup.
+All phase limits, provider durability and workload assertions are unchanged.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after

@@ -281,7 +281,7 @@
     ]
   },
   "limits": [
-    "The earlier focused original/batched/original query comparison timed out under the unchanged180second delivery cap; the clean core pass does not resolve it.",
+    "The earlier focused original/batched/original query comparison timed out under the unchanged 180-second delivery cap; the clean core pass does not resolve it.",
     "The driver deliberately stops between lanes; no complete ordinary, browser or cost qualification is claimed.",
     "Independent eight-key development checks ran alongside parts of this shared-host core attempt; elapsed time is not an isolated performance measurement."
   ]
