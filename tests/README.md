@@ -2586,6 +2586,27 @@ the wrapper's termination is not a failed SDK proof. This source ends with
 browser tasks. Hosted run `36823397287` is refused before execution by GitHub's
 account billing restriction and contains no test results.
 
+The [batching control](verification/results/m37-delivery-batching-2026-10-01.json)
+compares `9b19d569` with the original delivery path. It groups the disposition,
+three pending-index removals and optional mailbox/process pair into one existing
+bounded catalog mutation. The same small-catalog unit fixture stages **eight
+pages instead of sixteen**. Both paths pass all 65 core tests. Every numbered
+staging refusal and lost staging acknowledgement leaves the published admission,
+mailbox and pending indexes unchanged; recovery and exact retry preserve one
+admission with original source/turn/output provenance. Expanded simulation passes
+**70 traces / 10,535 events with identical replay** in 238.024 seconds. Both
+compiling route-order and delivery-origin mutants are detected, and full
+repository checks pass on the matching development source.
+
+The sequential original/batched/original disk comparison uses the same caller,
+fixture, CPU, stack limit and phase deadlines. **All three delivery phases time
+out**, after 321, 410 and 382 completed commands respectively; the common prefix
+has identical command coordinates. Total fixture times are 247.660, 256.580 and
+246.524 seconds. The batched sample makes more progress, but does not clear the
+deadline. These shared-host, incomplete workload observations do not qualify an
+end-to-end speedup or resolve the historical timing change. Committed-source
+clean qualification remains separate.
+
 ## Interrupted CI evidence — 2026-10-01
 
 Hosted launcher job `110201098691` reaches its 30-minute execution cap after
