@@ -115,12 +115,9 @@ pub const Plan = struct {
         }
         if (self.aggregate != .rows and self.projection.len != 1) return error.UnsupportedAggregate;
         if (self.aggregate == .sum and self.schema.structure[self.projection[0]].type != .int64) return error.UnsupportedAggregate;
-        if (renamed) {
-            var fields: [128]types.Field = undefined;
-            for (0..self.projection.len) |i| fields[i] = self.outputField(i);
-            // Repeated recursive inputs must still fit the descriptor budget.
-            try (types.Type{ .structure = fields[0..self.projection.len] }).validate(.{});
-        }
+        // The 128-field descriptor workspace belongs only to renamed outputs;
+        // keep its stack probing/initialization out of ordinary validation.
+        if (renamed) try @call(.never_inline, validateOutput, .{&self});
         switch (self.predicate) {
             .program => |program| try program.validate(self.schema),
             inline else => |value, tag| try @as(Atom, @unionInit(Atom, @tagName(tag), value)).validate(self.schema),
@@ -189,6 +186,12 @@ pub const Plan = struct {
             field.name = name;
         };
         return field;
+    }
+    fn validateOutput(self: *const Plan) !void {
+        var fields: [128]types.Field = undefined;
+        for (0..self.projection.len) |i| fields[i] = self.outputField(i);
+        // Repeated recursive inputs must still fit the descriptor budget.
+        try (types.Type{ .structure = fields[0..self.projection.len] }).validate(.{});
     }
     fn matches(self: Plan, cells: []const values.Cell) !bool {
         const truth = switch (self.predicate) {
