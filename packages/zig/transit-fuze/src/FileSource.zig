@@ -68,7 +68,9 @@ pub const Binding = struct {
     }
     pub fn validateMetadata(self: *const Binding) !void {
         try self.options.validate();
-        try self.schema.type.validate(.{});
+        // bindingDigest fingerprints the descriptor through its validating
+        // encoder below. Keep that check once per metadata validation rather
+        // than traversing the same bounded tree twice.
         if (self.schema.type != .structure or self.schema.type.structure.len > self.options.max_fields) return error.InvalidExplicitSchema;
         if (self.options.format == .csv) for (self.schema.type.structure) |field| switch (field.type) {
             .structure, .list, .array, .map, .tagged_union, .json, .interval => return error.UnsupportedCsvType,
