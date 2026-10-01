@@ -213,8 +213,7 @@ pub const Compiled = struct {
 };
 pub fn compile(allocator: std.mem.Allocator, text: []const u8, name: []const u8, binding: *const source.Binding) !Compiled {
     try binding.validateMetadata();
-    var encoded: [types.max_encoding_bytes]u8 = undefined;
-    var descriptor = try types.decode(allocator, try binding.schema.type.encode(&encoded));
+    var descriptor = try binding.schema.type.clone(allocator);
     errdefer descriptor.deinit();
     const schema = descriptor.type;
     var arena: std.heap.ArenaAllocator = .init(allocator);

@@ -35,6 +35,57 @@ test "logical descriptors own decoded names and reject incompatible incomplete o
     cycle = .{ .list = .{ .type = &cycle } };
     try t.expectError(error.TypeBudgetExceeded, cycle.validate(.{}));
 }
+fn cloneAfterRelease(allocator: std.mem.Allocator, bytes: []const u8) !void {
+    var copy = blk: {
+        var original = try m.decode(t.allocator, bytes);
+        defer original.deinit();
+        break :blk try original.type.clone(allocator);
+    };
+    defer copy.deinit();
+    var buffer: [m.max_encoding_bytes]u8 = undefined;
+    try t.expectEqualSlices(u8, bytes, try copy.type.encode(&buffer));
+}
+test "descriptor copies own recursive children after source release and clean up every allocation failure" {
+    const descriptor: m.Type = .{ .structure = &.{
+        .{ .name = "nested", .type = nested, .nullable = true },
+        .{ .name = "array", .type = .{ .array = .{ .length = 17, .element = .{ .type = &.{ .timestamp = .utc }, .nullable = true } } } },
+        .{ .name = "map", .type = .{ .map = .{ .key = &.binary, .value = .{ .type = &.{ .list = .{ .type = &.int8 } }, .nullable = true } } }, .optional = true },
+        .{ .name = "union", .type = .{ .tagged_union = &.{ .{ .name = "left", .type = .{ .timestamp = .civil } }, .{ .name = "right", .type = nested, .nullable = true } } } },
+    } };
+    var buffer: [m.max_encoding_bytes]u8 = undefined;
+    try t.checkAllAllocationFailures(t.allocator, cloneAfterRelease, .{try descriptor.encode(&buffer)});
+    const duplicate: m.Type = .{ .structure = &.{ .{ .name = "x", .type = .int8 }, .{ .name = "x", .type = .int16 } } };
+    try t.expectError(error.DuplicateField, duplicate.clone(t.allocator));
+    const invalid: m.Type = .{ .array = .{ .length = 0, .element = .{ .type = &.int64 } } };
+    try t.expectError(error.InvalidArrayLength, invalid.clone(t.allocator));
+    var cycle: m.Type = undefined;
+    cycle = .{ .list = .{ .type = &cycle } };
+    try t.expectError(error.TypeBudgetExceeded, cycle.clone(t.allocator));
+}
+test "descriptor copies preserve default node and name budgets at their boundaries" {
+    var names: [17][255]u8 = @splat(@splat('x'));
+    var fields: [17]m.Field = undefined;
+    for (&fields, 0..) |*field, i| {
+        names[i][0] = 'A' + @as(u8, @intCast(i));
+        field.* = .{ .name = names[i][0..if (i == 16) @as(usize, 16) else 255], .type = .int64 };
+    }
+    var buffer: [m.max_encoding_bytes]u8 = undefined;
+    const descriptor: m.Type = .{ .structure = &fields };
+    try cloneAfterRelease(t.allocator, try descriptor.encode(&buffer));
+    fields[16].name = names[16][0..17];
+    try t.expectError(error.TypeBudgetExceeded, descriptor.clone(t.allocator));
+
+    var node_names: [255][2]u8 = undefined;
+    var nodes: [255]m.Field = undefined;
+    for (&nodes, 0..) |*field, i| {
+        node_names[i] = std.fmt.bytesToHex(&[_]u8{@intCast(i)}, .lower);
+        field.* = .{ .name = &node_names[i], .type = .int64 };
+    }
+    const full: m.Type = .{ .structure = &nodes };
+    try cloneAfterRelease(t.allocator, try full.encode(&buffer));
+    nodes[0].type = .{ .list = .{ .type = &.int64 } };
+    try t.expectError(error.TypeBudgetExceeded, full.clone(t.allocator));
+}
 test "exact literals and casts preserve integer bits and require explicit rounding" {
     try t.expectEqual(std.math.maxInt(u128), (try s.bind("340282366920938463463374607431768211455", .uint128)).unsigned);
     try t.expectEqual(std.math.minInt(i128), (try s.bind("-170141183460469231731687303715884105728", .int128)).signed);
@@ -82,6 +133,10 @@ test "Python independent scalar oracle matches literal binding fingerprints and 
         const encoded_type = try std.fmt.hexToBytes(&type_bytes, fixture.type_hex);
         var descriptor = try m.decode(t.allocator, encoded_type);
         defer descriptor.deinit();
+        var copied = try descriptor.type.clone(t.allocator);
+        defer copied.deinit();
+        var copied_bytes: [1024]u8 = undefined;
+        try t.expectEqualSlices(u8, encoded_type, try copied.type.encode(&copied_bytes));
         var digest: [32]u8 = undefined;
         _ = try std.fmt.hexToBytes(&digest, fixture.fingerprint);
         try t.expectEqualSlices(u8, &digest, &try descriptor.type.fingerprint());

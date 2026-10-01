@@ -95,7 +95,11 @@ logical descriptor does not enable new SQL grammar or change stored Tables.
 ## Implemented local API and encoding
 
 `transit_fuze.Types` implements descriptors, validation, fingerprints and canonical
-`FTY1` encoding. `Semantics` implements scalar validation/binding, checked integer
+`FTY1` encoding. `Type.clone(allocator)` validates the descriptor and encoded-byte
+budgets, then returns an independently owned descriptor with identical canonical
+bytes and fingerprint. Its `Decoded` result owns names and recursive children in
+an arena released by `deinit`; allocation failure releases partial copies.
+`Semantics` implements scalar validation/binding, checked integer
 and decimal casts, integer/float casts with reject or nearest-even policy,
 float32/64 casts, integer/float/decimal domain promotion and conservative CSV text
 classification. Float-to-integer, binary-float/decimal, temporal casts and interval
