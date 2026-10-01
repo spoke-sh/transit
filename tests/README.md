@@ -11616,3 +11616,19 @@ and **17 of 26 tasks remain unrun**. The [separate record](verification/results/
 retains exact metadata and task order. This repeats the earlier failure stage;
 its cause remains unestablished. Checkout `/var/tmp/transit-ci-r6_tbid3/src` and
 log `/var/tmp/transit-count-plan-validation-clean-growth.log` are retained.
+
+The [frozen compiler diagnostics](benchmarks/results/2026-10-01-count-values-compiler-diagnostics.json.gz)
+retain **108 correct process results** for the three failing full-matrix cases.
+Each case first compares the current binary with itself, then with the frozen
+pre-COUNT binary, using nine alternating pairs, CPU 1, explicit discovery and
+the original input-cache conditions and 1.15 limit. Same-binary compiler ratios
+are **0.9835/0.9875/0.9476** for warm narrow projection, cold nested COUNT(*) and
+cold pipe COUNT(*), respectively. The corresponding pre-COUNT ratios are
+**0.9628/1.0066/0.9666**; all six pipeline comparisons also pass. Sample identities,
+medians, frozen binary hashes and prototype source hashes are independently
+audited. No source or benchmark change separates these observations from the
+earlier full matrix. The shared-host diagnostics do not reproduce its three
+failures, establish their cause, erase them or provide a full timing pass. They
+do not justify another runtime optimization without further evidence. Logs
+`/var/tmp/transit-count-compiler-self-control.log` and
+`/var/tmp/transit-count-compiler-diagnostic-comparison.log`.
