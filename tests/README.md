@@ -9361,6 +9361,23 @@ previous output-name profile and explicitly reject output aliases; source `AS`
 aliases remain supported. Earlier merged-tree checks do not qualify this rebased
 revision; final checks must run again.
 
+### Post-merge Fuze qualification
+
+Follow-up revision `a24f5cd3` passes locked frontend installation, full
+`just check`, `just test::sql` (134 independent SELECT ASTs, 105 compiled plans
+and 44 unified results), `just test::fuze-types` (11 tests / 46 scalar fixtures),
+`just test::fuze-sources` (25 tests), `just test::file-query` (92 real cases),
+`just test::logical-arrow` (100 PyArrow cases) and `just test::logical-codec`
+(91 C ABI/native-port cases). The three added file-query cases reject output
+aliases in this narrower profile; native SQL retains its output-name support.
+
+Its specialized six-type control still fails the frozen 1.15 ratio budget in
+seven predicate/aggregate cases. The
+[post-merge evidence](fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+retains the complete raw repetitions and scoped failed gate. This is a detected
+regression, not final performance qualification. Final clean lanes and the
+installed-owner rerun remain outstanding under issue #53.
+
 
 ## Durable Table mutation latency
 

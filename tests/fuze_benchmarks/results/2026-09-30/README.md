@@ -146,3 +146,23 @@ metadata algorithm. These reports measure their recorded revisions, not that
 integration. No optimization or speedup is claimed. Further optimization needs
 complete matching evidence under these budgets
 or an explicitly reviewed new measurement profile established beforehand.
+
+## Post-merge specialized-path regression
+
+After PR #42 merged, follow-up revision `a24f5cd3` passes full checks and the
+focused SQL/type/source/file/Arrow/codec proofs. Its
+[unchanged six-type driver](post-merge/six-before.json.gz), however, exceeds the
+frozen 1.15 candidate/control budget in seven of eight cases: predicate/aggregate
+ratios are 1.1795–1.2093; row export is 1.0093. The
+[scoped gate record](post-merge/six-before-gates.json) retains all failures. It
+checks only the specialized path, not the file comparison matrix or RAM/cache
+proof. It uses the same frozen control binary, driver hash, lockfile and CPU as
+the original budget and one warmup plus nine measured processes per binary.
+
+The raw runner reports completed measurements as `status: passed`; the separate
+gate record evaluates their ratios and correctly reports `failed`. Ratios are
+recomputed from the raw repetitions with `budgets.six_ratios`, with control,
+driver, lock and CPU identity checked against the frozen `budgets.json` before
+applying its `six.max_ratio`. No numeric budget is changed. A `perf record`
+diagnostic attempt was denied by the host's `perf_event_paranoid=4`; no kernel
+setting was changed and no sampled CPU profile is claimed.
