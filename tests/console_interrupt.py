@@ -8,6 +8,7 @@ import threading
 import time
 
 from console_terminal import Terminal
+from console_settings import read_show
 
 
 def payload(message):
@@ -55,6 +56,11 @@ def check(binary, path, root, kind, invoke, fault):
         page = terminal.read(timeout=420)
         assert page['complete_coverage']
         assert page['cells'][0][0]['value']['uint64'] in ('12', '41')
+        # Result output precedes the final recovery checkpoint. Prompt redraws
+        # while typing can also satisfy expect() before execution has finished.
+        # A subsequent local command acknowledges completion without native I/O.
+        terminal.send('.show\r')
+        assert read_show(terminal)['format'] == 'json'
         terminal.expect('\rtransit> ')
 
     try:
