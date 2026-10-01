@@ -269,8 +269,8 @@ needs its own ordering and fencing design.
 
 ## Durable Table mutation measurements
 
-`just test::mutation-latency --output /var/tmp/mutations.json` measures the full
-public writer path against an owned disk-backed local installation. It records
+The [mutation latency task](../../tests/README.md#durable-table-mutation-latency)
+measures the full public writer path against an owned disk-backed local installation. It records
 raw samples, executable hashes, source provenance, console phases, affected-row
 checks and independent reads. A failed or interrupted experiment is incomplete;
 its JSON report and original recovery files remain available. Completed samples

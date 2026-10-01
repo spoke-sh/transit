@@ -133,10 +133,15 @@ pub fn main(init: std.process.Init) !void {
         const request = try caller.compileSql(try .init("items"), args[5]);
         const ref = try request.reference(namespace);
         try saveReference(init, directory, ref);
-        for (0..16) |_| {
-            const prepared = (try caller.prepareNext(namespace, request)) orelse {
-                return error.UnexpectedTerminalMutation;
-            };
+        for (0..16) |step| {
+            // This fixture deliberately tests publication staging even when the
+            // automatic client would select direct admission for small bytes.
+            const prepared = if (step == 0 and try caller.status(ref) == null)
+                try caller.prepare(.{ .begin = .{ .reference = ref, .table = request.table, .policy_revision = (try caller.describe()).policy.revision } })
+            else
+                (try caller.prepareNext(namespace, request)) orelse {
+                    return error.UnexpectedTerminalMutation;
+                };
             const frame = try s.Frame.decode(prepared.signed.request.command.send.value);
             const command = try r.Command.decode(&frame.payload);
             if (command == .apply) return print(init, .{ .staged = namespace });
