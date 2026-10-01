@@ -7431,6 +7431,38 @@ names and repeated inputs. Earlier measurements and installed artifacts retain
 their original pre-rebase source identities; the rebase does not qualify new
 installed write routes or resolve the recorded cold-store capacity failure.
 
+### Output aliases with the combined local Table writer
+
+The output-alias continuation rebases onto `65c9c669`, retaining the combined
+local Table query/writer and automatic console write route from `a0a9375e`.
+The rebase preserves author dates and resolves definition/generated-resource
+conflicts by generating a combined current native definition:
+`1b790ef9b226fa9d5ee27622dd7fbfd51cb56eb764574594c0a792d4170bf0a2`,
+the SHA-256 of
+`transit.native.v1.local-writer.sql-output-name-callers.2026-09-30`.
+The output-name `FZP1` definition stays unchanged. Schemas, ABI resources, browser
+validators and independent SHA-256/OpenSSL signing fixtures are regenerated.
+Explicit regressions reject alias-only, local-writer-only and intermediate
+definitions. No installation history is converted or reset.
+
+The first full check fails one protocol fixture because the independently
+recomputed entries-query digest omitted the existing `resource` and `revision`
+null fields. Correcting the expected canonical bytes preserves production
+signing. The failed log is
+`/tmp/transit-sql-output-aliases-local-writer-check.log`; full `just check` and
+`just test::sql` then pass in
+`/tmp/transit-sql-output-aliases-local-writer-check-fixed.log`.
+
+That combined command's subsequent `just test::server` fails before its local
+console transcript: the bindings shell's `TRANSIT_SQL_TOOLS` build setting leaks
+into automatic server configuration and correctly rejects as unknown. Evidence
+remains at `/var/tmp/transit-server-proof-i9no6k0w`. A focused run removes only
+the shell's `TRANSIT_SQL_TOOLS` and `TRANSIT_GSON_JAR` variables, retaining the
+same pinned tools and unchanged fixture. It passes the real console write,
+readiness, current-denial and restart schedule in **36.51 s**; its log is
+`/tmp/transit-sql-output-aliases-local-writer-server.log`. This local-server proof
+does not complete the separate installed all-source recovery or clean gates.
+
 ## SQL performance iteration
 
 ### Output-name component coverage
