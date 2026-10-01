@@ -1,4 +1,4 @@
-//! Finite plans over a frozen file binding. SQL lowering and cell/aggregate
+//! Finite plans over a frozen file binding. SQL parsing, literals and cell/aggregate
 //! semantics are shared with native Unified plans. All source rows are decoded
 //! and verified even when projection/filter/limit would discard their values.
 const std = @import("std");

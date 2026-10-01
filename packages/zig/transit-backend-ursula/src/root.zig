@@ -9,6 +9,16 @@ pub const PackedPageStore = @import("PackedPageStore.zig");
 pub const max_record_bytes = 64 * 1024;
 pub const read_window = 16;
 
+/// Optional counters owned by the serialized backend caller. They survive log
+/// sampling and count attempts, including errors, never unique durable commits.
+pub const Metrics = struct {
+    requests: u64 = 0,
+    failures: u64 = 0,
+    elapsed_ns: u64 = 0,
+    request_payload_bytes: u64 = 0,
+    response_bytes: u64 = 0,
+};
+
 test {
     _ = PackedPageStore;
 }
@@ -19,6 +29,27 @@ pub const Journal = struct {
     stream: ursula.Stream,
     observer: ?*observations.telemetry.Runtime = null,
     parent_context: ?observations.telemetry.Context = null,
+    metrics: ?*Metrics = null,
+
+    pub fn send(self: Journal, operation: ursula.Operation) !ursula.Response {
+        const counters = self.metrics orelse return self.client.send(operation);
+        counters.requests +|= 1;
+        switch (operation) {
+            .append => |value| counters.request_payload_bytes +|= value.body.len,
+            .append_batch => |value| for (value.frames) |frame| {
+                counters.request_payload_bytes +|= frame.len;
+            },
+            else => {},
+        }
+        const started = std.Io.Clock.awake.now(self.client.http.io);
+        defer counters.elapsed_ns +|= @intCast(@max(0, started.durationTo(std.Io.Clock.awake.now(self.client.http.io)).toNanoseconds()));
+        const result = self.client.send(operation) catch |err| {
+            counters.failures +|= 1;
+            return err;
+        };
+        counters.response_bytes +|= result.body.len;
+        return result;
+    }
 
     pub fn create(self: Journal) !void {
         var observation = observations.begin(self.observer, .storage_operation, "journal.create", self.parent_context);
@@ -31,10 +62,10 @@ pub const Journal = struct {
     }
 
     fn createImpl(self: Journal) !void {
-        var bucket = try self.client.send(.{ .create_bucket = self.stream.bucket });
+        var bucket = try self.send(.{ .create_bucket = self.stream.bucket });
         defer bucket.deinit();
         try bucket.head.requireSuccess();
-        var stream = try self.client.send(.{ .create_stream = .{ .stream = self.stream, .options = .{ .content_type = "application/json" } } });
+        var stream = try self.send(.{ .create_stream = .{ .stream = self.stream, .options = .{ .content_type = "application/json" } } });
         defer stream.deinit();
         try stream.head.requireSuccess();
         _ = try self.tail();
@@ -52,7 +83,7 @@ pub const Journal = struct {
     }
 
     fn tailImpl(self: Journal) !u64 {
-        var response = try self.client.send(.{ .head = .{ .stream = self.stream } });
+        var response = try self.send(.{ .head = .{ .stream = self.stream } });
         defer response.deinit();
         try response.head.requireSuccess();
         const meta = try response.head.metadata();
@@ -76,7 +107,7 @@ pub const Journal = struct {
 
     fn appendImpl(self: Journal, expected: u64, object: []const u8) !bool {
         try validateObject(self.client.http.allocator, object);
-        var response = try self.client.send(.{ .append = .{
+        var response = try self.send(.{ .append = .{
             .stream = self.stream,
             .body = object,
             .options = .{ .content_type = "application/json", .record_match = expected },
@@ -100,7 +131,7 @@ pub const Journal = struct {
     }
 
     fn readImpl(self: Journal, position: u64) !ursula.Response {
-        var response = try self.client.send(.{ .read = .{
+        var response = try self.send(.{ .read = .{
             .stream = self.stream,
             .options = .{ .position = .{ .record = position }, .max_records = read_window },
         } });

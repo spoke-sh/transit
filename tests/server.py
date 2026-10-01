@@ -183,7 +183,7 @@ class Fixture:
             return post(port, '/v1/query', native(key, realm, 10, kind))
 
         def policy():
-            result = query({'read_entries': dict(resource=done[5], revision=None, keys=[address] + [None] * 7)})
+            result = query({'read_entries': dict(resource=done[5], revision=None, view=None, keys=[address] + [None] * 7)})
             return bytes.fromhex(result['body']['read_entries']['entries'][0]['value'])
 
         current = policy()

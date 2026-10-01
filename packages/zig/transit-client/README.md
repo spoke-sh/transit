@@ -193,3 +193,10 @@ and current metadata. `batch` preserves that cut while acquiring fresh current
 metadata, reading bounded ranges/points or validating and releasing the token.
 The response distinguishes those bases. See the
 [combined read contract](../../../contracts/INTERACTIVE_QUERY_V1.md#combined-snapshot-reads).
+
+The native client ages pooled sockets from the start of the previous exchange,
+including response transfer/parsing time. Exchanges older than the bounded reuse
+window retire idle sockets before the next send. The gateway uses the same rule.
+This reduces stale reuse after slow responses without retrying an uncertain
+request. A peer can still close a connection or exceed its deadline; callers
+retain and reconcile the exact prepared identity after transport failure.

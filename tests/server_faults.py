@@ -60,14 +60,20 @@ def reusable_connections(fixture):
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=3)
         try:
             peer = None
-            for _ in range(3):
+            # Cross the listener's exact request cap, verifying advertised close
+            # and fresh reconnection rather than reusing a retired socket.
+            for index in range(66):
                 connection.request('GET', '/health')
                 if peer is None:
                     peer = connection.sock
-                assert connection.sock is peer, role
+                if index == 64:
+                    assert connection.sock is not peer, role
+                    peer = connection.sock
+                else:
+                    assert connection.sock is peer, role
                 reply = connection.getresponse()
                 assert reply.status == 200 and json.loads(reply.read())['ready']
-                assert reply.getheader('Connection') != 'close'
+                assert (reply.getheader('Connection') == 'close') == (index == 63)
             # Reading an incomplete body must not hold the authority lock or
             # monopolize accept. Health uses the separate admission reserve.
             slow = socket.create_connection(('127.0.0.1', port), timeout=3)

@@ -182,3 +182,14 @@ private candidate roots cannot authorize a read against another root. Data-entry
 reads do not occupy these slots. All ordinary validation and final authority
 barriers remain in place. The cache does not bound retained metadata cardinality
 or keep resources alive, and it grants no permission of its own.
+
+### Compatible catalog mutations
+
+A candidate batches the mailbox/process pair, caller sequence/receipt pair,
+view record/indexes, output indexes and effect indexes. Row changes and their
+resource metadata share a bounded batch. This reduces repeated tree path copies
+within one atomic operation. All input validation, current authorization and
+revision checks precede authoritative publication; staged pages are not accepted
+work. The existing conditional journal append publishes the complete candidate
+or leaves the previous root authoritative. Collection cardinality and retention
+are unchanged.

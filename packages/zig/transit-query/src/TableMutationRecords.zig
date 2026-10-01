@@ -134,7 +134,10 @@ pub const Status = struct {
     }
 };
 pub const Begin = struct { reference: Ref, table: u32, policy_revision: u64 };
+pub const Inline = struct { namespace: u64, policy_revision: u64, request: Request };
+pub const inline_bytes = q.station.Frame.max_payload - 4 - 8 - 8;
 pub const Command = union(enum) {
+    execute: Inline,
     begin: Begin,
     part: struct { reference: Ref, ordinal: u32, second: bool, bytes: []const u8 },
     seal: Ref,
@@ -144,6 +147,7 @@ pub const Command = union(enum) {
         var bytes: [q.station.Frame.max_payload]u8 = undefined;
         var writer: std.Io.Writer = .fixed(&bytes);
         try writer.writeAll(switch (self) {
+            .execute => "TME1",
             .begin => "TMB1",
             .part => "TMP1",
             .seal => "TMZ1",
@@ -151,6 +155,16 @@ pub const Command = union(enum) {
             .cancel => "TMK1",
         });
         switch (self) {
+            .execute => |value| {
+                _ = try value.request.reference(value.namespace);
+                try identity(value.policy_revision);
+                var encoded: [Request.max_bytes]u8 = undefined;
+                const request = try value.request.encode(&encoded);
+                if (request.len > inline_bytes) return error.InvalidMutationCommand;
+                try writer.writeInt(u64, value.namespace, .little);
+                try writer.writeInt(u64, value.policy_revision, .little);
+                try writer.writeAll(request);
+            },
             .begin => |value| {
                 try Request.checkReference(value.reference);
                 try identity(value.policy_revision);
@@ -181,7 +195,11 @@ pub const Command = union(enum) {
         if (value.len > q.station.Frame.max_payload) return error.InvalidMutationCommand;
         var reader: std.Io.Reader = .fixed(value.slice());
         const tag = try reader.take(4);
-        const result: Command = if (std.mem.eql(u8, tag, "TMB1")) .{ .begin = .{ .reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .table = try reader.takeInt(u32, .little), .policy_revision = try reader.takeInt(u64, .little) } } else if (std.mem.eql(u8, tag, "TMP1")) blk: {
+        const result: Command = if (std.mem.eql(u8, tag, "TME1")) blk: {
+            const namespace = try reader.takeInt(u64, .little);
+            const revision = try reader.takeInt(u64, .little);
+            break :blk .{ .execute = .{ .namespace = namespace, .policy_revision = revision, .request = try Request.decode(try reader.take(reader.bufferedLen())) } };
+        } else if (std.mem.eql(u8, tag, "TMB1")) .{ .begin = .{ .reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes))), .table = try reader.takeInt(u32, .little), .policy_revision = try reader.takeInt(u64, .little) } } else if (std.mem.eql(u8, tag, "TMP1")) blk: {
             const reference = try Ref.decode(try p.Value.init(try reader.take(Ref.encoded_bytes)));
             const ordinal = try reader.takeInt(u32, .little);
             const second = try reader.takeByte();

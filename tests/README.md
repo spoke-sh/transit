@@ -2522,8 +2522,8 @@ failure after nineteen passes. Clean experience at `31f071d0` passes six tasks,
 then misses the original 60-second Station Arrow-reply window following the
 courier readiness fault. The original reply later exists without resubmission,
 after the fault fixture restores the original endpoint and restarts the courier
-during cleanup. This
-observation does not prove completion without that intervention. The owned
+during cleanup. This observation does not prove completion without that
+intervention. The owned
 installation is then stopped and its disk state retained. Current evidence does
 not establish the cause of that progress delay. The local Station proof writes
 `.cache/m9/station-local-readiness.json` after its timed schedule and cleanup,
@@ -9544,3 +9544,100 @@ and generated SDK resources retain that implementation. File plans keep their
 previous output-name profile and explicitly reject output aliases; source `AS`
 aliases remain supported. Earlier merged-tree checks do not qualify this rebased
 revision; final checks must run again.
+
+### Post-merge Fuze qualification
+
+Follow-up revision `a24f5cd3` passes locked frontend installation, full
+`just check`, `just test::sql` (134 independent SELECT ASTs, 105 compiled plans
+and 44 unified results), `just test::fuze-types` (11 tests / 46 scalar fixtures),
+`just test::fuze-sources` (25 tests), `just test::file-query` (92 real cases),
+`just test::logical-arrow` (100 PyArrow cases) and `just test::logical-codec`
+(91 C ABI/native-port cases). The three added file-query cases reject output
+aliases in this narrower profile; native SQL retains its output-name support.
+
+Its specialized six-type control still fails the frozen 1.15 ratio budget in
+seven predicate/aggregate cases. The
+[post-merge evidence](fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+retains the complete raw repetitions and scoped failed gate. This is a detected
+regression, not final performance qualification. Final clean lanes and the
+installed-owner rerun remain outstanding under issue #53.
+
+Native plan validation at `a99a9c59` avoids rebuilding an output schema when
+validated unique source names and projections already determine it. Aliased
+outputs retain their combined collision check. Binding also uses the same
+private canonical encoder after complete plan/basis validation, avoiding a
+second shape traversal; public encoding independently validates its inputs.
+Wire bytes, definitions, fingerprints, page/source checks and cancellation are
+unchanged. Fuze package tests and the complete independent SQL proof pass after
+both changes. The final paired six-type control passes every unchanged 1.15
+budget with ratios 1.0003–1.1219. Raw measurements, exact hashes and both prior
+failed trials remain in the linked evidence. Final clean lanes are still pending.
+
+At `331abe3a`, full `just check` and the 52 native C ABI/port codec cases pass.
+The clean core lane completes all 22 tasks, including signed service and disk
+recovery. Clean growth completes its first eight tasks: Arrow, logical types,
+sources, all 92 file-query cases, 100 logical Arrow cases, 91 logical codec cases,
+immutable pages and growing authority recovery. Main then advances through
+PR #57 to `8bd85869`; integrating it supersedes this source. The owned clean run
+is interrupted during `test::growing-service`, with exit 130 and no surviving
+owned processes. Growth is incomplete; experience, launchers and bindings did
+not start. The [retained checkpoint](verification/results/m39-superseded-2026-10-01.json)
+records task timings, completion and log hashes. These results do not qualify
+the new integration implicitly.
+
+The rebase preserves both evidence-ledger additions and every original commit
+author/committer date. Fuze, Arrow, the six-type driver and `flake.lock` match
+the measured native implementation; its raw benchmark reports retain their
+original revision identities. Main's new native definitions, generated caller
+resources, Table admission and transport changes require fresh integration
+checks and ordinary clean lanes.
+
+
+## Durable Table mutation latency
+
+Tracked by [issue #55](https://github.com/rupurt/rey/issues/55). Qualification is
+in progress; the following measurements are diagnostic evidence, not a latency
+SLO or an assertion that unexecuted gates passed.
+
+The initial supplied transcript placed 5.78–6.28 seconds inside `submit` for
+single-row mutations. Read-only source and owned ReleaseSafe experiments at
+`ac9ad43d` found four writer commands and twelve native durable operations per
+small statement, about 300 provider POSTs, and thirteen console checkpoints.
+Larger decoded caches removed most provider GETs but not the POST count; fixed
+20 ms polling did not reliably improve completion. Compiler/proposal component
+benchmarks excluded this work.
+
+An instrumented candidate fixture completed seven cases after catalog batching,
+direct admission and captured-read batching: INSERT 1.061 s, UPDATE 0.813 s,
+DELETE 0.845 s. Each used one send/view/turn and about 58–59 provider POSTs.
+These are single shared-host samples, including proxy overhead, from intermediate
+dirty source. The artifact records exact binary hashes. They do not establish
+percentile tails or a controlled speedup. Raw local artifact:
+`/var/tmp/transit-mutation-triage/candidate-batched.json`.
+
+The same harness with earlier binaries completed four instrumented statements
+(5.163, 4.317, 7.104 and 10.172 s) before `AuthorityUnavailable`; its status is
+failed with an unknown outcome. Evidence and the original pending request remain
+at `/var/tmp/transit-server-proof-jmnsc_bm` and
+`/var/tmp/transit-mutation-triage/baseline-matched.json`. This is incomplete
+baseline evidence, not a completed comparison. An earlier triage run also saw
+`HttpConnectionClosing`; that observation alone does not establish which peer or
+idle/deadline boundary closed the connection.
+
+Reproduce in `nix develop`:
+
+```sh
+just test::mutation-latency --repeat 20 --output /var/tmp/mutations-console.json
+just test::mutation-latency --repeat 20 --instrument --output /var/tmp/mutations-counts.json
+just test::mutation-latency --repeat 20 --rows 100 --age 100 --resident-pages 64 --output /var/tmp/mutations-aged.json
+just test::mutation-latency --repeat 20 --idle-ms 1500 --worker-interval-ms 20 --output /var/tmp/mutations-poll20.json
+just test::mutation-latency --repeat 20 --readers 1 --client .cache/transit-latency/release/bin/transit-mutation-latency-client --output /var/tmp/mutations-client.json
+```
+
+The ordinary task freezes ReleaseSafe binaries, creates an owned disk fixture,
+validates every affected count and selected row plus final cardinality, and joins
+its children. Row/history preparation is excluded from measured cases. A direct
+caller failure preserves `client-pending.json` with exact prepared bytes; a
+console failure preserves its ordinary recovery file. The runner does not resume
+or reset failed work. These are finite closed-loop experiments, not saturation,
+open-loop throughput or cold operating-system cache tests.

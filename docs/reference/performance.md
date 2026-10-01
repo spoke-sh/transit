@@ -267,6 +267,60 @@ provider access; no upstream database becomes a runtime dependency. Storage
 changes benefit both sessions and durable jobs, while authority partitioning
 needs its own ordering and fencing design.
 
+## Durable Table mutation measurements
+
+The [mutation latency task](../../tests/README.md#durable-table-mutation-latency)
+measures the full public writer path against an owned disk-backed local installation. It records
+raw samples, executable hashes, source provenance, console phases, affected-row
+checks and independent reads. A failed or interrupted experiment is incomplete;
+its JSON report and original recovery files remain available. Completed samples
+from a failed run do not establish a successful workload result.
+
+The fixture uses a persistent console. `--client` selects the separately compiled
+`transit-mutation-latency-client` public Zig consumer. That control checkpoints
+exact prepared requests and receipts and emits terminal outcomes, but does not
+perform console rendering or maintain the console's full recovery record; its
+local persistence costs therefore differ. Neither caller automatically retries
+an uncertain send. Terminal outcome and row visibility, rather than admission
+acknowledgement, define completion.
+
+Controls vary retained rows (`--rows`) separately from retained mutation history
+(`--age`), one/three-row INSERT, existing/same-value/absent UPDATE and DELETE,
+resident cache pages, fixed worker polling, idle gaps and concurrent independent
+readers. Each experiment has a one-second idle counter interval. Optional
+`--instrument` proxies add overhead; compare them separately from ordinary
+latency runs. Opt-in native diagnostics report complete per-attempt work and
+provider counters independently of sampled logs. Lock waits can overlap across
+requests, and provider time is included in work time; sums are not an exclusive
+wall-time decomposition. `--no-native-metrics` supports comparison with binaries
+that lack this diagnostic configuration field.
+
+The small-request path uses one send, one captured view and one committed turn.
+Requests up to 223 canonical bytes avoid the begin/part/seal/apply sequence.
+Batched captured reads, an eight-key turn-local cache and compatible catalog
+write batches reduce additional requests and page copies while retaining current
+authorization and atomic outcome checks. The console attributes local compilation,
+preparation, native send, processing wait, result reads and every recovery-file
+save to their respective timing phases. `submit` no longer absorbs the entire
+write lifecycle.
+
+The [executed mutation evidence](../../tests/README.md#durable-table-mutation-latency)
+records observations and outstanding limits. No latency SLO follows from these
+shared-host samples. Empirical nearest-rank p95 requires at least 20 samples per
+case and p99 at least 100; smaller runs report null for those percentiles.
+Worker polling remains a control to evaluate after reducing work. A faster
+poll alone can increase authority contention and does not establish a scheduling
+improvement.
+
+TPC components answer different questions. The local compiler/proposal cases
+exclude durable admission, owner processing, provider I/O and caller checkpoints;
+they cannot diagnose multi-second single-row writes. The
+[TPC-C](https://www.tpc.org/tpcc/) and [TPC-E](https://www.tpc.org/tpce/) workloads
+provide later transaction-processing comparisons. [TPC-H](https://www.tpc.org/tpch/)
+and [TPC-DS](https://www.tpc.org/tpcds/) address decision-support workloads.
+Transit's component measurements and incomplete workload coverage are not TPC
+scores or conformance results; consult the [benchmark reference](benchmarks.md).
+
 ## Reproduce and compare
 
 Use the [benchmark reproduction commands](../../tests/README.md#query-performance-reproduction)
@@ -391,6 +445,16 @@ scanning retain the measured baseline's metadata algorithm. The
 [experiment record](../../tests/fuze_benchmarks/results/2026-09-30/README.md#withdrawn-metadata-experiments)
 retains both failures and the observed shared-host interference; it establishes
 no qualified optimization benefit or isolated cause for every timing change.
+
+After native output-name support changed the plan profile, the specialized
+six-type control detected a separate validation regression. Native binding now
+avoids rebuilding an unchanged output schema and repeating shape validation
+within one canonical encoding. Complete source/plan checks and alias collision
+checks remain. A subsequent nine-pair measurement at `a99a9c59` records ratios
+1.0003–1.1219 against the original control, within the unchanged 1.15 budget.
+The [post-merge record](../../tests/fuze_benchmarks/results/2026-09-30/README.md#post-merge-specialized-path-regression)
+retains the failed trials and passing result. This evidence covers native
+six-type execution; it does not remeasure file or DuckDB performance.
 
 Independent [source, CLI and Arrow proofs](../../tests/README.md#fuze-bounded-file-sources)
 cover extreme values, malformed/outlier input, changed content, denial,

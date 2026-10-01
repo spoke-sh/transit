@@ -6,6 +6,21 @@ pub const max_plan_bytes = 8192;
 pub const definition = [_]u8{ 0x58, 0xae, 0x72, 0xe1, 0xf9, 0xa4, 0xb5, 0x89, 0x53, 0x6e, 0x5a, 0x0d, 0x26, 0x2d, 0x6e, 0x6a, 0xeb, 0xcc, 0x2f, 0xab, 0x40, 0x69, 0x8b, 0x4b, 0xfe, 0xa6, 0x83, 0x32, 0x81, 0xad, 0x9f, 0x3c };
 pub fn encode(plan: m.Plan, output: []u8) ![]const u8 {
     try plan.validateShape();
+    return encodeValidatedShape(plan, output);
+}
+/// Validate the complete binding before using the private canonical encoder.
+/// The public encode entry point independently validates caller-supplied shapes.
+pub fn boundFingerprint(plan: m.Plan, basis: m.Basis, schema: m.Schema) ![32]u8 {
+    try plan.validate(schema);
+    try basis.validate(schema);
+    var bytes: [max_plan_bytes]u8 = undefined;
+    const encoded = try encodeValidatedShape(plan, &bytes);
+    var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    hash.update("transit.fuze.plan.v1\x00");
+    hash.update(encoded);
+    return hash.finalResult();
+}
+fn encodeValidatedShape(plan: m.Plan, output: []u8) ![]const u8 {
     var writer: std.Io.Writer = .fixed(output);
     try writer.writeAll("FZP1");
     try writer.writeAll(&definition);

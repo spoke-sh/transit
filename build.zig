@@ -41,6 +41,14 @@ pub fn build(b: *std.Build) void {
     const fuze = b.dependency("transit_fuze", .{ .target = target, .optimize = optimize });
     b.step("logical-contract", "Export reflected logical type and value schemas").dependOn(&b.addRunArtifact(fuze.artifact("transit-logical-contract")).step);
     const query = b.dependency("transit_query", .{ .target = target, .optimize = optimize });
+    const mutation_latency_client = b.addExecutable(.{ .name = "transit-mutation-latency-client", .root_module = b.createModule(.{
+        .root_source_file = b.path("tests/mutation_latency_client.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }},
+        .link_libc = true,
+    }) });
+    b.step("mutation-latency-client", "Build the persistent public mutation caller control").dependOn(&b.addInstallArtifact(mutation_latency_client, .{}).step);
     const file_capture = b.createModule(.{ .root_source_file = b.path("apps/transit-cli/FileCapture.zig"), .target = target, .optimize = optimize, .imports = &.{.{ .name = "transit_query", .module = query.module("transit_query") }} });
     const file_benchmark = b.addExecutable(.{ .name = "transit-file-benchmark", .root_module = b.createModule(.{
         .root_source_file = b.path("tests/fuze_benchmarks/main.zig"),

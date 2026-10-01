@@ -78,6 +78,10 @@ exactly matching types, without implicit source-dependent casts. Other logical
 types can be projected; typed Zig plans can compare ordered scalar atoms with
 an explicitly supplied matching type. General casts, nested access, joins and
 additional SQL literal families are unsupported in this file-plan profile.
+Explicit source aliases (`FROM input AS src`) also apply inside the restricted
+aggregate input. The alias hides the original source qualifier. File plans reject
+bare aliases and output-column/aggregate aliases; native query plans support the
+output aliases described in the [native SQL guide](unified-sql.md).
 
 A plan binds the source commitment, complete schema, projection, predicate,
 aggregate and limit into a fingerprint. `Execution.init` checks that binding;

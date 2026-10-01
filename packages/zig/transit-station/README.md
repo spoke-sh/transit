@@ -60,3 +60,13 @@ See the [wire/layout contract](../../../contracts/STATION_V1.md) and the
 [Station ledger example](../../../examples/station-ledger/README.md).
 Run `just test::station` for the real-service recovery proof and
 `just test::unit` for the private proposal checks.
+
+### Captured turn reads
+
+GenServer reuses up to eight validated committed point reads within the same
+captured turn, including absent keys. Private writes take precedence; committed
+sources exclude them. A new turn/view has a new cache. Optional bounded prefetch
+uses native `read_entries` against that exact view with current authority and
+lifetime checks. Read failures poison the proposal, including cached reads after
+failure. Native commit still rechecks current ownership, grants, fencing and
+revision; the cache is not an authorization cache or a retained version.

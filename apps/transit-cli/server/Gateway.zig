@@ -26,7 +26,7 @@ const Context = struct {
         return std.mem.eql(u8, request.head.target, "/v1/command") or
             (if (http.header(request, "x-transit-control") catch null) |value| std.mem.eql(u8, value, "snapshot") else false);
     }
-    pub fn handle(self: *Context, io: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
+    pub fn handle(self: *Context, _: std.Io, allocator: std.mem.Allocator, request: *std.http.Server.Request) !void {
         if (!Hosts.allows(self.hosts, (try http.header(request, "host")).?)) return http.respond(request, .forbidden, "{\"err\":\"InvalidHost\"}");
         var headers = request.iterateHeaders();
         while (headers.next()) |header| {
@@ -52,8 +52,7 @@ const Context = struct {
             if (candidate.busy.cmpxchgStrong(false, true, .acquire, .monotonic) == null) break candidate;
         } else return http.respond(request, .service_unavailable, "{\"err\":\"HttpCapacity\"}");
         defer slot.busy.store(false, .release);
-        slot.client.expireIdleConnection();
-        defer slot.client.last_exchange_ms = std.Io.Clock.awake.now(io).toMilliseconds();
+        slot.client.beginExchange();
         const output = try allocator.alloc(u8, wire.max_body);
         defer allocator.free(output);
         var writer: std.Io.Writer = .fixed(output);

@@ -241,7 +241,8 @@ fn prepareTurn(self: *GenServer) !void {
     const view = page.view orelse return error.InvalidAuthorityResponse;
     if (view.resource != self.resource.?.id) return error.InvalidAuthorityResponse;
     const fresh = try self.freshDelivery();
-    self.ready = try Turn.init(fresh, view, .{ .context = self, .read = readKey, .page = readPage, .version = readVersion, .version_entries = readVersionEntries });
+    self.ready = try Turn.init(fresh, view, .{ .context = self, .cache_reads = true, .read = readKey, .many = readMany, .page = readPage, .version = readVersion, .version_entries = readVersionEntries });
+    self.ready.?.seedRead(descriptor_key, if (page.page.entries[0]) |entry| entry.value else null);
 }
 fn freshDelivery(self: *GenServer) !Session.Delivery {
     const fresh = (try self.session.receive()) orelse return error.InvalidAuthorityResponse;
@@ -253,6 +254,10 @@ fn readKey(context: *anyopaque, view: p.Growth.View, key: p.Value) anyerror!?p.V
     const page = try self.session.readView(view.id, key, null);
     if (page.view == null or !std.meta.eql(page.view.?, view)) return error.InvalidAuthorityResponse;
     return if (page.page.entries[0]) |entry| entry.value else null;
+}
+fn readMany(context: *anyopaque, view: p.Growth.View, keys: [p.Growth.page_size]?p.Value) anyerror![p.Growth.page_size]?p.Growth.Entry {
+    const self: *GenServer = @ptrCast(@alignCast(context));
+    return self.session.readViewMany(view, keys);
 }
 fn readPage(context: *anyopaque, view: p.Growth.View, after: ?p.Value) anyerror!@import("Turn.zig").Page {
     const self: *GenServer = @ptrCast(@alignCast(context));

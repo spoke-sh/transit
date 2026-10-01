@@ -155,10 +155,28 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
             break :blk .{ .read_access = resource };
         },
         .read_entries => |q| blk: {
-            try resourceScope(engine, principal, q.resource);
-            try state.allowed(engine, q.resource, query.principal, p.State.permission(.inspect) | p.State.permission(.read));
-            const resource = try state.resource(engine, q.resource);
-            try state.usable(engine, resource, try sample(engine));
+            const now = try sample(engine);
+            var captured: ?g.View = null;
+            var basis = current;
+            var resource: g.Resource = undefined;
+            if (q.view) |id| {
+                const stored = try state.view(engine, id);
+                try scope(principal, stored.meta.pid);
+                const process = try engine.process(stored.meta.pid);
+                try engine.executable(process, now, true);
+                if (process.owner != query.principal) return error.StaleGeneration;
+                const checked = try state.captured(engine, query.principal, process, id, stored.meta.input, now);
+                if (checked.meta.resource != q.resource) return error.InvalidStateView;
+                basis = try @TypeOf(current).open(engine.page_store, checked.snapshot);
+                resource = (try basis.get(g.Resource, address(.resource, q.resource))) orelse return error.InvalidHistory;
+                if (resource.revision != checked.meta.revision) return error.InvalidHistory;
+                captured = checked.meta;
+            } else {
+                try resourceScope(engine, principal, q.resource);
+                try state.allowed(engine, q.resource, query.principal, p.State.permission(.inspect) | p.State.permission(.read));
+                resource = try state.resource(engine, q.resource);
+                try state.usable(engine, resource, now);
+            }
             if (q.revision) |revision| if (resource.revision != revision) return error.StaleStateResource;
             var addresses: [g.page_size]core.pages.Key = undefined;
             var count: usize = 0;
@@ -166,12 +184,12 @@ pub fn read(engine: anytype, signed: g.SignedQuery) anyerror!g.Response {
                 addresses[i] = try c.key(.entry, resource.id, 0, key.slice());
                 count += 1;
             };
-            const result = try current.getMany(g.Entry, addresses[0..count]);
+            const result = try basis.getMany(g.Entry, addresses[0..count]);
             for (q.keys, 0..) |slot, i| if (slot) |key| {
                 if (result[i]) |entry| if (!entry.key.eql(key)) return error.InvalidHistory;
             };
-            try state.usable(engine, resource, try sample(engine));
-            break :blk .{ .read_entries = .{ .resource = resource, .entries = result } };
+            if (captured) |view| _ = try state.captured(engine, query.principal, try engine.process(view.pid), view.id, view.input, try sample(engine)) else try state.usable(engine, resource, try sample(engine));
+            break :blk .{ .read_entries = .{ .resource = resource, .view = captured, .entries = result } };
         },
         .view => |id| blk: {
             const value = try state.view(engine, id);

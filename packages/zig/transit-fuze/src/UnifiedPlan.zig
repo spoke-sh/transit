@@ -34,12 +34,18 @@ pub fn validateShape(self: Self) !void {
 pub fn validate(self: Self, schema: m.Schema) !void {
     try schema.validate();
     try self.validateShape();
-    var output: [m.max_columns]m.Column = undefined;
-    for (self.projection, 0..) |column, index| {
-        _ = try schema.column(column);
-        output[index] = try self.outputColumn(schema, index);
+    for (self.projection) |column| _ = try schema.column(column);
+    const renamed = for (self.output_names[0..self.projection.len]) |name| {
+        if (name != null) break true;
+    } else false;
+    // With no output aliases, validated source names and unique projections
+    // already prove the row schema; aggregate names/types are fixed constants.
+    // Renamed outputs still need the combined schema collision check.
+    if (renamed) {
+        var output: [m.max_columns]m.Column = undefined;
+        for (0..self.projection.len) |index| output[index] = try self.outputColumn(schema, index);
+        try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     }
-    try (m.Schema{ .columns = output[0..self.projection.len] }).validate();
     if (self.aggregate == .sum and (try schema.column(self.projection[0])).type != .int64) return error.UnsupportedAggregate;
     switch (self.predicate) {
         .all => {},
@@ -69,14 +75,7 @@ pub const Bound = struct {
     fingerprint: [32]u8,
 };
 pub fn bind(self: Self, basis: m.Basis, schema: m.Schema) !Bound {
-    try self.validate(schema);
-    try basis.validate(schema);
-    var bytes: [m.Codec.max_plan_bytes]u8 = undefined;
-    const encoded = try m.Codec.encode(self, &bytes);
-    var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    hash.update("transit.fuze.plan.v1\x00");
-    hash.update(encoded);
-    return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = hash.finalResult() };
+    return .{ .plan = self, .basis = basis, .schema = schema, .fingerprint = try m.Codec.boundFingerprint(self, basis, schema) };
 }
 pub fn matches(self: Self, row: m.Row) !bool {
     return switch (self.predicate) {

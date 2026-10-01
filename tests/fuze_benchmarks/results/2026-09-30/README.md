@@ -146,3 +146,47 @@ metadata algorithm. These reports measure their recorded revisions, not that
 integration. No optimization or speedup is claimed. Further optimization needs
 complete matching evidence under these budgets
 or an explicitly reviewed new measurement profile established beforehand.
+
+## Post-merge specialized-path regression
+
+After PR #42 merged, follow-up revision `a24f5cd3` passes full checks and the
+focused SQL/type/source/file/Arrow/codec proofs. Its
+[unchanged six-type driver](post-merge/six-before.json.gz), however, exceeds the
+frozen 1.15 candidate/control budget in seven of eight cases: predicate/aggregate
+ratios are 1.1795–1.2093; row export is 1.0093. The
+[scoped gate record](post-merge/six-before-gates.json) retains all failures. It
+checks only the specialized path, not the file comparison matrix or RAM/cache
+proof. It uses the same frozen control binary, driver hash, lockfile and CPU as
+the original budget and one warmup plus nine measured processes per binary.
+
+The raw runner reports completed measurements as `status: passed`; the separate
+gate record evaluates their ratios and correctly reports `failed`. Ratios are
+recomputed from the raw repetitions with `budgets.six_ratios`, with control,
+driver, lock and CPU identity checked against the frozen `budgets.json` before
+applying its `six.max_ratio`. No numeric budget is changed. A `perf record`
+diagnostic attempt was denied by the host's `perf_event_paranoid=4`; no kernel
+setting was changed and no sampled CPU profile is claimed.
+
+Revision `7aa743ca` avoids reconstructing unchanged output schemas during native
+plan validation. Fuze package tests and the independent SQL proof pass. Its
+[first paired measurement](post-merge/six-validation.json.gz) still
+[fails](post-merge/six-validation-gates.json) the Boolean case at 1.4662.
+Raw control timings varied substantially during this run (for example, the
+Boolean control spans 12.45–35.23 ms versus 12.54–12.77 ms before the change),
+so the ratio alone does not isolate the implementation cost. This run remains a
+failed gate. No samples are dropped and no budget is changed. An earlier startup
+attempt took no samples because the original worktree had been removed; the
+control was recovered from its detached build, verified against the original
+SHA-256 and copied into the follow-up worktree before this measurement.
+
+Revision `a99a9c59` also shares a private canonical encoder within the complete
+binding validation. `Plan.bind` still validates the source schema, projection,
+output-name shape/collisions, literal types and source basis before hashing;
+standalone `Codec.encode` independently checks caller-supplied shapes. Current
+wire bytes, definitions and plan fingerprints are unchanged. Fuze package and
+independent SQL proofs pass. Its
+[paired measurement](post-merge/six-bound-codec.json.gz) passes the unchanged
+[scoped gate](post-merge/six-bound-codec-gates.json): all eight ratios are
+1.0003–1.1219, below 1.15. This qualifies this native six-type regression control,
+not the file matrix, large-input comparison, hosted latency or a DuckDB speedup.
+The earlier failed samples and gate reports remain above.

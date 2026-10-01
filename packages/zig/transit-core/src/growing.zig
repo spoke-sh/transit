@@ -296,8 +296,10 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
             // identity is unchanged; administrative root replacement is invalid.
             var principal_value = (try candidate.get(Principal, address(.principal, request.principal))) orelse return error.InvalidHistory;
             principal_value.sequence = request.sequence;
-            try candidate.put(address(.principal, request.principal), principal_value);
-            try candidate.put(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) });
+            try candidate.mutate(&.{
+                try catalog.putMutation(address(.principal, request.principal), principal_value),
+                try catalog.putMutation(try catalog.key(.receipt, request.principal, request.sequence, ""), Receipt{ .position = self.head.position, .digest = try g.digest(request) }),
+            });
             next.catalog = candidate.snapshot;
             next.position += 1;
             return .{ .record = .{ .position = self.head.position, .previous = self.head.catalog.root, .next = next, .request = request, .time = sample } };
@@ -409,8 +411,10 @@ pub fn Engine(comptime Journal: type, comptime PageStore: type) type {
                     try self.admissible(process_value, sample, false);
                     process_value.admitted += 1;
                     const input: g.Input = .{ .position = position, .ordinal = process_value.admitted, .value = send.value, .origin = .{ .external = .{ .principal = request.principal, .policy_revision = (try self.principal(request.principal)).revision } } };
-                    try candidate.put(try catalog.key(.mailbox, send.pid, input.ordinal, ""), input);
-                    try candidate.put(address(.process, send.pid), process_value);
+                    try candidate.mutate(&.{
+                        try catalog.putMutation(try catalog.key(.mailbox, send.pid, input.ordinal, ""), input),
+                        try catalog.putMutation(address(.process, send.pid), process_value),
+                    });
                 },
                 .retry => |command| {
                     var process_value = try self.process(command.pid);
