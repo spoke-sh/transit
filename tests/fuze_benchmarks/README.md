@@ -166,5 +166,11 @@ performance budget. Host activity is not isolated and no native latency is measu
 
 `--query compound` compares the baseline filter with a six-instruction program
 that selects the same rows, to measure the extra predicate work. That is not a
-same-workload regression comparison. The ordinary matrix also accepts
+same-workload regression comparison. Add `--baseline-query compound` to run the
+same compound program against both binaries; both must support it. The report
+records both query choices and labels whether operator work is identical.
+Different queries are allowed only for the filter/compound pair, whose expected
+rows and checksums agree. `--cpu N` selects an available CPU for both probes;
+the default selects the first available CPU. Pinning does not reserve a CPU.
+The ordinary matrix also accepts
 `--query compound`, including its independent DuckDB result comparator.

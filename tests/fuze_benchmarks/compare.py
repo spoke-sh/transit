@@ -13,6 +13,13 @@ import tempfile
 import run
 
 
+def query_pair(candidate, baseline):
+    baseline = baseline or ('filter' if candidate == 'compound' else candidate)
+    if baseline != candidate and {baseline, candidate} != {'filter', 'compound'}:
+        raise ValueError('Different queries must be filter/compound with identical selected rows')
+    return dict(baseline=baseline, candidate=candidate)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True)
@@ -20,6 +27,9 @@ def main():
     parser.add_argument('--candidate', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--query', choices=('all', 'filter', 'compound', 'count', 'sum'), default='filter')
+    parser.add_argument('--baseline-query', choices=('all', 'filter', 'compound', 'count', 'sum'),
+                        help='Default: filter for compound, otherwise the candidate query')
+    parser.add_argument('--cpu', type=int, help='Pin both probes to this available CPU (default: first available)')
     parser.add_argument('--rows', type=int, default=4096)
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--shapes', nargs='+', choices=run.SHAPES, default=list(run.SHAPES))
@@ -27,8 +37,15 @@ def main():
     args = parser.parse_args()
     if not 4 <= args.rows <= 100_000_000 or not 3 <= args.repetitions <= 20:
         parser.error('Invalid workload budget')
+    try:
+        queries = query_pair(args.query, args.baseline_query)
+    except ValueError as error:
+        parser.error(str(error))
+    affinity = os.sched_getaffinity(0)
+    if args.cpu is not None and args.cpu not in affinity:
+        parser.error('--cpu must name an available affinity CPU')
     baseline_revision = run.git('rev-parse', args.baseline_revision + '^{commit}')
-    cpu = min(os.sched_getaffinity(0))
+    cpu = min(affinity) if args.cpu is None else args.cpu
     binaries = dict(baseline=args.baseline.resolve(), candidate=args.candidate.resolve())
     report = dict(
         definition='transit.fuze.file-comparison.v1', status='running', completed=False,
@@ -43,12 +60,13 @@ def main():
         compiler=subprocess.check_output(['zig', 'version'], text=True).strip(),
         platform=platform.platform(), cpu=cpu, load=os.getloadavg(),
         parameters=dict(rows=args.rows, repetitions=args.repetitions, shapes=args.shapes, modes=args.modes,
-                        query=args.query, cache='warm_input', timeout_seconds=300, address_space_bytes=4 * 1024**3),
+                        query=args.query, baseline_query=queries['baseline'], cache='warm_input',
+                        timeout_seconds=300, address_space_bytes=4 * 1024**3),
         limitations=[
             'Component measurement with the same source, schema and checked result; no durable transport.',
             'Warm input page-cache conditioning, new captures per sample; other host activity is not isolated.',
-            'Compound uses a single-atom baseline with the same selected rows and a candidate six-instruction program.',
-            'Compound ratios measure added operator work; they are not same-workload regression gate results.',
+            ('Identical query programs run against both binaries.' if queries['baseline'] == queries['candidate'] else
+             'Filter/compound compares identical selected rows with different operator work; not a same-workload gate.'),
         ], fixtures=[], samples=[], summary=[])
 
     def save():
@@ -67,8 +85,7 @@ def main():
                 for mode in args.modes:
                     for repetition in range(args.repetitions):
                         for role in (('baseline', 'candidate') if repetition % 2 == 0 else ('candidate', 'baseline')):
-                            query = 'filter' if role == 'baseline' and args.query == 'compound' else args.query
-                            config = run.config(fixture, mode, args.rows, 8, False, query)
+                            config = run.config(fixture, mode, args.rows, 8, False, queries[role])
                             conditioning = run.condition(fixture['paths'], 'warm_input')
                             sample = run.invoke([str(binaries[role])], config, fixture, directory, 'transit', 300, cpu)
                             sample.update(role=role, shape=shape, mode=mode, repetition=repetition,
@@ -86,7 +103,7 @@ def main():
                             medians[role] = statistics.median(timings)
                         ratio = medians['candidate'] / medians['baseline']
                         report['summary'].append(dict(shape=shape, mode=mode, phase=phase, median_ns=medians,
-                                                      ratio=ratio, same_workload=args.query != 'compound'))
+                                                      ratio=ratio, same_workload=queries['baseline'] == queries['candidate']))
                     print(f'{shape}/{mode}: {args.repetitions} pairs verified', flush=True)
         report.update(status='passed', completed=True)
     except BaseException as error:

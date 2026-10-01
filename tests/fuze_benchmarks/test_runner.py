@@ -8,6 +8,7 @@ import json
 import unittest
 import run
 import budgets
+import compare
 
 
 class Evidence(unittest.TestCase):
@@ -51,9 +52,18 @@ class Evidence(unittest.TestCase):
                 with path.open() as stream:
                     for row in run.csv.DictReader(stream):
                         self.assertNotEqual(row['id'], row['value'])
-            for query, count, total in [('all', 17, 136), ('filter', 4, 6), ('count', 1, 17), ('sum', 1, 136)]:
+            for query, count, total in [('all', 17, 136), ('filter', 4, 6), ('compound', 4, 6), ('count', 1, 17), ('sum', 1, 136)]:
                 cfg = run.config(source, 'explicit', 17, 8, False, query)
                 self.assertEqual((cfg['expected_output_rows'], cfg['expected_result_sum']), (count, total))
+
+    def test_comparison_requires_equivalent_results_and_labels_operator_work(self):
+        self.assertEqual(compare.query_pair('compound', None), dict(baseline='filter', candidate='compound'))
+        for query in ('all', 'filter', 'compound', 'count', 'sum'):
+            pair = compare.query_pair(query, query)
+            self.assertEqual(pair, dict(baseline=query, candidate=query))
+        for baseline in ('all', 'count', 'sum'):
+            with self.subTest(baseline=baseline), self.assertRaises(ValueError):
+                compare.query_pair('compound', baseline)
 
     def test_failed_preparation_cannot_leave_a_success_report(self):
         with tempfile.TemporaryDirectory() as temporary:
