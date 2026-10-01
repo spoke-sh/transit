@@ -11529,3 +11529,20 @@ does not establish a cause. The clean checkout remains at
 `/var/tmp/transit-ci-9vlbv3xj/src`; the fixture's temporary storage was removed by
 its cleanup. Log `/var/tmp/transit-count-descriptor-copy-clean-growth.log`.
 No deadline, residency or operation limit changes were made.
+
+A [discovery-copy experiment](benchmarks/results/2026-10-01-rejected-discovery-descriptor-copy.json.gz)
+extends `Type.clone` to explicit/raw discovery and neutral JSON descriptor
+decoding. Full `just check`, allocation-failure/ownership checks, 162 real file
+CLI cases and 91 independent native/port logical-codec cases pass. The initial
+and final probe builds are byte-identical after adding ownership tests. All
+**594 paired results** and **33 pipeline gates** pass, but cold wide/explicit
+SUM compilation reaches **1.3147** against the published descriptor-copy build:
+**32 of 33 compiler gates pass**. Passing that case against the older pre-COUNT
+control does not erase this failure. This variant is **not adopted**; its patch
+is restored from the integration worktree. The archive retains both patches,
+driver bytes and all six reports with independently audited sample inventories
+and medians. A separate variant retaining the JSON parser arena is evaluated
+independently. Logs `/var/tmp/transit-count-discovery-copy-comparison.log`,
+`/var/tmp/transit-count-discovery-copy-sum-comparison.log`,
+`/var/tmp/transit-count-discovery-copy-ownership-checks.log` and
+`/var/tmp/transit-count-discovery-copy-integrated-check.log`.
